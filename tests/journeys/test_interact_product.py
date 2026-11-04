@@ -13,12 +13,12 @@ from interact_support import (
     fragment_errors,
     publish,
 )
-from model.test_interact_product import CORPUS_SOURCES, PAGE_FIXTURES, run_leaf
+from model.test_interact_product import PAGE_FIXTURES, run_leaf
 
 import leaf.validation.command as checking_command
 from leaf import cli as cli_model
 from leaf.registry import storage as registry_storage
-from leaf_dev.example_data import named_source
+from leaf_dev.example_data import authored_sources, named_source
 from leaf_dev.page_fixtures import prepare_page, read_fixture
 
 
@@ -117,7 +117,7 @@ def test_every_seeded_fragment_passes_the_door_it_never_came_through(
     refused in a version, and until recently accepted in a reply. No seed carries one
     today, which is what a floor is for."""
     monkeypatch.chdir(tmp_path)  # keep the project layer out of the overlay
-    seeded = [p for p in CORPUS_SOURCES if p.with_suffix(".jsonl").exists()]
+    seeded = [p for p in authored_sources() if p.with_suffix(".jsonl").exists()]
     assert seeded, "no example ships a log; this gate is reading nothing"
     read = 0
     for example in seeded:
@@ -165,3 +165,97 @@ def test_every_seeded_fragment_passes_the_door_it_never_came_through(
         "no seeded event carries markup or an obligation, so this read nothing — see "
         "examples/AGENTS.md on what a log is for"
     )
+
+
+import click
+import pytest
+from interact_support import (
+    ROOT,
+    append_carried_log_record,
+    page_packages,
+    response_reference,
+)
+
+from leaf import event_log as events_model
+
+
+def test_reply_validates_widget_markup(page_dir):
+    """The current layer checks replies; older layers do not constrain their markup."""
+
+    def init(*packages):
+        result = CliRunner().invoke(
+            cli_model.cli,
+            ["page", "init", str(page_dir)]
+            + [arg for package in packages for arg in ("--package", package)],
+        )
+        assert result.exit_code == 0, result.output
+
+    # An earlier version under a layer without `diagram`'s lf-diagram.
+    init(*(package for package in page_packages() if package != "diagram"))
+    publish(page_dir)
+    init(*page_packages())
+    publish(page_dir)
+    append_carried_log_record(
+        page_dir, {"kind": "comment", "id": "c1", "author": "user", "text": "hm"}
+    )
+
+    def reply(markup):
+        return CliRunner().invoke(
+            cli_model.cli,
+            [
+                "thread",
+                "reply",
+                "--done",
+                response_reference(page_dir, "c1"),
+                "--text",
+                "See:",
+                "--markup",
+                markup,
+            ],
+        )
+
+    bad = reply('<lf-diagram id="f"><pre>graph LR</pre><b>x</b></lf-diagram>')
+    assert bad.exit_code != 0
+    assert "its body is one <pre> holding the text" in bad.output
+    good = reply('<lf-diagram id="f"><pre>\ngraph LR\n  A --> B\n</pre></lf-diagram>')
+    assert good.exit_code == 0, good.output
+    event = events_model.read_events(page_dir)[-1]
+    assert event["kind"] == "reply"
+    assert event["author"] == "agent"
+    assert event["text"] == "See:"
+    assert event["markup"].startswith("<lf-diagram")
+
+
+def test_a_seed_no_writer_could_send_stops_the_page_it_seeds(tmp_path, monkeypatch):
+    """An example's companion log enters through the append door, so a seed in a
+    shape no real page holds fails the build that lays it in, rather than reaching
+    the site and every sweep. A line copied from a stored log is that shape: it
+    carries what admission derives, which goes stale as the contract moves. A
+    line separator inside a message stays inside it."""
+    monkeypatch.chdir(tmp_path)  # keep the project layer out of the overlay
+    source = tmp_path / "seeded.html"
+    source.write_text(PAGE)
+    stored = {
+        "kind": "comment",
+        "author": "user",
+        "revision": 1,
+        "text": "Why this plan?\u2028Spring is soon.",
+        "anchor": {"section": "plan"},
+        "attention": True,
+    }
+    source.with_suffix(".jsonl").write_text(
+        json.dumps(stored, ensure_ascii=False) + "\n"
+    )
+    with pytest.raises(click.ClickException, match="attention"):
+        prepare_page(
+            tmp_path / "page", read_fixture(source), run_leaf, final_status=None
+        )
+    del stored["attention"]
+    source.with_suffix(".jsonl").write_text(
+        json.dumps(stored, ensure_ascii=False) + "\n"
+    )
+    page = tmp_path / "admitted"
+    prepare_page(page, read_fixture(source), run_leaf, final_status=None)
+    [seeded] = [e for e in events_model.read_events(page) if e["kind"] == "comment"]
+    assert seeded["attention"] is True
+    assert seeded["text"] == stored["text"]

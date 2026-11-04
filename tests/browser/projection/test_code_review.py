@@ -436,7 +436,7 @@ def test_native_call_diff_json_keeps_spaced_paths_and_exact_patch_destinations(
             selector = (
                 ".lf-call-root-location a"
                 if status == "unchanged"
-                else f'.lf-call-line[data-status="{status}"] a'
+                else f'.lf-call-line[data-lf-status="{status}"] a'
             )
             # Playwright's text filters collapse whitespace; the source coordinates
             # intentionally distinguish these two names.
@@ -1036,9 +1036,13 @@ def test_a_source_replacement_preserves_the_focused_draft_and_its_original_ancho
         "“Original source words.”" if quote_anchor else "§ text-document"
     )
     assert page.evaluate("() => CSS.highlights.get('lf-pending').size") == 0
-    expect(page.locator("#source.lf-pending, #source .lf-pending")).to_have_count(0)
-    # Earlier data no longer supplies a passage fragment. The surviving datum
-    # keeps the editor beside it; sending hands that position to the first card.
+    # The document is the same document across the replacement, so a draft on all of it
+    # stays on it, outlined. A draft on words the replacement took names no place now,
+    # and the document only keeps its editor in view. Either way the editor stays where
+    # it stood; sending hands that position to the first card.
+    expect(page.locator("#source.lf-pending, #source .lf-pending")).to_have_count(
+        0 if quote_anchor else 1
+    )
     bar = page.locator(".lf-fab-bar")
     expect(bar).to_have_attribute("data-lf-placement", re.compile("(top|bottom)-start"))
     rendered(page)
@@ -1058,10 +1062,19 @@ def test_a_source_replacement_preserves_the_focused_draft_and_its_original_ancho
         "datum": "document",
         "source": "document",
         "source_revision": original_revision,
+        "identity": "document",
     }
     if quote_anchor:
-        expected_anchor["quote"] = "Original source words."
+        # The document's own words around the quote, its caption here, are its context.
+        expected_anchor |= {"quote": "Original source words.", "prefix": "document"}
     assert comment["anchor"] == expected_anchor
+    if quote_anchor:
+        # Its words are gone, so the thread stands nowhere on the page, and its head
+        # says so.
+        quote = open_panel_thread(page, comment["id"]).locator(".lf-fp-quote")
+        expect(quote).to_have_attribute("data-lf-detached", "")
+        expect(page.locator(".lf-margin-marker")).to_have_count(0)
+        return
     card = page.locator(".lf-margin-preview")
     expect(card).to_have_css("opacity", "1")
     rendered(page)
@@ -1073,18 +1086,15 @@ def test_a_source_replacement_preserves_the_focused_draft_and_its_original_ancho
     page.locator(".lf-margin-marker").click()
     expect(card).to_have_css("opacity", "1")
     rendered(page)
-    # Reopening is a fresh placement on the datum's current full-width box; it
-    # need not retain the old quote's inline start after its words disappeared. The
+    # Reopening is a fresh placement on the document's current full-width box. The
     # document scrolls inside its box, so the card may open over that box or under it.
     reopened = card.bounding_box()
     assert datum["x"] < reopened["x"] + reopened["width"]
     assert reopened["x"] < datum["x"] + datum["width"]
     assert datum["y"] < reopened["y"] < datum["y"] + datum["height"] + 10
-    # The thread's own head says the words it quotes are earlier data, as a plain word
-    # rather than a boxed badge.
+    # A comment on the whole document follows it, so its head has nothing to say.
     status = open_panel_thread(page, comment["id"]).locator(".lf-anchor-status")
-    expect(status).to_have_text("Earlier data")
-    assert status.evaluate("el => getComputedStyle(el).borderTopWidth") == "0px"
+    expect(status).to_have_count(0)
 
 
 def test_a_large_diff_filters_and_navigates_lazy_files(browser, serve):
@@ -1291,6 +1301,12 @@ def test_datum_travel_resolves_the_destination_after_reveal(browser, serve):
     page.locator("#patch").evaluate(
         """source => {
           let revealed = false;
+          // This fixture replaces the widget's rows itself, so it also owns
+          // their address lookup rather than leaving lf-diff's retained rows stale.
+          const elementsFor = source.lfElementsFor.bind(source);
+          source.lfElementsFor = key => elementsFor(key).flatMap(original =>
+            [...source.shadowRoot.querySelectorAll('[data-lf-datum]')].filter(
+              row => row.dataset.lfDatum === original.dataset.lfDatum));
           source.parentElement.addEventListener('beforematch', () => {
             const row = source.shadowRoot.querySelector(
               `[data-lf-datum='["app.py","new",2]']`);
@@ -1311,9 +1327,11 @@ def test_datum_travel_resolves_the_destination_after_reveal(browser, serve):
     page.evaluate(hide)
     page.locator("#calls .lf-call-location").last.click()
     expect(page.locator(".lf-live")).to_have_text("Opened app.py:2 in the exact patch")
-    expect(
-        page.locator('lf-diff [data-lf-datum=\'["app.py","new",2]\'][data-rebuilt]')
-    ).to_be_in_viewport()
+    rebuilt = page.locator(
+        'lf-diff [data-lf-datum=\'["app.py","new",2]\'][data-rebuilt]'
+    )
+    expect(rebuilt).to_be_in_viewport()
+    expect(rebuilt).to_be_focused()
     page.evaluate(hide)
     page.locator("#calls .lf-call-location").last.click()
     expect(page.locator(".lf-live")).to_have_text(

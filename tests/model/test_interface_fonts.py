@@ -1,4 +1,4 @@
-"""Leaf's interface sets its words in the fonts base.css declares (`--font-*`)."""
+"""Leaf's interface sets its words in the theme's fonts (`--font-*`, tokens.css)."""
 
 import re
 
@@ -9,7 +9,9 @@ from leaf.state import PLUGIN_ROOT
 
 # Declarations that make a face, and what a rule of the interface may write for each
 # without naming a font: inheriting its holder's, a weight for a run that keeps its
-# holder's font, a box that holds no words, and the fonts' shared leading. Any other
+# holder's font, a box that holds no words, and the fonts' shared leading. A box the
+# user types in keeps its holder's size above the entry floor, under which a phone
+# zooms onto the field (surfaces.css). Any other
 # line height, a length included, is a leading of the rule's own: a box centres its
 # words by layout rather than with a line as tall as itself.
 #
@@ -21,7 +23,9 @@ from leaf.state import PLUGIN_ROOT
 OWN = {
     "font": lambda value: value == "inherit",
     "font-family": lambda value: value in {"inherit", "var(--mono)"},
-    "font-size": lambda value: value in {"inherit", "0", "var(--code-size)"},
+    "font-size": lambda value: (
+        value in {"inherit", "0", "var(--code-size)", "max(var(--entry-floor), 1em)"}
+    ),
     "font-weight": lambda value: value in {"inherit", "400", "500", "600"},
     "line-height": lambda value: (
         value in {"inherit", "0", "1", "var(--lf-ui-lh)", "var(--code-line)"}
@@ -40,12 +44,13 @@ def sheets():
 
 
 def interface(context):
-    """Whether a rule selects an element of the interface: one with an `lf-` class,
-    which a `:not()` excluding one does not."""
+    """Whether a rule selects an element of the interface: an `lf-` element or one with
+    an `lf-` class, which a `:not()` excluding one does not. An attribute such as
+    `data-lf-state` qualifies an element rather than naming one."""
     said = " ".join(context)
     while (bare := re.sub(r":not\([^()]*\)", "", said)) != said:
         said = bare
-    return ".lf-" in said
+    return re.search(r"(?<![\w-])lf-", said) is not None
 
 
 def declarations(rules, context=()):
@@ -85,8 +90,11 @@ def test_every_rule_of_the_interface_names_a_declared_font():
     floating panel at 13px and 12px beside the chrome's 14px and 11.5px, a row's end a
     pixel under whatever row held it, line heights from 1.2 to 1.5, weights of 450, 650
     and 700. Each looked deliberate where it was written. A rule of the interface, one
-    that names an `lf-` class, now names a font, so a new face is a new font in
-    base.css's one list of them, where it is seen beside the others.
+    that names an `lf-` element or class, now names a font, so a new face is a new font
+    in the theme's one list of them (styles/tokens.css), where it is seen beside the
+    others. The widgets' own faces had drifted the same way: a card, a note on a line
+    of source, a review and a playground's instruction each set the small sans on a
+    leading of 1.35, 1.5 or 1.55.
 
     Asked of the source rather than of a rendered page, because that is where the face
     is chosen, and every sheet is read whether or not a page draws its rules: the
@@ -95,12 +103,12 @@ def test_every_rule_of_the_interface_names_a_declared_font():
     fonts = {
         item.name
         for _, item, _ in declarations(
-            tinycss2.parse_stylesheet((ASSETS / "base.css").read_text())
+            tinycss2.parse_stylesheet((ASSETS / "styles/tokens.css").read_text())
         )
         if item.name.startswith("--font-")
     }
     assert {"--font-ui", "--font-small", "--font-message"} <= fonts, (
-        f"base.css declares the fonts {sorted(fonts)}: this reading has stopped "
+        f"tokens.css declares the fonts {sorted(fonts)}: this reading has stopped "
         f"finding them and the assertion below is about nothing"
     )
     named = re.compile(r"var\((--font-[\w-]+)\)")
@@ -127,5 +135,5 @@ def test_every_rule_of_the_interface_names_a_declared_font():
                 own.append(f"{where} {' { '.join(context)} — {item.name}: {said(item)}")
     assert not own, (
         f"{len(own)} rules of the interface set a face of their own rather than naming "
-        f"a font (base.css, `--font-*`):\n  " + "\n  ".join(own)
+        f"a font (styles/tokens.css, `--font-*`):\n  " + "\n  ".join(own)
     )

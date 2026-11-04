@@ -54,7 +54,7 @@
    gestures request that same pass. Mount binds the overlay's mechanical lifecycle. */
 
 import { createThreadPreview } from "./thread-preview.js";
-import { windowHoldsRail } from "../content-layout.js";
+import { proseRect, windowHoldsRail } from "../content-layout.js";
 
 import { afterScript, cancelRender, nextRender } from "../rendering.js";
 import { spokenSubject } from "../contribution-model.js";
@@ -122,7 +122,7 @@ import {
   currentLocationIn,
 } from "../focus.js";
 
-import { el, generatedElement, offer } from "../widget-elements.js";
+import { el, generatedElement, offerActionElement } from "../widget-elements.js";
 import { keeps, keepsHidden } from "../keeps.js";
 
 import { cycledRow, rowArrows, nativePress } from "../keyboard/bindings.js";
@@ -141,6 +141,7 @@ import { arrivalOf, declareSide } from "../current-target.js";
 import { closestAcross, inChrome } from "../passages.js";
 import { visualAt } from "../anchor-resolution.js";
 import { paintTrace } from "../target-paint.js";
+import { outlineChange } from "../margin-bars.js";
 
 import { threadNamed } from "../thread/state.js";
 import { carryingThreadPlace, currentLocationThreadId } from "../thread/focus.js";
@@ -278,10 +279,13 @@ export function createMarginProjection({
       });
     });
   }
-  /** @param {readonly Entry[]} inventory @param {DOMRect} [mainRect] @param {number} [mainHeight] */
+  // The column is its prose box, as the margin's layout pass reads it and hands it to
+  // `lf-margin-layout`: names read against another box would change back and forth
+  // between a render and the layout pass after it.
+  /** @param {readonly Entry[]} inventory @param {import("../content-layout.js").ProseBox} [mainRect] @param {number} [mainHeight] */
   function readSpokenPositions(
     inventory,
-    mainRect = marginColumn().getBoundingClientRect(),
+    mainRect = proseRect(marginColumn()),
     mainHeight = marginColumn().scrollHeight,
   ) {
     spokenBasis = mainRect && { width: mainRect.width, height: mainHeight };
@@ -350,7 +354,8 @@ export function createMarginProjection({
   // commands remain native buttons. While it is a press, Enter and Space press it as
   // they would a button (role-button-press.js), and as a status nothing presses it.
   /** @param {string} className */
-  const readingControl = (className) => offer("span", className);
+  const readingControl = (className) =>
+    offerActionElement(document.createElement("span"), "entry", className);
 
   // The one writer over a reading's disclosure relation, settling `aria-controls` and
   // `aria-expanded` together because a control that says it opens something has to say
@@ -1326,7 +1331,22 @@ export function createMarginProjection({
     // An obligation's location ring already identifies this target, including when
     // its margin marker holds focus. Quiet brackets on that perimeter cover the ring.
     const obligationShown = target && target === currentLocationObligation();
-    highlight(drawingOnly || currentLocationShown || obligationShown ? null : target);
+    // A Change entry under the pointer or focus outlines its whole change, every block
+    // and its gap, in place of the brackets round its first block (margin-bars.js), until
+    // its card stands open over the change.
+    const changeSource = marker
+      ? entry?.items.map((item) => sourceItem(item)).find((source) => source?.change)
+      : null;
+    outlineChange(
+      changeSource?.change && !changeSource.discloses?.()?.open
+        ? changeSource.change
+        : null,
+    );
+    highlight(
+      changeSource || drawingOnly || currentLocationShown || obligationShown
+        ? null
+        : target,
+    );
   }
 
   function previewChanged() {
@@ -1409,7 +1429,7 @@ export function createMarginProjection({
   // (thread/replies.js, `releaseReplies`), or the thread. A widened window gives it back
   // (thread/destination.js, `returnToPage`).
   function yieldPreview() {
-    const id = card.thread()?.getAttribute("data-thread");
+    const id = card.thread()?.getAttribute("data-lf-thread");
     const inCard = currentLocationIn(preview);
     const replying = card.replying();
     const intent = retainUserIntent();
@@ -1699,7 +1719,6 @@ export function createMarginProjection({
       if (!selected.has(control)) syncContributionSelection(control, false);
     for (const control of selected) syncContributionSelection(control, true);
     selectedReadingCarriers = selected;
-    scheduleMarginEntryLabels();
   }
 
   // ---------- the card goes where the user is ----------
@@ -1748,7 +1767,9 @@ export function createMarginProjection({
   const seatedOnPage = (id) =>
     claimed(id) ||
     [
-      ...document.querySelectorAll(`.lf-page-thread[data-thread="${CSS.escape(id)}"]`),
+      ...document.querySelectorAll(
+        `.lf-page-thread[data-lf-thread="${CSS.escape(id)}"]`,
+      ),
     ].some((seat) => closestAcross(seat, ".lf-thread-seat[data-lf-thread-seat]"));
   // The innermost target holding the node whose threads the card would show. A thread is
   // about exactly its anchor's target (header), reached from anywhere

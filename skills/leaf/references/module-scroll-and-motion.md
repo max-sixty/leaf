@@ -36,11 +36,13 @@ module stacks the track with the content, as on a phone, it declares
 `--lf-track-scroll-behavior: flow` on the track's parent, and the track scrolls with
 the page. Register the track as a reading region, since it may scroll.
 
-A horizontal scroll surface uses the shared `scroll` class on its actual
-viewport and declares overflow in its CSS. The class supplies containment. Leaf adds
-keyboard access and continuation cues, inspecting these surfaces for overflow instead
-of reading every descendant's styles. A reading region's body receives this class when
-it registers; its CSS still decides whether the region scrolls or flows.
+A horizontal scroll surface a module builds wears `data-lf-scroll` on its actual
+viewport and declares overflow in its CSS; the page's own markup says the same with
+`class="scroll"` (`page-authoring.md`), a name the module leaves to the page, so the
+page's CSS for it reaches only the page's own boxes. The mark supplies containment. Leaf adds keyboard
+access and continuation cues, inspecting these surfaces for overflow instead of reading
+every descendant's styles. A reading region's body receives the mark when it
+registers; its CSS still decides whether the region scrolls or flows.
 Sticky headers set `--lf-head-inset: 0px` beside their `position: sticky` rule so
 keyboard focus counts the header's own inset as visible.
 
@@ -157,9 +159,9 @@ itself.
 
 A box a package makes scroll sets `--lf-top: 0px` beside its `overflow`, so a header
 inside it sticks at its top from the first paint. Leaf also restarts `--lf-top` on a box
-with the `scroll` class, such as a registered reading region's body, once it finds the
-box scrolling and not sticking, `overflow: hidden` included. Leaf reads no other box's
-overflow, so in a box that scrolls without that declaration or the class, a header
+marked as a scroll surface, such as a registered reading region's body, once it finds
+the box scrolling and not sticking, `overflow: hidden` included. Leaf reads no other
+box's overflow, so in a box that scrolls without that declaration or the mark, a header
 sticks as far below the box's top as the headers stacked over the box, and covers what
 lies under the header. A header sticks below its scroller's top padding; to have it sit
 on the scroller's edge, set `--lf-top-start` to minus that padding and
@@ -194,8 +196,12 @@ container above it.
 ## Travel and history
 
 Link to a place on the page with an ordinary fragment link; Leaf clears any panel
-covering the page and opens whatever holds the element. A widget that opens the part a
-fragment names reads it with `fragmentTarget(hash)`, which returns nothing for an id in
+covering the page and opens whatever holds the element. A fragment can also name a
+part of a widget by the widget's id and a key, which `fragmentUrl` builds
+([module-reading.md, "Following a reference"](module-reading.md#following-a-reference)).
+A widget that opens the part a
+fragment names reads it with `fragmentTarget(hash)`: the element, or for a key the part
+the widget has drawn for it, else the widget. It returns nothing for an id in
 Leaf's chrome, in a message's markup, or on content a revision removed.
 
 Before Leaf travels to a target, such as a comment's anchor, it reveals the target as
@@ -222,7 +228,8 @@ restore the page itself when the user goes Back or Forward to one of its entries
 the page for an entry of the widget's, or nothing. The handler may be asynchronous.
 When it only reveals the destination view, it resolves to `false`, and Leaf restores
 the entry's saved viewport after the view is shown. Otherwise the handler owns
-viewport placement.
+viewport placement. Either way, where the entry's fragment still names a place the
+page doesn't show once the handler finishes, Leaf reveals that place and lands there.
 
 ## Motion
 

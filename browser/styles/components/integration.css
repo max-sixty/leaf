@@ -6,31 +6,23 @@
   max-width: 100%;
   max-height: min(60vh, 480px);
 }
-/* A toggle's selected face, a word's or a symbol's. */
-:is(.lf-btn, .button, .lf-icon-action):is(
-  [aria-pressed="true"],
-  [aria-checked="true"]
-) {
-  border-color: var(--accent);
-  color: var(--accent);
-  background: var(--chip);
-}
 /* Draw mode takes presses on the document plane, page-widget controls included, while
    Leaf surfaces keep their gestures. The crosshair is important: it covers whatever
    cursor the page or a widget states for its own controls. Runtime surfaces keep
    their controls usable wherever their owner seats them, so the crosshair leaves them
    out and they keep their own cursors. A document selector does not cross a declared
-   shadow root, so main states the mode as an inherited property that these rules
+   shadow root, so the body states the mode as an inherited property that these rules
    query; this sheet reaches the document and every shadow tree, so one rule serves
    both. */
-html[data-lf-draw-mode] main {
+html[data-lf-draw-mode] body {
   --lf-draw-mode: on;
 }
 @container style(--lf-draw-mode: on) {
-  :not([data-lf-runtime], [data-lf-runtime] *) {
+  :not(.lf-chrome, .lf-chrome *, [data-lf-runtime], [data-lf-runtime] *) {
     cursor: crosshair !important;
   }
-  :where([data-lf-runtime]) {
+  :where(.lf-chrome, [data-lf-runtime]) {
+    --lf-draw-mode: off;
     cursor: auto;
   }
 }
@@ -89,13 +81,18 @@ html[data-lf-draw-mode] main {
   display: contents;
 }
 /* The frames a block's sticky headers cut its control in take no presses of their own
-   and stack where the control would. A frame is the containing block of an absolute
-   box, which an anchor outside the frame cannot position, so the control inside one is
-   fixed. */
+   and stack where the control would. A positioned box is the containing block of an
+   absolute one, which an anchor outside it cannot position (CSS Anchor Positioning,
+   "acceptable anchor element"), and a document control stands in two: Leaf's chrome
+   root (base.css, `:root > .lf-chrome`) and, cut, its frame. So a document control is
+   fixed, with the window for its containing block, and its anchor carries it through
+   every scroll. A widget's control, standing in the widget's own tree with its block,
+   stays absolute. */
 .lf-block-control-cut {
   pointer-events: none;
   z-index: 1;
 }
+.lf-chrome > .lf-block-controls > *,
 .lf-block-controls .lf-block-control-cut > * {
   position: fixed;
 }
@@ -210,9 +207,9 @@ html[data-lf-draw-mode] main {
   }
 }
 .lf-video-controls:is(
-  :not([data-playing]),
-  [data-hovered],
-  [data-keyed],
+  :not([data-lf-playing]),
+  [data-lf-hovered],
+  [data-lf-keyed],
   :hover,
   :has(:focus-visible)
 ) {
@@ -227,13 +224,13 @@ html[data-lf-draw-mode] main {
 :is(.lf-video-play, .lf-video-full-screen) {
   flex: none;
   /* Flush with the bar's edge, the ring stays inside the press. */
-  outline-offset: var(--focus-ring-inset);
+  --lf-ring-at: var(--focus-ring-inset);
 }
 .lf-video-play > .lf-action-icon {
   grid-area: 1 / 1;
 }
-.lf-video-controls:not([data-playing]) .lf-video-play > [data-lf-icon="pause"],
-.lf-video-controls[data-playing] .lf-video-play > [data-lf-icon="play"] {
+.lf-video-controls:not([data-lf-playing]) .lf-video-play > [data-lf-icon="pause"],
+.lf-video-controls[data-lf-playing] .lf-video-play > [data-lf-icon="play"] {
   visibility: hidden;
 }
 .lf-video-time {

@@ -4,9 +4,12 @@
  * refuses the platform's own insertions where the source shows such a node.
  *
  * Within one composed root, `moveBefore` keeps the node's native state where the browser
- * has it: focus, a field's caret, typed text and an iframe's document. A selection in an
- * editable collapses all the same, so an editor that records its own puts it back as it
- * lands (`connectedMoveCallback`, as `leaf-text` does). New nodes, nodes from
+ * has it: focus, a field's caret, typed text and an iframe's document. A selection with
+ * an end inside the node is reset all the same, as the DOM's move algorithm resets every
+ * live range there. On Leaf, `setChildLists` (dom-children.js) holds the page's
+ * selection around the moves it makes and puts it back (`holdSelection`), and an editor
+ * in a shadow tree records its own and puts it back as it lands (`connectedMoveCallback`,
+ * as `leaf-text` does). New nodes, nodes from
  * another root, and WebKit, which lacks the API, use `insertBefore`, which blurs a focused
  * descendant to the body; an element's hold (`holdFocus`) puts the user back in it, as
  * it does when a change had dropped them from it and they have not acted since. An
@@ -23,11 +26,32 @@ let focusOwner = null;
 export const installMoveFocus = (owner) => {
   focusOwner = owner;
 };
+// Leaf installs its selection writer (native-selection.js) at boot (leaf.js); off
+// Leaf a move leaves a selection inside a moved node reset, as the browser does.
+/** @type {typeof import("./native-selection.js").holdSelection | null} */
+let selectionOwner = null;
+/** @param {typeof import("./native-selection.js").holdSelection} owner */
+export const installMoveSelection = (owner) => {
+  selectionOwner = owner;
+};
+// The page selection where moving `placed` would reset it, and what puts it back.
+/** @param {Iterable<Node>} placed */
+export const holdSelection = (placed) => selectionOwner?.(placed) ?? null;
+// Leaf's keys mark what a renderer painted by its root and read the root's contents
+// at the frame (keyboard/scopes.js, `paintKeysWithin`); a placed node is shown to
+// them before it moves, so a control leaving a painted root keeps its mark.
+/** @type {((node: Node) => void) | null} */
+let keysOwner = null;
+/** @param {(node: Node) => void} owner */
+export const installMoveKeys = (owner) => {
+  keysOwner = owner;
+};
 
 /** @template {Node} T @param {Node & ParentNode} parent @param {T} node @param {Node | null} [before] */
 export function move(parent, node, before = null) {
   if (node.parentNode === parent && (before === node || node.nextSibling === before))
     return node;
+  if (node.isConnected) keysOwner?.(node);
   // A retained move can enter another shadow root without a focus event. Subscribe
   // before placement, so connectedMoveCallback and the caller's next move are heard.
   if (parent.isConnected) focusOwner?.watch(parent.getRootNode());

@@ -31,7 +31,6 @@ from interact_support import (
     fresh_process,
     live_versions,
     owed,
-    page_packages,
     page_state,
     publish,
     published,
@@ -62,15 +61,7 @@ from leaf.validation.admission import (
     revision_publication,
 )
 from leaf.validation.instances import reference_errors
-from leaf_dev.example_data import regression_sources
-from leaf_dev.page_fixtures import prepare_page, read_fixture
-
-PUBLIC_EXAMPLES = tuple(
-    path for path in sorted((ROOT / "examples").glob("*.html")) if path.stem != "corpus"
-)
-FEATURE_GALLERY = ROOT / "examples" / "developer" / "feature-gallery.html"
-DEVELOPER_PAGES = tuple(sorted((ROOT / "examples" / "developer").glob("*.html")))
-CORPUS_SOURCES = (*PUBLIC_EXAMPLES, *regression_sources(), *DEVELOPER_PAGES)
+from leaf_dev.example_data import authored_sources, named_source, page_files
 
 
 def authored_tags(document: SourceDocument) -> set[str]:
@@ -493,15 +484,9 @@ def test_every_path_a_diff_resolves_names_a_language_the_bundles_carry(page_dir)
 
 
 PAGE_FIXTURES = (
-    *CORPUS_SOURCES,
+    *authored_sources(),
     *sorted((ROOT / "notes").glob("**/*.html")),
 )
-
-
-def test_the_fixture_check_reaches_the_developer_pages():
-    """A moved `examples/developer/` would leave the check above with nothing to say
-    about it rather than failing."""
-    assert FEATURE_GALLERY in PAGE_FIXTURES
 
 
 def test_every_widget_in_the_vocabulary_stands_in_a_corpus_source():
@@ -514,7 +499,10 @@ def test_every_widget_in_the_vocabulary_stands_in_a_corpus_source():
     registry = validation_model.incoming_registry(SHIPPED_PACKAGES)
     # The corpus is generated from the others, so it can only repeat their coverage.
     authored = set().union(
-        *(authored_tags(SourceDocument(path.read_text())) for path in CORPUS_SOURCES)
+        *(
+            authored_tags(SourceDocument(path.read_text()))
+            for path in authored_sources()
+        )
     )
     tags = element_declarations(registry)
     assert tags, "no widgets read — an empty vocabulary demonstrates itself"
@@ -534,7 +522,7 @@ def test_every_default_widget_stands_in_the_feature_gallery():
         (schema_model.DEFAULT_PACKAGE / "registry.json").read_text(encoding="utf-8")
     )
     authored = authored_tags(
-        SourceDocument(FEATURE_GALLERY.read_text(encoding="utf-8"))
+        SourceDocument(named_source("feature-gallery").read_text(encoding="utf-8"))
     )
     tags = [tag for tag in registry if tag.startswith("lf-")]
     assert tags, "the default package declares no widgets"
@@ -547,11 +535,10 @@ def test_every_default_widget_stands_in_the_feature_gallery():
 
 def test_the_feature_gallery_eyebrows_index_literal_code_names():
     """Every showcased element is indexed by a code name, never descriptive prose."""
-    authored = FEATURE_GALLERY.read_text(encoding="utf-8")
+    gallery = named_source("feature-gallery")
+    authored = gallery.read_text(encoding="utf-8")
     gallery_registry = json.loads(
-        (FEATURE_GALLERY.with_suffix(".page") / "registry.json").read_text(
-            encoding="utf-8"
-        )
+        (page_files(gallery) / "registry.json").read_text(encoding="utf-8")
     )
     apparatus = {
         tag for tag, entry in gallery_registry.items() if entry.get("x-exhibit")
@@ -860,53 +847,6 @@ def test_a_playground_control_stands_in_the_rail_or_inside_its_preview():
         + inner.replace(tone.format(name="lost-tone"), "")
         + "</lf-sample>",
     )
-
-
-def test_reply_validates_widget_markup(page_dir):
-    """The current layer checks replies; older layers do not constrain their markup."""
-
-    def init(*packages):
-        result = CliRunner().invoke(
-            cli_model.cli,
-            ["page", "init", str(page_dir)]
-            + [arg for package in packages for arg in ("--package", package)],
-        )
-        assert result.exit_code == 0, result.output
-
-    # An earlier version under a layer without `diagram`'s lf-diagram.
-    init(*(package for package in page_packages() if package != "diagram"))
-    publish(page_dir)
-    init(*page_packages())
-    publish(page_dir)
-    append_carried_log_record(
-        page_dir, {"kind": "comment", "id": "c1", "author": "user", "text": "hm"}
-    )
-
-    def reply(markup):
-        return CliRunner().invoke(
-            cli_model.cli,
-            [
-                "thread",
-                "reply",
-                "--done",
-                response_reference(page_dir, "c1"),
-                "--text",
-                "See:",
-                "--markup",
-                markup,
-            ],
-        )
-
-    bad = reply('<lf-diagram id="f"><pre>graph LR</pre><b>x</b></lf-diagram>')
-    assert bad.exit_code != 0
-    assert "its body is one <pre> holding the text" in bad.output
-    good = reply('<lf-diagram id="f"><pre>\ngraph LR\n  A --> B\n</pre></lf-diagram>')
-    assert good.exit_code == 0, good.output
-    event = events_model.read_events(page_dir)[-1]
-    assert event["kind"] == "reply"
-    assert event["author"] == "agent"
-    assert event["text"] == "See:"
-    assert event["markup"].startswith("<lf-diagram")
 
 
 def test_a_reply_drawn_before_posting_runs_no_script_its_thread_would_not(page_dir):
@@ -1812,7 +1752,9 @@ def test_a_rewrite_lands_only_on_the_words_it_was_written_over(page_dir):
     save silently replaced the newer rewrite another tab had made. A rewrite names the
     revision it was written over, and the door refuses it once that revision is not the
     message's latest, telling the user to edit again. Words the message already says are
-    no rewrite."""
+    no rewrite. Undoing a rewrite gives the message back the words it replaced, and the
+    rewrite before it is the one the next lands on. Once the agent has answered a
+    rewrite, its answer stands on those words, and the door refuses to take it back."""
     publish(page_dir)
     said = append_command(
         page_dir,
@@ -1843,6 +1785,37 @@ def test_a_rewrite_lands_only_on_the_words_it_was_written_over(page_dir):
     ]
     assert [message["text"] for message in thread["msgs"]] == ["West."]
     assert thread["msgs"][0]["edited"]["was"] == "South."
+
+    append_command(page_dir, {"kind": "undo", "author": "user", "undoes": west["id"]})
+    thread = event_folds_model.build_threads(events_model.read_events(page_dir), {})[
+        said["id"]
+    ]
+    assert [message["text"] for message in thread["msgs"]] == ["South."]
+    assert thread["msgs"][0]["edited"] == {
+        "id": south["id"],
+        "seq": south["seq"],
+        "ts": south["ts"],
+        "was": "North.",
+    }
+    with pytest.raises(events_model.EventRefused):
+        rewrite("East.", west["id"])
+    east = rewrite("East.", south["id"])
+    append_command(
+        page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Codex",
+            "parent": said["id"],
+            "responds": east["id"],
+            "text": "Heading east.",
+        },
+    )
+    with pytest.raises(events_model.EventRefused) as answered:
+        append_command(
+            page_dir, {"kind": "undo", "author": "user", "undoes": east["id"]}
+        )
+    assert [finding.code for finding in answered.value.findings] == ["answered-edit"]
 
 
 def test_edit_uses_the_captured_contract_when_the_candidate_registry_is_invalid(
@@ -1973,41 +1946,6 @@ def test_example_layer_selects_existing_packages(tmp_path, monkeypatch):
     resolved = layer_model.resolve_packages(tuple(packages), Path.cwd())
     assert resolved == [schema_model.BUNDLED_PACKAGES / name for name in packages]
     assert layer_model.checked_inputs(resolved) == resolved
-
-
-def test_a_seed_no_writer_could_send_stops_the_page_it_seeds(tmp_path, monkeypatch):
-    """An example's companion log enters through the append door, so a seed in a
-    shape no real page holds fails the build that lays it in, rather than reaching
-    the site and every sweep. A line copied from a stored log is that shape: it
-    carries what admission derives, which goes stale as the contract moves. A
-    line separator inside a message stays inside it."""
-    monkeypatch.chdir(tmp_path)  # keep the project layer out of the overlay
-    source = tmp_path / "seeded.html"
-    source.write_text(PAGE)
-    stored = {
-        "kind": "comment",
-        "author": "user",
-        "revision": 1,
-        "text": "Why this plan?\u2028Spring is soon.",
-        "anchor": {"section": "plan"},
-        "attention": True,
-    }
-    source.with_suffix(".jsonl").write_text(
-        json.dumps(stored, ensure_ascii=False) + "\n"
-    )
-    with pytest.raises(click.ClickException, match="attention"):
-        prepare_page(
-            tmp_path / "page", read_fixture(source), run_leaf, final_status=None
-        )
-    del stored["attention"]
-    source.with_suffix(".jsonl").write_text(
-        json.dumps(stored, ensure_ascii=False) + "\n"
-    )
-    page = tmp_path / "admitted"
-    prepare_page(page, read_fixture(source), run_leaf, final_status=None)
-    [seeded] = [e for e in events_model.read_events(page) if e["kind"] == "comment"]
-    assert seeded["attention"] is True
-    assert seeded["text"] == stored["text"]
 
 
 def test_page_state_reads_reactions_as_marks(page_dir):

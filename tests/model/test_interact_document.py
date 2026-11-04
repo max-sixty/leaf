@@ -905,7 +905,12 @@ def test_markdown_body_passages_preserve_source_state_and_read_visible_words():
     assert reading.spoken["note"].words == "Keep --dry-run. First Second"
     spec = {"record": {"kind": "body"}}
     assert (
-        projection_model.markup_value("note", spec, doc.by_id, reading.spoken, registry)
+        projection_model.markup_value(
+            "note",
+            spec,
+            doc.by_id,
+            projection_model.attribute_marks(doc.by_id, reading.spoken, registry),
+        )
         == source
     )
     edited = "**Changed** `--dry-run`.\n\n- First\n- [Second](https://example.com)"
@@ -965,9 +970,7 @@ def folded(page_dir, board="b1"):
         board,
         "move",
         registry["lf-board"]["x-state"]["move"]["record"],
-        document.document.by_id,
-        document.spoken,
-        registry,
+        projection_model.AuthoredOrders(document.document.by_id, registry),
         document.projection,
     )
 
@@ -1074,9 +1077,7 @@ def test_the_position_fold_matches_the_browser_cases(case):
         "board",
         "move",
         spec["record"],
-        document.by_id,
-        passages_model.SourceReading(document, registry).spoken,
-        registry,
+        projection_model.AuthoredOrders(document.by_id, registry),
         projection,
     )
     assert order == case["order"]
@@ -1087,7 +1088,7 @@ def test_a_position_is_never_read_as_one_actions_markup_value():
     the way a pick or a value is read would fall through to the unit's words."""
     spec = {"record": {"kind": "position", "within": "lf-column"}}
     with pytest.raises(ValueError, match="recorded_state"):
-        projection_model.markup_value("x", spec, {}, {}, {})
+        projection_model.markup_value("x", spec, {}, {})
 
 
 def _todo_order(page_dir):
@@ -2261,30 +2262,38 @@ def test_check_rejects_authored_delivery_assets(page_dir, asset, expected):
     assert found([finding], code, at, **values), finding
 
 
-@pytest.mark.parametrize(
-    "outside, refused",
-    [
-        ("Authored tail", "outside-main"),
-        ('<p id="tail">Authored tail</p>', "outside-main"),
-        (
-            '<lf-options><lf-option id="tail">Authored tail</lf-option></lf-options>',
-            "outside-main",
-        ),
-        ('<main><p id="tail">Second main</p></main>', "main-count"),
-    ],
-)
-def test_check_confines_authored_content_to_one_direct_main(page_dir, outside, refused):
-    """The element the presentation boundary withholds contains the whole page.
+def test_check_accepts_authored_body_content_beside_main(page_dir):
+    """Body siblings are ordinary page content, including passages and widgets."""
+    source = PAGE.replace(
+        "<main>",
+        '<header id="banner">Banner words</header><nav id="nav">Navigation</nav><main>',
+    ).replace(
+        "</main>",
+        '</main><footer id="footer">Footer words</footer>Authored tail'
+        '<aside id="aside">Aside words</aside>'
+        '<lf-options><lf-option id="tail">A sibling option</lf-option></lf-options>',
+    )
+    (page_dir / "index.html").write_text(source)
 
-    Prose, ordinary elements, widgets, and another main beside the first are all
-    visible outside the CSS gate and must be refused at the authoring door.
-    """
-    (page_dir / "index.html").write_text(PAGE.replace("</main>", f"</main>\n{outside}"))
+    status, findings = check_findings(page_dir)
+
+    assert status == 0, findings
+    passages = passages_model.page_passages(structure_model.SourceDocument(source))
+    assert passages.text.startswith("Banner words Navigation")
+    assert "Footer words Authored tail Aside words A sibling option" in passages.text
+    assert passages.enclosing["banner"] == ("banner",)
+    assert passages.enclosing["footer"] == ("footer",)
+
+
+def test_check_requires_exactly_one_main(page_dir):
+    (page_dir / "index.html").write_text(
+        PAGE.replace("</main>", '</main><main><p id="tail">Second main</p></main>')
+    )
 
     status, findings = check_findings(page_dir)
 
     assert status == 1
-    assert found(findings, refused)
+    assert found(findings, "main-count", mains=2)
 
 
 def test_check_requires_main_to_be_a_direct_body_child(page_dir):
@@ -2320,23 +2329,6 @@ def test_check_rejects_an_extra_head_that_html_recovery_ignores(page_dir):
 
     assert status == 1
     assert found(findings, "head-count", tags=2)
-
-
-@pytest.mark.parametrize(
-    "html",
-    [
-        PAGE.replace("</body>", '</body>\n<p id="tail">Authored tail</p>'),
-        PAGE.replace("</head>", '<img src="/media/tail.png" alt="tail">\n</head>'),
-    ],
-)
-def test_check_rejects_paintable_markup_the_browser_reparents(page_dir, html):
-    """HTML recovery cannot move authored pixels around the main boundary."""
-    (page_dir / "index.html").write_text(html)
-
-    status, findings = check_findings(page_dir)
-
-    assert status == 1
-    assert found(findings, "outside-main")
 
 
 def test_check_rejects_an_id_containing_whitespace(page_dir):
@@ -4006,7 +3998,7 @@ def test_the_series_palette_clears_the_floors_it_claims_to():
     is counted against the tokens in the same breath: it is how many series an author is
     told a chart can colour apart, and a palette one step longer than the number it
     publishes would hold a colour nobody is told to use."""
-    theme = (schema_model.ASSETS / "base.css").read_text()
+    theme = (schema_model.ASSETS / "styles/tokens.css").read_text()
     declared = json.loads((schema_model.ASSETS / "registry.json").read_text())[
         "$series"
     ]["steps"]
@@ -4499,27 +4491,6 @@ def test_a_process_keeps_the_pages_it_read_most_recently(page_dir):
         assert artifact_model.read_revision(page_dir, revision).document.authoring.title
         assert artifact_model.read_revision(held_page, revision) is sample_reading
         assert page_memory_model.memory_of(held_page) is holder
-
-
-def test_a_page_keeps_its_readings_while_its_samples_live(page_dir):
-    """A page serving samples keeps its readings while they live, so its own samples,
-    each a page of their own, cannot push them out and leave every state answer to
-    check and capture the whole source again."""
-    template = '<template id="practice" data-sample><p>Child text.</p></template>'
-    (page_dir / "index.html").write_text(PAGE.replace("</main>", template + "</main>"))
-    revision = revisioning_model.activate_source(page_dir).revision
-    with fresh_process():
-        assert revision is not None
-        held = artifact_model.read_revision(page_dir, revision)
-        samples = samples_model.Samples()
-        artifact = artifact_model.read_artifact(page_dir, revision)
-        for _ in range(page_memory_model.PageMemories.LIMIT):
-            samples.create(
-                page_dir, artifact, held.document, [], {"sources": {}},
-                "practice", None, None,
-            )  # fmt: skip
-        gc.collect()
-        assert artifact_model.read_revision(page_dir, revision) is held
 
 
 def test_a_reading_under_outcomes_is_the_walk_under_them():

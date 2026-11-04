@@ -53,11 +53,9 @@
  * region shows in turn, a root tab set (lf-tabs) for each of its views. History's
  * working-place checkpoints separately own an entry's viewport offset (history.js).
  * `readingBlock` is the first block on screen in one region or the page;
- * `pageReadingBlock` is the block the user is reading, where a walk starts, and
- * `landingPlace` is where a let-go puts them, beside what they let go of where they see it. `openingPassage`
- * gives travel the passage its destination draws first, using the same rendered words
- * as the visible landmarks. It is independent of the viewport, so scrolling through a tall landing
- * does not turn a later passage into the navigation step's original arrival.
+ * `sectionsInView` names the sections of every block and drawing on screen, which a page
+ * comment records; `pageReadingBlock` is the block the user is reading, where a walk starts, and
+ * `landingPlace` is where a let-go puts them, beside what they let go of where they see it.
  */
 import { setScroll } from "./arrivals.js";
 import {
@@ -69,7 +67,7 @@ import {
   userScrollport,
   stuckBox,
 } from "./geometry.js";
-import { skipped } from "./shown-box.js";
+import { skipped, skipper } from "./shown-box.js";
 import {
   blockAt,
   closestAcross,
@@ -96,6 +94,7 @@ import {
   scrollersOf,
   shownRegionBounds,
   pageReadingRegion,
+  unconcealedReadingRegions,
 } from "./reading-regions.js";
 import { followingItsEnd } from "./bounds.js";
 import {
@@ -105,7 +104,7 @@ import {
   placeKept,
   scrollToEnd,
 } from "./scrolling.js";
-import { inUi, renderedParent, under, upFrom } from "./shadow.js";
+import { inUi, renderedOrder, renderedParent, under, upFrom } from "./shadow.js";
 import { runtime } from "./context.js";
 import { retainUserIntent } from "./user-intent.js";
 import { recentPlaceInput, focused } from "./focus.js";
@@ -264,11 +263,19 @@ function* renderedBlocks(blocks, within = null) {
     const runs = [];
     /** @type {DrawnRun | null} */
     let run = null;
+    // The box skipping the last segment asked about, whose later segments pass unasked.
+    /** @type {Element | null} */
+    let hidden = null;
     for (const segment of segments) {
       const { node, start, end } = segment;
+      if (hidden?.contains(node)) {
+        run = null;
+        continue;
+      }
       const parent = renderedParent(node);
       if (!drawn.has(parent)) drawn.set(parent, drawsLandmark(parent));
       if (!drawn.get(parent)) {
+        hidden = parent && skipper(parent);
         run = null;
         continue;
       }
@@ -292,11 +299,9 @@ function* renderedBlocks(blocks, within = null) {
   }
 }
 
-// The passage grain is shared by reading input and travel's produced landing. A
-// containing destination opens at its first rendered passage, independently of the
-// viewport: scrolling through a tall destination cannot redefine where it landed.
+// The page block a node stands in.
 /** @param {Node} node */
-export function passageBlock(node) {
+function passageBlock(node) {
   const blocks = pageBlocks();
   for (
     let at = node instanceof Element ? node : node.parentElement;
@@ -305,13 +310,6 @@ export function passageBlock(node) {
   )
     if (blocks.includes(at)) return at;
   return null;
-}
-/** @param {Node | Range | null | undefined} where */
-export function openingPassage(where) {
-  if (where instanceof Range) return passageBlock(where.startContainer);
-  if (!where) return null;
-  const blocks = pageBlocks().filter((block) => under(block, where));
-  return renderedBlocks(blocks).next().value?.[0] ?? null;
 }
 
 // What the reader can see of a region, or with none given of the page: null where they
@@ -345,10 +343,20 @@ export function* blocksOnScreen(region = null, blocks = textBlocks(), band = nul
   }
 }
 // The first visible block in a reading region, or with none given in the page outside
-// the regions that bound themselves, for alignment when nothing is selected.
+// the regions that bound themselves, for alignment when nothing is selected. A stuck
+// box, such as a site header fixed over the page, rides along with every scroll, so
+// it is never the block the reader is on (geometry.js, `stuckBox`). Where every block
+// on screen reads as stuck, as in an app shell fixed over the window that scrolls its
+// own content, the first stands.
 /** @param {ReadingRegion | null} [region] */
-export const readingBlock = (region = null) =>
-  blocksOnScreen(region, textBlocks(region?.body)).next().value?.[0] ?? null;
+export const readingBlock = (region = null) => {
+  let first = null;
+  for (const [block] of blocksOnScreen(region, textBlocks(region?.body))) {
+    first ??= block;
+    if (!stuckBox(block, region?.body ?? null)) return block;
+  }
+  return first;
+};
 
 // The block the user is reading on the page, for a walk's origin, the keyboard
 // reference's hand-back and a let-go's landing: in the page region they last acted in
@@ -372,6 +380,36 @@ function pageReading({ bodies }) {
   return readingBlock();
 }
 export const pageReadingBlock = () => pageReading({ bodies: false });
+
+// The sections whose words or pictures the user sees, by id in page order: the
+// addressable element around each text block and each drawing on screen, on the page
+// and in every reading region it shows. A comment on the page as a whole records them
+// (events.md, `viewing`), so on a page that shows one section at a time, "this one"
+// still says which, even of a slide that is only a chart. An id a script or a shadow
+// tree repeats is listed once, since the record refuses a repeated id.
+export function sectionsInView() {
+  /** @type {Set<Element>} */
+  const sections = new Set();
+  /** @param {Element} node */
+  const add = (node) => {
+    const section = closestAcross(node, ADDRESSABLE);
+    if (section) sections.add(section);
+  };
+  for (const region of [null, ...unconcealedReadingRegions()]) {
+    for (const [block] of blocksOnScreen(region, textBlocks(region?.body))) add(block);
+    const bounds = readingBounds(region);
+    const body = region?.body ?? pageDocument();
+    if (!bounds || !body) continue;
+    const clips = new Map();
+    for (const drawing of body.querySelectorAll(DRAWING)) {
+      if (!region && effectiveScroller(drawing) !== pageScroller) continue;
+      const seen = drawing.checkVisibility() && seenRect(drawing, clips);
+      if (seen && seen.bottom > bounds.top && seen.top < bounds.bottom) add(drawing);
+    }
+  }
+  return [...new Set([...sections].sort(renderedOrder).map(({ id }) => id))];
+}
+
 // A let-go lands beside what it let go of while the user sees it: its first block on
 // screen, or, for a node inside a block, that block. Only failing that is it what they
 // are reading.

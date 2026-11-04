@@ -32,7 +32,6 @@ const reading = (events) => ({
   activity: null,
   browser: {
     basis: { through_seq: events.length },
-    receipts: events,
     thread_memberships: {},
     todos: [],
     views: {
@@ -43,7 +42,6 @@ const reading = (events) => ({
           projection: { entries: [], actions: [], reports: [], desired: [] },
           obligations: noObligations(),
         },
-        coverage: [],
         undo: events.map((event) => ({ event })).reverse(),
         queues: { on_user: [], on_agent: [], done: [] },
         document: {

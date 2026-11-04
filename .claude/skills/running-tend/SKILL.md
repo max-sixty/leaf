@@ -64,15 +64,18 @@ when the change causes it: confirm an inherited failure against current `main` p
 change has no other findings; "Run what the change needs" governs landing despite that
 failure. Where a test itself is at issue, `tests/AGENTS.md` says
 which boundary it belongs at. For a change that can alter browser startup, apply
-`AGENTS.md`'s **Working on the repository** performance rule to the candidate and base
+`AGENTS.md`'s **Working on the repository** performance rule to the head and base
 profiles from CI.
 
 A CI repair that changes what a page draws, such as its CSS, layout or a widget's
 rendering, names in its description the states it changes on screen. Before the
 verdict, its review captures each of them on the base and the head with
-`uv run leaf-dev stills --state NAME`, adding a state to its `STATES` where none
-reaches the surface, looks at the crops, and weighs what changed against every
-state that pays for it. Without captures it can read, the review withholds approval.
+`uv run leaf-dev stills --state NAME`, choosing the scheme and window with
+`--scheme`, `--viewport` and `--touch`, and adds a state to `STATES`
+(`dev/leaf_dev/states.py`) for a surface none reaches, one per surface and never one
+per scheme or window (the `states.py` header says when a state keeps its own). It
+looks at the crops and weighs what changed against every state that pays for it.
+Without captures it can read, the review withholds approval.
 
 ## Explaining UI changes and questions
 

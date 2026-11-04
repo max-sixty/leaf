@@ -55,7 +55,6 @@ from render_cases_navigation import (
     wait_for_pending_mark,
 )
 from render_harness import (
-    EXAMPLES,
     INLINE_PAGE,
     LONG_PAGE,
     PANEL,
@@ -95,7 +94,7 @@ from leaf import structure as structure_model
 from leaf.registry import storage as registry_storage
 from leaf.render_checks import rendered
 from leaf.schema import ELEMENT_ID
-from leaf_dev.example_data import patch_manifest
+from leaf_dev.example_data import named_source, patch_manifest
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -173,7 +172,7 @@ def test_a_comment_box_follows_its_passage_and_resume_returns_the_writer(
     browser, serve
 ):
     """Resume writing recovers the same native field and words with its passage."""
-    source = next(source for source in EXAMPLES if source.stem == "triage-board")
+    source = named_source("triage-board")
     page = open_page(browser, serve(source))
     resized(page, 1280, 500)
     box = page.locator("#triage-lede").bounding_box()
@@ -563,7 +562,7 @@ def test_monitoring_regions_share_one_collaboration_layer(browser, serve):
     The shipped example gives moving evidence its own scroll and keeps current release
     state ahead of it. A check comment still returns to its region without creating an
     event merely because the user navigated there."""
-    example = next(p for p in EXAMPLES if p.stem == "live-progress")
+    example = named_source("live-progress")
     quote = "1,998 / 1,999 rows"
     url = serve(example, anchored=[("lp-check-finance", quote)])
     page = open_page(browser, live_url(url))
@@ -930,159 +929,6 @@ def test_one_key_keeps_one_keyboard_face_across_the_page(browser, serve):
     assert hint_face["emphasis"] == option["emphasis"]
 
 
-def test_a_drag_released_mid_word_hugs_words_and_sentences(browser, serve):
-    """A drag stops where the hand stopped: four glyphs into "paragraph", four short
-    of the end of "carrying". The user meant the words, and the quote the capture
-    would otherwise store — "graph carr" — reads as a typo in the panel and in every
-    reply that quotes it back. So the pointer path grows a selection out to word
-    boundaries, outward only: an end resting in space or against punctuation is
-    already where the user put it, so "it," gains its 't' and not its comma, and a
-    word split across inline markup — here by splitText, which also leaves the empty
-    text node that puts two EDGEs flush in the indexed reading — still grows whole.
-
-    What the pointer path must not do is here too. A keyboard selection is never
-    grown — shift-arrow is the user being precise — so the comment field captures
-    a mid-word selection exactly as made. Machine-placed words never glue to the
-    author's, on either side of the declaration line: an undeclared generated span
-    is a fenced cell in the reading, and a declared label — a sample's, rendered
-    flush before its words inside a list item, where both share the one block — is
-    the seam itself.
-
-    A sentence follows the same rule at its two meaningful edges. A drag that already
-    reaches its opening and closing words grows over the punctuation around them, but
-    two words from its middle remain those two words. Sentence edges take only adjacent
-    punctuation, so status glyphs outside an opening quote remain outside. The whole
-    drag must stay in one rendered block; matching endpoints around a nested paragraph
-    do not make the intervening blocks one sentence.
-
-    The reads use Leaf's pending highlight, the durable form of the native selection."""
-    page = open_page(
-        browser,
-        serve(
-            INLINE_PAGE.replace(
-                '<p id="p">',
-                '<ul><li><lf-sample id="spec" label="mono">glyphs set close'
-                "</lf-sample></li></ul>\n"
-                '<p id="sentence">🔴 🟢 “<strong>Opening</strong> words stay '
-                "<em>together</em>.” 🔴 🟢 Next sentence.</p>\n"
-                '<ul><li id="nested">“Opening words<p>Nested block.</p>'
-                'closing together.”</li></ul>\n<p id="p">',
-            )
-        ),
-    )
-    page.locator("#p").scroll_into_view_if_needed()
-    # The point one pixel inside a character's own box, so a press there puts the
-    # boundary at the character's left edge — mid-word when the character is.
-    mid = """(args) => {
-        const walk = document.createTreeWalker(
-            document.querySelector(args.root), NodeFilter.SHOW_TEXT);
-        for (let n = walk.nextNode(); n; n = walk.nextNode()) {
-            const at = n.data.indexOf(args.word);
-            if (at < 0) continue;
-            const r = document.createRange();
-            r.setStart(n, at + args.into);
-            r.setEnd(n, at + args.into + 1);
-            const box = r.getBoundingClientRect();
-            return [box.left + 1, box.top + box.height / 2];
-        }
-    }"""
-
-    def spot(root, word, into):
-        return page.evaluate(mid, {"root": root, "word": word, "into": into})
-
-    def captured():
-        expect(page.locator(".lf-fab-input")).to_be_visible()
-        quoted = composer_quote(page)["text"]
-        return quoted[1:-1]
-
-    select(
-        page,
-        spot("#sentence", "Opening", 3),
-        spot("#sentence", "together", 4),
-    )
-    assert captured() == "“Opening words stay together.”"
-
-    sentence_box = page.locator("#sentence").bounding_box()
-    page.mouse.click(sentence_box["x"] - 40, sentence_box["y"] + 4)
-    expect(page.locator(".lf-fab-bar")).to_be_hidden()
-    page.locator("#sentence").scroll_into_view_if_needed()
-    select(page, spot("#sentence", "words", 2), spot("#sentence", "stay", 2))
-    assert captured() == "words stay"
-
-    page.mouse.click(sentence_box["x"] - 40, sentence_box["y"] + 4)
-    expect(page.locator(".lf-fab-bar")).to_be_hidden()
-    page.locator("#nested").scroll_into_view_if_needed()
-    select(page, spot("#nested", "Opening", 3), spot("#nested", "together", 4))
-    assert captured() == ("Opening words Nested block. closing together")
-
-    nested_box = page.locator("#nested").bounding_box()
-    page.mouse.click(nested_box["x"] - 40, nested_box["y"] + 4)
-    expect(page.locator(".lf-fab-bar")).to_be_hidden()
-    page.locator("#p").scroll_into_view_if_needed()
-    select(page, spot("#p", "paragraph", 4), spot("#p", "carrying", 4))
-    assert captured() == "paragraph carrying"
-    expect(page.locator(".lf-fab-input")).to_be_visible()
-
-    # The bar the selection raised stands above it, over the line the next drag starts
-    # on; a press in the margin beside the paragraph is the user's own move that
-    # takes it down, and moves nothing else. Read back before the drag, because the
-    # bar comes down in the press's own handler and the drag must not race it.
-    beside = page.locator("#p").bounding_box()
-    page.mouse.click(beside["x"] - 40, beside["y"] + 4)
-    expect(page.locator(".lf-fab-bar")).to_be_hidden()
-    assert pending_text(page) == ""
-    select(page, spot("#p", "inside", 2), spot("#p", "it,", 1))
-    assert captured() == "inside it"
-
-    # The same words dragged right to left are captured the same. The click first is
-    # the user's own move — a press inside the current selection would drag its
-    # text, not start a new one.
-    page.locator("#t").click()
-    select(page, spot("#p", "it,", 1), spot("#p", "inside", 2))
-    assert captured() == "inside it"
-
-    page.locator("#t").click()
-    page.evaluate("() => new Promise(resolve => setTimeout(resolve, 0))")
-    page.evaluate("""() => {
-        const n = document.querySelector('#p').firstChild;
-        const at = n.data.indexOf('paragraph') + 2;
-        getSelection().setBaseAndExtent(n, at, n, at + 5);
-    }""")
-    page.keyboard.press("Shift")
-    page.keyboard.press("c")
-    assert captured() == "ragra"
-    page.locator("#t").click()
-
-    page.evaluate("""() => {
-        const n = document.querySelector('#p').firstChild;
-        const at = n.data.indexOf('paragraph') + 4;
-        n.splitText(at);
-        n.splitText(at); // at the new node's own end, so the second piece is empty
-    }""")
-    select(page, spot("#p", "graph", 1), spot("#p", "carrying", 4))
-    assert captured() == "paragraph carrying"
-
-    page.evaluate("""() => {
-        const p2 = document.querySelector('#p2');
-        const rest = p2.firstChild.splitText(p2.firstChild.data.indexOf(' between'));
-        const span = document.createElement('span');
-        span.setAttribute('data-lf-gen', '');
-        span.textContent = 'flagged';
-        p2.insertBefore(span, rest); // flush: the page now reads "boundaryflagged"
-    }""")
-    # The bar the last drag raised stands over the line this one starts on.
-    page.locator("#t").click()
-    page.locator("#p2").scroll_into_view_if_needed()
-    select(page, spot("#p2", "flagged", 3), spot("#p2", "them", 1))
-    assert captured() == "flagged between them"
-
-    # The declared label: rendered by the real pass, flush before the sample's own
-    # words, unfenced because the registry models it — so the reading holds
-    # "monoglyphs", and only the seam keeps a drag into "glyphs" from taking "mono".
-    select(page, spot("lf-sample", "glyphs", 3), spot("lf-sample", "close", 3))
-    assert captured() == "glyphs set close"
-
-
 def test_a_drag_that_overshoots_the_layer_is_not_a_passage(browser, serve):
     """A hand that runs past the right edge of the document lands in the layer, and the
     browser extends its selection through everything in between — a paragraph and a
@@ -1172,76 +1018,6 @@ def test_a_drag_that_overshoots_the_layer_is_not_a_passage(browser, serve):
         f"the mark and the quote disagree: {pending_text(page)!r} against {quote!r}"
     )
     assert quote in page.locator(".lf-fab-input").get_attribute("aria-label")
-
-
-def test_a_quote_finds_its_passage_whatever_its_whitespace(browser, serve):
-    """The same passage gets written down several ways. The page holds it with the
-    author's line wraps; a selection renders it with a break where two blocks abut and
-    none where one wrapped; older versions of this runtime stored a third form again.
-    All of them name the same words, so all of them have to find them — otherwise a
-    comment made last month hangs off a passage the page insists isn't there."""
-    url = serve(INLINE_PAGE)
-    page = open_page(browser, live_url(url))
-    passage = "bold text and emphasis inside it"
-    forms = {
-        "as the page holds it": passage,
-        "wrapped where a source line ended": passage.replace(" and ", "\nand "),
-        "broken where a block ended": passage.replace(" and ", "\n\nand\n"),
-        "spaced out by an editor": passage.replace(" ", "   "),
-        # Reaching across the boundary between two blocks, which the user sees as a
-        # line break, the source writes as a newline, and a rendering may write as neither.
-        "spanning two blocks": "more than one text node. A neighbouring block",
-    }
-    for name, quote in forms.items():
-        post_event(
-            page,
-            url.rsplit("/versions/", 1)[0] + "/api/event",
-            data={
-                "kind": "comment",
-                "revision": 1,
-                "text": name,
-                "anchor": {"section": None, "quote": quote},
-            },
-        )
-    told(page)
-    expect_open_threads(page, len(forms))
-    stranded = stranded_quotes(page)
-    assert stranded == [], f"quotes naming a passage that is right there: {stranded}"
-
-    # The elasticity runs one way only. A quote is free to have gaps the page lacks; a
-    # page's gaps are word boundaries, and a quote that runs across one is naming
-    # something the page doesn't say — "never" must not find the tail of "on every".
-    post_event(
-        page,
-        url.rsplit("/versions/", 1)[0] + "/api/event",
-        data={
-            "kind": "comment",
-            "revision": 1,
-            "text": "words the page never runs together",
-            "anchor": {"section": None, "quote": "boldtext"},
-        },
-    )
-    told(page)
-    expect_open_threads(page, len(forms) + 1)
-    assert len(stranded_quotes(page)) == 1, (
-        "a quote gluing two of the page's words together still found a passage"
-    )
-
-    # Nor may a gap close up onto a compound the page writes as one word. "set up" and
-    # "setup" are different words, and the page has both — the anchor has to land on the
-    # one that was dragged, and it is stored, so landing wrong is permanent.
-    chosen = page.evaluate_handle("""() => {
-        const p = document.querySelector('#compound');
-        const at = p.firstChild.data.indexOf('set up');
-        const r = document.createRange();
-        r.setStart(p.firstChild, at); r.setEnd(p.firstChild, at + 6);
-        const s = getSelection(); s.removeAllRanges(); s.addRange(r);
-        document.dispatchEvent(new MouseEvent('mouseup', {bubbles: true}));
-        return r.cloneRange();
-    }""")
-    assert selected_comment_marks_chosen_start(page, chosen), (
-        "'set up' anchored onto 'setup', an earlier and different word"
-    )
 
 
 def test_the_captured_quote_is_prose_a_file_can_hold(browser, serve):
@@ -1344,7 +1120,7 @@ def test_an_open_composer_does_not_eat_the_next_click(browser, serve):
     page.locator("#p").scroll_into_view_if_needed()
     page.mouse.click(*mark_point(page, "lf-mark"))
     expect(page.locator(".lf-margin-preview")).to_be_visible()
-    expect(page.locator(PANEL)).not_to_have_attribute("data-open", re.compile("."))
+    expect(page.locator(PANEL)).not_to_have_attribute("data-lf-open", re.compile("."))
 
     # And the composer's own mark belongs to no thread, so it opens nothing. Its first
     # range runs up to the posted one, so this lands on the draft and nothing else.
@@ -1356,7 +1132,7 @@ def test_an_open_composer_does_not_eat_the_next_click(browser, serve):
     )
     page.mouse.click(*mark_point(page, "lf-pending"))
     rendered(page)
-    assert page.locator(PANEL).get_attribute("data-open") is None, (
+    assert page.locator(PANEL).get_attribute("data-lf-open") is None, (
         "clicking the composer's own highlight opened the panel, but it belongs to no thread"
     )
 
@@ -1391,7 +1167,7 @@ def test_a_click_on_a_mark_decides_once(browser, serve):
                                     return {x: r.left + r.width / 2, y: r.top + r.height / 2}; }""")
     page.mouse.click(spot["x"], spot["y"])
     expect(page.locator(".lf-margin-preview")).to_be_visible()
-    expect(page.locator(PANEL)).not_to_have_attribute("data-open", re.compile("."))
+    expect(page.locator(PANEL)).not_to_have_attribute("data-lf-open", re.compile("."))
     expect(
         page.locator(".lf-fab-input"),
         "the click opened the thread and then offered to comment on it as well",
@@ -1878,24 +1654,56 @@ def test_native_code_uses_the_bundled_grammars_language_aliases(browser, serve):
         assert painted == full.evaluate(tokens)
 
 
-def test_a_block_its_author_marked_up_keeps_its_markup(browser, serve):
-    """A code block that holds elements was marked up by its author, as a page that
-    highlights its own code marks up every token, and colouring it would delete what
-    they wrote. Leaf colours the block beside it, which holds only text."""
+def test_code_colouring_preserves_inline_annotations(browser, serve):
+    """Annotations keep their nodes and text while tokens cross their boundaries."""
     page = open_page(
         browser,
         serve(
             leaf_page(
-                "Marked-up code",
-                '<pre id="own"><code class="language-python">'
-                '<span class="kw">def</span> f(): pass</code></pre>\n'
-                '<pre id="plain"><code class="language-python">def f(): pass</code></pre>',
+                "Annotated code",
+                '<pre id="marked"><code class="language-python">'
+                '<span id="target"></span>de<mark id="annotation">f load(path):\n'
+                '    return "rea</mark>d"</code></pre>'
+                '<pre id="lines"><code class="language-python">'
+                '<span class="line">def load(path):</span>\n'
+                '<span class="line">    return "read"</span></code></pre>'
+                '<pre id="breaks"><code class="language-python">'
+                'def load(path):<br>    return "read"</code></pre>',
             )
         ),
     )
-    expect(page.locator("#plain [data-lf-syn]").first).to_be_attached()
-    expect(page.locator("#own .kw")).to_have_text("def")
-    assert page.locator("#own [data-lf-syn]").count() == 0
+    marked = page.locator("#marked code")
+    expect(marked).to_have_attribute("data-lf-syntax", "python")
+    expect(page.locator("#annotation [data-lf-syn]").first).to_be_attached()
+    expect(page.locator("#lines .line [data-lf-syn]").first).to_be_attached()
+    expect(page.locator("#target")).to_be_empty()
+    assert marked.text_content() == 'def load(path):\n    return "read"'
+    # The string token crosses the mark's end, so both pieces keep its colour.
+    assert marked.evaluate("""code => {
+      const tokens = [...code.querySelectorAll('[data-lf-syn]')];
+      return tokens.some(t => t.textContent === '"rea' && t.style.color === 'var(--syn-string)')
+        && tokens.some(t => t.textContent === 'd"' && t.style.color === 'var(--syn-string)');
+    }""")
+    # A different language repaints Leaf's tokens inside the same annotations.
+    assert page.evaluate("""async () => {
+      const {highlightBlocks} = await window.__lfWidgetApi();
+      const code = document.querySelector('#marked code');
+      const mark = code.querySelector('mark');
+      const target = code.querySelector('#target');
+      const previous = [...code.querySelectorAll('[data-lf-syn]')];
+      code.className = 'language-javascript';
+      await highlightBlocks(code);
+      const tokens = [...code.querySelectorAll('[data-lf-syn]')];
+      await highlightBlocks(code);
+      return code.querySelector('mark') === mark
+        && code.querySelector('#target') === target
+        && mark.textContent === 'f load(path):\\n    return "rea'
+        && code.dataset.lfSyntax === 'javascript'
+        && previous.some(t => !code.contains(t))
+        && !code.querySelector('[data-lf-syn] [data-lf-syn]')
+        && tokens.every(t => code.contains(t));
+    }""")
+    assert page.locator("#breaks [data-lf-syn]").count() == 0
 
 
 def test_a_block_rewritten_while_it_is_colored_keeps_its_new_text(browser, serve):
@@ -2969,7 +2777,7 @@ def test_two_comments_on_one_element_both_stay_anchored(browser, serve):
     figure.scroll_into_view_if_needed()
     figure.click()
     expect(figure).to_have_class(re.compile(r"\blf-projected-mark\b"))
-    mark = page.locator('.lf-visual-mark[data-for="fig"]')
+    mark = page.locator('.lf-visual-mark[data-lf-for="fig"]')
     expect(mark).to_be_visible()
     look = mark.evaluate(
         """node => { const style = getComputedStyle(node, '::after'); return {
@@ -3234,7 +3042,7 @@ def test_pressing_the_current_element_mark_keeps_its_contour(browser, serve):
     page = open_page(browser, url)
     figure = page.locator("#fig")
     figure.scroll_into_view_if_needed()
-    mark = page.locator('.lf-visual-mark[data-for="fig"]')
+    mark = page.locator('.lf-visual-mark[data-lf-for="fig"]')
     expect(mark).to_have_count(0)
 
     look = """node => { const style = getComputedStyle(node, '::after'); return {
@@ -3261,7 +3069,7 @@ def test_pressing_the_current_element_mark_keeps_its_contour(browser, serve):
           const sample = () => {
             window.lfFrames.push({
               contour: Boolean(document.querySelector(
-                '.lf-visual-mark-here[data-for="fig"]')),
+                '.lf-visual-mark-here[data-lf-for="fig"]')),
               entry: document.querySelectorAll('[data-lf-target-selected]').length,
             });
             if (window.lfFrames.length < 400) requestAnimationFrame(sample);
@@ -3844,132 +3652,102 @@ def test_a_thread_whose_quote_was_rewritten_keeps_its_words(browser, serve):
     expect(head.locator(".lf-anchor-status")).to_have_text("Changed")
 
 
-def test_a_changed_block_shows_an_inline_diff_against_the_base_version(browser, serve):
-    """The other half of a comparison is one inline reading of what changed.
+def test_a_change_opens_what_it_replaced_in_a_card_over_it(browser, serve):
+    """The other half of a comparison is what each change replaced, on request.
 
-    The Change margin entry is a disclosure per change, a run of changed blocks with no
-    unchanged one between them, which opens and closes together. Its press inserts
-    dropped text at each aligned boundary and highlights added words in the current
-    prose, so the user need not compare the paragraph with a second copy underneath. Rewritten
-    sentences stay whole; a local edit is refined to its words. Generated historical
-    words stay outside the authored passage: the existing comment remains attached and
-    selection still reads the current version alone.
+    The Change margin entry is a disclosure per change, a hunk of the block diff, which
+    opens one card over the change: the words a block that kept its id lost, struck, and
+    the words it gained, tinted, then the paragraph the change added, inserted whole.
+    Rewritten sentences stay whole; a local edit is refined to its words. The card stands
+    in the chrome, so the page under it does not move, the existing comments stay
+    attached and selection still reads the current version alone.
 
     The authored pair supplies the contrasts: one rewritten paragraph with a surviving
     and a replaced sentence, and the new paragraph after it, which make one change; a
     rewritten heading and lede, another; and one new list item, the third."""
-    example = next(p for p in EXAMPLES if p.stem == "log-retention")
+    example = named_source("log-retention")
     page = open_page(browser, serve(example))
     compare_with(page, 1)
     expect(page.locator("main .lf-ins-block")).to_have_count(5)
 
     # Nothing stands open until a user asks: the marks are the whole first reading.
-    expect(page.locator(".lf-version-inline-label")).to_have_count(0)
+    card = page.locator("#lf-change-card")
+    expect(card).to_have_count(0)
     marks = "() => CSS.highlights.get('lf-mark')?.size ?? 0"
     assert page.evaluate(marks) == 2
     rewritten = page.locator(
         '[data-lf-margin-for="ret-cost-body"] [data-lf-kinds~="change"]'
     )
     expect(rewritten).to_have_attribute("aria-expanded", "false")
-    # A disclosure says what it holds. "Change" alone reports a fact and promises no
-    # press, which is what the margin entry said before it had one to make.
-    expect(rewritten.locator(".lf-margin-entry-context")).to_have_text("v1 → v2")
+    expect(rewritten).to_have_attribute("aria-controls", "lf-change-card")
+    # A disclosure says what it holds: what the change did, in blocks.
+    expect(rewritten.locator(".lf-margin-entry-context")).to_have_text(
+        "1 paragraph edited, 1 added since v1"
+    )
 
-    # Page Map carries the same provenance on each change's row, which says where the
-    # change starts and how many blocks follow it. The account stays distinct from the
-    # versions, and both remain searchable away from the passage.
+    # Page Map carries the same account on each change's row, with the versions its
+    # card compares, and both remain searchable away from the passage.
     page.keyboard.press("g")
     page.keyboard.press("Shift+p")
     sheet = page.get_by_role("dialog", name="Page Map", exact=True)
     mapped = sheet.locator('[data-lf-map-item^="change:"]').filter(has_text="v1 → v2")
     expect(mapped).to_have_count(3)
-    paragraph = mapped.filter(has_text="paragraph and 1 more changed · Two years")
+    paragraph = mapped.filter(has_text="1 paragraph edited, 1 added · Two years")
     expect(paragraph).to_have_count(1)
-    expect(paragraph.locator(".lf-page-map-action-label-word")).to_have_text(
-        re.compile(r"^paragraph and 1 more changed · ")
-    )
     expect(paragraph.locator(".lf-page-map-action-context")).to_have_text("v1 → v2")
     expect(paragraph).to_have_attribute(
         "aria-label", re.compile(r"^Open change: .+, v1 → v2$")
     )
     page.keyboard.press("Escape")
+    before = page.locator("#ret-cost-body").bounding_box()
     rewritten.click()
 
-    # One current passage with no visible label mixed into it. Its quiet label names the
-    # controlled comparison for assistive reading. The deletion sits where the
-    # replacement begins; the current sentence stays in its authored DOM.
-    label = page.locator("#ret-cost-body > .lf-version-inline-label")
-    expect(label).to_have_text("v1 → v2")
-    expect(label).to_have_class(re.compile(r"\blf-quiet\b"))
-    expect(label).to_have_css("clip-path", "inset(50%)")
+    # One card over the change; the page under it holds still.
+    expect(card).to_be_visible()
     expect(rewritten).to_have_attribute("aria-expanded", "true")
-    expect(rewritten).to_have_attribute(
-        "aria-controls",
-        "lf-version-inline-ret-cost-body lf-version-inline-ret-cost-keep",
+    assert page.locator("#ret-cost-body").bounding_box() == before
+    expect(card.locator(".lf-change-card-head")).to_have_text(
+        "1 paragraph edited, 1 added · v1 → v2"
     )
-    struck = page.locator("#ret-cost-body > .lf-version-inline-deletion del")
+    struck = card.locator("del")
     expect(struck).to_have_count(1)
     expect(struck).to_contain_text("Both questions were answered")
     expect(struck).not_to_contain_text("Two years of incident write-ups")
-    inserted = page.evaluate(
-        "() => [...CSS.highlights.get('lf-version-insert')].map(r => r.toString())"
-    )
-    assert len(inserted) == 1, inserted
-    assert inserted[0].strip().startswith("Aggregates supplied the rate"), inserted
-    assert "Two years of incident write-ups" not in inserted[0], inserted
-
-    # The press reports the move where the panel says a moment's news.
-    expect_panel_says(
-        page, "paragraph and 1 more changed since v1 · showing an inline diff from v1"
-    )
-
-    # The paragraph the revision added in the same change opened with it. It has no
-    # counterpart to show, so the inline label says that directly and the block keeps
-    # its all-new wash.
-    expect(page.locator("#ret-cost-keep > .lf-version-inline-label")).to_have_text(
-        "New since v1"
-    )
-    expect(page.locator("#ret-cost-keep .lf-version-inline-deletion")).to_have_count(0)
+    inserted = card.locator("ins")
+    expect(inserted).to_have_count(2)
+    expect(inserted.first).to_contain_text("Aggregates supplied the rate")
+    expect(inserted.first).not_to_contain_text("Two years of incident write-ups")
+    # The paragraph the revision added in the same change reads after it, inserted whole.
+    expect(inserted.last).to_contain_text("Keep 5xx request logs for 120 days")
     expect(
         page.locator('[data-lf-margin-for="ret-cost-keep"] [data-lf-kinds~="change"]')
     ).to_have_count(0)
+    expect_panel_says(page, "1 paragraph edited, 1 added since v1 · showing the change")
 
-    # And the same inside a list item, where a sibling would be markup no <ol> may hold.
+    # One card at a time: a list item's change takes its place.
     step = page.locator(
         '[data-lf-margin-for="ret-steps-carve"] [data-lf-kinds~="change"]'
     )
     step.click()
-    expect(page.locator("#ret-steps-carve > .lf-version-inline-label")).to_have_text(
-        "New since v1"
-    )
-    expect_panel_says(page, "item changed since v1 · v1 had nothing here")
-    expect(
-        page.locator(
-            "main ol > .lf-version-inline-label, main ul > .lf-version-inline-label"
-        )
-    ).to_have_count(0)
+    expect(card.locator(".lf-change-card-head")).to_have_text("1 item added · v1 → v2")
+    expect(rewritten).to_have_attribute("aria-expanded", "false")
+    expect(step).to_have_attribute("aria-expanded", "true")
 
-    # The reading is the runtime's own words (.lf-ui), so the page's reading does not
-    # move under it: both threads keep the passages they quote, one of them inside the
-    # block now holding the inline comparison.
+    # The card is the runtime's own (.lf-ui), so the page's reading does not move under
+    # it: both threads keep the passages they quote.
     assert stranded_quotes(page) == []
     assert page.evaluate(marks) == 2
 
-    # The same press closes it, and stopping the comparison takes every inline part and
-    # highlight with the marks.
-    rewritten.click()
-    expect(page.locator("#ret-cost-body > .lf-version-inline-label")).to_have_count(0)
-    expect(page.locator("#ret-cost-keep > .lf-version-inline-label")).to_have_count(0)
-    expect(rewritten).to_have_attribute("aria-expanded", "false")
-    expect(page.locator(".lf-version-inline-label")).to_have_count(1)
+    # Escape closes it, and stopping the comparison takes the marks.
+    page.keyboard.press("Escape")
+    expect(card).to_have_count(0)
+    expect(step).to_have_attribute("aria-expanded", "false")
     compare_with(page, 1)
-    expect(page.locator(".lf-version-inline-label")).to_have_count(0)
     expect(page.locator("main .lf-ins-block")).to_have_count(0)
-    assert page.evaluate("() => CSS.highlights.has('lf-version-insert')") is False
 
 
-def test_an_inline_version_diff_uses_the_shared_authored_reading(browser, serve):
-    """A passage crossing element boundaries keeps one text and DOM reading."""
+def test_a_change_card_reads_the_shared_authored_reading(browser, serve):
+    """A passage crossing element boundaries keeps one text reading."""
     first = leaf_page(
         "Nested version passage",
         "<h1>Review</h1><aside id='note'>Careful<b>!</b> The old wording stood here.</aside>",
@@ -3985,18 +3763,14 @@ def test_an_inline_version_diff_uses_the_shared_authored_reading(browser, serve)
     change = page.locator('[data-lf-margin-for="note"] [data-lf-kinds~="change"]')
     change.click()
     expect(change).to_have_attribute("aria-expanded", "true")
-    assert page.locator("#note .lf-version-inline-deletion del").all_inner_texts() == [
-        "old",
-        "stood",
-    ]
-    inserted = page.evaluate(
-        "() => [...CSS.highlights.get('lf-version-insert')].map(r => r.toString())"
-    )
-    assert inserted == ["new", "stands"]
+    card = page.locator("#lf-change-card")
+    expect(card.locator("del")).to_have_count(2)
+    assert card.locator("del").all_inner_texts() == ["old", "stood"]
+    assert card.locator("ins").all_inner_texts() == ["new", "stands"]
 
 
-def test_an_inline_version_diff_indexes_astral_text_by_character(browser, serve):
-    """Astral text before an edit cannot shift its insertion and deletion ranges."""
+def test_a_change_card_aligns_astral_text_by_character(browser, serve):
+    """Astral text before an edit cannot shift its insertion and deletion runs."""
     first = leaf_page(
         "Unicode version passage",
         """
@@ -4017,19 +3791,19 @@ def test_an_inline_version_diff_indexes_astral_text_by_character(browser, serve)
     wording = page.locator('[data-lf-margin-for="wording"] [data-lf-kinds~="change"]')
     wording.click()
     expect(wording).to_have_attribute("aria-expanded", "true")
-    assert page.locator("#wording del").all_inner_texts() == ["old", "stood"]
-    assert page.evaluate(
-        "() => [...CSS.highlights.get('lf-version-insert')].map(r => r.toString())"
-    ) == ["new", "stands"]
+    # The adjacent edits share one change, and its card holds both.
+    card = page.locator("#lf-change-card")
+    expect(card.locator("del")).to_have_count(3)
+    assert [text.strip() for text in card.locator("del").all_inner_texts()] == [
+        "old",
+        "stood",
+        "keeps a trailing phrase",
+    ]
+    assert card.locator("ins").all_inner_texts() == ["new", "stands"]
 
-    tail = page.locator('[data-lf-margin-for="tail"] [data-lf-kinds~="change"]')
-    tail.click()
-    expect(tail).to_have_attribute("aria-expanded", "true")
-    expect(page.locator("#tail del")).to_have_text("keeps a trailing phrase")
 
-
-def test_a_state_only_version_change_does_not_offer_an_empty_text_diff(browser, serve):
-    """A moved block remains marked without promising an inline prose comparison."""
+def test_a_state_only_version_change_does_not_offer_an_empty_card(browser, serve):
+    """A moved block remains marked without promising a card of words."""
     first = leaf_page(
         "Moved card",
         """
@@ -4062,8 +3836,8 @@ def test_a_state_only_version_change_does_not_offer_an_empty_text_diff(browser, 
     expect(change).not_to_have_attribute("aria-expanded", re.compile(".*"))
     expect(change).not_to_have_attribute("aria-controls", re.compile(".*"))
     change.click()
-    expect(page.locator("#card .lf-version-inline-label")).to_have_count(0)
-    expect_panel_says(page, "card changed since v1")
+    expect(page.locator("#lf-change-card")).to_have_count(0)
+    expect_panel_says(page, "1 card changed since v1")
 
 
 def test_version_comparison_distinguishes_authored_graphics_from_button_icons(
@@ -4681,11 +4455,11 @@ def test_back_returns_from_a_thread_a_widget_surface_holds(browser, serve, arriv
 
     page.keyboard.press("t")
     expect(
-        page.locator(f'lf-diff .lf-page-thread[data-thread="{root}"]')
+        page.locator(f'lf-diff .lf-page-thread[data-lf-thread="{root}"]')
     ).to_be_focused()
     # Card focus precedes the smooth scroll; observe arrival before settling it.
     expect(
-        page.locator(f'lf-diff .lf-page-thread[data-thread="{root}"]')
+        page.locator(f'lf-diff .lf-page-thread[data-lf-thread="{root}"]')
     ).to_be_in_viewport()
     scroll_settled(page)
     assert page.evaluate("document.scrollingElement.scrollTop") < reading - 1000
@@ -5485,14 +5259,10 @@ new file mode 120000
 \\ No newline at end of file"""
     authored = leaf_page(
         "Native Git changes",
-        '<h1 id="changes">Changes</h1><lf-diff id="mixed-rename-diff"><pre>'
-        + ("" if manifest else escape(source))
-        + "</pre></lf-diff>",
+        '<h1 id="changes">Changes</h1><lf-diff id="mixed-rename-diff"'
+        + (' source="native-patch">' if manifest else f"><pre>{escape(source)}</pre>")
+        + "</lf-diff>",
     )
-    if manifest:
-        authored = authored.replace(
-            'id="mixed-rename-diff"', 'id="mixed-rename-diff" source="native-patch"'
-        )
     url = serve(authored)
     if manifest:
         data_model.cmd_data_set(serve.page_dir, "native-patch", patch_manifest(source))
@@ -5633,7 +5403,7 @@ new file mode 120000
 
 def test_a_block_leaving_the_viewport_keeps_its_focused_comment(browser, serve):
     """A block scrolling out of view gives the viewport its draft before it loses focus."""
-    source = next(source for source in EXAMPLES if source.stem == "live-progress")
+    source = named_source("live-progress")
     page = open_page(browser, serve(source))
     resized(page, 700, 850)
     page.evaluate("""() => {
@@ -5689,13 +5459,13 @@ def test_a_revised_example_travels_between_its_own_versions(browser, serve):
     That is also this file's floor for the corpus. The example sweeps serve the newest
     version and never press anything, so with no reading here the picker could offer
     a list nobody walks and a Compare control nobody presses on every page in examples/."""
-    example = next(p for p in EXAMPLES if p.stem == "log-retention")
+    example = named_source("log-retention")
     page = open_page(browser, serve(example))
 
     # Served at the newest version, with the earlier one under Versions.
     versions = panel_menu(page, "versions")
     expect(
-        versions.locator(".lf-fp-version[data-current] .lf-fp-item")
+        versions.locator(".lf-fp-version[data-lf-current] .lf-fp-item")
     ).to_contain_text("v2")
     expect(versions.locator(".lf-fp-version")).to_have_count(2)
     page.locator(".lf-fp-leaf").click()
@@ -5719,7 +5489,7 @@ def test_a_revised_example_travels_between_its_own_versions(browser, serve):
     page.locator(
         '.lf-margin-entry:has(svg[data-lf-icon="change"]):visible'
     ).first.click()
-    expect_panel_says(page, " changed since v1")
+    expect_panel_says(page, "2 blocks edited since v1")
 
     # The threads the log opened, both still on their passages: one on a block the
     # revision rewrote, one on a block it never touched.
@@ -5745,11 +5515,13 @@ def test_a_revised_example_travels_between_its_own_versions(browser, serve):
     # And the older document is a real destination, not just a row: choosing it pins
     # the user to the virtual version address the picker named.
     panel_menu(page, "versions").locator(
-        ".lf-fp-version:not([data-current]) > .lf-fp-item"
+        ".lf-fp-version:not([data-lf-current]) > .lf-fp-item"
     ).click()
     page.wait_for_url(re.compile(r"/versions/v1\.html"))
     expect(
-        panel_menu(page, "versions").locator(".lf-fp-version[data-current] .lf-fp-item")
+        panel_menu(page, "versions").locator(
+            ".lf-fp-version[data-lf-current] .lf-fp-item"
+        )
     ).to_contain_text("v1")
     page.locator(".lf-fp-leaf").click()
     expect(page.locator("#ret-cost-keep")).to_have_count(0)

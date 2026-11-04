@@ -21,7 +21,7 @@ status changes rather than appending the investigation's chronology.
 `uv run leaf-dev probe SOURCE --browser firefox` (or `webkit`) runs a probe or
 journey in Playwright's Firefox or WebKit, and `--browser ios` runs a probe in
 Safari on an iPhone simulator, whose WebKit can differ from Playwright's desktop
-build.
+build. `leaf-dev stills --browser` compares a change's states in any of them.
 
 Minor visual differences are acceptable when content remains readable and
 controls remain usable. Lost drafts, broken actions, inaccessible controls, and
@@ -306,6 +306,70 @@ Recheck wrapper and row behavior, not just parser support, against
 `test_a_row_at_a_frame_edge_holds_the_trim_by_declaring_it` in
 `tests/browser/test_render_gate.py`.
 
+### Centring a block in block layout in Firefox
+
+Box Alignment lets `justify-self: center` centre a block-level box in a block
+container. On 2026-10-31 Playwright Chromium 156.0.8078.4 and WebKit 27.2 centred a
+200px block in a 600px container with it; Firefox 157 left the block at the start.
+So `browser/layouts.css` centres an `available` table on the column's axis with a
+relative offset and a translate instead. Recheck with that two-box fixture; once
+Firefox centres it, the table can take `justify-self: center` and lose the offset
+and the translate.
+
+### A moved box's place in flow in Firefox's scroll size
+
+Firefox recomputes a block's overflow without laying it out again when a child's
+outline or other painted extent changes, as a focus ring does. That recomputation
+counts each child moved by a relative offset or a translate at its place in flow as
+well as where it is drawn, and the page keeps the larger scroll size until the block
+is laid out again. On 2026-11-03, in Playwright Firefox 157.0 (build 1555), a 1680px
+block moved 480px back by `left: -480px` or `translate: -480px` from a 720px column
+centred in a 1728px window left `document.documentElement.scrollWidth` at 1728 until
+a paragraph beside it took an outline, and at 2184 after that, outline removed or
+not; the same block placed by `margin-left: -480px` left it at 1728. Playwright
+Chromium 156.0.8078.4 kept 1728 throughout. In the user's Firefox 159, closing a
+thread card, which rings the paragraph it leaves the user at, left the page
+scrolling 456px sideways while breakouts were placed by an offset.
+
+So `browser/layouts.css` places an `available` block by a negative start margin, so
+its place in flow is where it is drawn. An `available` table starts at the room's
+start the same way, and its relative offset and translate then centre it on the
+room's axis. Firefox applies the translate to the table's place in flow, so it counts
+the table half its own width before the room's start. A page in the holder's
+direction does not scroll that way, but where the page and the holder differ in
+direction, as in `<main dir="rtl">` on a left-to-right page, a ring still widens the
+page by up to half the table's width (to 2544px for a 1680px table in a 1728px
+window). Centring the table without a translate needs its own width in a margin,
+which CSS can't express, `justify-self` on a block, which Firefox lacks (above), or
+an `available` wrapper the table centres in by `margin-inline: auto`, which would
+change how a page writes an available table.
+
+Mozilla's bugs [1801710](https://bugzilla.mozilla.org/show_bug.cgi?id=1801710) and
+[1820266](https://bugzilla.mozilla.org/show_bug.cgi?id=1820266) report a relatively
+positioned box's place in flow counting toward scroll size on first layout; this
+case, right after layout and wrong after a restyle, is not filed. Recheck with that
+fixture in Firefox: a 720px `main` centred in the window, holding a paragraph and a
+`position: relative; left: -480px; width: calc(100% + 960px)` block. Give the
+paragraph an outline and read the root's `scrollWidth`; once it stays at the
+window's width, a breakout may move by an offset again. In Leaf,
+`test_a_breakout_grows_only_from_a_holder_that_spans_the_column` and
+`test_a_table_granted_room_stands_on_the_prose_axis` ring a paragraph beside
+breakouts and fail if the page then scrolls sideways.
+
+### An inherited length after a container resize in WebKit
+
+A registered custom property that does not inherit, computed from `100cqi` on the
+column and passed to a child with `inherit`, kept the child's first value in
+Playwright WebKit 27.2 after the window resized: the column's own value followed
+the resize, but an `available` block sized from the child's copy stayed 1392px wide
+at 1200 and 900px wide windows (2026-10-31). Declared to inherit, the same
+property updates in every child. So the column's room (`--lf-free-start`,
+`--lf-free-end`, `browser/layouts.css`) inherits, and a box outside the column's
+flow sets it back to zero. Recheck with
+`test_a_breakout_grows_only_from_a_holder_that_spans_the_column` in
+`tests/browser/test_render_pages.py` under `webkit_browser`, after making the
+properties non-inheriting and passing them down with `inherit`.
+
 ### State-preserving content reordering
 
 `browser/runtime/dom-move.js` uses `moveBefore` for retained nodes within one
@@ -358,6 +422,18 @@ the runtime writes one rule per name.
 Recheck a fixed anchored box against a part-named child after scrolling its
 shadow scroller, then repeat one host deeper through `exportparts` and with a
 name read through `attr()` before lifting those limits.
+
+### Keyboard modality after a click in Firefox
+
+A thread card opened by a click keeps no ring in Firefox however the user then
+types, so nothing marks the card the thread keys act on. Playwright Chromium
+156.0.8078.4 matched `:focus-visible` on the clicked thread at the next key, Shift
+included; Playwright Firefox 157.0 never did, on 2026-11-02. `focus.js`
+(`visibleFocus`) follows the browser's answer, and the open card is the only thread
+keys reach, and only while the user hasn't scrolled it away (`keyboard/dispatch.js`).
+Recheck with a probe on
+`review-a-plan`: click the first margin marker, press Shift, and read whether the
+card's `.lf-page-thread` matches `:focus-visible`.
 
 ### A stuck sticky anchor in Firefox
 
@@ -416,8 +492,15 @@ else ran a margin pass. Bug 2055371 is Firefox's, and it remains with the
 Nightly pref on. A CSS zoom drifts no anchor in any of the three. The margin
 now runs a pass at a box's `scrollend` where a row's carrier stands in the box
 and the box's on-screen width differs from its zoomed layout width
-(`scrollMisplacesAnchors`), so rows drift while the scroll runs and stand on
-their words a frame after it ends. WebKit 27.2's Linux build (Playwright build
+(`scrollMisplacesAnchors`), so rows stand on their words a frame after it
+ends. While the scroll runs, the margin's once-a-frame reading of it places
+again a row whose words have left it (`subjectMoved`). In Firefox, whose
+anchors `anchorBox` measures without their transforms, that holds the row near
+its words: on 2026-11-03 a smooth scroll inside a scaled box ran 26 passes over
+72 frames, the row stayed within 7px of its words where it had drifted up to
+48px, and no frame took over 15ms on a four-row page. In WebKit the measured
+anchor moves with the words, so by that reading its rows still drift until
+`scrollend` (not measured). WebKit 27.2's Linux build (Playwright build
 2370, which CI runs) has no `currentCSSZoom`, unlike its macOS build of the same
 number, so there a zoomed box also gets the pass, which moves no row. Inside a rotated box, a mark anchored to an
 SVG drawing or to a scroller's first words stands off by the rotation, since
@@ -434,6 +517,30 @@ recheck with the `scrollend` listener removed, which left the row 24.1px off in
 Firefox 157 and 24.0px off in WebKit 27.2, or by reading the row in the frame
 after the scroll, before `scrollend`.
 
+### A cached `elementFromPoint` answer in Chromium
+
+A `position: fixed` box anchored to scrolled content takes up a script's scroll
+as the next frame renders, since css-anchor-position-1 updates anchor positions
+once a frame, so a script reading the box in between finds it at its old place.
+Chromium also keeps the hit test it answers then. On 2026-11-03, after an
+instant `scrollBy` brought a margin row in a carrier to a third of a 390 × 844
+phone window, Playwright's Chromium headless shell 156.0.8078.4 returned the
+heading beneath, not the row, from `elementFromPoint` at one point where the row
+was drawn for 23 to 28 frames when that point was first tested in the scrolling
+task; a point not tested before found the row as soon as the frame rendered.
+Firefox 157 answered from the new place once the frame rendered, and WebKit
+27.2 already in the scrolling task. A real tap or click at that point three
+frames after the scroll reached the row in 12 of 12 runs, so only scripts are
+misled, such as a Playwright tap aimed from the box in that window, which
+scrolled to the old place and missed.
+
+Rows the document's scroll alone moves stand in the root lane, where layout
+moves them in the scrolling task (`carrierAnchor` in
+`browser/runtime/annotation-overlay/margin-layout.js`). Rows a pane, an inner
+scroller, a sticky or fixed box, or a sticky header carries keep this. Recheck
+by testing one point under a carried row in the task that scrolls it into
+place, then the same point at each frame after.
+
 ### A `left`-inset anchored control after a resize in Firefox
 
 `.lf-heading-link` in `browser/styles/components/integration.css` carries its
@@ -447,6 +554,23 @@ the gap is unconfirmed. The `right` form costs nothing else. Recheck by
 swapping in the `left` form and comparing the link's box after that resize with
 a fresh page's at the same width across the corpus; if none differ, drop this
 entry and the reason in the stylesheet.
+
+### A keyboard scroll's `scrollend` on every frame in WebKit
+
+On 2026-11-03, Playwright WebKit 27.2 (build 2370) sent a `scrollend` on each
+frame of a PageDown's or Space's animation, 12 for one PageDown, where Chromium
+156 and Firefox 157 send one as the scroll lands. So in WebKit one keypress makes
+a scroll sequence per frame (`arrivals.js`, `watchScrollEnds`), and each reader
+of a scroll's end runs on every frame of it. A Leaf step pressed during such a
+scroll waits for it to end (`scrolling.js`, `afterBrowserScroll`), which in
+WebKit is the first frame's end, so the step moves from where that frame left
+the page and the rest of the browser's move is lost, or the step is: Space and
+then `d` 40 ms later ended at 651 px, and PageDown and then `d` at 720, PageDown
+alone, where Chromium and Firefox end at 1246 and 1254, the landing plus the
+step. Waiting a rendering update past each end did not help, since WebKit's
+main thread hears its keyboard scroll's frames up to 110 ms apart. To recheck,
+count `scrollend` events on the document across one PageDown in WebKit; one
+means the gap has closed.
 
 ### Native reveal bounded to its scroller
 
@@ -473,8 +597,9 @@ Playwright Firefox 155 screencasts intermittently omitted fixed layers on
 2026-10-22, including a stationary marker outside Leaf's chrome. Native
 screenshots sampled during the same journeys retained those layers; whether
 the omission occurs in native-window paint remains unresolved.
-`leaf-dev bench-panel-motion` reports missing mark and focus-outline paint in
-Chromium's sampled frames; the functional test checks their settled paint.
+The probe journey in `dev/leaf_dev/panel_paint.py` reports missing mark and
+focus-outline paint in Chromium's sampled frames; the functional test checks
+their settled paint.
 Firefox recordings remain diagnostic
 evidence and cannot establish all-frame visibility. Recheck the same
 fold/unfold journey with a stationary fixed marker, native screenshots and a
@@ -525,3 +650,69 @@ launched without `--hide-scrollbars`, and Firefox launched headed under
 bars). Once they match in both, the attribute and its rule can go.
 `test_a_card_that_scrolls_gives_its_scrollbar_room` in
 `tests/browser/margin/test_card_reply.py` covers the card in Chromium.
+
+### A landing in a skipped `content-visibility: auto` box in Firefox
+
+Firefox 157 (Playwright's build, macOS) leaves a `content-visibility: auto` box skipped
+after script scrolls to an element inside it until the box itself intersects the view
+at a rendering update; it doesn't activate the box for the scroll, and the box keeps
+its estimated size meanwhile. Geometry read from inside the skipped box is the drawn
+layout's, so where the estimate was off, a landing computed from it showed another
+stretch. On 2026-11-02, before a long text document's runs were sized to their lines,
+`t` to line 11,000 of a 1 MB wrapped text reported the line 214 px into its listing,
+while `elementFromPoint` there found line 11,041, the box showed line 11,035 onwards
+with no comment mark, and the run was still skipped 1.5 s later. Setting the run
+`content-visibility: visible` drew line 11,000 where it was reported. So travel draws
+the box it lands in for the jump and releases it two frames later (`anchor-travel.js`,
+`drawForLanding`), and the hit-test finds the line because its run is drawn. Runs are
+sized to the lines their rows fill (`lf-text-document.js`, `sizeRuns`), but long
+tokens, which Firefox also breaks after a slash, fill more lines than that: with the
+run left skipped, a jump past them stopped 104 px short and a second scroll followed.
+`test_a_long_text_document_draws_the_lines_in_view_and_keeps_the_rest_whole` covers it
+in both engines. To recheck, drop `drawForLanding` and travel past long tokens in
+Firefox.
+
+### A skipped `content-visibility: auto` box keeps its drawn height
+
+Chromium 156, Firefox 157 and WebKit (Playwright's builds, macOS) keep the height a
+`content-visibility: auto` box was drawn at for as long as it is skipped, whatever its
+`contain-intrinsic-size` says: written without `auto`, or never given `auto`, the box
+still stood at its drawn height frames later. They drop it only when the box's style
+resolves with neither `auto` nor `content-visibility: auto`, which a `getComputedStyle`
+read does within the same task. css-sizing-4 ("Last Remembered Size") keeps a
+remembered size only while `contain-intrinsic-size` has `auto`, and removes it at
+ResizeObserver timing once `auto` is gone; no engine does either. On 2026-11-02 a long
+text document narrowed from 718 to 460 px after its last runs were drawn left End
+240 px short in Chromium, 1,700 px in Firefox and 1,834 px in WebKit. So when its line
+length changes, `lf-text-document.js` (`sizeRuns`) resolves each drawn, skipped run's
+style once as `hidden` without `auto`, then takes both back in the same task, and End
+and a drag to the bottom land in all three. The forgetting rests on that uniform but
+unspecified behaviour: should an engine keep the height through that resolution, or
+drop it only as specified, the drag after the narrowing in
+`test_a_long_text_document_draws_the_lines_in_view_and_keeps_the_rest_whole` stops
+short. To recheck, draw a `content-visibility: auto` box with
+`contain-intrinsic-size: auto 100px`, scroll it out of view, write
+`contain-intrinsic-size: 300px` and read its height a few frames later: 300 px is the
+specified behaviour.
+
+### A traversal's own scroll restoration under the Navigation API
+
+Firefox 157 (Playwright build 1555, macOS) applies a same-document traversal after
+its `navigate` event, and restores the destination entry's saved offset just after
+the traversal's `popstate` even when a handler intercepted it with
+`scroll: "manual"`: `nsDocShell::HandleSameDocumentNavigation` never reads the
+`mSuppressNormalScrollRestorationDuringOngoingNavigation` flag `Navigation.cpp` sets.
+It can also blur the focused element then. Firefox and WebKit 27.2 (build 2370) both
+reveal the fragment's `hidden="until-found"` target as they apply the traversal,
+firing `beforematch`, and WebKit scrolls to it; Chromium 156 does none of this. On
+2026-11-02, Back to a code block in a tab the user had closed since, with a
+disclosure opened above it, landed it 471 px down in Firefox, at the offset the entry
+was left at, where Chromium landed it at 59. So `browser/runtime/history.js` places
+the page before the browser applies the traversal, reading what is hidden before the
+browser reveals it. In the rendering update after the traversal's `popstate`
+(`traversalApplied`), it scrolls the first block on screen back to where its
+placement stood it; Firefox's blur still leaves focus on `body` after Back.
+`test_back_to_a_fragment_the_page_has_hidden_since_lands_on_it` covers it in Chromium
+and Firefox. To recheck, intercept a traversal with `scroll: "manual"`, scroll in the
+handler, and read the offset after `popstate`; once Firefox keeps the handler's offset
+and neither engine reveals or scrolls to the target, that step can go.

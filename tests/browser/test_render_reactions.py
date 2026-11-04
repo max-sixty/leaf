@@ -190,7 +190,7 @@ def test_a_token_press_marks_the_passage_and_its_revealed_remove_takes_it_back(
     bar = page.locator(".lf-fab-bar")
     expect(bar).to_be_visible()
     tokens = page.evaluate(
-        "() => [...document.querySelectorAll('.lf-fab-bar .lf-react')].map(p => p.dataset.token)"
+        "() => [...document.querySelectorAll('.lf-fab-bar .lf-react')].map(p => p.dataset.lfToken)"
     )
     assert tokens == [
         "keep",
@@ -234,7 +234,7 @@ def test_a_token_press_marks_the_passage_and_its_revealed_remove_takes_it_back(
 
     held = []
     page.route("**/api/event", lambda route: held.append(route))
-    surface.locator('.lf-react[data-token="shorten"]').click()
+    surface.locator('.lf-react[data-lf-token="shorten"]').click()
     holding(page, held, 1, "the token the press marks with")
     expect(bar).to_be_hidden()
     shown = painted(page, [["how-store", "shorten"]])
@@ -291,10 +291,10 @@ def test_a_token_press_marks_the_passage_and_its_revealed_remove_takes_it_back(
     expect(receipt_item.locator(".lf-react-mark")).to_have_count(1)
     expect(receipt_item.locator(MARGIN_RESPONSES)).to_have_count(0)
     expect(surface.locator(".lf-react:visible")).to_have_count(6)
-    expect(surface.locator('.lf-react[data-token="shorten"]')).to_have_attribute(
+    expect(surface.locator('.lf-react[data-lf-token="shorten"]')).to_have_attribute(
         "aria-pressed", "true"
     )
-    expect(surface.locator('.lf-react[data-token="keep"]')).to_have_attribute(
+    expect(surface.locator('.lf-react[data-lf-token="keep"]')).to_have_attribute(
         "aria-pressed", "false"
     )
     page.mouse.click(40, 300)  # the bar down, the reaction's glyph remains
@@ -493,7 +493,7 @@ def test_tab_opens_the_comment_picker_with_individual_emoji_buttons(browser, ser
     )
     assert labels == ["keep", "change", "clarify", "shorten", "support", "prioritize"]
     expect(surface.get_by_role("button", name="Suggest", exact=True)).to_be_focused()
-    reaction = surface.locator('[data-token="keep"]')
+    reaction = surface.locator('[data-lf-token="keep"]')
     face = """node => {
       const style = getComputedStyle(node);
       return {fill: style.backgroundColor, border: style.borderTopColor,
@@ -506,7 +506,7 @@ def test_tab_opens_the_comment_picker_with_individual_emoji_buttons(browser, ser
     page.mouse.move(0, 0)
     for token in ["keep", "change", "clarify", "shorten", "support", "prioritize"]:
         page.keyboard.press("ArrowRight")
-        focused = surface.locator(f'[data-token="{token}"]')
+        focused = surface.locator(f'[data-lf-token="{token}"]')
         expect(focused).to_be_focused()
         assert focused.evaluate(face)["outline"] == "solid"
         assert focused.evaluate(face)["ring"] != resting_face["ring"]
@@ -561,7 +561,7 @@ def test_tab_opens_the_comment_picker_with_individual_emoji_buttons(browser, ser
     page.keyboard.press("e")
     rendered(page)
     expect_panel_says(page, "Select something to react to", says=False)
-    expect(page.locator(PANEL)).not_to_have_attribute("data-open", re.compile("."))
+    expect(page.locator(PANEL)).not_to_have_attribute("data-lf-open", re.compile("."))
     expect(page.locator(".lf-fab-bar")).to_be_hidden()
 
     # Neither Threads nor the page comment adds an unanchored reaction target.
@@ -969,7 +969,7 @@ def test_a_reaction_on_a_visual_part_names_that_part(browser, serve):
     page.keyboard.press("Tab")
     surface = page.locator(".lf-fab-bar")
     expect(surface).to_be_visible()
-    reaction = surface.locator('.lf-react[data-token="prioritize"]')
+    reaction = surface.locator('.lf-react[data-lf-token="prioritize"]')
     reaction.focus()
     expect(reaction).to_be_focused()
     # A focused button keeps its native Space activation, which clicks on keyup.
@@ -1006,7 +1006,7 @@ def test_a_whole_visual_reaction_does_not_stand_on_one_of_its_parts(browser, ser
     page = open_page(browser, url)
     page.locator('#flow g[data-id="S"]').click(modifiers=["Alt"])
     expect(
-        page.locator('.lf-fab-bar .lf-react[data-token="prioritize"]')
+        page.locator('.lf-fab-bar .lf-react[data-lf-token="prioritize"]')
     ).to_have_attribute("aria-pressed", "false")
 
 
@@ -1203,7 +1203,7 @@ def test_a_visual_fallback_yields_to_stable_targets_inside_the_picture(browser, 
     nested_picture = page.locator('#outer svg[aria-label="Nested picture"]')
     nested_picture.hover()
     page.keyboard.down("Alt")
-    expect(page.locator(".lf-aim")).to_have_attribute("data-for", "outer")
+    expect(page.locator(".lf-aim")).to_have_attribute("data-lf-for", "outer")
     assert page.locator(".lf-aim").bounding_box() == pytest.approx(
         page.locator("#outer").bounding_box(), abs=1
     ), "the aim promised the picture box while its anchor resolved to the section"
@@ -1382,8 +1382,8 @@ def test_a_declared_visual_part_can_raise_the_same_bar_from_the_keyboard(
     assert page.evaluate("() => getSelection().toString().trim()") == ""
     expect(page.locator(".lf-fab-input")).to_be_focused()
 
-    # Escape hands the user back to the part itself, not the proxy they pressed:
-    # focused, a proxy's face stands at the window's head, away from the drawing.
+    # Escape hands the user back to the part itself, not the proxy they pressed, which
+    # shows nothing of its own.
     page.keyboard.press("Escape")
     expect(page.locator(".lf-fab-bar")).to_be_hidden()
     expect(start).not_to_have_class(re.compile(r"\blf-pending\b"))
@@ -1488,7 +1488,8 @@ def test_a_bar_re_placed_by_its_own_controls_still_hands_back_its_subject(
 
 def test_a_visual_proxy_resolves_a_rebuilt_part_and_reveals_it_on_focus(browser, serve):
     """A retained proxy resolves its stable anchor when focused. It does not keep a
-    renderer node that has been replaced, and it opens the container before scrolling."""
+    renderer node that has been replaced, it opens the container before scrolling, and
+    the part it stands for wears its focus ring."""
     folded = PART_DIAGRAM_PAGE.replace(
         '<lf-diagram id="flow"',
         '<details id="folded" open><summary>Flow</summary>'
@@ -1518,16 +1519,31 @@ def test_a_visual_proxy_resolves_a_rebuilt_part_and_reveals_it_on_focus(browser,
     expect(part).not_to_be_in_viewport()
     page.locator("#folded").evaluate("fold => { fold.open = false; }")
 
+    page.keyboard.press("Tab")
     control.evaluate("control => control.focus({ preventScroll: true })")
     expect(control).to_be_focused()
     expect(page.locator("#folded")).to_have_attribute("open", "")
     expect(part).to_be_in_viewport()
+    # It shows nothing of its own: the part wears the focus ring, round its contour.
+    assert control.evaluate("control => getComputedStyle(control).opacity") == "0"
+    ring = page.locator(".lf-proxy-ring")
+    expect(ring).to_have_count(1)
+    held, drawn = ring.bounding_box(), part.bounding_box()
+    # The ring stands round the part, at its gap.
+    gaps = (
+        drawn["x"] - held["x"],
+        drawn["y"] - held["y"],
+        held["x"] + held["width"] - drawn["x"] - drawn["width"],
+        held["y"] + held["height"] - drawn["y"] - drawn["height"],
+    )
+    assert all(0 <= gap <= 4 for gap in gaps), (held, drawn)
 
 
 def test_a_visual_proxy_keeps_user_current_location_across_provider_updates(
     browser, serve
 ):
-    """A keyed proxy retains a held press and focus while its label and order change."""
+    """A keyed proxy retains focus while its label and order change. It takes no
+    pointer (control-faces.js, `proxy`), so the press that follows is its keys'."""
     page = open_page(
         browser,
         serve(
@@ -1541,13 +1557,6 @@ def test_a_visual_proxy_keeps_user_current_location_across_provider_updates(
     )
     control.focus()
     control.evaluate("control => { window.lfRetainedVisualControl = control; }")
-    bounds = control.bounding_box()
-    assert bounds is not None
-    page.mouse.move(
-        bounds["x"] + bounds["width"] / 2,
-        bounds["y"] + bounds["height"] / 2,
-    )
-    page.mouse.down()
     page.evaluate(
         """() => {
           const visual = document.querySelector('#flow');
@@ -1563,7 +1572,7 @@ def test_a_visual_proxy_keeps_user_current_location_across_provider_updates(
         """() => window.lfRetainedVisualControl.isConnected &&
           document.activeElement === window.lfRetainedVisualControl"""
     )
-    page.mouse.up()
+    page.keyboard.press("Enter")
     expect(page.locator(".lf-fab-input")).to_be_focused()
     page.keyboard.press("Escape")
     expect(page.locator("#flow #outer")).to_be_focused()
@@ -1936,11 +1945,11 @@ def test_a_thread_at_rest_shows_only_the_marks_that_stand_in_it(browser, serve):
 
     def strip(mid):
         return page.locator(
-            f'{PANEL_THREAD} .lf-msg[data-message="{mid}"] .lf-react-strip'
+            f'{PANEL_THREAD} .lf-msg[data-lf-message="{mid}"] .lf-react-strip'
         )
 
     def message(mid):
-        return page.locator(f'{PANEL_THREAD} .lf-msg[data-message="{mid}"]')
+        return page.locator(f'{PANEL_THREAD} .lf-msg[data-lf-message="{mid}"]')
 
     # At rest: no empty reply spends height, including the latest reply in each thread.
     # Open each thread before measuring its message nodes, and leave the message the
@@ -1958,7 +1967,7 @@ def test_a_thread_at_rest_shows_only_the_marks_that_stand_in_it(browser, serve):
     expect(strip(latest).locator(".lf-react:visible")).to_have_count(0)
     expect(strip(first).locator(".lf-react:visible")).to_have_count(1)
     expect(strip(first).locator(".lf-react:visible")).to_have_attribute(
-        "data-token", "clarify"
+        "data-lf-token", "clarify"
     )
     open_panel_thread(page, quiet_root)
     page.evaluate(RELEASE_FOCUS)
@@ -2023,7 +2032,7 @@ def test_a_thread_at_rest_shows_only_the_marks_that_stand_in_it(browser, serve):
 
     # Taking the last mark off a reply closes the list and returns focus to its ellipsis.
     # Reopening offers the same action again without leaving the token wall out.
-    mark = strip(first).locator('.lf-react[data-token="clarify"]')
+    mark = strip(first).locator('.lf-react[data-lf-token="clarify"]')
     with sending(page, "the withdrawal"):
         mark.press("Enter")
     withdrawn = events_model.read_events(serve.page_dir)[-1]
@@ -2075,7 +2084,7 @@ def test_a_message_reaction_trigger_meets_its_header_and_covers_no_words(
 
     card = open_panel_thread(page, root)
     for message_id in (reply, root):
-        message = card.locator(f'.lf-msg[data-message="{message_id}"]')
+        message = card.locator(f'.lf-msg[data-lf-message="{message_id}"]')
         if not touch:
             message.hover()
         trigger = message.get_by_role("button", name="Add reaction", exact=True)
@@ -2133,6 +2142,43 @@ def test_a_message_reaction_trigger_meets_its_header_and_covers_no_words(
     expect(card).to_have_count(0)
 
 
+def test_a_margin_card_offers_a_reply_s_reactions(browser, serve):
+    """A margin card offers reactions on an agent's reply as the panel's view of the
+    thread does: by the reply's own trigger and by `e` from the card. The card once
+    drew no reactions at all, so a thread about a passage took them only in the
+    panel."""
+    url = serve(PANEL_PAGE)
+    root = panel_comment(serve.page_dir, "Why this cap?", {"section": "how-cap"})
+    reply = append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Codex",
+            "parent": root,
+            "text": "Forty megabytes holds a week of edits for the largest workspace.",
+        },
+    )["id"]
+    page = open_page(browser, url)
+    page.locator('[data-lf-margin-for="how-cap"] .lf-margin-marker').click()
+    card = page.locator(f'.lf-margin-preview .lf-page-thread[data-lf-thread="{root}"]')
+    message = card.locator(f'.lf-msg[data-lf-message="{reply}"]')
+    strip = message.locator(":scope > .lf-react-strip")
+    palette = strip.locator(".lf-react-palette:popover-open")
+    expect(card).to_be_focused()
+    page.keyboard.press("e")
+    expect(palette).to_have_count(1)
+    page.keyboard.press("Escape")
+    expect(palette).to_have_count(0)
+    message.hover()
+    message.locator(".lf-react-trigger").click()
+    expect(palette).to_have_count(1)
+    with sending(page, "the reaction"):
+        strip.locator(".lf-react").first.click()
+    reacted = events_model.read_events(serve.page_dir)[-1]
+    assert (reacted["kind"], reacted["parent"]) == ("reply", reply), reacted
+
+
 def test_a_held_reaction_says_its_word_and_the_release_decides(browser, serve):
     """A finger learns what a reaction means by pressing and holding it: the choice
     under the finger shows its word for as long as the press lasts, sliding onto its
@@ -2157,14 +2203,14 @@ def test_a_held_reaction_says_its_word_and_the_release_decides(browser, serve):
     )
     page = open_page(browser, url, context=context)
     view = open_panel_thread(page, root)
-    strip = view.locator(f'.lf-msg[data-message="{reply}"] .lf-react-strip')
-    trigger = view.locator(f'.lf-msg[data-message="{reply}"] .lf-react-trigger')
+    strip = view.locator(f'.lf-msg[data-lf-message="{reply}"] .lf-react-strip')
+    trigger = view.locator(f'.lf-msg[data-lf-message="{reply}"] .lf-react-trigger')
     trigger.tap()
     expect(strip.locator(".lf-react-palette:popover-open")).to_have_count(1)
     cdp = context.new_cdp_session(page)
 
     def centre(token):
-        box = strip.locator(f'.lf-react[data-token="{token}"]').bounding_box()
+        box = strip.locator(f'.lf-react[data-lf-token="{token}"]').bounding_box()
         return {
             "x": round(box["x"] + box["width"] / 2),
             "y": round(box["y"] + box["height"] / 2),
@@ -2182,7 +2228,7 @@ def test_a_held_reaction_says_its_word_and_the_release_decides(browser, serve):
         rendered(page)
         return strip.evaluate("""strip => [...strip.querySelectorAll('.lf-react')]
             .filter((chip) => chip.hasAttribute('data-lf-held-word'))
-            .map((chip) => [chip.dataset.token,
+            .map((chip) => [chip.dataset.lfToken,
                             getComputedStyle(chip, '::after').content])""")
 
     # What the log holds once everything the page has sent has come back, so a read that
@@ -2223,7 +2269,7 @@ def test_a_held_reaction_says_its_word_and_the_release_decides(browser, serve):
     with sending(page, "the clarify reaction"):
         touch("touchStart", centre("clarify"))
         touch("touchEnd")
-    expect(strip.locator('.lf-react[data-token="clarify"]')).to_have_attribute(
+    expect(strip.locator('.lf-react[data-lf-token="clarify"]')).to_have_attribute(
         "aria-pressed", "true"
     )
     assert reading() == []
@@ -2234,7 +2280,7 @@ def test_a_held_reaction_says_its_word_and_the_release_decides(browser, serve):
     page.keyboard.press("Shift")  # keyboard modality, so the focus below is visible
     trigger.focus()
     page.keyboard.press("Enter")
-    keep = strip.locator('.lf-react[data-token="keep"]')
+    keep = strip.locator('.lf-react[data-lf-token="keep"]')
     expect(keep).to_be_focused()
     assert keep.evaluate(
         "c => [c.matches(':focus-visible'), getComputedStyle(c, '::after').content]"
@@ -2297,14 +2343,14 @@ def test_a_reopened_message_picker_keeps_the_selected_reaction_visible(
     page = open_page(browser, url, color_scheme=scheme)
     if placement == "panel":
         view = open_panel_thread(page, root)
-        message = view.locator(f'.lf-msg[data-message="{reply}"]')
+        message = view.locator(f'.lf-msg[data-lf-message="{reply}"]')
     else:
-        message = page.locator(f'lf-diff [data-event="{reply}"]')
+        message = page.locator(f'lf-diff [data-lf-event="{reply}"]')
     strip = message.locator(".lf-react-strip")
     trigger = message.get_by_role("button", name="Add reaction", exact=True)
     trigger.click()
-    selected = strip.locator('.lf-react[data-token="keep"]')
-    idle = strip.locator('.lf-react[data-token="change"]')
+    selected = strip.locator('.lf-react[data-lf-token="keep"]')
+    idle = strip.locator('.lf-react[data-lf-token="change"]')
     with sending(page, "the selected message reaction"):
         selected.click()
     told(page)
@@ -2371,41 +2417,41 @@ def test_an_ok_on_the_agents_latest_reply_takes_the_thread_out_of_waiting(
     page = open_page(browser, url)
     expect_on_me(page, 1)
     view = open_panel_thread(page, root)
-    strip = view.locator(f'.lf-msg[data-message="{reply}"] .lf-react-strip')
-    trigger = view.locator(f'.lf-msg[data-message="{reply}"] .lf-react-trigger')
+    strip = view.locator(f'.lf-msg[data-lf-message="{reply}"] .lf-react-strip')
+    trigger = view.locator(f'.lf-msg[data-lf-message="{reply}"] .lf-react-trigger')
     expect(trigger).to_have_count(1)
     assert strip.evaluate("s => s.getBoundingClientRect().height") == 0
     expect(strip.locator(".lf-react")).to_have_count(6)
     expect(strip.locator(".lf-react:visible")).to_have_count(0)
     # The user's own message wears no strip: a reaction is on what the agent said.
     expect(
-        view.locator(f'.lf-msg[data-message="{root}"] .lf-react-strip')
+        view.locator(f'.lf-msg[data-lf-message="{root}"] .lf-react-strip')
     ).to_have_count(0)
 
     trigger.click()
     expect(strip.locator(".lf-react:visible")).to_have_count(6)
     with sending(page, "the reply the no carries"):
-        strip.locator('.lf-react[data-token="change"]').click()
+        strip.locator('.lf-react[data-lf-token="change"]').click()
     sent = events_model.read_events(serve.page_dir)[-1]
     assert (sent["kind"], sent["parent"], sent["token"]) == ("reply", reply, "change")
-    expect(strip.locator('.lf-react[data-token="change"]')).to_have_attribute(
+    expect(strip.locator('.lf-react[data-lf-token="change"]')).to_have_attribute(
         "aria-pressed", "true"
     )
     expect_on_me(page, 1)  # `no` settles nothing
 
     trigger.click()
     with sending(page, "the ok that settles the thread"):
-        strip.locator('.lf-react[data-token="keep"]').click()
+        strip.locator('.lf-react[data-lf-token="keep"]').click()
     ok = events_model.read_events(serve.page_dir)[-1]
     assert ok["token"] == "keep" and ok["parent"] == reply
     expect_on_me(page, 0)  # out of "waiting on me"
     # The mark, pressed again, is the eraser — and the wait comes back with the undo.
     with sending(page, "the take-back of the ok"):
-        strip.locator('.lf-react[data-token="keep"]').click()
+        strip.locator('.lf-react[data-lf-token="keep"]').click()
     withdrawn = events_model.read_events(serve.page_dir)[-1]
     assert withdrawn["kind"] == "undo" and withdrawn["undoes"] == ok["id"]
     expect_on_me(page, 1)
-    expect(strip.locator('.lf-react[data-token="keep"]')).to_have_attribute(
+    expect(strip.locator('.lf-react[data-lf-token="keep"]')).to_have_attribute(
         "aria-pressed", "false"
     )
 
@@ -2420,8 +2466,8 @@ def test_a_remote_resolve_disarms_the_open_reply_list_it_takes_away(browser, ser
     root, reply = _thread(serve.page_dir)
     page = open_page(browser, url)
     view = open_panel_thread(page, root)
-    strip = view.locator(f'.lf-msg[data-message="{reply}"] .lf-react-strip')
-    trigger = view.locator(f'.lf-msg[data-message="{reply}"] .lf-react-trigger')
+    strip = view.locator(f'.lf-msg[data-lf-message="{reply}"] .lf-react-strip')
+    trigger = view.locator(f'.lf-msg[data-lf-message="{reply}"] .lf-react-trigger')
     trigger.click()
     expect(strip.locator(".lf-react-palette:popover-open")).to_have_count(1)
 
@@ -2504,10 +2550,10 @@ def test_a_reply_s_reactions_keep_their_keys_in_a_covering_thread_view(browser, 
     resized(page, 390, 844)
     open_panel_thread(page, root)
     strip = page.locator(
-        f'{PANEL_THREAD} .lf-msg[data-message="{reply}"] .lf-react-strip'
+        f'{PANEL_THREAD} .lf-msg[data-lf-message="{reply}"] .lf-react-strip'
     )
     trigger = page.locator(
-        f'{PANEL_THREAD} .lf-msg[data-message="{reply}"] .lf-react-trigger'
+        f'{PANEL_THREAD} .lf-msg[data-lf-message="{reply}"] .lf-react-trigger'
     )
     trigger.click()
     choices = strip.locator(".lf-react-palette > .lf-react")

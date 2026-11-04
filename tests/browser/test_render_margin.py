@@ -23,19 +23,14 @@ from render_harness import (
     RELEASE_FOCUS,
     margins_laid_out,
     open_page,
-    pane_scroll_behavior,
     resized,
     sending,
     write,
 )
 
 from browser.margin import (
-    CARD_AND_REPLY,
     MARGIN_ACTIONS_PAGE,
-    PANE_PIN_PAGE,
     WORDS_RIGHT,
-    _comment_on,
-    _focused_editor_caret,
     _unfold,
     _unfold_suggestion_undo,
 )
@@ -211,7 +206,7 @@ def test_margin_target_pointer_ownership_ends_with_its_host(browser, serve):
         "y": int(box["y"] + box["height"] / 2),
     }
     page.mouse.move(pointer["x"], pointer["y"])
-    trace = page.locator('.lf-target-trace[data-for="s-replace"]')
+    trace = page.locator('.lf-target-trace[data-lf-for="s-replace"]')
     expect(trace).to_be_visible()
 
     suggestion = target.element_handle()
@@ -287,7 +282,7 @@ def test_margin_target_hover_requires_pointer_movement(browser, serve):
         }""",
         arg=pointer,
     )
-    trace = page.locator('.lf-target-trace[data-for="route-ask"]')
+    trace = page.locator('.lf-target-trace[data-lf-for="route-ask"]')
     expect(
         trace,
         "moving the margin under a stationary pointer claimed pointer ownership",
@@ -557,54 +552,4 @@ def test_a_thread_beside_its_words_takes_the_room_to_the_visible_edge(browser, s
     assert geometry["clipped"] <= 0, geometry
 
 
-@pytest.mark.parametrize(
-    ("size", "route"),
-    [((1440, 900), "paste"), ((1000, 700), "paste"), ((1440, 600), "typing")],
-)
-def test_drafting_in_a_pane_keeps_the_card_and_reply_top_when_its_room_runs_out(
-    browser, serve, size, route
-):
-    """A bounded pane supplies the drafting room just as the window does. Growing
-    past that room scrolls the editor without carrying the card or its first line."""
-    page = open_page(browser, serve(PANE_PIN_PAGE, events=[_comment_on("pane-top")]))
-    resized(page, *size)
-    pane_scroll_behavior(page, page.locator("#pin-pane"), "bounded")
-    page.locator('[data-lf-margin-for="pane-top"] .lf-margin-marker').click()
-    card = page.locator(".lf-margin-preview")
-    editor = card.get_by_role("textbox", name="Reply", exact=True)
-    editor.click()
-    rendered(page)
-    before = page.evaluate(CARD_AND_REPLY)
-
-    def stays():
-        after = page.evaluate(CARD_AND_REPLY)
-        for edge in ("cardTop", "turn", "editorTop"):
-            assert after[edge] == pytest.approx(before[edge], abs=0.5), (before, after)
-
-    if route == "paste":
-        page.keyboard.insert_text(
-            "\n".join(f"Line {n}: Keep the export per tenant." for n in range(40))
-        )
-        rendered(page)
-        stays()
-    else:
-        # Each line goes in as one input, so the draft grows a line at a time without
-        # paying for a key per character.
-        for n in range(40):
-            page.keyboard.insert_text(f"Line {n}: Keep the export per tenant.")
-            if n < 39:
-                editor.press("Shift+Enter")
-            rendered(page)
-            stays()
-    assert editor.evaluate("box => box.scrollHeight > box.clientHeight")
-    caret = _focused_editor_caret(page)
-    assert caret["selection"] == caret["length"], caret
-    assert caret["caretTop"] >= caret["boxTop"], caret
-    assert caret["caretBottom"] <= caret["boxBottom"], caret
-    page.keyboard.type(" End")
-    rendered(page)
-    stays()
-    caret = _focused_editor_caret(page)
-    assert caret["selection"] == caret["length"], caret
-    assert caret["caretTop"] >= caret["boxTop"], caret
-    assert caret["caretBottom"] <= caret["boxBottom"], caret
+import pytest

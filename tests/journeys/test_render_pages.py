@@ -4,6 +4,7 @@ import json
 import re
 
 import pytest
+from browser.threads import open_panel_thread
 from interact_support import (
     append_carried_log_record,
 )
@@ -18,8 +19,6 @@ from render_cases_widgets import (
 )
 from render_harness import (
     ANCHOR_SOURCES,
-    CORPUS_SOURCES,
-    EXAMPLES,
     INLINE_PAGE,
     PANEL_THREAD,
     leaf_page,
@@ -33,6 +32,7 @@ from render_harness import (
     write,
 )
 
+from journeys import detached_threads, listed_threads
 from leaf import event_log as events_model
 from leaf import events as thread_model
 from leaf import render_checks as render_checks_model
@@ -42,17 +42,14 @@ from leaf.passages import enclosing_ids, page_passages
 from leaf.registry import storage as registry_storage
 from leaf.render_checks import wait_until_ready
 from leaf.render_gate import version as render_gate_model
+from leaf_dev.example_data import authored_sources, named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
-
-from browser.threads import open_panel_thread
-
-from journeys import detached_threads, listed_threads
 
 
 def test_sort_film_comment_restores_its_input_and_step(browser, serve):
     """A moment thread returns to the trace it described after input changes."""
-    example = next(path for path in EXAMPLES if path.stem == "rust-sort")
+    example = named_source("rust-sort")
     context = browser.new_context(
         reduced_motion="reduce", viewport={"width": 1715, "height": 1046}
     )
@@ -118,45 +115,6 @@ def test_sort_film_comment_restores_its_input_and_step(browser, serve):
     expect(moment).to_have_attribute("data-part", "moment:random:7:0")
 
 
-@pytest.mark.watch_shifts
-def test_sort_film_playback_keeps_the_stage_and_controls_still(browser, serve):
-    """Each trace step paints inside a fixed layout at both wide pane widths."""
-    example = next(path for path in EXAMPLES if path.stem == "rust-sort")
-    context = browser.new_context(
-        reduced_motion="reduce", viewport={"width": 1715, "height": 1046}
-    )
-    page = open_page(browser, serve(example), context=context)
-
-    for width in (1715, 1200):
-        page.set_viewport_size({"width": width, "height": 1046})
-        page.locator("#sort-film .sort-play").focus()
-        page.keyboard.press("Home")
-        layouts = page.evaluate(
-            """async () => {
-              const film = document.querySelector('#sort-film');
-              const stage = film.querySelector('.sort-stage');
-              const moment = film.querySelector('.sort-moment');
-              const bar = film.querySelector('.sort-bar');
-              const play = film.querySelector('.sort-play');
-              const samples = new Set();
-              play.click();
-              const until = performance.now() + 900;
-              while (performance.now() < until) {
-                await new Promise(requestAnimationFrame);
-                const top = stage.getBoundingClientRect().top;
-                samples.add(JSON.stringify([
-                  Math.round(stage.getBoundingClientRect().height),
-                  Math.round(moment.getBoundingClientRect().top - top),
-                  Math.round(bar.getBoundingClientRect().top - top),
-                ]));
-              }
-              play.click();
-              return [...samples];
-            }"""
-        )
-        assert len(layouts) == 1, (width, layouts)
-
-
 def test_a_shipped_log_replays_its_example_state(browser, serve):
     """An example that ships a companion log opens with its event state.
 
@@ -183,7 +141,7 @@ def test_a_shipped_log_replays_its_example_state(browser, serve):
 
     Looped rather than parametrized so an empty corpus fails here instead of
     collecting no tests and reporting green."""
-    seeded = [p for p in CORPUS_SOURCES if p.with_suffix(".jsonl").exists()]
+    seeded = [p for p in authored_sources() if p.with_suffix(".jsonl").exists()]
     assert seeded, "no corpus source ships a log; this gate is reading nothing"
     drawn = []
     replied = []
@@ -874,3 +832,42 @@ def test_a_layout_on_a_child_of_main_arranges_it_as_it_would_main(browser, serve
     assert left - in_child["main"][0] == 140, in_child
     for edges in (in_child["box"], in_child["route"][0], in_child["room"][0]):
         assert left <= edges[0] and edges[1] <= right, in_child
+
+
+@pytest.mark.watch_shifts
+def test_sort_film_playback_keeps_the_stage_and_controls_still(browser, serve):
+    """Each trace step paints inside a fixed layout at both wide pane widths."""
+    example = named_source("rust-sort")
+    context = browser.new_context(
+        reduced_motion="reduce", viewport={"width": 1715, "height": 1046}
+    )
+    page = open_page(browser, serve(example), context=context)
+
+    for width in (1715, 1200):
+        page.set_viewport_size({"width": width, "height": 1046})
+        page.locator("#sort-film .sort-play").focus()
+        page.keyboard.press("Home")
+        layouts = page.evaluate(
+            """async () => {
+              const film = document.querySelector('#sort-film');
+              const stage = film.querySelector('.sort-stage');
+              const moment = film.querySelector('.sort-moment');
+              const bar = film.querySelector('.sort-bar');
+              const play = film.querySelector('.sort-play');
+              const samples = new Set();
+              play.click();
+              const until = performance.now() + 900;
+              while (performance.now() < until) {
+                await new Promise(requestAnimationFrame);
+                const top = stage.getBoundingClientRect().top;
+                samples.add(JSON.stringify([
+                  Math.round(stage.getBoundingClientRect().height),
+                  Math.round(moment.getBoundingClientRect().top - top),
+                  Math.round(bar.getBoundingClientRect().top - top),
+                ]));
+              }
+              play.click();
+              return [...samples];
+            }"""
+        )
+        assert len(layouts) == 1, (width, layouts)

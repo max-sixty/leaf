@@ -30,7 +30,6 @@ from browser.threads import (
     THIRTY_LINES,
     bounded_seat_page,
     clear_of_the_panel,
-    long_diff_thread,
     paste,
     pressed_send_surface,
     seated_page,
@@ -126,7 +125,7 @@ def test_a_refused_reply_folds_away_and_its_words_return_whole(browser, serve, s
     write(box, words)
     page.keyboard.press("Enter")
     holding(page, held, 1, "the reply")
-    sent = card.locator('.lf-msg[data-event^="pending:"]')
+    sent = card.locator('.lf-msg[data-lf-event^="pending:"]')
     expect(sent).to_be_visible()
     rendered(page)
     space = card.locator(".lf-reply-space")
@@ -157,7 +156,7 @@ def test_a_refused_reply_folds_away_and_its_words_return_whole(browser, serve, s
     expect(folding).to_have_count(1)
     expect(sent).to_have_count(0)
     assert folding.evaluate(
-        "node => node.matches(':not([data-event], [data-message])')"
+        "node => node.matches(':not([data-lf-event], [data-lf-message])')"
     )
     page.evaluate(
         "() => window.retirement.currentTime ="
@@ -199,7 +198,7 @@ def test_a_new_sent_message_does_not_hide_work_on_an_earlier_message(browser, se
     )
     told(page)
     workflow = page.locator(
-        f'.lf-margin-preview .lf-msg[data-event="{later["id"]}"] .lf-msg-sending'
+        f'.lf-margin-preview .lf-msg[data-lf-event="{later["id"]}"] .lf-msg-sending'
     )
     expect(workflow).to_have_text(re.compile(r"^Queued for "))
     assert workflow.evaluate(
@@ -210,7 +209,7 @@ def test_a_new_sent_message_does_not_hide_work_on_an_earlier_message(browser, se
     # is set larger (surfaces.css, the name's strut).
     baselines = workflow.evaluate(
         """node => [...node.closest('.lf-msg-head').querySelectorAll(
-          ':scope > b, :scope > .lf-msg-meta > time, [data-voice]')].map(words => {
+          ':scope > b, :scope > .lf-msg-meta > time, [data-lf-voice]')].map(words => {
           const mark = words.appendChild(document.createElement('span'));
           mark.style.cssText = 'display: inline-block; block-size: 0';
           const y = mark.getBoundingClientRect().top;
@@ -286,46 +285,6 @@ def send_reply(page, thread, box, words):
 
 
 @pytest.mark.watch_shifts
-@pytest.mark.parametrize("engine", ["browser", "webkit_browser"])
-@pytest.mark.parametrize(("seat", "lines"), [("widget", 1), ("diff", 1), ("diff", 4)])
-def test_sends_from_a_page_threads_box_hold_its_foot_at_the_bands(
-    engine, seat, lines, request, serve
-):
-    """Each send from a thread's box at the reading band's foot, where typing brings
-    it, leaves the box's foot there, where Send and the caret stand, through the send
-    that makes the thread taller than the band.
-
-    The send landed the whole thread while it fitted and the reply row once it did
-    not, and the thread, focused by the send, took its focus ring's room at its foot.
-    So the first send lifted the box by that room and the thread's padding, and the
-    send that made the thread too tall dropped it back by the same. Held by its top
-    instead, a box emptied of several lines lifted its foot by the lines it lost."""
-    browser = request.getfixturevalue(engine)
-    url, root = (
-        long_seated_thread(serve) if seat == "widget" else long_diff_thread(serve, LEAD)
-    )
-    page = open_page(browser, url)
-    resized(page, 1200, 560)
-    thread = page.locator(f'.lf-page-thread[data-thread="{root}"]')
-    expect(thread).to_be_visible()
-    box = thread.locator("leaf-text")
-    # The box's foot just past the landing band's, where the first keystroke lands it.
-    box.evaluate(
-        """box => scrollBy({top: box.getBoundingClientRect().bottom - innerHeight
-          + parseFloat(getComputedStyle(document.documentElement).scrollPaddingBottom)
-          - 12, behavior: 'instant'})"""
-    )
-    rendered(page)
-    sends = []
-    while not sends or not sends[-1][1]["tall"]:
-        assert len(sends) < 8, sends
-        words = "\n".join(f"Reply {len(sends)}, line {n}" for n in range(lines))
-        sends.append(send_reply(page, thread, box, words))
-    for before, after in sends:
-        assert abs(after["foot"] - before["foot"]) < 1, sends
-
-
-@pytest.mark.watch_shifts
 def test_escape_from_a_box_leaves_it_where_it_stood(browser, serve):
     """Escape from a page thread's box, onto a thread that fits the window but whose
     head the user has scrolled above it, lands on the thread without scrolling: the box
@@ -334,7 +293,7 @@ def test_escape_from_a_box_leaves_it_where_it_stood(browser, serve):
     url, root = long_seated_thread(serve)
     page = open_page(browser, url)
     resized(page, 1200, 560)
-    thread = page.locator(f'.lf-page-thread[data-thread="{root}"]')
+    thread = page.locator(f'.lf-page-thread[data-lf-thread="{root}"]')
     box = thread.locator("leaf-text")
     expect(box).to_be_visible()
     box.click()

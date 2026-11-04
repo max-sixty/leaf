@@ -387,6 +387,7 @@ EXTENSION_SCHEMA = {
         "x-inline": {"type": "boolean"},
         "x-encloses": {"const": True},
         "x-language": _ATTRIBUTE_NAME,
+        "x-prepaint": _ATTRIBUTE_NAME,
         "x-reading-role": {"enum": ["pane"]},
         "x-measured": MEASURED_SCHEMA,
         "x-patch": {"enum": ["members"]},
@@ -517,12 +518,12 @@ _CLAUSES = {
     },
 }
 # The shape of each shared layer fact a complete vocabulary carries, every one
-# required and each held to its schema on its own (`registry.layer.check_layer_facts`).
+# required and each held to its schema on its own (`registry.validation.check_layer_facts`).
 # Its consumers read each directly: a string `$tones.names` would answer the tone
 # check's membership test by substring, and a token without a `glyph` paints nothing.
 # What names another fact, or needs more than a shape (a clause's `when` and a
-# contract's `schema` are JSON Schemas, `resources` are JMESPath), `registry.layer`
-# checks.
+# contract's `schema` are JSON Schemas, `resources` are JMESPath), the same module's
+# `validate_layer_declarations` checks.
 LAYER_FACTS = {
     "$events": {
         "type": "object",
@@ -617,6 +618,7 @@ LAYER_FACTS = {
 ATTRIBUTE_KEYS = (
     "x-language",
     "x-name",
+    "x-prepaint",
     "x-refers",
     "x-says",
     "x-tone",
@@ -634,6 +636,7 @@ LAYER_TOP_FILES = (
     "theme.css",
     "shadow.css",
     "chrome.css",
+    "portable.css",
     "registry.json",
     "icon.svg",
 )

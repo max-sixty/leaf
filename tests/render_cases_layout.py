@@ -846,10 +846,12 @@ AIM_POINT = """(el) => {
   return null;
 }"""
 # The promise itself, read where the runtime states it: the aim's box in the chrome's
-# layer carries the aimed element's id (data-for, refreshAim's one write of it). The
+# layer carries the aimed element's id (data-lf-for, refreshAim's one write of it). The
 # composer's own mark then stands on that same item once the press is made, so the box's
 # answer before the press and the draft's after it agreeing is the promise being kept.
-AIMED = """() => document.querySelector(".lf-aim")?.getAttribute("data-for") ?? null"""
+AIMED = (
+    """() => document.querySelector(".lf-aim")?.getAttribute("data-lf-for") ?? null"""
+)
 # The item the draft stands on, which is not always the element wearing the outline: a
 # mark hangs on the boxes its element shows through, and a display: contents wrapper shows
 # through its slots. Reading the raw id said the promise was broken for every suggestion
@@ -892,7 +894,12 @@ PAGE_MARKUP = r"""() => [...document.body.children]
         for (const g of c.querySelectorAll("[data-lf-gen]")) g.textContent = "";
         if (c.dataset && c.dataset.lfGen !== undefined) c.textContent = "";
         for (const el of [c, ...c.querySelectorAll("*")]) {
-            el.classList?.remove("lf-mark-hover", "lf-projected-mark", "lf-binding-seat");
+            el.classList?.remove(
+                "lf-mark-hover",
+                "lf-projected-mark",
+                "lf-projected-location",
+                "lf-binding-seat",
+            );
             // Anchor naming is presentation state. The layout may copy a name
             // from a stylesheet into inline style while positioning a comment.
             el.style?.removeProperty("anchor-name");
@@ -908,7 +915,7 @@ PAGE_MARKUP = r"""() => [...document.body.children]
 # shownRect's fallback: its host rect is 0×0 at the origin, which would otherwise count
 # as "wholly on screen" and fail every off-screen one for its rightly hidden box.
 LEGEND_TRUE = """() => [...document.querySelectorAll('.lf-legend-box')].every(b => {
-  const it = document.getElementById(b.dataset.for);
+  const it = document.getElementById(b.dataset.lfFor);
   let r = it.getBoundingClientRect();
   if (!r.width && !r.height) {
     const contents = document.createRange();

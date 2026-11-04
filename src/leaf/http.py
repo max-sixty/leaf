@@ -55,6 +55,7 @@ from .layer import incompatible_layer, running_leaf
 from .locations import path_is_within
 from .media import MAX_MEDIA_UPLOAD_BYTES, MediaUploadError, store_uploaded_media
 from .passages import SourceReading
+from .presence import live_servers
 from .refusals import Refused
 from .registry.storage import layer_metadata, layer_record
 from .revision_artifact import (
@@ -71,7 +72,12 @@ from .revision_delivery import (
     rebase_document,
     runtime_settings,
 )
-from .runtime_selection import executing, execution_identity, serving_runtime
+from .runtime_selection import (
+    executing,
+    execution_identity,
+    named_execution,
+    serving_runtime,
+)
 from .samples import Samples
 from .schema import (
     BINARY_TYPES,
@@ -82,7 +88,7 @@ from .schema import (
     SERVED_PATH,
 )
 from .served_state.service import LivePage, PageSource, PageStateService
-from .server import preview_metadata
+from .server import page_origin, preview_metadata, running_server
 from .structure import FRAME_ANCESTORS_CSP
 from .user_views import observe_user_view
 
@@ -392,8 +398,17 @@ class PageEndpoint:
             if message["type"] == "http.response.start":
                 headers = MutableHeaders(scope=message)
                 headers.setdefault("Cache-Control", self.cache_control)
-                if headers.get("Content-Type", "").startswith("text/html"):
-                    headers.setdefault("Content-Security-Policy", FRAME_ANCESTORS_CSP)
+                # An opaque parent is not expressible as a frame-ancestors source,
+                # so a child capability's documents carry no policy and admit
+                # nested samples.
+                if (
+                    headers.get("Content-Type", "").startswith("text/html")
+                    and not self.sample_request
+                ):
+                    headers.setdefault(
+                        "Content-Security-Policy",
+                        await run_in_threadpool(self._frame_ancestors),
+                    )
                 headers.update(self._delivery_headers())
                 if self.sample_request:
                     self._sample_headers(headers)
@@ -490,13 +505,18 @@ class PageEndpoint:
         what it was just handed. Between the two, the worst case is a token already
         stale on arrival, which costs one more request and no news.
 
-        A tab names the data version it holds in `Leaf-Data-Version`, and an answer
-        whose data is still that version leaves out its sources, which the tab
-        restores from the reading it named (`completeData` in `layer-client.js`).
-        Data moves only when an agent sets it, so without this every gesture's
-        answer would carry back each source value the tab already holds.
+        A tab names what it holds, and the answer leaves that out for the tab to
+        restore from the reading it named (`completeState` in `layer-client.js`):
+        `Leaf-Data-Version` names its data version, and an answer whose data is still
+        that version leaves out its sources, since data moves only when an agent sets
+        it; `Leaf-Held-Basis` names its reading, by the `browser.basis.key` that
+        reading carried, and an answer that can extend it carries only the history
+        since (`served_state.tail`). Without these every gesture's answer would carry
+        back each source value and every past event the tab already holds.
         """
-        state = self._state_service().page_state(view_revision)
+        state = self._state_service().page_state(
+            view_revision, held=self.headers.get("Leaf-Held-Basis")
+        )
         if self.headers.get("Leaf-Data-Version") == state["data"]["version"]:
             state["data"] = {"version": state["data"]["version"]}
         return state
@@ -596,6 +616,31 @@ class PageEndpoint:
             ):
                 return False
         return True
+
+    def _frame_ancestors(self) -> str:
+        """Who may frame this page's documents (validation.md, "Delivery policy").
+
+        The page's running server also admits every other live Leaf server under
+        the state home's key, read at each framed document so a server started
+        after this one can frame it. That reading costs each live server a lease
+        and record read, so a top-level navigation, which has no ancestors to
+        admit, skips it; the browser alone sets `Sec-Fetch-Dest`. A server at a bare
+        IPv6 address is left out, since CSP's source grammar has no IPv6 literal and
+        Chromium logs one as an error on every framed document. Any other server
+        over the page, such as a temporary one with a key of its own, and leaf.page
+        admit only their own origin."""
+        if self.headers.get("Sec-Fetch-Dest") == "document":
+            return FRAME_ANCESTORS_CSP
+        own = running_server(self.page_dir) if self._page_dir is not None else None
+        if own is None or own["server_id"] != self.server.server_id:
+            return FRAME_ANCESTORS_CSP
+        page = self.page_dir.resolve()
+        origins = {
+            page_origin(service["host"], service["port"])
+            for candidate, _row, service in live_servers()
+            if candidate != page and ":" not in service["host"]
+        }
+        return " ".join([FRAME_ANCESTORS_CSP, *sorted(origins)])
 
     def _delivery_headers(self) -> dict[str, str]:
         """What every response carries, whichever route it came from.
@@ -852,10 +897,6 @@ class PageEndpoint:
                 "Referrer-Policy": "no-referrer",
             }
         )
-        # An opaque parent is not expressible as a frame-ancestors source. Child
-        # capabilities admit nested samples; parent documents keep their policy.
-        if headers.get("Content-Security-Policy") == FRAME_ANCESTORS_CSP:
-            del headers["Content-Security-Policy"]
 
     def _serve_root(self) -> Response:
         served = self.source.served_document()
@@ -982,11 +1023,11 @@ class PageEndpoint:
         revision, name = int(match.group("revision")), match.group("name")
         if self.source.revision_names.get(revision) != name + ".html":
             return None
-        artifact = self._artifact(revision)
-        if match.group("runtime") != execution_identity(artifact):
+        artifact = named_execution(self._artifact(revision), match.group("runtime"))
+        if artifact is None:
             return None
         response = self._revision_resource(
-            revision, "/" + match.group("resource"), self._named_root(name, artifact)
+            artifact, "/" + match.group("resource"), self._named_root(name, artifact)
         )
         if response is not None:
             # The revision name carries its manifest digest, the execution identity
@@ -999,11 +1040,11 @@ class PageEndpoint:
         return response
 
     def _revision_resource(
-        self, revision: int, logical: str, root: str
+        self, artifact: RevisionArtifact, logical: str, root: str
     ) -> Response | None:
         """One resource of a revision as its documents run it, addressed at `root`
         (`runtime_selection.executing`), or None for a path the revision lacks."""
-        artifact = executing(self._artifact(revision))
+        artifact = executing(artifact)
         self.response_layer = artifact.registry["$layer"]["generation"]
         resource = delivered_resource(
             artifact, logical, DeliveryAddress(self.page_root, root)
@@ -1446,16 +1487,17 @@ class SampleEndpoint(PageEndpoint):
 
     def _delivery(self, artifact: RevisionArtifact, revision: int) -> Delivery:
         # Every child arrives inert, so its startup cannot take focus from the page;
-        # the host releases it once it presents. Whether the child lays out as a
-        # block or a window is its frame's to say (sample.js), which its bootstrap
-        # asks before it paints.
+        # the host releases it once it presents. The root carries it, since Leaf's
+        # chrome stands after the body. Whether the child lays out as a block or a
+        # window is its frame's to say (sample.js), which its bootstrap asks before it
+        # paints.
         return replace(
             super()._delivery(artifact, revision),
             html_attributes={
                 "data-lf-user-scope": self.page_root + "/",
                 "data-lf-sample": "",
+                "inert": "",
             },
-            body_attributes={"inert": ""},
         )
 
 

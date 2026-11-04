@@ -83,7 +83,8 @@
    rewrite, so saving them closes the editor and sends nothing. Saving no words at all
    deletes the message (events.md, "Messages"), which then reads Deleted in its place
    (messages.js): a box emptied of words says so before the press, its field reading
-   Delete message and its Save turning to Delete, so no dialog asks again.
+   Delete message and its Save turning to Delete, so no dialog asks again: until the
+   agent answers it, `z` takes a saved rewrite back, a deletion as any other (undo.js).
    Rejected: refusing an empty rewrite, which left a Save that drew as live and did
    nothing, so the user typed a placeholder such as "[removed]" over their words; and
    withdrawing the message (`undo`), which the log admits only while nothing answers
@@ -238,7 +239,7 @@ export const watchRewrite = (id, changed) => watchDraft(rewriteContext(id), chan
 /** @param {Element | null} thread @param {string} id */
 export function openMessageEditIn(thread, id) {
   const message = [...(thread?.querySelectorAll(".lf-msg") ?? [])].find(
-    (node) => node.getAttribute("data-event") === id,
+    (node) => node.getAttribute("data-lf-event") === id,
   );
   message?.dispatchEvent(new CustomEvent(OPEN_MESSAGE_EDIT));
   return (
@@ -542,16 +543,13 @@ export class MessageEditor {
               this.input.selectionStart,
               this.input.selectionEnd,
             ];
-            return start === 0 && end === 0 && unchanged();
+            return start === 0 && end === 0 && unchanged() && Boolean(previous());
           },
-          get run() {
+          run: () => {
             const before = previous();
-            return before
-              ? () => {
-                  putAside();
-                  before.openEdit();
-                }
-              : undefined;
+            if (!before) return;
+            putAside();
+            before.openEdit();
           },
         },
       ],

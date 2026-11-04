@@ -173,9 +173,10 @@ const pendingSeat = (message) =>
 // it was written; a reply joins the thread it answers; a rewrite shows as its message's
 // new words; settlement changes the thread's state, and a turn reopens a resolved one;
 // taking back a reaction, the one message the user can withdraw, drops it from its
-// thread, and a thread it opened goes with it. They leave again when the server accepts
-// or refuses them, so this is a reading of the same outbox and log the server projects
-// rather than a second store beside it.
+// thread, and a thread it opened goes with it; taking back a rewrite gives its message
+// the words it replaced. They leave again when the server accepts or refuses them, so
+// this is a reading of the same outbox and log the server projects rather than a second
+// store beside it.
 //
 // The fold draws only what a gesture settles by itself. Whose turn a served thread is
 // depends on what the rest of the log leaves in force, so it keeps the attention the
@@ -188,6 +189,26 @@ const sending = (turn) => ({
   reason: "workflow",
   workflow: turn.id,
 });
+
+// A message as the log's answer will draw it once the rewrite the user is taking back
+// is gone: with the words that rewrite replaced, under the rewrite before it, if any.
+/** @param {Thread} thread @param {Thread["msgs"][number]} message
+ * @param {ReadonlySet<string>} withdrawn */
+function unedited(thread, message, withdrawn) {
+  const { edited, ...rest } = message;
+  if (!edited || !withdrawn.has(edited.id)) return message;
+  const revisions = thread.revisions.filter((edit) => edit.message === message.id);
+  const at = revisions.findIndex(({ id }) => id === edited.id);
+  const before = revisions.slice(0, at).findLast(({ id }) => !withdrawn.has(id));
+  if (!before) return { ...rest, text: edited.was, content_version: message.id };
+  const { id, ts, was } = before;
+  return {
+    ...rest,
+    text: edited.was,
+    content_version: id,
+    edited: "seq" in before ? { id, seq: before.seq, ts, was } : { id, ts, was },
+  };
+}
 
 // `gestures` are the ledger's thread gestures, oldest first: each comment, reply or
 // rewrite as the thread draws it, each settlement with the `localParent` its pending
@@ -208,17 +229,24 @@ export function foldThreads(threads, gestures) {
   /** @type {Thread[]} */
   const copies = threads
     .filter((thread) => !withdrawn.has(thread.root.id))
-    .map((thread) => ({
-      ...thread,
-      msgs: thread.msgs.filter((message) => !withdrawn.has(message.id)),
-      // A thread whose closing event the user is taking back stands open again, as a
-      // to-do whose Done they undo does; the log's answer restores any earlier closure.
-      ...(thread.resolved &&
-      "id" in thread.resolved &&
-      withdrawn.has(thread.resolved.id)
-        ? { resolved: null }
-        : {}),
-    }));
+    .map((thread) => {
+      const msgs = thread.msgs
+        .filter((message) => !withdrawn.has(message.id))
+        .map((message) => unedited(thread, message, withdrawn));
+      return {
+        ...thread,
+        root: msgs.find(({ id }) => id === thread.root.id) ?? thread.root,
+        msgs,
+        // A thread whose closing event the user is taking back stands open again, as
+        // a to-do whose Done they undo does; the log's answer restores any earlier
+        // closure.
+        ...(thread.resolved &&
+        "id" in thread.resolved &&
+        withdrawn.has(thread.resolved.id)
+          ? { resolved: null }
+          : {}),
+      };
+    });
   const byName = threadNames(copies);
   /** @type {Thread[]} */
   const opened = [];

@@ -85,9 +85,9 @@ token from the box that knows it: `--lf-full-height` where the widget has a defi
 height to fill (`module-scroll-and-motion.md`, "Reading regions"), and
 `--lf-density: working` under the `density-working` style.
 
-The body supplies `--lf-ground`: the browser's `Canvas`, or `var(--paper)` under the
-reading theme, which paints the body that colour; a theme or page that paints its own
-ground sets it to match. Each solid containing surface
+The root supplies `--lf-ground` to the page and Leaf's surfaces alike: the browser's
+`Canvas`, or `var(--paper)` under the reading theme, which paints the body that colour;
+a theme or page that paints its own ground sets it on `:root` to match. Each solid containing surface
 overrides `--lf-ground`; both it and its opaque controls paint
 `background: var(--lf-ground)`. Hover and selection states change the same token. Transparent
 wrappers inherit it; a surface becoming transparent restores `--lf-ground: inherit`.
@@ -101,10 +101,6 @@ contains floats, declares `--lf-block-frame: trim`: its edge margins are trimmed
 wide content may take the page's width. The trim reaches through a plain wrapper at the
 edge, which declares nothing. A flex row or grid declares `--lf-holds-edge: 1` to stop
 the trim, which would otherwise take its first item's margin and not its neighbours'.
-A grid or flex box whose items stack, as the reading column's do, declares
-`--lf-items-keep-margins: 1`: each item keeps its children's margins inside its box, so
-Leaf gives an item opening with a heading the heading's gap as its own margin, and its
-box starts at the heading.
 
 Shared CSS selects widgets by what their registry entries declare, which delivery
 writes onto each element as `[data-lf-space]`, `[data-lf-bound]`, `[data-lf-height]`,
@@ -139,12 +135,12 @@ or in the host while no match exists. The declaration does not inherit. Declare
 needs nothing: Leaf fades its content at any edge with more beyond.
 
 Leaf rings every box that holds visible focus, at a control's gap outside it. A box
-whose ring belongs elsewhere states its own `outline-offset`, in its face's rule, as the
-token of its kind (`base.css`, "Where it stands"): `--focus-region-gap` for a block of
-the page, `0` for a box that draws its own edge, and `--focus-ring-inset` for a row
-packed edge to edge with others or a box whose clip leaves no room outside it. Leaf's
-marks over the page read the same value where it isn't `0`, so a comment's or an aim's
-frame stands where the ring does.
+whose ring belongs elsewhere declares `--lf-ring-at` in its face's rule, as the token of
+its kind (`base.css`, "Where it stands"): `--focus-region-gap` for a block of the page,
+`0` for a box that draws its own edge, and `--focus-ring-inset` for a row packed edge to
+edge with others or a box whose clip leaves no room outside it. Leaf stands the box's
+outline there, and its marks over the page read the same declaration, so a comment's
+or an aim's frame stands where the ring does. The declaration does not inherit.
 
 A rule that draws a control's focus ring on a box around it, such as a choice's face
 holding its radio and words, declares `--lf-wears-ring: 1` beside the ring, so Leaf
@@ -172,7 +168,7 @@ with the page. To restyle one of them alone, name it by its part:
 Tokens set on a part change that surface alone, whether a theme's sheet or the page's
 own CSS sets them: `[part~="card"] { --paper: #fffdf5; --r-l: 4px; }` gives thread
 cards their own ground and corners. Each part resolves the chrome's fonts again
-(`--font-*`, `base.css`), so a face or rung set on it, such as `--sans` or `--t-5`,
+(`--font-*`, `styles/tokens.css`), so a face or rung set on it, such as `--sans` or `--t-5`,
 reaches every word the surface shows. Other values Leaf derives on the root keep the
 root's reading on a part, such as the focus ring and link underline, which follow the
 root's `--accent`, and the raise shadows, which follow its `--shade`; set

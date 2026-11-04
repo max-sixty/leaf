@@ -790,7 +790,7 @@ def test_a_thread_an_open_to_do_holds_says_so_beside_the_page(browser, serve):
     panel_settled(page, view="queue")
     page.locator(".lf-floating-panel .lf-fp-filters button").nth(2).click()
     queue = page.locator(panel_view("queue"))
-    owed = queue.locator('.lf-fp-on-item[data-list="agent"]')
+    owed = queue.locator('.lf-fp-on-item[data-lf-list="agent"]')
     expect(owed).to_have_count(1)
     expect(owed.get_by_role("button").locator(".lf-fp-label")).to_have_text(named)
     page.keyboard.press("Escape")
@@ -827,7 +827,7 @@ def test_a_thread_an_open_to_do_holds_says_so_beside_the_page(browser, serve):
     page.keyboard.press("g")
     page.keyboard.press("Shift+T")
     panel_settled(page, view="threads")
-    listed = page.locator(f'.lf-fp-thread[data-key="{root["id"]}"]')
+    listed = page.locator(f'.lf-fp-thread[data-lf-key="{root["id"]}"]')
     expect(listed.locator(".lf-fp-label")).to_have_text(named)
     expect(listed.locator(".lf-row-end")).to_contain_text("Still to do")
 
@@ -1103,7 +1103,7 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
             for key in ("background", "border", "ink", "iconInk", "opacity")
         }
         control.hover()
-        trace_box = page.locator('.lf-target-trace[data-for="jobs"]')
+        trace_box = page.locator('.lf-target-trace[data-lf-for="jobs"]')
         expect(trace_box).to_be_visible()
         label = control.locator(":scope > .lf-margin-entry-label")
         expect(label).to_be_visible()
@@ -1311,7 +1311,7 @@ def test_a_reaction_receipt_keeps_an_unided_selected_blocks_visual_coordinate(
     expect(reactions).to_be_visible()
 
     with sending(page, "the keep reaction"):
-        reactions.locator('.lf-react[data-token="keep"]').click()
+        reactions.locator('.lf-react[data-lf-token="keep"]').click()
     expect(bar).to_be_hidden()
     sent = events_model.read_events(serve.page_dir)[-1]
     assert sent["anchor"]["section"] == "s-how" and sent["anchor"]["quote"]
@@ -1358,7 +1358,7 @@ def test_status_hover_trace_uses_a_registered_visual_surface(browser, serve):
     expect(status).to_have_attribute("tabindex", "-1")
     assert status.evaluate("node => node.tagName") == "SPAN"
     status.hover()
-    trace = page.locator('.lf-target-trace[data-for="outer"]')
+    trace = page.locator('.lf-target-trace[data-lf-for="outer"]')
     expect(trace).to_be_visible()
     expect(trace).to_have_class(re.compile(r"\blf-shaped\b"))
     assert trace.locator(".lf-target-trace-shape > g > *").evaluate_all(

@@ -50,7 +50,6 @@ from render_cases_widgets import (
     WIDE_DIAGRAM_PAGE,
 )
 from render_harness import (
-    EXAMPLES,
     INLINE_PAGE,
     LONG_PAGE,
     REPLY_HOST_PAGE,
@@ -86,13 +85,14 @@ from leaf import schema as schema_model
 from leaf.registry.storage import load_registry
 from leaf.render_checks import evaluate_probe, rendered, wait_until_ready
 from leaf.render_gate.scheme import console_finding
+from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
 
 def test_sort_film_readout_and_narration(browser, serve):
     """Changing step numbers hold their space, and narration renders inline Markdown."""
-    example = next(path for path in EXAMPLES if path.stem == "rust-sort")
+    example = named_source("rust-sort")
     page = open_page(browser, serve(example))
     assert (
         "collapse(): merge if one is true"
@@ -152,7 +152,7 @@ def test_sort_film_fits_its_pane_where_the_panes_stand_side_by_side(browser, ser
     """A workspace is a screen, so in a 900px-tall window at the narrowest width the
     page sets its panes side by side, the whole player shows in its pane, the last
     step's longer summary included (page-layout.md, "A workspace")."""
-    example = next(path for path in EXAMPLES if path.stem == "rust-sort")
+    example = named_source("rust-sort")
     context = browser.new_context(
         reduced_motion="reduce", viewport={"width": 720, "height": 900}
     )
@@ -175,7 +175,7 @@ def test_sort_film_fits_its_pane_where_the_panes_stand_side_by_side(browser, ser
 
 
 def test_ship_review_summary_is_addressable_and_baseline_aligned(browser, serve):
-    example = next(path for path in EXAMPLES if path.stem == "ship-review")
+    example = named_source("ship-review")
     page = open_page(browser, serve(example))
     summary = page.locator("#off-facts")
     expect(summary).to_be_visible()
@@ -428,7 +428,7 @@ def test_a_failed_agent_root_restores_the_focused_first_message_composer(
         )
     page.lf_errors.remove(console_finding(fault.value))
 
-    inline = seat.locator(f':scope > .lf-page-thread[data-thread="{root["id"]}"]')
+    inline = seat.locator(f':scope > .lf-page-thread[data-lf-thread="{root["id"]}"]')
     expect(inline).to_have_count(0)
     expect(composer).to_have_count(1)
     expect(composer).to_be_focused()
@@ -470,7 +470,9 @@ def test_a_failed_resolution_restores_a_focused_inline_reply(browser, serve):
         },
     )
     page = open_page(browser, live_url(url))
-    thread = page.locator(f'#proposal > .lf-thread-seat > [data-thread="{root["id"]}"]')
+    thread = page.locator(
+        f'#proposal > .lf-thread-seat > [data-lf-thread="{root["id"]}"]'
+    )
     reply = thread.locator(":scope > .lf-thread-reply leaf-text")
     write(reply, "keep this inline reply")
     reply.evaluate("node => node.setSelectionRange(5, 16, 'backward')")
@@ -518,7 +520,7 @@ def test_a_failed_resolution_restores_a_focused_inline_reply(browser, serve):
     # draft is in view. The user can reveal it without losing their reply.
     notice = thread.locator(".lf-thread-news")
     expect(notice).to_have_text("Resolved")
-    expect(thread).to_have_attribute("data-resolved", "false")
+    expect(thread).to_have_attribute("data-lf-resolved", "false")
     notice.click()
     expect(thread.get_by_role("button", name="Reopen")).to_be_visible()
     expect(reply).to_have_js_property("value", "keep this inline reply")
@@ -746,7 +748,7 @@ def test_a_screenshot_comment_contour_paints_above_its_edge_to_edge_frame(
     down both sides. Both projected brackets, including their end caps, remain above
     the frame.
     """
-    example = next(path for path in EXAMPLES if path.stem == "release-notes")
+    example = named_source("release-notes")
     page = open_page(browser, serve(example))
     shot = page.locator("#rn-console-shot")
     shot.get_by_role("button", name="Slider", exact=True).click()
@@ -805,7 +807,7 @@ def test_a_focused_card_comment_never_paints_over_the_cards_contents(browser, se
     Comparing the interior with that overlay hidden makes the guarantee independent of
     the widget's DOM, colors, and stacking choices.
     """
-    example = next(path for path in EXAMPLES if path.stem == "live-progress")
+    example = named_source("live-progress")
     url = serve(example)
     append_carried_log_record(
         serve.page_dir,
@@ -824,7 +826,9 @@ def test_a_focused_card_comment_never_paints_over_the_cards_contents(browser, se
     stand_on_thread(page, "blocked-card-comment")
 
     card = page.locator("#lp-k-checks")
-    mark = page.locator('.lf-visual-mark[data-for="lp-k-checks"].lf-visual-mark-here')
+    mark = page.locator(
+        '.lf-visual-mark[data-lf-for="lp-k-checks"].lf-visual-mark-here'
+    )
     expect(mark).to_be_visible()
     card.scroll_into_view_if_needed()
     # Include the floating thread's final placement and shadow in both captures.
@@ -848,7 +852,7 @@ def test_a_focused_card_comment_never_paints_over_the_cards_contents(browser, se
 
 def test_a_screenshot_margin_trace_paints_both_quiet_brackets(browser, serve):
     """A margin control traces a visual target above its edge-to-edge children."""
-    example = next(path for path in EXAMPLES if path.stem == "release-notes")
+    example = named_source("release-notes")
     page = open_page(browser, serve(example))
     resized(page, 1200, 900)
     margins_laid_out(page)
@@ -882,7 +886,7 @@ def test_a_screenshot_margin_trace_paints_both_quiet_brackets(browser, serve):
     margins_laid_out(page)
     toggle = page.get_by_role("button", name="Review capture", exact=True)
     toggle.hover()
-    trace = page.locator('.lf-target-trace[data-for="rn-console-shot"]')
+    trace = page.locator('.lf-target-trace[data-lf-for="rn-console-shot"]')
     expect(trace).to_be_visible()
     ink = trace.evaluate(
         """element => {
@@ -1097,7 +1101,9 @@ def test_a_marked_scrolling_visual_keeps_its_keyboard_focus_ring(browser, serve)
     ring = current_location_ring(page)
     assert ring and ring["cuts"] == ring["covers"] == [], ring
     mark = page.locator(".lf-visual-mark")
-    expect(page.locator(".lf-visual-mark-focus")).to_have_attribute("data-for", "flow")
+    expect(page.locator(".lf-visual-mark-focus")).to_have_attribute(
+        "data-lf-for", "flow"
+    )
 
     resized(page, 1200, 900)
     stand_on_thread(page, "diagram-comment")
@@ -1565,19 +1571,26 @@ def test_an_obligation_and_a_callout_keep_the_column_and_widen_to_what_they_hold
     # An obligation inside a breakout takes its holder's room, as any block
     # there does, however much room its own block asks for.
     assert at["wrapped"] == at["wrapper"], at
-    # Native grid owns the full page width: negative margins can leave the prose
-    # track without leaving the page. Only the padded box exceeds that actual room.
-    boxes = column.evaluate("""() => Object.fromEntries(
-      ['main', '#pulled', '#spilled'].map(selector => {
-        const box = document.querySelector(selector).getBoundingClientRect();
-        return [selector, {left: box.left, right: box.right}];
-      }))""")
+    # The column's room beside its prose is the page's: negative margins can leave the
+    # prose without leaving that room, the shell less a gutter each side. Only the
+    # padded box exceeds it.
+    boxes = column.evaluate("""() => {
+      const shell = document.body.getBoundingClientRect();
+      const gutter = parseFloat(getComputedStyle(document.querySelector('main'))
+        .getPropertyValue('--col-pad'));
+      return {room: {left: shell.left + gutter, right: shell.right - gutter},
+        ...Object.fromEntries(['#pulled', '#spilled'].map(selector => {
+          const box = document.querySelector(selector).getBoundingClientRect();
+          return [selector, {left: box.left, right: box.right}];
+        }))};
+    }""")
     for selector in ("#pulled", "#spilled"):
-        assert boxes[selector]["left"] >= boxes["main"]["left"], boxes
-        assert boxes[selector]["right"] <= boxes["main"]["right"], boxes
+        assert boxes[selector]["left"] >= boxes["room"]["left"], boxes
+        assert boxes[selector]["right"] <= boxes["room"]["right"], boxes
+    # The padded box's words stay on the prose and its padding is blank, so it stands
+    # in no margin; the window still clips the padding it carries past the page.
     misplaced = evaluate_probe(column, "misplacedBoxes")
     assert [(m["code"], m["at"]) for m in misplaced] == [
-        ("past-column", "<div id=padded>"),
         ("clipped-out", "<div id=padded>"),
     ], misplaced
 
@@ -1726,6 +1739,13 @@ def test_a_table_granted_room_stands_on_the_prose_axis(
         for kept in ("celled", "itemed"):
             assert at[kept][edge] == pytest.approx(at["cell"][edge], abs=1), (kept, at)
     assert width(at["beside"]) == pytest.approx(width(at["cell"]), abs=1), at
+    assert root_overflow(page) == 0
+    # A focus ring beside the tables leaves nothing to scroll sideways either
+    # (test_a_breakout_grows_only_from_a_holder_that_spans_the_column).
+    page.evaluate(
+        """() => { const p = document.getElementById('prose');
+          p.tabIndex = -1; p.focus({focusVisible: true}); }"""
+    )
     assert root_overflow(page) == 0
 
 
@@ -2079,12 +2099,17 @@ INDENTED_PAGE = leaf_page(
 def test_a_breakout_grows_only_from_a_holder_that_spans_the_column(
     request, serve, direction, engine
 ):
-    """An explicit flow shares document tracks; ordinary holders contain their exhibits."""
+    """An explicit flow shares the column's room; ordinary holders contain their exhibits.
+    A focus ring beside a breakout leaves nothing to scroll sideways: Firefox counted a
+    breakout moved by a relative offset at its place in flow once a ring restyled its
+    holder, so closing a thread card, which rings the paragraph it leaves the user at,
+    left the page 456px wider than a 1728px window."""
     browser = request.getfixturevalue(engine)
     source = leaf_page(
         "Native exhibit tracks",
         '<h1>Evidence</h1><p id="prose">Reading measure.</p>'
-        '<section class="layout-flow"><div id="wide" data-width="wide">Wide</div>'
+        '<section class="layout-flow"><p id="beside">Beside the breakouts.</p>'
+        '<div id="wide" data-width="wide">Wide</div>'
         '<div id="available" data-width="available">Available</div></section>'
         '<div id="holder" style="margin-inline-start:40px"><div id="nested" data-width="available">Contained</div></div>'
         '<div id="grid" style="display:grid;grid-template-columns:1fr 1fr;gap:16px">'
@@ -2105,6 +2130,12 @@ def test_a_breakout_grows_only_from_a_holder_that_spans_the_column(
             (at["grid"]["width"] - 16) / 2, abs=1
         )
         assert root_overflow(page) == 0
+    resized(page, 1440, 900)
+    page.evaluate(
+        """() => { const p = document.getElementById('beside');
+          p.tabIndex = -1; p.focus({focusVisible: true}); }"""
+    )
+    assert root_overflow(page) == 0
 
 
 def test_a_breakout_a_revision_inserts_deeper_lands_before_it_paints(browser, serve):
@@ -2337,7 +2368,9 @@ def test_a_drawing_the_room_can_hold_is_shown_whole(browser, serve):
         const el = document.getElementById('flow');
         const m = document.querySelector('main');
         const s = getComputedStyle(m);
-        const room = m.clientWidth - parseFloat(s.paddingLeft) - parseFloat(s.paddingRight);
+        // The room an available block takes: the shell's width less a gutter each side.
+        const room = parseFloat(s.getPropertyValue('--lf-shell-width'))
+            - 2 * parseFloat(s.getPropertyValue('--col-pad'));
         return { shows: el.clientWidth, drawn: el.scrollWidth, room,
                  column: m.querySelector('h1').getBoundingClientRect().width };
     }""")
@@ -3488,3 +3521,9 @@ def test_a_reply_notice_survives_a_failed_state_and_keeps_its_agent(browser, ser
     expect(view.locator(".lf-msg[data-lf-author=agent] .lf-msg-body")).to_have_text(
         "this one does"
     )
+
+
+import pytest
+from render_harness import (
+    leaf_page,
+)

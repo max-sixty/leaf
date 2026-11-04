@@ -19,8 +19,8 @@ which Leaf sets to the `<pre>`'s text when the markup binds nothing
 (`package-data.md`, "External or derived data").
 
 An agent's message can carry markup that repeats ids on the page, so look up an id
-another element gives within `authoredScope(element)`: the page's `main`, or the body
-of the message holding the element. `elementById(id, root)` finds an id within `root`,
+another element gives within `authoredScope(element)`: the page's `body`, or, for
+markup in an agent's message, that message's own markup. `elementById(id, root)` finds an id within `root`,
 or the whole document, including the shadow trees `getElementById` misses.
 `under(node, root)` says whether `node` is in `root` across shadow boundaries, and
 `inChrome(node)` whether it is in Leaf's own interface, as a widget in a Thread reply
@@ -58,7 +58,8 @@ not by looking up the id yourself.
 the first element `key` names in the referenced widget: a visual part's id, a projected
 datum's key, or whatever the target's `lfElementsFor(key)` maps it to (`lf-code` takes
 line ranges such as `"3-5,8"`). Leaf loads the datum, opens what holds it, reveals and
-focuses it, updates the fragment, and announces `success`. An absent destination
+focuses it, sets the URL's fragment to the widget's id and the key, and announces
+`success`. An absent destination
 keeps the reader's place and history and shows `missing` in Leaf's notice seat. Pass
 `focus: false` when the source stays the user's input surface, as a file navigator does
 beside the evidence it selects. A lazy target can implement
@@ -67,6 +68,14 @@ beside the evidence it selects. A lazy target can implement
 name a datum not yet drawn. Where your key is a source location rather than the datum's
 lasting identity, translate it and read `projectedDatum(widget, key)`, the one matching
 element or `null`.
+
+A URL reaches the same parts. `fragmentUrl(widget, key)` returns this page's URL with
+a fragment naming the part `key` names in `widget`, `#<widget-id>:<key>`, for a
+copy-link control or a link to hand on; `fragmentUrl(element)` names the element alone.
+Loading, following, reloading, or going Back or Forward to that URL draws the part
+through the same hooks; a load or followed link lands on it, or on the widget where the
+key names nothing. A widget that answers `navigateToDatum` needs nothing more for links
+to its parts.
 
 ## Content helpers
 
@@ -79,6 +88,12 @@ as `renderMarkdown(text, false)` does (below). Adopt the rendered `.lf-markdown-
 and repaint changing prose with `paintMarkdown(body, source)`.
 `markdownSourceOffset(body, node, offset)` maps a caret in the rendered body back to the
 source.
+
+An entry declaring `x-prepaint` names the attribute that gives the notation of the
+widget's written `<pre>`. Where that attribute says `markdown`, the `<pre>` arrives with
+its rendering as a file beside it, in a `.lf-markdown-body[data-lf-prepaint]`, so the
+page first paints at that rendering's size. The module still reads the `<pre>`, and
+replaces both when it draws.
 
 `inlineMarkdownFragment(text)` returns a fragment, `renderMarkdown(text)` a safe HTML
 string for `unsafeHTML`, and `markdownWords(text)` the words Markdown renders to. They
@@ -98,9 +113,12 @@ page's syntax theme. `synNodes(tokens)` turns them into nodes, and `tokenLines(t
 splits them by line. `lang` is a registry `$languages` name; `langForPath(path)` derives
 one from a file name, and `ensureSyntaxLanguage(lang)` loads one ahead of time.
 `highlightBlocks(root)` colours each `pre > code` in `root` whose `language-…` class
-names a language, that holds only text, and that wears the reading face
+names a language and that wears the reading face
 (`package-themes.md`, "Personal themes"); a block in a shadow tree wears it where the
-widget sets `--lf-reading-face: 1` on a box around it.
+widget sets `--lf-reading-face: 1` on a box around it. Inline annotations keep their
+elements and text while tokens are added inside them; use literal newlines rather than
+`<br>`, whose blocks remain uncoloured. A block with its own colouring turns off the
+reading face as other personally themed content does.
 
 Leaf adds a Copy button to each `pre > code` in the page. A widget block holding other
 source text, such as numbered code lines, declares its own: give the block
@@ -110,8 +128,10 @@ the page, and a page without Leaf shows none. Where the button belongs among the
 widget's own controls, as in a draft's toolbar, place the one `copyBlock(block, source,
 noun)` returns once the block is connected; it copies `source()`. A copy that stands
 among a widget's own controls rather than over a block, such as in a popover's header,
-is `copyControl(className, {label, success, error})`: set its `value` before it copies,
-and it reports `success` or `error` as a code block's does.
+is `copyControl(className, {label, success, error, role})`, a press of `role`, such as
+`"symbol"` for Copy's symbol; to copy through a press of your own built by its role,
+pass it as `trigger` instead. Set its `value` before it copies, and it reports
+`success` or `error` as a code block's does.
 
 ### Text alignment
 
@@ -136,12 +156,10 @@ for what something is or holds, such as a kind or a state. A press shows an acti
 symbol instead, so each action looks the same wherever it is offered. `ACTIONS` in
 `runtime/icon-paths.js` lists Leaf's actions with their symbol and name, and
 `offerAction("symbol", className, label, {action: "comment"})` draws one
-(`module-authoring.md`, "Generated controls"). Where your widget gives the press its
-face itself, `nameAction(control, action, {label, title, className})`, or
-`namedAction(action, {…})` in a template's element part, gives it the action's symbol
-and says the action's name as its tooltip and accessible name, unless `label` or
-`title` says more. Call it again with another action for a press whose action follows
-its state, such as Expand all turning to Collapse all; it swaps only the symbol.
+(`module-authoring.md`, "Generated controls"). For a symbol whose action follows its
+state, such as Expand all turning to Collapse all, `nameAction(control, action,
+{label, title, className})` swaps in the new action's symbol and says its name as the
+tooltip and accessible name, unless `label` or `title` says more.
 `actionTemplate(action, className)` draws an action's symbol that isn't a press's whole
 face, such as the second of two symbols a press swaps by CSS.
 
@@ -270,12 +288,16 @@ published, for showing how long a worker has been quiet.
 
 `comparisonChanges(owner)` returns the changes inside `owner` in the current version
 comparison, or every change with no owner, and an empty array with no comparison
-active. A change is a run of changed elements in one view, such as a tab, a
-`details`, or the content a disclosure control (`aria-expanded`) names in
-`aria-controls`, with no unchanged block between them, as a rewritten section is. Each
-change is an array of its elements inside `owner`, in page order, so the result's
-length counts changes as the reader does. Reading it during a `LeafElement` render
-subscribes that render to comparison changes.
+active. A change is one stretch of the comparison: a run of changed elements in one
+view, such as a tab, a `details`, or the content a disclosure control
+(`aria-expanded`) names in `aria-controls`, with no unchanged block between them, as a
+rewritten section is, together with the blocks the earlier version had there. A
+paragraph removed with nothing in its place is a change too, with no elements. Each
+change is an object: `blocks`, its elements inside `owner` in page order; `removed`,
+what the earlier version's blocks said (`{id, tag, word, words}`); and `at`, the
+element it stands by, its first block or the block after its gap. The result's length
+counts changes as the reader does. Reading it during a `LeafElement` render subscribes
+that render to comparison changes.
 
 `revisionLabel(event.revision)` is the page's name for the version an event was
 recorded in.

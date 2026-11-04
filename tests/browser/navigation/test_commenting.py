@@ -485,14 +485,14 @@ def test_the_ring_holds_on_a_seat_the_agent_has_still_to_answer(browser, serve):
     panel_settled(page, view="queue")
 
     def card(source):
-        return page.locator(f".lf-fp-on-item[data-key*='\"widget:{source}\"']")
+        return page.locator(f".lf-fp-on-item[data-lf-key*='\"widget:{source}\"']")
 
     expect(card("shape")).to_have_count(0)
     expect(card("sug-window")).to_have_count(1)
     # The picked group has left the user's list for its Done.
-    expect(card("picked")).to_have_attribute("data-list", "done")
+    expect(card("picked")).to_have_attribute("data-lf-list", "done")
     page.locator(".lf-fp-filters button").nth(2).click()
-    agent_rows = page.locator('.lf-fp-on-item[data-list="agent"]')
+    agent_rows = page.locator('.lf-fp-on-item[data-lf-list="agent"]')
     expect(agent_rows).to_have_count(1)
     expect(agent_rows).to_contain_text("Steel, unless the sealing is quick?")
     page.locator(".lf-fp-close").click()
@@ -539,7 +539,7 @@ def test_the_ring_holds_on_a_seat_the_agent_has_still_to_answer(browser, serve):
           let at = document.activeElement;
           while (at?.shadowRoot?.activeElement) at = at.shadowRoot.activeElement;
           return at?.matches('.lf-thread-reply leaf-text')
-            && at.closest('.lf-page-thread')?.dataset.thread === root;
+            && at.closest('.lf-page-thread')?.dataset.lfThread === root;
         }""",
         arg=roots[0],
     )
@@ -676,7 +676,7 @@ def test_c_in_a_seated_thread_reaches_the_thread_it_is_in(browser, serve):
     page.evaluate("() => document.activeElement?.blur()")
 
     # Located in the second thread, the press means that thread's box.
-    second = page.locator(f'.lf-page-thread[data-thread="{said[1]}"]')
+    second = page.locator(f'.lf-page-thread[data-lf-thread="{said[1]}"]')
     second.focus()
     page.keyboard.press("c")
     expect(second.locator("> .lf-thread-reply leaf-text")).to_be_focused()
@@ -919,6 +919,52 @@ def test_c_comments_and_g_t_navigates_to_threads(browser, serve):
     # An empty list holds nothing to comment on, so `c` opens the page comment.
     page.keyboard.press("c")
     expect(comment).to_be_focused()
+
+
+# A deck's slides, each a section the page shows one at a time: two of words, and one
+# that is only a picture.
+DECK_SLIDES = {
+    "intro": "<h2>Where we started</h2><p>Three teams shared one build pipeline.</p>",
+    "results": "<h2>What it bought</h2><p>Release lead time fell from nine days.</p>",
+    "chart": (
+        '<svg viewBox="0 0 200 100" width="400" height="200" role="img" '
+        'aria-label="Lead time by quarter"><rect x="10" y="40" width="40" height="60">'
+        "</rect></svg>"
+    ),
+}
+
+
+@pytest.mark.parametrize("shown", ["results", "chart"])
+def test_a_page_comment_records_the_sections_on_screen(browser, serve, shown):
+    """A comment on the whole page has no passage, so on a deck that shows one slide at
+    a time, "drop this one" reached the agent without saying which slide (#5026). The
+    panel's send records the sections whose words or pictures are on screen: the
+    header's, read off the page, and the shown slide's, read in the workspace region
+    that scrolls the slides, but none of the slides the page hides. A slide that is
+    only a picture counts too, or the header alone would answer "this one"."""
+    slides = "".join(
+        f'<section id="{id}"{"" if id == shown else " hidden"}>{content}</section>'
+        for id, content in DECK_SLIDES.items()
+    )
+    html = leaf_page(
+        "Quarterly review",
+        '<header id="deck-title"><h1>Quarterly review, third quarter</h1></header>'
+        f'<div id="slides">{slides}</div>',
+        layout="workspace",
+    )
+    context = browser.new_context(viewport={"width": 1200, "height": 900})
+    page = open_page(browser, serve(html), context=context)
+    with sending(page, "the page comment"):
+        write(page_comment(page), "Drop this one")
+        page.keyboard.press("Enter")
+
+    [comment] = [
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "comment"
+    ]
+    assert "anchor" not in comment
+    assert comment["viewing"] == ["deck-title", shown]
 
 
 def test_the_panels_own_c_answers_a_page_whose_log_has_not_arrived(browser, serve):

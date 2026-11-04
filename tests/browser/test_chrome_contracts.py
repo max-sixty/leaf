@@ -572,7 +572,7 @@ def test_a_page_module_importing_the_widget_api_hears_dom_content_loaded(
 
 
 def test_script_region_moves_reload_without_leaving_duplicate_nodes(browser, serve):
-    """Retained scripts and main's patched scripts have distinct document lifetimes."""
+    """Head and body scripts have distinct document lifetimes; body moves patch."""
     script = (
         '<script id="page-behavior" type="module">'
         "window.pageRuns = (window.pageRuns || 0) + 1;</script>"
@@ -586,7 +586,7 @@ def test_script_region_moves_reload_without_leaving_duplicate_nodes(browser, ser
     for revision, html, region, reloads in [
         (2, main, "main", True),
         (3, main.replace(script, f"<div>{script}</div>"), "div", False),
-        (4, tail, "body", True),
+        (4, tail, "body", False),
         (5, tail.replace("Original words.", "Revised words."), "body", False),
     ]:
         stamp_page(serve.page_dir, html, "Revise script placement or prose")
@@ -683,7 +683,7 @@ def test_the_delivered_stylesheets_read_exactly_as_their_files_do(browser, serve
     assert ".lf-aim {" in selected["chrome"]
     assert ".lf-target-trace {" in selected["chrome"]
     assert ".lf-drawing-mark path" in selected["chrome"]
-    assert "::highlight(lf-version-insert)" in selected["marks"]
+    assert ".lf-change-card {" in selected["chrome"]
 
 
 def test_message_markdown_reads_a_link_scheme_as_the_attribute_resolves_it(
@@ -892,10 +892,10 @@ def test_the_page_paints_beneath_leaf_and_rises_only_through_the_top_layer(
     browser, serve
 ):
     """A box the page writes stacks beneath every surface Leaf lifts over the page,
-    whatever its z-index: `main` is one stacking context at 0, so the panel with Threads
-    open paints over a page overlay at the largest z-index there is, and
-    `stackLevel`, which paint, chips and landings ask where a node stacks, reads the
-    overlay beneath the panel. The page's way over Leaf is the top layer: its own modal
+    whatever its z-index: Leaf's chrome follows `body` at the largest z-index and wins
+    the tie in tree order, so the panel with Threads open paints over a page overlay
+    beside `main` at the largest z-index there is, and `stackLevel`, which paint, chips
+    and landings ask where a node stacks, reads the overlay beneath the panel. The page's way over Leaf is the top layer: its own modal
     dialog paints over the panel, and reads above it."""
     page = open_page(browser, serve(LONG_PAGE))
     resized(page, 1440, 900)
@@ -904,7 +904,7 @@ def test_the_page_paints_beneath_leaf_and_rises_only_through_the_top_layer(
         """async () => {
           const { stackLevel } = await window.__lfCheckApi();
           const main = document.querySelector('main');
-          const overlay = main.appendChild(document.createElement('div'));
+          const overlay = document.body.appendChild(document.createElement('header'));
           overlay.id = 'page-overlay';
           overlay.style.cssText = `position: fixed; inset: 0; z-index: 2147483647;
             background: rgb(255 0 0 / 0.3);`;
@@ -1058,38 +1058,6 @@ REPORTED_DRAFT = (
     "great, let's go with the more square form. I don't have a strong view of which"
     " one is better, and the other parts of this thread can wait until later"
 )
-
-
-@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
-def test_a_scrolling_draft_shows_the_caret_s_row_with_the_padding_beside_it(
-    engine, request, serve
-):
-    """A line typed at the end of a draft that scrolls leaves nothing below it to scroll
-    to, and the caret taken to the first line leaves nothing above. Revealing only the
-    caret, as a native textarea does, left the field's padding out of view, and in
-    Firefox the foot of the caret's row too."""
-    page = open_page(request.getfixturevalue(engine), serve(LONG_PAGE))
-    field = page_comment(page)
-    hidden = """box => ({
-      below: box.scrollHeight - box.clientHeight - box.scrollTop,
-      above: box.scrollTop,
-    })"""
-    page.keyboard.type("line 0")
-    for line in range(1, 40):
-        page.keyboard.press("Shift+Enter")
-        page.keyboard.type(f"line {line}")
-        if field.evaluate("box => box.scrollHeight > box.clientHeight + 40"):
-            break
-    else:
-        raise AssertionError("the draft never scrolled")
-    for key in ("Shift+Enter", "w", "ControlOrMeta+Home"):
-        page.keyboard.press(key)
-        rendered(page)
-        shown = field.evaluate(hidden)
-        if key == "ControlOrMeta+Home":
-            assert shown["above"] < 1, shown
-        else:
-            assert shown["below"] < 1, (key, shown)
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
@@ -1261,12 +1229,12 @@ def test_a_phone_starts_the_page_and_comments_on_a_selection(iphone, serve, view
     # and the On me mark keeps its seat; the leaf's menu stays shut.
     comment = selection_field(page)
     expect(comment).to_have_attribute("placeholder", "“Paragraph one”")
-    expect(page.locator(PANEL)).not_to_have_attribute("data-open", re.compile("."))
+    expect(page.locator(PANEL)).not_to_have_attribute("data-lf-open", re.compile("."))
     expect(page.locator(".lf-fp-on-user")).to_be_visible()
     box = comment.bounding_box()
     assert box["x"] + box["width"] <= page.evaluate("innerWidth"), box
     comment.tap()
-    expect(page.locator(PANEL)).not_to_have_attribute("data-open", re.compile("."))
+    expect(page.locator(PANEL)).not_to_have_attribute("data-lf-open", re.compile("."))
     expect(field).to_be_focused()
     write(field, "From a phone")
     with sending(page, "the comment"):

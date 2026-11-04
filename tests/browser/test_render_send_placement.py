@@ -43,7 +43,6 @@ from PIL import Image, ImageDraw
 from playwright.sync_api import expect
 from render_harness import (
     FOLLOWER_MARK,
-    ROOT,
     SUBJECT_MARK,
     assert_follows_in_every_frame,
     compositor_trace,
@@ -66,6 +65,7 @@ from render_harness import (
 from browser.threads import append_agent_reply
 from leaf import event_log
 from leaf.render_checks import rendered, wait_until_ready
+from leaf_dev.example_data import named_source
 
 # One source line, so a phrase's offset in the source is its offset in the text node.
 LONG = (
@@ -637,7 +637,7 @@ def test_a_wheel_return_attaches_the_comment_box_in_the_first_visible_frame(
             + f"""<style>
               #paint-code {{ display:block; width:420px; }}
               #paint-code > pre {{ height:240px; max-height:240px; overflow:auto; }}
-              .lf-code-line[data-line="6"] {{ background:{SUBJECT_MARK} !important; }}
+              .lf-code-line[data-lf-line="6"] {{ background:{SUBJECT_MARK} !important; }}
             </style>""",
         )
         size, wheel, scroller = (1200, 700), 900, "#paint-code > pre"
@@ -700,7 +700,7 @@ def test_a_wheel_return_attaches_the_comment_box_in_the_first_visible_frame(
     )
     resized(page, *size)
     target = page.locator(
-        '#paint-code .lf-code-line[data-line="6"]'
+        '#paint-code .lf-code-line[data-lf-line="6"]'
         if region == "code"
         else "#paint-target"
     )
@@ -1134,7 +1134,7 @@ def test_a_card_grows_past_a_region_that_does_not_scroll_its_subject(
     the card, rather than scrolling inside a card the shot or the pane cuts short."""
     shot = None
     if subject.startswith("shot"):
-        page = open_page(browser, serve(ROOT / "examples/release-notes.html"))
+        page = open_page(browser, serve(named_source("release-notes")))
         resized(page, 1440, 900)
         shot = page.locator("#rn-console-shot")
         shot.scroll_into_view_if_needed()
@@ -1517,8 +1517,12 @@ def test_a_reply_written_in_a_card_keeps_its_line_breaks_once_sent(
         ((1440, 900), 0.4, False, False, False, False, "browser"),
         ((1024, 600), 0.75, False, False, False, False, "browser"),
         ((1024, 844), 0.12, False, False, False, False, "browser"),
-        ((1024, 600), 0.4, True, False, False, False, "browser"),
-        ((1024, 600), 0.4, "scrolled", False, False, False, "browser"),
+        # A draft that scrolls, read with its scrollbars shown: under the shared
+        # browser's `--hide-scrollbars` the box's `auto` bar takes no room while the
+        # card's `scrollbar-gutter: stable` still does, so the card wrapped narrower
+        # than the box on macOS, a pairing no user's browser makes.
+        ((1024, 600), 0.4, True, False, False, False, "scrollbar_browser"),
+        ((1024, 600), 0.4, "scrolled", False, False, False, "scrollbar_browser"),
         ((1440, 900), 0.4, "paragraphs", False, False, False, "browser"),
         ((1440, 900), 0.4, False, False, True, False, "browser"),
         ((1440, 900), 0.4, "passage", True, False, False, "browser"),

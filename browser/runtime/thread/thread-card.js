@@ -16,6 +16,10 @@
    Each message header text item keeps its allocated width while news waits, so a later
    receipt grows only inside its own clipped box. The first notice may use spare
    room for its new receipt without moving the author or time already shown.
+   The panel's thread view gives its controls a line of their own above the messages.
+   The card tried that and dropped it: the line made the card 36px taller for little
+   more than its presses, which cost the card too much density. A title could fill the
+   line, but the passage the card points at already says what the thread is about.
 
    Immutable descriptors contain generated presentation only. Retained native editors,
    margin controls and frozen message widgets keep their mechanical lifetime outside
@@ -329,7 +333,6 @@ export function threadReading(thread, surface, commands) {
         // Where a message's widgets stand when several drawings show it (messages.js,
         // `authoredHolders`): the primary reader's, then a margin card, then a seat.
         authoredRank: commands.authoredRank ?? (surface === "margin" ? 2 : 1),
-        reactions: surface === "outlet" ? message.reactions : null,
         workflows: message.workflows,
         leaves: leaves(message),
       }),
@@ -396,7 +399,7 @@ function wordsWidth(node) {
  * reply: import("./replies.js").ReplyCommands & import("./messages.js").MessageCommands["reply"],
  * read: Pick<ReturnType<typeof import("./read.js").createReadTracking>, "observeMessage" | "observeFeedback">,
  * reaction: Omit<import("./messages.js").MessageCommands["reaction"], "pressed">,
- * settlement: Omit<Parameters<typeof settleThread>[0], "parent" | "key" | "resolved" | "prepareLanding">,
+ * settlement: Omit<Parameters<typeof settleThread>[0], "parent" | "key" | "resolved" | "prepareLanding" | "reader">,
  * todos: {done: (id: string) => unknown},
  * landInThread: import("./replies.js").ReplyCommands["landInThread"]}} ThreadCommands */
 
@@ -685,9 +688,9 @@ export class ThreadView {
     if (model.news) notice.set(model.news);
     const news = model.news ? notice.node : nothing;
     // Its id names the surface too (`drawnThreadId`).
-    keeps(this.node, "data-thread", model.id);
-    keeps(this.node, "data-resolved", model.resolved);
-    keeps(this.node, "data-attempt", model.attempt || null);
+    keeps(this.node, "data-lf-thread", model.id);
+    keeps(this.node, "data-lf-resolved", model.resolved);
+    keeps(this.node, "data-lf-attempt", model.attempt || null);
     // A card is itself where a send or a walk stands the user, so it carries the
     // thread's name.
     keeps(this.node, "role", "group");
@@ -1019,6 +1022,9 @@ export class ThreadView {
         model.surface === "margin" && !model.resolved
           ? (this.#marginControls?.prepareLanding ?? null)
           : this.#prepareThreadLanding,
+      // A margin card stands for the thread on the page, which a way back returns to;
+      // a seat or a primary reader's part leaves the route to choose (folding.js).
+      reader: model.surface === "margin" ? "page" : null,
       ...this.#commands.settlement,
     }).catch(() => {});
   };

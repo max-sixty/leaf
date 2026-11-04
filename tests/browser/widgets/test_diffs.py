@@ -899,7 +899,7 @@ def test_a_file_row_a_revision_brings_reads_its_cut_path(browser, serve):
     told(page)
     rendered(page)
     head = page.locator("lf-diff .lf-diff-head").first
-    expect(head).to_have_attribute("data-path-cut", "")
+    expect(head).to_have_attribute("data-lf-path-cut", "")
     expect(head.locator(".lf-diff-path")).to_have_attribute("title", path)
 
     # A changed source path can retain exactly the old clipped width. Its title
@@ -1546,16 +1546,18 @@ def test_horizontal_wheel_reaches_the_diff_reader(
         '-return "The previous release remains available for inspection."\n'
         '+return "The current release remains available for inspection."\n'
     )
+    # Force the outer-scroll case past the layer's default 100% widget width cap.
     source = leaf_page(
         "Nested patch reader",
         "<h1>Review</h1>"
         + "".join(
-            f'<div id="reader-{host}" class="reader" data-bound="start">'
+            f'<div id="reader-{host}" class="reader">'
             f'<lf-diff id="patch-{host}"><pre>{patch}</pre></lf-diff></div>'
             for host in hosts
         ),
-        head="<style>.reader { width: 500px; }"
-        "#patch-wide { width: 1000px; } #patch-narrow { width: 300px; }</style>",
+        head="<style>.reader { width: 500px; overflow: auto; }"
+        "#patch-wide { width: 1000px; max-inline-size: none; }"
+        "#patch-narrow { width: 300px; }</style>",
     )
     page = open_page(request.getfixturevalue(engine), serve(source))
     resized(page, 1000, 900)
@@ -1592,7 +1594,7 @@ def test_a_diff_hunk_landing_preserves_sideways_reading_outside_its_shadow_tree(
         '<lf-diff id="patch" source="review-patch"></lf-diff>'
         "</div>",
         head="<style>#sideways { width: 500px; overflow: auto; }"
-        "#patch { width: 1000px; }</style>",
+        "#patch { width: 1000px; max-inline-size: none; }</style>",
     )
     url = serve(source)
     data_model.cmd_data_set(serve.page_dir, "review-patch", MULTI_HUNK_PATCH)

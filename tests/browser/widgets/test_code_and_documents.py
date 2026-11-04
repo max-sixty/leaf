@@ -2,12 +2,14 @@
 switching a document between its rendered and source readings as its source changes."""
 
 import json
+from base64 import b64encode
 
 import pytest
 from playwright.sync_api import expect
 from render_cases_widgets import LONG_LINE_DIFF_PAGE
 from render_harness import (
     ROOT,
+    held_frames,
     holding,
     leaf_page,
     open_page,
@@ -15,6 +17,7 @@ from render_harness import (
     round_trip,
     scroll_settled,
     select,
+    select_words,
     sending,
     told,
     write,
@@ -79,7 +82,7 @@ def test_a_markdown_document_switches_between_rendered_content_and_exact_source(
         "el => el.getBoundingClientRect().right"
     ) <= content.evaluate("el => el.getBoundingClientRect().left")
     assert (
-        document.locator("[data-number]").first.evaluate(
+        document.locator("[data-lf-number]").first.evaluate(
             "el => getComputedStyle(el, '::before').content"
         )
         == '"1"'
@@ -97,7 +100,8 @@ def test_a_written_markdown_passage_reads_rendered_over_its_exact_source(
     browser, serve
 ):
     """A passage the page writes in the document's <pre> needs no data source: the
-    preview renders it, and the Source tab holds it character for character."""
+    preview renders it, in a box as tall as its rendering rather than the bound a
+    bound document keeps, and the Source tab holds it character for character."""
     text = "**Fixed** a crash when `--config` names <missing> files.\n"
     url = serve(
         leaf_page(
@@ -116,6 +120,12 @@ def test_a_written_markdown_passage_reads_rendered_over_its_exact_source(
     expect(document.locator(".lf-text-document-preview")).to_contain_text(
         "names <missing> files."
     )
+    view, rendering = document.evaluate(
+        """host => [host.querySelector('lf-tab:not([hidden])'),
+          host.querySelector('.lf-text-document-preview')]
+          .map(box => box.getBoundingClientRect().height)"""
+    )
+    assert abs(view - rendering) < 1, (view, rendering)
     # The preview's padding is the visible inset, without the paragraph's margins.
     insets = document.locator(".lf-text-document-preview").evaluate(
         """box => {
@@ -129,6 +139,58 @@ def test_a_written_markdown_passage_reads_rendered_over_its_exact_source(
     assert insets[:2] == insets[2:], insets
     document.get_by_role("tab", name="Source", exact=True).click()
     assert document.locator("code[data-code]").text_content() == text
+
+
+def test_a_written_markdown_source_keeps_the_preview_height_until_shown_whole(
+    browser, serve
+):
+    """A written Markdown preview's Source tab takes the preview's height, so neither
+    switching to it nor reloading on it moves what follows the document. Where that
+    height cuts the source, a press shows every line and puts focus on them."""
+    links = "".join(f"[#{n}]: https://example.com/pull/{n}\n" for n in range(800, 812))
+    text = (
+        "## 2.4.0\n\n- Fixed a crash when `--config` is missing ([#800]).\n\n" + links
+    )
+    url = serve(
+        leaf_page(
+            "Release notes",
+            '<h1>Release notes</h1><lf-text-document id="notes" '
+            f'label="CHANGELOG.md" preview="markdown"><pre>\n{text}</pre>'
+            '</lf-text-document><p id="after">After the notes.</p>',
+        )
+    )
+    page = open_page(browser, url)
+    document = page.locator("#notes")
+    read = """() => [document.getElementById('notes').getBoundingClientRect().height,
+      document.getElementById('after').getBoundingClientRect().top]"""
+    preview = page.evaluate(read)
+    document.get_by_role("tab", name="Source", exact=True).click()
+    assert page.evaluate(read) == preview
+    lines = len(text.split("\n"))
+    press = document.get_by_role("button", name=f"Show all {lines} lines")
+    expect(press).to_be_visible()
+    held = []
+    page.route("**/leaf.js", lambda route: held.append(route))
+    page.reload(wait_until="commit")
+    page.locator("#after").wait_for(state="attached")
+    holding(page, held, 1, "the runtime")
+    assert page.evaluate(read) == preview
+    for route in held:
+        route.continue_()
+    page.unroute("**/leaf.js")
+    wait_until_ready(page)
+    expect(document.get_by_role("tab", name="Source", exact=True)).to_have_attribute(
+        "aria-selected", "true"
+    )
+    expect(press).to_be_visible()
+    assert page.evaluate(read) == preview
+    press.click()
+    expect(press).to_be_hidden()
+    expect(document.locator(".lf-text-document-listing > pre")).to_be_focused()
+    whole = document.locator("lf-tab:not([hidden])").evaluate(
+        "tab => [tab.clientHeight, tab.scrollHeight]"
+    )
+    assert whole[0] == whole[1] and whole[0] > preview[0] - 80, (whole, preview)
 
 
 def test_a_widget_document_updates_both_readings_and_keeps_the_selected_view(
@@ -433,6 +495,39 @@ def test_a_document_in_a_tab_set_keeps_its_strip_under_its_caption(
             assert read["panelOnTop"], read
 
 
+def test_every_document_draws_from_one_copy_of_pierres_sheet(browser, serve):
+    """Each document stands its line numbers beside its lines, as Pierre's sheet draws
+    them, and the page holds one copy of that sheet however many documents it has. A
+    copy in each listing was a sheet holding `@scope` entering the page as each
+    document drew, and Firefox restyles every element of the page for each one: 29
+    empty documents in tabs beside one of 4 MB held the long document's first draw back
+    about 6 s."""
+    tabs = "".join(
+        f'<lf-tab id="tab-{at}" label="Doc {at}"><lf-text-document id="doc-{at}" '
+        f'source="text-{at}"></lf-text-document></lf-tab>'
+        for at in range(3)
+    )
+    url = serve(
+        leaf_page("Documents", f'<lf-tabs id="docs" list="side">{tabs}</lf-tabs>')
+    )
+    data_model.cmd_data_set(serve.page_dir, "text-0", "first line\nsecond line\n")
+    page = open_page(browser, url)
+    expect(page.locator("lf-text-document.lf-rendered")).to_have_count(3)
+    copies = page.evaluate("""() =>
+      [...document.styleSheets, ...document.adoptedStyleSheets].filter((sheet) =>
+        [...sheet.cssRules].some((rule) => rule.cssText.includes('--diffs-font-fallback'))
+      ).length""")
+    assert copies == 1
+    beside = """doc => {
+      const number = doc.querySelector('[data-lf-number]').getBoundingClientRect();
+      const line = doc.querySelector('[data-line]').getBoundingClientRect();
+      return {beside: number.right <= line.left, top: line.top - number.top};
+    }"""
+    for at in range(3):
+        page.get_by_role("tab", name=f"Doc {at}", exact=True).click()
+        assert page.locator(f"#doc-{at}").evaluate(beside) == {"beside": True, "top": 0}
+
+
 def test_document_views_remember_independently_and_follow_live_source_updates(
     browser, serve
 ):
@@ -714,6 +809,164 @@ def refresh_keeps_selection(page, serve, document, name):
     assert page.evaluate(reading) == before, document
 
 
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_text_document_update_keeps_a_selection_it_carries_into_another_run(
+    request, serve, engine
+):
+    """Lines added above a selected row carry it from one run of rows into another, and
+    it keeps its native selection: runs are a drawing boundary, not a row's identity.
+    Reconciled run by run, one line added above the last row of a run grew Chromium's
+    selection to take in the row before it and cleared Firefox's. The selected row
+    keeps it too when its own line is edited, in place or as it moves, where a walk
+    over the lines took the edit for a new row. The numbers still count every row."""
+    lines = [f"line {i}" for i in range(1, 279)]
+    lines[127] = "selected passage"
+    url = serve(
+        leaf_page(
+            "Run edges",
+            '<h1>Run log</h1><lf-text-document id="log" source="log-text">'
+            "</lf-text-document>",
+        )
+    )
+    data_model.cmd_data_set(serve.page_dir, "log-text", "\n".join(lines) + "\n")
+    page = open_page(request.getfixturevalue(engine), url)
+    select_words(page, '#log [data-line="128"] span')
+    selected = page.evaluate("() => getSelection().toString()")
+    assert "selected passage" in selected
+    for added, edit in ((1, ""), (0, ", edited"), (200, " twice")):
+        at = next(i for i, line in enumerate(lines) if line.startswith("selected"))
+        lines[at] += edit
+        lines = [f"added {added} {i}" for i in range(added)] + lines
+        data_model.cmd_data_set(serve.page_dir, "log-text", "\n".join(lines) + "\n")
+        told(page)
+        rendered(page)
+        row = page.locator(f'#log [data-line="{at + added + 1}"]')
+        expect(row).to_have_text(lines[at + added])
+        now = page.evaluate("() => getSelection().toString()")
+        if not edit:
+            assert now == selected, added
+        else:
+            assert "selected passage" in now and not {"line", "added"} & set(
+                now.split()
+            )
+        numbers = page.locator("#log [data-lf-number]").evaluate_all(
+            "cells => cells.map(cell => +cell.dataset.lfNumber)"
+        )
+        assert numbers == [
+            *range(1, page.locator("#log [data-content] > *").count() + 1)
+        ]
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_long_text_document_draws_the_lines_in_view_and_keeps_the_rest_whole(
+    request, serve, engine
+):
+    """A long text document draws only the runs of lines in view: styling every line on
+    each change to the page took tens of seconds and gigabytes at a few megabytes of
+    text. The lines out of view stay whole for the reader. The listing holds every
+    line, its numbers stand in one column from the first run to the last, and a thread
+    on a line far down jumps to the line drawn there. Each run is sized by the lines
+    its rows fill: sized a line a row, Firefox drew the far line's run for a returning
+    reader. A run drawn before the window narrows forgets the height it was drawn at:
+    kept, it left a drag to the bottom short of the last line in both engines. Long
+    tokens, which Firefox also breaks after a slash, fill more lines than the size
+    says, and the run the travel lands in is drawn for the jump: left skipped,
+    Firefox's jump stopped short and a second scroll followed. A second travel while
+    the first still holds the run drawn jumps too: it glided."""
+    # Long tokens stand in every run but the last, which the drag to the bottom draws:
+    # Firefox draws more lines than the size says over them, and the drag would stop
+    # short, a limit Leaf accepts.
+    text = "".join(
+        f"line {i} "
+        + (
+            b64encode(bytes((i * 31 + k * 101) % 256 for k in range(240))).decode()
+            if i % 7 == 0 and i <= 7 * 128
+            else "wrapping words " * 20
+            if i % 3 == 0
+            else "short"
+        )
+        + "\n"
+        for i in range(1, 1001)
+    )
+    url = serve(
+        leaf_page(
+            "Long evidence",
+            '<h1>Run log</h1><lf-text-document id="log" source="log-text">'
+            "</lf-text-document>",
+        )
+    )
+    data_model.cmd_data_set(serve.page_dir, "log-text", text)
+    page = open_page(request.getfixturevalue(engine), url)
+    assert page.locator("#log code").text_content() == text
+    expect(page.locator("#log .lf-text-document-run")).to_have_count(8)
+    first, far = (
+        page.locator('#log [data-line="1"]'),
+        page.locator('#log [data-line="880"]'),
+    )
+    # A run itself always has a box; the browser skips the lines inside it.
+    drawn = "line => line.checkVisibility({contentVisibilityAuto: true})"
+    assert first.evaluate(drawn)
+    assert not far.evaluate(drawn)
+    left = "line => line.getBoundingClientRect().left"
+    first_left = first.evaluate(left)
+
+    # The last run, drawn and then skipped, meets a narrower window.
+    pre, last = page.locator("#log pre"), page.locator('#log [data-line="1000"]')
+    width, height = page.viewport_size["width"], page.viewport_size["height"]
+    bottom = "pre => { pre.scrollTop = pre.scrollHeight; }"
+    for to, shown in ((bottom, "line"), ("pre => { pre.scrollTop = 0; }", "!line")):
+        pre.evaluate(to)
+        page.wait_for_function(
+            f"line => {shown}.checkVisibility({{contentVisibilityAuto: true}})",
+            arg=last.element_handle(),
+        )
+    resized(page, 560, height)
+    rendered(page)
+    pre.evaluate(bottom)
+    rendered(page)
+    below = last.evaluate(
+        "line => line.getBoundingClientRect().bottom"
+        " - line.closest('pre').getBoundingClientRect().bottom"
+    )
+    assert below <= 1
+    resized(page, width, height)
+    pre.evaluate("pre => { pre.scrollTop = 0; }")
+
+    for line, words in ((840, "Where does this start?"), (880, "Why does it repeat?")):
+        select_words(page, f'#log [data-line="{line}"] span')
+        write(page.locator(".lf-composer leaf-text"), words)
+        with sending(page, f"the comment on line {line}"):
+            page.keyboard.press("ControlOrMeta+Enter")
+        page.keyboard.press("Escape")
+    assert far.evaluate(left) == pytest.approx(first_left, abs=0.5)
+    # The open card keeps its passage's run drawn; a returning reader finds it skipped.
+    page.reload()
+    wait_until_ready(page)
+    assert not far.evaluate(drawn)
+    # Each travel jumps: a glide across the runs drew each one it passed, for seconds.
+    # The second leaves while the first still holds the run drawn, as a held `t` does:
+    # the frames that would release it are held.
+    page.locator("#log pre").evaluate(
+        "pre => { window.steps = 0; pre.addEventListener('scroll', () => steps++); }"
+    )
+    with held_frames(page):
+        page.keyboard.press("t")
+        page.wait_for_function("() => steps > 0")
+        page.keyboard.press("t")
+    expect(page.locator(".lf-page-thread")).to_be_focused()
+    scroll_settled(page, "#log pre")
+    assert page.evaluate("steps") == 2
+    landed = far.evaluate("""line => {
+      const box = line.closest('pre').getBoundingClientRect();
+      const at = line.getBoundingClientRect();
+      const hit = document.elementFromPoint(at.left + 30, at.top + 8);
+      return {shown: at.top >= box.top && at.bottom <= box.bottom,
+              hit: hit?.closest('[data-line]')?.dataset.line ?? null,
+              top: at.top - box.top};
+    }""")
+    assert landed == {"shown": True, "hit": "880", "top": landed["top"]}, landed
+
+
 def test_an_excerpt_shows_and_answers_to_its_source_line_numbers(browser, serve):
     """An lf-code body with `lines` is a quotation from a longer file. What the user
     reads is the file's own numbering: the gutter counts from where the quote starts
@@ -762,7 +1015,7 @@ only
     expect(rows).to_have_count(8)
     assert rows.evaluate_all(
         """rs => rs.map(r => r.classList.contains('lf-code-elided')
-                   ? ['elided', r.dataset.elided, r.textContent]
+                   ? ['elided', r.dataset.lfElided, r.textContent]
                    : r.localName === 'lf-note' ? ['note']
                    : [getComputedStyle(r, '::before').content, r.hasAttribute('data-lf-hi')])"""
     ) == [
@@ -809,7 +1062,7 @@ only
 
     # The rows a key addresses, as `navigateToDatum` reads them through lfElementsFor.
     addressed = """key => [...document.querySelector('#walk').lfElementsFor(key)]
-        .map(l => l.dataset.line ?? `${l.dataset.from}-${l.dataset.to}`)"""
+        .map(l => l.dataset.lfLine ?? `${l.dataset.lfFrom}-${l.dataset.lfTo}`)"""
     assert page.evaluate(addressed, "1507-1550") == ["1507", "1508-1549", "1550"]
     assert page.evaluate(addressed, "1520") == ["1508-1549"]
     assert page.evaluate(addressed, "3") == []

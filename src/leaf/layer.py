@@ -2,9 +2,10 @@
 
 A selection has two compositions, each held for the process by the inputs it
 resolves to. Its vocabulary (`selected_vocabulary`, `LayerVocabulary`) is all a
-reader of the page needs. The full composition (`selected_layer`,
-`LayerComposition`) is built over that vocabulary and reads and validates every
-sheet and module the layer serves; `validation.command.cmd_check` and
+reader of the page needs, merged and stamped but not validated. The full composition
+(`selected_layer`, `LayerComposition`) is built over that vocabulary, validates its
+registry, and reads and validates every sheet and module the layer serves;
+`validation.command.cmd_check` and
 `http.page_endpoint` compose it so that `page check` and `server start` refuse a
 package that no longer composes (`layer-registry.md`)."""
 
@@ -12,6 +13,7 @@ import hashlib
 import json
 import re
 import subprocess
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from functools import cache, cached_property, lru_cache
@@ -478,6 +480,46 @@ def composed_sheets(inputs: list[Path]) -> dict[str, bytes]:
     }
 
 
+def portable_sheet(inputs: list[Path], tags: list[str]) -> bytes:
+    """The look a page without Leaf links for the widgets it runs (module-authoring.md,
+    "A widget that also runs off Leaf"), served as the layer's portable.css.
+
+    It holds the kernel's tokens, then the kernel's shared sheet (shadow.css) nested
+    under `:where(<the layer's tags>)`, then the sheets of each package that ships
+    widgets (widget-shadow.css and defaults.css), all in lf-base, the tier a widget
+    module's adopted rules take off Leaf too (runtime/base-layer.js). The nesting keeps
+    the shared sheet's page-wide control faces (`.button`, `.field`, a native control's
+    font) to the widgets' insides, so the host's own markup keeps its look; it adds no
+    specificity and keeps each rule's order, so a widget's insides rank as on a Leaf
+    page. A rule there that reaches the widget element itself, or declares on `:root`,
+    reaches nothing on the host, which is why the tokens stand outside it. The shared
+    sheet's `@property` and `@keyframes` rules can't nest, so they never reach a host
+    either: a thread's sheen and the registration of custom properties a widget's look
+    there doesn't rest on, as tests/smoke/test_plain_page.py holds.
+    A package
+    that ships no widgets, such as a theme, styles a page rather than its widgets, so
+    it stays out, as do base.css's page shell, the Layouts, semantic state and every
+    overrides.css and chrome.css. The host's unlayered rules outrank all of it.
+    """
+    kernel, *packages = inputs
+    parts = []
+
+    def place(sheet):
+        parts.append(f"@layer lf-base {{\n{sheet}}}\n")
+
+    if (tokens := kernel / "styles/tokens.css").is_file():
+        place(stylesheet(tokens, kernel))
+    if (shared := kernel / "shadow.css").is_file() and tags:
+        place(f":where({', '.join(tags)}) {{\n{stylesheet(shared, kernel)}}}\n")
+    for root in packages:
+        if not (root / "widgets").is_dir():
+            continue
+        for name in ("widget-shadow.css", "defaults.css"):
+            if (source := root / name).is_file():
+                place(stylesheet(source, root))
+    return "".join(parts).encode()
+
+
 def composed_instructions(inputs: list[Path]) -> dict[str, bytes]:
     """Package instructions joined by audience in layer precedence order.
 
@@ -615,7 +657,9 @@ def _vocabulary(inputs: tuple[Path, ...], copies: tuple) -> LayerVocabulary:
 
 @cache
 def _composed(inputs: tuple[Path, ...], copies: tuple) -> LayerComposition:
-    return _composition(checked_layer_inputs(list(inputs)), _vocabulary(inputs, copies))
+    return _composition(
+        checked_layer_inputs(list(inputs)), lambda: _vocabulary(inputs, copies)
+    )
 
 
 def files_identity(files: dict[str, bytes]) -> str:
@@ -847,12 +891,16 @@ def provenance_label(provenance: dict) -> str:
 
 
 def compose_vocabulary(roots: list[Path]) -> LayerVocabulary:
-    """Read and validate the vocabulary of the layer checked inputs produce
-    (`LayerVocabulary`), refusing a registry that marks a widget upgraded whose
-    module no input holds."""
-    from .validation.composition import incoming_registry
+    """Read the vocabulary of the layer checked inputs produce (`LayerVocabulary`),
+    refusing a registry that marks a widget upgraded whose module no input holds.
 
-    incoming = incoming_registry(roots)
+    Its registry is merged and stamped but not validated. `page init` validated the
+    selection, and every Leaf that serves, exports or checks the page validates it
+    again when it composes the layer's files (`_composition`). A reader of the page
+    doesn't validate it."""
+    from .registry.layer import merged_registry, stamp_composition
+
+    incoming = stamp_composition(merged_registry(roots)[0])
     widgets = frozenset(composed_dir_files(roots, "widgets"))
     missing_modules = sorted(
         tag
@@ -876,17 +924,25 @@ def compose_layer(roots: list[Path]) -> LayerComposition:
     not part of it: the Leaf serving a page supplies that (`runtime_selection`), so
     the layer holds what packages add beside it, and the registry, theme and widgets
     every root contributes."""
-    return _composition(roots, compose_vocabulary(roots))
+    return _composition(roots, lambda: compose_vocabulary(roots))
 
 
-def _composition(roots: list[Path], vocabulary: LayerVocabulary) -> LayerComposition:
-    """The layer `roots` produce, over the `vocabulary` they compose: its modules
-    checked for private kernel imports, and its sheets and browser files read."""
+def _composition(
+    roots: list[Path], vocabulary_of: Callable[[], LayerVocabulary]
+) -> LayerComposition:
+    """The layer `roots` produce: its registry validated as `page init` vendors it,
+    then the vocabulary `vocabulary_of` composes, whose stamping reads the registry
+    as valid, its modules checked for private kernel imports, and its sheets and
+    browser files read."""
     from .revision_artifact import (
         PUBLIC_MODULES,
         dependency_reference,
         javascript_imports,
     )
+    from .validation.composition import incoming_registry
+
+    incoming_registry(roots)
+    vocabulary = vocabulary_of()
 
     protected = kernel_runtime_paths()
     private_modules = {"/leaf.js", *(f"/runtime/{name}" for name in protected)} - set(
@@ -931,7 +987,11 @@ def _composition(roots: list[Path], vocabulary: LayerVocabulary) -> LayerComposi
         )
         for sub in BROWSER_DIRS
     }
-    top_files = composed_sheets(roots)
+    top_files = composed_sheets(roots) | {
+        "portable.css": portable_sheet(
+            roots, sorted(filter(is_element_name, vocabulary.registry))
+        )
+    }
     for name in LAYER_TOP_FILES:
         if name == "registry.json" or name in top_files:
             continue

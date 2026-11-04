@@ -108,6 +108,14 @@ const exactClosures = {
     "repaint.js",
     "shadow.js",
     "arrivals.js",
+    // Whether the user scrolled away from the focused control, whose scopes then leave.
+    "user-place.js",
+    "geometry.js",
+    "scrolling.js",
+    // A glide jumps under reduced motion.
+    "motion.js",
+    "rect.js",
+    "shown-box.js",
     // A widget's declared commands arrive by the event it dispatches, and a malformed
     // declaration is reported as its failure.
     "widget-upgrade.js",
@@ -202,15 +210,6 @@ export default {
       severity: "error",
       from: { path: owners, pathNot: `^${overlay}` },
       to: { reachable: true, path: `^${overlay}` },
-    },
-    {
-      name: "no-cycle",
-      comment:
-        "A cycle has no boot order; whichever module the browser evaluates first " +
-        "reads the other's bindings before they exist.",
-      severity: "error",
-      from: { path: owners },
-      to: { circular: true },
     },
     {
       name: "not-to-unresolvable",

@@ -28,11 +28,14 @@ body.lf-over-mark {
 /* Armed, a press on a thread-marked element is the aim's, not the thread's, so the
    hand here is the aim's answer rather than the thread's: it stands where the aim has
    an item and comes off where it hasn't, which is the same promise the body is making
-   and not the mark's own "open this thread". */
-body:is(.lf-aiming, [data-lf-design-mode]) .lf-mark-el {
+   and not the mark's own "open this thread". The body carries the stamps, and the
+   chrome stands after it, so a mark in the chrome reads them as a sibling's. */
+body:is(.lf-aiming, [data-lf-design-mode]) .lf-mark-el,
+body:is(.lf-aiming, [data-lf-design-mode]) ~ .lf-chrome .lf-mark-el {
   cursor: default;
 }
-body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
+body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el,
+body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item ~ .lf-chrome .lf-mark-el {
   cursor: pointer;
 }
 /* Replace only the source focus cue, preserving authored outlines and obligations
@@ -61,25 +64,40 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
     cursor: auto;
   }
   /* The rail cannot trap a raised item below the page paint it summons. Only the item
-     under pointer or focus crosses that paint; the full-page toolbar stays at rest. */
+     under pointer or focus crosses that paint, and the obligation the user stands in,
+     whose marker stands across the location ring where the decision reaches the rail
+     (pr-walkthrough's approval at 1280px); the full-page toolbar stays at rest. */
   .lf-margin-projection {
     z-index: auto;
   }
-  .lf-margin-cluster:is(:hover, [data-lf-focus-within]) {
+  .lf-margin-cluster:is(
+    :hover,
+    [data-lf-focus-within],
+    :has(> [data-lf-kinds~="on-me"][data-lf-target-selected])
+  ) {
     z-index: var(--lf-z-margin-raised);
   }
   /* A pane's lane and the frames a sticky header cuts are stacking contexts of their own
      (their clips make them so), so each rises with the row the pointer or the keyboard
      is on. */
-  .lf-margin-lane:has(.lf-margin-cluster:is(:hover, [data-lf-focus-within])),
-  .lf-margin-cut:has(.lf-margin-cluster:is(:hover, [data-lf-focus-within])),
-  .lf-margin-carrier:has(.lf-margin-cluster:is(:hover, [data-lf-focus-within])) {
+  .lf-margin-lane:has(
+    .lf-margin-cluster:is(:hover, [data-lf-focus-within]),
+    [data-lf-kinds~="on-me"][data-lf-target-selected]
+  ),
+  .lf-margin-cut:has(
+    .lf-margin-cluster:is(:hover, [data-lf-focus-within]),
+    [data-lf-kinds~="on-me"][data-lf-target-selected]
+  ),
+  .lf-margin-carrier:has(
+    .lf-margin-cluster:is(:hover, [data-lf-focus-within]),
+    [data-lf-kinds~="on-me"][data-lf-target-selected]
+  ) {
     z-index: var(--lf-z-margin-raised);
   }
   /* Placement fits the finished thread before typing: the frame reserves the card's
      header and reply rows around the editor, and is at least as wide as the card
      (`--thread-card-min`), so the card Send opens stands in the frame and grows out of
-     the field (thread-preview.js, `followCard`). Only the field paints; the
+     the field (box-motion.js, `drawnAt`). Only the field paints; the
      transparent rows neither take document flow nor intercept presses. Its tracks
      shrink into that frame, and attached images hang outside it. */
   .lf-fab-bar:not([data-lf-target-only], [data-lf-presentation="inline"]) {
@@ -353,7 +371,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
     .lf-page-thread .lf-msg[data-lf-focus-visible]
   ) {
     outline: var(--focus-ring);
-    outline-offset: var(--focus-ring-inset);
+    --lf-ring-at: var(--focus-ring-inset);
   }
   .lf-margin-preview-close {
     flex: none;
@@ -885,8 +903,8 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
    Chromium carries a native caret reveal through a CSS-anchored fixed box and applies
    that padding to it, moving the document beneath an already visible editor. */
 html:has(
-  .lf-margin-preview:focus-within,
-  .lf-fab-bar:not([data-lf-presentation="inline"]):focus-within
+  .lf-margin-preview leaf-text:focus-within,
+  .lf-fab-bar:not([data-lf-presentation="inline"]) leaf-text:focus-within
 ) {
   scroll-padding: 0;
 }

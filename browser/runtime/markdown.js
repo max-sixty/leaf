@@ -6,7 +6,9 @@ import { isCanonicalMediaUrl, scopedMediaUrl } from "./media.js";
 import { elementsDeclaring, declarationFor } from "./registry.js";
 import { alignText } from "./text-alignment.js";
 import { dataBody } from "./widget-upgrade.js";
+import { generatedElement } from "./element-markers.js";
 import { isElement } from "./shadow-tree.js";
+import { offerContentElement } from "./element-markers.js";
 
 /** @typedef {import("markdown-it").Token} NativeToken
  * @typedef {import("markdown-it").MarkdownIt} MarkdownIt
@@ -84,13 +86,30 @@ export function inlineMarkdownFragment(text, message = true) {
   return parsed.content;
 }
 
+// The written files in `scope` whose `x-prepaint` attribute names Markdown and that
+// hold no rendering yet: a revision's or a message's, since delivery renders only the
+// first document's (`revision_delivery.mark_declared`).
+/** @param {Element | Document | DocumentFragment} scope */
+const unpaintedFiles = (scope) => {
+  const elements = elementsDeclaring(scope, "x-prepaint");
+  if (isElement(scope) && declarationFor(scope, "x-prepaint")) elements.unshift(scope);
+  return elements.filter(
+    (element) =>
+      element.getAttribute(String(declarationFor(element, "x-prepaint"))) ===
+        "markdown" &&
+      element.querySelector(":scope > pre") &&
+      !element.querySelector(":scope > [data-lf-prepaint]"),
+  );
+};
+
 // Registry text formatting belongs to the layer, so a package declaration cannot
 // make file-side passages read words the browser leaves as raw Markdown.
 /** @param {Element | Document | DocumentFragment} scope */
 export async function loadDeclaredMarkdown(scope) {
   if (
     !(isElement(scope) && declarationFor(scope, "x-text-format")) &&
-    !elementsDeclaring(scope, "x-text-format").length
+    !elementsDeclaring(scope, "x-text-format").length &&
+    !unpaintedFiles(scope).length
   )
     return;
   /** @type {unknown} */
@@ -139,6 +158,25 @@ export function formatDeclaredMarkdown(scope) {
     }
   }
 }
+// A written Markdown file first paints as its rendering beside the `<pre>` its module
+// reads, as delivery paints the first document's, so its box is the drawn preview's
+// before the module draws over both. Presentation arrivals, a revision's and a
+// message's, call this before connection, with the parser loaded. A version's painted
+// source leaves the rendering out, as its baseline does, since it is presentation.
+/** @param {Element | Document | DocumentFragment} scope */
+export function prepaintDeclaredFiles(scope) {
+  const files = unpaintedFiles(scope);
+  if (files.length && !tokenize)
+    throw new Error("leaf: Markdown prepaint requires its loaded renderer");
+  for (const file of files) {
+    const body = generatedElement(document.createElement("div"), { says: false });
+    body.className = "lf-markdown-body";
+    body.setAttribute("data-lf-prepaint", "");
+    body.innerHTML = renderMarkdown(dataBody(file), false);
+    file.prepend(body);
+  }
+}
+
 // Keep the exact source on its reading surface. Passage capture reads the rendered
 // children; revision comparison reads source, so formatting never becomes state. The
 // body reads as a Markdown file (`renderMarkdown`), as the server's prepaint draws it
@@ -763,10 +801,11 @@ export function makeMarkdown(module, message) {
     const image = renderedElement(markup, "img");
     const source = scopedMediaUrl(href);
     image.setAttribute("src", source);
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = "lf-media-open lf-message-media";
-    button.setAttribute("data-lf-offer", "button");
+    const button = offerContentElement(
+      document.createElement("button"),
+      "picture",
+      "lf-media-open lf-message-media",
+    );
     button.setAttribute("data-lf-said", "");
     button.setAttribute("data-lf-media-url", source);
     button.setAttribute("aria-label", `View ${alt || "Image"}`);

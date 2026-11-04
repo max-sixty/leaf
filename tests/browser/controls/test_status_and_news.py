@@ -63,7 +63,7 @@ def test_a_status_kind_change_is_announced_in_the_status_s_own_words(browser, se
     working(serve.page_dir, "Writing the page")
     page = open_page(browser, url)
     live = page.locator(".lf-live")
-    expect(page.locator(".lf-fp-leaf .lf-dot[data-lf-tone=working]")).to_be_visible()
+    expect(page.locator('.lf-fp-leaf[data-lf-tone="working"]')).to_be_visible()
     # The page arriving is the document's own announcement, not a change in it.
     assert live.text_content() == "", (
         f"the status announced its first reading: {live.text_content()!r}"
@@ -105,16 +105,14 @@ def test_a_status_kind_change_is_announced_in_the_status_s_own_words(browser, se
         # An unreachable server turns the leaf red, and the field says it as a status
         # rather than an error.
         expect(live).to_contain_text("Lost the connection")
-        expect(
-            page.locator(".lf-fp-leaf .lf-dot[data-lf-tone=blocked]")
-        ).to_be_visible()
-        expect(panel_field(page)).to_have_attribute("data-says", "status")
+        expect(page.locator('.lf-fp-leaf[data-lf-tone="blocked"]')).to_be_visible()
+        expect(panel_field(page)).to_have_attribute("data-lf-says", "status")
         # The server coming back to refuse this tab's key asks something new of the
         # user, which only they can end, so it is heard and the field says it as an
         # error.
         page.route("**/api/state*", lambda route: route.fulfill(status=401, body="{}"))
         expect(live).to_contain_text("This tab lost access")
-        expect(panel_field(page)).to_have_attribute("data-says", "error")
+        expect(panel_field(page)).to_have_attribute("data-lf-says", "error")
         # A server that answers with an error of its own is up and failing, which is
         # neither offline nor a key to replace: the status says its words.
         page.route(

@@ -10,7 +10,7 @@
  * index.
  * Live pages select their panel before the strip arrives. Without the runtime,
  * panels stack as labeled sections. */
-/* A set authored as layout-flow shares document tracks and draws no frame. Every
+/* A set authored as layout-flow shares the document's space and draws no frame. Every
  * other set is boxed. layouts.css owns the flow declaration the module reads for
  * scrolling; primary URL/history ownership is a separate fact (lf-tabs.js). */
 
@@ -80,7 +80,7 @@ lf-tabs[data-lf-views] > lf-tab {
 }
 .lf-tabstrip .lf-tab-btn[data-lf-focus-visible] > .lf-tab-name {
   outline: var(--focus-ring);
-  outline-offset: var(--focus-ring-gap);
+  --lf-ring-at: var(--focus-ring-gap);
 }
 /* The open tab's mark follows the strip's flow (`--lf-tabstrip-flow`), the one fact
  * that also lays the strip out, so every strip, whichever widget writes it, marks its
@@ -374,7 +374,7 @@ lf-tabs[data-lf-views] > lf-tab {
       align-items: baseline;
       justify-items: start;
       text-align: start;
-      outline-offset: var(--focus-ring-inset);
+      --lf-ring-at: var(--focus-ring-inset);
       &[data-lf-focus-visible] {
         outline: var(--focus-ring);
         & > .lf-tab-name {
@@ -649,11 +649,11 @@ lf-tabs[data-lf-views] > lf-tab {
       inline-size: 0;
       align-self: stretch;
     }
-    .lf-tabstrip-scroll[data-to="start"] {
+    .lf-tabstrip-scroll[data-lf-to="start"] {
       inset-inline-start: calc(-1 * var(--lf-tabstrip-pad));
       margin-inline-end: -2px;
     }
-    .lf-tabstrip-scroll[data-to="end"] {
+    .lf-tabstrip-scroll[data-lf-to="end"] {
       inset-inline-end: calc(-1 * var(--lf-tabstrip-pad));
       margin-inline-start: -2px;
     }
@@ -670,27 +670,27 @@ lf-tabs[data-lf-views] > lf-tab {
       color: var(--muted);
       cursor: pointer;
     }
-    .lf-tabstrip[data-lf-more-before] > .lf-tabstrip-scroll[data-to="start"],
-    .lf-tabstrip[data-lf-more-after] > .lf-tabstrip-scroll[data-to="end"] {
+    .lf-tabstrip[data-lf-more-before] > .lf-tabstrip-scroll[data-lf-to="start"],
+    .lf-tabstrip[data-lf-more-after] > .lf-tabstrip-scroll[data-lf-to="end"] {
       display: block;
     }
     .lf-tabstrip-scroll > span:hover {
       color: var(--ink);
     }
-    .lf-tabstrip-scroll[data-to="start"] > span {
+    .lf-tabstrip-scroll[data-lf-to="start"] > span {
       inset-inline-start: 0;
       justify-content: flex-start;
       background: linear-gradient(to right, var(--lf-tabstrip-bg) 75%, transparent);
     }
-    .lf-tabstrip-scroll[data-to="end"] > span {
+    .lf-tabstrip-scroll[data-lf-to="end"] > span {
       inset-inline-end: 0;
       justify-content: flex-end;
       background: linear-gradient(to left, var(--lf-tabstrip-bg) 75%, transparent);
     }
-    .lf-tabstrip-scroll[data-to="start"]:dir(rtl) > span {
+    .lf-tabstrip-scroll[data-lf-to="start"]:dir(rtl) > span {
       background: linear-gradient(to left, var(--lf-tabstrip-bg) 75%, transparent);
     }
-    .lf-tabstrip-scroll[data-to="end"]:dir(rtl) > span {
+    .lf-tabstrip-scroll[data-lf-to="end"]:dir(rtl) > span {
       background: linear-gradient(to right, var(--lf-tabstrip-bg) 75%, transparent);
     }
     /* A page tab is a section of the page, not a box on it: like `main`, it trims its

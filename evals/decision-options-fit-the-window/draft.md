@@ -98,8 +98,9 @@ handoff and save it.
           I took the expanded floating panel to be the panel with a thread's view open
           over its row, the view Threads opens and <em>Show on page</em> leaves
           (<code>floating-panel.js</code>, "Opened"). The panel also has an
-          <code>data-expanded</code> state, <em>More room to write</em>, which widens it
-          to 760&#8239;px for a long draft. Candidate C borrows that width for reading.
+          <code>data-lf-expanded</code> state, <em>More room to write</em>, which widens
+          it to 760&#8239;px for a long draft. Candidate C borrows that width for
+          reading.
         </p>
         <table id="room-table">
           <thead>

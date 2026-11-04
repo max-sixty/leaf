@@ -14,7 +14,6 @@ from render_cases_widgets import (
     PART_DIAGRAM_PAGE,
 )
 from render_harness import (
-    EXAMPLES,
     ROOT,
     available_commands,
     expect_panel_says,
@@ -31,6 +30,7 @@ from render_harness import (
 
 from leaf import event_log as events_model
 from leaf.render_checks import rendered
+from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -119,11 +119,11 @@ def test_desktop_target_picker_arms_the_page_as_alt_does(browser, serve):
     )
     link = page.get_by_role("link", name="Follow this link")
     link.hover()
-    expect(page.locator(".lf-aim[data-for]")).to_have_count(0)
+    expect(page.locator(".lf-aim[data-lf-for]")).to_have_count(0)
     # Opened under a still mouse, the promise paints without waiting for a move.
     page.keyboard.press("s")
     expect(page.locator(".lf-target-picker-hint")).not_to_have_count(0)
-    expect(page.locator(".lf-aim")).to_have_attribute("data-for", "link")
+    expect(page.locator(".lf-aim")).to_have_attribute("data-lf-for", "link")
     # A middle press is armed too: it opens no tab and chooses nothing, so the picker stands.
     link.click(button="middle")
     expect(page.locator(".lf-target-picker-hint")).not_to_have_count(0)
@@ -131,22 +131,20 @@ def test_desktop_target_picker_arms_the_page_as_alt_does(browser, serve):
     link.dblclick()
     expect(page.locator(".lf-fab-input")).to_be_focused()
     expect(page.locator(".lf-target-picker-hint")).to_have_count(0)
-    expect(page.locator(".lf-aim[data-for]")).to_have_count(0)
+    expect(page.locator(".lf-aim[data-lf-for]")).to_have_count(0)
     assert not page.url.endswith("#elsewhere"), "the picker's press followed the link"
     assert page.context.pages == [page], "the picker's middle press opened the link"
 
 
 def test_target_picker_takes_a_margin_press_as_the_target_it_stands_by(browser, serve):
     """Over a suggestion's ✓ Accept, the picker comments on the change, as Alt does."""
-    page = open_page(
-        browser, serve(next(p for p in EXAMPLES if p.stem == "release-notes"))
-    )
+    page = open_page(browser, serve(named_source("release-notes")))
     before = len(events_model.read_events(serve.page_dir))
     accept = page.locator(".lf-margin-cluster .lf-sug-accept").first
     accept.scroll_into_view_if_needed()
     accept.hover()
     page.keyboard.press("s")
-    promised = page.locator(".lf-aim").get_attribute("data-for")
+    promised = page.locator(".lf-aim").get_attribute("data-lf-for")
     assert promised, "the picker painted no target over the margin row"
     accept.click()
     expect(page.locator(".lf-fab-input")).to_be_focused()
@@ -241,7 +239,7 @@ def test_s_aims_at_the_addressable_element_named_by_its_hint(browser, serve):
     expect(field).to_have_js_property("value", "s")
     write(field, "Keep this draft")
     page.keyboard.press("Tab")
-    expect(bar.locator('[data-token="keep"]')).to_be_focused()
+    expect(bar.locator('[data-lf-token="keep"]')).to_be_focused()
     expect(field).to_be_visible()
     page.keyboard.press("Escape")
     expect(field).to_be_focused()
@@ -644,14 +642,18 @@ def test_slash_finds_page_text_without_a_target_kind(browser, serve):
     # Selection and whole-page search are named in the reference.
     page.keyboard.press("?")
     help_el = page.locator(".lf-command-reference")
-    search_command = help_el.locator('[role=row][data-lf-command="page.search.open"]')
-    select_command = help_el.locator('[role=row][data-lf-command="target.picker.open"]')
+    search_command = help_el.locator(
+        '[role=option][data-lf-command="page.search.open"]'
+    )
+    select_command = help_el.locator(
+        '[role=option][data-lf-command="target.picker.open"]'
+    )
     expect(search_command.locator("kbd")).to_have_text("/")
-    expect(search_command.get_by_role("button")).to_have_text("Search page")
+    expect(search_command).to_have_accessible_name("Search page")
     expect(search_command.locator(".lf-command-reference-description")).to_have_count(0)
     expect(select_command.locator("kbd")).to_have_text("s")
-    expect(select_command.get_by_role("button")).to_have_text("Select mode")
-    expect(select_command.get_by_role("button")).to_have_attribute(
+    expect(select_command).to_have_accessible_name("Select mode")
+    expect(select_command).to_have_attribute(
         "title", "Choose an element by pressing it or typing its hint, then comment"
     )
     page.keyboard.press("Escape")
@@ -796,10 +798,10 @@ def test_n_repeats_the_last_page_search_in_either_direction(browser, serve):
     page.keyboard.press("?")
     help_el = page.locator(".lf-command-reference")
     expect(
-        help_el.locator('[role=row][data-lf-command="page.search.next"] kbd')
+        help_el.locator('[role=option][data-lf-command="page.search.next"] kbd')
     ).to_have_text("n")
     expect(
-        help_el.locator('[role=row][data-lf-command="page.search.previous"] kbd')
+        help_el.locator('[role=option][data-lf-command="page.search.previous"] kbd')
     ).to_have_text("N")
     page.keyboard.press("Escape")
 

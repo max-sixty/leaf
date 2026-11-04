@@ -1,6 +1,6 @@
 /* Retained DOM child reconciliation. */
 import { diffArrays } from "/vendor/jsdiff.esm.js";
-import { move } from "./dom-move.js";
+import { holdSelection, move } from "./dom-move.js";
 
 /** Source/live correspondence retains the native kind established by capture and matching.
  * @extends {WeakMap<Node, Node>} */
@@ -62,14 +62,25 @@ export function setChildren(parent, nodes) {
 // it. Ordering walks past a stale node, so no survivor moves for it; once every list is
 // placed, what still stands in a list's parent is a node no list holds, and is removed.
 // Lists are placed in the order given, so name a parent before any list inside it: a
-// node then moves into a parent that is already connected.
+// node then moves into a parent that is already connected. A page selection inside a
+// moved node goes back once the nodes have landed (`holdSelection`), before anything
+// the caller does next edits their text.
 /** @param {readonly (readonly [Node & ParentNode, Iterable<Node>])[]} lists */
 export function setChildLists(lists) {
-  for (const [parent, nodes] of lists) orderChildren(parent, nodes);
-  for (const [parent, nodes] of lists) {
+  const placed = lists.map(
+    ([parent, nodes]) => /** @type {const} */ ([parent, [...nodes]]),
+  );
+  const restore = holdSelection(
+    (function* () {
+      for (const [, nodes] of placed) yield* nodes;
+    })(),
+  );
+  for (const [parent, nodes] of placed) orderChildren(parent, nodes);
+  for (const [parent, nodes] of placed) {
     const keep = new Set(nodes);
     for (const child of [...parent.childNodes]) if (!keep.has(child)) child.remove();
   }
+  restore?.();
 }
 
 // Order this renderer's children without taking ownership of their siblings.
@@ -182,7 +193,7 @@ function staying(parent, nodes) {
    authored container is swept out as markup the source does not have.
 
    So both sides of the diff are source. `before` and `after` are the two revisions'
-   authored `main`, inert and untouched by anything: whatever they agree on, this does not
+   authored body, inert and untouched by anything: whatever they agree on, this does not
    touch. `pairs` carries the correspondence, from a source node to the live node standing
    for it — built by a lockstep walk at boot, when the page is still exactly its own
    source, and kept up by every patch since.
@@ -247,7 +258,7 @@ export function patchTree(before, after, rules) {
 export function patchRetains(before, after, target, rules) {
   if (!target?.isConnected) return false;
   // Runtime chrome is outside the authored patch. Ask source pairs, not DOM place:
-  // eviction also removes authored nodes a page module moved outside main.
+  // eviction also removes authored nodes a page module moved outside its original parent.
   if (!sourceOwns(before, target, rules)) return true;
   return retainedWithin(before, after, target, rules);
 }
@@ -324,21 +335,50 @@ function patchAttributes(live, before, after, rules) {
   for (const { name, value } of [...before.attributes]) {
     if (after.hasAttribute(name)) continue;
     if (name === "class") live.classList.remove(...tokens(value));
+    else if (name === "style") restyle(live, value, "");
     else live.removeAttribute(name);
     changed = true;
   }
   for (const { name, value } of after.attributes) {
     const held = before.getAttribute(name);
     if (held !== null && rules.sameValue(held, value)) continue;
-    // Classes are a set the page shares with the runtime, so only the author's own
-    // members move; every mark and state class beside them stays.
+    // Classes and inline declarations are sets the page shares with the runtime, so
+    // only the author's own members move; every mark, state class and property the
+    // runtime wrote beside them stays.
     if (name === "class") {
       live.classList.remove(...tokens(held ?? ""));
       live.classList.add(...tokens(value));
-    } else live.setAttribute(name, value);
+    } else if (name === "style") restyle(live, held ?? "", value);
+    else live.setAttribute(name, value);
     changed = true;
   }
   if (changed) rules.touched(live);
+}
+
+// The runtime and page scripts write properties of their own inline on authored
+// elements, `body`'s included (composing/aim.js, content-layout.js), so a revision
+// writes whatever the live element holds that neither the old text nor the new one
+// declares, then the author's new text, in one write. The carried part goes as
+// serialized text, since a shorthand written with `var()` reads back empty longhand by
+// longhand, so moving declarations by name drops it. The author's text comes last,
+// where it ends the attribute as it would alone: a `calc(` or quote it leaves open
+// still closes at the end, and its `margin-inline-start` beats a script's
+// `margin-left`, which the names alone don't match.
+/** @param {Element} live @param {string} held @param {string} next */
+function restyle(live, held, next) {
+  const parse = (/** @type {string} */ text) => {
+    const parsed = document.createElement("div").style;
+    parsed.cssText = text;
+    return parsed;
+  };
+  const names = (/** @type {CSSStyleDeclaration} */ declared) =>
+    Array.from({ length: declared.length }, (_, at) => declared.item(at));
+  const carried = parse(live.getAttribute("style") ?? "");
+  for (const property of [...names(parse(held)), ...names(parse(next))])
+    carried.removeProperty(property);
+  const text = [carried.cssText, next.trim()].filter(Boolean).join(" ");
+  if (text) live.setAttribute("style", text);
+  else live.removeAttribute("style");
 }
 
 // Source text, so any run of whitespace separates two classes.

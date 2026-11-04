@@ -106,9 +106,9 @@ class UndoReading:
     The browser exposes every gesture in force in one reading, so checking each
     candidate by folding the event log again turns a linear state read into a
     quadratic one. This index computes the shared facts once: event identity,
-    withdrawals, and the reaction's thread status. The append door uses the
-    same reading for its authoritative check, while callers that only have one
-    candidate can keep using :func:`undo_error`.
+    withdrawals, the reaction's thread status, and which rewrites an answer stands
+    on. The append door uses the same reading for its authoritative check, while
+    callers that only have one candidate can keep using :func:`undo_error`.
 
     ``threads`` may be supplied by a caller that already folded the same log.
     Otherwise, ``within`` is required to fold the threads; it is not read when
@@ -132,15 +132,18 @@ class UndoReading:
         if threads is None:
             if within is None:
                 raise TypeError("within is required when threads are not supplied")
-            # Only reactions ask about thread state. Keeping this fold lazy
-            # also preserves the boundary's ability to reject a non-reaction
-            # gesture without interpreting unrelated, already-validated records.
+            # Only reactions and rewrites ask about thread state. Keeping this fold
+            # lazy also preserves the boundary's ability to reject another gesture
+            # without interpreting unrelated, already-validated records.
             threads = (
                 build_threads(events, within, withdrawn=self.withdrawn)
                 if any(
-                    event.get("token")
+                    event["kind"] == "edit"
+                    or (
+                        event["kind"] in kinds_declaring("message")
+                        and event.get("token")
+                    )
                     for event in events
-                    if event["kind"] in kinds_declaring("message")
                 )
                 else {}
             )
@@ -173,6 +176,15 @@ class UndoReading:
                 answered_reactions.add(event["subject"]["id"])
         self.answered_reactions = answered_reactions
         self.resolved_reactions = resolved_reactions
+        # A rewrite is a turn: once the agent has answered it, that answer stands on
+        # its words, as a reply stands on a reaction.
+        self.answered_edits = set()
+        for thread in threads.values():
+            if thread["revisions"]:
+                owed = {turn["id"] for turn in unanswered_turns(thread)}
+                self.answered_edits |= {
+                    revision["id"] for revision in thread["revisions"]
+                } - owed
 
     def error(self, event: dict) -> Finding | None:
         """The finding the append door refuses one proposed ``undo`` event on."""
@@ -197,6 +209,8 @@ class UndoReading:
                 "unundoable",
                 values={**named, "undoable": sorted(kinds_declaring("undoable"))},
             )
+        elif target["kind"] == "edit" and target["id"] in self.answered_edits:
+            return Finding("answered-edit", values=named)
         elif target["kind"] == "action" and target["id"] in self.absorbed:
             # The newest revision's markup places the unit
             # (`StateProjection.absorbed`), so taking the move back would restore
@@ -226,8 +240,11 @@ def undo_error(
     and only while it still paints: once a turn answers it or a task attaches,
     withdrawal would orphan that discussion or work, and the user's update is in the thread that
     turn opened; once its thread is resolved, resolve being its floor, there
-    is nothing left to take back. The browser offers exactly the gestures
-    this reading admits (`served_state.document.browser_undo_candidates`).
+    is nothing left to take back. A rewrite, deletions included, is a turn, taken back
+    by the same rule while no answer stands on it: the agent may have acted on the
+    words an answered rewrite left, so the user says what changes in a new turn. The
+    browser offers exactly the gestures this reading admits
+    (`served_state.document.browser_undo_candidates`).
 
     `within` is the published page's containment, as every other fold of the
     threads takes it: a thread an action settled, and a version's `restated`
@@ -357,16 +374,20 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
 def active_summaries(events: list, threads: dict) -> dict[str, list[dict]]:
     """Current presentation summaries for every thread, by thread id.
 
-    Summaries replace overlapping summaries whole. Editing a covered message
-    invalidates a summary containing prose. A fold without prose keeps showing the
-    revised originals. Progress completion is separate (`progress_completions`), so
-    opening a summary never restores completed progress.
+    Summaries replace overlapping summaries whole. Editing a covered message, or
+    undoing an edit of it, invalidates a summary containing prose. A fold without
+    prose keeps showing the revised originals. Progress completion is separate
+    (`progress_completions`), so opening a summary never restores completed progress.
     """
     edits = {}
+    edited = {}
     written = {}
     for event in events:
         if event["kind"] == "edit":
+            edited[event["id"]] = event["message"]
             edits[event["message"]] = event["seq"]
+        elif event["kind"] == "undo" and event["undoes"] in edited:
+            edits[edited[event["undoes"]]] = event["seq"]
         elif event["kind"] == "summary" and event["thread"] in threads:
             written.setdefault(event["thread"], []).append(event)
     return {
@@ -402,33 +423,35 @@ def progress_completions(thread: dict) -> dict[str, dict]:
 def _thread_summaries(thread: dict, summaries: list, edits: dict) -> list[dict]:
     message_ids = [message["id"] for message in thread["msgs"]]
     positions = {identity: index for index, identity in enumerate(message_ids)}
-    active = []
+    # The summaries in force cover disjoint messages, so each message names the one
+    # summary covering it, and a new summary finds the ones it replaces through the
+    # messages it covers rather than by reading every earlier summary.
+    active: dict[str, dict] = {}
+    holder: dict[str, str] = {}
     for event in summaries:
         start = positions.get(event["from"])
         end = positions.get(event["through"])
         if start is None or end is None or start > end:
             continue
         covers = message_ids[start : end + 1]
-        covered = set(covers)
-        active = [
-            summary for summary in active if covered.isdisjoint(summary["covers"])
-        ]
+        for replaced in {holder[identity] for identity in covers if identity in holder}:
+            for identity in active.pop(replaced)["covers"]:
+                del holder[identity]
         if event["text"] and any(
             edits.get(identity, 0) > event["seq"] for identity in covers
         ):
             continue
-        active.append(
-            {
-                "id": event["id"],
-                "seq": event["seq"],
-                "from": event["from"],
-                "through": event["through"],
-                "covers": covers,
-                "text": event["text"],
-                "label": event.get("label", "Earlier discussion"),
-            }
-        )
-    return sorted(active, key=lambda summary: positions[summary["from"]])
+        active[event["id"]] = {
+            "id": event["id"],
+            "seq": event["seq"],
+            "from": event["from"],
+            "through": event["through"],
+            "covers": covers,
+            "text": event["text"],
+            "label": event.get("label", "Earlier discussion"),
+        }
+        holder.update(dict.fromkeys(covers, event["id"]))
+    return sorted(active.values(), key=lambda summary: positions[summary["from"]])
 
 
 def unanswered_turns(thread: dict) -> list[dict]:
@@ -525,14 +548,28 @@ def retractions(events: list, upto=None) -> dict:
     return at
 
 
+def _report_notes(events: list, upto):
+    """Each report id a note through revision `upto` settles, with that note."""
+    for event in events:
+        if event["kind"] == "note" and (upto is None or event["revision"] <= upto):
+            for identity in note_settlements(event, "report"):
+                yield identity, event
+
+
 def report_settlements(events: list, upto=None) -> dict:
     """Report event id → the greatest revision whose note settled it."""
     at = {}
-    for event in events:
-        if event["kind"] != "note" or (upto is not None and event["revision"] > upto):
-            continue
-        for identity in note_settlements(event, "report"):
-            at[identity] = max(at.get(identity, 0), event["revision"])
+    for identity, note in _report_notes(events, upto):
+        at[identity] = max(at.get(identity, 0), note["revision"])
+    return at
+
+
+def report_settled_at(events: list, upto=None) -> dict:
+    """Report event id → the seq of the first note that settled it: every prefix
+    of the log through that seq, and none shorter, reads it settled."""
+    at = {}
+    for identity, note in _report_notes(events, upto):
+        at[identity] = min(at.get(identity, note["seq"]), note["seq"])
     return at
 
 

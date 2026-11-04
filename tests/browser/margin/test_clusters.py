@@ -561,7 +561,9 @@ def test_one_target_has_one_primary_margin_entry_and_inline_secondary_margin_ent
     back = reference.locator(
         '.lf-command-reference-command[data-lf-command="navigation.back"]'
     )
-    expect(back).to_have_text("Close options")
+    expect(back.locator(".lf-command-reference-title-words")).to_have_text(
+        "Close options"
+    )
     back.click()
     expect(reference).to_be_hidden()
     expect(options).to_be_hidden()
@@ -973,7 +975,9 @@ def test_margin_entry_order_and_page_map_actions_are_stable_at_both_widths(
         primary = item.locator('[data-lf-margin-entry-key="save"]')
         primary.focus()
         expect(primary).to_be_focused()
-        expect(page.locator(f'.lf-target-trace[data-for="{target}"]')).to_be_visible()
+        expect(
+            page.locator(f'.lf-target-trace[data-lf-for="{target}"]')
+        ).to_be_visible()
         primary.hover()
         label = item.locator('[data-lf-margin-entry-key="save"] .lf-margin-entry-label')
         expect(label).to_be_visible()
@@ -1008,10 +1012,10 @@ def test_margin_entry_order_and_page_map_actions_are_stable_at_both_widths(
     save.focus()
     save.hover()
     second.locator('[data-lf-margin-entry-key="save"]').focus()
-    expect(page.locator('.lf-target-trace[data-for="second"]')).to_be_visible()
-    expect(page.locator('.lf-target-trace[data-for="first"]')).to_be_hidden()
+    expect(page.locator('.lf-target-trace[data-lf-for="second"]')).to_be_visible()
+    expect(page.locator('.lf-target-trace[data-lf-for="first"]')).to_be_hidden()
     save.hover()
-    expect(page.locator('.lf-target-trace[data-for="first"]')).to_be_visible()
+    expect(page.locator('.lf-target-trace[data-lf-for="first"]')).to_be_visible()
     ring = save.evaluate("button => getComputedStyle(button).borderTopWidth")
     page.evaluate("() => window.contributionEntryFixtures[0].busy()")
     expect(save).to_have_attribute("aria-busy", "true")

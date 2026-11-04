@@ -313,15 +313,6 @@ def _empty_question(at: str, v: dict) -> str:
     )
 
 
-def _outside_main(content: list[dict]) -> list[str]:
-    return [
-        f"text in <{c['tag']}> at line {c['line']}"
-        if c["text"]
-        else f"<{c['tag']}> at line {c['line']}"
-        for c in content
-    ]
-
-
 def _unservable_layer(v: dict, why: str, action: str) -> str:
     """Why this Leaf can neither serve a page nor write its log (`layer`)."""
     return (
@@ -691,17 +682,12 @@ _TEXT = {
         f"{at} keeps moving for a reader who asked for less motion; stop or shorten it"
         " under @media (prefers-reduced-motion: reduce)"
     ),
-    "flow-tracks": lambda at, v: (
-        f"{at} is a reading flow under {v['parent']}, but its columns are"
-        f" {v['columns']!r} and its span is {v['start']} / {v['end']}; share all"
-        " document columns with grid-template-columns: subgrid and grid-column: full;"
-        " data-width can narrow that span, and layout containment or container-type can prevent subgrid"
-    ),
     "contained-space": lambda at, v: (
         f"{at} declares {v['space']} space but stays inside "
         + ", ".join(v["holders"])
         + "; to widen the enclosing box, put data-width on that holder; to share"
-        ' document tracks through unframed section wrappers, give them class="layout-flow"'
+        " the document's space through unframed section wrappers, give them"
+        ' class="layout-flow"'
     ),
     "squeezed-table": _squeezed,
     "shrunk-labels": lambda at, v: (
@@ -769,11 +755,6 @@ _TEXT = {
     "main-count": lambda at, v: (
         f"the page must have one <main> directly under <body>; found {v['bodies']}"
         f" bodies, {v['mains']} mains, and {v['direct']} direct body mains"
-    ),
-    "outside-main": lambda at, v: (
-        "the page's content goes inside the one <main> directly under <body>, which"
-        " Leaf reads as the page; move these inside it (a grid or header of the"
-        f" page's own goes on or in <main>): {_json(_outside_main(v['content']))}"
     ),
     "unclosed": lambda at, v: (
         "unclosed tags: "
@@ -1012,7 +993,7 @@ _TEXT = {
     ),
     "unpointable": lambda at, v: (
         "unpointable — these blocks have no id, nor does anything enclosing them, so"
-        f" element selection has no target: {_blocks(v)}; give main's sections ids,"
+        f" element selection has no target: {_blocks(v)}; give the page's sections ids,"
         " or each block a reader may point at alone"
     ),
     "unpointable-wide": lambda at, v: (
@@ -1801,6 +1782,9 @@ _TEXT = {
     ),
     "answered-reaction": lambda at, v: (
         f"reaction {v['undoes']} has a reply or task attached; continue in its thread"
+    ),
+    "answered-edit": lambda at, v: (
+        f"edit {v['undoes']} has been answered; rewrite the message or reply instead"
     ),
     "resolved-reaction": lambda at, v: (
         f"reaction {v['undoes']} stands on a resolved thread"

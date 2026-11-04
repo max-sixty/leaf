@@ -47,8 +47,10 @@ def open_from_threads(page, root):
     """Open the thread `root` from its row in the panel's Threads, as a reader finds it,
     and return what shows it: the panel's view, or its passage's margin card."""
     thread_row(page, root).click()
-    view = page.locator(f'{PANEL_THREAD}[data-thread="{root}"]')
-    margin = page.locator(f'.lf-margin-preview .lf-page-thread[data-thread="{root}"]')
+    view = page.locator(f'{PANEL_THREAD}[data-lf-thread="{root}"]')
+    margin = page.locator(
+        f'.lf-margin-preview .lf-page-thread[data-lf-thread="{root}"]'
+    )
     expect(view.or_(margin).filter(visible=True).first).to_be_visible()
     rendered(page)
     if view.filter(visible=True).count():
@@ -89,7 +91,9 @@ def test_a_thread_mark_inside_a_tab_panel_opens_on_press(browser, serve):
     expect(passage).to_have_css("cursor", "pointer")
     passage.click()
     expect(
-        page.locator('.lf-margin-preview .lf-page-thread[data-thread="inside-thread"]')
+        page.locator(
+            '.lf-margin-preview .lf-page-thread[data-lf-thread="inside-thread"]'
+        )
     ).to_be_visible()
 
 
@@ -204,8 +208,10 @@ def test_a_mark_in_the_layer_promises_no_press_the_layer_will_not_take(browser, 
     # press: the press itself, on the marked widget's own words, reaching no thread.
     page.locator(".lf-fp-view #tv-decision").click(position={"x": 4, "y": 4})
     rendered(page)
-    expect(page.locator(f'{PANEL_THREAD}[data-thread="tv-decisioned"]')).to_be_visible()
-    assert not page.locator(f'{PANEL_THREAD}[data-thread="tv-on-it"]').count(), (
+    expect(
+        page.locator(f'{PANEL_THREAD}[data-lf-thread="tv-decisioned"]')
+    ).to_be_visible()
+    assert not page.locator(f'{PANEL_THREAD}[data-lf-thread="tv-on-it"]').count(), (
         "a press on a mark in the layer reached its thread after all"
     )
 
@@ -545,7 +551,8 @@ def test_original_quoted_words_remain_readable_after_the_page_rewrites_them(
 
 
 def test_a_long_quote_of_replaced_data_has_a_local_reading(browser, serve):
-    """A surviving widget is a destination, but cannot show the old data's words."""
+    """A quote whose words a replacement took names no place on the page, and its card
+    still reads the whole quote in place."""
     old = "The earlier deployment required a manual review before rollout. " * 12
     url = serve(
         leaf_page(
@@ -570,7 +577,7 @@ def test_a_long_quote_of_replaced_data_has_a_local_reading(browser, serve):
     )
     card = open_from_threads(page, root["id"])
     quote = card.locator(".lf-quote")
-    expect(quote.locator(".lf-anchor-status")).to_have_text("Earlier data")
+    expect(quote).to_have_attribute("data-lf-detached", "")
     assert quote.evaluate("el => el.scrollHeight > el.clientHeight")
     disclosure = card.get_by_role("button", name="Full quote", exact=True)
     expect(disclosure).to_be_visible()

@@ -133,14 +133,12 @@ def script_kind(attrs: dict) -> str:
 
 
 # Same-origin parents already share the page's DOM and request authority. Permit
-# embedding there; a different origin must not disguise a live decision under its
-# own controls, even when same-site cookies authorize the framed page. The server
-# sends this policy as a header and the site manifest carries it to the Worker.
+# embedding there; any other origin must not disguise a live decision under its
+# own controls, even when same-site cookies authorize the framed page. A page's
+# running server adds the other live Leaf servers under its key
+# (`http.PageEndpoint._frame_ancestors`); the site manifest carries this policy to
+# the Worker as it stands.
 FRAME_ANCESTORS_CSP = "frame-ancestors 'self'"
-# Non-painting document structure that may stand outside the authored main. Head
-# metadata is allowed only while the parser is actually inside head.
-DOCUMENT_WRAPPERS = {"html", "head", "body", "main"}
-HEAD_METADATA_TAGS = {"base", "link", "meta", "script", "style", "title"}
 
 
 def _srcset_urls(value: str):
@@ -267,7 +265,10 @@ def attribute_references(tag: str, attrs: dict, name: str, value: str):
             )
         )
         or (
-            (reference := _local_resource(value)) is not None
+            # A path under `/media/` takes a separator, written or escaped, that an
+            # id or a word lacks, so only a value holding one is parsed as a URL.
+            any(separator in value for separator in "/\\%")
+            and (reference := _local_resource(value)) is not None
             and reference[0].startswith(f"/{MEDIA_DIR}/")
         )
     ):
@@ -571,18 +572,13 @@ class Authoring:
         # document metadata alike: one index of what the head names, so a user
         # after a description does not need a second parse of the same head.
         self.named_metas = []
-        # The authored page lives under one direct body > main because that is the
-        # element the first-replay presentation boundary withholds. Both assets that
-        # establish that boundary belong in head; anything paintable outside main would
-        # stand outside it. Scripts carry no paint; executable identity owns their
-        # lifetime, including moves between head, main, and retained body.
-        # Body lines come from source tokens because recovery erases a
-        # duplicate <body>; main placement comes from the recovered tree.
+        # Body lines come from source tokens because recovery erases a duplicate
+        # <body>; main placement comes from the recovered tree. The authored body
+        # is the revision boundary; main remains the page's semantic Layout box.
         self.body_lines = []
         self.head_lines = []
         self.head_elements = []  # (line, direct child of authored html)
         self.main_elements = []  # (line, direct child of authored body)
-        self.outside_main = []  # paintable content with no main ancestor
         # /media/ paths any attribute points at, so the check reads references and not
         # mentions: a page documenting Leaf can write one in prose without demanding a
         # screenshot that nothing displays.
@@ -693,12 +689,11 @@ class Authoring:
             < self._first_body_position
         )
         in_head = "head" in ancestors
-        in_main = "main" in ancestors
         if tag == "script":
             script = {
                 "attrs": attrs,
                 "parent": parent_tag,
-                "patch_region": "head" if in_head else "main" if in_main else "body",
+                "patch_region": "head" if in_head else "body",
                 "position": (line, column),
                 "early_head": in_head and before_body,
                 "line": line,
@@ -764,15 +759,6 @@ class Authoring:
 
         if tag == "noscript":
             self.errors.append(Finding("noscript", "<noscript>", {"line": line}))
-        # Only the outermost: an element inside one already named moves with it.
-        if (
-            not in_main
-            and tag not in DOCUMENT_WRAPPERS
-            and tag != "script"
-            and not (in_head and tag in HEAD_METADATA_TAGS)
-            and (parent_tag is None or parent_tag in DOCUMENT_WRAPPERS)
-        ):
-            self.outside_main.append({"tag": tag, "line": line, "text": False})
 
     def _visit(
         self,
@@ -873,14 +859,6 @@ class Authoring:
                 self._visit(child, child_output, ancestors=next_ancestors)
             elif isinstance(child, turbohtml.Text):
                 child_output.append(child.data)
-                if (
-                    child.data.strip()
-                    and "main" not in next_ancestors
-                    and element.tag in DOCUMENT_WRAPPERS
-                ):
-                    self.outside_main.append(
-                        {"tag": element.tag, "line": line, "text": True}
-                    )
 
         if element.tag == "template" and "data-sample" in attrs and not attrs.get("id"):
             self.errors.append(Finding("unnamed-sample", "<template>", {"line": line}))

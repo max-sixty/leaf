@@ -28,6 +28,7 @@ from render_harness import (
     round_trip,
     said,
     select,
+    select_words,
     sending,
     ticked,
     told,
@@ -41,7 +42,7 @@ from browser.threads import (
 from leaf import data as data_model
 from leaf import event_log as events_model
 from leaf import thread as thread_model
-from leaf.render_checks import wait_until_ready
+from leaf.render_checks import rendered, wait_until_ready
 from leaf.schema import ELEMENT_ID
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -233,7 +234,7 @@ customElements.define('lf-feed', class extends LeafElement {
 
     page.locator('[data-lf-datum="a-1"]').click(modifiers=["Alt"])
     page.keyboard.press("Tab")
-    reaction = page.locator('.lf-fab-bar .lf-react[data-token="keep"]')
+    reaction = page.locator('.lf-fab-bar .lf-react[data-lf-token="keep"]')
     expect(reaction).to_be_visible()
     with sending(page, "the record reaction"):
         reaction.click()
@@ -323,6 +324,96 @@ customElements.define('lf-feed', class extends LeafElement {
     row.click(modifiers=["Alt"])
     expect(draft).to_be_focused()
     expect(draft).to_have_js_property("value", "Hold this hidden draft.")
+
+
+# Where each margin entry shown beside the page stands.
+ENTRY_TOPS = """() => {
+  const entries = [];
+  const walk = root => {
+    for (const el of root.querySelectorAll('*')) {
+      if (el.classList.contains('lf-margin-entry')) entries.push(el);
+      if (el.shadowRoot) walk(el.shadowRoot);
+    }
+  };
+  walk(document);
+  return entries
+    .filter(entry => entry.getBoundingClientRect().height > 0 &&
+      getComputedStyle(entry).visibility !== 'hidden')
+    .map(entry => entry.getBoundingClientRect().top);
+}"""
+
+# Whether a text document's `line` is marked, with a margin entry level with it.
+ROW_COMMENT = f"""line => {{
+  const row = document.querySelector(`#log [data-line="${{line}}"]`);
+  const box = row.getBoundingClientRect();
+  const marked = [...(CSS.highlights.get('lf-mark') ?? [])].some(
+    range => row.contains(range.startContainer) && range.toString().trim());
+  return marked && ({ENTRY_TOPS})().some(top => Math.abs(top - box.top) < box.height);
+}}"""
+
+SHOW_ROW = "row => row.scrollIntoView({block: 'center'})"
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_text_document_keeps_comments_on_their_lines_across_updates(
+    request, serve, engine
+):
+    """A text document is one document whatever its source holds, so a comment on its
+    lines follows them across updates: while the lines read as they did, they stay
+    marked and the thread's margin entry stands beside them. A line the document holds
+    twice is told apart by the lines around each copy. Once an update rewrites a
+    commented line, its comment stands nowhere on the page. Each comment used to come
+    off its lines on the first update, every margin entry collecting at the document's
+    top, and a comment on a repeated line stood there from the start."""
+    lines = [f"line {i} " + "words " * (i % 9) for i in range(1, 401)]
+    # Row 128 ends the listing's first run of rows; row 310 repeats row 300.
+    lines[127] = "the last row of the first run"
+    lines[299] = lines[309] = "the same line twice"
+    url = serve(
+        leaf_page(
+            "Commented document",
+            '<h1>Log</h1><lf-text-document id="log" source="log-text">'
+            "</lf-text-document>",
+        )
+    )
+    data_model.cmd_data_set(serve.page_dir, "log-text", "\n".join(lines) + "\n")
+    page = open_page(request.getfixturevalue(engine), url)
+    for row in (128, 310):
+        select_words(page, f'#log [data-line="{row}"] span')
+        anchor = page.evaluate(
+            "async () => (await window.__lfCheckApi()).selectionAnchor(getSelection())"
+        )
+        append_carried_log_record(
+            serve.page_dir,
+            {
+                "kind": "comment",
+                "author": "user",
+                "revision": 1,
+                "text": f"About row {row}",
+                "anchor": anchor,
+            },
+        )
+    told(page)
+    offset = 0
+    for added in (0, 1, 200):
+        if added:
+            offset += added
+            lines = [f"added {added} {i}" for i in range(added)] + lines
+            data_model.cmd_data_set(serve.page_dir, "log-text", "\n".join(lines) + "\n")
+            told(page)
+        for row in (128 + offset, 310 + offset):
+            page.locator(f'#log [data-line="{row}"]').evaluate(SHOW_ROW)
+            rendered(page)
+            page.wait_for_function(ROW_COMMENT, arg=row)
+    lines[127 + offset] = "a rewritten row"
+    data_model.cmd_data_set(serve.page_dir, "log-text", "\n".join(lines) + "\n")
+    told(page)
+    page.locator(f'#log [data-line="{310 + offset}"]').evaluate(SHOW_ROW)
+    rendered(page)
+    page.wait_for_function(ROW_COMMENT, arg=310 + offset)
+    page.locator('#log [data-line="1"]').evaluate(SHOW_ROW)
+    rendered(page)
+    assert page.evaluate(ENTRY_TOPS) == [], "a margin entry stands at the top"
 
 
 def test_a_comment_follows_an_unversioned_derived_datum_by_its_stable_key(

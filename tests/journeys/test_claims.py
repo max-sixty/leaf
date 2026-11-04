@@ -108,3 +108,132 @@ def test_the_app_s_shared_codex_is_not_taken_for_one_session_s_lifetime(
     app = claimed("app-thread", app_server=True)
     assert "pid" not in app
     assert app["chat"] is True
+
+
+import os
+import threading
+from concurrent.futures import ThreadPoolExecutor
+
+from interact_support import (
+    claim_and_wait_command,
+    page_state,
+    spawn_probe,
+    wait_for,
+)
+
+from leaf import vendoring as vendoring_model
+
+
+def test_a_codex_command_claims_the_page_for_its_thread(codex_claimed_page):
+    session = service_model.page_claim(codex_claimed_page)
+    assert session is not None
+    assert session["id"] == "codex-thread"
+    assert session["agent"] == "Codex"
+    assert session["harness"] == "codex"
+    assert set(session) == {
+        "page",
+        "id",
+        "agent",
+        "harness",
+        "pid",
+        "cwd",
+        "ts",
+        "turn",
+        "turn_opened",
+        "turn_closed",
+        "generation",
+        "acquisition",
+    }
+    assert page_state(codex_claimed_page)["agent"] == "Codex"
+
+
+def test_a_fresh_init_does_not_delete_a_concurrently_created_pages_claim(
+    tmp_path, monkeypatch, spawn
+):
+    """The first page creation is one serialized transition."""
+    monkeypatch.chdir(tmp_path)
+    page = tmp_path / "concurrent-page"
+    reached_layer = threading.Event()
+    resume = threading.Event()
+    original_compose_layer = vendoring_model.compose_layer
+
+    # Held where init composes the selection under the page lock, which runs on
+    # every init.
+    def held_compose_layer(*roots):
+        reached_layer.set()
+        assert resume.wait(timeout=STATED_TIMEOUT), (
+            "the concurrent init never released its peer"
+        )
+        return original_compose_layer(*roots)
+
+    monkeypatch.setattr(vendoring_model, "compose_layer", held_compose_layer)
+    executor = ThreadPoolExecutor(max_workers=1)
+    first = executor.submit(vendoring_model.cmd_init, page)
+    try:
+        assert reached_layer.wait(timeout=STATED_TIMEOUT), (
+            "the first init never reached its held read"
+        )
+        requested = tmp_path / "second-init-requested"
+        second = spawn_probe(
+            spawn,
+            page,
+            """\
+import fcntl
+native_flock = fcntl.flock
+identity = Path(os.environ["PAGE"]).stat()
+def observed_flock(fd, operation):
+    descriptor = fd if isinstance(fd, int) else fd.fileno()
+    if operation == fcntl.LOCK_EX and os.path.samestat(os.fstat(descriptor), identity):
+        try:
+            native_flock(fd, operation | fcntl.LOCK_NB)
+        except BlockingIOError:
+            Path(os.environ["REQUESTED"]).write_text("blocked")
+        else:
+            raise AssertionError("the overlapping init bypassed the page lease")
+    return native_flock(fd, operation)
+fcntl.flock = observed_flock
+sys.argv = ["leaf", "page", "init", os.environ["PAGE"]]
+cli_model.cli()
+""",
+            REQUESTED=requested,
+        )
+        wait_for(
+            requested.exists,
+            bool,
+            failure="the overlapping init never attempted the held page lease",
+        )
+        resume.set()
+        first.result(timeout=STATED_TIMEOUT)
+        second_out, second_err = second.communicate(timeout=STATED_TIMEOUT)
+        assert second.returncode == 0, f"{second_out}{second_err}"
+        idled = subprocess.run(
+            [*LEAF_COMMAND, "page", "close", page],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        assert idled.returncode == 0, idled.stderr
+        picked_up = subprocess.run(
+            claim_and_wait_command(page),
+            shell=True,
+            env=os.environ
+            | {
+                "CLAUDE_CODE_SESSION_ID": "new-owner",
+                "CLAUDE_PID": str(os.getpid()),
+            },
+            capture_output=True,
+            text=True,
+            timeout=STATED_TIMEOUT,
+            check=False,
+        )
+        assert picked_up.returncode == 2, picked_up.stderr
+        claim_record_5 = service_model.page_claim(page)
+        assert claim_record_5 is not None
+        assert claim_record_5["id"] == "new-owner"
+    finally:
+        resume.set()
+        executor.shutdown(wait=True, cancel_futures=True)
+    assert first.done()
+    claim_record_6 = service_model.page_claim(page)
+    assert claim_record_6 is not None
+    assert claim_record_6["id"] == "new-owner"

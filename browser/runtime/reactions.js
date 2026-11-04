@@ -44,7 +44,7 @@ import { runtime } from "./context.js";
 import { registry } from "./registry.js";
 import { composerOpen, fabBar, fabOptions } from "./composing/selection.js";
 import { pageSelection } from "./composing/capture.js";
-import { el, offer, responseAction } from "./widget-elements.js";
+import { el, offerAction, responseAction } from "./widget-elements.js";
 import { HOLDS_WORD } from "./held-word.js";
 import { keeps } from "./keeps.js";
 
@@ -114,8 +114,8 @@ const anchorChoices = (anchor) =>
 // shape of every chip.
 /** @param {{name: string, glyph: string, label: string}} choice @param {(name: string) => unknown} pressed */
 function reactionChip({ name, glyph, label }, pressed) {
-  const chip = offer("button", `lf-react ${HOLDS_WORD}`);
-  chip.dataset.token = name;
+  const chip = offerAction("response", `lf-react ${HOLDS_WORD}`);
+  chip.dataset.lfToken = name;
   chip.title = label;
   chip.setAttribute("aria-label", label);
   responseAction(chip, { glyph, label: name, collapse: true });
@@ -140,7 +140,7 @@ function reactionChip({ name, glyph, label }, pressed) {
 export function paintBarReactions(anchor) {
   const by = new Map(anchorChoices(anchor).map((choice) => [choice.name, choice]));
   for (const chip of fabBar.querySelectorAll(".lf-react-palette > .lf-react")) {
-    const inForce = by.get(chip.getAttribute("data-token") ?? "")?.inForce;
+    const inForce = by.get(chip.getAttribute("data-lf-token") ?? "")?.inForce;
     keeps(chip, "aria-pressed", String(Boolean(inForce)));
   }
 }

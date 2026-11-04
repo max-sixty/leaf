@@ -19,6 +19,7 @@ from playwright.sync_api import expect
 from render_cases_interaction import (
     CHIP_PAGE,
     INLINE_CASE_PAGE,
+    LOCATION_RING,
     NESTED_OBLIGATION_PAGE,
     OBLIGATION_PAGE,
     OBLIGATION_SHAPES_PAGE,
@@ -34,7 +35,6 @@ from render_cases_navigation import (
 from render_harness import (
     CARRIED_PAGE,
     EXAMPLE_PACKAGES,
-    EXAMPLES,
     REPLAYED_PAGE,
     REPLY_HOST_PAGE,
     SAMPLE_MARKUP,
@@ -71,8 +71,26 @@ from leaf import delivery as delivery_model
 from leaf import event_log as events_model
 from leaf import service as service_model
 from leaf.render_checks import rendered
+from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
+
+
+def assert_selected_mark(mark):
+    """The selected box paints ink around a check cut out of its centre."""
+    ink = mark.evaluate(
+        """el => getComputedStyle(el, '::before').backgroundColor
+            .match(/\\d+/g).slice(0, 3).map(Number)"""
+    )
+    shot = Image.open(BytesIO(mark.screenshot())).convert("RGB")
+    x, y = shot.width // 2, shot.height // 2
+    centre = shot.crop((x - 3, y - 3, x + 4, y + 4))
+    painted = [
+        sum(abs(a - b) for a, b in zip(pixel, ink, strict=True)) < 40
+        for pixel in rgb_pixels(centre)
+    ]
+    assert sum(painted) > 5, "the selected mark has no filled centre"
+    assert painted.count(False) > 5, "the selected mark has no cut-out check"
 
 
 def test_the_runtime_does_not_replace_a_pages_keyframes(browser, serve):
@@ -260,13 +278,15 @@ def test_a_live_card_pick_shows_the_check_and_remains_pressable(browser, serve):
     completed obligation is reopened for review; "selected" stays its accessible name."""
     page = open_page(browser, live_url(serve(SETTLED_PAGE)))
     page.locator("#transport .lf-settled").click()
+    # Leave the group's binding badges so its selection marks are drawn.
+    page.locator("h1").click()
     mark = page.locator("#opt-lax .lf-pick")
     assert mark.get_attribute("aria-checked") == "true"
     assert mark.get_attribute("aria-label") == "selected: Lax cookie — option 1 of 3"
     assert mark.evaluate("el => getComputedStyle(el).fontSize") == "0px", (
         "a picked card draws no word beside its check"
     )
-    assert mark.evaluate("el => getComputedStyle(el, '::before').content") == '"✓"'
+    assert_selected_mark(mark)
 
     strict = page.locator("#opt-strict")
     size = "el => [Math.round(el.getBoundingClientRect().width), Math.round(el.getBoundingClientRect().height)]"
@@ -457,7 +477,7 @@ def test_unchanged_markdown_option_is_not_a_version_change(browser, serve):
     ) == ["job-camera"]
 
 
-def test_markdown_option_state_change_has_no_inline_text_diff(browser, serve):
+def test_markdown_option_state_change_offers_no_card(browser, serve):
     source = OBLIGATION_PAGE.replace(
         "Replace the <code>M8</code> mounts", "Ask the _widget_ to decide"
     )
@@ -741,10 +761,7 @@ def test_a_card_group_taking_a_pick_reads_as_one_control(browser, serve):
     expect(mark).to_have_text("selected")
     expect(mark).to_have_css("font-size", "0px")
     expect(mark).to_have_css("opacity", "1")
-    assert mark.evaluate("el => getComputedStyle(el, '::before').content") == '"✓"'
-    assert (
-        mark.evaluate("el => parseFloat(getComputedStyle(el, '::before').fontSize)") > 0
-    )
+    assert_selected_mark(mark)
     assert option.bounding_box() == before, "the selected header state resized its card"
 
     state = mark.bounding_box()
@@ -1003,6 +1020,8 @@ def test_a_picked_cell_rings_every_side_alike(browser, serve):
     for option in ("#c-redis", "#r-drill", "#r-rotate"):
         page.locator(f"{option} > .lf-pick").click()
         expect(page.locator(option)).to_have_attribute("chosen", "")
+    # Keep hover labels clear of the pixels whose ring thickness is measured.
+    page.locator("h1").click()
     rendered(page)
     ok = page.evaluate(
         """() => {
@@ -1326,7 +1345,7 @@ def test_a_quoted_widget_exhibits_without_taking_input(browser, serve):
 def test_one_band_says_where_the_user_is_located(browser, serve):
     """The user's band is drawn once, on the exact option row being worked.
 
-    The obligation retains its semantic location marker, but its exterior outline would
+    The obligation retains its semantic location marker, but its location ring would
     look like a second group border and vanish as state changes. The active row carries
     keyboard location instead; the group's permanent frame does not change."""
     page = open_page(browser, serve(OBLIGATION_WITH_CONTEXT_PAGE))
@@ -1337,7 +1356,8 @@ def test_one_band_says_where_the_user_is_located(browser, serve):
     expect(page.locator("#storage-decision[data-lf-obligation]")).to_have_count(1)
     drawn = """el => { const s = getComputedStyle(el);
                        return s.outlineStyle === 'none' ? 0 : parseFloat(s.outlineWidth); }"""
-    assert page.locator("#storage-decision").evaluate(drawn) == 0
+    rendered(page)
+    assert page.locator("#storage-decision").evaluate(LOCATION_RING) == ["none"]
     group = page.locator("#storage-options")
     assert group.evaluate(
         "el => el.matches(':has(> lf-option > .lf-pick:focus-visible)')"
@@ -1446,10 +1466,7 @@ def test_a_group_of_bare_labels_reads_as_a_question_about_the_page(browser, serv
     mark = page.locator("#br-steel .lf-pick")
     expect(mark).to_have_css("font-size", "0px")
     expect(mark).to_have_css("opacity", "1")
-    assert mark.evaluate("el => getComputedStyle(el, '::before').content") == '"✓"'
-    assert (
-        mark.evaluate("el => parseFloat(getComputedStyle(el, '::before').fontSize)") > 0
-    )
+    assert_selected_mark(mark)
 
     page.locator("#job-heater").click()
     expect(page.locator("#job-heater[chosen]")).to_have_count(1)
@@ -2590,9 +2607,7 @@ def test_a_thread_obligations_done_press_keeps_its_keys_and_one_workflow(
     A tick followed by Done are two coordinates. The message carries their shared
     strongest workflow once rather than painting two receipt classifiers.
     """
-    page = open_page(
-        browser, serve(next(p for p in EXAMPLES if p.stem == "ship-review"))
-    )
+    page = open_page(browser, serve(named_source("ship-review")))
     # The example's one thread whose reply asks with options.
     question = open_panel_thread(page, "7b3e0a41").locator("lf-options[choose]").first
     question.locator("lf-option:not([chosen]) > .lf-pick").first.click()
@@ -2630,9 +2645,7 @@ def test_an_answered_cards_badges_keep_their_seats_beside_a_pin(browser, serve):
     chip hung on the mark's corner, 10px higher, with the mark showing under it. The mark
     now takes the digit's box, and every card wears its own digit. A chosen card is filled
     in the tint of an ok chip, so its "recommended" chip keeps a ground of its own there."""
-    page = open_page(
-        browser, serve(next(p for p in EXAMPLES if p.stem == "alert-review"))
-    )
+    page = open_page(browser, serve(named_source("alert-review")))
     resized(page, 1440, 900)
     page.keyboard.press("m")
     expect(page.locator("#ar-canary-decision")).to_be_focused()
@@ -2671,9 +2684,7 @@ def test_an_obligation_digit_hangs_off_a_corner_clear_of_its_neighbours(browser,
     the notification playground at 1024px its Create button wraps under Reset and Copy,
     8px below them, and a digit hung on that corner stood over Reset's; it now takes the
     first corner that stands over no other control."""
-    page = open_page(
-        browser, serve(next(p for p in EXAMPLES if p.stem == "notification-playground"))
-    )
+    page = open_page(browser, serve(named_source("notification-playground")))
     resized(page, 1024, 768)
     page.keyboard.press("m")
     chip = page.locator(".lf-command-binding-badges .lf-command-binding-badge")
@@ -2708,7 +2719,7 @@ def test_a_pick_the_page_only_reports_can_still_be_pointed_at(browser, serve):
     assert mark.get_attribute("role") == "img"
     assert mark.get_attribute("aria-label") == "selected: Lax cookie"
     assert mark.evaluate("el => getComputedStyle(el).fontSize") == "0px"
-    assert mark.evaluate("el => getComputedStyle(el, '::before').content") == '"✓"'
+    assert_selected_mark(mark)
 
     # The generated check is not authored text, so rewording another option marks only
     # that option in the version comparison.

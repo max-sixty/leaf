@@ -1,5 +1,5 @@
-"""The reader's place: Back and Forward, travel groups, reading landmarks, aligning the
-current item, and restoring a remembered selection."""
+"""The reader's place: Back and Forward, reading landmarks, aligning the current item,
+and restoring a remembered selection."""
 
 import re
 
@@ -16,7 +16,6 @@ from render_harness import (
     open_page,
     panel_control,
     panel_field,
-    panel_menu,
     panel_settled,
     panel_view,
     press_visible,
@@ -35,6 +34,7 @@ from browser.threads import open_panel_thread
 from leaf import data as data_model
 from leaf import event_log as events_model
 from leaf.render_checks import rendered
+from leaf.schema import ELEMENT_ID
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -226,16 +226,187 @@ def test_history_returns_only_a_visible_caret(browser, serve, close_source):
     assert returned == (None if close_source else before)
 
 
+# A widget that draws one item at a time, as one fetching each item when it is picked
+# does, so a part of another item is in no element until its item is drawn, and every
+# item's parts would share their ids. It answers keys such as `b/3`, part 3 of item b,
+# through the hooks every route reads (anchor-resolution.js, `revealAddressed` and
+# `addressedElements`); a referrer travels to one with `navigateToDatum`.
+ITEMS_LAYER = {
+    "lf-items": {
+        "description": "Items drawn one at a time, each part addressed by item/part.",
+        "type": "object",
+        "properties": {"id": {"type": "string", "pattern": f"^{ELEMENT_ID}$"}},
+        "required": ["id"],
+        "additionalProperties": False,
+        "x-content": "empty",
+        "x-upgrade": True,
+        "x-example": '<lf-items id="items"></lf-items>',
+    },
+    "lf-item-link": {
+        "description": "A button that travels to one part of the items it refers to.",
+        "type": "object",
+        "properties": {
+            "id": {"type": "string", "pattern": f"^{ELEMENT_ID}$"},
+            "for": {"type": "string", "pattern": f"^{ELEMENT_ID}$"},
+            "key": {"type": "string", "minLength": 1},
+        },
+        "required": ["id", "for", "key"],
+        "additionalProperties": False,
+        "x-content": "empty",
+        "x-refers": {"for": {}},
+        "x-upgrade": True,
+        "x-example": '<lf-item-link id="jump" for="items" key="a/1"></lf-item-link>',
+    },
+}
+ITEMS_WIDGETS = {
+    "lf-items.js": """
+import {once} from '/runtime/widget-api.js';
+customElements.define('lf-items', class extends HTMLElement {
+  #item = null;
+  connectedCallback() {
+    if (once(this)) this.#draw('a');
+  }
+  #draw(item) {
+    this.#item = item;
+    this.replaceChildren(...[1, 2, 3, 4].map((part) => {
+      const p = document.createElement('p');
+      p.dataset.item = item;
+      p.dataset.part = String(part);
+      p.style.minHeight = '400px';
+      p.textContent = `Item ${item}, part ${part}.`;
+      return p;
+    }));
+  }
+  lfRevealDatum(key) {
+    const [item] = key.split('/');
+    if (!['a', 'b'].includes(item) || item === this.#item) return null;
+    return new Promise((resolve) => setTimeout(resolve, 50)).then(() => this.#draw(item));
+  }
+  lfElementsFor(key) {
+    const [item, part] = key.split('/');
+    return item === this.#item ? [...this.querySelectorAll(`[data-part="${part}"]`)] : [];
+  }
+});
+""",
+    "lf-item-link.js": """
+import {navigateToDatum, once} from '/runtime/widget-api.js';
+customElements.define('lf-item-link', class extends HTMLElement {
+  connectedCallback() {
+    if (!once(this)) return;
+    const button = document.createElement('button');
+    button.textContent = `Open ${this.getAttribute('key')}`;
+    button.addEventListener('click', () =>
+      navigateToDatum(this, 'for', this.getAttribute('key')));
+    this.append(button);
+  }
+});
+""",
+}
+
+
+def test_a_url_naming_a_widget_key_reaches_its_part(browser, serve):
+    """A URL fragment names a part of a widget by the widget's id and a key, which the
+    widget draws however the URL is reached. A fresh load, a followed link, and Back and
+    Forward to an entry whose item the user has since left land on the part; a reload of
+    the URL `navigateToDatum` writes draws its item under the restored offset."""
+    url = live_url(
+        serve(
+            leaf_page(
+                "Items",
+                """
+<h1 id="top">Items</h1>
+<p><a id="to-part" href="#items:a/2">Part 2 of item a</a></p>
+<lf-item-link id="jump" for="items" key="b/1"></lf-item-link>
+<lf-items id="items"></lf-items>
+<div style="height:1600px"></div>
+""",
+            ),
+            layer_registry=ITEMS_LAYER,
+            layer_widgets=ITEMS_WIDGETS,
+        )
+    )
+
+    def part(item, number):
+        return page.locator(f'#items [data-item="{item}"][data-part="{number}"]')
+
+    def landed(item, number):
+        # At the window's top, where the fragment rule lands a target, rather than a
+        # 400px part or more below it, where landing on the widget's top leaves it.
+        target = part(item, number)
+        expect(target).to_be_in_viewport()
+        scroll_settled(page)
+        assert 0 <= target.bounding_box()["y"] < 200
+
+    page = open_page(browser, url + "#items:b/3")
+    landed("b", 3)
+
+    page.locator("#top").scroll_into_view_if_needed()
+    page.locator("#to-part").click()
+    page.wait_for_url(re.compile(r"#items:a/2$"))
+    expect(part("a", 2)).to_be_focused()
+    landed("a", 2)
+
+    page.go_back()
+    page.wait_for_url(re.compile(r"#items:b/3$"))
+    landed("b", 3)
+    page.go_forward()
+    page.wait_for_url(re.compile(r"#items:a/2$"))
+    landed("a", 2)
+
+    page.locator("#top").scroll_into_view_if_needed()
+    page.locator("#jump button").click()
+    page.wait_for_url(re.compile(r"#items:b/1$"))
+    expect(part("b", 1)).to_be_focused()
+    # A reload keeps the browser's restored offset, over the item the URL names.
+    page.reload()
+    expect(part("b", 1)).to_be_in_viewport()
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_back_across_root_tabs_draws_the_key_the_entry_names(request, serve, engine):
+    """A root tab set takes Back to an entry in another of its views and opens that
+    view; the widget inside it still draws the item the entry's key names, though the
+    user picked another item before leaving the view."""
+    url = live_url(
+        serve(
+            leaf_page(
+                "Items in tabs",
+                '<lf-tabs id="views"><lf-tab id="first" label="First">'
+                '<p><a id="to-part" href="#items:b/3">Part 3 of item b</a></p>'
+                '<lf-items id="items"></lf-items><div style="height:1600px"></div>'
+                '</lf-tab><lf-tab id="second" label="Second"><p>Elsewhere.</p>'
+                "</lf-tab></lf-tabs>",
+            ),
+            layer_registry=ITEMS_LAYER,
+            layer_widgets=ITEMS_WIDGETS,
+        )
+    )
+    page = open_page(request.getfixturevalue(engine), url)
+    b3 = page.locator('#items [data-item="b"][data-part="3"]')
+    page.locator("#to-part").click()
+    expect(b3).to_be_in_viewport()
+    # The user picks another item inside the widget, which leaves the URL alone.
+    page.locator("#items").evaluate("items => items.lfRevealDatum('a/1')")
+    expect(b3).to_have_count(0)
+    page.locator("#views").get_by_role("tab", name="Second", exact=True).click()
+    page.wait_for_url(re.compile(r"#second$"))
+
+    page.go_back()
+    page.wait_for_url(re.compile(r"#items:b/3$"))
+    expect(b3).to_be_in_viewport()
+
+
 @pytest.mark.parametrize(
     ("route", "large", "focusable"),
     [("click", False, True), ("Tab", False, True), ("click", True, False)],
 )
-def test_a_new_reading_passage_ends_a_travel_group(
+def test_back_returns_the_passage_chosen_between_trips(
     browser, serve, route, large, focusable
 ):
-    """Visible remnants of an old landing cannot swallow a deliberate reading move.
-    Back returns the newly chosen passage; another Back reaches the original reading.
-    Clicks on unfocusable words count too, independently of browser focus arrival."""
+    """A passage the user chose after one trip, by click or Tab, is where the next trip
+    departs from, even while the first landing still shows: Back returns to it, and
+    another Back to the original reading. A click on words that take no focus is
+    returned as the selection it left."""
     stop = ' tabindex="0"' if focusable else ""
     elsewhere = f'<p id="elsewhere"{stop}>This independent paragraph has no thread.</p>'
     first = (
@@ -248,7 +419,7 @@ def test_a_new_reading_passage_ends_a_travel_group(
         leaf_page(
             "A fresh reading stop",
             "<h1>Reading before the conversations</h1>"
-            '<p id="origin" tabindex="0">The reading before the thread navigation group.</p>'
+            '<p id="origin" tabindex="0">The reading before the thread walk.</p>'
             f'<div style="height:1800px"></div>{first}'
             '<div style="height:1800px"></div>'
             '<p id="second">The second discussion concerns the rollout.</p>'
@@ -273,7 +444,7 @@ def test_a_new_reading_passage_ends_a_travel_group(
     entries = page.evaluate("history.length")
     page.keyboard.press("t")
     expect(
-        page.locator(f'.lf-margin-preview [data-thread="{roots[0]}"]')
+        page.locator(f'.lf-margin-preview [data-lf-thread="{roots[0]}"]')
     ).to_be_focused()
     scroll_settled(page)
     assert page.evaluate("history.length") == entries + 1
@@ -298,7 +469,7 @@ def test_a_new_reading_passage_ends_a_travel_group(
     ), "the old landing must still be visible to expose accidental history grouping"
     chosen_top = page.evaluate("scrollY")
     page.keyboard.press("t")
-    second = page.locator(f'.lf-margin-preview [data-thread="{roots[1]}"]')
+    second = page.locator(f'.lf-margin-preview [data-lf-thread="{roots[1]}"]')
     expect(second).to_be_focused()
     scroll_settled(page)
     assert page.evaluate("history.length") == entries + 2
@@ -332,95 +503,13 @@ def test_a_new_reading_passage_ends_a_travel_group(
     # the current location returns focus to its card. Both are the second thread's working place.
     assert page.evaluate(
         "id => document.activeElement.id === 'second' || "
-        "document.activeElement.closest('[data-thread]')?.dataset.thread === id",
+        "document.activeElement.closest('[data-lf-thread]')?.dataset.lfThread === id",
         arg=roots[1],
     )
     page.wait_for_function("navigation.transition === null")
     page.go_back()
     page.wait_for_function("top => Math.abs(scrollY-top) <= 2", arg=chosen_top)
     page.wait_for_function("navigation.transition === null")
-    page.go_back()
-    expect(page.locator("#origin")).to_be_focused()
-    page.wait_for_function("scrollY < 100")
-
-
-@pytest.mark.parametrize(
-    "concealment",
-    # One of each way words can be absent from what is drawn: not rendered (`hidden`
-    # and a closed `details` are `display: none`'s case), rendered unseen, skipped
-    # (`until-found` is `content-visibility`'s), and boxless.
-    [
-        "none",
-        "display",
-        "visibility",
-        "opacity",
-        "content",
-        "contents",
-    ],
-)
-def test_same_passage_and_controls_keep_a_mixed_travel_group(
-    browser, serve, concealment
-):
-    """Reading choices have passage grain: touching the current words or operating
-    controls does not turn consecutive thread/obligation travel into separate Back stops."""
-    concealed = {
-        "none": "",
-        "hidden": "<div hidden><p>Concealed source background.</p></div>",
-        "until-found": '<div hidden="until-found"><p>Concealed source background.</p></div>',
-        "display": '<div style="display:none"><p>Concealed source background.</p></div>',
-        "visibility": '<div style="visibility:hidden"><p>Concealed source background.</p></div>',
-        "opacity": '<div style="opacity:0"><p>Concealed source background.</p></div>',
-        "content": '<div style="content-visibility:hidden"><p>Concealed source background.</p></div>',
-        "details": "<details><summary hidden>Background</summary><p>Concealed source background.</p></details>",
-        "contents": "",
-    }[concealment]
-    style = ' style="display:contents"' if concealment == "contents" else ""
-    url = serve(
-        leaf_page(
-            "One continuing navigation group",
-            "<h1>One continuing navigation group</h1>"
-            '<p id="origin" tabindex="0">The original reading place.</p>'
-            '<div style="height:1800px"></div>'
-            f'<section id="first">{concealed}'
-            f'<p id="first-reading"{style}><span>The passage the first thread concerns.</span></p></section>'
-            '<p><button id="reading-control">A nearby control</button></p>'
-            '<div style="height:1800px"></div>'
-            '<lf-ask id="second"><h2>Choose the next step</h2>'
-            '<lf-options id="choice" choose><lf-option id="yes">Yes</lf-option>'
-            '<lf-option id="no">No</lf-option></lf-options></lf-ask>'
-            '<div style="height:900px"></div>',
-        )
-    )
-    root = append_carried_log_record(
-        serve.page_dir,
-        {
-            "kind": "comment",
-            "author": "user",
-            "revision": 1,
-            "anchor": {"section": "first"},
-            "text": "A question about this passage.",
-        },
-    )["id"]
-    page = open_page(browser, url)
-    page.locator("#origin").click()
-    entries = page.evaluate("history.length")
-    page.keyboard.press("t")
-    expect(page.locator(f'.lf-margin-preview [data-thread="{root}"]')).to_be_focused()
-    # Card focus precedes the passage's smooth scroll; observe its arrival first.
-    expect(page.locator("#first-reading span")).to_be_in_viewport()
-    scroll_settled(page)
-    expect(page.locator("#first-reading span")).to_be_visible()
-    assert page.locator("#first-reading span").evaluate(
-        "el => {const r=el.getBoundingClientRect(); return r.bottom > 60 && r.top < innerHeight-60}"
-    ), "the words checked must be the actual rendered landing"
-    page.locator("#first-reading span").click()
-    page.locator("#reading-control").click()
-    panel_menu(page)
-    page.keyboard.press("Escape")
-    page.keyboard.press("m")
-    expect(page.locator("#second")).to_be_focused()
-    scroll_settled(page)
-    assert page.evaluate("history.length") == entries + 1
     page.go_back()
     expect(page.locator("#origin")).to_be_focused()
     page.wait_for_function("scrollY < 100")
@@ -515,7 +604,9 @@ def test_reading_landmarks_use_drawn_segments_in_mixed_blocks(
     assert chosen["place"]["quote"] == visible
     chosen_scroll = page.evaluate("scrollY")
     page.keyboard.press("t")
-    expect(page.locator(f'.lf-margin-preview [data-thread="{root}"]')).to_be_focused()
+    expect(
+        page.locator(f'.lf-margin-preview [data-lf-thread="{root}"]')
+    ).to_be_focused()
     scroll_settled(page)
     page.go_back()
     page.wait_for_function("top => Math.abs(scrollY-top) <= 2", arg=chosen_scroll)
@@ -669,10 +760,11 @@ def test_reading_restore_leaves_a_concealed_landmark_alone(browser, serve, subte
 
 
 def test_back_returns_from_an_obligation_the_walk_travelled_to(browser, serve):
-    """The obligation walk records the same history the thread walk does: one entry for a
-    navigation group visiting obligations somewhere else however far it goes, so Back returns to where the
-    user was reading before it, and a navigation group that crosses from threads to obligations is
-    still one navigation group."""
+    """Each step of the obligation walk somewhere else adds a history entry where the user
+    stood, as each trip to a thread does, so Back returns to the obligation the user was
+    on, though answering it took it out of On me, and then to where they were reading.
+    `m` from a thread `t` reached comes back to the thread, its card open again beside
+    its passage."""
     filler = "".join(f"<p>Filler paragraph {n}.</p>" for n in range(60))
     url = serve(
         leaf_page(
@@ -709,8 +801,40 @@ def test_back_returns_from_an_obligation_the_walk_travelled_to(browser, serve):
     page.evaluate("document.scrollingElement.scrollTo({top: 1e6, behavior: 'instant'})")
     reading = page.evaluate("document.scrollingElement.scrollTop")
     assert reading > 2000
-    entries = page.evaluate("history.length")
 
+    def entry():
+        return page.evaluate("navigation.currentEntry.index")
+
+    def back_to(top):
+        page.wait_for_function("navigation.transition === null")
+        page.go_back()
+        page.wait_for_function(
+            "top => Math.abs(document.scrollingElement.scrollTop - top) <= 2", arg=top
+        )
+
+    # `t` travels to the thread just below the first obligation, and `m` from there to
+    # the second leaves that thread, so it adds an entry of its own: Back returns to the
+    # thread's landing, its card open beside the passage again, and Back again to the
+    # bottom.
+    card = page.locator(".lf-margin-thread .lf-page-thread")
+    start = entry()
+    page.keyboard.press("t")
+    page.wait_for_function("() => document.activeElement?.closest('[data-lf-thread]')")
+    scroll_settled(page)
+    thread = page.evaluate("document.scrollingElement.scrollTop")
+    assert thread < reading - 1000
+    page.keyboard.press("m")
+    expect(page.locator("#second-decision")).to_be_focused()
+    expect(card).to_be_hidden()
+    scroll_settled(page)
+    assert entry() == start + 2
+    back_to(thread)
+    expect(page.locator("#above")).to_be_in_viewport()
+    expect(card).to_be_visible()
+    back_to(reading)
+
+    # From the bottom again, the obligation walk upward.
+    start = entry()
     page.keyboard.press("Shift+m")
     expect(page.locator("#second-decision")).to_be_focused()
     # Focus precedes the outer scroll, so observe movement before waiting for rest.
@@ -720,8 +844,11 @@ def test_back_returns_from_an_obligation_the_walk_travelled_to(browser, serve):
     scroll_settled(page)
     landed = page.evaluate("document.scrollingElement.scrollTop")
     assert landed < reading - 1000
-    assert page.evaluate("history.length") == entries + 1
+    assert entry() == start + 1
 
+    # Answering the obligation takes it out of On me, so no walk's Shift reaches it again.
+    page.keyboard.press("1")
+    expect(page.locator("#se-rota[chosen]")).to_have_count(1)
     page.keyboard.press("Shift+m")
     expect(page.locator("#first-decision")).to_be_focused()
     page.wait_for_function(
@@ -730,27 +857,10 @@ def test_back_returns_from_an_obligation_the_walk_travelled_to(browser, serve):
     scroll_settled(page)
     walked = page.evaluate("document.scrollingElement.scrollTop")
     assert walked < landed - 1000
-    assert page.evaluate("history.length") == entries + 1
-
-    page.go_back()
-    page.wait_for_function(
-        "top => Math.abs(document.scrollingElement.scrollTop - top) <= 2", arg=reading
-    )
-
-    # From the bottom again: `t` travels to the thread just below the first obligation, and
-    # `m` from there to the second continues that navigation group rather than starting another,
-    # so one Back skips the thread's landing and returns to the bottom.
-    page.evaluate("document.scrollingElement.scrollTo({top: 1e6, behavior: 'instant'})")
-    page.keyboard.press("t")
-    page.wait_for_function("() => document.activeElement?.closest('[data-thread]')")
-    scroll_settled(page)
-    page.keyboard.press("m")
-    expect(page.locator("#second-decision")).to_be_focused()
-    scroll_settled(page)
-    page.go_back()
-    page.wait_for_function(
-        "top => Math.abs(document.scrollingElement.scrollTop - top) <= 2", arg=reading
-    )
+    assert entry() == start + 2
+    back_to(landed)
+    page.wait_for_function("() => document.activeElement?.closest('#second-decision')")
+    back_to(reading)
 
 
 def test_back_returns_from_an_obligation_whose_context_the_arrival_brings_in(
@@ -898,9 +1008,9 @@ def test_align_current_item_keeps_obligation_control_heading_selection_and_histo
     reference = page.locator(".lf-command-reference")
     expect(reference).to_be_visible()
     page.get_by_role("combobox", name="Search commands").fill("g z")
-    alignment = reference.locator('[role=row][data-lf-command="reading.align.top"]')
+    alignment = reference.locator('[role=option][data-lf-command="reading.align.top"]')
     expect(alignment.locator(".lf-binding-sequence > kbd")).to_have_text(["g", "z"])
-    alignment.get_by_role("button").click()
+    alignment.click()
     expect(reference).to_be_hidden()
     # The reference hands focus back before the current-location paint. Its command can align
     # before the ring supplies a scroll margin; either landing clears the pinned band.
@@ -1488,7 +1598,7 @@ def test_restore_selection_has_touch_route_and_does_not_carry_draft(browser, ser
         "expected => getSelection().toString() === expected", arg=selected
     )
     # The menu took the On view's place, as its tab does, and the command puts it away.
-    expect(page.locator(PANEL)).not_to_have_attribute("data-open", re.compile("."))
+    expect(page.locator(PANEL)).not_to_have_attribute("data-lf-open", re.compile("."))
     page.keyboard.press("Escape")
     page.keyboard.press("g")
     page.keyboard.press("i")

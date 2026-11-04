@@ -31,6 +31,7 @@ from pathlib import Path
 
 from leaf.render_checks import rendered, wait_until_ready
 from leaf.render_gate.readings import SWEEP_WIDTHS, settle_at
+from leaf.render_gate.scheme import stand_in_other_leaves
 from leaf.state import page_key, state_home
 
 PHONE = {"width": 390, "height": 844}
@@ -46,6 +47,7 @@ def _open(browser, url: str, viewport: dict, phone: bool):
         has_touch=phone,
         reduced_motion="reduce",
     )
+    stand_in_other_leaves(context)
     page = context.new_page()
     page.goto(url)
     wait_until_ready(page)
@@ -82,7 +84,7 @@ CURRENT_OBLIGATION = """() => {
   let held = document.activeElement;
   while (held?.shadowRoot?.activeElement) held = held.shadowRoot.activeElement;
   const thread = held?.closest?.('.lf-thread, .lf-page-thread');
-  const id = thread?.dataset.id ?? thread?.dataset.thread;
+  const id = thread?.dataset.id ?? thread?.dataset.lfThread;
   if (id) return {obligation: false, id};
   const page = document.activeElement;
   const widget = page?.closest?.('.lf-chrome') ? null : page?.closest?.('[id]');

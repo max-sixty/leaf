@@ -39,7 +39,7 @@ lf-shot {
 .lf-shot-tools > .lf-btn,
 .lf-shot-scale-options > .lf-btn {
   /* Selection changes the face, never the width of its words. */
-  font-weight: 500;
+  font: var(--font-choice);
   white-space: nowrap;
 }
 .lf-shot-toolbar > .lf-shotcap[data-lf-state="before"] {
@@ -112,7 +112,7 @@ lf-shot {
      region's gap (base.css). */
   --lf-wears-ring: 1;
   outline: var(--focus-ring);
-  outline-offset: var(--focus-region-gap);
+  --lf-ring-at: var(--focus-region-gap);
 }
 .lf-shot-pixel-key {
   border-block-start: 1px solid var(--rule);

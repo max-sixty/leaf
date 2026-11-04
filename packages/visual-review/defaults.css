@@ -19,7 +19,7 @@ lf-visual-review {
   --lf-full-height: inherit;
   --lf-block-frame: 1;
   color: var(--ink);
-  font: var(--t-5)/1.5 var(--sans);
+  font: var(--font-widget);
 }
 .lf-vr-dashboard {
   display: grid;
@@ -102,7 +102,7 @@ lf-visual-review {
 .lf-vr-case-status {
   color: var(--ok-ink);
 }
-.lf-vr-case-status[data-approved="false"] {
+.lf-vr-case-status[data-lf-approved="false"] {
   visibility: hidden;
 }
 .lf-vr-detail {
@@ -162,16 +162,12 @@ lf-visual-review {
   flex-wrap: wrap;
   gap: 8px 12px;
 }
+/* A choice (controls.css) pads its ring room; the row hangs it by that padding, so the
+   checkbox stands on the row's edge. */
 .lf-vr-approval {
-  display: inline-flex;
-  align-items: center;
   gap: 7px;
-  min-block-size: var(--aim-floor);
+  margin-inline-start: calc(-1 * var(--choice-pad));
   font: var(--font-compact);
-  cursor: pointer;
-}
-.lf-vr-approval input {
-  margin: 0;
 }
 .lf-vr-inspect {
   anchor-name: --review-inspect;

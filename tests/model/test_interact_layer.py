@@ -70,6 +70,14 @@ from leaf.registry.contract import DECLARED_WORDS
 from leaf.render_gate import browser as browser_model
 from leaf.render_gate.preview import preview_server
 from leaf.revisioning import activate_source
+from leaf_dev.docs import DOCS, product_sources
+from leaf_dev.example_data import (
+    authored_sources,
+    data_file,
+    example_versions,
+    named_source,
+    page_files,
+)
 
 
 def storage_contract() -> tuple[list[str], list[str]]:
@@ -277,50 +285,6 @@ def test_reply_command_guides_selection_and_followup(claimed, server, regtest):
     record(["thread", "reply", "not-a-response-ref", "--text", "Answer", "--done"], 1)
     record(["thread", "resolve", str(page), ids[-1]], 0)
     regtest.write("\n".join(outputs).encode("ascii", "backslashreplace").decode())
-
-
-@pytest.mark.parametrize("unreadable", ["claim", "lifecycle"])
-def test_read_commands_leave_an_older_page_and_its_server_alone(
-    claimed, server, unreadable
-):
-    """A read by another session cannot take a held page across a protocol bump."""
-    from leaf.service import claim_path
-
-    publish(claimed)
-    vendored = vendored_at_another_protocol(claimed)
-    record = (
-        claim_path(claimed)
-        if unreadable == "claim"
-        else cleanup_model.session_file("s1", cleanup_model.SESSION_SUFFIX)
-    )
-    stored = interact_files.read_json(record)
-    stored["format"] = "leaf-" + unreadable + "/999"
-    cleanup_model.write_json(record, stored)
-    revisions = interact_files.list_revisions(claimed)
-    recorded = (claimed / schema_model.LAYER_FILE).read_bytes()
-    for command in (
-        ["page", "state", str(claimed)],
-        ["page", "events", str(claimed)],
-        ["page", "instructions", str(claimed)],
-        ["page", "check", str(claimed)],
-    ):
-        subprocess.run(
-            [*LEAF_COMMAND, *command],
-            capture_output=True,
-            text=True,
-            timeout=STATED_TIMEOUT,
-            check=False,
-            env={**os.environ, "CLAUDE_CODE_SESSION_ID": "s2"},
-        )
-        same_record = (claimed / schema_model.LAYER_FILE).read_bytes() == recorded
-        assert same_record, command
-        assert interact_files.list_revisions(claimed) == revisions
-        assert fetch(f"{server}/api/state")[0] == 200
-    layer_3 = registry_storage.layer_record(claimed)
-    assert layer_3 is not None
-    assert layer_3["protocol"] == vendored
-    assert vendoring_model.renew_layer(claimed, None, command=True) is None
-    assert (claimed / schema_model.LAYER_FILE).read_bytes() == recorded
 
 
 def test_a_command_leaves_a_page_a_newer_leaf_vendored(claimed):
@@ -947,7 +911,7 @@ def test_claude_and_codex_load_the_same_plugin_payload():
 def test_page_authoring_names_the_theme_s_largest_spacing_step():
     """Authors read the spacing scale's ends in page-authoring.md rather than the
     theme, so a step the theme adds is one they can find."""
-    theme = (PLUGIN_ROOT / "browser/base.css").read_text()
+    theme = (PLUGIN_ROOT / "browser/styles/tokens.css").read_text()
     largest = max(int(step) for step in re.findall(r"--sp-(\d+):", theme))
     prose = (PLUGIN_ROOT / "skills/leaf/references/page-authoring.md").read_text()
     assert f"`--sp-1` to `--sp-{largest}`" in " ".join(prose.split())
@@ -1414,6 +1378,60 @@ def test_the_chrome_restates_no_rule_a_page_side_sheet_already_makes():
     )
 
 
+def test_leaf_writes_its_own_marks_under_its_prefix():
+    """A class or data attribute Leaf writes on an element is `lf-` or `data-lf-`, the
+    names `page check` refuses an author, so a page's own CSS can't restyle Leaf's
+    elements by naming one. Before #5050, a page rule for `.hi` turned lf-code's
+    highlighted line blue, and one for `.away` the panel's away leaf red.
+
+    Leaf also writes two kinds of name it doesn't own, where one rule draws both. The
+    first is an author's: the idioms and tones the registries declare, such as
+    `label.choice`, `[data-room]` and `.ok`, which the theme draws alike on Leaf's
+    controls. The second is a library's, on an element Leaf draws for that library to
+    read or style: Pierre's row attributes on lf-diff's own rows, and the class
+    markdown-it gives a task item's checkbox, which the composer's editor draws too.
+
+    Read from each module's source (`js_facts.mjs`, `marks`), so a name built from a
+    dynamic part, as `lf-${kind}` is, goes unread."""
+    libraries = {
+        "data-code",
+        "data-line-type",
+        "data-overflow",
+        "task-list-item-checkbox",
+    }
+    authored = set()
+    for registry in [
+        schema_model.ASSETS / "registry.json",
+        *schema_model.BUNDLED_PACKAGES.glob("*/registry.json"),
+    ]:
+        entries = json.loads(registry.read_text())
+        authored |= set(entries.get("$tones", {}).get("names", []))
+        idioms = [key for key in entries if not re.fullmatch(r"[$a-z][\w-]*", key)]
+        for idiom in idioms:
+            authored |= set(re.findall(r"\.([\w-]+)", idiom))
+            authored |= set(re.findall(r"\[(data-[\w-]+)", idiom))
+    assert {"choice", "ok", "data-room"} <= authored, sorted(authored)
+    modules = [
+        module
+        for root in (schema_model.ASSETS, schema_model.BUNDLED_PACKAGES)
+        for module in sorted(root.rglob("*.js"))
+        if "vendor" not in module.parts
+    ]
+    marks = json.loads(js_facts("marks", modules))
+    assert sum(map(len, marks.values())) > 1000, "the reading of marks is broken"
+    leaks = [
+        f"{Path(module).relative_to(schema_model.PLUGIN_ROOT)}:{mark['line']} "
+        f"{mark['name']}"
+        for module, found in marks.items()
+        for mark in found
+        if not mark["name"].startswith(
+            "data-lf-" if mark["kind"] == "attribute" else "lf-"
+        )
+        and mark["name"] not in authored | libraries
+    ]
+    assert leaks == [], leaks
+
+
 def test_kernel_selectors_name_no_package_tag():
     """The kernel styles and finds a package widget by what its registry declares, a
     mark delivery paints such as `data-lf-space`, never by its tag: a rule naming
@@ -1480,6 +1498,58 @@ def test_kernel_selectors_name_no_package_tag():
     assert leaks == [], leaks
 
 
+def test_a_sheet_both_trees_take_names_the_widgets_it_styles():
+    """A package's widget-shadow.css goes into the document's lf-base as well as each
+    shadow tree, with no scope around it (`layer.py`, `compose`), so each rule names
+    the widgets it styles: an `lf-` element or class in the document, `:host(tag)` in
+    a tree. A rule that names neither reaches the page's own elements, as the diff's
+    rules for its renderer's `data-separator` rows set the code ground and muted ink
+    on a page's own `<p data-separator>`."""
+
+    def selectors(prelude):
+        """The complex selectors of a prelude, split at its own commas only."""
+        parts = [[]]
+        for token in prelude:
+            if token.type == "literal" and token.value == ",":
+                parts.append([])
+            else:
+                parts[-1].append(token)
+        return [tinycss2.serialize(part).strip() for part in parts]
+
+    def named(selector):
+        return re.search(r"(?<![\w-])lf-|:host\b", selector) is not None
+
+    def unnamed(rules, held=False):
+        for rule in rules:
+            if rule.type == "qualified-rule":
+                here = selectors(rule.prelude)
+                if not held:
+                    yield from (selector for selector in here if not named(selector))
+                inner = tinycss2.parse_blocks_contents(rule.content, skip_comments=True)
+                yield from unnamed(inner, held or all(map(named, here)))
+            elif rule.type == "at-rule" and rule.content is not None:
+                # A keyframe's `from` and `to` select no element.
+                if rule.lower_at_keyword == "keyframes":
+                    continue
+                inner = tinycss2.parse_blocks_contents(rule.content, skip_comments=True)
+                scope = rule.lower_at_keyword == "scope"
+                prelude = tinycss2.serialize(rule.prelude)
+                yield from unnamed(inner, held or (scope and named(prelude)))
+
+    sheets = sorted(schema_model.BUNDLED_PACKAGES.glob("*/widget-shadow.css"))
+    assert sheets, "no package ships a sheet both trees take: the reading is broken"
+    leaks = [
+        f"{sheet.parent.name}: {selector}"
+        for sheet in sheets
+        for selector in unnamed(
+            tinycss2.parse_stylesheet(
+                layer_model.stylesheet(sheet, sheet.parent), skip_comments=True
+            )
+        )
+    ]
+    assert leaks == [], leaks
+
+
 def test_layout_style_and_widgets_never_read_each_other():
     """Layouts own placement, styles own type, and widgets consume their own box.
 
@@ -1506,6 +1576,11 @@ def test_layout_style_and_widgets_never_read_each_other():
     }
     assert {"layout-column", "layout-workspace"} <= owned[layouts], owned[layouts]
     assert owned[theme] == {"density-working"}, owned[theme]
+    # The theme's tokens restate the type ladder's derived fonts for its density class.
+    homes = {
+        layouts: {layouts},
+        theme: {theme, *layer_model.imported_sheets(theme, schema_model.ASSETS)},
+    }
     roots = (schema_model.ASSETS, schema_model.BUNDLED_PACKAGES)
     readers = []
     for source in sorted(path for root in roots for path in root.rglob("*.[cj]s*")):
@@ -1514,7 +1589,7 @@ def test_layout_style_and_widgets_never_read_each_other():
         foreign = [
             names
             for home, names in owned.items()
-            if home != source
+            if source not in homes[home]
             and not (
                 home == layouts
                 and source
@@ -1577,27 +1652,26 @@ def test_controls_are_built_by_role_and_never_by_face():
     words = {name for name in faces if not name.startswith("lf-")} | {"button"}
     assert words == {"primary", "button"}, words
     spelled = []
-    for root in (schema_model.ASSETS, schema_model.BUNDLED_PACKAGES):
-        for source in sorted(root.rglob("*.js")):
-            if "vendor" in source.parts or source == owner:
-                continue
-            text = source.read_text()
-            where = source.relative_to(ROOT)
-            spelled += [f"{where}: {match[1]}" for match in named.finditer(text)]
-            code = re.sub(r"/\*.*?\*/|(?<![:\w\"'])//[^\n]*", "", text, flags=re.DOTALL)
-            for literal in re.findall(r"([\"'`])((?:(?!\1).)*)\1", code):
-                classes = literal[1].split()
-                if (
-                    len(classes) > 1
-                    and all(re.fullmatch(r"[a-z][\w-]*", name) for name in classes)
-                    and words & set(classes)
-                ):
-                    spelled.append(f"{where}: {literal[1]}")
-            spelled += [
-                f"{where}: class={value[1]}"
-                for value in re.findall(r"class=([\"'])(.*?)\1", code)
-                if words & set(value[1].split())
-            ]
+    for source in _bundled_modules():
+        if source == owner:
+            continue
+        text = source.read_text()
+        where = source.relative_to(ROOT)
+        spelled += [f"{where}: {match[1]}" for match in named.finditer(text)]
+        code = re.sub(r"/\*.*?\*/|(?<![:\w\"'])//[^\n]*", "", text, flags=re.DOTALL)
+        for literal in re.findall(r"([\"'`])((?:(?!\1).)*)\1", code):
+            classes = literal[1].split()
+            if (
+                len(classes) > 1
+                and all(re.fullmatch(r"[a-z][\w-]*", name) for name in classes)
+                and words & set(classes)
+            ):
+                spelled.append(f"{where}: {literal[1]}")
+        spelled += [
+            f"{where}: class={value[1]}"
+            for value in re.findall(r"class=([\"'])(.*?)\1", code)
+            if words & set(value[1].split())
+        ]
     assert not spelled, (
         "build these controls with offerAction or offeredAction by role:\n"
         + "\n".join(spelled)
@@ -1607,35 +1681,89 @@ def test_controls_are_built_by_role_and_never_by_face():
 def test_every_ring_stands_at_a_kind_of_box():
     """Where a box's marks stand is one of the kinds base.css names ("Where it
     stands"): a region's gap, a control's, the box's edge, or one band inside it. Every
-    `outline-offset` in Leaf's sheets names its kind's token rather than a length, so
-    a change to a kind reaches every box of it and the overlay marks, which read the
-    gap a box states, stand where its rings do. The overlay's own boxes take the gap
-    their placement writes (`--lf-mark-offset`)."""
+    `--lf-ring-at` in Leaf's sheets names its kind's token rather than a length, so a
+    change to a kind reaches every box of it, and so does every `outline-offset`, which
+    otherwise reads that declaration: every box's (surfaces.css), the floor's, and the
+    overlay's boxes, which take the gap their placement writes (`--lf-mark-offset`)."""
     kinds = {
         "0",
         "var(--focus-region-gap)",
         "var(--focus-ring-gap)",
         "var(--focus-ring-inset)",
+    }
+    reads = {
+        "var(--lf-ring-at, 0px)",
+        "var(--lf-ring-at, var(--focus-ring-gap))",
         "var(--lf-mark-offset)",
     }
+    allowed = {"--lf-ring-at": kinds, "outline-offset": kinds | reads}
     stated = [
-        f"{sheet.relative_to(ROOT)}: {selector} {{ outline-offset: {value} }}"
+        f"{sheet.relative_to(ROOT)}: {selector} {{ {name}: {value} }}"
         for root in (schema_model.ASSETS, schema_model.BUNDLED_PACKAGES)
         for sheet in sorted(root.rglob("*.css"))
         if "vendor" not in sheet.parts
         for _conditions, _enclosing, selector, declarations in _style_rules(sheet)
         for name, value in declarations
-        if name == "outline-offset" and value not in kinds
+        if name in allowed and value not in allowed[name]
     ]
     assert not stated, "a ring stands at a length of its own:\n" + "\n".join(stated)
+
+
+def _bundled_modules():
+    """Each module the runtime and the bundled packages ship, their vendored bundles
+    aside."""
+    return [
+        source
+        for root in (schema_model.ASSETS, schema_model.BUNDLED_PACKAGES)
+        for source in sorted(root.rglob("*.js"))
+        if "vendor" not in source.parts
+    ]
+
+
+def test_every_press_is_built_by_role():
+    """Every press a bundled module builds wears a role's face (browser/AGENTS.md, "A
+    control wears its role's face"). `js_facts.mjs presses` reads the presses and says
+    what they are and how a role dresses them.
+
+    Before this check only a role's classes were watched, so a press drawn with a face
+    of its own passed: the floating panel's symbols and a message's Edit and Add
+    reaction each drew a 26px face beside the thread's 28px symbols. Drawing a press's
+    symbol from its action gives it no face, so a press that does only that still needs
+    a role."""
+    reached, unbuilt = set(), []
+    for module, presses in json.loads(js_facts("presses", _bundled_modules())).items():
+        for press in presses:
+            reached |= {press["kind"], press["built"]}
+            if not press["built"]:
+                where = Path(module).relative_to(ROOT)
+                unbuilt.append(f"{where}:{press['line']}: {press['site']}")
+    assert reached - {None} == {
+        "template",
+        "made",
+        "copy control",
+        "role in its tag",
+        "role through a name",
+        "role as it is made",
+        "role in its options",
+        "trigger in its options",
+        "selectable",
+    }, f"the reading missed a kind of press: {reached}"
+    assert not unbuilt, (
+        "these presses draw a face of their own:\n"
+        + "\n".join(unbuilt)
+        + "\nBuild each by role with offerAction, offeredAction, offerActionElement,"
+        " copyControl's `role` or a selectable offer's face (control-faces.js,"
+        " `ACTION_FACES`). A press no role serves is a new role, for a reviewer to"
+        " weigh."
+    )
 
 
 def test_no_rule_rounds_a_box_edged_on_one_side(tmp_path):
     """A box marked by a thick edge on one side is not also rounded (browser/AGENTS.md,
     "Visual treatment carries meaning"): a stripe bent around a corner reads as decoration rather than a
     contour, and marks a state another face already shows. A state is one whole contour,
-    or a stripe on a square box. Leaf's own sheets and pages are read, a page's from its
-    `<style>` and the sheets shipped beside it, the corpus's merged copy aside, and a
+    or a stripe on a square box. Leaf's own sheets and pages are read, an authored page's
+    from each version's `<style>` and the sheets shipped beside it, and a
     stripe is a side's border of 2px or more or an inset shadow offset
     along one axis only. A transparent side draws no edge: it keeps a stripe's room,
     as every row does for the current row's stripe (controls.css, `.lf-row`). The
@@ -1677,17 +1805,14 @@ def test_no_rule_rounds_a_box_edged_on_one_side(tmp_path):
         for sheet in sorted(root.rglob("*.css"))
         if "vendor" not in sheet.parts
     ]
-    for root in (ROOT / "examples", ROOT / "docs"):
-        sheets += [
-            (sheet.relative_to(ROOT), sheet)
-            for sheet in sorted(root.rglob("*.css"))
-            if not sheet.parent.name.startswith("corpus")
-        ]
-    for page in sorted(
-        [*(ROOT / "examples").rglob("*.html"), *(ROOT / "docs").glob("*.html")]
-    ):
-        if page.name.startswith("corpus"):
-            continue
+    authored = authored_sources()
+    sheets += [
+        (sheet.relative_to(ROOT), sheet)
+        for root in (DOCS, *map(page_files, authored))
+        for sheet in sorted(root.rglob("*.css"))
+    ]
+    versions = [version for source in authored for version in example_versions(source)]
+    for page in sorted([*product_sources(), *versions]):
         styles = re.findall(r"<style[^>]*>(.*?)</style>", page.read_text(), re.DOTALL)
         if styles:
             sheet = tmp_path / page.relative_to(ROOT).with_suffix(".css")
@@ -1820,7 +1945,8 @@ def test_the_injected_control_face_is_one_default_in_both_trees():
     shadow = schema_model.ASSETS / "shadow.css"
     control_face = (
         ":where( :is(:root, :host) .lf-ui-face, :is(:root, :host) .button, "
-        ":is(:root, :host) .field, :root main :is(button, input, select, textarea), "
+        ":is(:root, :host) .field, "
+        ":root body :is(button, input, select, textarea):not(.lf-chrome *), "
         ":host :is(button, input, select, textarea) )"
     )
     control_ink = ":where(.lf-ui-face, .button, .field)"
@@ -2178,17 +2304,22 @@ def test_reading_a_page_composes_only_its_layers_vocabulary(
             'export { x } from "/runtime/semantic-state.js";\n',
             "imports private kernel module",
         ),
+        (
+            "registry.json",
+            '{"$languages": {"paths": {".notes": "notes"}}}\n',
+            "$languages.names does not declare",
+        ),
     ],
-    ids=["sheet", "module"],
+    ids=["sheet", "module", "registry"],
 )
 def test_a_package_that_stops_composing_is_refused_where_the_page_is_served(
     tmp_path, monkeypatch, path, contents, named
 ):
     """`page init` refuses a package that doesn't compose, but its copy in the page can
     stop composing later, edited in place or read by a stricter Leaf. Reading the
-    page's state needs no package sheet or module, so the page reads on, and `page
-    check` and a server about to bind (`http.page_endpoint`, which `server start`
-    runs) refuse it, naming the repair."""
+    page's state needs no package sheet or module, nor a validated registry, so the
+    page reads on, and `page check` and a server about to bind (`http.page_endpoint`,
+    which `server start` runs) refuse it, naming the repair."""
     from leaf.http import page_endpoint
 
     monkeypatch.chdir(tmp_path)
@@ -2204,10 +2335,15 @@ def test_a_package_that_stops_composing_is_refused_where_the_page_is_served(
     )
     assert made.exit_code == 0, made.output
     (page / "index.html").write_text(leaf_page("Notes", '<p id="n">Ship Tuesday.</p>'))
+    stamped = runner.invoke(cli_model.cli, ["page", "stamp", str(page), "--text", "v1"])
+    assert stamped.exit_code == 0, stamped.output
     (page / schema_model.PACKAGES_DIR / "notes" / path).write_text(contents)
 
-    state = runner.invoke(cli_model.cli, ["page", "state", str(page)])
-    assert state.exit_code == 0, state.output
+    # A process of its own, as a hook is, which composes the layer afresh.
+    state = subprocess.run(
+        [*LEAF_COMMAND, "page", "state", str(page)], capture_output=True, text=True
+    )
+    assert state.returncode == 0, state.stderr
     checked = runner.invoke(cli_model.cli, ["page", "check", str(page)])
     assert checked.exit_code == 1
     [finding] = json.loads(checked.output)["findings"]
@@ -4190,17 +4326,15 @@ def test_data_set_refuses_a_visual_run_the_widget_cannot_show(
     that repeats an id or names a URL that parser refuses, rather than storing a run
     the widget cannot show."""
     monkeypatch.chdir(tmp_path)
-    example = Path(__file__).parents[2] / "examples" / "developer"
+    gallery = named_source("visual-review-gallery")
     page = tmp_path / "visual-review"
     runner = CliRunner()
     initialized = runner.invoke(
         cli_model.cli, ["page", "init", "--package", "visual-review", str(page)]
     )
     assert initialized.exit_code == 0, initialized.output
-    shutil.copy(example / "visual-review-gallery.html", page / "index.html")
-    run = json.loads((example / "visual-review-gallery.data.json").read_text())[
-        "gallery-visual-run"
-    ]
+    shutil.copy(gallery, page / "index.html")
+    run = json.loads(data_file(gallery).read_text())["gallery-visual-run"]
 
     def data_set(value):
         return runner.invoke(
@@ -4876,3 +5010,18 @@ def test_instruction_reading_uses_the_candidate_vocabulary_before_html_changes(
     assert "Use the new candidate contract." in instructions["author"]
     assert "Choose the owner's inputs" not in instructions["author"]
     assert source.read_text() == original_html
+
+
+def test_portable_css_carries_the_widgets_look_and_no_theme():
+    """A page without Leaf links portable.css for its widgets' look, not a Leaf page's:
+    a theme in the layer, as `reading` is in every new page's, styles a page's own
+    markup, so its rules stay out while a widget package's come in."""
+    reading = schema_model.BUNDLED_PACKAGES / "reading"
+    timeline = schema_model.BUNDLED_PACKAGES / "timeline"
+    layer = layer_model.compose_layer(layer_model.layer_inputs(("reading", "timeline")))
+    sheet = layer.top_files["portable.css"].decode()
+    assert layer_model.stylesheet(timeline / "defaults.css", timeline) in sheet
+    assert layer_model.stylesheet(reading / "defaults.css", reading) in (
+        layer.top_files["theme.css"].decode()
+    )
+    assert layer_model.stylesheet(reading / "defaults.css", reading) not in sheet

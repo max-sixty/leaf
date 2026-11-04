@@ -25,7 +25,7 @@ from leaf.codex import (
 from leaf.inference import CODEX_CONFIG, CODEX_SERVER_ARGUMENTS
 from leaf_dev import ROOT
 from leaf_dev.arms import codex_home, codex_program, environment, run_leaf, serving
-from leaf_dev.browser import headless_shell, load, tab
+from leaf_dev.browser import Window, headless_shell, load, tab
 
 FIXTURES = ROOT / "evals/widget-formats"
 MODEL = "gpt-6.1-sol"
@@ -318,12 +318,13 @@ def check(answer: str, condition: str, case: str, work: Path) -> dict:
         with (
             serving(ROOT, state, page) as url,
             headless_shell() as browser,
-            tab(browser, viewport=(900, 760)) as view,
+            tab(browser, Window((900, 760))) as view,
         ):
             errors = []
             view.on("pageerror", lambda error: errors.append(str(error)))
             load(view, url)
-            (work / "visible.txt").write_text(view.locator("main").inner_text())
+            # The page is body; Leaf's chrome stands after it.
+            (work / "visible.txt").write_text(view.locator("body").inner_text())
             view.screenshot(path=work / "before.png", full_page=True)
             try:
                 if case == "choice":

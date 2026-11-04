@@ -19,6 +19,17 @@ One arranges a block's children:
 | -------------- | ------------------------------------ |
 | `layout-tiles` | equal cells, as many to a row as fit |
 
+Content standing beside `main` in `body`, such as a site-wide header or footer, takes
+no Layout: no gutter or column, and `data-width` does nothing there. A workspace's
+`main` still fills the window, so anything beside it scrolls the page. A page of parts
+holds its title and list fixed at the window's top, so it takes nothing beside `main`.
+Keep the page's
+title, and a Layout's `header` and `footer`, inside `main`, and lay out what stands
+beside it with the page's own CSS, such as a grid on `body`. A site header the page
+fixes or sticks at the window's top covers what lands under it, so give the page's
+targets `scroll-margin-top` its height (`module-scroll-and-motion.md`, "Sticky
+headers").
+
 On a column page, a board, diagram or diff declares its own width, and any other block,
 such as a table, a trace or a playground, can ask for one with `data-width` ("Bounds and
 widths"). The block breaks out of the column and the prose stays where it is.
@@ -68,20 +79,12 @@ outline.
 
 ## Document flow
 
-A `layout-column` is a native grid with a centered prose track and the space on
-both sides available to exhibits. Group a nested section with `class="layout-flow"`
-when its children should share those tracks. Ordinary wrappers contain their
-children: a list, callout or custom grid does not grant a nested exhibit room outside
-its own box. The same `data-width` contract applies at every level.
-
-Direct children of `layout-column` and `layout-flow` are grid items: their vertical
-margins add rather than collapse, and `float` does not place them beside prose.
-Automatic inline margins make an unsized item shrink to its content; give it
-`inline-size: 100%` when it should fill its track, up to any `max-inline-size`.
-An item that opens with a heading, or with an eyebrow over one, takes the heading's
-gap as its own top margin, so its box starts at the heading. Set that gap with the
-theme's `--h2-start` and `--h3-start` on `:root`. A top margin page CSS gives the item
-replaces the gap, and one it gives the heading adds to it.
+A `layout-column` is ordinary block flow at the reading measure, centered, with the
+space on both sides available to exhibits. Its blocks' margins collapse and a float
+stands beside the prose, as on any page. Group a nested section with
+`class="layout-flow"` when its children should share that space. Ordinary wrappers
+contain their children: a list, callout or custom grid does not grant a nested exhibit
+room outside its own box. The same `data-width` contract applies at every level.
 
 ```html
 <main class="layout-column">
@@ -94,7 +97,7 @@ replaces the gap, and one it gives the heading adds to it.
 </main>
 ```
 
-Give a tab set `class="layout-flow"` when it should share the document's tracks
+Give a tab set `class="layout-flow"` when it should share the document's space
 without a frame. Each panel is either another `layout-flow` or its own Layout.
 Omit the class for a framed tab set inside a section or another panel; its panels
 stay ordinary boxes too. Placement alone never chooses a set's visual flow.
@@ -231,8 +234,10 @@ downward, follows the newest entry while the user is at the end. The box takes t
 height page CSS gives it, as `max-block-size` or `--lf-bound`, and 28rem otherwise.
 
 `data-width` widens one block, overriding its widget's default. Put it on the block
-itself, such as a `table` or `lf-code`, and write no CSS that copies its widths. It
-works on column and sidebar pages:
+itself, such as a `table` or `lf-code`, and write no CSS that copies its widths or
+sets its inline margins. An `available` block reaches past the prose by its own start
+margin, so space it with `margin-block` rather than `margin`. `data-width` works on
+column and sidebar pages:
 
 - `data-width="wide"` is for a block slightly wider than the column, such as code up
   to 100 columns, a diff or a table of a few more columns. The block starts at the
@@ -243,13 +248,13 @@ works on column and sidebar pages:
   leave free, into both margins.
 
 A `table` with either value is only as wide as its columns need, up to that width.
-A block takes a wider track when it is a child of `layout-column` or `layout-flow`.
+A block widens when it is a child of `layout-column` or `layout-flow`.
 A framed holder, such as an `lf-ask` or callout, needs its own `data-width` to widen;
 its children use the room inside it. A wide child alone does not widen its holder.
 Under the reading face a table scrolls sideways when needed; a page without the face
-gives a table that can outgrow its track a box of its own that scrolls sideways
+gives a table that can outgrow its width a box of its own that scrolls sideways
 (`page-authoring.md`, "Markup"). Use `layout-flow` on unframed section
-wrappers that should share the document's tracks, not on boxes that arrange their
+wrappers that should share the document's space, not on boxes that arrange their
 own contents.
 
 A widget whose entry declares `x-height`, such as `lf-chart`, reserves that height
@@ -303,9 +308,11 @@ for a text input or select, and
 a stack of layer tiles or a curve's handles, is the page's own design
 (`page-authoring.md`, "Style the page").
 
-Leaf's panel, thread cards and markers draw over everything in `main`, whatever its
+Leaf's panel, thread cards and markers draw over everything in `body`, whatever its
 `z-index`. Open a modal or menu of the page's own in the top layer: a `<dialog>` shown
-with `showModal()`, or an element with `popover`.
+with `showModal()`, or an element with `popover`. To show the page full screen, call
+`requestFullscreen()` on `document.documentElement`; a full-screen `body` leaves Leaf's
+panel and threads out.
 
 ### Space for changing text
 

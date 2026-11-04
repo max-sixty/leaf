@@ -44,13 +44,13 @@ def _on_me_mark(page):
 def _expect_news(page, news=True):
     dot = page.locator(".lf-fp-news-dot")
     if news:
-        expect(dot).to_have_attribute("data-shown", "")
+        expect(dot).to_have_attribute("data-lf-shown", "")
     else:
-        expect(dot).not_to_have_attribute("data-shown", "")
+        expect(dot).not_to_have_attribute("data-lf-shown", "")
 
 
 def _has_news(page):
-    return page.locator(".lf-fp-news-dot").get_attribute("data-shown") is not None
+    return page.locator(".lf-fp-news-dot").get_attribute("data-lf-shown") is not None
 
 
 def _first_unread(page):
@@ -65,7 +65,9 @@ def _said(page):
 
 
 def _thread_row(page, thread):
-    return page.locator(f'{panel_view("threads")} .lf-fp-thread[data-key="{thread}"]')
+    return page.locator(
+        f'{panel_view("threads")} .lf-fp-thread[data-lf-key="{thread}"]'
+    )
 
 
 def _select_new_route(page):
@@ -102,45 +104,6 @@ def _agent_update_reply(page_dir, root, number, for_event=None):
         f"Update {number}.\n\nCompleted steps: {number}.",
         settlement=thread_model.ProviderFinal("test-final"),
     )["id"]
-
-
-@pytest.mark.parametrize("origin", ["page", "reference"])
-def test_keyboard_first_unread_exposes_authored_reply(browser, serve, origin):
-    url = serve(PANEL_PAGE)
-    panel_comment(serve.page_dir, "The earlier user thread.")
-    root = thread_model.cmd_comment(
-        serve.page_dir,
-        None,
-        None,
-        None,
-        "Choose the next step.",
-        '<lf-ask id="read-decision"><h3>Which way?</h3>'
-        '<lf-options id="read-choice" choose>'
-        '<lf-option id="read-yes">Yes</lf-option>'
-        '<lf-option id="read-no">No</lf-option>'
-        "</lf-options></lf-ask>",
-    )["id"]
-    page = open_page(browser, url)
-    if origin == "reference":
-        page.keyboard.press("?")
-        page.get_by_role("combobox", name="Search commands").fill("g u")
-        route = page.locator(
-            '.lf-command-reference [role=row][data-lf-command="thread.unread.first"]'
-        )
-        expect(route.locator(".lf-binding-sequence > kbd")).to_have_text(["g", "u"])
-    with sending(page, "authored reply read"):
-        if origin == "reference":
-            route.get_by_role("button").click()
-        else:
-            page.keyboard.press("g")
-            page.keyboard.press("u")
-    card = page.locator(f'{PANEL_THREAD}[data-thread="{root}"]')
-    expect(card).to_be_visible()
-    expect(card.locator(f'.lf-msg[data-message="{root}"]')).to_be_focused()
-    _expect_news(page, False)
-    assert _read_events(serve.page_dir)[-1]["messages"] == [
-        {"message": root, "version": root}
-    ]
 
 
 def test_read_converges_across_two_tabs(browser, serve):
@@ -205,7 +168,7 @@ def _sample_reading_page(browser, serve, body, style):
 
 def _message_body(child):
     return child.locator(
-        f'{PANEL_THREAD} .lf-msg[data-message="{SAMPLE_READER}"] .lf-msg-body'
+        f'{PANEL_THREAD} .lf-msg[data-lf-message="{SAMPLE_READER}"] .lf-msg-body'
     )
 
 
@@ -219,7 +182,7 @@ def _open_first_unread(page, child):
     page.keyboard.press("g")
     page.keyboard.press("u")
     expect(
-        child.locator(f'{PANEL_THREAD}[data-thread="{SAMPLE_READER}"]')
+        child.locator(f'{PANEL_THREAD}[data-lf-thread="{SAMPLE_READER}"]')
     ).to_be_visible()
     panel_settled(child, view="thread")
     assert _message_body(child).evaluate("""body => {
@@ -427,3 +390,42 @@ _CARD_BOXES = """card => {
   }
   return boxes;
 }"""
+
+
+@pytest.mark.parametrize("origin", ["page", "reference"])
+def test_keyboard_first_unread_exposes_authored_reply(browser, serve, origin):
+    url = serve(PANEL_PAGE)
+    panel_comment(serve.page_dir, "The earlier user thread.")
+    root = thread_model.cmd_comment(
+        serve.page_dir,
+        None,
+        None,
+        None,
+        "Choose the next step.",
+        '<lf-ask id="read-decision"><h3>Which way?</h3>'
+        '<lf-options id="read-choice" choose>'
+        '<lf-option id="read-yes">Yes</lf-option>'
+        '<lf-option id="read-no">No</lf-option>'
+        "</lf-options></lf-ask>",
+    )["id"]
+    page = open_page(browser, url)
+    if origin == "reference":
+        page.keyboard.press("?")
+        page.get_by_role("combobox", name="Search commands").fill("g u")
+        route = page.locator(
+            '.lf-command-reference [role=option][data-lf-command="thread.unread.first"]'
+        )
+        expect(route.locator(".lf-binding-sequence > kbd")).to_have_text(["g", "u"])
+    with sending(page, "authored reply read"):
+        if origin == "reference":
+            route.click()
+        else:
+            page.keyboard.press("g")
+            page.keyboard.press("u")
+    card = page.locator(f'{PANEL_THREAD}[data-lf-thread="{root}"]')
+    expect(card).to_be_visible()
+    expect(card.locator(f'.lf-msg[data-lf-message="{root}"]')).to_be_focused()
+    _expect_news(page, False)
+    assert _read_events(serve.page_dir)[-1]["messages"] == [
+        {"message": root, "version": root}
+    ]

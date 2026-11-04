@@ -20,6 +20,7 @@ from render_harness import (
 
 from leaf import thread as thread_model
 from leaf.render_checks import rendered
+from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -134,7 +135,7 @@ def test_a_press_in_the_card_keeps_the_pressed_spot_still(browser, serve, how):
         serve.page_dir, "Make the banner quieter", {"section": "h-how"}
     )
     address = {"parent": root, "responds": root}
-    for words in ("Comparing the banner.", "Checking both schemes.", "Measuring."):
+    for words in ("Comparing the banner.", "Checking both schemes."):
         thread_model.post_reply(serve.page_dir, address, words, ephemeral=True)
     append_carried_log_record(
         serve.page_dir,
@@ -150,7 +151,7 @@ def test_a_press_in_the_card_keeps_the_pressed_spot_still(browser, serve, how):
     page.locator(".lf-margin-marker").first.click()
     preview = page.locator(".lf-margin-preview")
     disclosure = preview.locator(".lf-summary-expand")
-    expect(disclosure).to_have_text("Show 3 progress messages")
+    expect(disclosure).to_have_text("Show 2 progress messages")
     rendered(page)
     pressed = disclosure.bounding_box()
     compact = preview.bounding_box()
@@ -181,7 +182,7 @@ def test_a_press_in_the_card_keeps_the_pressed_spot_still(browser, serve, how):
         page.keyboard.press("Enter")
     else:
         disclosure.click()
-    expect(disclosure).to_have_text("Hide 3 progress messages")
+    expect(disclosure).to_have_text("Hide 2 progress messages")
     expect(preview).to_contain_text("Checking both schemes")
     rendered(page)
     expect_pressed_spot()
@@ -192,7 +193,7 @@ def test_a_press_in_the_card_keeps_the_pressed_spot_still(browser, serve, how):
         page.keyboard.press("Enter")
     else:
         disclosure.click()
-    expect(disclosure).to_have_text("Show 3 progress messages")
+    expect(disclosure).to_have_text("Show 2 progress messages")
     rendered(page)
     assert preview.bounding_box()["height"] == pytest.approx(compact["height"], abs=0.5)
     expect(disclosure).to_be_focused()
@@ -314,7 +315,7 @@ SWEEP_PAGES = {
         ),
         ["find-20", "wlog-6", "wnote"],
     ),
-    "screenshot": (ROOT / "examples/release-notes.html", ["rn-console-shot"]),
+    "screenshot": (named_source("release-notes"), ["rn-console-shot"]),
 }
 
 # What the page shows of the row and the card, in client pixels: the row's box cut by

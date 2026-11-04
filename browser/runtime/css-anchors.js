@@ -39,11 +39,13 @@
  * anchored box by the scroll's layout pixels, not the smaller or larger distance the
  * words move on screen (Firefox bug 2055371, which its own transform support still has).
  * So the margin measures and places the rows that scroll carried again at that box's
- * `scrollend` (`scrollMisplacesAnchors`, margin-layout.js): they drift while the scroll
- * runs and stand on their words a frame after it ends. Chromium 156 follows the words, so
- * there the pass moves only a row whose carrier scrolls with something its target
- * doesn't, such as a pin on a `pre` whose `code` scrolled, back to where a fresh pass
- * puts it.
+ * `scrollend` (`scrollMisplacesAnchors`, margin-layout.js), and they stand on their words
+ * a frame after it ends. While the scroll runs, the margin's once-a-frame reading of it
+ * finds a row whose words have left it and places it again (`subjectMoved`), which in
+ * Firefox, whose anchors `anchorBox` measures without their transforms, keeps the row a
+ * few pixels from its words; in WebKit the measured anchor moves with the words, so its
+ * rows drift until `scrollend`. Chromium 156 follows the words, so there the pass writes
+ * the insets the scroll left.
  *
  * A source keeps one name across those uses. Retained controls can observe whether its
  * source renders near the viewport before entering layout. That reading starts
@@ -377,7 +379,7 @@ function contentStart(scroller) {
 // The box whose scrolls carry `anchor`: the scroller a content start stands in, whose
 // own scroll carries it too, or the anchor itself.
 /** @param {Anchor} anchor */
-const anchorHolder = (anchor) => (isElement(anchor) ? anchor : anchor.scroller);
+export const anchorHolder = (anchor) => (isElement(anchor) ? anchor : anchor.scroller);
 
 // The name `el` answers to as an anchor, given it first where it has none.
 /** @param {Anchor} el */
@@ -402,19 +404,24 @@ export const anchorName = (el) => nameAnchor(anchorReading(el));
 // no anchor in a native layer.
 /** @type {boolean | undefined} */
 let dropsTransforms;
-// Firefox lacks transforms in `anchor()`; read once whether this engine does.
+// Firefox lacks transforms in `anchor()`; read once whether this engine does. The probe
+// stands in a box with layout containment, which holds its anchor and the box anchored
+// to it: in the window's containing block, Chromium restyled every anchored element on
+// the page when they left, 200 ms on a page of 512 asks.
 function anchorDropsTransforms() {
   if (dropsTransforms !== undefined) return dropsTransforms;
+  const probe = document.createElement("div");
   const moved = document.createElement("div");
   const anchored = document.createElement("div");
+  probe.style.cssText = "position: fixed; left: 0; top: 0; contain: layout";
   moved.style.cssText =
     "position: fixed; left: 0; top: 0; translate: 8px 0; anchor-name: --lf-moved";
   anchored.style.cssText =
     "position: fixed; top: 0; position-anchor: --lf-moved; left: anchor(left, 8px)";
-  chromeRoot.append(moved, anchored);
+  probe.append(moved, anchored);
+  chromeRoot.append(probe);
   dropsTransforms = anchored.getBoundingClientRect().left < 4;
-  moved.remove();
-  anchored.remove();
+  probe.remove();
   return dropsTransforms;
 }
 // Whether `style` moves its box from where layout put it.

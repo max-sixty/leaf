@@ -143,7 +143,7 @@ def test_a_wide_code_reply_is_acknowledged_once_shown(browser, serve):
     page = open_page(browser, url)
     with sending(page, "wide reply read"):
         view = open_panel_thread(page, root)
-    code = view.locator(f'.lf-msg[data-message="{root}"] pre').first
+    code = view.locator(f'.lf-msg[data-lf-message="{root}"] pre').first
     assert code.evaluate("element => element.scrollWidth > element.clientWidth")
     assert _read_events(serve.page_dir)[-1]["messages"] == [
         {"message": root, "version": root}
@@ -234,7 +234,7 @@ def test_a_reopening_in_a_page_seat_waits_in_its_resolved_summary(
         {"kind": "resolve", "author": "user", "parent": root, "revision": 1},
     )
     page = open_page(browser, url, context=context)
-    thread = page.locator(f'.lf-page-thread[data-thread="{root}"]')
+    thread = page.locator(f'.lf-page-thread[data-lf-thread="{root}"]')
     resolved = page.locator(".lf-resolved-threads")
     summary = resolved.locator(":scope > summary")
     expect(summary).to_have_text("Resolved · 1")
@@ -260,7 +260,7 @@ def test_a_reopening_in_a_page_seat_waits_in_its_resolved_summary(
     expect(thread).to_be_focused()
     shown = thread.locator(".lf-msg")
     expect(shown).to_have_count(3)
-    assert shown.evaluate_all("turns => turns.map(turn => turn.dataset.event)") == [
+    assert shown.evaluate_all("turns => turns.map(turn => turn.dataset.lfEvent)") == [
         root,
         first,
         second,
@@ -345,7 +345,7 @@ def test_a_thread_the_agent_starts_in_a_page_seat_waits_in_the_row_it_would_foll
     expect(box).to_be_visible()
     keys = [key for key in (earlier, started) if key]
     expect(threads).to_have_count(len(keys) + (end == "started"))
-    shown = threads.evaluate_all("threads => threads.map(t => t.dataset.thread)")
+    shown = threads.evaluate_all("threads => threads.map(t => t.dataset.lfThread)")
     assert shown[: len(keys)] == keys
     if end == "started":
         expect(threads.last).to_contain_text("And the shed roof?")
@@ -371,11 +371,13 @@ def test_modal_blocks_exposure_until_user_returns_to_threads(browser, serve):
     reference = page.locator(".lf-command-reference")
     expect(reference).to_be_visible()
     assert reference.evaluate("element => element.matches(':modal')")
-    page.locator(f'.lf-fp-thread[data-key="{root}"]').evaluate(
+    page.locator(f'.lf-fp-thread[data-lf-key="{root}"]').evaluate(
         "element => element.click()"
     )
-    view = page.locator(f'{PANEL_THREAD}[data-thread="{root}"]')
-    expect(view.locator(f'.lf-msg[data-message="{root}"] .lf-msg-body')).to_be_visible()
+    view = page.locator(f'{PANEL_THREAD}[data-lf-thread="{root}"]')
+    expect(
+        view.locator(f'.lf-msg[data-lf-message="{root}"] .lf-msg-body')
+    ).to_be_visible()
     page.evaluate("window.dispatchEvent(new Event('resize'))")
     page.wait_for_timeout(100)
     assert _read_events(serve.page_dir) == []
@@ -461,12 +463,12 @@ def test_first_unread_opens_the_exact_message_and_exposure_acknowledges_it(
     panel_settled(page, view="threads")
     expect(threads_tab(page).locator(".lf-fp-count")).to_have_text("2")
     row = _thread_row(page, root)
-    expect(row).to_have_attribute("data-unread", "")
+    expect(row).to_have_attribute("data-lf-unread", "")
     with sending(page, "first unread acknowledgement"):
         row.click()
-    card = page.locator(f'{PANEL_THREAD}[data-thread="{root}"]')
+    card = page.locator(f'{PANEL_THREAD}[data-lf-thread="{root}"]')
     expect(card).to_be_visible()
-    expect(card.locator(f'.lf-msg[data-message="{root}"]')).not_to_have_class(
+    expect(card.locator(f'.lf-msg[data-lf-message="{root}"]')).not_to_have_class(
         re.compile(r"(^|\s)lf-unread(\s|$)")
     )
     assert _read_events(serve.page_dir)[-1]["messages"] == [
@@ -499,19 +501,19 @@ def test_progress_is_never_unread_and_reading_its_answer_reads_only_it(browser, 
     open_threads(page)
     row = _thread_row(page, root)
     expect(row).to_be_visible()
-    expect(row).not_to_have_attribute("data-unread", "")
+    expect(row).not_to_have_attribute("data-lf-unread", "")
     _expect_news(page, False)
 
     answer = thread_model.post_reply(
         serve.page_dir, {"responds": root}, "Both mounts fit."
     )["id"]
     told(page)
-    expect(row).to_have_attribute("data-unread", "")
+    expect(row).to_have_attribute("data-lf-unread", "")
     page.reload()
     wait_until_ready(page)
     card = open_panel_thread(page, root)
-    expect(card.locator(f'.lf-msg[data-event="{answer}"]')).to_be_visible()
-    expect(card.locator(f'.lf-msg[data-event="{progress}"]')).to_be_hidden()
+    expect(card.locator(f'.lf-msg[data-lf-event="{answer}"]')).to_be_visible()
+    expect(card.locator(f'.lf-msg[data-lf-event="{progress}"]')).to_be_hidden()
     _expect_news(page, False)
     round_trip(page)
     assert _read_events(serve.page_dir)[-1]["messages"] == [
@@ -536,7 +538,7 @@ def test_oversized_message_needs_contiguous_traversal(browser, serve):
     _first_unread(page)
     view = page.locator(PANEL_THREAD)
     panel_settled(page, view="thread")
-    body = view.locator(f'.lf-msg[data-message="{root}"] .lf-msg-body')
+    body = view.locator(f'.lf-msg[data-lf-message="{root}"] .lf-msg-body')
     assert body.bounding_box()["height"] > view.bounding_box()["height"]
     view.evaluate("element => element.scrollTop = element.scrollHeight")
     page.wait_for_timeout(100)
@@ -597,8 +599,8 @@ def test_an_acknowledgement_neither_waits_for_nor_holds_up_a_gesture(browser, se
     page.route("**/api/event", lambda route: held.append(route))
     _first_unread(page)
     holding(page, held, 1, "automatic read")
-    card = page.locator(f'{PANEL_THREAD}[data-thread="{root}"]')
-    message = card.locator(f'.lf-msg[data-message="{root}"]')
+    card = page.locator(f'{PANEL_THREAD}[data-lf-thread="{root}"]')
+    message = card.locator(f'.lf-msg[data-lf-message="{root}"]')
     expect(message).not_to_have_class(re.compile(r"(^|\s)lf-unread(\s|$)"))
     expect(message.locator(".lf-msg-sending")).to_have_count(0)
     assert (
@@ -688,7 +690,7 @@ def test_a_reply_held_in_a_diff_thread_is_read_once_the_keyboard_opens_it(
         for event in events_model.read_events(serve.page_dir)
         if event["kind"] == "comment"
     )
-    thread = page.locator(f'lf-diff .lf-page-thread[data-thread="{root}"]')
+    thread = page.locator(f'lf-diff .lf-page-thread[data-lf-thread="{root}"]')
     expect(thread).to_be_visible()
     height = _box_height(thread)
     reply = thread_model.post_reply(
@@ -729,7 +731,7 @@ def test_a_reply_held_in_a_diff_thread_is_read_once_the_keyboard_opens_it(
         expect(news).to_have_count(0)
         if opening == "notice":
             expect(thread).to_be_focused()
-        body = thread.locator(f'.lf-msg[data-event="{reply["id"]}"] .lf-msg-body')
+        body = thread.locator(f'.lf-msg[data-lf-event="{reply["id"]}"] .lf-msg-body')
         expect(body).to_be_visible()
         assert body.evaluate("element => element.getRootNode() instanceof ShadowRoot")
         body.scroll_into_view_if_needed()
@@ -762,7 +764,7 @@ def test_replies_held_in_a_page_seat_show_when_the_user_turns_to_them(
         },
     )["id"]
     page = open_page(browser, url)
-    thread = page.locator(f'.lf-thread-seat .lf-page-thread[data-thread="{root}"]')
+    thread = page.locator(f'.lf-thread-seat .lf-page-thread[data-lf-thread="{root}"]')
     thread.evaluate(
         """thread => document.scrollingElement.scrollBy({
           top: thread.getBoundingClientRect().top - innerHeight / 3,
@@ -807,7 +809,9 @@ def test_replies_held_in_a_page_seat_show_when_the_user_turns_to_them(
     elif end == "onto":
         page.keyboard.press("t")
         # The walk lands on the thread in the margin's card, which is the same thread.
-        card = page.locator(f'.lf-margin-preview .lf-page-thread[data-thread="{root}"]')
+        card = page.locator(
+            f'.lf-margin-preview .lf-page-thread[data-lf-thread="{root}"]'
+        )
         expect(card).to_be_focused()
         rendered(page)
         expect(news).to_be_visible()
@@ -823,7 +827,7 @@ def test_replies_held_in_a_page_seat_show_when_the_user_turns_to_them(
     shown = thread.locator(".lf-msg")
     expect(shown).to_have_count(4 if end == "replied" else 3)
     expect(news).to_have_count(0)
-    events = shown.evaluate_all("turns => turns.map(turn => turn.dataset.event)")
+    events = shown.evaluate_all("turns => turns.map(turn => turn.dataset.lfEvent)")
     assert events[:3] == [root, *replies]
     if end == "replied":
         expect(shown.last).to_contain_text("Then the roof first.")
@@ -847,7 +851,7 @@ def test_a_walk_to_a_thread_a_diff_line_holds_lands_in_its_outlet(browser, serve
         for event in events_model.read_events(serve.page_dir)
         if event["kind"] == "comment"
     )
-    thread = page.locator(f'lf-diff .lf-page-thread[data-thread="{comment["id"]}"]')
+    thread = page.locator(f'lf-diff .lf-page-thread[data-lf-thread="{comment["id"]}"]')
     expect(thread).to_be_visible()
     second = append_carried_log_record(
         serve.page_dir,
@@ -865,14 +869,14 @@ def test_a_walk_to_a_thread_a_diff_line_holds_lands_in_its_outlet(browser, serve
         "button", name="1 new", exact=True
     )
     expect(news).to_have_accessible_description("1 new thread")
-    landed = page.locator(f'lf-diff .lf-page-thread[data-thread="{second}"]')
+    landed = page.locator(f'lf-diff .lf-page-thread[data-lf-thread="{second}"]')
     expect(landed).to_have_count(0)
     page.keyboard.press("t")
     expect(landed).to_be_visible()
     assert landed.evaluate(
         "thread => thread.contains(thread.getRootNode().activeElement)"
     ), "the walk did not land in the outlet"
-    expect(page.locator(PANEL)).not_to_have_attribute("data-open", re.compile("."))
+    expect(page.locator(PANEL)).not_to_have_attribute("data-lf-open", re.compile("."))
     expect(news).to_have_count(0)
 
 
@@ -898,7 +902,7 @@ def test_a_reopening_in_a_folded_diff_thread_waits_in_its_summary(
         for event in events_model.read_events(serve.page_dir)
         if event["kind"] == "comment"
     )
-    thread = page.locator(f'lf-diff .lf-page-thread[data-thread="{root}"]')
+    thread = page.locator(f'lf-diff .lf-page-thread[data-lf-thread="{root}"]')
     resolved = page.locator("lf-diff .lf-resolved-threads")
     summary = resolved.locator(":scope > summary")
     # The send leaves the user on the thread, and Resolve is its first stop.
@@ -948,7 +952,7 @@ def test_a_reopening_in_a_folded_diff_thread_waits_in_its_summary(
     if opening == "Enter":
         expect(thread).to_be_focused()
     expect(thread.locator(".lf-msg")).to_have_count(2)
-    expect(thread.locator(f'.lf-msg[data-event="{reply["id"]}"]')).to_be_visible()
+    expect(thread.locator(f'.lf-msg[data-lf-event="{reply["id"]}"]')).to_be_visible()
     expect(thread.locator(":scope > .lf-thread-reply leaf-text")).to_be_visible()
 
 
@@ -1035,7 +1039,9 @@ def test_a_thread_the_agent_starts_on_a_bare_diff_line_waits_at_its_margin_marke
         marker.click()
     elif end == "returned":
         page.keyboard.press("t")
-        card = page.locator(f'.lf-margin-thread .lf-page-thread[data-thread="{held}"]')
+        card = page.locator(
+            f'.lf-margin-thread .lf-page-thread[data-lf-thread="{held}"]'
+        )
         expect(card).to_be_focused()
         box = card.locator(":scope > .lf-thread-reply leaf-text")
         words = "Only if the old name stays usable."
@@ -1070,7 +1076,7 @@ def test_a_thread_the_agent_starts_on_a_bare_diff_line_waits_at_its_margin_marke
         told(page)
         rendered(page)
         expect(outlet).to_have_count(0)
-        expect(card.locator(f'.lf-msg[data-event="{answer["id"]}"]')).to_be_visible()
+        expect(card.locator(f'.lf-msg[data-lf-event="{answer["id"]}"]')).to_be_visible()
         expect(card.locator(".lf-thread-news")).to_have_count(0)
         expect(box).to_be_focused()
         expect(box).to_have_js_property("value", words)
@@ -1080,7 +1086,9 @@ def test_a_thread_the_agent_starts_on_a_bare_diff_line_waits_at_its_margin_marke
     elif end == "focused":
         # A user writing in the margin's card keeps it as they scroll the line away.
         page.keyboard.press("t")
-        card = page.locator(f'.lf-margin-thread .lf-page-thread[data-thread="{held}"]')
+        card = page.locator(
+            f'.lf-margin-thread .lf-page-thread[data-lf-thread="{held}"]'
+        )
         expect(card).to_be_focused()
         box = card.locator(":scope > .lf-thread-reply leaf-text")
         write(box, "Only if")
@@ -1116,7 +1124,7 @@ def test_a_thread_the_agent_starts_on_a_bare_diff_line_waits_at_its_margin_marke
         told(page)
         expect(outlet.locator(".lf-page-thread")).to_have_count(1)
         expect(outlet.locator(".lf-page-thread")).to_have_attribute(
-            "data-thread", second
+            "data-lf-thread", second
         )
         expect(box).to_be_focused()
         return
@@ -1124,7 +1132,9 @@ def test_a_thread_the_agent_starts_on_a_bare_diff_line_waits_at_its_margin_marke
         # A selection of the card's words keeps that current location too, with focus left on a
         # control elsewhere.
         page.keyboard.press("t")
-        card = page.locator(f'.lf-margin-thread .lf-page-thread[data-thread="{held}"]')
+        card = page.locator(
+            f'.lf-margin-thread .lf-page-thread[data-lf-thread="{held}"]'
+        )
         expect(card).to_be_focused()
         words = card.locator(".lf-msg-text").first
         words.evaluate(
@@ -1166,7 +1176,9 @@ def test_a_thread_the_agent_starts_on_a_bare_diff_line_waits_at_its_margin_marke
         page.keyboard.press("Enter")
     elif end == "replied":
         page.keyboard.press("t")
-        card = page.locator(f'.lf-margin-thread .lf-page-thread[data-thread="{held}"]')
+        card = page.locator(
+            f'.lf-margin-thread .lf-page-thread[data-lf-thread="{held}"]'
+        )
         expect(card).to_be_focused()
         write(
             card.locator(":scope > .lf-thread-reply leaf-text"), "Yes, for one release."
@@ -1186,7 +1198,7 @@ def test_a_thread_the_agent_starts_on_a_bare_diff_line_waits_at_its_margin_marke
         )
     threads = outlet.locator(".lf-page-thread")
     expect(threads).to_have_count(2 if end == "started" else 1)
-    expect(threads.first).to_have_attribute("data-thread", held)
+    expect(threads.first).to_have_attribute("data-lf-thread", held)
     expect(marker).to_have_count(0)
     if end == "started":
         expect(threads.last).to_contain_text("And the handler's name?")
@@ -1241,7 +1253,7 @@ def test_a_page_seat_the_open_panel_stands_over_is_not_read(
     )
     told(page)
     body = page.locator(
-        f'lf-diff .lf-diff-thread-outlet .lf-msg[data-event="{reply["id"]}"]'
+        f'lf-diff .lf-diff-thread-outlet .lf-msg[data-lf-event="{reply["id"]}"]'
         " .lf-msg-body"
     )
     expect(body).to_have_count(1)
@@ -1280,3 +1292,6 @@ def test_a_page_seat_the_open_panel_stands_over_is_not_read(
     while not receipt() and time.monotonic() < deadline:
         page.wait_for_timeout(100)
     assert receipt(), "the answer shown whole was never marked read"
+
+
+import pytest

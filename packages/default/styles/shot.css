@@ -401,6 +401,9 @@ lf-shot[data-lf-shot-focus="true"][data-lf-shot-crop="false"]
   filter: grayscale(1);
   opacity: 0.28;
 }
+.lf-shot-pixel-status {
+  font: var(--font-compact);
+}
 .lf-shotpixels .lf-shotplane > span {
   position: absolute;
   inset: 0;

@@ -668,12 +668,6 @@ lf-trace-bookmark {
 }
 .lf-trace-image-status {
   display: none;
-  position: absolute;
-  inset-block-start: var(--sp-2);
-  inset-inline-start: var(--sp-2);
-  padding: var(--sp-1) var(--sp-2);
-  background: var(--lf-ground);
-  color: var(--muted);
 }
 .lf-trace-image-loading .lf-trace-image-status {
   display: block;

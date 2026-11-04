@@ -1073,6 +1073,17 @@ wa-copy-button.lf-icon-action {
     outline: 1px solid CanvasText;
   }
 }
+/* What a picture is still waiting for, in a word on its corner, as lf-trace says while
+   a capture loads and lf-shot while it finds the changed pixels. The picture's box
+   positions it. */
+.lf-media-status {
+  position: absolute;
+  inset-block-start: var(--sp-2);
+  inset-inline-start: var(--sp-2);
+  padding: var(--sp-1) var(--sp-2);
+  background: var(--lf-ground);
+  color: var(--muted);
+}
 
 .lf-picture:hover {
   box-shadow: none;

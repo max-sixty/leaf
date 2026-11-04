@@ -628,9 +628,9 @@ def test_a_shot_keeps_its_reserved_frame_while_images_load(browser, serve):
 def test_a_shot_takes_a_view_pressed_as_the_page_shows_and_keeps_its_divider(
     browser, serve
 ):
-    """Pixels, pressed the moment the page shows, is the view the next frame draws.
-    Back on Slider the divider stands halfway, and Pixels and back keep it where the
-    reader moved it."""
+    """Pixels, pressed the moment the page shows, is the view the next frame draws, and
+    it says it is finding the changed pixels until their mask arrives. Back on Slider
+    the divider stands halfway, and Pixels and back keep it where the reader moved it."""
     source = leaf_page(
         "Press a view",
         f'<h1>Press a view</h1><lf-shot id="pressed-pair" alt="a pair" before="{SHOT_SRC["before"]}" after="{SHOT_SRC["after"]}"></lf-shot>',
@@ -646,17 +646,31 @@ def test_a_shot_takes_a_view_pressed_as_the_page_shows_and_keeps_its_divider(
           observer.disconnect();
           const shot = document.querySelector('lf-shot');
           shot.querySelector('.lf-shot-views [value="pixels"]').click();
-          requestAnimationFrame(() => { window.lfShownView = shot.dataset.lfShotMode; });
+          requestAnimationFrame(() => {
+            window.lfNextFrame = {
+              view: shot.dataset.lfShotMode,
+              pending: Boolean(shot.querySelector('.lf-shot-pixel-status')?.checkVisibility()),
+              mask: shot.querySelector('.lf-shot-pixel-mask').getAttribute('style'),
+            };
+          });
         }).observe(document, {subtree: true, attributeFilter: ['data-lf-presented']});""",
     )
-    page.wait_for_function("window.lfShownView !== undefined")
-    assert page.evaluate("window.lfShownView") == "pixels"
+    page.wait_for_function("window.lfNextFrame !== undefined")
+    assert page.evaluate("window.lfNextFrame") == {
+        "view": "pixels",
+        "pending": True,
+        "mask": "",
+    }
     shot = page.locator("lf-shot")
     views = shot.locator(".lf-shot-views")
     expect(views.get_by_role("radio", name="Pixels", exact=True)).to_have_attribute(
         "aria-checked", "true"
     )
     expect(shot.locator(".lf-shotpixels")).to_be_visible()
+    expect(shot.locator(".lf-shot-pixel-mask")).to_have_attribute(
+        "style", re.compile(r"--lf-shot-pixels: url\(")
+    )
+    expect(shot.locator(".lf-shot-pixel-status")).to_have_count(0)
     views.get_by_role("radio", name="Slider", exact=True).click()
     comparison = shot.locator("wa-comparison")
     expect(comparison).to_have_attribute("position", "50")
@@ -667,6 +681,39 @@ def test_a_shot_takes_a_view_pressed_as_the_page_shows_and_keeps_its_divider(
     views.get_by_role("radio", name="Pixels", exact=True).click()
     views.get_by_role("radio", name="Slider", exact=True).click()
     expect(comparison).to_have_attribute("position", position)
+
+
+def test_a_pressed_shot_gets_its_mask_ahead_of_the_other_shots_readings(browser, serve):
+    """A press is the reader's, so its mask goes ahead of the difference readings queued
+    for the page's other shots, waiting at most for the one already running."""
+    pairs = "".join(
+        f'<lf-shot id="pair-{n}" alt="pair {n}" before="{SHOT_SRC["before"]}" after="{SHOT_SRC["after"]}"></lf-shot>'
+        for n in range(4)
+    )
+    source = leaf_page("Press one of many", f"<h1>Press one of many</h1>{pairs}")
+    url = serve(source, media={SHOT_SRC[n]: data for n, data in SHOTS.items()})
+    # A frame after the page shows, every shot's reading has joined the queue.
+    page = open_page(
+        browser,
+        url,
+        init_script="""new MutationObserver((records, observer) => {
+          if (!document.body?.hasAttribute('data-lf-presented')) return;
+          observer.disconnect();
+          requestAnimationFrame(() => {
+            const shot = document.querySelector('#pair-3');
+            const mask = new MutationObserver(() => {
+              if (!shot.querySelector('.lf-shot-pixel-mask')?.style.length) return;
+              mask.disconnect();
+              window.lfOthersRead = document.querySelectorAll(
+                'lf-shot:not(#pair-3) .lf-shot-outline[aria-description]').length;
+            });
+            mask.observe(shot, {subtree: true, childList: true, attributeFilter: ['style']});
+            shot.querySelector('.lf-shot-views [value="pixels"]').click();
+          });
+        }).observe(document, {subtree: true, attributeFilter: ['data-lf-presented']});""",
+    )
+    page.wait_for_function("window.lfOthersRead !== undefined")
+    assert page.evaluate("window.lfOthersRead") <= 1
 
 
 def test_a_shot_owns_cropped_inspection_and_preserves_choices_when_metadata_changes(

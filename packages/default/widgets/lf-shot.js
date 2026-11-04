@@ -27,15 +27,19 @@ import { ShotView } from "./shot-view.js";
  *
  * Images and their source-coordinate marks share one clipped plane. Cropping moves
  * that plane, including pixel masks, rather than having each renderer reinterpret
- * the focus rectangle. Pixel comparison runs after presentation, one pair per
- * frame. Slider is the first view. The divider and the view radios are Web Awesome's,
- * and this module loads Web Awesome with itself, so every view takes the first press
- * the reader makes once the page shows. That puts Web Awesome's bundle on the startup
- * path; loading it after presentation kept it off, but left the radios inert until it
- * arrived. Pixels needs only the two images, so choosing it shows the view at once,
- * and the view paints its mask when that is computed; masks are computed only on
- * selection. The divider's exact position survives switching views. Replacing either capture refreshes evidence inside the
- * retained controls and viewports, preserving the reader's inspection.
+ * the focus rectangle. Pixel comparison runs after presentation, one comparison at a
+ * time and a frame apart, so a page of shots stays responsive. A difference reading
+ * waits its turn; a mask the reader pressed for goes to the front and waits only for
+ * the comparison already running. Slider is the first view. The divider and the view
+ * radios are Web Awesome's, and this module loads Web Awesome with itself, so every
+ * view takes the first press the reader makes once the page shows. That puts Web
+ * Awesome's bundle on the startup path; loading it after presentation kept it off, but
+ * left the radios inert until it arrived. Pixels needs only the two images, so choosing
+ * it shows the view at once and says it is finding the changed pixels until the mask is
+ * computed, since a greyed image with no mask would read as a pair with no changes.
+ * Masks are computed only on selection. The divider's exact position survives switching
+ * views. Replacing either capture refreshes evidence inside the retained controls and
+ * viewports, preserving the reader's inspection.
  * `difference` reads the requested pair, with its `description` in words; a superseded
  * or refused load resolves null.
  * Pair's images are original-image links using the shared viewer; dragging or
@@ -71,16 +75,25 @@ import {
 } from "/runtime/widget-api.js";
 import "/vendor/webawesome.esm.js";
 
-/** @type {Promise<unknown>} */
-let comparing = Promise.resolve();
-/** @template T @param {() => T | PromiseLike<T>} work */
-const inTurn = (work) => {
-  const turn = comparing
-    .then(() => new Promise((resolve) => nextFrame(() => resolve(undefined))))
-    .then(work);
-  comparing = turn.catch(() => {});
-  return turn;
+/** @type {(() => Promise<void>)[]} */
+const turns = [];
+let comparing = false;
+const takeTurns = async () => {
+  comparing = true;
+  while (turns.length) {
+    await new Promise((resolve) => nextFrame(() => resolve(undefined)));
+    await turns.shift()?.();
+  }
+  comparing = false;
 };
+/** @template T @param {() => T | PromiseLike<T>} work @param {boolean} [pressed] @returns {Promise<T>} */
+const inTurn = (work, pressed = false) =>
+  new Promise((resolve, reject) => {
+    const turn = () => Promise.resolve().then(work).then(resolve, reject);
+    if (pressed) turns.unshift(turn);
+    else turns.push(turn);
+    if (!comparing) void takeTurns();
+  });
 import { shotBox } from "./shot-view.js";
 import {
   compareImagePixels,
@@ -291,7 +304,9 @@ export class Shot extends HTMLElement {
       this.#setPixelUrl(pixels);
       this.#pixelsPainted = pixels ? Promise.resolve() : null;
     }
-    this.#fit();
+    if (this.#drawing.view === "pixels" && !this.#pixelsPainted)
+      void this.#showPixels();
+    else this.#fit();
   }
 
   /** @param {string} name @param {string | null} before @param {string | null} after */
@@ -435,6 +450,7 @@ export class Shot extends HTMLElement {
     if (!this.#pixelsPainted) {
       const images = this.#drawing.images;
       if (images.length !== 2) return;
+      this.#drawing.pixelsPending = true;
       const pending = (this.#pixelsPainted = inTurn(async () => {
         const url = await this.#pixelMask(images);
         if (images !== this.#drawing.images) {
@@ -442,6 +458,8 @@ export class Shot extends HTMLElement {
           return;
         }
         this.#setPixelUrl(url);
+      }, true).finally(() => {
+        this.#drawing.pixelsPending = false;
         this.#paint();
       }));
       void pending.catch((reason) => {

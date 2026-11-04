@@ -1157,15 +1157,18 @@ def screenshot_pixels(page: Page) -> None:
 def screenshot_views_keyboard(page: Page) -> None:
     """The comparison's chosen view holding keyboard focus."""
     screenshot_comparison(page)
-    page.locator("#bg-shot .lf-shot-scale").focus()
-    page.keyboard.press("Shift+Tab")
+    page.locator("#bg-shot .lf-shot-views").get_by_text("Slider", exact=True).evaluate(
+        "node => node.focus({focusVisible: true})"
+    )
+    page.keyboard.press("Shift")  # keyboard modality, which Chromium's focus reads
 
 
 def dial_keyboard(page: Page) -> None:
     """The detail dial's chosen depth holding keyboard focus."""
-    page.locator("lf-dial").get_by_text("Read", exact=True).focus()
-    page.keyboard.press("Tab")
-    page.keyboard.press("Shift+Tab")
+    page.locator("lf-dial").get_by_text("Read", exact=True).evaluate(
+        "node => node.focus({focusVisible: true})"
+    )
+    page.keyboard.press("Shift")  # keyboard modality, which Chromium's focus reads
 
 
 def screenshot_options(page: Page) -> None:

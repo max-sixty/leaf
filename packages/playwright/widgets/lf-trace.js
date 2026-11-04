@@ -74,6 +74,7 @@
  * the disclosure and lands on its destination instead.
  */
 import {
+  alreadyShown,
   generatedElement,
   dragging,
   cancelAnimation,
@@ -111,7 +112,7 @@ import {
   scopedMediaUrl,
   retainUserIntent,
   scrollBehavior,
-  scrollIntoReadingBand,
+  scrollIntoView,
   setChildren,
   showReadingSubject,
   sizeObserver,
@@ -1469,17 +1470,16 @@ export class Trace extends LeafElement {
     // and moves nothing that already shows it.
     if (this.#targets.get(id)?.node) {
       const row = this.#inventory.find((part) => part.id === id)?.element;
-      if (row) scrollIntoReadingBand(row, row, "nearest", scrollBehavior());
+      if (row) scrollIntoView(row, { block: "nearest", behavior: scrollBehavior() });
       return;
     }
-    const view = this.#nodes.viewport.getBoundingClientRect();
-    if (this.#pictureId && !(view.top >= 0 && view.bottom <= innerHeight))
-      scrollIntoReadingBand(
-        this.#nodes.stage,
-        this.#nodes.stage,
-        "center",
-        scrollBehavior(),
-      );
+    // The moment's picture comes to the middle of the window where the user does not
+    // already see it whole, as a pane or the floating panel can keep it from them.
+    if (this.#pictureId && !alreadyShown(this.#nodes.viewport))
+      scrollIntoView(this.#nodes.stage, {
+        block: "center",
+        behavior: scrollBehavior(),
+      });
   }
 
   #stream() {

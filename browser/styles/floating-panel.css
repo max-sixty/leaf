@@ -888,8 +888,8 @@
   }
 
   /* ---------- an opened view: its head line over it, a list's tabs at its foot ---------- */
-  /* Drawn only while a view is open, since it stands over the page while it is
-     (geometry.js, `declareOccluder`). */
+  /* Drawn only while a view is open, since it covers the page while it is
+     (geometry.js, `declareCover`). */
   /* A symbol in a view stands as tall as the panel's other presses, a line under a
      finger (`--lf-fp-press`). */
   .lf-fp-opened {

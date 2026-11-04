@@ -2513,9 +2513,11 @@ FOOT = """([parts, fromEnd]) => {
 
 
 def test_an_open_view_covers_the_page_beneath_it(browser, serve):
-    """What a view open above the row stands over is hidden from every reading of what
-    the user sees (geometry.js, `declareOccluder`): a paragraph under it reads as seen
-    only beside it, and whole again once the view is put away."""
+    """The floating panel declares the one box it covers (geometry.js, `declareCover`),
+    and what a view open above the row covers is hidden from every reading of what the
+    user sees: a paragraph in the band the view stands across reads as unseen while the
+    view is open, though part of it stands beside the view, since the user sees it only
+    in pieces there; and it reads whole again once the view is put away."""
     page = floating(browser, serve(LONG_PAGE, comments=12))
     seen = """async () => {
       const {seenRect} = await window.__lfCheckApi();
@@ -2525,17 +2527,18 @@ def test_an_open_view_covers_the_page_beneath_it(browser, serve):
         return box.top > view.top + 20 && box.bottom < view.bottom - 20;
       });
       window.under = under;
-      const shown = seenRect(under, new Map());
-      return {view: {left: view.left, top: view.top, right: view.right,
-                     bottom: view.bottom}, shown};
+      const box = under.getBoundingClientRect();
+      return {view: {left: view.left, right: view.right},
+              under: {left: box.left, right: box.right},
+              shown: seenRect(under, new Map())};
     }"""
     open_threads(page)
     expect(page.locator(".lf-fp-thread")).to_have_count(12)
     settled(page)
     reading = page.evaluate(seen)
-    view, shown = reading["view"], reading["shown"]
-    assert shown, reading
-    assert shown["right"] <= view["left"] or shown["left"] >= view["right"], reading
+    view, under = reading["view"], reading["under"]
+    assert under["left"] < view["left"] or under["right"] > view["right"], reading
+    assert reading["shown"] is None, reading
 
     page.keyboard.press("Escape")
     expect(page.locator(".lf-fp-view")).to_have_count(0)
@@ -2548,6 +2551,80 @@ def test_an_open_view_covers_the_page_beneath_it(browser, serve):
         }"""
     )
     assert whole
+
+
+def test_a_tab_into_a_popover_over_an_open_view_leaves_the_view_open(browser, serve):
+    """The top layer paints over the panel, so a popover standing over an open view is
+    in front of the user and the panel's cover takes none of it (geometry.js,
+    `covered`): a Tab's arrival there leaves the view open, as it does a stop the view
+    stands clear of."""
+    popover = (
+        '<div id="pop" popover="manual" style="position:fixed;inset:auto 0 120px 0;'
+        'margin:0 auto;width:360px"><button id="in-pop">Inside</button></div></main>'
+    )
+    page = floating(
+        browser, serve(LONG_PAGE.replace("</main>", popover, 1), comments=12)
+    )
+    open_threads(page)
+    expect(page.locator(".lf-fp-thread")).to_have_count(12)
+    settled(page)
+    reading = page.evaluate(
+        """async () => {
+          const {seenRect} = await window.__lfCheckApi();
+          const {focusDestination} = await window.__lfWidgetApi();
+          document.querySelector('#pop').showPopover();
+          const button = document.querySelector('#in-pop');
+          const view = document.querySelector('.lf-fp-view').getBoundingClientRect();
+          const box = button.getBoundingClientRect();
+          focusDestination(button, 'step');
+          const seen = seenRect(button, new Map());
+          return {over: box.top < view.bottom && box.bottom > view.top
+                    && box.left < view.right && box.right > view.left,
+                  whole: Boolean(seen) && seen.bottom - seen.top >= box.height - 0.5};
+        }"""
+    )
+    assert reading == {"over": True, "whole": True}
+    expect(page.locator("#in-pop")).to_be_focused()
+    rendered(page)
+    expect(page.locator(".lf-fp-view:not([data-lf-leaving])")).to_have_count(1)
+
+
+def test_an_arrival_the_opening_view_will_cover_puts_it_away(browser, serve):
+    """Whether the panel stands over an arrival is read where its box comes to rest, not
+    where its motion has drawn it so far (geometry.js, `covered`): a Tab's arrival at a
+    stop at the page's foot while Threads is still opening over it puts the view away,
+    as it does once the view stands open, and the stop ends in sight."""
+    foot = '<p><button id="foot" style="width:100%">At the foot</button></p></main>'
+    page = floating(browser, serve(LONG_PAGE.replace("</main>", foot, 1), comments=12))
+    page.evaluate(
+        "() => scrollTo({top: document.scrollingElement.scrollHeight,"
+        " behavior: 'instant'})"
+    )
+    scroll_settled(page)
+    page.locator(".lf-floating-panel").evaluate(
+        """host => {
+          for (const motion of ["--lf-motion-disclosure", "--lf-motion-box-resize",
+                                "--lf-motion-view-in"])
+            host.style.setProperty(motion, "3s");
+        }"""
+    )
+    dev_browser.open_threads(page)
+    page.evaluate(
+        """async () => {
+          const {focusDestination} = await window.__lfWidgetApi();
+          focusDestination(document.querySelector('#foot'), 'step');
+        }"""
+    )
+    expect(page.locator(".lf-fp-view:not([data-lf-leaving])")).to_have_count(0)
+    seen = page.evaluate(
+        """async () => {
+          await Promise.all(document.getAnimations().map((motion) => motion.finished
+            .catch(() => {})));
+          const {seenRect} = await window.__lfCheckApi();
+          return Boolean(seenRect(document.querySelector('#foot'), new Map()));
+        }"""
+    )
+    assert seen
 
 
 def test_a_page_s_own_conversation_reader_takes_the_panel_s_threads(browser, serve):

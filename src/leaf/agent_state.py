@@ -424,7 +424,7 @@ def page_state(
         assert active is not None and registry is not None
         browser = served["browser"]
         view = browser["views"][str(active["revision"])]
-        facts = EventFacts(page_dir, events, registry)
+        facts = EventFacts(page_dir, events, registry, browser["thread_memberships"])
         _apply_document_state(
             state, reading.documents[active["revision"]], stored_data, registry, facts
         )

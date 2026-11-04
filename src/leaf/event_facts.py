@@ -66,13 +66,22 @@ class EventFacts:
 
     Call it with events of `events`, or messages `build_threads` folded from them,
     for their facts by id. `registry` is the page's active one, or None where it
-    doesn't load."""
+    doesn't load. A reader that already holds the log's `thread_memberships`, such as
+    the served state, passes them rather than have them walked again."""
 
-    def __init__(self, page_dir: Path, events: list[dict], registry: dict | None):
+    def __init__(
+        self,
+        page_dir: Path,
+        events: list[dict],
+        registry: dict | None,
+        memberships: dict[str, list[str]] | None = None,
+    ):
         self.page_dir = page_dir
         self.events = events
         self.registry = registry
         self.by_id = {event["id"]: event for event in events}
+        if memberships is not None:
+            self._memberships = memberships
 
     @cached_property
     def within(self) -> dict:
@@ -132,7 +141,10 @@ class EventFacts:
                 facts["names"] = {
                     identity: words.name(event, identity) for identity in says
                 }
-            if revision := self._revisions.get(event["id"]):
+            # Only a rewrite replaces words, so only a rewrite folds the threads for them.
+            if event["kind"] == "edit" and (
+                revision := self._revisions.get(event["id"])
+            ):
                 # The agent answering a rewrite needs to see what it replaced, and
                 # whether those words are a suggestion's exact replacement text.
                 facts["was"] = revision["was"]

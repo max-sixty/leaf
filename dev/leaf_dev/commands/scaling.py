@@ -26,8 +26,8 @@ another. Fitting the cost itself would let fixed work hide that: 30 ms per click
 
 --server times the server's paths on each page instead, in this process with no
 browser (`leaf_dev.server_scaling` names the paths and how it reads them), and names
-each path whose growth fits an exponent above SUPERLINEAR or that takes more than its
-budget at REFERENCE.
+each path whose growth fits an exponent above SUPERLINEAR, and each of a click's paths
+that takes more than its budget at REFERENCE.
 
 --base also measures the merge base with main (or REF), chosen as every A/B command
 chooses its arms (`arms.choose_arms`), so a change shows its exponents beside the

@@ -44,8 +44,11 @@ from pathlib import Path
 from leaf_dev.commands.scaling import REFERENCE, SUPERLINEAR, Collection, exponent
 
 PATHS = ("state", "append", "delivery", "agent", "thread", "activate")
+# A click's paths: admitting its event and the reading the server answers with. Root
+# `AGENTS.md`, "Responsiveness", puts that reading on screen within `BUDGET_MS`, and
+# holds the agent's paths only to growing no faster than the page.
+CLICK = ("append", "state")
 RUNS = 3
-# What a path may take at `REFERENCE`: a click shows the server's reading within it.
 BUDGET_MS = 100
 
 
@@ -310,9 +313,9 @@ def measure(
 
 
 def failures(rows: list[dict]) -> dict[str, dict]:
-    """Each path whose growth above the smallest page fits an exponent past
-    `SUPERLINEAR`, or that takes more than `BUDGET_MS` at `REFERENCE`, with its
-    readings and why it fails."""
+    """Each path of `rows` that breaks root `AGENTS.md`, "Responsiveness", with its
+    readings and why: growth above the smallest page fitting an exponent past
+    `SUPERLINEAR`, or a click's path taking more than `BUDGET_MS` at `REFERENCE`."""
     sizes = [row["n"] for row in rows]
     failed = {}
     for path in PATHS:
@@ -321,18 +324,11 @@ def failures(rows: list[dict]) -> dict[str, dict]:
         readings = [row[path] for row in rows]
         slope = exponent(path, sizes, readings)
         at = dict(zip(sizes, readings, strict=True))
-        why = [
-            *(
-                [f"growth fits exponent {slope:.2f}"]
-                if slope and slope > SUPERLINEAR
-                else []
-            ),
-            *(
-                [f"{at[REFERENCE]:.0f} ms at {REFERENCE}, over {BUDGET_MS} ms"]
-                if at.get(REFERENCE, 0) > BUDGET_MS
-                else []
-            ),
-        ]
+        why = []
+        if slope is not None and slope > SUPERLINEAR:
+            why.append(f"growth fits exponent {slope:.2f}, past {SUPERLINEAR}")
+        if path in CLICK and at.get(REFERENCE, 0) > BUDGET_MS:
+            why.append(f"{at[REFERENCE]:.0f} ms at {REFERENCE}, over {BUDGET_MS} ms")
         if why:
             failed[path] = {"by size": at, "exponent": slope, "why": "; ".join(why)}
     return failed

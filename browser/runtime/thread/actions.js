@@ -7,8 +7,8 @@
    defaults to the active revision; a resumed draft supplies the revision captured
    with its anchor, even after the active document has changed. */
 import { randomId } from "../ids.js";
-import { editable } from "./model.js";
-import { readThreads } from "./state.js";
+import { discussed, editable } from "./model.js";
+import { threadNamed } from "./state.js";
 
 /** @typedef {import("../../types/domain.js").PendingCommand} PendingCommand */
 /** @typedef {ReturnType<typeof import("../pending/dispatch.js").createCommandDispatch>["post"]} Post */
@@ -45,7 +45,10 @@ export function createThreadActions({
   // A visible local thread is a current root while saved history is loading too.
   // Its replies and settlement use the same ledger dependency on that opening send.
   /** @param {string} key */
-  const find = (key) => readThreads().threads.find((thread) => thread.key === key);
+  const find = (key) => {
+    const thread = threadNamed(key);
+    return thread && discussed(thread) ? thread : null;
+  };
 
   /** @param {string} key @param {string} text @param {{attempt?: string}} [options] */
   const reply = (key, text, { attempt } = {}) => {

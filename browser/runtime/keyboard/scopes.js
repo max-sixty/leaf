@@ -48,7 +48,6 @@ import {
   declaredBindings,
   titleOf,
   descriptionOf,
-  declaresCommandHandler,
   live,
   parsed,
   spokenBinding,
@@ -317,11 +316,7 @@ function wireButton(control) {
 function wireDeclaredButtons(scope) {
   if (scope.contextual || scope.sequence) return;
   for (const row of scope.rows) {
-    if (
-      (!declaresCommandHandler(row, "run") && !declaresCommandHandler(row, "runKey")) ||
-      typeof row.routes === "function"
-    )
-      continue;
+    if ((!row.run && !row.runKey) || typeof row.routes === "function") continue;
     for (const entry of row.routes?.length ? row.routes : [row]) {
       const control = entry.control ?? row.control;
       if (control instanceof HTMLButtonElement && !projectedOnto(control, scope))

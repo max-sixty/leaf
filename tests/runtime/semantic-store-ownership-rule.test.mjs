@@ -1,27 +1,14 @@
+/* What `architecture/semantic-store-ownership` refuses (eslint.config.mjs). */
+
 import assert from "node:assert/strict";
 import test from "node:test";
 import { parse } from "acorn";
 import { semanticStoreOwnershipRule } from "../../eslint.config.mjs";
+import { ruleReports } from "./lint-rule.mjs";
 
-function reportsFor(source, filename = "browser/runtime/example-store.js") {
-  const reports = [];
-  const visitors = semanticStoreOwnershipRule.create({
-    filename,
-    report(finding) {
-      reports.push(finding.message);
-    },
-  });
-  const visit = (node) => {
-    if (!node || typeof node !== "object") return;
-    visitors[node.type]?.(node);
-    for (const value of Object.values(node)) {
-      if (Array.isArray(value)) value.forEach(visit);
-      else if (value?.type) visit(value);
-    }
-  };
-  visit(parse(source, { ecmaVersion: "latest", sourceType: "module" }));
-  return reports;
-}
+// The messages the rule reports on `source` in `filename`.
+const reportsFor = (source, filename = "browser/runtime/example-store.js") =>
+  ruleReports(semanticStoreOwnershipRule, source, { filename });
 
 test("semantic publisher ownership closes every browser framework import path", () => {
   assert.equal(

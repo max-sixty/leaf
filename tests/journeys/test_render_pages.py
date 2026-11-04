@@ -20,7 +20,6 @@ from render_cases_widgets import (
 from render_harness import (
     ANCHOR_SOURCES,
     INLINE_PAGE,
-    PANEL_THREAD,
     leaf_page,
     open_page,
     page_registry,
@@ -42,6 +41,7 @@ from leaf.passages import enclosing_ids, page_passages
 from leaf.registry import storage as registry_storage
 from leaf.render_checks import wait_until_ready
 from leaf.render_gate import version as render_gate_model
+from leaf_dev.browser import PANEL_THREAD
 from leaf_dev.example_data import authored_sources, named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed

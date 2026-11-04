@@ -21,7 +21,6 @@ from render_cases_navigation import (
     OVER_WORDS,
 )
 from render_harness import (
-    PANEL_THREAD,
     RELEASE_FOCUS,
     leaf_page,
     open_page,
@@ -30,19 +29,19 @@ from render_harness import (
     panel_field,
     panel_settled,
     regions_side_by_side,
+    reported_browser_errors,
     resized,
     round_trip,
-    said,
     scroll_settled,
     sending,
     suggestion_control,
-    take_browser_errors,
 )
 
 from browser.navigation import expect_walk_position, walk_position
 from browser.threads import open_panel_thread
 from leaf import event_log as events_model
 from leaf.render_checks import rendered
+from leaf_dev.browser import PANEL_THREAD
 from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -406,9 +405,7 @@ def test_a_failed_obligation_reveal_does_not_register_an_arrival(browser, serve)
     rendered(page)
     assert walk_position(page)["text"] == "1 of 4 waiting on me · Options"
     expect(page.locator("#live-question-decision")).to_be_focused()
-    assert [said(error) for error in take_browser_errors(page)] == [
-        "leaf: Presentation failed: obligation reveal probe"
-    ]
+    reported_browser_errors(page, "leaf: Presentation failed: obligation reveal probe")
     round_trip(page)
 
 

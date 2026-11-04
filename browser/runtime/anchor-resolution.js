@@ -7,6 +7,7 @@
  * its context identifies one occurrence.
  */
 
+import { labelWords } from "./words.js";
 import { anchorKey, fragmentId, fragmentKey } from "./anchor-coordinate.js";
 import { documentChanged } from "./semantic-state.js";
 import {
@@ -465,9 +466,8 @@ const controlName = (control) =>
     ? accessibleName(control)
     : ownName(control) ||
       (control.matches(PRESSES)
-        ? (control instanceof HTMLElement ? control.innerText : "")
-            ?.trim()
-            .replace(/\s+/g, " ") || addressableWord(control)
+        ? labelWords(control instanceof HTMLElement ? control.innerText : "") ||
+          addressableWord(control)
         : "");
 /** @param {Element & Partial<Pick<HTMLInputElement, "labels">>} control */
 const controlFaces = (control) => [control, ...(control.labels ?? [])];

@@ -23,6 +23,13 @@
   inherits: true;
   initial-value: 120ms;
 }
+/* A mark moving to where it now stands, such as a tab strip's selection line or a
+   timeline's playhead. */
+@property --lf-motion-mark {
+  syntax: "<time>";
+  inherits: true;
+  initial-value: 160ms;
+}
 @property --lf-motion-agent-arrival {
   syntax: "<time>";
   inherits: true;

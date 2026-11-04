@@ -30,10 +30,9 @@ sources and regenerates their composition before refreshing its page.
 Changes to the watcher's Python, schemas or dependencies need an explicit restart;
 the current preview stays served until then.
 
-The preview serves the selected checkout in place, compiling its kernel there before
-each refresh where a runtime edit left it stale (`current_kernel`); authored-page edits
-compile nothing. A `--user` preview's session runs its hooks and delivery from the
-launching checkout's `bin/leaf`.
+The preview serves the selected checkout in place, with its runtime's source modules,
+so a runtime edit reaches the page with no build. A `--user` preview's session runs its
+hooks and delivery from the launching checkout's `bin/leaf`.
 
 While it runs, a native subscription (`leaf.file_changes`) reports edits.
 Initialization decides whether the layer actually changed; identical saves leave the
@@ -79,7 +78,7 @@ from leaf.publishing import authored_digest, authored_files, write_authored_file
 from leaf.refusals import Refused
 from leaf.schema import LAYER_FILE, PACKAGES_DIR
 from leaf_dev import ROOT
-from leaf_dev.commands.distribution import compiler_root, current_kernel
+from leaf_dev.commands.distribution import compiler_root
 from leaf_dev.example_data import (
     capture_file,
     data_companion,
@@ -518,7 +517,6 @@ def refresh_preview(
     """
     try:
         refresh_composition(source)
-        current_kernel(runtime)
         fixture = read_fixture(source, runtime=runtime)
         incoming = incoming_files(source)
         incoming_digest = authored_digest(incoming)
@@ -840,7 +838,6 @@ def serve_preview(
     service = None
     changes = None
     try:
-        current_kernel(runtime)
         state["serving"] = serving_identity(runtime)
         prepared_page = None
         if resumed:
@@ -1173,7 +1170,6 @@ def export_preview(
     from leaf_dev.arms import run_directory
 
     out_dir = run_directory(TMP / "exports")
-    current_kernel(runtime)
     with tempfile.TemporaryDirectory(prefix="preview-export-", dir=TMP) as staging:
         page = Path(staging) / "page"
         prepared = prepare_page(

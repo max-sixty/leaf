@@ -80,7 +80,6 @@ from leaf_dev.arms import (
     serving,
 )
 from leaf_dev.browser import WINDOWS, go_to_threads, headless_shell
-from leaf_dev.commands.distribution import current_kernel
 from leaf_dev.example_data import named_source
 from leaf_dev.main_thread import SCRIPT as MAIN_THREAD_SCRIPT
 from leaf_dev.main_thread import main_thread
@@ -478,7 +477,6 @@ def served(
 ):
     """Build `source` into a page with `arm_dir`'s launcher, serve it, and open a tab,
     profiling each transition into `profiled` where given."""
-    arm_dir = current_kernel(arm_dir)
     state = scratch / f"{arm}-{source}-state"
     page_dir = scratch / f"{arm}-{source}" / "page"
     build_source(arm_dir, state, named_source(source), page_dir)

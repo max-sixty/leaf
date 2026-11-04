@@ -479,7 +479,7 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
     )
     for n, thread in enumerate(threads, start=1):
         open_panel_thread(page, thread)
-        page.locator(".lf-fp-settle").click()
+        page.locator(".lf-fp-thread-controls :is(.lf-resolve, .lf-reopen)").click()
         expect_open_threads(page, 2 - n)
     open_panel_thread(page, threads[0]).focus()
     surfaces_name_what_runs()

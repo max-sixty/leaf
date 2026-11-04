@@ -439,6 +439,13 @@ const holding = (box) => {
 /** @param {Element} box */
 export const scrollGoal = (box) =>
   Math.max(0, Math.min(scrollLimit(box), holding(box)?.goal ?? box.scrollTop));
+// Whether `box` stands at its end with no glide taking it away. A glide a press has just
+// started may not have moved the box yet, since its first frame can write where the box
+// already stands. A keeper that read that box as following its end would put it back
+// there and stop the glide, and the press would do nothing.
+/** @param {Element} box */
+export const followsEnd = (box) =>
+  atScrollEnd(box) && atScrollEnd(box, scrollGoal(box));
 // Run `then` once the scroll a key has the browser drive in `box`, as Space's and
 // PageDown's are, has ended, and say whether it waits. A step pressed while others wait
 // on the box joins them, so they run in the order pressed, and none of them runs if Leaf

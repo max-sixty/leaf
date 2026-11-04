@@ -2,14 +2,16 @@
 
    A settlement's landing is the surface's own: `prepareLanding` returns the step that
    carries the user where the gesture leaves them, which may be away from the thread.
-   The surface also names the reader the user had the thread in (`reader`): the page,
-   for a margin card, or the primary reader, for the floating panel's view. The way
-   back reopens the thread there (undo.js, `returnToThread`), since a route left to
-   choose would choose for the thread as it stands: it put a thread resolved in its
-   card in the panel, where resolved threads open, and one resolved in the panel's
-   view in a card beside its passage. A seat names none, since a route to the thread
-   finds it in the seat it stands in. A primary reader's part draws the same card as a
-   seat and names none either; a route to the thread asks the primary first. The log
+   The thread's container also names the reader the user had the thread in (`reader`,
+   thread-card.js, `ViewOutlets`): the page, for a margin card, or the primary reader,
+   for a whole thread there that lands the user elsewhere, as the floating panel's view
+   does. The way back reopens the thread there (undo.js, `returnToThread`), since a
+   route left to choose would choose for the thread as it stands: it put a thread
+   resolved in its card in the panel, where resolved threads open, and one resolved in
+   the panel's view in a card beside its passage. A seat names none, since a route to
+   the thread finds it in the seat it stands in. A primary reader's part that leaves the
+   user where they pressed draws the same card as a seat and names none either; a route
+   to the thread asks the primary first. The log
    refusing the gesture takes the way back
    here, while the user has not acted since; undo.js keeps the reader for `z` and the
    notice's Undo (`retainGesture`), and the landing arms `z` to take the gesture in

@@ -938,7 +938,7 @@ diff --git a/README.md b/README.md
         },
     ]
     second = open_panel_thread(page, comments[1]["id"])
-    expect(second.locator(".lf-fp-quote")).to_have_text(
+    expect(second.locator(".lf-thread-quote")).to_have_text(
         "app.py · new line 2 · “request.token.id”"
     )
     page.locator(".lf-fp-close").click()
@@ -962,7 +962,9 @@ diff --git a/README.md b/README.md
     for comment in comments:
         view = open_panel_thread(page, comment["id"])
         expect(view.locator(".lf-anchor-status")).to_have_text("Earlier data")
-        assert view.locator(".lf-fp-quote").get_attribute("data-lf-detached") is None
+        assert (
+            view.locator(".lf-thread-quote").get_attribute("data-lf-detached") is None
+        )
 
 
 def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(browser, serve):

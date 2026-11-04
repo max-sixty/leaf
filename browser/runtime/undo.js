@@ -14,19 +14,18 @@
    floating panel's menu row and the notice its undo leaves ("Undo: resolved “Rollout
    safety” · 3d ago", then "Undid: resolved “Rollout safety” · 3d ago"), in
    every tab and after a reload. A thread goes by its name as it stands now, a rewrite
-   by the words it replaced, a message by the words it was sent with, a to-do by its
-   title and a reaction by where it stands, all of which the page already holds. An action's ids are words only in
-   the document it was made in, so the server serves what the head did in that
-   document's words (`gesture`, `GestureWords.gesture`), and the widget goes by its
-   name on this page.
+   by the words it replaced, a message by the words it was sent with and a reaction by
+   where it stands, all of which the page already holds. An action's ids are words only
+   in the document it was made in, so the server serves what the head did in that
+   document's words (`gesture`, `GestureWords.gesture`), and the widget goes by its name
+   on this page.
    An exact control's older entry carries no such reading, so its undo names only the
    widget. The age is the gesture's own `ts`, worded by the page's one clock (`ago`).
 
    `z` leaves the user at what it takes back, the gesture's place: the thread a
    settlement or reaction is in, the message a rewrite changed or the user sent, the
-   message holding a widget an agent sent, or the element changed. A to-do's Done changes only the leaf's
-   own rows, which stand in front of the user, so it has none. A press reaches the place
-   one of three ways:
+   message holding a widget an agent sent, or the element changed. A press reaches the
+   place one of three ways:
 
    - Where the user sees it, the press takes the gesture there.
    - Where the place is out of view, the press shows it and takes nothing, so `z`
@@ -99,7 +98,7 @@ import { eventSource } from "./pointer.js";
 import { raiseError } from "./errors.js";
 
 /** @template E
- * @typedef {E extends unknown ? Pick<E, Extract<keyof E, "id" | "kind" | "attempt" | "token" | "anchor" | "parent" | "message" | "text" | "widget" | "todo" | "outcome" | "ts">> : never} GestureFields
+ * @typedef {E extends unknown ? Pick<E, Extract<keyof E, "id" | "kind" | "attempt" | "token" | "anchor" | "parent" | "message" | "text" | "widget" | "ts">> : never} GestureFields
  */
 /** The fields a withdrawal reads, shared by an admitted event and a locally drawn gesture.
  * @typedef {import("../types/contract.js").CompleteUnion<GestureFields<ReturnType<typeof import("./thread/state.js").allThreads>[number]["root"] | import("./pending/dispatch.js").UndoCandidate | import("./framework/snapshot.js").Immutable<import("../types/domain.js").Event | import("../types/domain.js").Message>>>} UndoEvent
@@ -145,13 +144,6 @@ function actionWords(event, gesture) {
   }
 }
 
-/** @type {Record<"done" | "failed" | "dropped", (title: string) => string>} */
-const TODO_ENDINGS = {
-  done: (title) => `marked ${title} done`,
-  failed: (title) => `marked ${title} failed`,
-  dropped: (title) => `dropped ${title}`,
-};
-
 // What a gesture did, in the words the page holds for it now.
 /** @param {UndoEvent} event @param {Gesture | undefined} gesture */
 function gestureWords(event, gesture) {
@@ -174,10 +166,6 @@ function gestureWords(event, gesture) {
     case "comment":
     case "reply":
       return `${event.kind === "comment" ? "commented" : "replied"} ${event.text ? quoted(event.text, 48) : "with a drawing"}`;
-    case "todo_end": {
-      const todo = runtime.todos.find(({ id }) => id === event.todo);
-      return TODO_ENDINGS[event.outcome](todo ? quoted(todo.title) : "a to-do");
-    }
     default:
       return actionWords(event, gesture);
   }
@@ -185,9 +173,8 @@ function gestureWords(event, gesture) {
 
 // Where taking `event` back shows on the page: the thread it settled or reacted in, the
 // message a rewrite changed or the user sent, a widget an agent sent in a message (its
-// message is its place), or the element it changed. A to-do's Done changes only the leaf's own rows,
-// which stand in front of the user, so it has no place. A rewrite changes only its
-// message's words, so the thread's passage or marker in view doesn't show it.
+// message is its place), or the element it changed. A rewrite changes only its message's
+// words, so the thread's passage or marker in view doesn't show it.
 /** @param {UndoEvent} event @returns {UndoPlace | null} */
 function placeOf(event) {
   const message =

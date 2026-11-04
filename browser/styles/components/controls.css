@@ -54,10 +54,10 @@
 }
 /* The reaction face (control-faces.js, `ACTION_FACES`): a reaction's token in a
    message's strip, at the chip's compact metrics. A reaction elsewhere wears its
-   seat's role: the margin's entry (base.css) and the response bar's choice
-   (response.css). What every reaction shares wherever it stands, its glyph laid out
-   and its word held up under a press, keys on the token's own class (`.lf-react`,
-   below). A strip's reactions stand 4px apart, closer than a control's ring reaches,
+   seat's role: the margin's entry (below) and the response bar's choice, whose
+   reactions are its toggles (`aria-pressed`). What every reaction shares wherever it
+   stands, its glyph laid out and its word held up under a press, keys on the token's
+   own class (`.lf-react`, below), and draws no face. A strip's reactions stand 4px apart, closer than a control's ring reaches,
    so the ring stands on a reaction's edge (base.css, "Where it stands"). */
 .lf-reaction {
   appearance: none;
@@ -69,12 +69,7 @@
   font: var(--font-chip);
   --lf-ring-at: 0;
 }
-/* A message's controls are symbols (`.lf-icon-action`, below), as the thread's own
-   are beside them; one whose picker is open keeps the chip while the picker shows. */
-.lf-msg-control[aria-expanded="true"] {
-  background: var(--chip);
-  color: var(--ink);
-}
+
 .lf-react {
   display: inline-flex;
   align-items: center;
@@ -83,26 +78,26 @@
   min-width: max(26px, var(--aim-floor));
 }
 /* A reaction's states, wherever one shows them: a strip's token, and a reaction among
-   the response bar's choices, whose role keeps only its own resting ground
-   (response.css). The margin draws a reaction as an entry (base.css). */
-:is(.lf-reaction, .lf-response-face.lf-react) {
+   the response bar's choices, whose role keeps only its own resting ground (the
+   response face, below). The margin draws a reaction as an entry (below). */
+:is(.lf-reaction, .lf-response-face[aria-pressed]) {
   color: var(--muted);
   border-color: transparent;
   background: transparent;
 }
-:is(.lf-reaction, .lf-response-face.lf-react):is(:hover, [data-lf-focus]) {
+:is(.lf-reaction, .lf-response-face[aria-pressed]):is(:hover, [data-lf-focus]) {
   color: var(--ink-2);
   border-color: var(--border-2);
   background: var(--chip);
 }
 /* A reaction the user added wears the accent, so it reads as theirs even alone in the
    closed strip, and its tint deepens under the pointer as a neighbour's chip rises. */
-:is(.lf-reaction, .lf-response-face.lf-react)[aria-pressed="true"] {
+:is(.lf-reaction, .lf-response-face[aria-pressed])[aria-pressed="true"] {
   color: var(--accent);
   border-color: var(--accent);
   background: var(--accent-tint);
 }
-:is(.lf-reaction, .lf-response-face.lf-react)[aria-pressed="true"]:is(
+:is(.lf-reaction, .lf-response-face[aria-pressed])[aria-pressed="true"]:is(
     :hover,
     [data-lf-focus]
   ) {
@@ -113,17 +108,20 @@
    otherwise one glyph. The word is the choice's own name, so it says what the accessible
    name says, and it stands above the choice, where the finger pressing it does not cover
    it. The press owns the gesture, so it neither scrolls nor opens the platform's
-   long-press menu; a margin choice says its word through its own label (base.css). */
+   long-press menu. A reaction offered in the margin is a margin entry, which says its
+   word through its own label (the entry face, below) and, like every entry, lets a
+   finger that starts on it scroll the page. */
 .lf-react {
   touch-action: none;
   -webkit-touch-callout: none;
   user-select: none;
   -webkit-user-select: none;
-}
-.lf-react:not(.lf-margin-entry) {
   position: relative;
 }
-.lf-react:not(.lf-margin-entry):is([data-lf-held-word], [data-lf-focus])::after {
+:is(.lf-reaction, .lf-response-face[aria-pressed]):is(
+    [data-lf-held-word],
+    [data-lf-focus]
+  )::after {
   content: attr(aria-label);
   position: absolute;
   z-index: 5;
@@ -252,7 +250,6 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border-radius: var(--r);
   opacity: var(--lf-msg-offered, 0);
   cursor: pointer;
 }
@@ -617,12 +614,14 @@ summary,
 /* The faces of Leaf's control roles, one face each. A widget builds a control by its
  * role (`offerAction`), and control-faces.js (`ACTION_FACES`) lists the roles, is the one
  * place a role's classes are spelled and says what each role is for. Each face holds
- * across document and shadow trees; a package places a control and may set its
- * density, the line a word or an answer stands (`--lf-line`) and a symbol's face
- * (`--lf-icon-action-face`), but restates none of its face, so a surface's own
- * presses, the floating panel's included, stand beside its neighbours' alike. One face
- * stands elsewhere, the entry's, in base.css beside the margin it is drawn for, and the
- * response face extends the response bar's shared frame in response.css.
+ * across document and shadow trees, and is drawn only here: a press's ink, ground,
+ * frame and lift, keyed by its role's class and the attributes it declares, its states
+ * and the variants control-faces.js names. A package places a control and may set its
+ * type and density, the line a word or an answer stands (`--lf-line`) and a symbol's
+ * face (`--lf-icon-action-face`), but restates none of its face, so a surface's own
+ * presses, the floating panel's included, stand beside its neighbours' alike
+ * (`test_a_press_wears_its_role_s_face_alone`). The response face wears the response
+ * bar's shared frame (response.css), as the field there does.
  *
  * The word face: words in the muted ink with no frame, until a hovering pointer or
  * visible focus lays the chip under them and inks them. A press leaves focus on the
@@ -638,7 +637,10 @@ summary,
  * and a finger's floor is the button's reach (surfaces.css), so a rule restating the
  * padding restates the line with it. */
 :is(.lf-btn, .button) {
-  padding: max(4px, (var(--lf-line) - 1lh) / 2 - 1px) 10px;
+  /* How far its words stand in from its edge, which a seat that sets a word at the
+     start of a line hangs into the margin, so the words align with the line's. */
+  --lf-word-inset: 11px;
+  padding: max(4px, (var(--lf-line) - 1lh) / 2 - 1px) calc(var(--lf-word-inset) - 1px);
   border: 1px solid transparent;
   border-radius: var(--r);
   background: transparent;
@@ -803,6 +805,18 @@ summary,
     box-shadow: none;
   }
 }
+/* A symbol in the accent's tone (`data-lf-tone`) is the commit of what it stands in,
+   such as the composer's Send and a rewrite's Save, and keeps the accent under the
+   pointer; disabled, it takes the quiet ink. */
+.lf-icon-action[data-lf-tone="accent"]:not(:disabled, [aria-disabled="true"]) {
+  color: var(--accent);
+}
+/* A symbol whose menu, picker or popover is open (`aria-expanded`), such as a
+   message's reaction picker or the panel's leaf menu, keeps the chip while it shows. */
+.lf-icon-action[aria-expanded="true"] {
+  background: var(--chip);
+  color: var(--ink);
+}
 /* A symbol on a vendor control, Copy, wears the face on its host, which holds no line
    of words of its own; the button inside fills the face and takes the press. The host
    stretches the vendor's unparted wrapper, which would otherwise shrink to the icon
@@ -832,6 +846,13 @@ wa-copy-button.lf-icon-action {
   border-color: color-mix(in srgb, var(--accent) 45%, var(--card));
   background: var(--card);
 }
+/* A commit pressed, such as a multiple-choice question's Done once it is answered,
+   is marked in the ok tone, as a chosen answer is (below). */
+:is(.lf-btn, .button).primary[aria-pressed="true"] {
+  color: var(--ok-ink);
+  border-color: var(--ok);
+  background: var(--ok-tint);
+}
 @media (hover: hover) {
   :is(.lf-btn.lf-commit, .button.primary):not(:disabled, [aria-disabled="true"]):hover {
     background: var(--accent-tint);
@@ -851,10 +872,9 @@ wa-copy-button.lf-icon-action {
   border-color: var(--border-2);
 }
 /* A toggle's selected face, a word's or a symbol's: a full accent border on the chip
-   ground. It is the faces' own state, so it stands here beside them, ahead of every
-   component that dresses a face further: a glyph action, a symbol whose state its own
-   disc shows, such as Dictate listening (response.css), restates the state on its
-   disc and keeps its box clear, which a later sheet holding this rule overrode. */
+   ground. It is the faces' own state, so it stands here beside them; a disc, which
+   shows its state on its disc, such as Dictate listening, keeps its box clear (the
+   disc, below). */
 :is(.lf-btn, .button, .lf-icon-action):is(
   [aria-pressed="true"],
   [aria-checked="true"]
@@ -862,6 +882,103 @@ wa-copy-button.lf-icon-action {
   border-color: var(--accent);
   color: var(--accent);
   background: var(--chip);
+}
+/* The disc, a variant of the symbol (`data-lf-disc`): a glyph drawn in its action's
+   own ink, whose state shows on a disc behind it, a square of the face (its
+   `::before`), while its box stays clear: the composer's Send and Dictate, the passage
+   composer's Other responses, and a thread's Resolve and Reopen. The disc is clear at
+   rest and takes its tint under a pointer or visible focus, or while what the press
+   opens shows, as a symbol's chip does; a toggle on (Dictate listening) shows it in
+   the accent. Its ink is its tone (`data-lf-tone`): the quiet ink by default
+   (Dictate, Other responses), the accent for the composer's commit (Send), the full
+   ink (Resolve), the ok tone with its tint for a thread settled (Reopen, drawn done at
+   rest, so the press shows on hover as a deeper disc), and the danger tone for a
+   dictation that failed. Resolve's disc under the pointer is the chip, so a hovered
+   Resolve never looks already done. A press disabled keeps the quiet ink.
+
+   A disc stands on the ground its holder gives it (`--lf-disc-ground`), none by
+   default: a composer whose words run under Send gives its paper, so Send covers the
+   words, and the letters before it fade into that ground (response.css seats the fade,
+   its `::after`); a holder that lights the disc before the press takes a pointer gives
+   its rest a tint (`--lf-disc-rest`). */
+.lf-icon-action[data-lf-disc] {
+  border: 0;
+  background: var(--lf-disc-ground, transparent);
+  box-shadow: none;
+}
+.lf-icon-action[data-lf-disc]::before {
+  content: "";
+  position: absolute;
+  box-sizing: border-box;
+  inline-size: var(--lf-icon-action-face);
+  block-size: var(--lf-icon-action-face);
+  border-radius: var(--r);
+  background: var(--lf-disc-rest, var(--lf-disc-ground, transparent));
+}
+.lf-icon-action[data-lf-disc]:not([aria-pressed="true"])::after {
+  background: linear-gradient(to left, var(--lf-disc-ground), transparent);
+}
+.lf-icon-action[data-lf-disc]:is(
+    :hover,
+    [data-lf-focus-visible],
+    [aria-expanded="true"],
+    [aria-pressed="true"],
+    [aria-checked="true"]
+  ) {
+  border-color: transparent;
+  background: var(--lf-disc-ground, transparent);
+  box-shadow: none;
+}
+.lf-icon-action[data-lf-disc]:not([data-lf-tone]):is(:hover, [aria-expanded="true"]) {
+  color: var(--ink);
+}
+.lf-icon-action[data-lf-disc]:not(:disabled, [aria-disabled="true"]):is(
+    :hover,
+    [data-lf-focus-visible]
+  )::before,
+.lf-icon-action[data-lf-disc]:is(
+    [aria-pressed="true"],
+    [aria-expanded="true"]
+  )::before {
+  background: var(--accent-tint);
+}
+.lf-icon-action[data-lf-disc][aria-pressed="true"] {
+  color: var(--accent);
+}
+.lf-icon-action[data-lf-disc][data-lf-tone="ink"] {
+  color: var(--ink);
+}
+.lf-icon-action[data-lf-disc][data-lf-tone="ink"]:not(
+    :disabled,
+    [aria-disabled="true"]
+  ):is(:hover, [data-lf-focus-visible])::before {
+  background: var(--chip);
+}
+.lf-icon-action[data-lf-disc][data-lf-tone="positive"] {
+  color: var(--ok-ink);
+}
+.lf-icon-action[data-lf-disc][data-lf-tone="positive"]::before {
+  background: var(--ok-tint);
+}
+.lf-icon-action[data-lf-disc][data-lf-tone="positive"]:not(
+    :disabled,
+    [aria-disabled="true"]
+  ):is(:hover, [data-lf-focus-visible])::before {
+  background: color-mix(in srgb, var(--ok-ink) 18%, var(--ok-tint));
+}
+.lf-icon-action[data-lf-disc][data-lf-tone="negative"] {
+  color: var(--danger-ink);
+}
+.lf-icon-action[data-lf-disc][data-lf-tone="negative"]:is(
+    :hover,
+    [data-lf-focus-visible]
+  )::before {
+  background: var(--danger-tint);
+}
+.lf-icon-action[data-lf-disc]:is(:disabled, [aria-disabled="true"]) {
+  opacity: 1;
+  color: var(--muted);
+  cursor: default;
 }
 /* The answer face: one of the answers a question offers, as On me's cards offer a
    decision's choices (floating-panel.js). Each stands in a hairline frame in the ink,
@@ -904,9 +1021,9 @@ wa-copy-button.lf-icon-action {
   margin-inline-end: 6px;
 }
 /* The gutter face: what makes a line's number in a code view's gutter a press that
-   takes a comment on its line, as a diff's do (lf-diff.js). The number keeps the look
-   its code view gives every line's number, a press or not (widget-shadow.css,
-   `.lf-diff-line-number`); the face adds no frame or ground of its own, the hand,
+   takes a comment on its line, as a diff's do (lf-diff.js). The number stands in the
+   code's muted ink, as its code view sets every line's number, a press or not; the
+   face adds no frame or ground of its own, the hand,
    and a + in the accent's tint standing before the number once the keys stand on
    it. Its seat shows the + for the line under the pointer too, and places it over
    the gutter's width. The + stands one band in from its line's edges, clear of the
@@ -916,6 +1033,7 @@ wa-copy-button.lf-icon-action {
   border: 0;
   border-radius: 0;
   background: transparent;
+  color: var(--code-muted);
   cursor: pointer;
 }
 .lf-gutter::before {
@@ -951,6 +1069,37 @@ wa-copy-button.lf-icon-action {
   font: inherit;
   cursor: zoom-in;
 }
+/* Every picture in reading content wears one face: a 1px ring in its surface's edge
+   colour (`--lf-ring`, which a surface on another ground sets) and the lowest lift
+   (tokens.css, `--raise-1`, which an image lies at). A capture whose edge is the
+   ground's colour, such as a screenshot of a white page, then shows where it ends: on
+   the page, in a thread wherever it is drawn, and on a draft's shelf as once it is
+   sent. A box that frames a picture wears the face for it by declaring
+   `.lf-media-frame`, as lf-shot's frame does around a capture it scrolls at 100%, and
+   a picture press that crops or draws its picture is framed (`data-lf-frame`), as a
+   draft's attachment and drawing are. Whatever gives a picture a face
+   of its own, as lf-trace's canvas and the media viewer do, or a page whose figure
+   should have no edge, such as a transparent logo, sets the face's radius, shadow
+   and forced-colours outline in its own rule, which outranks this one. The user chose
+   this on 25 October over leaving each page to frame its own captures, which most
+   pages never did. A picture in markup wears it with the reading face (reading.css);
+   a box that declares `.lf-media-frame` wears it on any page. */
+.lf-media-frame,
+.lf-picture[data-lf-frame] {
+  border-radius: var(--r);
+  box-shadow:
+    0 0 0 1px var(--lf-ring, var(--border-2)),
+    var(--raise-1);
+}
+/* A forced palette drops the ring, so a picture takes a system edge; a focused
+   frame's focus ring outranks it. */
+@media (forced-colors: active) {
+  .lf-media-frame,
+  .lf-picture[data-lf-frame] {
+    outline: 1px solid CanvasText;
+  }
+}
+
 .lf-picture:hover {
   box-shadow: none;
 }
@@ -1004,8 +1153,432 @@ wa-copy-button.lf-icon-action {
   user-select: none;
   -webkit-user-select: none;
 }
+/* The entry face (control-faces.js, `ACTION_FACES`): the pluggable RHS margin entry.
+   Contributors choose glyph, label, tone, and behavior through contributionEntry(),
+   whose host is built by the `entry` role; this declaration owns every visual and
+   interactive constant that makes unlike verbs read as one family. The margin's
+   modules find an entry by `.lf-margin-entry` and never by this face's class.
+
+   Here with the other faces, page-side rather than in chrome.css, where it once was,
+   because a margin entry stands in the page's own margin and a package contributes to
+   it: adopted after the theme, its face beat the rules beside it by nothing better
+   than arriving last, which is why the `…` never took the ink its own rule asked for
+   on hover. The states below stay in document order, each reading the one above it.
+   A surface supplying --lf-entry-ink or --lf-entry-tint, as the user's turn does
+   (base.css), keeps that ink and ground through the shared states without competing
+   with their selector specificity. */
+.lf-margin-face {
+  position: relative;
+  box-sizing: border-box;
+  width: var(--margin-entry);
+  min-width: var(--margin-entry);
+  height: var(--margin-entry);
+  min-height: var(--margin-entry);
+  padding: 0;
+  border: 1px solid var(--border-2);
+  border-radius: var(--r);
+  background: var(--lf-entry-tint, var(--paper));
+  color: var(--lf-entry-ink, var(--ink-2));
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  font: var(--font-heading);
+  line-height: 1;
+  white-space: nowrap;
+  scroll-margin-block: var(--focus-ring-landing);
+  /* On its edge (:root, "Where it stands"), since a cluster's entries stand 4px apart
+     (`--margin-gap`), closer than a control's ring reaches. */
+  --lf-ring-at: 0;
+  /* The raised face a pressable entry wears, beneath any pulse that rings it. */
+  --lf-entry-lift: 0 1px 0 var(--border-2), var(--raise-1);
+}
+/* A margin entry carries one of three promises on the same paper surface.
+   An action's heavier ring and lower shadow say this press acts now; a disclosure's
+   firmer single ring says it opens context; read-only status keeps only the page's
+   ghost hairline. All three keep one silhouette and one place in the cluster,
+   while the static status alone has no raised or responsive material. */
+.lf-margin-face[data-lf-behavior="action"] {
+  border-width: 2px;
+  color: var(--lf-entry-ink, var(--ink));
+  box-shadow: var(--lf-entry-lift);
+}
+.lf-margin-face[data-lf-behavior="disclosure"] {
+  border-color: color-mix(in srgb, var(--ink) 34%, var(--paper));
+  color: var(--lf-entry-ink, var(--ink-2));
+  box-shadow: none;
+}
+/* A change's entry opens its card, a disclosure, but wears an action's raised face, so
+   the one press beside a change reads as a press (margin-bars.js); the user chose it on
+   3 November over the flatter disclosure face. */
+.lf-margin-face[data-lf-behavior="disclosure"][data-lf-kinds="change"] {
+  border-width: 2px;
+  border-color: var(--border-2);
+  color: var(--lf-entry-ink, var(--ink));
+  box-shadow: var(--lf-entry-lift);
+}
+.lf-margin-face[data-lf-behavior="status"] {
+  border-color: var(--rule);
+  color: var(--lf-entry-ink, var(--ink-2));
+  box-shadow: none;
+  cursor: default;
+}
+/* Tone keeps an action's meaning on its icon throughout delivery and agent work. */
+.lf-margin-face[data-lf-tone="positive"]
+  > :is(.lf-margin-entry-icon, .lf-margin-entry-glyph) {
+  color: var(--ok-ink);
+}
+.lf-margin-face[data-lf-tone="negative"]
+  > :is(.lf-margin-entry-icon, .lf-margin-entry-glyph) {
+  color: var(--danger-ink);
+}
+/* Pointer and hover feedback belong to interactive offers. A status keeps its ghost
+   ring in the page-map walk, while its hand and hover response go. */
+.lf-margin-face:is(button, [role="button"]):not([data-lf-behavior="status"]):not(
+    :disabled
+  ):not([aria-disabled="true"]) {
+  cursor: pointer;
+}
+.lf-margin-face:is(button, [role="button"]):not([data-lf-behavior="status"]):hover:not(
+    [aria-disabled="true"]
+  ) {
+  background: var(--lf-entry-tint, var(--chip));
+}
+/* A disclosure says on its own contour and ink that it is about to open, or is open.
+   The keyboard says it too: the Page Map walk lands with [data-lf-focus], and a
+   disclosure the walk has reached is as much about to open as a hovered one. Status
+   never reaches this rule, because inert status takes an interactive accent from
+   neither pointer nor keyboard.
+
+   The ink was stated in base.css, on `.lf-margin-marker` and `.lf-margin-more`, and
+   reached the first and not the second: the marker's selector carried one class more
+   than the resting rule here, and the `…` carried exactly as many, so it lost on this
+   sheet being adopted. One home for the state, and both say the same thing. */
+.lf-margin-face[data-lf-behavior="disclosure"]:is(button, [role="button"]):is(
+    :hover,
+    [data-lf-focus],
+    [aria-expanded="true"]
+  ):not([aria-disabled="true"]) {
+  border-color: var(--accent);
+  color: var(--lf-entry-ink, var(--ink));
+}
+/* A selected page reading and its compact Page Map projection share one accent. Reuse
+   the entry's existing contour: category still owns its weight, and focus can
+   add the one outer ring that says where input will land. */
+.lf-margin-face[data-lf-target-selected] {
+  border-color: var(--accent);
+}
+.lf-margin-face[aria-disabled="true"] {
+  cursor: default;
+}
+/* Unread agent content marks the entry the way it marks the Threads toggle: a dot
+   painted inside the box the entry already reserves, so it adds no width. It sits on
+   the entry's corner, over its border, so a paper ring parts the two. */
+.lf-margin-face[data-lf-unread]::after {
+  content: "";
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline-end: 0;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 2px var(--paper);
+}
+.lf-margin-entry-glyph {
+  line-height: 1;
+}
+.lf-margin-face > .lf-margin-entry-space {
+  display: none;
+}
+.lf-margin-face > .lf-margin-entry-label {
+  position: absolute;
+  z-index: 3;
+  inset-block-start: calc(100% + 6px);
+  inset-inline-end: 0;
+  display: block;
+  width: max-content;
+  max-width: min(320px, 100vw - 8px);
+  padding: var(--tip-pad);
+  border-radius: var(--tip-r);
+  background: var(--tip-bg);
+  color: var(--tip-ink);
+  font: var(--font-tip);
+  white-space: normal;
+  overflow-wrap: anywhere;
+  box-shadow: var(--raise-1);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transform: translateY(-2px);
+  transition:
+    opacity 90ms ease,
+    transform 90ms ease,
+    visibility 0s linear 90ms;
+}
+.lf-margin-entry-label-word,
+.lf-margin-entry-context,
+.lf-margin-entry-more {
+  display: block;
+}
+/* The label is one line, cut where the tooltip's width runs out: most are a kind's
+   word, and an obligation's is its question, which the marker's accessible name also says. */
+.lf-margin-entry-label-word {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.lf-margin-entry-context,
+.lf-margin-entry-more {
+  margin-block-start: 2px;
+  color: color-mix(in srgb, var(--paper) 72%, transparent);
+  font: var(--font-fine);
+}
+/* What the entry's title says beyond the label, such as an agent's work on it. */
+.lf-margin-entry-more:empty {
+  display: none;
+}
+/* Inline controls keep their native label. Physical margin controls take the
+   geometry owner's placement, whose readiness gates their first visible paint. */
+.lf-margin-projection .lf-margin-face[data-lf-label-side] > .lf-margin-entry-label {
+  inset: auto;
+  left: var(--lf-label-x);
+  top: var(--lf-label-y);
+}
+/* Hover reveals the label after a short delay, only where the pointer really hovers: a
+   phone keeps the last tapped entry hovered until the next tap, so there the label
+   would outstay the tap. A finger holds the entry to read it instead (held-word.js),
+   and the focus a tap leaves behind says it only where the keyboard placed it, below. */
+@media (hover: hover) {
+  .lf-margin-face:hover:not([aria-expanded="true"]) > .lf-margin-entry-label {
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(0);
+    transition-delay: 90ms;
+  }
+}
+/* A margin entry held under a press, or a focused destination, says its label at once.
+   Besides avoiding a needless delay for the user, this keeps a contribution that is
+   rebuilt while the margin projection settles from restarting three paint-only
+   transitions at time zero forever. */
+.lf-margin-face:is([data-lf-held-word], [data-lf-focus]:not([aria-expanded="true"]))
+  > .lf-margin-entry-label {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+  transition: none;
+}
+@media (hover: none) {
+  .lf-margin-face[data-lf-focus]:not(:focus-visible, [data-lf-held-word])
+    > .lf-margin-entry-label {
+    opacity: 0;
+    visibility: hidden;
+  }
+}
+.lf-margin-projection
+  .lf-margin-face:not([data-lf-label-side])
+  > .lf-margin-entry-label {
+  opacity: 0;
+  visibility: hidden;
+  transition: none;
+}
+.lf-margin-count {
+  position: absolute;
+  top: -7px;
+  right: -7px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 3px;
+  box-sizing: border-box;
+  border-radius: 999px;
+  border: 1px solid var(--paper);
+  background: var(--ink);
+  color: var(--paper);
+  display: grid;
+  place-items: center;
+  font: var(--font-count);
+}
+/* Margin and Page Map share the same attention reading. Blue is the ordinary
+   thread and work cue; green means it is the user's turn, even when another thread
+   on the same carrier has active agent work. Progress stays in the status words and
+   the one arrival pulse rather than competing for the attention color. */
+:where(
+    .lf-margin-face[data-lf-kinds~="comment"],
+    .lf-page-map-action[data-lf-map-item^="comment:"],
+    .lf-margin-face[data-lf-agent-workflow],
+    .lf-page-map-action[data-lf-agent-workflow]
+  )
+  :is(.lf-margin-entry-icon, .lf-margin-entry-glyph, .lf-margin-kind) {
+  color: var(--accent);
+}
+:is(.lf-margin-face, .lf-page-map-action)[data-lf-turn="user"]
+  :is(.lf-margin-entry-icon, .lf-margin-entry-glyph, .lf-margin-kind) {
+  color: var(--turn-ink);
+}
+/* A row that says the thread's word at its end, in Threads and the Page Map, says the
+   user's turn in the same green. */
+:is(.lf-page-map-action, .lf-fp-thread)[data-lf-turn="user"] > .lf-row-end {
+  color: var(--turn-ink);
+}
+.lf-margin-face[data-lf-turn="user"] {
+  --lf-entry-tint: var(--turn-wash);
+}
+:is(.lf-margin-face, .lf-page-map-action)[data-lf-agent-arrival] {
+  animation: lf-runtime-4f3c2a8d-agent-work-arrival var(--lf-motion-agent-arrival)
+    ease-out var(--lf-agent-arrival-delay, 0ms) 1;
+}
+@keyframes lf-runtime-4f3c2a8d-agent-work-arrival {
+  0% {
+    box-shadow:
+      var(--lf-agent-stage-shadow, 0 0 0 0 transparent),
+      0 0 0 0 color-mix(in srgb, var(--accent) 42%, transparent);
+  }
+  58% {
+    box-shadow:
+      var(--lf-agent-stage-shadow, 0 0 0 0 transparent),
+      0 0 0 7px color-mix(in srgb, var(--accent) 16%, transparent);
+  }
+  100% {
+    box-shadow:
+      var(--lf-agent-stage-shadow, 0 0 0 0 transparent),
+      0 0 0 10px transparent;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  :is(.lf-margin-face, .lf-page-map-action)[data-lf-agent-arrival] {
+    animation: none;
+  }
+}
+/* The arrival pulse keeps the action's existing shadow beneath its transient ring. */
+.lf-margin-face[data-lf-agent-workflow="working"][data-lf-behavior="action"] {
+  --lf-agent-stage-shadow: var(--lf-entry-lift);
+}
+/* Every annotation has the same filled pin face when it stands on the block it is
+   about, over the block's own words, so it is a solid face with the rail marker's
+   corners save one, left square to point into the block, and a paper edge that parts
+   it from whatever it covers. It is smaller than a rail
+   marker with a mouse, because it covers what it stands on, and keeps the full aim floor
+   under a finger, so what the user sees is what they press.
+
+   The fill is the pin, so the states a rail marker paints on its paper take the pin's
+   attention color: an annotation on the user has a green fill; other pins stay blue.
+   The pin is where the row stands, which margin-layout.js writes on it
+   (`data-lf-place`), rather than a look an entry chooses.
+   Shape and fill identify placement, not whether a press acts, opens context, or does
+   nothing. Glyphs and labels retain each entry's meaning; only interactive entries
+   respond to a press or darken on hover. Overflow and revealed actions use this same
+   face. The pin supplies its ink through --lf-entry-ink, so the shared entry states
+   retain it. */
+[data-lf-place="pin"] .lf-margin-face {
+  border-radius: var(--r) var(--r) var(--r) 0;
+  --lf-pin-edge: var(--paper);
+  border: 2px solid var(--lf-pin-edge);
+  background: var(--lf-pin-face, var(--pin-fill));
+  --lf-entry-ink: var(--pin-ink);
+  box-shadow: var(--raise-1);
+}
+[data-lf-place="pin"]
+  .lf-margin-face
+  > :is(.lf-margin-entry-icon, .lf-margin-entry-glyph) {
+  color: var(--lf-entry-ink);
+  inline-size: 14px;
+  block-size: 14px;
+}
+[data-lf-place="pin"]
+  .lf-margin-face:not([data-lf-behavior="status"]):is(button, [role="button"]):is(
+    :hover,
+    [data-lf-focus],
+    [aria-expanded="true"],
+    [data-lf-target-selected]
+  ) {
+  border-color: var(--lf-pin-edge);
+}
+[data-lf-place="pin"]
+  .lf-margin-face:not([data-lf-behavior="status"]):is(button, [role="button"]):is(
+    :hover,
+    [aria-expanded="true"]
+  ):not([aria-disabled="true"]):not(:disabled) {
+  background: color-mix(in srgb, var(--lf-pin-face, var(--pin-fill)) 82%, #000);
+}
+[data-lf-place="pin"] .lf-margin-face[data-lf-turn="user"] {
+  --lf-pin-face: var(--pin-on-user);
+  --lf-entry-ink: var(--pin-on-user-ink);
+}
+/* An entry in force, such as a reaction the user left, stands on the chip, a pin's
+   included, so it follows the pin. */
+.lf-margin-face[aria-pressed="true"] {
+  background: var(--chip);
+}
+/* Comment boxes, the response bar's field (`.lf-response-control`, response.css) and its
+   choices share their frame and focus paint. Other uses of the editor plumbing, such
+   as option entry, supply their own face. Containers place comment boxes; they do not
+   supply a second frame. */
+.lf-comment-box > leaf-composition-field > .lf-compose-field,
+.lf-response-control,
+.lf-response-face {
+  border: 1px solid var(--border-2);
+  border-radius: var(--r);
+  background: var(--card);
+}
+.lf-comment-box
+  > leaf-composition-field
+  > .lf-compose-field:has(> leaf-text[data-lf-focus-visible]),
+.lf-response-control[data-lf-focus-visible],
+.lf-response-face[data-lf-focus-visible] {
+  outline: var(--focus-ring);
+  --lf-ring-at: 0;
+  border-color: transparent;
+  --lf-wears-ring: 1;
+}
+/* Floating comment surfaces have one elevation. The page card reserves the ring's
+   room inside its scrollport; a filter lets its shadow extend beyond that clip. */
+.lf-response-control,
+.lf-response-face {
+  filter: drop-shadow(var(--raise-1));
+}
+/* The field and its choices share height, vertical padding and type. Tab opens
+     the anchored picker without replacing or moving the field.
+     The field can grow with its words without changing its corner. The shared UI
+     supplies the thread’s 14px face and line height; vertical padding keeps
+     that face in the 32px resting box. */
+.lf-response-control,
+.lf-response-face {
+  box-sizing: border-box;
+  min-height: var(--lf-response-height);
+  color: var(--ink-2);
+  font-weight: 400;
+  line-height: inherit;
+  padding-block: var(--lf-compose-pad-block);
+}
+/* The response face (control-faces.js, `ACTION_FACES`): a choice of the response bar,
+   which wears the frame, height and lift the bar's field wears too (above) and lays
+   out its symbol or glyph with its word (widget-elements.js, `responseAction`). A reaction among them, a toggle
+   (`aria-pressed`), wears a reaction's states (above) on the frame's opaque ground
+   while not in force; the others, Comment and Suggest, take the frame's accent edge
+   under the pointer and decline the wash every generated press takes there. */
+.lf-response-face {
+  min-width: max(30px, var(--aim-floor));
+  padding-inline: 9px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.lf-response-face:hover {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--card));
+  background: var(--card);
+}
+.lf-response-face:not([aria-pressed]):hover {
+  box-shadow: none;
+}
+.lf-response-face[aria-pressed]:where(:not([aria-pressed="true"])) {
+  background: var(--card);
+}
 /* The mark face: a small icon press seated on the thing it acts on. It rides a corner of that
-   thing (`.lf-corner-mark`, below), as the floating panel's fold, an attachment's
+   thing (`data-lf-corner`, below), as the floating panel's fold, an attachment's
    removal and a drawing's Undo last stroke do, or stands in a toolbar inside its
    block's corner (`.lf-mark-bar`, integration.css), as a code block's Copy and a
    draft's Edit, Save and Discard do. Every mark wears this one face at one size: the
@@ -1050,12 +1623,21 @@ wa-copy-button.lf-icon-action {
   inline-size: 12px;
   block-size: 12px;
 }
+/* A toolbar of marks (`.lf-mark-bar`, integration.css) is a patch of the card ground in
+   a hairline frame, and so is a mark that stands as a toolbar of its own
+   (`data-lf-bar`), as a code block's Copy does. */
+.lf-mark-bar,
+.lf-mark-action[data-lf-bar] {
+  border: 1px solid var(--border-2);
+  border-radius: var(--r);
+  background: var(--card);
+}
 /* A corner mark stands on a patch of the ground the thing it rides stands on, set off
    by that ground's ring and a lift. An attachment's marks were a dark disc with a
    light cross, which read as a second kind of control for the same gesture. A surface
    whose ground is not the paper sets `--lf-ground` and `--lf-ring` for what it raises;
    each surface places its marks and says when they show. */
-.lf-corner-mark {
+.lf-mark-action[data-lf-corner] {
   position: absolute;
   z-index: 1;
   background: var(--lf-ground);
@@ -1066,7 +1648,7 @@ wa-copy-button.lf-icon-action {
 /* A forced palette drops the ground's ring and lift, so it takes a system edge. A
    toolbar's ground keeps its real border. */
 @media (forced-colors: active) {
-  .lf-corner-mark {
+  .lf-mark-action[data-lf-corner] {
     border: 1px solid ButtonText;
   }
 }
@@ -1229,9 +1811,9 @@ wa-copy-button.lf-icon-action {
    edge to edge; rounded washes left a notch where they met it. Rows were
    drawn six ways, two hovers and four current rows (weight in Versions, an ink wash
    and underline in a visual review, accent words on the tint for a recording's
-   moments), until the user chose this one on 28 October. A list adds only what is
-   its own: Threads lights a thread's passage under the pointer, a timeline mutes the
-   steps still ahead, and the Page Map tints a thread on the user's turn. Rows meeting
+   moments), until the user chose this one on 28 October. What a list adds is one of
+   the row's variants (below): a thread's row lit with its passage under the pointer,
+   a step still ahead muted, and a thread on the user's turn tinted. Rows meeting
    edge to edge leave no room outside one for its ring, so the ring stands inside its
    edge (base.css, "Where it stands"). */
 .lf-row {
@@ -1261,10 +1843,28 @@ wa-copy-button.lf-icon-action {
     background-image: linear-gradient(var(--offer-hover), var(--offer-hover));
   }
 }
+/* A step still ahead of the row a list stands on (`data-lf-ahead`), as a timeline's
+   are, stands in the muted ink. A row whose thread is on the user's turn says so in
+   its words alone (`.lf-row-end`, above), on the row's own ground: a wash would repeat
+   them, and touching turn rows would merge into one band. */
+.lf-row[data-lf-ahead] {
+  color: var(--muted);
+}
+/* A row that is its group's band, as an On list's Done heading is (floating-panel.js,
+   `settledHeading`), takes the band's ink, so it reads as the list's other bands do. */
+.lf-row[data-lf-band] {
+  color: inherit;
+}
 .lf-row[aria-current]:not([aria-current="false"]) {
   border-inline-start-color: var(--accent);
   background-color: var(--accent-tint);
   color: var(--ink);
+}
+/* The row of the thread whose passage the pointer is on (`.lf-mark-hover`,
+   anchor-paint.js, `markRow`) wears that passage's hover wash, so the row and the lit
+   words read as one thread. */
+.lf-row.lf-mark-hover {
+  background: var(--mark-hover);
 }
 /* A row's layout, beside its face: what marks it (`.lf-row-lead`: a dot, a symbol, a
    number or a time), what it names (`.lf-row-main`) and what it says or offers at its

@@ -718,7 +718,6 @@
       "type": "object",
       "properties": {
         "id": { "type": "string" },
-        "owner": { "enum": ["agent", "user"] },
         "subject": { "$ref": "#/$defs/Subject" },
         "title": { "type": "string" },
         "state": { "enum": ["open", "done", "failed", "dropped"] },
@@ -752,7 +751,6 @@
       },
       "required": [
         "id",
-        "owner",
         "subject",
         "title",
         "state",
@@ -1197,22 +1195,12 @@
       "required": ["kind", "id"],
       "additionalProperties": false
     },
-    "TodoObligationSource": {
-      "type": "object",
-      "properties": {
-        "kind": { "const": "todo" },
-        "id": { "type": "string" },
-        "subject": { "$ref": "#/$defs/Subject" }
-      },
-      "required": ["kind", "id", "subject"],
-      "additionalProperties": false
-    },
     "ObligationPrompt": {
       "type": "object",
       "properties": {
         "text": { "type": ["string", "null"] },
         "target": {
-          "description": "Where the user goes to answer: the id of a widget's prompt context, or of the thread or widget an update stands on; null for a message or page-wide task, whose source and thread supply navigation.",
+          "description": "Where the user goes to answer: the id of a widget's prompt context, or of the thread or widget an update stands on; null for a message, whose thread supplies navigation.",
           "type": ["string", "null"]
         }
       },
@@ -1220,7 +1208,7 @@
       "additionalProperties": false
     },
     "Obligation": {
-      "description": "One request and its contained answer (`obligations.py`, which owns the statuses): what a message, user task, or widget waits on the user for, or what a user update is owed (`workflows.handed_over`). The source owns the canonical value; identity includes its kind so authored ids and message ids cannot collide.",
+      "description": "One request and its contained answer (`obligations.py`, which owns the statuses): what a message or widget waits on the user for, or what a user update is owed (`workflows.handed_over`). The source owns the canonical value; identity includes its kind so authored ids and message ids cannot collide.",
       "type": "object",
       "properties": {
         "id": { "type": "string" },
@@ -1228,8 +1216,7 @@
           "anyOf": [
             { "$ref": "#/$defs/WidgetObligationSource" },
             { "$ref": "#/$defs/UpdateObligationSource" },
-            { "$ref": "#/$defs/MessageObligationSource" },
-            { "$ref": "#/$defs/TodoObligationSource" }
+            { "$ref": "#/$defs/MessageObligationSource" }
           ]
         },
         "thread": { "type": ["string", "null"] },
@@ -1349,32 +1336,11 @@
               ]
             }
           }
-        },
-        {
-          "properties": {
-            "source": { "$ref": "#/$defs/TodoObligationSource" },
-            "message": { "type": "null" },
-            "prompt": {
-              "$ref": "#/$defs/ObligationPrompt",
-              "properties": { "text": { "type": "string" } },
-              "required": ["text"]
-            },
-            "answer": {
-              "anyOf": [
-                {
-                  "$ref": "#/$defs/ObligationAnswer",
-                  "properties": { "value": { "enum": ["done", "failed"] } },
-                  "required": ["value"]
-                },
-                { "type": "null" }
-              ]
-            }
-          }
         }
       ]
     },
     "QueueRow": {
-      "description": "One row of On me or On <agent> (`served_state.queues`); `owner` names its list and `live` whether the agent has it in hand now. A record's row names its obligation by `id`, whose record is the view's `obligations` entry, and an agent to-do row names its record in the page's `todos` entry.",
+      "description": "One row of On me or On <agent> (`served_state.queues`); `owner` names its list and `live` whether the agent has it in hand now. A record's row names its obligation by `id`, whose record is the view's `obligations` entry, and a to-do row names its record in the page's `todos` entry.",
       "anyOf": [
         { "$ref": "#/$defs/ObligationRow", "unevaluatedProperties": false },
         { "$ref": "#/$defs/TodoRow", "unevaluatedProperties": false }
@@ -1384,7 +1350,7 @@
       "anyOf": [
         {
           "properties": {
-            "kind": { "enum": ["widget", "message", "todo"] },
+            "kind": { "enum": ["widget", "message"] },
             "owner": { "const": "user" }
           }
         },
@@ -1395,7 +1361,7 @@
       "properties": {
         "kind": {
           "description": "The record's `source.kind`.",
-          "enum": ["widget", "update", "message", "todo"]
+          "enum": ["widget", "update", "message"]
         },
         "id": {
           "description": "The obligation, whose record is the view's `obligations` entry.",
@@ -1423,7 +1389,7 @@
       "required": ["kind", "id", "owner", "subject", "thread", "also", "live"]
     },
     "TodoRow": {
-      "description": "An agent to-do's row in On <agent> (`served_state.queues`).",
+      "description": "A to-do's row in On <agent> (`served_state.queues`).",
       "type": "object",
       "properties": {
         "kind": { "const": "todo" },

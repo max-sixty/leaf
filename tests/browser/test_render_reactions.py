@@ -67,13 +67,17 @@ from leaf_dev.browser import PANEL_THREAD
 pytestmark = pytest.mark.shifts_unsurveyed
 
 MARGIN_RESPONSES = '[data-lf-margin-entry-owner="responses"]'
+# The margin entry of a reaction in force, which discloses its removal.
+REACTION_MARK = (
+    '[data-lf-margin-entry-owner="reactions"][data-lf-behavior="disclosure"]'
+)
 
 # The wash and the glyphs a reaction in force paints, read off the page: the ranges in
 # the highlight registry (their words, whitespace dropped, the way the corpus reads a
 # comment's mark) and every seated glyph by its target and accessible action name.
 PAINTED = """() => ({
   washed: [...(CSS.highlights.get('lf-react') ?? [])].map(r => r.toString().replace(/\\s/g, '')).join(''),
-  glyphs: [...document.querySelectorAll('.lf-margin-cluster .lf-react-mark')]
+  glyphs: [...document.querySelectorAll('.lf-margin-cluster [data-lf-margin-entry-owner="reactions"][data-lf-behavior="disclosure"]')]
     .map(m => [m.closest('[data-lf-margin-for]').dataset.lfMarginFor,
                m.getAttribute('aria-label')]),
   projected: [...document.querySelectorAll('[data-lf-mark]')].length,
@@ -258,7 +262,7 @@ def test_a_token_press_marks_the_passage_and_its_revealed_remove_takes_it_back(
     level = page.evaluate(
         """() => {
           const p = document.querySelector('#how-store').getBoundingClientRect();
-          const receipt = document.querySelector('.lf-margin-cluster .lf-react-mark');
+          const receipt = document.querySelector('.lf-margin-cluster [data-lf-margin-entry-owner="reactions"][data-lf-behavior="disclosure"]');
           const item = receipt.closest('.lf-margin-cluster');
           const g = item.getBoundingClientRect();
           return { dy: g.top - p.top, right: g.left - p.right,
@@ -290,7 +294,7 @@ def test_a_token_press_marks_the_passage_and_its_revealed_remove_takes_it_back(
     page.keyboard.press("e")
     surface = bar
     expect(receipt_item).to_have_count(1)
-    expect(receipt_item.locator(".lf-react-mark")).to_have_count(1)
+    expect(receipt_item.locator(REACTION_MARK)).to_have_count(1)
     expect(receipt_item.locator(MARGIN_RESPONSES)).to_have_count(0)
     expect(surface.locator(".lf-react:visible")).to_have_count(6)
     expect(surface.locator('.lf-react[data-lf-token="shorten"]')).to_have_attribute(
@@ -301,7 +305,7 @@ def test_a_token_press_marks_the_passage_and_its_revealed_remove_takes_it_back(
     )
     page.mouse.click(40, 300)  # the bar down, the reaction's glyph remains
     expect(bar).to_be_hidden()
-    expect(receipt_item.locator(".lf-react-mark")).to_have_count(1)
+    expect(receipt_item.locator(REACTION_MARK)).to_have_count(1)
     mark = receipt_item.get_by_role(
         "button", name="shorten reaction actions", exact=True
     )
@@ -459,7 +463,7 @@ def test_selected_reactions_keep_neutral_button_furniture(browser, serve, scheme
     item = page.locator('.lf-margin-cluster[data-lf-margin-for="reaction-target"]')
 
     def open_margin_reactions():
-        item.locator(".lf-sug-accept").focus()
+        item.locator("[data-lf-margin-entry-key=accept]").focus()
         page.keyboard.press("e")
         expect(item.locator(f"{MARGIN_RESPONSES}:visible")).to_have_count(6)
 
@@ -640,7 +644,7 @@ def test_reactions_raised_from_a_folded_pin_s_toggle_take_the_focus(browser, ser
         page.keyboard.press("Tab")
         if row.evaluate("row => row.contains(document.activeElement)"):
             break
-    expect(row.locator(".lf-sug-accept")).to_be_focused()
+    expect(row.locator("[data-lf-margin-entry-key=accept]")).to_be_focused()
     page.keyboard.press("Escape")
     expect(toggle).to_be_focused()
     page.keyboard.press("e")
@@ -2468,7 +2472,9 @@ def test_a_remote_resolve_disarms_the_open_reply_list_it_takes_away(browser, ser
 
     thread_model.cmd_resolve(serve.page_dir, root)
     told(page)
-    expect(page.locator(".lf-fp-head .lf-thread-news")).to_have_text("Resolved")
+    news = page.locator(".lf-fp-head .lf-thread-news")
+    expect(news).to_have_text("1 new")
+    expect(news).to_have_attribute("title", "Resolved")
     expect(strip.locator(".lf-react-palette:popover-open")).to_have_count(1)
     count = len(events_model.read_events(serve.page_dir))
     page.keyboard.press("1")

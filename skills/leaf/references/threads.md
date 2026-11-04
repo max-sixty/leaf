@@ -203,8 +203,7 @@ their own.
 
 A widget that asks in a message's markup keeps its thread at "Your turn" until the
 user answers it ("Ask for a pick"). A thread you open waits on nobody by itself:
-`--obligation` registers the message's request without markup. A user task attached to the thread instead waits
-for Done; discussing it does not complete it.
+`--obligation` registers the message's request without markup.
 
 Correct a message you or an earlier agent wrote, without adding a turn:
 

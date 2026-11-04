@@ -1261,15 +1261,6 @@ unresolve:
         the thread's latest user message was never answered, `leaf page state <page>
         <message>` shows the `answer` still owed.
 
-Done on a to-do on the user:
-  event:
-    kind: todo_end
-  told:
-    - text: >-
-        The user pressed Done on the to-do `todo`, which ends it and owes no reply.
-        Continue the work it was waiting for; if you still need something from them,
-        ask again.
-
 undo:
   event:
     kind: undo

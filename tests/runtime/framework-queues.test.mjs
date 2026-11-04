@@ -29,11 +29,10 @@ const adopted = (name) => {
 };
 const published = (app) => app.read().effective.queues;
 const kinds = (items) => items.map(({ kind, id }) => [kind, id]);
-// A row as the server listed it, without the workflow, offers and obligation or to-do
-// record this tab joins to it.
+// A row as the server listed it, without the workflow and obligation or to-do record
+// this tab joins to it.
 const listed = ({
   workflow: _workflow,
-  offers: _offers,
   obligation: _obligation,
   todo: _todo,
   ...row
@@ -45,13 +44,13 @@ test("the browser publishes the queues the server selected", () => {
   assert.deepEqual(onUser.map(listed), served.on_user);
   // The server names an obligation's record by id, and this tab joins the row to it.
   for (const row of [...onUser, ...onAgent, ...done].filter(
-    ({ kind, owner }) => kind !== "todo" || owner === "user",
+    ({ kind }) => kind !== "todo",
   ))
     assert.deepEqual(
       row.obligation,
       obligations.find(({ id }) => id === row.id),
     );
-  // Agent work keeps its to-do record; user work is an obligation.
+  // A to-do, always the agent's, keeps its to-do record.
   for (const row of onAgent.filter(({ kind }) => kind === "todo"))
     assert.deepEqual(
       row.todo,
@@ -60,9 +59,9 @@ test("the browser publishes the queues the server selected", () => {
   assert.deepEqual(onAgent.map(listed), served.on_agent);
   assert.deepEqual(done.map(listed), served.done);
   // Something of every kind on each list, so each placement below has an item to move.
+  // Everything on the user is an obligation its own source answers.
   assert.deepEqual([...new Set(onUser.map(({ kind }) => kind))].sort(), [
     "message",
-    "todo",
     "update",
     "widget",
   ]);
@@ -166,41 +165,6 @@ test("a pending widget gesture changes no obligation membership", () => {
   assert.deepEqual(kinds(published(app).on_agent), kinds(before.on_agent));
 });
 
-test("a Done this tab sends ends its to-do at once, and its undo puts it back", () => {
-  const { app } = adopted("queues on both sides");
-  const todo = published(app).on_user.find((item) => item.offers.done);
-  const ended = () =>
-    published(app)
-      .done.filter((item) => item.kind === "todo")
-      .map(({ id, state }) => [id, state]);
-  app.enqueue(
-    { kind: "todo_end", todo: todo.id, outcome: "done", attempt: "d" },
-    "now",
-  );
-  assert.ok(!published(app).on_user.some((item) => item.id === todo.id));
-  assert.equal(
-    app.read().effective.obligations.all.find((item) => item.id === todo.id).status,
-    "answered",
-  );
-  assert.deepEqual(ended(), [[todo.id, "done"]]);
-  // A refused Done puts the to-do back as the log has it.
-  app.refuse("d");
-  assert.ok(published(app).on_user.some((item) => item.id === todo.id));
-  assert.equal(
-    app.read().effective.obligations.all.find((item) => item.id === todo.id).next_actor,
-    "user",
-  );
-  assert.deepEqual(ended(), []);
-
-  const later = adopted("user done").app;
-  const { outcome } = servedReading("user done").browser.todos.find(
-    ({ id }) => id === todo.id,
-  );
-  later.enqueue({ kind: "undo", undoes: outcome.id, attempt: "u" }, "now");
-  assert.ok(published(later).on_user.some((item) => item.id === todo.id));
-  assert.ok(!published(later).done.some((item) => item.id === todo.id));
-});
-
 test("Done lists completed obligations and to-dos through their own records", () => {
   const { app } = adopted("done");
   const { done } = published(app);
@@ -237,15 +201,5 @@ test("an item lands in the Done of the list it left, newest first", () => {
   assert.deepEqual(
     times,
     times.toSorted((a, b) => b - a),
-  );
-});
-
-test("only a to-do on the user offers Done", () => {
-  const { app } = adopted("queues on both sides");
-  const { on_user: onUser, on_agent: onAgent } = published(app);
-  const offered = [...onUser, ...onAgent].filter((item) => item.offers.done);
-  assert.deepEqual(
-    offered.map(({ kind, owner }) => [kind, owner]),
-    [["todo", "user"]],
   );
 });

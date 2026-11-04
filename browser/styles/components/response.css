@@ -239,8 +239,9 @@ leaf-composition-field {
     inline-size: var(--lf-send-square);
     block-size: var(--lf-send-square);
   }
-  /* Focus draws the hover disc with the ring inside its edge: a ring outside the
-     square, which fills its line, reaches into the line above. */
+  /* Focus, which lights the disc as a pointer does (controls.css), draws its ring
+     inside the disc's edge: a ring outside the square, which fills its line, reaches
+     into the line above. */
   .lf-compose-field:where(:not(:has(> leaf-text[aria-multiline="false"])))
     > .lf-compose-submit[data-lf-focus-visible] {
     outline: none;
@@ -249,7 +250,6 @@ leaf-composition-field {
       :not(:has(> leaf-text[aria-multiline="false"]))
     )
     > .lf-compose-submit[data-lf-focus-visible]::before {
-    background: var(--accent-tint);
     outline: var(--focus-ring);
     outline-offset: var(--focus-ring-inset);
   }
@@ -261,11 +261,18 @@ leaf-composition-field {
     > .lf-compose-submit:not([data-lf-focus-visible]) {
     pointer-events: none;
   }
-  /* Over the words, Send's box is the field's paper, and the letters before it fade
-     into that paper across an em, so the words it covers end softly rather than in a
-     cut stroke beside its square. */
+  /* Over the words, Send stands on the field's paper (the disc's ground, controls.css),
+     so it covers the words it stands over, and the letters before it fade into that
+     paper across an em (its `::after`, seated here), so the words it covers end softly
+     rather than in a cut stroke beside its square. A pointer come to it lights its disc
+     before it takes presses. */
+  .lf-compose-field:has(> leaf-text:state(corner-taken)) {
+    --lf-disc-ground: var(--lf-field-ground);
+  }
+  .lf-compose-field[data-lf-send-pointed]:has(> leaf-text:state(corner-taken)) {
+    --lf-disc-rest: var(--accent-tint);
+  }
   .lf-compose-field:has(> leaf-text:state(corner-taken)) > .lf-compose-submit {
-    background: var(--lf-field-ground);
     transition: none;
   }
   .lf-compose-field:has(> leaf-text:state(corner-taken)) > .lf-compose-submit::after {
@@ -274,15 +281,7 @@ leaf-composition-field {
     inset-block: 0;
     inset-inline: auto 100%;
     inline-size: 1em;
-    background: linear-gradient(to left, var(--lf-field-ground), transparent);
     pointer-events: none;
-  }
-  .lf-compose-field:has(> leaf-text:state(corner-taken)) > .lf-compose-submit::before {
-    background: var(--lf-field-ground);
-  }
-  .lf-compose-field[data-lf-send-pointed]:has(> leaf-text:state(corner-taken))
-    > .lf-compose-submit::before {
-    background: var(--accent-tint);
   }
   .lf-compose-field[data-lf-send-pointed]:has(> leaf-text:state(corner-taken))
     > leaf-text {
@@ -294,124 +293,30 @@ leaf-composition-field {
   z-index: 1;
   pointer-events: none;
 }
-/* Send and resolve are the two glyph actions: symbols (controls.css) drawn in the
-   action's own ink, whose ::before is the action's disc that stays clear at rest and
-   takes its tint on hover. Send, the composer's commit, draws in the accent, and
-   Dictate in a symbol's quiet ink until it listens; each states its ink after the
-   symbol's face, at its weight, as Resolve does. Reopen standing in Resolve's place
-   is the same glyph drawn done, on every surface that seats a thread. */
-:is(.lf-compose-submit, .lf-compose-dictate, .lf-response-trigger),
-:is(.lf-resolve, .lf-reopen).lf-icon-action {
-  border: 0;
-  background: transparent;
-  box-shadow: none;
-}
-:is(
-  .lf-compose-submit,
-  .lf-compose-dictate,
-  .lf-response-trigger,
-  .lf-resolve.lf-icon-action,
-  .lf-reopen.lf-icon-action
-)::before {
-  content: "";
-  position: absolute;
-  box-sizing: border-box;
-  inline-size: var(--lf-icon-action-face);
-  block-size: var(--lf-icon-action-face);
-  border-radius: var(--r);
-  background: transparent;
-}
-:is(
-  .lf-compose-submit,
-  .lf-compose-dictate,
-  .lf-response-trigger,
-  .lf-resolve.lf-icon-action,
-  .lf-reopen.lf-icon-action
-):hover {
-  background: transparent;
-  box-shadow: none;
-}
-/* A glyph action shows a pressed state, Dictate listening, on its disc (below), so
-   its box stays clear of the selected face a toggled symbol wears (controls.css):
-   the same state, drawn on the part of the face this variant draws it on. */
-:is(.lf-compose-submit, .lf-compose-dictate, .lf-response-trigger):is(
-  [aria-pressed="true"],
-  [aria-checked="true"]
-) {
-  border-color: transparent;
-  background: transparent;
-}
+/* Send stands in the field's end corner, and Dictate in its place while it shows. They,
+   Other responses beside them, and a thread's Resolve and Reopen are symbols whose
+   state shows on a disc (controls.css, `data-lf-disc`). */
 :is(.lf-compose-submit, .lf-compose-dictate) {
   position: absolute;
   z-index: 1;
   inset-inline-end: var(--lf-compose-action-inset);
   inset-block-end: var(--lf-compose-action-inset);
 }
-.lf-compose-submit.lf-icon-action {
-  color: var(--accent);
-}
-:is(.lf-compose-submit, .lf-compose-dictate, .lf-response-trigger):not(
-    :disabled,
-    [aria-disabled="true"]
-  ):hover::before,
-.lf-response-trigger[aria-expanded="true"]::before {
-  background: var(--accent-tint);
-}
-:is(.lf-compose-submit, .lf-compose-dictate):is(:disabled, [aria-disabled="true"]) {
-  opacity: 1;
-  color: var(--muted);
-  cursor: default;
-}
-:is(.lf-compose-dictate, .lf-response-trigger) {
-  color: var(--muted);
-}
-:is(.lf-compose-dictate, .lf-response-trigger):hover {
-  color: var(--ink);
-}
-.lf-compose-dictate:is(
-  [data-lf-dictation="starting"],
-  [data-lf-dictation="listening"]
-) {
-  color: var(--accent);
-}
-.lf-compose-dictate[data-lf-dictation="listening"]::before {
-  background: var(--accent-tint);
-}
-.lf-compose-dictate[data-lf-dictation="failed"] {
-  color: var(--danger-ink);
-}
-.lf-compose-dictate[data-lf-dictation="failed"]:hover::before {
-  background: var(--danger-tint);
-}
 /* The microphone's slash marks a dictation that failed, so any microphone not on a failed
    press draws without it. */
 :not([data-lf-dictation="failed"]) > svg[data-lf-icon="microphone"] .lf-mic-slash {
   display: none;
 }
+/* Reopen standing in Resolve's place is the same glyph drawn done, on every surface
+   that seats a thread, at its end. */
 :is(.lf-resolve, .lf-reopen).lf-icon-action {
   position: relative;
   flex: none;
   margin-inline-start: auto;
-  color: var(--ink);
-}
-/* Resolve and Reopen are one toggle: only Reopen, its on state, wears the ok tint, so
-   a hovered Resolve never looks already done. */
-.lf-resolve.lf-icon-action:not([aria-disabled="true"]):hover::before {
-  background: var(--chip);
 }
 :is(.lf-resolve, .lf-reopen).lf-icon-action .lf-action-icon {
   inline-size: 15px;
   block-size: 15px;
-}
-.lf-reopen.lf-icon-action {
-  color: var(--ok-ink);
-}
-.lf-reopen.lf-icon-action::before {
-  background: var(--ok-tint);
-}
-/* Drawn done at rest, so the press shows on hover as a deeper disc. */
-.lf-reopen.lf-icon-action:not([aria-disabled="true"]):hover::before {
-  background: color-mix(in srgb, var(--ok-ink) 18%, var(--ok-tint));
 }
 /* Every composition input renders the same attachment shelf, including inputs seated
    in widget shadow trees. Surfaces place it; the shelf owns its pictures' size, face
@@ -512,18 +417,19 @@ leaf-composition-field {
    picture's own shape. The user chose this on 27 October over standing every image
    at the shelf's height and cropping it to between three quarters and twice as wide
    as tall, which cut both ends off a wide screenshot. Its button frames the picture
-   (`.lf-media-frame`, reading.css). */
+   (controls.css, `data-lf-frame`). */
 .lf-composer-media-item:not(.lf-composer-drawing) > .lf-composer-media-open img {
   display: block;
   max-width: calc(2 * var(--lf-media-h));
   max-height: var(--lf-media-h);
   border-radius: inherit;
 }
-/* Every press in an item besides its picture is a corner mark (controls.css) on a top
+/* Every press in an item besides its picture is a corner mark (controls.css,
+   `data-lf-corner`) on a top
    corner: removal on the right, and a drawing's Undo last stroke on the left. A mark
    stands over the box's carry band (`.lf-surface-grip`), which its reach can cross, so
    the press is the mark's. */
-.lf-composer-media-item > .lf-corner-mark {
+.lf-composer-media-item > [data-lf-corner] {
   inset-block-start: calc(-1 * var(--lf-media-mark-overhang));
   inset-inline-end: calc(-1 * var(--lf-media-mark-overhang));
 }
@@ -531,10 +437,10 @@ leaf-composition-field {
   inset-inline: calc(-1 * var(--lf-media-mark-overhang)) auto;
 }
 @media (hover: hover) {
-  .lf-composer-media-item:not(:hover, :focus-within) > .lf-corner-mark {
+  .lf-composer-media-item:not(:hover, :focus-within) > [data-lf-corner] {
     opacity: 0;
   }
-  .lf-composer-media-item > .lf-corner-mark {
+  .lf-composer-media-item > [data-lf-corner] {
     transition: opacity var(--lf-motion-disclosure);
   }
 }
@@ -560,7 +466,6 @@ leaf-composition-field {
   height: var(--lf-media-h);
   padding: 0;
   overflow: hidden;
-  background: var(--paper);
 }
 .lf-drawing-context-status {
   position: absolute;
@@ -576,31 +481,9 @@ leaf-composition-field {
   width: 100%;
   height: 100%;
   object-fit: contain;
+  background: var(--paper);
 }
 
-/* Comment boxes and anchored response controls share their frame and focus paint.
-   Other uses of the editor plumbing, such as option entry, supply their own face.
-   Containers place comment boxes; they do not supply a second frame. */
-.lf-comment-box > leaf-composition-field > .lf-compose-field,
-.lf-response-control {
-  border: 1px solid var(--border-2);
-  border-radius: var(--r);
-  background: var(--card);
-}
-.lf-comment-box
-  > leaf-composition-field
-  > .lf-compose-field:has(> leaf-text[data-lf-focus-visible]),
-.lf-response-control[data-lf-focus-visible] {
-  outline: var(--focus-ring);
-  --lf-ring-at: 0;
-  border-color: transparent;
-  --lf-wears-ring: 1;
-}
-/* Floating comment surfaces have one elevation. The page card reserves the ring's
-   room inside its scrollport; a filter lets its shadow extend beyond that clip. */
-.lf-response-control {
-  filter: drop-shadow(var(--raise-1));
-}
 /* The words wear the message's face, so a box's lines break where its message's
    will. */
 .lf-comment-box > leaf-composition-field > .lf-compose-field {
@@ -692,8 +575,8 @@ leaf-composition-field {
    neither of which reads as saving. A cross would read as the card's Close beside
    them. Where Copy is left out, the pair is one control wider than Edit, and in a
    short head it stands over the labels' end on the message's ground, as the head's
-   controls do when they show (controls.css), which the pair always does. Save keeps
-   its press's ink. */
+   controls do when they show (controls.css), which the pair always does. Both wear
+   the symbol's face, Save in its press's accent (input.js, `data-lf-tone`). */
 .lf-msg-controls:has(> .lf-msg-edit-actions)::before {
   opacity: 1;
 }
@@ -711,24 +594,11 @@ leaf-composition-field {
   block-size: var(--lf-msg-control-size);
   min-width: 0;
   min-height: 0;
-  border: 1px solid transparent;
-}
-/* Both wear the symbol's chip on a press (controls.css, `.lf-icon-action`), Save's
-   send glyph included. */
-.lf-msg-edit-actions > .lf-msg-control:is(:hover, [data-lf-focus]) {
-  background: var(--chip);
-  color: var(--ink);
 }
 /* The rewrite's field stands just below its head, so Discard and Save reach the floor
    upward, over the head and the room above it, rather than over the field's top. */
 .lf-msg-edit-actions > .lf-msg-control::after {
   inset: min(0px, 100% - var(--aim-floor)) 0 0;
-}
-.lf-msg-edit-actions > .lf-msg-edit-save::before {
-  display: none;
-}
-.lf-msg-edit-actions > .lf-msg-edit-save:not([aria-disabled="true"]) {
-  color: var(--accent);
 }
 /* While a rewrite is open its thread offers no Resolve or Reopen: the row is the
    rewrite's, and saving reopens a resolved thread anyway. The control leaves the row, so
@@ -787,21 +657,9 @@ leaf-composition-field {
    the user may never open. */
 .lf-fab-bar .lf-compose-field,
 .lf-margin-preview .lf-thread-reply .lf-compose-field,
-.lf-response-control {
+.lf-response-control,
+.lf-response-face {
   --lf-compose-pad-block: calc(var(--lf-thread-text-pad-block) - 1px);
-}
-/* The field and its choices share height, vertical padding and type. Tab opens
-     the anchored picker without replacing or moving the field.
-     The field can grow with its words without changing its corner. The shared UI
-     supplies the thread’s 14px face and line height; vertical padding keeps
-     that face in the 32px resting box. */
-.lf-response-control {
-  box-sizing: border-box;
-  min-height: var(--lf-response-height);
-  color: var(--ink-2);
-  font-weight: 400;
-  line-height: inherit;
-  padding-block: var(--lf-compose-pad-block);
 }
 /* The physical response presentation allocates the field's box. The host is
      the editor's scrollport; its content-sized editor keeps native caret reveals. */
@@ -830,33 +688,6 @@ leaf-text.lf-fab-input {
   .lf-compose-field:not([data-lf-words]):has(> .lf-response-trigger:not([hidden]))
   > leaf-text.lf-fab-input {
   padding-inline-end: calc(var(--lf-compose-send-end) + var(--lf-icon-action-hit));
-}
-/* The response face (control-faces.js, `ACTION_FACES`): a choice of the response bar,
-   which shares the field's frame, height and lift (`.lf-response-control`, above)
-   and lays out its symbol or glyph with its word (widget-elements.js,
-   `responseAction`). A reaction among them wears a reaction's states (controls.css)
-   on the frame's opaque ground while not in force; the others, Comment and Suggest,
-   take the frame's accent edge under the pointer and decline the wash every generated
-   press takes there. */
-.lf-response-face {
-  min-width: max(30px, var(--aim-floor));
-  padding-inline: 9px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0;
-  white-space: nowrap;
-  cursor: pointer;
-}
-.lf-response-face:hover {
-  border-color: color-mix(in srgb, var(--accent) 45%, var(--card));
-  background: var(--card);
-}
-.lf-response-face:not([aria-pressed]):hover {
-  box-shadow: none;
-}
-.lf-response-face.lf-react:where(:not([aria-pressed="true"])) {
-  background: var(--card);
 }
 .lf-response-action-glyph {
   line-height: 1;

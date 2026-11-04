@@ -385,12 +385,25 @@ function landLabelPress() {
 // the host of the shadow tree the user is in, for a reader comparing or containing
 // nodes of that tree. Every reading of focus outside this module asks here, so none
 // misses a label press or a shadow tree (eslint's `architecture/current-location-reads`).
-// Keyboard reflection follows this revision explicitly. Mechanical focus queries made
-// while rendering stay untracked, so restoring focus cannot subscribe a render to itself.
+// Mechanical focus queries made while rendering stay untracked, so restoring focus
+// cannot subscribe a render to itself. Keyboard reflection follows where the user is
+// through this revision, either explicitly or by reading inside `followingFocus`, where
+// asking `focused` subscribes the reading: a move then reads again only what asked.
 const currentLocation = signal(0);
 export const focusRevision = () => currentLocation.value;
+let following = 0;
+/** @template T @param {() => T} read @returns {T} */
+export function followingFocus(read) {
+  following += 1;
+  try {
+    return read();
+  } finally {
+    following -= 1;
+  }
+}
 /** @param {Node | null} [tree] */
 export const focused = (tree = null) => {
+  if (following) focusRevision();
   const at = heldByLabel() ?? deepFocus();
   return tree ? hostIn(at, tree) : at;
 };

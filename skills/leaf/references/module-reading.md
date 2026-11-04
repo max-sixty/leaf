@@ -249,14 +249,13 @@ through `answer`, so the view records nothing of its own.
 
 `readQueues()` returns the `{phase, on_user, on_agent, done}` lists Leaf's panel shows
 under On me and On <agent>. Each row has a `kind`, which is its obligation's
-`source.kind` (with the obligation as `obligation`) or `todo` (with the to-do as
-`todo`), and an `owner`, `user` or `agent`. An obligation's row lists in `also` the ids
-of the other obligations the user answers at the same place, such as the agent's answer
-in a thread about it. Rows not done carry `offers: {open, done}`.
+`source.kind` (with the obligation as `obligation`) or, on the agent's list, `todo`
+(with the to-do as `todo`), and an `owner`, `user` or `agent`, naming its list. An
+obligation's row lists in `also` the ids of the other obligations the user answers at
+the same place, such as the agent's answer in a thread about it.
 `queueItemKey(row)` names a row across moves between lists, and `queueTitle(row)` gives
-its title. `queueActions.open(key)` goes to a row. `queueActions.done(key)` ends a to-do
-the agent opened on the user, returning its admission promise, and returns `null` for
-any other row. Act on a collection only when its `phase` is `ready`.
+its title. `queueActions.open(key)` goes to a row; an obligation is answered only
+through its widget or thread. Act on a collection only when its `phase` is `ready`.
 
 ### Work hierarchies
 
@@ -299,9 +298,11 @@ rewritten section is, together with the blocks the earlier version had there. A
 paragraph removed with nothing in its place is a change too, with no elements. Each
 change is an object: `blocks`, its elements inside `owner` in page order; `removed`,
 what the earlier version's blocks said (`{id, tag, word, words}`); and `at`, the
-element it stands by, its first block or the block after its gap. The result's length
-counts changes as the reader does. Reading it during a `LeafElement` render subscribes
-that render to comparison changes.
+element it stands by: its first block, or for a removal the element beside its gap, or
+the element the removal emptied of every block. A removal's `at` is in the part of the
+page the blocks were taken from, so a paragraph removed from a tab counts in that tab.
+The result's length counts changes as the reader does. Reading it during a
+`LeafElement` render subscribes that render to comparison changes.
 
 `revisionLabel(event.revision)` is the page's name for the version an event was
 recorded in.

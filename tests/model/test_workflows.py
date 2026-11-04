@@ -691,7 +691,6 @@ def test_thread_attention_names_the_workflow_the_thread_waits_on():
     todos = [
         {
             "id": "t1",
-            "owner": "agent",
             "subject": {"kind": "thread", "id": "root"},
             "title": "Rebuild",
             "thread": "root",

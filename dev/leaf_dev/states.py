@@ -441,6 +441,35 @@ def reaction_pressed(page: Page) -> None:
     settle(page)
 
 
+MARGIN_SUGGESTION = '.lf-margin-cluster[data-lf-margin-for="rn-sug-dry"]'
+
+
+def margin_reaction_choices(page: Page) -> None:
+    """A suggestion's margin row with the reactions `e` raises from its Accept, each a
+    margin entry."""
+    row = page.locator(MARGIN_SUGGESTION)
+    row.locator('[data-lf-margin-entry-key="accept"]').focus()
+    page.keyboard.press("e")
+    expect(
+        row.locator('[data-lf-margin-entry-owner="responses"]:visible')
+    ).to_have_count(6)
+    settle(page)
+
+
+def margin_reaction_mark(page: Page) -> None:
+    """The same row once a reaction stands on its target, unfolded to show the
+    reaction's own margin entry beside Reject."""
+    margin_reaction_choices(page)
+    row = page.locator(MARGIN_SUGGESTION)
+    row.locator('[data-lf-margin-entry-owner="responses"]:visible').first.click()
+    mark = row.locator('[data-lf-margin-entry-owner="reactions"]')
+    expect(mark).to_have_count(1)
+    row.locator(".lf-margin-more").click()
+    expect(mark).to_be_visible()
+    page.mouse.move(0, 0)
+    settle(page)
+
+
 def floating_thread_retitled(page: Page) -> None:
     """The same thread once its opening message is rewritten short, so its title is far
     narrower than the view it names."""
@@ -571,11 +600,9 @@ def panel_dictating(page: Page) -> None:
 
 def comment_on(section: str) -> None:
     """A comment the user left on `section`, posted as another of their tabs would."""
-    client = PageClient(served_page.get().address)
-    client.post(
+    PageClient(served_page.get().address).post(
         {
             "kind": "comment",
-            "revision": client.state()["active"]["revision"],
             "attempt": f"stills-proxy-{section}",
             "text": "Worth a second look.",
             "anchor": {"section": section},
@@ -778,12 +805,10 @@ def held_news(page: Page, thread: Locator) -> None:
     as_agent("thread", "reply", root, "--text", "That one goes first.")
     notice = thread.locator(".lf-thread-news")
     expect(notice).to_have_attribute("title", "1 new reply")
-    client = PageClient(served_page.get().address)
-    client.post(
+    PageClient(served_page.get().address).post(
         {
             "kind": "reply",
             "parent": root,
-            "revision": client.state()["active"]["revision"],
             "attempt": "stills-held-news-other-tab",
             "text": "Sent from my other tab.",
         }
@@ -880,22 +905,26 @@ def on_me(page: Page) -> None:
     expect(page.locator(panel_view("queue"))).to_be_visible()
 
 
-def on_me_todo(page: Page) -> None:
-    """On me opened on a to-do's card, its whole title over its Done, after the On me
-    walk arrives at the to-do's subject."""
+def on_me_question(page: Page) -> None:
+    """On me opened on the card of a question the agent asked in a thread with
+    `--obligation`, its whole words over the card's Reply."""
+    question = (
+        "Can you review the change or name a reviewer, then merge it after checking "
+        "the build?"
+    )
     as_agent(
-        "task",
+        "thread",
         "create",
+        "--section",
         "plan-context",
-        "--title",
-        "Review the change or name a reviewer, then merge it after checking the build",
-        "--on",
-        "user",
+        "--text",
+        question,
+        "--obligation",
     )
     page.reload()
     wait_until_ready(page, PageClient(served_page.get().address).state())
-    page.locator("#plan-top").click()
-    page.keyboard.press("m")
+    on_me(page)
+    page.locator(".lf-fp-on-item", has_text=question).scroll_into_view_if_needed()
 
 
 def on_me_choice(page: Page) -> None:
@@ -2474,6 +2503,18 @@ STATES = (
     State("plan-card", "review-a-plan", card_by_pointer),
     State("reaction-palette", "ship-review", reaction_palette),
     State("reaction-pressed", "ship-review", reaction_pressed),
+    State(
+        "margin-reaction-choices",
+        "release-notes",
+        margin_reaction_choices,
+        region=MARGIN_SUGGESTION,
+    ),
+    State(
+        "margin-reaction-mark",
+        "release-notes",
+        margin_reaction_mark,
+        region=MARGIN_SUGGESTION,
+    ),
     State("plan-card-keyboard", "review-a-plan", card_by_keyboard),
     # A window with room for the rail but none beside the ask, so the card stands over
     # its options and covers a choice's hint.
@@ -2755,7 +2796,7 @@ STATES = (
         card_by_pointer,
         window=Window((1440, 480)),
     ),
-    State("on-me-todo", "review-a-plan", on_me_todo),
+    State("on-me-question", "review-a-plan", on_me_question),
     State("on-me", "corpus", on_me),
     State("on-agent", "corpus", on_agent),
     State("hub-on-me", "command-hub", on_me),

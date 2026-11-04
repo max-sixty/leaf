@@ -47,9 +47,9 @@ that, and buys the rest: the threads and workflows also read the claim, the live
 stream and the clock, so the same log sequence can read two ways and re-reading
 can't give what the tab holds of them, while a content name can, so those records
 travel as changes too. Readings are remembered in this process alone, each as the
-JSON of its parts, one copy shared by every remembered reading that holds a part
-unchanged. A restarted server, or another process, answers whole, as it does a key
-it never served or has forgotten.
+JSON of its records and the values of its other fields (`_parts`), one copy shared by
+every remembered reading that holds a part unchanged. A restarted server, or another
+process, answers whole, as it does a key it never served or has forgotten.
 """
 
 import hashlib
@@ -92,14 +92,41 @@ def _named(items: list) -> tuple[str, list[str]] | None:
     return (by, names) if len(set(names)) == len(names) else None
 
 
+_SCALARS = (str, int, float, bool, type(None))
+
+
+def _token(part: tuple) -> bytes:
+    """What a part contributes to the digest of the object holding it."""
+    kind = part[0]
+    if kind == "scalar":
+        return b"s" + repr(part[1]).encode()
+    if kind == "value":
+        return b"v" + part[1]
+    if kind == "names":
+        return b"n" + "\x00".join(part[1]).encode()
+    return part[1]
+
+
+def _object(children: dict) -> tuple:
+    hasher = hashlib.blake2b(digest_size=16)
+    for key, child in children.items():
+        encoded = key.encode()
+        hasher.update(b"%d:" % len(encoded) + encoded)
+        token = _token(child)
+        hasher.update(b"%d:" % len(token) + token)
+    return ("object", hasher.digest(), children)
+
+
 def _parts(value, earlier: tuple | None) -> tuple:
-    """`value` as this module remembers it: an object as its keys' parts, a named list
-    as its items' names and JSON, and anything else as its JSON. A part the same as the
-    one at its place in `earlier`, a remembered reading's, is that reading's copy, so a
-    part that didn't change is the very one the held reading has."""
+    """`value` as this module remembers it: an object as its keys' parts, each with a
+    digest of what it holds; a scalar as itself; a list named by its strings as those;
+    a list of named records as their names and JSON, with a digest; and anything else
+    as its JSON. A part the same as the one at its place in `earlier`, a remembered
+    reading's, is that reading's own, so a part that didn't change is the very one the
+    held reading has, and keeps the digest it had."""
     if isinstance(value, dict):
         same_kind = earlier is not None and earlier[0] == "object"
-        children = earlier[1] if same_kind else {}
+        children = earlier[2] if same_kind else {}
         parts = {key: _parts(child, children.get(key)) for key, child in value.items()}
         if (
             same_kind
@@ -107,7 +134,16 @@ def _parts(value, earlier: tuple | None) -> tuple:
             and all(part is children[key] for key, part in parts.items())
         ):
             return earlier
-        return ("object", parts)
+        return _object(parts)
+    if isinstance(value, _SCALARS):
+        if (
+            earlier is not None
+            and earlier[0] == "scalar"
+            and type(earlier[1]) is type(value)
+            and earlier[1] == value
+        ):
+            return earlier
+        return ("scalar", value)
     named = _named(value) if isinstance(value, list) else None
     if named is None:
         encoded = _json(value)
@@ -115,9 +151,14 @@ def _parts(value, earlier: tuple | None) -> tuple:
             return earlier
         return ("value", encoded)
     by, names = named
+    if by == "self":
+        names = tuple(names)
+        if earlier is not None and earlier[0] == "names" and earlier[1] == names:
+            return earlier
+        return ("names", names)
     before = (
-        dict(zip(earlier[2], earlier[3], strict=True))
-        if earlier is not None and earlier[0] == "list"
+        dict(zip(earlier[3], earlier[4], strict=True))
+        if earlier is not None and earlier[0] == "list" and earlier[2] == by
         else {}
     )
     items = []
@@ -125,26 +166,15 @@ def _parts(value, earlier: tuple | None) -> tuple:
         encoded = _json(item)
         kept = before.get(name)
         items.append(kept if kept == encoded else encoded)
-    part = ("list", by, tuple(names), tuple(items))
-    return earlier if part == earlier else part
-
-
-def _feed(hasher, part: tuple) -> None:
-    """Feed `hasher` everything `part` holds, so its digest names that content."""
-    if part[0] == "object":
-        hasher.update(b"{")
-        for key, child in part[1].items():
-            hasher.update(_json(key))
-            _feed(hasher, child)
-        hasher.update(b"}")
-    elif part[0] == "list":
-        hasher.update(b"[" + part[1].encode())
-        for name, item in zip(part[2], part[3], strict=True):
-            hasher.update(_json(name))
-            hasher.update(item)
-        hasher.update(b"]")
-    else:
-        hasher.update(part[1])
+    names, items = tuple(names), tuple(items)
+    if earlier is not None and earlier[0] == "list" and earlier[3:] == (names, items):
+        return earlier
+    hasher = hashlib.blake2b(by.encode(), digest_size=16)
+    for name, item in zip(names, items, strict=True):
+        encoded = name.encode()
+        hasher.update(b"%d:" % len(encoded) + encoded)
+        hasher.update(b"%d:" % len(item) + item)
+    return ("list", hasher.digest(), by, names, items)
 
 
 def _staying(names: list[str], held_at: dict[str, int]) -> set[str]:
@@ -247,30 +277,45 @@ def _changes(held: tuple, current: tuple, value, path: list, patch: list) -> Non
     `current`."""
     if held is current:
         return
-    if held[0] == current[0] == "object":
-        for key, child in current[1].items():
-            if key in held[1]:
-                _changes(held[1][key], child, value[key], [*path, key], patch)
+    kind = current[0]
+    if held[0] != kind:
+        patch.append({"at": path, "value": value})
+    elif kind == "object":
+        if held[1] == current[1]:
+            return
+        for key, child in current[2].items():
+            if key in held[2]:
+                _changes(held[2][key], child, value[key], [*path, key], patch)
             else:
                 patch.append({"at": [*path, key], "value": value[key]})
-        patch.extend({"at": [*path, key]} for key in held[1] if key not in current[1])
-    elif held[0] == current[0] == "list" and held[1] == current[1]:
-        held_items, items = held[3], current[3]
+        patch.extend({"at": [*path, key]} for key in held[2] if key not in current[2])
+    elif kind == "scalar":
+        if type(held[1]) is not type(current[1]) or held[1] != current[1]:
+            patch.append({"at": path, "value": value})
+    elif kind == "value":
+        if held[1] != current[1]:
+            patch.append({"at": path, "value": value})
+    elif kind == "names":
+        change = _list_change(
+            path, "self", held[1], current[1], value, lambda _before, _at: True, None
+        )
+        if change is not None:
+            patch.append(change)
+    elif held[2] != current[2]:
+        patch.append({"at": path, "value": value})
+    elif held[1] != current[1]:
+        held_items, items = held[4], current[4]
         change = _list_change(
             path,
-            current[1],
-            held[2],
             current[2],
+            held[3],
+            current[3],
             value,
             lambda before, at: held_items[before] is items[at],
             lambda before: json.loads(held_items[before]),
         )
         if change is not None:
             patch.append(change)
-    elif held[0] == current[0] == "value" and held[1] == current[1]:
-        return
-    else:
-        patch.append({"at": path, "value": value})
 
 
 def answer(state: dict, held: str | None) -> dict:
@@ -287,9 +332,7 @@ def answer(state: dict, held: str | None) -> dict:
         before = _served.get(held) if held is not None else None
         latest = next(reversed(_served.values()), None)
     current = _parts(patched, (before or latest or (0, None))[1])
-    hasher = hashlib.blake2b(digest_size=16)
-    _feed(hasher, current)
-    key = basis["key"] = hasher.hexdigest()
+    key = basis["key"] = current[1].hex()
     with _lock:
         if held is not None and held in _served:
             _served.move_to_end(held)

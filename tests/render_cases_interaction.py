@@ -1124,6 +1124,7 @@ ACTIONS_IN_FORCE = [
         "review",
         {"case": "status-column", "approved": True},
     ),
+    ("ab-card", "tune", {"values": {"radius": 20, "tone": "bold"}}),
     (
         "ab-card",
         "choose",

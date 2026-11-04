@@ -16,8 +16,6 @@ from render_cases_navigation import (
     go_to_address,
 )
 from render_harness import (
-    CORPUS_SOURCES,
-    EXAMPLES,
     RELEASE_FOCUS,
     expect_comment_notes,
     leaf_page,
@@ -31,13 +29,14 @@ from render_harness import (
 
 from leaf import server as server_model
 from leaf.render_checks import rendered
+from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
 
 def test_each_comparison_result_keeps_its_own_comment_destination(browser, serve):
     """Each policy owns a separate anchor and pane-local return route."""
-    example = next(e for e in CORPUS_SOURCES if e.stem == "current-proposed-comparison")
+    example = named_source("current-proposed-comparison")
     page = open_page(
         browser,
         serve(
@@ -86,7 +85,7 @@ def test_each_comparison_result_keeps_its_own_comment_destination(browser, serve
 
 def test_the_pr_walkthrough_exercises_an_inline_diff_thread(browser, serve):
     """The diff package's worked page carries a real line thread through both seats."""
-    source = next(example for example in EXAMPLES if example.stem == "pr-walkthrough")
+    source = named_source("pr-walkthrough")
     url = live_url(serve(source))
     page = open_page(browser, url)
     diff = page.locator("#pr-exact-patch")

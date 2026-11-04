@@ -23,7 +23,6 @@ from render_cases_navigation import (
     _publish,
 )
 from render_harness import (
-    EXAMPLES,
     LONG_PAGE,
     PANEL_THREAD,
     CutOff,
@@ -53,13 +52,14 @@ from leaf import hosting as hosting_model
 from leaf import presence as presence_model
 from leaf.render_checks import rendered, wait_until_ready
 from leaf.schema import SERVICE_FILE
+from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
 
 @pytest.mark.parametrize("width", [390])
 def test_merge_film_play_continues_from_the_displayed_moment(browser, serve, width):
-    source = next(path for path in EXAMPLES if path.name == "wt-merge.html")
+    source = named_source("wt-merge")
     page = open_page(browser, serve(source))
     resized(page, width, 900)
     play = page.locator(".film-play")

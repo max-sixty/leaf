@@ -19,7 +19,6 @@ from render_cases_layout import (
     token_colour,
 )
 from render_harness import (
-    EXAMPLES,
     LONG_PAGE,
     REPLAYED_PAGE,
     any_suggestion_control,
@@ -38,6 +37,7 @@ from browser.controls import (
 from browser.threads import open_panel_thread
 from leaf import data as data_model
 from leaf.render_checks import rendered
+from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -698,7 +698,7 @@ def test_the_ring_reading_names_every_way_a_box_can_draw_nothing_past_its_edge(
     they clip. The first case is the control: without it a reading that reported at every
     stop would pass the other three and prove nothing.
     """
-    example = next(e for e in EXAMPLES if e.stem == "release-notes")
+    example = named_source("release-notes")
     url = serve(example, comments=2, seed_log=False)
     page = open_page(browser, url)
     any_suggestion_control(page, "accept").first.focus()

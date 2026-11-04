@@ -70,6 +70,7 @@ from leaf.registry.contract import DECLARED_WORDS
 from leaf.render_gate import browser as browser_model
 from leaf.render_gate.preview import preview_server
 from leaf.revisioning import activate_source
+from leaf_dev.docs import DOCS, product_sources
 from leaf_dev.example_data import authored_sources, example_versions, page_files
 
 
@@ -1801,11 +1802,11 @@ def test_no_rule_rounds_a_box_edged_on_one_side(tmp_path):
     authored = authored_sources()
     sheets += [
         (sheet.relative_to(ROOT), sheet)
-        for root in (ROOT / "docs", *map(page_files, authored))
+        for root in (DOCS, *map(page_files, authored))
         for sheet in sorted(root.rglob("*.css"))
     ]
     versions = [version for source in authored for version in example_versions(source)]
-    for page in sorted([*(ROOT / "docs").glob("*.html"), *versions]):
+    for page in sorted([*product_sources(), *versions]):
         styles = re.findall(r"<style[^>]*>(.*?)</style>", page.read_text(), re.DOTALL)
         if styles:
             sheet = tmp_path / page.relative_to(ROOT).with_suffix(".css")

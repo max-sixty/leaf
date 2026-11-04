@@ -54,7 +54,6 @@ from render_cases_widgets import (
 )
 from render_harness import (
     EDITOR_ROOTS,
-    EXAMPLES,
     FOLLOWER_MARK,
     LONG_PAGE,
     PANEL,
@@ -101,6 +100,7 @@ from leaf.render_checks import rendered, wait_until_ready
 from leaf.render_gate.scheme import collect_page_exceptions
 from leaf.served_state import context as served_context
 from leaf.validation import composition as validation_model
+from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -129,12 +129,12 @@ AIM_PRESS_CASES = (
     ),
     (
         "release-notes",
-        next(p for p in EXAMPLES if p.stem == "release-notes"),
+        named_source("release-notes"),
         frozenset({"draft mousedown", "suggestion margin control"}),
     ),
     (
         "ship-review",
-        next(p for p in EXAMPLES if p.stem == "ship-review"),
+        named_source("ship-review"),
         frozenset({"option click", "existing mark"}),
     ),
 )
@@ -565,7 +565,7 @@ def test_a_growing_comment_is_independent_of_page_controls(browser, serve):
     """
     page = open_page(
         browser,
-        serve(next(example for example in EXAMPLES if example.stem == "release-notes")),
+        serve(named_source("release-notes")),
     )
     resized(page, 1337, 386)
     page.evaluate("() => { location.hash = '#rn-console-why' }")
@@ -1572,7 +1572,7 @@ def test_a_comment_rechooses_after_target_width_reflow(browser, serve):
     """New horizontal room invalidates the old fallback instead of detaching it."""
     page = open_page(
         browser,
-        serve(next(example for example in EXAMPLES if example.stem == "release-notes")),
+        serve(named_source("release-notes")),
     )
     resized(page, 700, 600)
     target = page.locator("#rn-console-why")
@@ -1606,7 +1606,7 @@ def test_a_draft_below_its_passage_keeps_its_lane_whatever_it_holds(browser, ser
     same draft typed into an empty field."""
     page = open_page(
         browser,
-        serve(next(example for example in EXAMPLES if example.stem == "release-notes")),
+        serve(named_source("release-notes")),
     )
     resized(page, 700, 600)
     target = page.locator("#rn-console-why")
@@ -1680,7 +1680,7 @@ def test_a_comment_rechooses_its_side_after_vertical_target_motion(browser, serv
     moves with it (comment-placement.js)."""
     page = open_page(
         browser,
-        serve(next(example for example in EXAMPLES if example.stem == "release-notes")),
+        serve(named_source("release-notes")),
     )
     resized(page, 700, 600)
     target = page.locator("#rn-console-why")

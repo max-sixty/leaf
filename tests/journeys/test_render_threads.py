@@ -22,7 +22,6 @@ from render_cases_interaction import (
     panel_comment,
 )
 from render_harness import (
-    EXAMPLES,
     LONG_PAGE,
     PANEL_THREAD,
     consume_browser_errors,
@@ -42,6 +41,7 @@ from render_harness import (
 
 from leaf import event_log as events_model
 from leaf.render_checks import rendered, wait_until_ready
+from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -66,9 +66,7 @@ CAPTURE_SAMPLE_PAGE = leaf_page(
 
 def test_a_diff_outlet_keeps_the_shared_attachment_controls(browser, serve):
     """An attachment keeps its face and keyboard routes inside a widget tree."""
-    page = open_page(
-        browser, serve(next(p for p in EXAMPLES if p.stem == "pr-walkthrough"))
-    )
+    page = open_page(browser, serve(named_source("pr-walkthrough")))
     page.locator("#pr-exact-patch .lf-diff-file-comment").first.click()
     bar = page.locator('lf-diff .lf-fab-bar[data-lf-presentation="inline"]')
     field = bar.locator("leaf-text")
@@ -157,7 +155,7 @@ def test_a_phone_editor_inside_a_marked_widget_keeps_pointer_entry(browser, serv
     )
     page = open_page(
         browser,
-        serve(next(p for p in EXAMPLES if p.stem == "pr-walkthrough")),
+        serve(named_source("pr-walkthrough")),
         context=context,
     )
     comment = page.locator("#pr-exact-patch .lf-diff-file-comment").first

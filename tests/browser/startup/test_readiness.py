@@ -17,7 +17,6 @@ from render_cases_widgets import (
     visual_widgets,
 )
 from render_harness import (
-    EXAMPLES,
     LONG_PAGE,
     consume_browser_errors,
     expect_obligations_answered,
@@ -43,6 +42,7 @@ from browser.threads import open_panel_thread
 from leaf import event_log as events_model
 from leaf.render_checks import wait_until_ready
 from leaf.render_gate.page_code import run_page_code
+from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -248,7 +248,7 @@ def test_authored_page_paints_but_durable_controls_wait_for_first_replay(
 
 def test_playground_joins_initial_widget_settlement(browser, serve):
     """An optional package paints locally while its durable action still waits."""
-    source = next(path for path in EXAMPLES if path.stem == "notification-playground")
+    source = named_source("notification-playground")
     url = serve(source)
     held = []
     page = browser.new_page(viewport={"width": 1440, "height": 900})

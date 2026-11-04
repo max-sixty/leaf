@@ -50,7 +50,6 @@ from render_cases_widgets import (
     WIDE_DIAGRAM_PAGE,
 )
 from render_harness import (
-    EXAMPLES,
     INLINE_PAGE,
     LONG_PAGE,
     REPLY_HOST_PAGE,
@@ -86,13 +85,14 @@ from leaf import schema as schema_model
 from leaf.registry.storage import load_registry
 from leaf.render_checks import evaluate_probe, rendered, wait_until_ready
 from leaf.render_gate.scheme import console_finding
+from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
 
 def test_sort_film_readout_and_narration(browser, serve):
     """Changing step numbers hold their space, and narration renders inline Markdown."""
-    example = next(path for path in EXAMPLES if path.stem == "rust-sort")
+    example = named_source("rust-sort")
     page = open_page(browser, serve(example))
     assert (
         "collapse(): merge if one is true"
@@ -152,7 +152,7 @@ def test_sort_film_fits_its_pane_where_the_panes_stand_side_by_side(browser, ser
     """A workspace is a screen, so in a 900px-tall window at the narrowest width the
     page sets its panes side by side, the whole player shows in its pane, the last
     step's longer summary included (page-layout.md, "A workspace")."""
-    example = next(path for path in EXAMPLES if path.stem == "rust-sort")
+    example = named_source("rust-sort")
     context = browser.new_context(
         reduced_motion="reduce", viewport={"width": 720, "height": 900}
     )
@@ -175,7 +175,7 @@ def test_sort_film_fits_its_pane_where_the_panes_stand_side_by_side(browser, ser
 
 
 def test_ship_review_summary_is_addressable_and_baseline_aligned(browser, serve):
-    example = next(path for path in EXAMPLES if path.stem == "ship-review")
+    example = named_source("ship-review")
     page = open_page(browser, serve(example))
     summary = page.locator("#off-facts")
     expect(summary).to_be_visible()
@@ -748,7 +748,7 @@ def test_a_screenshot_comment_contour_paints_above_its_edge_to_edge_frame(
     down both sides. Both projected brackets, including their end caps, remain above
     the frame.
     """
-    example = next(path for path in EXAMPLES if path.stem == "release-notes")
+    example = named_source("release-notes")
     page = open_page(browser, serve(example))
     shot = page.locator("#rn-console-shot")
     shot.get_by_role("button", name="Slider", exact=True).click()
@@ -807,7 +807,7 @@ def test_a_focused_card_comment_never_paints_over_the_cards_contents(browser, se
     Comparing the interior with that overlay hidden makes the guarantee independent of
     the widget's DOM, colors, and stacking choices.
     """
-    example = next(path for path in EXAMPLES if path.stem == "live-progress")
+    example = named_source("live-progress")
     url = serve(example)
     append_carried_log_record(
         serve.page_dir,
@@ -852,7 +852,7 @@ def test_a_focused_card_comment_never_paints_over_the_cards_contents(browser, se
 
 def test_a_screenshot_margin_trace_paints_both_quiet_brackets(browser, serve):
     """A margin control traces a visual target above its edge-to-edge children."""
-    example = next(path for path in EXAMPLES if path.stem == "release-notes")
+    example = named_source("release-notes")
     page = open_page(browser, serve(example))
     resized(page, 1200, 900)
     margins_laid_out(page)

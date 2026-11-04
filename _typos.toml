@@ -3,7 +3,6 @@
 # filenames need --force-exclude, which the pre-commit hook already supplies.
 extend-exclude = [
   "browser/vendor/**",
-  "dist/kernel/**",
   "packages/**/vendor/**",
   "evals/ui-review-detection/fixtures/**",
 ]

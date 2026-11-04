@@ -1371,6 +1371,60 @@ def test_the_chrome_restates_no_rule_a_page_side_sheet_already_makes():
     )
 
 
+def test_leaf_writes_its_own_marks_under_its_prefix():
+    """A class or data attribute Leaf writes on an element is `lf-` or `data-lf-`, the
+    names `page check` refuses an author, so a page's own CSS can't restyle Leaf's
+    elements by naming one. Before #5050, a page rule for `.hi` turned lf-code's
+    highlighted line blue, and one for `.away` the panel's away leaf red.
+
+    Leaf also writes two kinds of name it doesn't own, where one rule draws both. The
+    first is an author's: the idioms and tones the registries declare, such as
+    `label.choice`, `[data-room]` and `.ok`, which the theme draws alike on Leaf's
+    controls. The second is a library's, on an element Leaf draws for that library to
+    read or style: Pierre's row attributes on lf-diff's own rows, and the class
+    markdown-it gives a task item's checkbox, which the composer's editor draws too.
+
+    Read from each module's source (`js_facts.mjs`, `marks`), so a name built from a
+    dynamic part, as `lf-${kind}` is, goes unread."""
+    libraries = {
+        "data-code",
+        "data-line-type",
+        "data-overflow",
+        "task-list-item-checkbox",
+    }
+    authored = set()
+    for registry in [
+        schema_model.ASSETS / "registry.json",
+        *schema_model.BUNDLED_PACKAGES.glob("*/registry.json"),
+    ]:
+        entries = json.loads(registry.read_text())
+        authored |= set(entries.get("$tones", {}).get("names", []))
+        idioms = [key for key in entries if not re.fullmatch(r"[$a-z][\w-]*", key)]
+        for idiom in idioms:
+            authored |= set(re.findall(r"\.([\w-]+)", idiom))
+            authored |= set(re.findall(r"\[(data-[\w-]+)", idiom))
+    assert {"choice", "ok", "data-room"} <= authored, sorted(authored)
+    modules = [
+        module
+        for root in (schema_model.ASSETS, schema_model.BUNDLED_PACKAGES)
+        for module in sorted(root.rglob("*.js"))
+        if "vendor" not in module.parts
+    ]
+    marks = json.loads(js_facts("marks", modules))
+    assert sum(map(len, marks.values())) > 1000, "the reading of marks is broken"
+    leaks = [
+        f"{Path(module).relative_to(schema_model.PLUGIN_ROOT)}:{mark['line']} "
+        f"{mark['name']}"
+        for module, found in marks.items()
+        for mark in found
+        if not mark["name"].startswith(
+            "data-lf-" if mark["kind"] == "attribute" else "lf-"
+        )
+        and mark["name"] not in authored | libraries
+    ]
+    assert leaks == [], leaks
+
+
 def test_kernel_selectors_name_no_package_tag():
     """The kernel styles and finds a package widget by what its registry declares, a
     mark delivery paints such as `data-lf-space`, never by its tag: a rule naming

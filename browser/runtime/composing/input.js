@@ -609,7 +609,8 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
         removeMedia,
       });
       const shelf = html`<div
-        class=${sentMedia ? "lf-msg-media" : "lf-composer-media scroll"}
+        class=${sentMedia ? "lf-msg-media" : "lf-composer-media"}
+        ?data-lf-scroll=${!sentMedia}
         role="group"
         aria-label="Attachments"
         ?hidden=${!drawn && attachedMedia.length === 0}

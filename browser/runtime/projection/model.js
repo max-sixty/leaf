@@ -6,6 +6,8 @@
    state, or delivery state. Authored snapshots have the same shape captured by
    projection/authored.js: a map from widget id to `{state, specs}`. */
 
+import { keptReadings } from "../kept.js";
+
 /** @typedef {import("../../types/domain.js").ProjectionEntry} ProjectionEntry */
 /** @typedef {import("../../types/domain.js").ClassifiedEntry} ClassifiedEntry */
 /** @typedef {import("../../types/domain.js").AuthoredMap} AuthoredMap */
@@ -294,25 +296,60 @@ export function rankAt({ value, ranks }, container, index, unit) {
 // absorbed places its unit at the rank it names, a coordinate of that unit's own (rank keys
 // above), so each container lists its units by rank once every placement in force is
 // in. `projection.py`'s `folded_positions` is the server's reading of the same rule.
-/** @param {AuthoredMap} authoredSnapshots @param {Projection} projection */
-export function foldWidgetStates(authoredSnapshots, projection) {
+//
+// A reader made by `widgetStateReader` keeps each widget's folded state (`kept.js`)
+// and folds it again only where its authored state or an entry in force on it has
+// changed, so every widget nothing touched keeps the very state it had, and a reader
+// of one, such as a thread holding a frozen widget, can tell it unchanged by identity.
+/** @typedef {{state: import("../../types/domain.js").AuthoredWidget["state"], entries: ProjectionEntry[], specs: ReadonlyMap<string, import("../../types/domain.js").ActionSpec>}} FoldedWidget */
+export function widgetStateReader() {
+  /** @type {ReturnType<typeof keptReadings<FoldedWidget>>} */
+  const folded = keptReadings();
+  /** @param {AuthoredMap} authoredSnapshots @param {Projection} projection */
+  return function foldWidgetStates(authoredSnapshots, projection) {
+    /** @type {Map<string, ProjectionEntry[]>} */
+    const inForce = new Map();
+    for (const entry of [...projection.desired.values()].sort(compareProjected)) {
+      const entries = inForce.get(entry.e.widget);
+      if (entries) entries.push(entry);
+      else inForce.set(entry.e.widget, [entry]);
+    }
+    /** @type {Map<string, FoldedWidget>} */
+    const states = new Map();
+    for (const [id, authored] of authoredSnapshots) {
+      const entries = inForce.get(id) ?? [];
+      states.set(
+        id,
+        folded.read(
+          id,
+          [
+            authored,
+            ...entries.flatMap((entry) => [
+              entry.e,
+              entry.unit,
+              entry.spec,
+              entry.absorbed,
+              entry.value,
+            ]),
+          ],
+          () => foldWidget(authored, entries),
+        ),
+      );
+    }
+    folded.done();
+    return states;
+  };
+}
+
+// One widget's state: its authored state with each entry in force on it applied, in
+// the order the projection ranks them.
+/** @param {AuthoredMap extends ReadonlyMap<string, infer W> ? W : never} authored
+ * @param {ProjectionEntry[]} entries @returns {FoldedWidget} */
+function foldWidget(authored, entries) {
   // structuredClone creates a mutable owned graph. Its library type preserves the
   // source's readonly modifiers, so remove them only at this native-copy boundary.
-  /** @param {import("../framework/snapshot.js").Immutable<import("../../types/domain.js").AuthoredWidget["state"]>} state */
-  const copyState = (state) =>
-    /** @type {import("../../types/domain.js").AuthoredWidget["state"]} */ (
-      structuredClone(state)
-    );
-  /** @type {Map<string, {state: import("../../types/domain.js").AuthoredWidget["state"], entries: ProjectionEntry[], specs: ReadonlyMap<string, import("../../types/domain.js").ActionSpec>}>} */
-  const states = new Map(
-    [...authoredSnapshots].map(([id, authored]) => [
-      id,
-      {
-        state: copyState(authored.state),
-        entries: [],
-        specs: authored.specs,
-      },
-    ]),
+  const state = /** @type {import("../../types/domain.js").AuthoredWidget["state"]} */ (
+    structuredClone(authored.state)
   );
   /** @param {PositionValue} state @param {string} unit @param {Record<string, unknown>} detail */
   const place = ({ value: containers, ranks }, unit, detail) => {
@@ -328,33 +365,31 @@ export function foldWidgetStates(authoredSnapshots, projection) {
     destination.push(unit);
     ranks[unit] = rank;
   };
-
-  for (const entry of [...projection.desired.values()].sort(compareProjected)) {
-    const owner = states.get(entry.e.widget);
-    if (!owner) continue;
+  for (const entry of entries) {
     const { spec, e, unit } = entry;
     const record = spec.record;
     const value = record ? structuredClone(e.detail.value) : e.action;
     const current = { action: e.action, value, detail: structuredClone(e.detail) };
-    owner.entries.push(entry);
-    const target = owner.state[e.action];
+    const target = state[e.action];
     if (target && "units" in target) {
       target.units[unit] = current;
       if ("ranks" in target && !entry.absorbed) place(target, unit, e.detail);
     } else {
       if (spec.unit !== "widget")
         throw new Error(`Missing authored units for ${e.widget}/${e.action}`);
-      owner.state[e.action] = current;
+      state[e.action] = current;
     }
   }
-
-  for (const { state } of states.values())
-    for (const position of Object.values(state))
-      if ("ranks" in position)
-        for (const ids of Object.values(position.value))
-          ids.sort(byRank(position.ranks));
-  return states;
+  for (const position of Object.values(state))
+    if ("ranks" in position)
+      for (const ids of Object.values(position.value)) ids.sort(byRank(position.ranks));
+  return { state, entries, specs: authored.specs };
 }
+
+// One folding with nothing kept from an earlier one.
+/** @param {AuthoredMap} authoredSnapshots @param {Projection} projection */
+export const foldWidgetStates = (authoredSnapshots, projection) =>
+  widgetStateReader()(authoredSnapshots, projection);
 
 /* An obligation reads its value from the same complete fold as its widget. Completion
    can make an empty recorded value an answer, but cannot invent custom state after

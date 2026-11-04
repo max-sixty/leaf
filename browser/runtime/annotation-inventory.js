@@ -12,7 +12,7 @@ import { KINDS } from "./contribution-model.js";
 import { excerptWords, labelWords } from "./words.js";
 import { contributionEntries } from "./contributions.js";
 import { marginInventory, threadMarks } from "./margin-model.js";
-import { agentName } from "./semantic-state.js";
+import { agentName, readPart } from "./semantic-state.js";
 import { livePoint } from "./pointed-place.js";
 import { ago } from "./presence.js";
 import { runtime } from "./context.js";
@@ -48,6 +48,17 @@ import {
   comparisonChanges,
   toggleChangeCard,
 } from "./version.js";
+
+// Where each published workflow still in progress stands in the published order, by
+// its id.
+const inProgress = readPart(
+  (root) =>
+    new Map(
+      root.effective.workflows.flatMap((workflow, at) =>
+        isWorkflowProgress(workflow) ? [[workflow.id, at]] : [],
+      ),
+    ),
+);
 
 /** @typedef {import("./margin-model.js").AnnotationItem} AnnotationItem
  * @typedef {import("./contributions.js").ContributionSource} ContributionSource
@@ -198,14 +209,21 @@ export function createAnnotationInventory({
 
   const workflows = () => runtime.workflows;
   // Selected from the published workflows rather than gathered from the items, whose
-  // order is the margin's, so the strongest is the server's.
+  // order is the margin's, so the strongest is the server's. A receipt is looked up by
+  // its id among those still in progress, so each item costs what it holds rather than
+  // every workflow on the page.
   /** @param {readonly AnnotationItem[]} items */
   const workflowReceipt = (items) => {
-    const receipts = new Set(items.map((item) => item.workflowReceipt?.id));
+    const at = inProgress();
+    const published = workflows();
+    /** @type {Set<number>} */
+    const receipts = new Set();
+    for (const { workflowReceipt } of items) {
+      const index = workflowReceipt ? at.get(workflowReceipt.id) : undefined;
+      if (index !== undefined) receipts.add(index);
+    }
     return strongestWorkflow(
-      workflows().filter(
-        (workflow) => receipts.has(workflow.id) && isWorkflowProgress(workflow),
-      ),
+      [...receipts].sort((a, b) => a - b).flatMap((index) => published[index] ?? []),
     );
   };
   // One group per target, one more for each row inside it that pointing gestures stood

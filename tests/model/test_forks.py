@@ -601,7 +601,6 @@ def test_admission_waits_for_the_lane_cutoff_to_be_published(claimed, monkeypatc
                 endpoint_model.accept_event,
                 claimed,
                 {"kind": "comment", "revision": 1, "text": "During publication"},
-                dict,
             )
             assert blocked.wait(STATED_TIMEOUT), (
                 "admission did not wait for publication"

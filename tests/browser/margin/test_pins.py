@@ -330,6 +330,49 @@ def test_a_choice_s_pin_stands_on_none_of_its_option_cards(browser, serve, optio
     assert pin_distance(reading["carrier"], reading["parts"]) <= 12, reading
 
 
+def test_an_option_s_key_moves_no_pin_and_stands_under_none(browser, serve):
+    """An option card lends its key the seat of its own mark (options.css), which a pin
+    keeps clear of as a control, so the keys showing as focus enters the options leave
+    every pin where it stood and under none of them. Read as cover, a shown key moved
+    each pin beside the options a few pixels whenever focus entered or left them."""
+    options = "".join(
+        f'<lf-option id="c-{n}"><strong>Option {n}</strong> what choosing it does.'
+        "</lf-option>"
+        for n in range(1, 5)
+    )
+    body = f'<lf-ask id="q"><h2>Which way?</h2><lf-options id="c" choose>{options}</lf-options></lf-ask>'
+    comments = [_comment_on(f"c-{n}") for n in range(1, 5)]
+    page = open_page(
+        browser,
+        serve(
+            leaf_page("keys beside pins", f"<div>{body}</div>", layout="sidebar"),
+            events=comments,
+        ),
+    )
+    resized(page, 1440, 900)
+    margins_laid_out(page)
+    targets = [f"c-{n}" for n in range(1, 5)]
+    for target in targets:
+        row = page.locator(f'.lf-margin-cluster[data-lf-margin-for="{target}"]')
+        expect(row).to_have_attribute("data-lf-place", "pin")
+    before = [pin_reading(page, target)["entries"] for target in targets]
+    page.locator("#c-1 lf-option-control").focus()
+    keys = page.locator("#c .lf-key-badge[data-lf-binding-badge]")
+    expect(keys.first).to_be_visible()
+    margins_laid_out(page)
+    after = [pin_reading(page, target)["entries"] for target in targets]
+    assert after == before
+    shown = keys.evaluate_all(
+        """(keys) => keys.map((key) => {
+          const {left, top, right, bottom} = key.getBoundingClientRect();
+          return {left, top, right, bottom};
+        })"""
+    )
+    assert shown
+    for entry in (entry for entries in after for entry in entries):
+        assert not any(_meets(entry, key) for key in shown), (entry, shown)
+
+
 def test_a_pin_on_a_contents_target_stands_at_its_last_part(browser, serve):
     """A `display: contents` target anchors through its first shown part, but its pin
     stands at the top-right corner of every part together, and shows while they do."""

@@ -854,7 +854,7 @@ def test_phone_diff_headers_keep_distinguishing_parent_folder_readable(
         release: () => release(),
       };
       diff.prepareEntry = async function(...args) {
-        if (args[1].path.endsWith('/dispatch/CLAUDE.md')) {
+        if (args[0].path.endsWith('/dispatch/CLAUDE.md')) {
           const held = new Promise(resolve => { release = resolve; });
           window.lfDiffPreparationStarted = true;
           await held;

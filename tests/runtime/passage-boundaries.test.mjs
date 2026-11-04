@@ -407,6 +407,40 @@ test("a reading's positions lead back to their nodes", () => {
   assert.equal(pointAt(reading, reading.raw.length) === null, true);
 });
 
+// A quote's copies are told apart by the words beside each, and only those are read: a
+// run of whitespace before them, however long, is not read again to learn whether the
+// first of them follows a space.
+test("telling a quote's copies apart reads only around them", () => {
+  document.body.innerHTML = "<main><p></p></main>";
+  const line = document.querySelector("p");
+  line.textContent = `a${" ".repeat(1_000_000)}${"x".repeat(256)} MARK ${"y".repeat(256)} MARK ${"z".repeat(256)}`;
+  const reading = pageText();
+  const node = line.firstChild;
+  const data = node.data;
+  // A search reads a node's words as slices of its data, so the slices are what it read.
+  let read = 0;
+  Object.defineProperty(node, "data", {
+    configurable: true,
+    get: () => ({
+      slice: (/** @type {number} */ start, /** @type {number} */ end) => {
+        const part = data.slice(start, end);
+        read += part.length;
+        return part;
+      },
+    }),
+  });
+  try {
+    const found = findQuote(reading, "MARK", {
+      prefix: "y".repeat(24),
+      suffix: "z".repeat(24),
+    });
+    assert.equal(found[0]?.start, data.lastIndexOf("MARK"), "the second copy");
+  } finally {
+    delete node.data;
+  }
+  assert.ok(read < 10_000, `${read} characters read to tell two copies apart`);
+});
+
 // `says` and `wrote` are two answers for one element, and a kept reading must not hand
 // back the other one's.
 test("one element's two readings are kept apart", () => {

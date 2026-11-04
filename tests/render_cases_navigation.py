@@ -738,6 +738,9 @@ THIN_V2 = THIN_V1.replace(
 # the widget owes the user the text without them.
 SENTENCE = "The version stamp never lands, so migration 0041 replays on every deploy."
 DRAFT_TEXT = "Run the migration before deploying.\nIt is online."
+# A draft reads as a Markdown file, so its source's line break inside the paragraph
+# draws as a space.
+DRAFT_DRAWN = "Run the migration before deploying. It is online."
 DRAFT_EDITED = "Run the migration before deploying. It takes about a minute."
 JOURNEY_SCAFFOLD = leaf_page(
     "journey",

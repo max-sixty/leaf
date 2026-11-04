@@ -35,6 +35,7 @@ from render_harness import (
     post_event,
     resized,
     round_trip,
+    show_done,
     stamp_page,
     suggestion_control,
     told,
@@ -137,7 +138,7 @@ customElements.define("lf-conditional", class extends LeafElement {
         if count:
             expect_obligations_answered(page, "0/1")
         # The phase move is the agent's to answer. The obligation leaves the user's
-        # queue when its condition closes, retaining its withdrawn card under Done.
+        # queue when its condition closes, retaining its withdrawn line under Done.
         # An open view keeps its cards seated, so each reading is a fresh opening.
         if view.count():
             page.locator(".lf-fp-close").click()
@@ -145,6 +146,8 @@ customElements.define("lf-conditional", class extends LeafElement {
         page.locator(".lf-fp-on-user").click()
         panel_settled(page, view="queue")
         expect(view.locator(f'{items}[data-lf-list="you"]')).to_have_count(count)
+        if not count:
+            show_done(page)
         withdrawn = view.locator(f'{items}[data-lf-list="done"]')
         expect(withdrawn).to_have_count(1 - count)
         if not count:

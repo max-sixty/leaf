@@ -981,6 +981,16 @@ class Isolation(NamedTuple):
     payload: Path
     evidence: Path
 
+    @classmethod
+    def under(cls, root: Path, payload: Path, evidence: Path) -> Isolation:
+        """The isolation laid out under `root`, its cwd made."""
+        place = cls(
+            root, root / "state", root / "work", root / "work" / "page", payload,
+            evidence,
+        )  # fmt: skip
+        place.work.mkdir()
+        return place
+
 
 def stop_left_running(state: Path) -> list[str]:
     """Stop every process running with `state` as its state home, which only the
@@ -1032,11 +1042,7 @@ def isolated(
     evidence = run_directory(ROOT / ".tmp" / "journey")
     # Claude Code records trust by the resolved path.
     root = Path(tempfile.mkdtemp(prefix=f"leaf-journey-{target}-")).resolve()
-    place = Isolation(
-        root, root / "state", root / "work", root / "work" / "page", root / "plugin",
-        evidence,
-    )  # fmt: skip
-    place.work.mkdir()
+    place = Isolation.under(root, root / "plugin", evidence)
     extract_payload(place.payload)
     inherited = dict(os.environ)
     replaced = environment(place)

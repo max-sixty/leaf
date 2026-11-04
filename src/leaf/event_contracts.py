@@ -762,33 +762,12 @@ def _todo_error(view, event: dict, readings) -> Finding | None:
             return Finding("not-an-element", values={"element": element})
         return None
 
-    def user_widget_error(widget: str) -> Finding | None:
-        if error := element_error(widget):
-            return error
-        item = next(
-            (
-                item
-                for item in readings.work.all_obligations["all"]
-                if item["source"]["kind"] == "widget"
-                and item["source"]["id"] == widget
-                and item["status"] == "open"
-            ),
-            None,
-        )
-        if item is not None:
-            return Finding(
-                "duplicate-obligation",
-                values={"widget": widget, "obligation": item["id"]},
-            )
-        return None
-
     owed = agent_inputs(readings.work) if held else set()
     return todo_error(
         event,
         readings.log,
         seat_error=seat_error,
         element_error=element_error,
-        user_widget_error=user_widget_error,
         owed=owed,
         items=lambda: readings.work.all_obligations["all"],
         registry=readings.work.registry,

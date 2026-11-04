@@ -24,6 +24,7 @@ from typing import Literal
 
 from .layer import named_package
 from .refusals import Refused
+from .registry.schema import json_validator
 from .schema import HTML_NAME
 
 type ThemeChoice = str | Literal[False] | None
@@ -32,7 +33,7 @@ type ThemeChoice = str | Literal[False] | None
 # holds Leaf's reading look, its element and idiom defaults.
 DEFAULT_THEME = "reading"
 
-_CATALOGUE = {
+_CATALOGUE_SCHEMA = {
     "type": "object",
     "properties": {
         "themes": {
@@ -60,9 +61,7 @@ def catalogue() -> tuple[Path, dict]:
         return path, {"themes": []}
     except (OSError, tomllib.TOMLDecodeError) as error:
         raise Refused(f"{path}: {error}") from None
-    from .registry.schema import json_validator
-
-    if error := next(iter(json_validator(_CATALOGUE).iter_errors(config)), None):
+    if error := next(iter(json_validator(_CATALOGUE_SCHEMA).iter_errors(config)), None):
         raise Refused(f"{path}: {error.message}")
     if (default := config.get("default")) is not None and default not in config[
         "themes"

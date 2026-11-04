@@ -6,9 +6,9 @@ A command that runs Leaf at two versions, such as `stills`, `probe` or `compare`
 base with the local `main` unless `--base REF` names another commit (`choose_arms`,
 `base_option`). The base is the whole tree at its commit, so it serves pages, runs the
 preview worker and reads its own authored sources (`own_source`) as this checkout does.
-An eval arm is the plugin payload (`PAYLOAD`) at one ref, or as the working tree has
-it, and nothing else: no `.git`, examples or notes, so a child cannot read its way to
-another arm's version.
+An eval's `base` and `head` are instead each a copy of the plugin payload (`PAYLOAD`)
+at its version and nothing else: no `.git`, examples or notes, so a child cannot read
+its way to another arm's version.
 
 A child runs from a scratch cwd outside any repository, so no project instructions
 load, under a home of its own beside that cwd, so its bypassed permissions write to
@@ -260,7 +260,7 @@ class ServedPage(NamedTuple):
 
 
 # The page `serving_source` serves while it does, for an input that writes to it from
-# outside the tab, as the agent or another tab does (stills.py, `held_news`).
+# outside the tab, as the agent or another tab does (states.py, `held_news`).
 served_page: ContextVar[ServedPage] = ContextVar("served_page")
 
 
@@ -384,9 +384,22 @@ def build_arm(ref: str | None, dest: Path, *, paths: Iterable[str] = PAYLOAD) ->
     return arm_commit(ref)
 
 
-def base_ref(ref: str | None) -> str:
-    """The ref the base arm is built at: the one named, else `merge_base()`."""
-    return ref or merge_base()
+def named_commit(_context, _parameter, ref: str | None) -> str | None:
+    """Refuse a REF that names no commit while the command line is read, before any
+    arm is built. An optional value takes the next word, so `--base` written before
+    an argument reads that argument as its REF."""
+    if (
+        ref
+        and subprocess.run(
+            ["git", "-C", ROOT, "rev-parse", "--verify", "-q", f"{ref}^{{commit}}"],
+            capture_output=True,
+            check=False,
+        ).returncode
+    ):
+        raise click.BadParameter(
+            f"no commit {ref!r}; without REF, put --base after any arguments"
+        )
+    return ref
 
 
 def base_option(*, paired: bool = False):
@@ -401,6 +414,7 @@ def base_option(*, paired: bool = False):
         flag_value="",
         default="" if paired else None,
         metavar="[REF]",
+        callback=named_commit,
         help="Compare with REF instead of the merge base with main."
         if paired
         else "Also run the merge base with main, or REF. Without REF, put it after "
@@ -416,17 +430,29 @@ class Arm(NamedTuple):
     commit: str
 
 
-def choose_arms(base: str | None, scratch: Path) -> dict[str, Arm]:
+def choose_arms(
+    base: str | None, scratch: Path, *, payload: bool = False
+) -> dict[str, Arm]:
     """The arms a command runs, keyed `base` and `head`, base first. `head` is this
     working tree in place, uncommitted edits included, so an edit made during a run
     reaches what the run reads after it. Unless `base` is None, `base` is the whole
-    tree at `base_ref(base)`, built under `scratch` in `arms/` (`build_arm`)."""
+    tree at `base`, or at the merge base when `base` is empty, built under `scratch`
+    in `arms/` (`build_arm`).
+
+    With `payload`, as for a command that installs each arm for child agents, both
+    arms are copies of the plugin payload alone in `scratch`'s `arms/`, the head's
+    taken from the working tree now: a child can't read its way to the other arm,
+    and a later edit changes neither."""
+    paths = PAYLOAD if payload else (".",)
     arms = {}
     if base is not None:
         directory = scratch / "arms" / "base"
-        commit = build_arm(base_ref(base), directory, paths=(".",))
+        commit = build_arm(base or merge_base(), directory, paths=paths)
         arms["base"] = Arm(directory, commit)
-    return {**arms, "head": Arm(ROOT, arm_commit(None))}
+    if not payload:
+        return {**arms, "head": Arm(ROOT, arm_commit(None))}
+    directory = scratch / "arms" / "head"
+    return {**arms, "head": Arm(directory, build_arm(None, directory))}
 
 
 def describe(arms: dict[str, Arm]) -> str:

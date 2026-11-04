@@ -31,27 +31,31 @@ unknown; browser diagnostic sessions are separate identities. Captured context
 identifies the harness and the provider of an explicitly recorded matching turn;
 no current claim or timestamp proximity supplies this identity.
 
-Every answered input carries the time the answering session's `leaf` commands
+Every input a session answered carries the time the session's `leaf` commands
 took on it (`leaf_commands_s`), from the `leaf_command` record each writes in the
 page (`leaf.interaction_log.record_command`), on any harness: those that started
-between the harness taking the input and the answer. Where the reply's breakdown
-(below) reads the transcript, the harness took it at the boundary the breakdown
-finds; elsewhere at its opened pickup, else its admission, which leaves out a
-command the agent ran before acknowledging a pointer it read itself. One whose answering
-session is Claude Code's, with its transcript still in this machine's Claude Code
-projects, also carries its reply's breakdown (`reply`,
-`reply_phases.reply_breakdown`): the whole reply, Leaf's share of it (delivery and
-those commands), the harness's other work before it took the input, idle time
-between its turns, and the model's time and calls, unsplit, since the transcript
-alone times no request or first output. Its case is `working` where
-a turn was running at the admission, so the harness took the input at that turn's
-next tool boundary or its end, else `waiting`. Other harnesses' inputs carry no
-breakdown, and the summary's reply rows count them missing.
+between the harness taking the input and the answer. Where the input has a reply
+breakdown (below), the harness took it at the boundary the breakdown finds;
+elsewhere at its opened pickup, else its admission, which leaves out a
+command the agent ran before acknowledging a pointer it read itself. Where the
+answering session's record can be read, the input also carries its reply's breakdown
+(`reply`, `reply_phases.reply_breakdown`): the whole reply, Leaf's share of it
+(delivery and those commands), the harness's other work before it took the input,
+idle time between its turns, and the model's time and calls. Its case is `working`
+where a turn was running at the admission, so the harness took the input at that
+turn's next tool boundary or its end, else `waiting`. An input a fork of the
+conversation answered (`leaf.forks`) has none, nor commands' time or a pickup wait
+(below), since the session spent nothing on it and takes it only later. This
+command reads a Claude Code session's transcript still in this machine's Claude
+Code projects (`transcript_of`), which times no request or first output, so the
+model's time stays unsplit; other harnesses' inputs carry no breakdown, and the
+summary's reply rows count them missing. `leaf-dev journey` reads the record of the
+session it runs instead, on any harness (`journey.User.sample`).
 
-Each input a Claude Code session opened, with its transcript on this machine, also
-carries what its pickup waited on (`pickup`, `reply_phases.pickup_wait`), and the
-summary's `opened_*` rows sort those waits by cause, each over its own inputs,
-with the seconds they add up to. A survey of every page touched in a week:
+Each input whose opening session's record can be read also carries what its pickup
+waited on (`pickup`, `reply_phases.pickup_wait`), and the summary's `opened_*` rows
+sort those waits by cause, each over its own inputs, with the seconds they add up
+to. A survey of every page touched in a week:
 
     leaf-dev response-times --since 2026-10-20T00:00-07:00 $(find
         ~/.local/state/leaf/pages -maxdepth 2 -name events.jsonl -mtime -7 |
@@ -67,6 +71,7 @@ import json
 import statistics
 from bisect import bisect_right
 from collections import Counter
+from collections.abc import Callable
 from datetime import datetime
 from functools import cache
 from pathlib import Path
@@ -161,12 +166,41 @@ def visible_feedback(
     return result
 
 
-def page_timings(page: Path, *, since: datetime | None, until: datetime) -> dict:
+# What reads the record of the session that marked a milestone, in `reply_phases`'
+# form, or returns None where it cannot.
+type Records = Callable[[dict], list[dict] | None]
+
+
+@cache
+def session_records(session: str) -> list[dict] | None:
+    """The Claude Code session's transcript records, read once a run, since a page
+    holds many inputs a session took."""
+    native = claude_code_transcript(session)
+    return None if native is None else claude_code_records(native)
+
+
+def transcript_of(milestone: dict) -> list[dict] | None:
+    """The records of the Claude Code session that marked `milestone`, from its
+    transcript on this machine (`session_records`), or None for another harness's
+    session or one whose transcript is not here."""
+    if milestone["harness"] != "claude-code" or not milestone["session"]:
+        return None
+    return session_records(milestone["session"])
+
+
+def page_timings(
+    page: Path,
+    *,
+    since: datetime | None,
+    until: datetime,
+    records: Records = transcript_of,
+) -> dict:
     """Measure exact inputs and their feedback from recorded events.
 
     Events follow admission order even under wall-clock skew. Context declarations
     use host time; browser feedback uses its tab's clock. Every attention-bearing
-    input version stays in the denominator, including missing feedback.
+    input version stays in the denominator, including missing feedback. `records`
+    reads the session records the reply breakdown and pickup wait need.
     """
     page = page.resolve()
     observations = read_interactions(
@@ -180,6 +214,7 @@ def page_timings(page: Path, *, since: datetime | None, until: datetime) -> dict
             "run_context",
             "leaf_command",
             "watch",
+            "fork_reply",
         ),
     )
     contexts = [
@@ -370,6 +405,11 @@ def page_timings(page: Path, *, since: datetime | None, until: datetime) -> dict
     watches = [
         row for row in observations if row["source"] == "cli" and row["type"] == "watch"
     ]
+    forked = {
+        row["reply"]
+        for row in observations
+        if row["type"] == "fork_reply" and "reply" in row
+    }
     for row in rows.values():
         answered = row["milestones"].get("answered")
         mine = [
@@ -377,14 +417,18 @@ def page_timings(page: Path, *, since: datetime | None, until: datetime) -> dict
             for command in commands
             if answered is not None and command["session"] == answered["session"]
         ]
-        row["reply"] = breakdown(row, mine)
-        row["pickup"] = waited(row, watches)
+        # A reply a fork of the conversation wrote took nothing of the session's,
+        # which takes the input only later, so its reply, pickup and commands
+        # waited on nothing of the session's.
+        by_fork = answered is not None and answered["event_id"] in forked
+        row["reply"] = None if by_fork else breakdown(row, mine, records)
+        row["pickup"] = None if by_fork else waited(row, watches, records)
         # From where the harness took the input, so a working harness's
         # commands for the work it was busy with stay out.
         took = row["milestones"].get("opened", {}).get("at", row["admitted_at"])
         row["leaf_commands_s"] = (
             None
-            if answered is None
+            if answered is None or by_fork
             else row["reply"]["leafCommandsMs"] / 1000
             if row["reply"] is not None
             else leaf_commands_ms(mine, took, answered["at"]) / 1000
@@ -396,21 +440,19 @@ def page_timings(page: Path, *, since: datetime | None, until: datetime) -> dict
     }
 
 
-def breakdown(row: dict, commands: list[dict]) -> dict | None:
-    """The answered input's reply breakdown, with its case, where the answering
-    session's Claude Code transcript can be read; `commands` are its session's
-    `leaf_command` records."""
+def breakdown(row: dict, commands: list[dict], records: Records) -> dict | None:
+    """The answered input's reply breakdown, with its case, where `records` reads
+    the answering session's record; `commands` are its session's `leaf_command`
+    records."""
     milestones = row["milestones"]
     if "answered" not in milestones or "opened" not in milestones:
         return None
     answered = milestones["answered"]
-    if answered["harness"] != "claude-code" or answered["session"] is None:
-        return None
-    records = session_records(answered["session"])
-    if records is None:
+    read = records(answered)
+    if read is None:
         return None
     reply = reply_breakdown(
-        records,
+        read,
         commands,
         row["admitted_at"],
         milestones["opened"]["at"],
@@ -423,16 +465,16 @@ def breakdown(row: dict, commands: list[dict]) -> dict | None:
     )
 
 
-def waited(row: dict, watches: list[dict]) -> dict | None:
-    """What the input waited on before its opened pickup (`pickup_wait`), where the
-    session that opened it is Claude Code's with its transcript on this machine,
-    with the `watch` record of that session's watch running at the admission
+def waited(row: dict, watches: list[dict], records: Records) -> dict | None:
+    """What the input waited on before its opened pickup (`pickup_wait`), where
+    `records` reads the record of the session that opened it, with the `watch`
+    record of that session's watch running at the admission
     (`leaf.interaction_log.record_watch`), or None where none recorded one."""
     opened = row["milestones"].get("opened")
-    if opened is None or opened["harness"] != "claude-code" or not opened["session"]:
+    if opened is None:
         return None
-    records = session_records(opened["session"])
-    if records is None:
+    read = records(opened)
+    if read is None:
         return None
     admitted = interaction_time(row["admitted_at"])
     watch = next(
@@ -446,15 +488,7 @@ def waited(row: dict, watches: list[dict]) -> dict | None:
         ),
         None,
     )
-    return {**pickup_wait(records, row["admitted_at"], opened["at"]), "watch": watch}
-
-
-@cache
-def session_records(session: str) -> list[dict] | None:
-    """The Claude Code session's transcript records, read once a run, since a page
-    holds many inputs a session took."""
-    native = claude_code_transcript(session)
-    return None if native is None else claude_code_records(native)
+    return {**pickup_wait(read, row["admitted_at"], opened["at"]), "watch": watch}
 
 
 def _agent_context(session: str | None, turn: str | None, context: dict) -> dict:
@@ -640,10 +674,10 @@ def response_times(
         f"Unlinked agent replies: {sum(len(reading['unlinked_agent_replies']) for reading in readings)}; missing means no exact-linked observation."
     )
     click.echo(
-        "leaf_commands reads each command's own record on any harness; whole_* and leaf_share_* read Claude Code transcripts, so their missing includes every other input."
+        "leaf_commands reads each command's own record on any harness; whole_* and leaf_share_* read Claude Code transcripts, so their missing includes every other input and those a fork answered."
     )
     click.echo(
-        "opened_* sorts each opened pickup a Claude Code transcript on this machine covers by what ended its wait (reply_phases.pickup_wait), over those inputs alone."
+        "opened_* sorts each opened pickup a Claude Code transcript on this machine covers by what ended its wait (reply_phases.pickup_wait), over those inputs alone, less those a fork answered."
     )
     click.echo(
         "milestone           observed  missing  clock errors      p50      p90      p95      max     total"

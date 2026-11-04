@@ -55,7 +55,7 @@ keep an unanswered request open or explain why changed circumstances make it
 unnecessary. An independent decision does not silently answer or retire it.
 
 Earlier short and replay probes passed on both arms and did not reproduce a failure.
-A later base/candidate check accepting either a still-open assessment or reasoned
+A later base/head check accepting either a still-open assessment or reasoned
 retirement likewise passed one sample per arm. Those checks validate the distinctions,
 not a reduced error rate. The temporary case was archived with experiment evidence
 rather than kept as a permanent rule that this particular assessment must stay open.

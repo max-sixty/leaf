@@ -1,7 +1,7 @@
 import { J, LAYOUT, LENT_REACH_STOP, PAGE_PAINT_ATTRIBUTE, PRESSES, TEXT_BOX, WORKS, Z, afterScript, atScrollEnd, clamp, clippedContents, closestAcross, deepFocus, elementFrame, eventSource, focusDestination, headerCuts, inChrome, inUi, inlineStyle, installScrollerLookup, isElement, isHTML, isText, keeps, keepsHidden, landingBand, layoutChanged, layoutPx, layoutWindow, move, nativeLayerHolding, nearObserver, nearWindow, nextFrame, nextRender, onCurrentLocation, overlaps, pagePresented, pageScroller, pressing, registeredVisualPart, registeredVisualPartAt, registeredVisualPartLabel, registeredVisualParts, renderedParent, renderedUnder, renderingState, revealRegisteredVisualPart, revealsVisualParts, scrollContainer, scrollToEnd, scrollersOf, scrollsBy, scrollsContent, shadowHost, shellRight, shownParts, shownRect, sizeObserver, skipped, tabStops, tick, uiInside, under, union, upFrom, userScrollport, visualPartAdmission, watchArrivals, watchScrolls, wearsLentStop, whileConnected } from "./bundle-portable.js";
 import { PRESSABLE, TEXT_BLOCK, anchorKey, applicationPresented, documentChanged, fragmentId, fragmentKey, hostIn, isElementName, marks, registry, repaintPage, shadowRootsIn, tagsDeclaring } from "./bundle-errors.js";
 import { removeRuntimeRootStyle, reportPageError, setRuntimeRootAttribute, setRuntimeRootStyle } from "./bundle-layer-client.js";
-import { DATUM, authoredScope, blockAt, contextAround, cut, elementById, elementReading, excerptWords, fencedAt, fileModelsPassage, findQuote, layoutBox, leafSurface, neighbourhood, pageDocument, pageQueryAll, pageText, quoteFrom, rangeOf, readingFrom, segmentsIn, settledAway, spanIn, textNodesUnder } from "./bundle-passages.js";
+import { DATUM, authoredScope, blockAt, contextAround, cut, elementById, elementReading, excerptWords, fencedAt, fileModelsPassage, findQuote, inPage, layoutBox, leafSurface, neighbourhood, pageDocument, pageQueryAll, pageText, quoteFrom, rangeOf, readingFrom, segmentsIn, settledAway, spanIn, textNodesUnder } from "./bundle-passages.js";
 
 //#region runtime/presence.js
 let clockSkew = 0;
@@ -122,7 +122,7 @@ function whileInterfaceConnected(element, { declare, connect }) {
 
 //#endregion
 //#region runtime/reach.js
-const SCROLL_SURFACE = ".scroll";
+const SCROLL_SURFACE = ".scroll, [data-lf-scroll]";
 const seenDeclarations = /* @__PURE__ */ new WeakMap();
 const scrollAncestors = /* @__PURE__ */ new WeakSet();
 const styleRoots = /* @__PURE__ */ new WeakSet();
@@ -182,7 +182,7 @@ watchScrolls((box) => {
 	if (sideways.has(box)) paintSidewaysReach(box, true);
 });
 function reachReadingScroller(el, paintContinuation) {
-	el.classList.toggle("scroll", true);
+	el.toggleAttribute(PAGE_PAINT_ATTRIBUTE.scrollSurface, true);
 	downwards.set(el, paintContinuation);
 	sweep(el);
 	paintReach();
@@ -221,7 +221,11 @@ function reachScrollers(root) {
 	paintReach();
 	if (watchingSurfaces) return;
 	watchingSurfaces = true;
-	watchArrivals(SCROLL_SURFACE, ["class", "style"], {
+	watchArrivals(SCROLL_SURFACE, [
+		"class",
+		"data-lf-scroll",
+		"style"
+	], {
 		arriveBatch(surfaces) {
 			for (const el of surfaces) {
 				const classes = el.getAttribute("class");
@@ -467,7 +471,7 @@ const queries = sizeObserver((entries) => {
 		query.size = size;
 	}
 }, { counted: false });
-addEventListener("resize", () => reread(document.body));
+addEventListener("resize", () => reread(document.documentElement));
 const asked = /* @__PURE__ */ new WeakSet();
 const reached = (el) => {
 	let node = el;
@@ -595,8 +599,8 @@ const actedAt = (at, arriving) => {
 	const region = readingRegionFor(at);
 	if (region) {
 		recentRegionId = region.id;
-		if (under(region.host, pageDocument())) pageRegionId = region.id;
-	} else if ((at === document.body || under(at, pageDocument())) && !(arriving && at === document.body && pressing()?.released === false)) recentRegionId = pageRegionId = null;
+		if (inPage(region.host)) pageRegionId = region.id;
+	} else if (inPage(at) && !(arriving && at === document.body && pressing()?.released === false)) recentRegionId = pageRegionId = null;
 };
 for (const type of [
 	"pointerdown",
@@ -620,13 +624,13 @@ const recentReadingRegion = () => readingRegion(recentRegionId);
 const shown = (region) => region?.host.checkVisibility() ? region : void 0;
 const pageReadingRegion = () => {
 	const at = deepFocus();
-	if (under(at, pageDocument())) return readingRegionFor(at);
+	if (inPage(at)) return readingRegionFor(at);
 	return shown(readingRegion(pageRegionId));
 };
 const userReadingRegion = () => {
 	const at = deepFocus();
 	const region = readingRegionFor(at);
-	if (region || under(at, pageDocument())) return region;
+	if (region || inPage(at)) return region;
 	return shown(recentReadingRegion()) ?? pageReadingRegion();
 };
 const containingReadingRegionFor = (node) => {
@@ -1564,14 +1568,16 @@ const anchorName = (el) => nameAnchor(anchorReading(el));
 let dropsTransforms;
 function anchorDropsTransforms() {
 	if (dropsTransforms !== void 0) return dropsTransforms;
+	const probe = document.createElement("div");
 	const moved = document.createElement("div");
 	const anchored = document.createElement("div");
+	probe.style.cssText = "position: fixed; left: 0; top: 0; contain: layout";
 	moved.style.cssText = "position: fixed; left: 0; top: 0; translate: 8px 0; anchor-name: --lf-moved";
 	anchored.style.cssText = "position: fixed; top: 0; position-anchor: --lf-moved; left: anchor(left, 8px)";
-	chromeRoot.append(moved, anchored);
+	probe.append(moved, anchored);
+	chromeRoot.append(probe);
 	dropsTransforms = anchored.getBoundingClientRect().left < 4;
-	moved.remove();
-	anchored.remove();
+	probe.remove();
 	return dropsTransforms;
 }
 const moves = (style) => style.transform !== "none" || style.translate !== "none" || style.rotate !== "none" || style.scale !== "none" || style.offsetPath !== "none";
@@ -2204,8 +2210,8 @@ function readDocumentLayout() {
 		pageControlsChanged();
 	}
 	if (changed) {
-		const main = pageDocument();
-		if (main) layoutChanged(main);
+		const page = pageDocument();
+		if (page) layoutChanged(page);
 		repaintPage();
 	}
 }
@@ -2272,8 +2278,8 @@ const title = () => {
 	const main = document.querySelector("body > main");
 	const parts = main && getComputedStyle(main).getPropertyValue("--lf-layout-box").trim() !== "1" ? main.querySelector(":scope > [data-lf-views=\"parts\"]") : null;
 	let marked = false;
-	for (let node = parts?.previousElementSibling; node; node = node.previousElementSibling) if (!node.classList.contains("scroll")) {
-		node.classList.add("scroll");
+	for (let node = parts?.previousElementSibling; node; node = node.previousElementSibling) if (!node.hasAttribute(PAGE_PAINT_ATTRIBUTE.scrollSurface)) {
+		node.toggleAttribute(PAGE_PAINT_ATTRIBUTE.scrollSurface, true);
 		marked = true;
 	}
 	return marked;

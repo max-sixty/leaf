@@ -37,9 +37,9 @@ from functools import lru_cache
 from pathlib import Path
 from threading import RLock
 
+from .registry.schema import aware_instant
 from .state import (
     advance_turn,
-    aware_instant,
     flocked,
     new_session,
     session_file,

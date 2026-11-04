@@ -82,8 +82,11 @@ from render_harness import (
 
 from browser.test_render_application_boundary import long_thread
 from browser.threads import open_panel_thread
+from leaf import delivery as delivery_model
+from leaf import event_contracts as event_contracts_model
 from leaf import event_log as events_model
 from leaf import schema as schema_model
+from leaf import service as service_model
 from leaf.registry.contract import RANK
 from leaf.render_checks import rendered
 from leaf.render_gate.scheme import console_finding
@@ -230,7 +233,9 @@ def test_z_waits_for_an_unanswered_thread_resolution(browser, serve):
     page.route("**/api/event", lambda route: held.append(route))
     sent = _traffic(page).sends
     # Resolving the thread open from Threads moves the user on to the next one.
-    expect(page.locator(PANEL_THREAD)).to_have_attribute("data-thread", comment_ids[1])
+    expect(page.locator(PANEL_THREAD)).to_have_attribute(
+        "data-lf-thread", comment_ids[1]
+    )
     page.locator(".lf-fp-settle").click()
     holding(page, held, 1, "the second resolution")
     undo_offered(page, offered=False)
@@ -395,7 +400,7 @@ def _shown(page, thread):
     """The thread's transcript, open and in the window."""
     expect(
         page.locator(
-            f'.lf-page-thread[data-thread="{thread}"][data-lf-part="transcript"]'
+            f'.lf-page-thread[data-lf-thread="{thread}"][data-lf-part="transcript"]'
         )
     ).to_be_in_viewport()
 
@@ -2996,23 +3001,27 @@ def test_undo_waits_while_the_candidate_is_applying_then_reads_accepted_truth(
             "markup": '<lf-preparation id="detail"><p>Supporting detail</p></lf-preparation>',
         },
     )
-    append_command(
-        serve.page_dir,
-        {
-            "kind": "action",
-            "author": "user",
-            "revision": 1,
-            "widget": "sug-thistle",
-            "action": "decide",
-            "detail": {"outcome": "accept"},
-        },
-    )
+    # Picked up in the same write, so every reading the server serves from here on,
+    # the read receipt's answer included, has `z` show the suggestion first wherever
+    # the layout leaves it.
+    with service_model.PageTransaction(serve.page_dir) as transaction:
+        action, _ = event_contracts_model.append_admitted(
+            transaction,
+            {
+                "kind": "action",
+                "author": "user",
+                "revision": 1,
+                "widget": "sug-thistle",
+                "action": "decide",
+                "detail": {"outcome": "accept"},
+            },
+        )
+        delivery_model.record_pickup(transaction, [action])
     holding(page, held_states, 1, "candidate read")
     candidate = held_states[0].fetch().json()
     head = candidate["browser"]["views"]["1"]["undo"][0]
     assert head["event"]["widget"] == "sug-thistle"
-    # Picked up, so `z` shows the suggestion first wherever the layout leaves it.
-    head["picked_up"] = True
+    assert head["picked_up"]
     with page.expect_request("**/preparation-content"):
         held_states.pop(0).fulfill(json=candidate)
     holding(page, preparations, 1, "thread preparation")

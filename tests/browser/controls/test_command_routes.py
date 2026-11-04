@@ -869,7 +869,7 @@ customElements.define('lf-verdict', class extends HTMLElement {
         id: 'probe.inspect-proposal', binding: 'x', contextKeys: ['1'], decision: true,
         control, bindingBadge: null, title: 'Inspect the proposal',
       }],
-      run: binding => keepsText(result, `${binding}:${++count}`),
+      runKey: binding => keepsText(result, `${binding}:${++count}`),
     }] };
     commandsChanged(this);
   }

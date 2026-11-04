@@ -243,27 +243,8 @@ def still_named(held: int, path: Path) -> bool:
 
 
 def now_iso() -> str:
-    """Now in Leaf's date-time format, which `aware_instant` reads."""
+    """Now in Leaf's date-time format, which `registry.schema.aware_instant` reads."""
     return datetime.now().astimezone().isoformat(timespec="milliseconds")
-
-
-# Leaf's date-time format: one absolute RFC 3339 instant, with its offset.
-RFC3339_DATE_TIME = re.compile(
-    r"^\d{4}-\d{2}-\d{2}[Tt]\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:[Zz]|[+-]\d{2}:\d{2})$"
-)
-
-
-def aware_instant(value: str):
-    """The one parse of Leaf's date-time format, or None where the spelling fails.
-    Schemas check the `date-time` format by it (`registry.schema`)."""
-    if not RFC3339_DATE_TIME.fullmatch(value):
-        return None
-    normalized = value[:-1] + "+00:00" if value[-1] in "Zz" else value
-    try:
-        parsed = datetime.fromisoformat(normalized)
-    except ValueError:
-        return None
-    return parsed if parsed.utcoffset() is not None else None
 
 
 def fsync_parents(paths) -> None:

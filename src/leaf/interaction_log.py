@@ -41,8 +41,9 @@ from collections import defaultdict
 from datetime import UTC, datetime
 from pathlib import Path
 
+from .registry.schema import aware_instant
 from .schema import INTERACTIONS_FILE
-from .state import aware_instant, now_iso, session_record
+from .state import now_iso, session_record
 
 BATCH_SCHEMA = json.loads(
     Path(__file__).with_name("interaction-batch.schema.json").read_text()
@@ -208,7 +209,7 @@ def session_context(session: str | None, claim: dict | None = None) -> dict | No
 
 
 def interaction_time(value: str) -> datetime:
-    """Read a timestamp in Leaf's date-time format (`state.aware_instant`)."""
+    """Read a timestamp in Leaf's date-time format (`registry.schema.aware_instant`)."""
     if (instant := aware_instant(value)) is None:
         raise ValueError(f"{value!r} is not an RFC 3339 time with its timezone offset")
     return instant

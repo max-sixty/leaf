@@ -84,7 +84,7 @@ CURRENT_OBLIGATION = """() => {
   let held = document.activeElement;
   while (held?.shadowRoot?.activeElement) held = held.shadowRoot.activeElement;
   const thread = held?.closest?.('.lf-thread, .lf-page-thread');
-  const id = thread?.dataset.id ?? thread?.dataset.thread;
+  const id = thread?.dataset.id ?? thread?.dataset.lfThread;
   if (id) return {obligation: false, id};
   const page = document.activeElement;
   const widget = page?.closest?.('.lf-chrome') ? null : page?.closest?.('[id]');

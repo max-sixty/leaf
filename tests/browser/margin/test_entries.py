@@ -650,7 +650,7 @@ def test_lit_inline_margin_projection_keys_controls_inside_thread_chrome(
           const nextTarget = document.createElement('span');
           nextTarget.id = 'inline-margin-next';
           nextTarget.textContent = 'Next inline decision';
-          document.querySelector('.lf-fp-view[data-view="threads"] .lf-fp-list')
+          document.querySelector('.lf-fp-view[data-lf-route="threads"] .lf-fp-list')
             .prepend(target, nextTarget);
           let swapped = false;
           let changed = false;

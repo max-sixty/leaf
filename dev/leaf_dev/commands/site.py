@@ -70,7 +70,7 @@ from leaf_dev import LEAF_COMMAND, ROOT, docs
 from leaf_dev.arms import environment
 from leaf_dev.commands.distribution import prepare
 from leaf_dev.docs import catalog_preview, media_url, product_route, product_sources
-from leaf_dev.example_data import catalog_sources, document_metadata
+from leaf_dev.example_data import catalog_sources, document_metadata, published_sources
 from leaf_dev.leaf_assets import pinned_assets
 from leaf_dev.page_fixtures import (
     fixture_environment,
@@ -87,9 +87,6 @@ from leaf_website import (
     site_metadata,
 )
 
-EXAMPLES = ROOT / "examples"
-INTERNAL_EXAMPLES = {"corpus"}
-DEVELOPER_PAGES = tuple(sorted((EXAMPLES / "developer").glob("*.html")))
 OUT = ROOT / ".tmp" / "site"
 BUNDLE_RUNTIME = ROOT / "worker" / "bundle-runtime.mjs"
 
@@ -223,16 +220,6 @@ def leaf(
         sys.exit(f"leaf {' '.join(args)}:\n{done.stdout}{done.stderr}")
 
 
-def published_page_sources() -> list[Path]:
-    """Authored pages the public site publishes, including developer references."""
-    worked = [
-        source
-        for source in sorted(EXAMPLES.glob("*.html"))
-        if source.stem not in INTERNAL_EXAMPLES
-    ]
-    return [*worked, *DEVELOPER_PAGES]
-
-
 def product_page(out: Path, source_name: str) -> Path:
     """The independent page directory behind one product source's public route."""
     return out / "_leaf" / "pages" / Path(source_name).stem
@@ -335,7 +322,7 @@ def deduplicate_tree(
 
 def publish_examples(out: Path, run: Callable, *, assets: Path) -> None:
     """Publish worked examples and developer references without product pages."""
-    for source in published_page_sources():
+    for source in published_sources():
         published = out / "examples" / source.stem
         fixture = read_fixture(source)
         prepare_page(

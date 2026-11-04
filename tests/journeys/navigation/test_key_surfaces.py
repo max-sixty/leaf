@@ -66,7 +66,7 @@ def test_user_news_interrupts_and_then_restores_background_news(browser, serve):
     ), "restoring background news announced it again"
     page.keyboard.press("g")
     expect(page.locator(".lf-fp-field leaf-text")).not_to_have_attribute(
-        "data-says", "notice"
+        "data-lf-says", "notice"
     )
     assert page.evaluate(
         """() => Object.entries(window.__lfStatusNodes).every(

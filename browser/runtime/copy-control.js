@@ -30,6 +30,8 @@ function copyThroughSelection(value, trigger) {
   const field = document.createElement("textarea");
   field.value = value;
   field.style.cssText = "position: fixed; left: -9999px; top: 0";
+  // Leaf's own, wherever it stands, so the moment it holds focus isn't the page's.
+  field.dataset.lfRuntime = "";
   // A modal makes the rest of the document inert, including a field at body level.
   (nativeLayerHolding(trigger) ?? document.body).append(field);
   try {

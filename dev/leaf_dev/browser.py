@@ -338,7 +338,7 @@ def go_to_threads(page: Page, frame: FrameLocator | None = None) -> None:
     route, which both share."""
     within = frame or page
     # Completing `g T` again closes the view (keyboard/go-to-sequence.js).
-    if within.locator(".lf-floating-panel").get_attribute("data-open") == "threads":
+    if within.locator(".lf-floating-panel").get_attribute("data-lf-open") == "threads":
         return
     # A press at the frame's top corner gives its document the keys; the page's own
     # only needs focus off any control.

@@ -25,11 +25,11 @@ export const styleEntries = [
     "node_modules/@awesome.me/webawesome/dist/styles/native.css",
     "browser/styles/vendor/webawesome-native.css",
     {
-      "Checkboxes + Radios": { input: ".choice > input" },
+      "Checkboxes + Radios": { input: ":is(.lf-choice, .choice) > input" },
       Buttons: {
         button: ":is(.lf-btn, .button, .lf-icon-action)",
-        ".wa-plain": ":not(.primary)",
-        ".wa-outlined": ".primary",
+        ".wa-plain": ":not(.lf-commit, .primary)",
+        ".wa-outlined": ":is(.lf-commit, .primary)",
         ":disabled": ':is(:disabled, [aria-disabled="true"])',
         "::file-selector-button": null,
       },

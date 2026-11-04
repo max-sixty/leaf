@@ -78,6 +78,7 @@ from pathlib import Path
 
 import click
 
+from leaf.event_log import initialized
 from leaf.events import is_answer
 from leaf.files import list_revisions
 from leaf.interaction_log import interaction_time, read_interactions
@@ -224,7 +225,7 @@ def page_timings(
     context_times = [interaction_time(row["ts"]) for row in contexts]
     semantic = sorted(
         (row for row in observations if row["source"] == "semantic"),
-        key=lambda row: row["event_seq"],
+        key=lambda row: row["event"]["seq"],
     )
     rows: dict[str, dict] = {}
     admitted_times = {}
@@ -584,8 +585,8 @@ def response_times(
         raise click.ClickException("--since must precede --until")
     paths = sorted({page.resolve() for page in pages})
     for page in paths:
-        if not (page / "events.jsonl").is_file():
-            raise click.ClickException(f"No events.jsonl in {page}")
+        if not initialized(page):
+            raise click.ClickException(f"{page} is not an initialized page")
     readings = [page_timings(page, since=beginning, until=cutoff) for page in paths]
     rows = [row for reading in readings for row in reading["samples"]]
     before = len(rows)

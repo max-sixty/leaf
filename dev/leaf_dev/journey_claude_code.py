@@ -118,6 +118,7 @@ import psutil
 
 from leaf.delivery import DELIVERY, delivery_pointer_prompt
 from leaf.harness import (
+    NUDGE_WORDS,
     ClaudeCodeHarness,
     claude_code_live_turn,
     claude_code_registry,
@@ -138,6 +139,7 @@ from leaf_dev.commands.journey import (
     user_at,
 )
 from leaf_dev.reply_phases import (
+    LEAF_WAKE,
     claude_code_debug_records,
     claude_code_records,
     ends_turn,
@@ -167,14 +169,38 @@ DEFERRING_TURN = USER_TURN.replace(
 )
 
 
+def claude_code_environment(place: Isolation, **extra: str) -> dict[str, str]:
+    """The environment of an interactive Claude Code session in `place`, `extra`
+    added: a home holding only the host's login (`arms.claude_home`), whose own
+    record says onboarding is done and trusts the session's cwd, so the session
+    opens at its prompt."""
+    home = claude_home(place.root / "home")
+    (home / ".claude.json").write_text(
+        json.dumps(
+            {
+                "hasCompletedOnboarding": True,
+                "theme": "dark",
+                "projects": {str(place.work): {"hasTrustDialogAccepted": True}},
+            }
+        )
+    )
+    return claude_environment(
+        home, XDG_STATE_HOME=str(place.state), TERM="tmux-256color", **extra
+    )
+
+
 class ClaudeCode(Terminal):
-    """One interactive Claude Code session in a tmux pane, and the user at it."""
+    """One interactive Claude Code session in a tmux pane, and the user at it. The
+    session runs `model` in `place`'s cwd under `env` (`claude_code_environment`),
+    with `place`'s payload as its plugin and `settings` added to its own."""
 
     def __init__(
-        self, place: Isolation, session: str, argv: list[str], env: dict
+        self, place: Isolation, env: dict, *, model: str, settings: dict | None = None
     ) -> None:
         super().__init__()
-        self.session = session
+        # The session's id is chosen before it starts, so Claude Code's record of it
+        # answers `approve` before the page is claimed.
+        self.session = str(uuid.uuid4())
         # How many of the conversation's records the steps so far have counted, and
         # the rows Leaf put in it during the last (`between`).
         self.read = 0
@@ -183,6 +209,15 @@ class ClaudeCode(Terminal):
         self.home = place.root / "home"
         self.exited, self.kept = place.root / "exited", place.evidence / "screen.txt"
         self.debug = place.evidence / "debug.log"
+        argv = [
+            "claude", "--session-id", self.session, "--model", model,
+            "--plugin-dir", str(place.payload),
+            *(("--settings", json.dumps(settings)) if settings else ()),
+            "--strict-mcp-config", "--permission-mode", "default",
+            "--add-dir", str(place.payload),
+            "--allowedTools", "Bash Read Write Edit Glob Grep Skill",
+            "--debug-file", str(self.debug),
+        ]  # fmt: skip
         # The environment's values reach the pane through tmux, so no file holds
         # them; the script names them, and drops whatever else the tmux server's
         # own environment adds.
@@ -544,14 +579,9 @@ def steps(cc: ClaudeCode, user: User, place: Isolation, *, forks: bool) -> None:
         started = time.monotonic()
         url = require(running_server(page), "the page has no server")["url"]
         comment = post(url, "withdrawn", "Never mind, I'll check this myself.")
-        resolve = PageClient(url).post(
+        resolved = PageClient(url).post(
             {"kind": "resolve", "parent": comment, "attempt": attempt("resolve")}
-        )
-        resolved = next(
-            event["id"]
-            for event in resolve["events"]
-            if event.get("attempt") == attempt("resolve")
-        )
+        )["id"]
         held = drop(resolved)
         cc.until(
             lambda: delivery_ended(since(held), resolved),
@@ -789,10 +819,9 @@ def leaf_rows(records: list[dict]) -> dict[str, int]:
         text = json.dumps(content) if not isinstance(content, str) else content
         kind = (
             "Stop hook wake"
-            if "<summary>Leaf: new input</summary>" in text
+            if f"<summary>{LEAF_WAKE}</summary>" in text
             else "nudge"
-            # The words of `ClaudeCodeHarness.nudge`.
-            if "has new input, which arrives with this message." in text
+            if NUDGE_WORDS in text
             else None
         )
         if kind is not None and (
@@ -875,24 +904,9 @@ def answering(
     user's thread messages."""
     require(shutil.which("tmux") is not None, "the claude-code journey drives tmux")
 
-    def environment(place: Isolation) -> dict[str, str]:
-        home = claude_home(place.root / "home")
-        (home / ".claude.json").write_text(
-            json.dumps(
-                {
-                    "hasCompletedOnboarding": True,
-                    "theme": "dark",
-                    "projects": {str(place.work): {"hasTrustDialogAccepted": True}},
-                }
-            )
-        )
-        return claude_environment(
-            home,
-            XDG_STATE_HOME=str(place.state),
-            TERM="tmux-256color",
-            **({} if forks else {"LEAF_FORK_REPLIES": "off"}),
-        )
-
+    environment = partial(
+        claude_code_environment, **({} if forks else {"LEAF_FORK_REPLIES": "off"})
+    )
     with isolated("claude-code", environment) as place:
         prepare(ROOT, place.state, place.page)
         # Another plugin's prompt hook, slower than Leaf's while the `dropped` steps
@@ -923,18 +937,12 @@ def answering(
                 "failIfUnavailable": True,
                 "network": {"allowedDomains": ["127.0.0.1"]},
             }
-        # The session's id is the journey's from the start, so Claude Code's record
-        # of it answers `approve` before the page is claimed.
-        session = str(uuid.uuid4())
-        argv = [
-            "claude", "--session-id", session, "--model", MODELS[ClaudeCodeHarness.name],
-            "--plugin-dir", str(place.payload), "--settings", json.dumps(settings),
-            "--strict-mcp-config", "--permission-mode", "default",
-            "--add-dir", str(place.payload),
-            "--allowedTools", "Bash Read Write Edit Glob Grep Skill",
-            "--debug-file", str(place.evidence / "debug.log"),
-        ]  # fmt: skip
-        cc = ClaudeCode(place, session, argv, dict(os.environ))
+        cc = ClaudeCode(
+            place,
+            dict(os.environ),
+            model=MODELS[ClaudeCodeHarness.name],
+            settings=settings,
+        )
         try:
             started = time.monotonic()
             cc.setup(place.page)

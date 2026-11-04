@@ -83,9 +83,7 @@ import {
   keepsHidden,
   el,
   focusDestination,
-  showNativeLayer,
   closeNativeLayer,
-  isNativeLayer,
   holdFocus,
   html,
   actionTemplate,
@@ -2139,11 +2137,7 @@ export class Trace extends LeafElement {
     const longest = this.#trace
       ? String(this.#time(this.#bounds().end, this.#stream()).length)
       : "";
-    if (
-      this.#nodes.positionLabel.style.getPropertyValue("--lf-trace-position-chars") !==
-      longest
-    )
-      this.#nodes.positionLabel.style.setProperty("--lf-trace-position-chars", longest);
+    this.#nodes.positionLabel.style.setProperty("--lf-trace-position-chars", longest);
     // When the image on screen was taken at another time than the playhead,
     // say so: between captures, at a checkpoint without its own image, or
     // while the next image prepares. What the playhead stands on is said by the
@@ -2448,21 +2442,6 @@ export class Trace extends LeafElement {
               popovertarget=${`${this.id}-image-scale-options`}
               aria-expanded="false"
               ?disabled=${!this.#picture?.viewed || q}
-              @click=${(/** @type {Event} */ event) => {
-                event.preventDefault();
-                const options = this.#nodes.imageScaleOptions;
-                if (isNativeLayer(options)) closeNativeLayer(options);
-                else {
-                  focusDestination(this.#nodes.imageScale, "press");
-                  showNativeLayer(options, { source: this.#nodes.imageScale });
-                  const selected =
-                    options.querySelector('[aria-pressed="true"]') ??
-                    options.querySelector("button");
-                  if (!selected)
-                    throw new Error("The image scale menu needs its controls");
-                  focusDestination(selected, "move");
-                }
-              }}
             >
               <span ${ref(this.#zoomLabel)}></span>${iconTemplate(
                 "down",
@@ -2471,17 +2450,19 @@ export class Trace extends LeafElement {
             </button>
             <div
               id=${`${this.id}-image-scale-options`}
-              class="lf-trace-scale-options"
+              class="lf-trace-scale-options lf-popover"
               popover="auto"
               role="group"
               aria-label="Image scale"
               ${ref(this.#imageScaleOptions)}
-              @toggle=${() => {
-                keeps(
-                  this.#nodes.imageScale,
-                  "aria-expanded",
-                  isNativeLayer(this.#nodes.imageScaleOptions),
-                );
+              @toggle=${(/** @type {ToggleEvent} */ event) => {
+                if (event.newState === "open") {
+                  const options = this.#nodes.imageScaleOptions;
+                  const selected =
+                    options.querySelector('[aria-pressed="true"]') ??
+                    options.querySelector("button");
+                  if (selected) focusDestination(selected, "move");
+                }
                 commandsChanged(this);
               }}
             >

@@ -14,6 +14,7 @@ from render_harness import (
     open_page,
     panel_field,
     refuse,
+    reported_browser_errors,
     resized,
     restarting,
     round_trip,
@@ -403,7 +404,6 @@ def test_a_re_vendor_waits_for_the_reply_being_written(browser, serve):
     accepted, _ = endpoint_model.accept_event(
         page_dir,
         {"kind": "seen", "revision": revised.revision},
-        dict,
     )
     assert accepted == 200
     replies = [
@@ -520,7 +520,13 @@ def test_a_mechanical_revision_failure_leaves_accepted_publication_ready(
             route for route in later_readings if route.request == requested.value
         )
         answer = first.fetch()
-        first_reading = answer.json()["reading"]
+        # The tab names the reading it holds, so the answer patches it
+        # (`served_state/tail.py`) and carries the new reading's name as a change.
+        first_reading = next(
+            change["value"]
+            for change in answer.json()["patch"]
+            if change["at"] == ["reading"]
+        )
         assert first_reading != before_reading
         later_readings.remove(first)
         first.fulfill(response=answer)
@@ -569,7 +575,7 @@ def test_a_fresh_revision_caret_failure_does_not_strand_deferred_arrivals(
     told(page)
     page.keyboard.press("Control+Alt+r")
     wait_for_revision(page, 2)
-    errors = consume_browser_errors(page, "fresh mechanical caret fixture failed")
+    errors = reported_browser_errors(page, "fresh mechanical caret fixture failed")
     assert page.evaluate("Boolean(window.__presentationDispatched)")
     page.wait_for_function("window.__deferredArrivalRan===true")
     assert len(errors) == 1, errors

@@ -26,7 +26,6 @@ from leaf import leases as leases_model
 from leaf import service as service_model
 from leaf.registry.storage import read_page_registry
 from leaf.render_checks import rendered
-from leaf.schema import ELEMENT_ID
 
 
 def call_node(label, file=None, line=None, *, status="same", children=(), kind="call"):
@@ -739,6 +738,9 @@ THIN_V2 = THIN_V1.replace(
 # the widget owes the user the text without them.
 SENTENCE = "The version stamp never lands, so migration 0041 replays on every deploy."
 DRAFT_TEXT = "Run the migration before deploying.\nIt is online."
+# A draft reads as a Markdown file, so its source's line break inside the paragraph
+# draws as a space.
+DRAFT_DRAWN = "Run the migration before deploying. It is online."
 DRAFT_EDITED = "Run the migration before deploying. It takes about a minute."
 JOURNEY_SCAFFOLD = leaf_page(
     "journey",
@@ -997,8 +999,8 @@ def data_projection_page(serve):
         "description": "A project-supplied live feed.",
         "type": "object",
         "properties": {
-            "id": {"type": "string", "pattern": f"^{ELEMENT_ID}$"},
-            "source": {"type": "string", "pattern": "^[a-z][a-z0-9-]*$"},
+            "id": {"type": "string"},
+            "source": {"type": "string"},
         },
         "required": ["id", "source"],
         "additionalProperties": False,

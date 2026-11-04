@@ -9,7 +9,7 @@ from click.testing import CliRunner
 from interact_support import append_command, response_reference
 from playwright.sync_api import expect
 from render_cases_interaction import panel_comment
-from render_cases_navigation import DRAFT_TEXT, JOURNEY_V1, _publish
+from render_cases_navigation import DRAFT_DRAWN, JOURNEY_V1, _publish
 from render_harness import (
     compare_with,
     consume_browser_errors,
@@ -135,7 +135,7 @@ def test_double_clicking_a_draft_keeps_its_frame_and_selected_word(browser, serv
     draft_control(page, "edit", "draft-ops").click()
     expect(page.locator("#draft-ops leaf-text")).to_be_visible()
     page.emulate_media(media="print")
-    assert page.locator("#draft-ops").inner_text() == DRAFT_TEXT, (
+    assert page.locator("#draft-ops").inner_text() == DRAFT_DRAWN, (
         "the printed page lost the draft's words to a box paper hasn't got"
     )
     page.emulate_media(media="screen")
@@ -682,7 +682,7 @@ def test_the_draft_box_is_its_own_door(browser, serve):
     page = open_page(browser, serve(JOURNEY_V1))
     draft = page.locator("#draft-ops")
     body = draft.locator(".lf-draft-body")
-    expect(body).to_have_text(DRAFT_TEXT, use_inner_text=True)
+    expect(body).to_have_text(DRAFT_DRAWN, use_inner_text=True)
 
     # A drag across the words takes the words. Read as the selection the user is left
     # holding, which is the thing the door would have destroyed.

@@ -18,8 +18,8 @@ commit message; hold its claims to the standard the diff is held to.
 
 ## Review threshold
 
-Apply `AGENTS.md`'s **Stage** and **Fix the underlying issue** sections and
-`/developing-leaf`'s **Weigh what a change adds** to the verdict; most of Tend's own
+Load `/developing-leaf`, and apply its **Weigh what a change adds** and `AGENTS.md`'s
+**Stage** and **Fix the underlying issue** sections to the verdict; most of Tend's own
 pull requests land on this review alone. Once a change moves Leaf toward a coherent
 architecture, its claimed path works and what it adds is worth keeping, the review
 is done. Reserve findings for architectural seams, cross-runtime invariants, public
@@ -176,7 +176,9 @@ changes the test or the behavior.
 
 Merge a pull request that fixes tests, without waiting for maintainer approval,
 once each test it claims to fix failed before the change and passes after it
-(a skipped or deleted test has not passed). Pull requests run only the later-tier
+(a skipped or deleted test has not passed). For a failure only `test-macos` shows, the
+checks your Linux runner can run suffice (**A red `ci` on main is live** says what
+settles the rest). Pull requests run only the later-tier
 tests they edit, so run the claimed ones yourself. The pull request's CI must
 reach a terminal result on the exact head (`monitor-ci`). A failure there outside
 the tests it claims, and not caused by its change, neither blocks the merge nor
@@ -196,9 +198,10 @@ which GitHub records as a cancelled run whose `test` job has no runner (`runner_
 hit its timeout, and that is a failure.
 
 The scheduled run's `test-macos` job runs every tier on macOS, which your Linux runner
-can't reproduce. For a failure only that job shows, the failing run is the evidence
-from before the fix. For the evidence from after it, dispatch `ci` on the fix's branch
-(`gh workflow run ci --ref <branch>`) and read that run's `test-macos` job.
+can't reproduce, and it takes four to five hours. For a failure only that job shows, the
+failing run is the evidence from before the fix, and the next scheduled run on main,
+after the fix merges, is the evidence from after it. If that run still fails, its
+report brings the failure back to triage.
 
 ## Cloudflare logs
 
@@ -307,6 +310,20 @@ request with the moves, listing each test and the times behind it.
 Run `/ui-sweep` before dependency maintenance, following its **Reconcile** route:
 a reproduced defect becomes a tested repair, and a design judgment stays in the
 run report.
+
+## Weekly: duplicate implementations
+
+Sweep one area for capabilities implemented more than once, taking the area by ISO
+week number (`date +%V`) modulo 4: 0, the JavaScript under `browser/`; 1, `packages/`
+and the CSS under `browser/`; 2, `src/leaf/` and `hooks/`; 3, `dev/`, `build/`,
+`tests/` and `worker/`. Load `/developing-leaf`. Copies seldom share a name or a
+directory, so list the questions the area's helpers, constants, selectors, style
+rules and inline checks answer, and search the whole tree for other answers to each,
+as its **What it repeats** says. Consolidate each set into one home with every caller
+moved, in one pull request for the area; leave a set another open pull request is
+changing to a later sweep. In the description, name each copy's introducing pull
+request (`git log -S`), so the copies added since the area's last sweep show what
+review let through.
 
 ## Weekly: vendored browser dependencies
 

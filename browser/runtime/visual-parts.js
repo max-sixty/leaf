@@ -16,6 +16,7 @@
  * travel asks for it, rather than detaching. A label reader can
  * name an absent part in Threads without changing the visual's state. */
 
+import { labelWords } from "./words.js";
 import { under, upFrom } from "./shadow-tree.js";
 import { layoutChanged } from "./widget-upgrade.js";
 
@@ -25,12 +26,6 @@ import { layoutChanged } from "./widget-upgrade.js";
  * label: ((id: string) => string | null | undefined) | null}} Registration */
 /** @type {WeakMap<Element, Registration>} */
 const registrations = new WeakMap();
-
-/** @param {unknown} value */
-const words = (value) =>
-  String(value ?? "")
-    .replace(/\s+/g, " ")
-    .trim();
 
 /** Register the current visual-part inventory for one rendered source.
  *
@@ -104,7 +99,7 @@ export function registeredVisualParts(source) {
     const number = index + 1;
     const id = part.id;
     const element = part.element;
-    const label = words(part.label);
+    const label = labelWords(part.label);
     const surface = part.surface ?? element;
     if (typeof id !== "string" || !id || /\s/.test(id))
       throw new TypeError(`Visual part ${number} has no single-token id`);
@@ -135,7 +130,7 @@ export const registeredVisualPartLabel = (source, id) => {
   const current = registeredVisualPart(source, id)?.label;
   if (current) return current;
   const label = registrations.get(source)?.label?.(id);
-  return words(label) || null;
+  return labelWords(label) || null;
 };
 
 /** @param {Element} source @param {Element | null} target @param {(part: VisualPart) => boolean} [admits] */

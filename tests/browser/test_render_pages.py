@@ -20,6 +20,7 @@ from render_cases_interaction import (
     live_url,
 )
 from render_cases_layout import (
+    MARK,
     SHOT_SRC,
     SHOTS,
     current_location_ring,
@@ -56,6 +57,7 @@ from render_harness import (
     TOKEN,
     consume_browser_errors,
     expect_open_threads,
+    fetch_whole_state,
     held_frames,
     http_error_console,
     leaf_page,
@@ -404,8 +406,7 @@ def test_a_failed_agent_root_restores_the_focused_first_message_composer(
         if broken:
             refuse(route)
             return
-        response = route.fetch()
-        state = response.json()
+        response, state = fetch_whole_state(route)
         view = state["browser"]["views"][str(state["active"]["revision"])]
         view["document"]["projection"]["entries"].append(None)
         broken.append(True)
@@ -484,8 +485,7 @@ def test_a_failed_resolution_restores_a_focused_inline_reply(browser, serve):
         if broken:
             refuse(route)
             return
-        response = route.fetch()
-        state = response.json()
+        response, state = fetch_whole_state(route)
         view = state["browser"]["views"][str(state["active"]["revision"])]
         view["document"]["projection"]["entries"].append(None)
         broken.append(True)
@@ -552,8 +552,7 @@ def test_failed_resolve_candidate_restores_focused_reply(browser, serve):
         if broken:
             refuse(route)
             return
-        response = route.fetch()
-        state = response.json()
+        response, state = fetch_whole_state(route)
         view = state["browser"]["views"][str(state["active"]["revision"])]
         view["document"]["projection"]["entries"].append(None)
         broken.append(True)
@@ -600,8 +599,6 @@ def test_a_failed_state_keeps_focus_in_the_open_versions_menu(browser, serve):
     page.keyboard.press("g")
     page.keyboard.press("Shift+V")
     versions = page.locator(panel_view("versions"))
-    expect(versions).to_be_focused()
-    page.keyboard.press("ArrowDown")
     row = versions.locator(".lf-fp-version .lf-fp-item").first
     expect(row).to_be_focused()
 
@@ -611,8 +608,7 @@ def test_a_failed_state_keeps_focus_in_the_open_versions_menu(browser, serve):
         if broken:
             refuse(route)
             return
-        response = route.fetch()
-        state = response.json()
+        response, state = fetch_whole_state(route)
         view = state["browser"]["views"][str(state["active"]["revision"])]
         view["document"]["projection"]["entries"].append(None)
         broken.append(True)
@@ -655,23 +651,19 @@ def test_a_widget_declaring_it_renders_a_picture_exposes_a_comment_target(
     page.locator("#flow svg").click(modifiers=["Alt"])
     page.locator(".lf-fab-input").click()
     page.locator("#flow.lf-mark-el.lf-pending.lf-projected-mark").wait_for()
-    expect(page.locator(".lf-visual-mark-pending")).to_be_visible()
+    expect(page.locator("#flow")).to_have_attribute(
+        "data-lf-mark", re.compile(r"\bpending\b")
+    )
     assert not composer_quote(page)["shown"], "a picture has no words to quote back"
     page.keyboard.press("Escape")
 
     page.locator("#tree").click(modifiers=["Alt"])
     page.locator(".lf-fab-input").click()
     page.locator("#tree.lf-mark-el.lf-pending.lf-projected-mark").wait_for()
-    overlay = page.locator(".lf-visual-mark-pending")
-    expect(overlay).to_be_visible()
-    look = overlay.evaluate(
-        """el => { const style = getComputedStyle(el, '::after'); return {
-          background: getComputedStyle(el).backgroundImage,
-          outline: [style.outlineStyle, style.outlineWidth],
-        }; }"""
-    )
-    assert look["background"] == "none", look
-    assert look["outline"][0] == "solid" and look["outline"][1] != "0px", look
+    tree = page.locator("#tree")
+    expect(tree).to_have_attribute("data-lf-mark", re.compile(r"\bpending\b"))
+    look = tree.evaluate(MARK)
+    assert look and look["style"] == "solid" and look["width"] > 0, look
     page.keyboard.press("Escape")
 
     # And a paragraph is still text: the click reaches no picture and raises nothing.
@@ -680,6 +672,27 @@ def test_a_widget_declaring_it_renders_a_picture_exposes_a_comment_target(
         page.locator(".lf-fab-input"),
         "a click on prose was read as a click on a picture",
     ).not_to_be_visible()
+
+
+# The ink a box draws its mark in (MARK), as the screenshot holds it: a mixed ink
+# computes as color(srgb ...), and a canvas reads any colour as bytes.
+_MARK_INK = """element => {
+          const pen = document.createElement('canvas').getContext('2d');
+          pen.fillStyle = getComputedStyle(element).outlineColor;
+          pen.fillRect(0, 0, 1, 1);
+          return [...pen.getImageData(0, 0, 1, 1).data.slice(0, 3)];
+        }"""
+
+
+def _outer_box(mark):
+    """The outer edge of a box's mark (MARK) as a rectangle."""
+    ring = mark["ring"]
+    return {
+        "x": ring["left"],
+        "y": ring["top"],
+        "width": ring["right"] - ring["left"],
+        "height": ring["bottom"] - ring["top"],
+    }
 
 
 def _bracket_ink_changes(quiet, painted, target, clip, ink):
@@ -770,42 +783,25 @@ def test_a_screenshot_comment_contour_paints_above_its_edge_to_edge_frame(
     expect(comparison).to_have_attribute("position", "50")
     expect(page.locator(".lf-fab-input")).to_be_visible()
     expect(shot).to_have_class(re.compile(r"\blf-projected-mark\b"))
-    overlay = page.locator(".lf-visual-mark-pending")
-    expect(overlay).to_be_visible()
-    contour = overlay.evaluate(
-        """element => { const style = getComputedStyle(element, '::after');
-          // A mixed ink computes as color(srgb …); a canvas reads any colour as bytes.
-          const pen = document.createElement('canvas').getContext('2d');
-          pen.fillStyle = style.outlineColor;
-          pen.fillRect(0, 0, 1, 1);
-          return {
-            ink: [...pen.getImageData(0, 0, 1, 1).data.slice(0, 3)],
-            outset: parseFloat(style.outlineOffset) + parseFloat(style.outlineWidth),
-          }; }"""
-    )
+    expect(shot).to_have_attribute("data-lf-mark", re.compile(r"\bpending\b"))
+    ink = shot.evaluate(_MARK_INK)
     marked = screenshot()
 
     # The contour stands outside the frame, so its edges are the outline's outer box.
-    outset = contour["outset"]
-    outer = {
-        "x": box["x"] - outset,
-        "y": box["y"] - outset,
-        "width": box["width"] + 2 * outset,
-        "height": box["height"] + 2 * outset,
-    }
-    changed, _ = _bracket_ink_changes(quiet, marked, outer, clip, contour["ink"])
+    outer = _outer_box(shot.evaluate(MARK))
+    changed, _ = _bracket_ink_changes(quiet, marked, outer, clip, ink)
     assert all(changed[side] > 0 for side in changed), (
         f"the screenshot frame covered part of its annotation contour: {changed}"
     )
 
 
 def test_a_focused_card_comment_never_paints_over_the_cards_contents(browser, serve):
-    """The selected thread may strengthen its contour, but its overlay stays hollow.
+    """The selected thread may strengthen its contour, but it stays hollow.
 
     This is the checkout-release regression: the metric fills its host edge to edge,
-    so a mark projected above the widget also sits above every word the widget draws.
-    Comparing the interior with that overlay hidden makes the guarantee independent of
-    the widget's DOM, colors, and stacking choices.
+    so a mark projected above the widget also sat above every word the widget draws.
+    Comparing the interior with the card's mark taken off makes the guarantee
+    independent of the widget's DOM, colors, and stacking choices.
     """
     example = named_source("live-progress")
     url = serve(example)
@@ -826,10 +822,7 @@ def test_a_focused_card_comment_never_paints_over_the_cards_contents(browser, se
     stand_on_thread(page, "blocked-card-comment")
 
     card = page.locator("#lp-k-checks")
-    mark = page.locator(
-        '.lf-visual-mark[data-lf-for="lp-k-checks"].lf-visual-mark-here'
-    )
-    expect(mark).to_be_visible()
+    expect(card).to_have_attribute("data-lf-mark", re.compile(r"\bhere\b"))
     card.scroll_into_view_if_needed()
     # Include the floating thread's final placement and shadow in both captures.
     rendered(page)
@@ -839,7 +832,9 @@ def test_a_focused_card_comment_never_paints_over_the_cards_contents(browser, se
         return Image.open(io.BytesIO(page.screenshot(clip=box))).convert("RGB")
 
     marked = screenshot()
-    mark.evaluate("element => { element.style.visibility = 'hidden'; }")
+    card.evaluate(
+        "element => { element.style.setProperty('outline', 'none', 'important'); }"
+    )
     bare = screenshot()
     inset = math.ceil(3 * page.evaluate("devicePixelRatio"))
     interior = (inset, inset, marked.width - inset, marked.height - inset)
@@ -847,7 +842,7 @@ def test_a_focused_card_comment_never_paints_over_the_cards_contents(browser, se
     assert difference.getbbox() is None, (
         "the selected comment painted inside the metric card instead of only around it"
     )
-    mark.evaluate("element => { element.style.removeProperty('visibility'); }")
+    card.evaluate("element => { element.style.removeProperty('outline'); }")
 
 
 def test_a_screenshot_margin_trace_paints_both_quiet_brackets(browser, serve):
@@ -886,34 +881,15 @@ def test_a_screenshot_margin_trace_paints_both_quiet_brackets(browser, serve):
     margins_laid_out(page)
     toggle = page.get_by_role("button", name="Review capture", exact=True)
     toggle.hover()
-    trace = page.locator('.lf-target-trace[data-lf-for="rn-console-shot"]')
-    expect(trace).to_be_visible()
-    ink = trace.evaluate(
-        """element => {
-          const canvas = document.createElement('canvas');
-          const context = canvas.getContext('2d');
-          context.fillStyle = getComputedStyle(element, '::after').outlineColor;
-          context.fillRect(0, 0, 1, 1);
-          return [...context.getImageData(0, 0, 1, 1).data.slice(0, 3)];
-        }"""
-    )
+    expect(shot).to_have_class(re.compile(r"\blf-traced\b"))
+    ink = shot.evaluate(_MARK_INK)
     traced = screenshot()
 
-    outset = trace.evaluate(
-        "element => { const s = getComputedStyle(element, '::after');"
-        " return parseFloat(s.outlineOffset) + parseFloat(s.outlineWidth); }"
-    )
-    outer = {
-        "x": box["x"] - outset,
-        "y": box["y"] - outset,
-        "width": box["width"] + 2 * outset,
-        "height": box["height"] + 2 * outset,
-    }
+    outer = _outer_box(shot.evaluate(MARK))
     changed, missing = _bracket_ink_changes(quiet, traced, outer, clip, ink)
     assert not missing, (
         f"the screenshot frame covered the trace's {missing} edge: {changed} ink pixels"
     )
-    assert shot.evaluate("element => getComputedStyle(element).outlineStyle") == "none"
     shot.get_by_role("button", name="Pair", exact=True).click()
     expect(shot.locator('.lf-shotframe[data-lf-state="after"]')).to_be_visible()
 
@@ -1077,8 +1053,8 @@ def test_a_diagram_takes_the_room_and_scrolls_only_past_it(browser, serve):
 
 
 def test_a_marked_scrolling_visual_keeps_its_keyboard_focus_ring(browser, serve):
-    """A focused visual paints one projected ring; entering its thread keeps the
-    reference on the same target without restoring a second source outline."""
+    """A focused visual draws one ring, its own mark; entering its thread keeps the
+    mark on the same target, one outline, rather than adding a second."""
     url = serve(WIDE_DIAGRAM_PAGE)
     append_carried_log_record(
         serve.page_dir,
@@ -1100,16 +1076,15 @@ def test_a_marked_scrolling_visual_keeps_its_keyboard_focus_ring(browser, serve)
     rendered(page)
     ring = current_location_ring(page)
     assert ring and ring["cuts"] == ring["covers"] == [], ring
-    mark = page.locator(".lf-visual-mark")
-    expect(page.locator(".lf-visual-mark-focus")).to_have_attribute(
-        "data-lf-for", "flow"
-    )
+    expect(diagram).to_have_attribute("data-lf-mark", re.compile(r"\bfocus\b"))
+    expect(page.locator("[data-lf-mark]")).to_have_count(1)
 
     resized(page, 1200, 900)
     stand_on_thread(page, "diagram-comment")
     expect(diagram).to_have_class(re.compile(r"\blf-mark-here\b"))
-    expect(diagram).to_have_css("outline-style", "none")
-    expect(mark).to_have_class(re.compile(r"\blf-visual-mark-here\b"))
+    expect(diagram).to_have_attribute("data-lf-mark", re.compile(r"\bhere\b"))
+    expect(page.locator("[data-lf-mark]")).to_have_count(1)
+    expect(diagram).to_have_css("outline-style", "solid")
 
 
 def test_a_widget_that_failed_soft_claims_no_room(browser, serve):
@@ -3457,8 +3432,7 @@ def test_a_reply_notice_survives_a_failed_state_and_keeps_its_agent(browser, ser
         if broken:
             refuse(route)
             return
-        response = route.fetch()
-        state = response.json()
+        response, state = fetch_whole_state(route)
         state["agent"] = "Rejected agent"
         rejected_version = {
             **state["versions"][-1],

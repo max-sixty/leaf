@@ -1,38 +1,22 @@
 /* What `architecture/moves` refuses as a plain insertion of a node that may already
-   stand somewhere (eslint.config.mjs). eslint lives in pre-commit's environment, so the
-   rule's visitors run here over acorn's tree, which is the ESTree eslint hands them. */
+   stand somewhere (eslint.config.mjs). */
 
 import assert from "node:assert/strict";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
-import { parse } from "acorn";
 import { movesRule } from "../../eslint.config.mjs";
+import { ruleReports } from "./lint-rule.mjs";
 
 const filename = fileURLToPath(
   new URL("../../browser/runtime/probe.js", import.meta.url),
 );
 
 // How many times the rule reports on `code`.
-function reports(code, file = filename) {
-  let count = 0;
-  const visitors = movesRule.create({
+const reports = (code, file = filename) =>
+  ruleReports(movesRule, code, {
     filename: file,
     options: [["browser/runtime/dom-move.js"]],
-    sourceCode: { getText: (node) => code.slice(node.start, node.end) },
-    report: () => (count += 1),
-  });
-  const walk = (node, parent) => {
-    node.parent = parent;
-    visitors[node.type]?.(node);
-    for (const [key, value] of Object.entries(node)) {
-      if (key === "parent") continue;
-      for (const child of Array.isArray(value) ? value : [value])
-        if (child && typeof child.type === "string") walk(child, node);
-    }
-  };
-  walk(parse(code, { ecmaVersion: "latest", sourceType: "module" }), null);
-  return count;
-}
+  }).length;
 
 test("placing a node that may stand elsewhere is refused", () => {
   for (const code of [

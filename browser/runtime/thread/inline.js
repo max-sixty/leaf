@@ -124,6 +124,9 @@ class ThreadSeat {
   #commands;
   /** @type {() => HTMLElement | null} */
   #response = () => null;
+  // Whether the seat has stood in the document, read at a commit or when its owner
+  // places it (`claim`). A seat that stood there and left is pruned at the next commit;
+  // one drawn but not yet placed is kept for its owner.
   #connected = false;
   /** @type {MarginControls | null} */
   #marginControls = null;
@@ -361,6 +364,7 @@ class ThreadSeat {
   // user in the editor. A seat drawn before it is placed, as the margin card's is, claims
   // once its owner places it (`claimSeatReplies`).
   claim() {
+    this.#connected ||= this.node.isConnected;
     const shown = () => this.node.isConnected;
     for (const [key, view] of this.#views)
       if (this.#shown.threads.some((thread) => thread.key === key))

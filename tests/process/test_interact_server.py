@@ -1867,12 +1867,13 @@ def test_a_revision_serves_reaction_tokens_in_their_declared_order(page_dir):
 def test_a_revision_s_resources_are_cached_and_its_document_is_asked_again(
     server, page_dir
 ):
-    """A revision's resources are named by its digest and the runtime's identity, so
-    the browser keeps them for every document that imports them, a gallery's live
-    samples included. The document and the page's state may be stored, which lets the
-    back/forward cache keep the page, but each reuse asks what the page is now, and so
-    does a path under the namespace that names nothing, or names a runtime this server
-    does not run."""
+    """A revision's resources are named by its digest and the runtime's identity, and
+    page media by a digest of its bytes, so the browser keeps them for every document
+    that names them, a gallery's live samples and later revisions included. The
+    document and the page's state may be stored, which lets the back/forward cache
+    keep the page, but each reuse asks what the page is now, and so does a path under
+    either namespace that names nothing, or names a runtime this server does not run."""
+    media = media_model.cmd_media(page_dir, [example_media() / "051bee487bfb5d13.png"])
     publish(page_dir)
     revision = "/revisions/" + files_model.revision_path(page_dir, 1).stem
     root = revision_root(page_dir, 1)
@@ -1887,6 +1888,8 @@ def test_a_revision_s_resources_are_cached_and_its_document_is_asked_again(
     immutable = "private, max-age=31536000, immutable"
     assert cache_control(f"{root}/leaf.js") == (200, immutable)
     assert cache_control(f"{root}/theme.css") == (200, immutable)
+    assert cache_control(media[0]["path"]) == (200, immutable)
+    assert cache_control("/media/0123456789abcdef.png") == (404, "no-cache")
     assert cache_control("/") == (200, "no-cache")
     assert cache_control("/api/state") == (200, "no-cache")
     assert cache_control(f"{root}/no-such-module.js") == (404, "no-cache")
@@ -2146,10 +2149,15 @@ def test_browser_state_is_the_same_snapshot_as_an_accepted_action(server, page_d
     )
 
     assert status == 200, body
-    state = json.loads(body)["state"]
-    assert state["since"]["through_seq"] == held["through_seq"]
-    [accepted] = state["events"]
+    tail = json.loads(body)["state"]
+    assert tail["since"] == {"key": held["key"]}
+    [accepted] = tail["events"]
     assert accepted["attempt"] == sent["attempt"]
+    assert ["browser", "views", "1", "undo"] in [
+        change["at"] for change in tail["patch"]
+    ]
+    # The whole reading at the same position, as the tab completes it.
+    state = json.loads(fetch(f"{server}/api/state")[1])
     browser = state["browser"]
     view = browser["views"]["1"]
     [entry] = view["document"]["projection"]["entries"]

@@ -167,7 +167,8 @@
       frames: () => window.__leafMainThread.reading().frames,
       revision: () =>
         Number(document.querySelector('meta[name="lf-revision"]')?.content),
-      // Every trip this document made to the server has ended (runtime/traffic.js).
+      // Every trip the runtime's ledger counts, its event posts and state reads, has
+      // ended (runtime/traffic.js).
       quiet() {
         const trips = ledger();
         return (

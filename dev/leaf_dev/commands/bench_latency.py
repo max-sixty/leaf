@@ -113,8 +113,8 @@ THREAD_TEXT = "Bench thread.\n\n" + "\n\n".join(
 )
 
 PROBE = Path(__file__).with_suffix(".js")
-# The page is still ready, read as `wait_until_ready` reads it, and every trip it made
-# to the server has ended.
+# The page is still ready, read as `wait_until_ready` reads it, and every trip its
+# ledger counts has ended (`__leafBench.quiet`).
 QUIET = (
     f"() => ({OUTSTANDING})({{held: null, through: null}}) === 'ready'"
     " && window.__leafBench.quiet()"

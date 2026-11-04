@@ -323,13 +323,9 @@ export function alreadyShown(where) {
   const want = landable(shown, out);
   if (!seesWhole(seen, box, want, room)) return false;
   // A box longer than its room is shown where a nearest landing would bring no more of
-  // it in, which is the landing's own reading of its regions (`readingBandMoves`):
-  // filling them, or as far as they can scroll.
-  if (
-    box.height > room.height &&
-    Math.abs(readingBandMoves(where, holderOf(where), "nearest").moved) >= 1
-  )
-    return false;
+  // it in, by the landing's own moves (`landsStill`): filling its boxes, or as far as
+  // they can scroll.
+  if (box.height > room.height && !landsStill(where)) return false;
   if (box.width > room.width && seen.right - seen.left < room.width) return false;
   const ahead = seenAhead(shown, seen);
   if (!ahead) return true;
@@ -463,6 +459,20 @@ export function scrollIntoView(
   if (!holder) return;
   if (block === "nearest" && aligned === where && alreadyShown(where)) return;
   const targetScroller = within ? null : scrollersOf(holder).next().value;
+  // Only a box that will move is asked to, as a first tab's ring room at its strip's
+  // start moves nothing: a call that moves nothing still reads as a scroll the gesture
+  // made (tests/shift_watch.js, "Scrolls a gesture makes").
+  for (const { box, by } of innerMoves(where, targetScroller, within, sideways))
+    if (by.left || by.top) land(box, by, "instant");
+  if (targetScroller) scrollIntoReadingBand(aligned, holder, block, behavior);
+}
+
+// The moves the walk before a destination's reading region makes (`scrollIntoView`),
+// each read when the caller asks for it, after it made the last: every box clipping the
+// destination reveals it across at the nearest edge, and each inside `targetScroller`
+// down too.
+/** @param {Destination} where @param {Element | null | undefined} targetScroller @param {Element | null} within @param {boolean} sideways */
+function* innerMoves(where, targetScroller, within, sideways) {
   // Horizontal inspection can belong to any ancestor, the owning region included.
   // Only inner scrollports prepare Y; the region and its outers glide below.
   let inside = true;
@@ -484,15 +494,30 @@ export function scrollIntoView(
       const byY = inside
         ? placementBy(where, "nearest", band, topMargin(where, box, band, start))
         : 0;
-      // Only a box that will move is asked to, as a first tab's ring room at its
-      // strip's start moves nothing: a call that moves nothing still reads as a
-      // scroll the gesture made (tests/shift_watch.js, "Scrolls a gesture makes").
-      const by = localScrollBy(box, { x: byX, y: byY });
-      if (by.left || by.top) land(box, by, "instant");
+      yield { box, by: localScrollBy(box, { x: byX, y: byY }) };
     }
-    if (box === within || box === pageScroller || fixedInWindow(box)) break;
+    if (box === within || box === pageScroller || fixedInWindow(box)) return;
   }
-  if (targetScroller) scrollIntoReadingBand(aligned, holder, block, behavior);
+}
+
+// Whether a nearest landing on `where` would move no box down or up: neither the walk
+// before its reading region nor the region and those around it (`readingBandMoves`).
+// Each move is read where the destination stands now, which holds while every move
+// before it is none, and every one is asked rather than their sum: a pane bringing in
+// more of a box while the page carries the pane back leaves the box where it stood,
+// and still shows more of it.
+/** @param {Destination} where */
+function landsStill(where) {
+  const holder = holderOf(where);
+  const targetScroller = scrollersOf(holder).next().value;
+  for (const { by } of innerMoves(where, targetScroller, null, false))
+    if (atLayoutPrecision(by.top) || atLayoutPrecision(by.left)) return false;
+  return (
+    !targetScroller ||
+    readingBandMoves(where, holder, "nearest").moves.every(
+      ({ moved }) => Math.abs(moved) < 1,
+    )
+  );
 }
 
 // A box growing under the user's keystrokes keeps its foot in the band, as the browser's

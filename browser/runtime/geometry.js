@@ -388,7 +388,13 @@ export function stuckBox(node, within = null) {
 // leaves it no offset parent: a transformed, filtered or contained ancestor holds it as
 // its containing block, and the box then rides every scroll that moves that ancestor,
 // as an absolute one does. Such an ancestor is its offset parent in Chromium and
-// Firefox alike.
+// Firefox alike. A null offset parent says only that much: CSSOM View's offsetParent
+// (https://drafts.csswg.org/cssom-view/#dom-htmlelement-offsetparent) also returns
+// null for an element that generates no box, for `body` and for the root, so a fixed
+// `display: contents` ancestor, which places nothing, reads as fixed in the window and
+// ends a landing's walk short of the scroller that would show what it holds, and a
+// fixed `body` under a transformed root reads as fixed though the root's scroll moves
+// it. Neither is handled; main stopped at every fixed box, which these share.
 /** @param {Element} el @param {CSSStyleDeclaration} [style] */
 export const fixedInWindow = (el, style = getComputedStyle(el)) =>
   style.position === "fixed" && (!isHTML(el) || el.offsetParent === null);

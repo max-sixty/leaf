@@ -1258,6 +1258,48 @@ def test_a_box_whole_in_a_pane_below_the_window_is_not_yet_shown(browser, serve)
     assert reading["after"] is True, reading
 
 
+def test_a_box_longer_than_its_pane_is_not_shown_while_its_pane_could_show_more(
+    browser, serve
+):
+    """A 300px box 100px down a 250px pane that stands 100px above the band shows 150px
+    of itself. A nearest landing scrolls the pane 100px to show 250px, and the page back
+    100px to keep the pane's top in the band, so the box stands where it stood: the two
+    moves cancel on screen but not in what the user sees, so it is not yet shown, and
+    the landing makes both."""
+    source = leaf_page(
+        "A box longer than its pane",
+        '<div style="height:1200px"></div>'
+        '<div id="pane" style="height:250px;overflow:auto">'
+        '<div style="height:100px"></div><div id="box" style="height:300px"></div>'
+        '<div style="height:600px"></div></div><div style="height:1600px"></div>',
+    )
+    page = open_page(browser, serve(source))
+    page.set_viewport_size({"width": 1280, "height": 900})
+    reading = page.evaluate("""async () => {
+      const {alreadyShown, landingBand, seenRect} = await window.__lfCheckApi();
+      const {scrollIntoView} = await window.__lfWidgetApi();
+      const pane = document.querySelector('#pane');
+      const box = document.querySelector('#box');
+      const band = landingBand(document.scrollingElement).top;
+      scrollBy({top: pane.getBoundingClientRect().top - (band - 100), behavior: 'instant'});
+      const seenHeight = () => {
+        const seen = seenRect(box, new Map());
+        return seen ? Math.round(seen.bottom - seen.top) : 0;
+      };
+      const before = {shown: alreadyShown(box), seen: seenHeight(),
+                      top: Math.round(box.getBoundingClientRect().top)};
+      scrollIntoView(box, {block: 'nearest', behavior: 'instant'});
+      return {before, pane: pane.scrollTop, seen: seenHeight(),
+              top: Math.round(box.getBoundingClientRect().top), after: alreadyShown(box)};
+    }""")
+    assert reading["before"]["seen"] == 150, reading
+    assert reading["before"]["shown"] is False, reading
+    assert reading["pane"] == 100, reading
+    assert reading["seen"] == 250, reading
+    assert reading["top"] == reading["before"]["top"], reading
+    assert reading["after"] is True, reading
+
+
 def test_a_landing_on_a_fixed_box_moves_nothing_around_it(browser, serve):
     """A fixed box stands still while every box around it scrolls, so a landing on one
     the window doesn't show, as a Tab's arrival makes, moves none of them."""

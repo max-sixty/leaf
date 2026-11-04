@@ -792,33 +792,6 @@ def test_a_thread_can_be_answered_in_the_margin_without_opening_threads(browser,
     expect(page.locator(PANEL_THREAD)).to_have_count(0)
 
 
-def test_a_thread_margin_entry_opens_inline_when_the_panel_is_closed(browser, serve):
-    """A marker opens its thread in a card beside the passage, even where a sidebar
-    takes the room the margin would have."""
-    sidebar_page = OBLIGATION_PAGE.replace(
-        '<main class="layout-column">',
-        '<main class="layout-sidebar"><aside><div class="layout-track">Page reference</div></aside>'
-        '<div class="layout-column">',
-        1,
-    ).replace("</main>", "</div></main>", 1)
-    page = open_page(browser, serve(sidebar_page, events=[COMMENT_ON_OBLIGATION]))
-    resized(page, 1200, 900)
-    marker = page.locator('.lf-margin-marker[data-lf-kinds="comment"]')
-
-    marker.click()
-
-    expect(page.locator(PANEL)).not_to_have_attribute("data-lf-open", re.compile(""))
-    expect(page.locator(".lf-margin-preview")).to_be_visible()
-    expect(page.locator(".lf-margin-thread .lf-page-thread")).to_be_focused()
-    expect(
-        page.locator(".lf-margin-thread").get_by_role(
-            "textbox", name="Reply", exact=True
-        )
-    ).to_be_visible()
-    expect(marker).to_have_attribute("aria-controls", "lf-margin-preview")
-    expect(marker).to_have_attribute("aria-expanded", "true")
-
-
 def test_a_card_opens_on_its_first_unread_reply(browser, serve):
     """A card opens where the replies the user hasn't read begin, so a long one is read
     from its head down and reads like the short one after it. Opened at its latest

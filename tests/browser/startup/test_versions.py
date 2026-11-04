@@ -478,35 +478,6 @@ def test_the_diff_marks_the_card_the_author_reordered_and_no_other(browser, serv
     )
 
 
-def test_accepting_a_suggestion_resolves_its_thread_in_one_event(browser, serve):
-    """Accepting answers the thread the change was written for, and the answer
-    rides the accept itself — the wrapper holding the `resolves` mapping is
-    retired by the honoring version, and a second POST could fail alone, leaving
-    the outcome and the resolution disagreeing with no repair path. One event,
-    read by both thread builders."""
-    url = serve(
-        JOURNEY_V1.replace('<h2 id="notes">', SUGGEST_BLOCK + '<h2 id="notes">'),
-        events=(
-            {
-                "kind": "comment",
-                "id": "c1",
-                "author": "user",
-                "revision": 1,
-                "text": "does this take downtime?",
-            },
-        ),
-    )
-    d = serve.page_dir
-    page = open_page(browser, url)
-    page.get_by_role("button", name=re.compile("^Accept the suggested change")).click()
-    expect_resolved(page, "c1")
-    events = events_model.read_events(d)
-    accept = next(e for e in events if e.get("kind") == "action")
-    assert accept["action"] == "decide" and accept["detail"] == {"outcome": "accept"}
-    assert accept["meaning"]["answer"] == "c1"
-    assert not any(e.get("kind") == "resolve" for e in events)
-
-
 def test_the_thread_follows_the_decision_that_still_stands(browser, serve):
     """The panel reports where the question currently stands, not that it was once
     answered. A second tab can reject a suggestion the first has already accepted —

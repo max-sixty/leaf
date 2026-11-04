@@ -9,6 +9,7 @@ from interact_support import append_carried_log_record, append_command
 from playwright.sync_api import expect
 from render_cases_interaction import live_url
 from render_cases_navigation import (
+    DRAFT_DRAWN,
     DRAFT_EDITED,
     DRAFT_TEXT,
     JOURNEY_V1,
@@ -88,7 +89,7 @@ def test_page_round_trip(browser, serve):
     # sends the whole new body. The text must have arrived without the source's
     # indentation.
     draft = page.locator("#draft-ops")
-    assert draft.locator(".lf-draft-body").inner_text() == DRAFT_TEXT
+    assert draft.locator(".lf-draft-body").inner_text() == DRAFT_DRAWN
     draft.locator(".lf-draft-body").dblclick()
     write(draft.locator("leaf-text"), DRAFT_EDITED)
     draft_control(page, "save", "draft-ops").click()

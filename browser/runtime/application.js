@@ -38,6 +38,7 @@ import { createQueueActions, queueItemKey } from "./queue-api.js";
 import { createPrimaryReader } from "./thread/primary-reader.js";
 import { nextRender } from "./rendering.js";
 import { createReadTracking } from "./thread/read.js";
+import { createSinceSeen } from "./since-seen.js";
 import { createMarginBars } from "./margin-bars.js";
 import { renderMarginThread } from "./thread/inline.js";
 import { showHeld } from "./thread/held-news.js";
@@ -248,6 +249,13 @@ function createApplication(dependencies) {
       applicationState.settleMarkRead(messages);
     }
   };
+  // The revision a visible tab showed, sent as the user leaves; the event door keeps a
+  // send alive past its document (layer-client.js, `postEvent`). Nothing draws it ahead
+  // of the answer.
+  createSinceSeen({
+    markSeen: (revision) =>
+      deliverBookkeeping({ kind: "seen", revision }, receiveState),
+  });
   const read = createReadTracking({
     markRead,
     openThread: openPageThread,

@@ -465,6 +465,7 @@ function mountMarginLayer(root, projection) {
 		lanes: /* @__PURE__ */ new Map(),
 		sizes: sizeObserver(layoutMarginRows)
 	};
+	window.addEventListener("resize", scheduleMarginLayout);
 	faces.observe(projection, {
 		childList: true,
 		subtree: true,

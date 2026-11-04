@@ -705,6 +705,9 @@ export function scheduleMarginEntryLabels() {
 /** @param {HTMLElement} root @param {HTMLElement} projection */
 export function mountMarginLayer(root, projection) {
   layer = { root, projection, lanes: new Map(), sizes: sizeObserver(layoutMarginRows) };
+  // Where the root does not scroll, the window bounds a pin's seat (`pinSeating`), and a
+  // window resized around a page of fixed size resizes no box the margin watches.
+  window.addEventListener("resize", scheduleMarginLayout);
   faces.observe(projection, {
     childList: true,
     subtree: true,

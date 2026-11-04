@@ -326,7 +326,6 @@ export function createAnchorControls({
               label: `${root.token} reaction actions`,
               behavior: "disclosure",
               rank: "secondary",
-              className: "lf-react-mark",
               scope: this.scope,
               relation: {
                 kind: "entries",
@@ -339,7 +338,6 @@ export function createAnchorControls({
               action: "undo",
               label: `Undo ${root.token} reaction`,
               rank: "secondary",
-              className: "lf-react-remove",
               scope: this.scope,
               visible: this.expanded === root.id,
             },

@@ -216,21 +216,21 @@ a[data-lf-external]::after,
  *
  * An inset shadow rather than a background, because it composes instead of competing.
  * `background` is the one property a control's own dress is written in, and every layer
- * writes it: a chip states a fill, chrome's .lf-btn swaps one on hover, a package restates
- * both. A shared rule setting `background` has to out-specify all of them to be seen and
- * then wins against the ones that should have won. The shadow is painted over whatever
- * fill the control wears, so the chip keeps its ground, the .lf-btn keeps its swap, and
- * both deepen by the same amount under the pointer. It is inset, so it paints inside the
- * padding box, follows the corner the control already has, and adds nothing outside a
- * rectangle the movement tests are watching.
+ * writes it: a chip states a fill, a package restates it. A shared rule setting
+ * `background` has to out-specify all of them to be seen and then wins against the ones
+ * that should have won. The shadow is painted over whatever fill the control wears, so
+ * the chip keeps its ground and deepens under the pointer. It is inset, so it paints
+ * inside the padding box, follows the corner the control already has, and adds nothing
+ * outside a rectangle the movement tests are watching. The word, symbol and commit faces
+ * take their library's hover fill instead (controls.css).
  *
  * A spent press keeps its shape and gives up its opacity. That is the layer's one cue
  * for "there is nothing left to do here", and it is stated with the hand it withdraws so
  * the two cannot come apart: a press that had been used up once still wore the
  * full-strength border of a live one and differed only in ink, which greyscale drops and
- * a user scanning a column of eight of them never sees. Chrome's own .lf-btn says the
- * same pair for the same reason (chrome.css); this reaches the controls that are
- * not one.
+ * a user scanning a column of eight of them never sees. The pair is Web Awesome's, half
+ * the opacity and the not-allowed hand, which Leaf's presses, fields and choices take
+ * from the library (controls.css), so an offered control says it as theirs do.
  *
  * The ring is the layer's floor (below), which every box holding visible focus wears,
  * an offer or not.
@@ -262,56 +262,98 @@ a[data-lf-external]::after,
 /* A visible focus destination wears the layer's band unless its own rule supplies
    a carrier, or another mark on it carries it: a comment's mark
    (`.lf-projected-mark`, visual-mark-paint.js), or the location ring round the decision
-   the user stands in (`.lf-projected-location`, target-paint.js). Each stands where the
+   the user stands in (`[data-lf-projected-location]`, target-paint.js). Each stands where the
    box says, as this band does. Controls and reading destinations follow browser focus
    visibility. Current location remains separate, so pointer focus can reveal controls
    without drawing a ring.
    A box that says nothing stands its band at a control's gap. At no weight, so a
    carrier's band wins. Retargeting shadow hosts and a label press's intermediate nodes
    get no band. */
-:where([data-lf-focus-visible]:not(.lf-projected-mark, .lf-projected-location)) {
+:where([data-lf-focus-visible]:not(.lf-projected-mark, [data-lf-projected-location])) {
   outline: var(--focus-ring);
   outline-offset: var(--lf-ring-at, var(--focus-ring-gap));
+}
+/* A focused box whose band something would cover or cut, such as positioned content
+   painting over its outline or a scrollport clipping it, wears the band on a later box
+   laid over it, its ::after, one band inside its edge. Two kinds of box draw it:
+   - a ring frame (`.lf-ring-frame`) for the child that holds focus, such as the box
+     around a scroller of positioned lines, and a pane for its body (base.css). It
+     declares that it wears the band (`--lf-wears-ring`, base.css); its header and
+     footer are not children it rings, and its own focus wears the ordinary band;
+   - a ring overlay (`.lf-ring-overlay`) for its own focus, such as a box whose
+     positioned contents would paint over its outline.
+   Either is a positioned box, so its ::after covers it. That ::after is at no weight
+   and no height of its own: the box's own rule says how high it stacks over what the
+   box holds, and where it stands when that isn't the box's edge, such as an anchor or
+   a grid area. */
+:is(.lf-ring-frame, [data-lf-reading-role="pane"]):has(
+  > :not(header, footer)[data-lf-focus-visible]
+) {
+  --lf-wears-ring: 1;
+}
+.lf-ring-overlay[data-lf-focus-visible],
+:is(.lf-ring-frame, [data-lf-reading-role="pane"])
+  > :not(header, footer)[data-lf-focus-visible] {
+  outline: none;
+}
+:where(
+  .lf-ring-overlay[data-lf-focus-visible],
+  :is(.lf-ring-frame, [data-lf-reading-role="pane"]):has(
+    > :not(header, footer)[data-lf-focus-visible]
+  )
+)::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  outline: var(--focus-ring);
+  outline-offset: var(--focus-ring-inset);
 }
 /* Every mark on a box is drawn by the box itself, as its outline, so it moves with the
    box through every scroll, transform and layout change in every engine, and passes
    under what the page stacks over the box as the box's own words do. The Alt aim
-   (`.lf-aimed`), the margin trace (`.lf-traced`), a comment's mark (`data-lf-mark`,
+   (`[data-lf-aimed]`), the margin trace (`[data-lf-traced]`), a comment's mark (`data-lf-mark`,
    visual-mark-paint.js), the location ring round the decision the user stands in
-   (`.lf-projected-location`) and the proxy ring (`.lf-proxied`) each stand where the
+   (`[data-lf-projected-location]`) and the proxy ring (`[data-lf-proxied]`) each stand where the
    box says (`--lf-ring-at`), or where a region's or a control's marks stand when it
    says nothing. The outline is important, so a rule of the page's or a widget's that
    sets the box's outline, as one turning off a focus ring does, leaves the mark
    standing while it shows. */
-:where(.lf-aimed, .lf-traced, .lf-proxied, [data-lf-mark], .lf-projected-location) {
+:where(
+  [data-lf-aimed],
+  [data-lf-traced],
+  [data-lf-proxied],
+  [data-lf-mark],
+  [data-lf-projected-location]
+) {
   --lf-band-gap: var(--lf-ring-at, var(--focus-region-gap));
   outline: var(--lf-band-w, var(--focus-ring-w)) solid var(--lf-band-ink, var(--accent)) !important;
   outline-offset: var(--lf-band-gap) !important;
 }
 :where(a[href], button, input, select, textarea, summary, [role]):where(
-  .lf-aimed,
-  .lf-traced,
-  .lf-proxied,
+  [data-lf-aimed],
+  [data-lf-traced],
+  [data-lf-proxied],
   [data-lf-mark],
-  .lf-projected-location
+  [data-lf-projected-location]
 ) {
   --lf-band-gap: var(--lf-ring-at, var(--focus-ring-gap));
 }
 /* The margin trace takes its own ink, and an action's target alone a quieter line. */
-:where(.lf-traced) {
+:where([data-lf-traced]) {
   --lf-band-ink: var(--target-trace-ink);
 }
-:where([data-lf-mark="action"]:not(.lf-traced)) {
+:where([data-lf-mark="action"]:not([data-lf-traced])) {
   --lf-band-ink: var(--mark-contour-ink);
   --lf-band-w: 1px;
 }
 /* Any other mark on the box keeps the accent over those two: the aim, a comment's
    mark, the proxy or location ring, or the focus ring the box wears. */
 :where(
-  :is(.lf-traced, [data-lf-mark="action"]):is(
-    .lf-aimed,
-    .lf-proxied,
-    .lf-projected-location,
+  :is([data-lf-traced], [data-lf-mark="action"]):is(
+    [data-lf-aimed],
+    [data-lf-proxied],
+    [data-lf-projected-location],
     [data-lf-mark]:not([data-lf-mark="action"]),
     [data-lf-focus-visible],
     :has(> [data-lf-focus-visible])
@@ -323,13 +365,19 @@ a[data-lf-external]::after,
 /* A forced palette draws marks in its highlight, as it does the focus ring
    (tokens.css). */
 @media (forced-colors: active) {
-  :where(.lf-aimed, .lf-traced, .lf-proxied, [data-lf-mark], .lf-projected-location) {
+  :where(
+    [data-lf-aimed],
+    [data-lf-traced],
+    [data-lf-proxied],
+    [data-lf-mark],
+    [data-lf-projected-location]
+  ) {
     --lf-band-ink: Highlight;
   }
 }
 /* The aim's veil fills the box and the gap round it, so it and its brackets read as
    one box. */
-:where(.lf-aimed) {
+:where([data-lf-aimed]) {
   --lf-aim-veil: color-mix(in srgb, var(--accent) 4%, transparent);
   box-shadow:
     inset 0 0 0 100vmax var(--lf-aim-veil),
@@ -346,9 +394,9 @@ a[data-lf-external]::after,
    band's cut neither paints nor takes a press. A box that clips itself keeps its own
    clip, which cuts the mark as it cuts the box. */
 :where(
-  :is(.lf-aimed, .lf-traced, [data-lf-mark]):not(
-    .lf-projected-location,
-    .lf-proxied,
+  :is([data-lf-aimed], [data-lf-traced], [data-lf-mark]):not(
+    [data-lf-projected-location],
+    [data-lf-proxied],
     [data-lf-mark~="focus"],
     [data-lf-focus-visible],
     :has(> [data-lf-focus-visible])
@@ -382,11 +430,11 @@ a[data-lf-external]::after,
    outline is, so a drawing's own stroke rules leave the mark standing while it shows;
    its words keep their own. A comment's mark there takes the quieter contour ink. */
 :where(svg *:not(foreignObject *)):where(
-  .lf-aimed,
-  .lf-traced,
-  .lf-proxied,
+  [data-lf-aimed],
+  [data-lf-traced],
+  [data-lf-proxied],
   [data-lf-mark],
-  .lf-projected-location
+  [data-lf-projected-location]
 ) {
   --lf-shape-ink: var(--lf-band-ink, var(--accent));
   --lf-shape-w: var(--lf-band-w, var(--focus-ring-w));
@@ -395,18 +443,18 @@ a[data-lf-external]::after,
   box-shadow: none;
 }
 :where(svg *:not(foreignObject *)):where(
-    .lf-aimed,
-    .lf-traced,
-    .lf-proxied,
+    [data-lf-aimed],
+    [data-lf-traced],
+    [data-lf-proxied],
     [data-lf-mark],
-    .lf-projected-location
+    [data-lf-projected-location]
   ):where(path, rect, circle, ellipse, line, polyline, polygon),
 :where(svg *:not(foreignObject *)):where(
-    .lf-aimed,
-    .lf-traced,
-    .lf-proxied,
+    [data-lf-aimed],
+    [data-lf-traced],
+    [data-lf-proxied],
     [data-lf-mark],
-    .lf-projected-location
+    [data-lf-projected-location]
   )
   :where(path, rect, circle, ellipse, line, polyline, polygon) {
   stroke: var(--lf-shape-ink) !important;
@@ -475,8 +523,8 @@ a[data-lf-external]::after,
   box-shadow: var(--offer-hover-shadow);
 }
 [data-lf-offer]:where(:not([data-lf-offer=""])):is([aria-disabled="true"], :disabled) {
-  cursor: default;
-  opacity: 0.55;
+  cursor: not-allowed;
+  opacity: 0.5;
 }
 /* The floor under every aim the layer offers, stated once for all of them rather
    than left to whatever each control's type and padding happened to add up to.
@@ -552,7 +600,13 @@ button.lf-inline-action,
    floor as its face.
 
    A control on this list leaves the floor's block axis (above) to its reach. No box
-   inherits that, so a control inside one keeps its own floor. */
+   inherits that, so a control inside one keeps its own floor.
+
+   Where a surface knows its control's face already meets the floor, the reach would
+   be the control's own box, so the surface drops it, as options.css does for Done
+   and, under a mouse, Add: each reach and its control are positioned boxes, which
+   Chromium's hit test visits on every call wherever the point is. A kind whose face
+   can run short, such as a mark or inline action, keeps its reach. */
 @property --lf-face-floor {
   syntax: "*";
   inherits: false;
@@ -627,24 +681,13 @@ summary {
   --lf-ground: var(--focus-surface);
   background: var(--lf-ground);
 }
-/* The thread itself holding focus wears the ring, inset over the quiet
-   ground its containing state paints; chrome.css says the same of the panel's card.
-   It is drawn on a pseudo-element over the thread's contents rather than as the
-   thread's own outline, which paints with the thread's in-flow content: a positioned
-   row inside the thread paints after that, over the ring's bottom run. The
-   pseudo-element is positioned too and comes after every row in tree order, so it
-   paints over them without a z-index that would also lift it over the page. */
-.lf-page-thread[data-lf-focus-visible] {
-  outline: none;
-}
-.lf-page-thread[data-lf-focus-visible]::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
+/* The thread itself holding focus wears the ring, inset over the quiet ground its
+   containing state paints; chrome.css says the same of the panel's card. A positioned
+   row inside the thread paints over the thread's own outline, so the thread is a ring
+   overlay (`.lf-ring-overlay`, above), whose ring comes after every row in tree order
+   and so paints over them without a z-index that would also lift it over the page. */
+.lf-page-thread::after {
   border-radius: inherit;
-  outline: var(--focus-ring);
-  outline-offset: var(--focus-ring-inset);
 }
 /* A forced palette paints every ground in Canvas, so the quiet ground of a thread
    holding focus would vanish; the thread wears the ring instead. */
@@ -1210,28 +1253,4 @@ button.lf-thread-news {
 /* What an answer leaves standing reads beside its time like a receipt. */
 .lf-msg-head .lf-msg-leaves {
   color: var(--ink-2);
-}
-/* A to-do on the user stands over the conversation about it: its title, then its Done
-   (thread-card.js). */
-.lf-thread-todos {
-  margin: 0 0 var(--sp-2);
-  padding: 0 0 0 var(--lf-thread-text-inset);
-  list-style: none;
-}
-.lf-thread-todo {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-2);
-  font: var(--font-small);
-}
-.lf-thread-todo-title {
-  flex: 1 1 auto;
-  min-width: 0;
-  overflow-wrap: anywhere;
-  color: var(--ink-2);
-  font-weight: 600;
-}
-.lf-thread-todo > .lf-icon-action {
-  flex: none;
-  white-space: nowrap;
 }

@@ -641,14 +641,14 @@ def test_a_patch_that_failed_stays_failed_when_its_diff_returns(browser, serve, 
     expect(page.locator("#d-bad .lf-error")).to_contain_text("repeats file path")
     returned = page.evaluate("""async () => {
         const diff = document.getElementById('d-bad');
-        const failure = diff.querySelector('.lf-error');
+        const failure = diff.shadowRoot.querySelector('.lf-error');
         const parent = diff.parentNode;
         const next = diff.nextSibling;
         diff.remove();
         await new Promise((resolve) => setTimeout(resolve));
         parent.insertBefore(diff, next);
         for (let i = 0; i < 3; i++) await new Promise(requestAnimationFrame);
-        return diff.querySelector('.lf-error') === failure;
+        return diff.shadowRoot.querySelector('.lf-error') === failure;
     }""")
     assert returned, "the returning diff cleared its completed refusal"
     errors = consume_browser_errors(page, '<lf-diff id="d-bad"> failed: ')
@@ -854,7 +854,7 @@ def test_phone_diff_headers_keep_distinguishing_parent_folder_readable(
         release: () => release(),
       };
       diff.prepareEntry = async function(...args) {
-        if (args[1].path.endsWith('/dispatch/CLAUDE.md')) {
+        if (args[0].path.endsWith('/dispatch/CLAUDE.md')) {
           const held = new Promise(resolve => { release = resolve; });
           window.lfDiffPreparationStarted = true;
           await held;

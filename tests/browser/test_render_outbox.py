@@ -80,11 +80,8 @@ from render_harness import (
 
 from browser.test_render_application_boundary import long_thread
 from browser.threads import open_panel_thread
-from leaf import delivery as delivery_model
-from leaf import event_contracts as event_contracts_model
 from leaf import event_log as events_model
 from leaf import schema as schema_model
-from leaf import service as service_model
 from leaf.registry.contract import RANK
 from leaf.render_checks import rendered
 from leaf.render_gate.scheme import console_finding
@@ -251,34 +248,31 @@ def test_z_waits_for_an_unanswered_thread_resolution(browser, serve):
     ] == ["resolve", "resolve", "undo"]
 
 
-def test_z_stops_at_a_newer_gesture_it_cannot_take_back(browser, serve):
-    """`z` takes back the user's newest gesture or nothing. A reply sent after a
-    resolve cannot be unsaid, so the resolve behind it is no longer the last change
-    the user made, and the press reopens nothing."""
-    page = open_page(browser, serve(LONG_PAGE, comments=3))
-    first, second = [
+def test_z_takes_back_a_reply_the_user_sent(browser, serve):
+    """`z` takes back the user's newest gesture, a reply they sent included, where it
+    used to stop at the reply as said rather than unsaid. The reply's thread is out
+    of view, so the first press opens it and says what the next takes; the second
+    takes the reply back."""
+    url = serve(LONG_PAGE, comments=3)
+    second = [
         event["id"]
         for event in events_model.read_events(serve.page_dir)
         if event["kind"] == "comment"
-    ][:2]
-    open_panel_thread(page, first)
-    page.locator(".lf-fp-settle").click()
-    round_trip(page)
-    undo_offered(page)
-
-    append_carried_log_record(
+    ][1]
+    reply = append_carried_log_record(
         serve.page_dir,
         {"kind": "reply", "author": "user", "parent": second, "text": "And this?"},
     )
-    told(page)
-    undo_offered(page, offered=False)
+    page = open_page(browser, url)
+    undo_offered(page)
     page.keyboard.press("z")
-    told(page)
-    assert [
-        event["kind"]
-        for event in events_model.read_events(serve.page_dir)
-        if event["kind"] == "undo"
-    ] == []
+    expect(page.locator(".lf-live")).to_contain_text(
+        "Press again to undo: replied “And this?”"
+    )
+    page.keyboard.press("z")
+    round_trip(page)
+    taken = events_model.read_events(serve.page_dir)[-1]
+    assert (taken["kind"], taken["undoes"]) == ("undo", reply["id"])
 
 
 def test_z_names_what_it_takes_and_how_long_ago_in_a_fresh_tab(browser, serve):
@@ -350,10 +344,9 @@ def _undos(page_dir):
     ]
 
 
-def _old_resolve_below_the_fold(serve, *, picked_up=False):
+def _old_resolve_below_the_fold(serve):
     """A page whose user resolved a thread on its 56th paragraph three weeks ago, in
-    another tab, with the agent's pickup of it when `picked_up`. Returns the page's
-    URL, the thread's id and the resolve's."""
+    another tab. Returns the page's URL, the thread's id and the resolve's."""
     url = serve(LONG_PAGE, anchored=(("p55", "Paragraph 55."),))
     [comment] = [
         e["id"]
@@ -378,19 +371,6 @@ def _old_resolve_below_the_fold(serve, *, picked_up=False):
             "ts": (datetime.now(UTC) - timedelta(days=21)).isoformat(),
         },
     )
-    if picked_up:
-        append_carried_log_record(
-            serve.page_dir,
-            {
-                "kind": "pickup",
-                "author": "page",
-                "attention": False,
-                "events": [resolve["id"]],
-                "phase": "opened",
-                "session": "show-then-take",
-                "turn": "turn-1",
-            },
-        )
     return url, comment, resolve["id"]
 
 
@@ -469,32 +449,12 @@ def test_a_quick_second_z_waits_for_the_first_to_show_its_gesture(browser, serve
     assert _undos(serve.page_dir) == []
 
 
-def test_z_takes_a_gesture_in_view_the_agent_has_not_picked_up_at_once(browser, serve):
-    """A choice in front of the user, made in another tab and not yet handed to the
-    agent, is taken back by one press, as before."""
-    url = serve(UNDO_PAGE)
-    choice = append_command(
-        serve.page_dir,
-        {
-            "kind": "action",
-            "author": "user",
-            "revision": 1,
-            "widget": "picks",
-            "action": "choose",
-            "detail": {"value": ["opt-a"]},
-        },
-    )
-    page = open_page(browser, url)
-    undo_offered(page)
-    with sending(page, "the withdrawal"):
-        page.keyboard.press("z")
-    assert _undos(serve.page_dir) == [choice["id"]]
-
-
-def test_z_shows_a_gesture_the_agent_picked_up_even_in_view(browser, serve):
-    """The agent may already have acted on a gesture it picked up, so `z` shows it
-    first wherever it stands: the choice in view is travelled to and outlined, as a
-    link to it would, and only the second press takes it back."""
+def test_z_takes_a_gesture_in_view_at_once_whatever_the_agent_has_received(
+    browser, serve
+):
+    """A choice in front of the user, made in another tab, is taken back by one press,
+    as before. `z` once showed it first if the agent had picked it up, so the same press
+    did two things depending on a delivery the user never saw happen."""
     url = serve(UNDO_PAGE)
     choice = append_command(
         serve.page_dir,
@@ -521,14 +481,6 @@ def test_z_shows_a_gesture_the_agent_picked_up_even_in_view(browser, serve):
     )
     page = open_page(browser, url)
     undo_offered(page)
-    page.keyboard.press("z")
-    expect(page.locator(".lf-live")).to_have_text(
-        "Press again to undo: chose “Keep the mounts” in “Should we keep the mounts?”"
-        " · just now"
-    )
-    expect(page.locator("#picks")).to_be_focused()
-    told(page)
-    assert _undos(serve.page_dir) == []
     with sending(page, "the withdrawal"):
         page.keyboard.press("z")
     assert _undos(serve.page_dir) == [choice["id"]]
@@ -2999,27 +2951,28 @@ def test_undo_waits_while_the_candidate_is_applying_then_reads_accepted_truth(
             "markup": '<lf-preparation id="detail"><p>Supporting detail</p></lf-preparation>',
         },
     )
-    # Picked up in the same write, so every reading the server serves from here on,
-    # the read receipt's answer included, has `z` show the suggestion first wherever
-    # the layout leaves it.
-    with service_model.PageTransaction(serve.page_dir) as transaction:
-        action, _ = event_contracts_model.append_admitted(
-            transaction,
-            {
-                "kind": "action",
-                "author": "user",
-                "revision": 1,
-                "widget": "sug-thistle",
-                "action": "decide",
-                "detail": {"outcome": "accept"},
-            },
-        )
-        delivery_model.record_pickup(transaction, [action])
+    append_command(
+        serve.page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "sug-thistle",
+            "action": "decide",
+            "detail": {"outcome": "accept"},
+        },
+    )
     holding(page, held_states, 1, "candidate read")
-    candidate = held_states[0].fetch().json()
+    # The whole reading rather than the changes since the one the tab holds, so the
+    # test can read the undo list and the reading's name from it.
+    held = held_states[0].request.headers
+    candidate = (
+        held_states[0]
+        .fetch(headers={k: v for k, v in held.items() if k != "leaf-held-basis"})
+        .json()
+    )
     head = candidate["browser"]["views"]["1"]["undo"][0]
     assert head["event"]["widget"] == "sug-thistle"
-    assert head["picked_up"]
     with page.expect_request("**/preparation-content"):
         held_states.pop(0).fulfill(json=candidate)
     holding(page, preparations, 1, "thread preparation")
@@ -3040,10 +2993,9 @@ def test_undo_waits_while_the_candidate_is_applying_then_reads_accepted_truth(
     expect(page.locator("#sug-thistle")).to_have_attribute("data-lf-state", "accept")
     assert not [event for event in posts if event.get("kind") == "undo"]
 
-    # The agent picked the gesture up, so the first press shows it.
-    page.keyboard.press("z")
-    expect(page.locator("#sug-thistle")).to_be_focused()
-    assert not [event for event in posts if event.get("kind") == "undo"]
+    # With the thread put away, nothing covers the suggestion, so one press takes it.
+    page.keyboard.press("Escape")
+    expect(page.locator(PANEL_THREAD)).to_have_count(0)
     undo(page)
     expect(page.locator("#sug-thistle")).not_to_have_attribute(
         "data-lf-state", "accept"

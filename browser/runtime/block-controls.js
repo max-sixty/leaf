@@ -5,8 +5,9 @@
    A document block's control stands in chrome, so the page's own sibling and child
    selectors keep matching what the page wrote. CSS anchors keep it on the block without
    wrapping authored nodes or moving them on arrival: `aimControl` names the block as
-   the control's `position-anchor`, and the control's rules place it with `anchor()`
-   against that block. The control passes under the sticky headers the page declares
+   the control's `position-anchor`, as a heading's link does only while it shows
+   (heading-links.js), and the control's rules place it with `anchor()` against that
+   block. The control passes under the sticky headers the page declares
    over its block, as the block's own words do, standing in the frames that cut every
    box following scrolled content (css-anchors.js, `headerLevels`), so a block scrolled
    under a stuck toolbar offers no control over the toolbar's.
@@ -154,20 +155,22 @@ export function standInChrome(control, block, levels, footprint = true) {
   if (control.parentNode !== frame) move(frame, control, null);
 }
 
-/** The reading `aimControl` writes from: whether `block` renders near the window,
- * kept current while the control stands, and the block's anchor name. A control
- * whose block is away is `hidden`, which hides it whatever display its own rules give
- * it (base.css). */
-/** @template {HTMLElement} C @param {C} control @param {Element} block */
-export function anchorControl(control, block) {
+/** Whether `block` renders near the window, kept current while the control stands: a
+ * control whose block is away is `hidden`, which hides it whatever display its own
+ * rules give it (base.css). The caller writes the first reading. */
+/** @param {HTMLElement} control @param {Element} block */
+export function watchNear(control, block) {
   const place = () => {
     keepsHidden(control, !anchorView(control, block, place));
   };
-  return {
-    control,
-    near: anchorView(control, block, place),
-    anchor: anchorReading(block),
-  };
+  return anchorView(control, block, place);
+}
+
+/** The reading `aimControl` writes from: whether `block` renders near the window
+ * (`watchNear`), and the block's anchor name. */
+/** @template {HTMLElement} C @param {C} control @param {Element} block */
+export function anchorControl(control, block) {
+  return { control, near: watchNear(control, block), anchor: anchorReading(block) };
 }
 
 /** @template {HTMLElement} C @param {{control: C, near: boolean, anchor: ReturnType<typeof anchorReading>}} reading */

@@ -42,7 +42,7 @@
 import { afterScript, nextRender, sizeObserver } from "./rendering.js";
 import { watchScrollEnds, whileConnected } from "./arrivals.js";
 import { removeRuntimeRootStyle, setRuntimeRootStyle } from "./root-state.js";
-import { fixedInWindow, layoutWindow, scrollContainer, slotTop } from "./geometry.js";
+import { inWindow, layoutWindow, scrollContainer, slotTop } from "./geometry.js";
 import { inPage, layoutBox, pageDocument } from "./passages.js";
 import { renderedParent } from "./shadow-tree.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
@@ -104,7 +104,7 @@ const slot = (box) =>
 /** @param {Element} box @param {CSSStyleDeclaration} [style] @returns {{stance: Stance, down: number} | null} */
 function standing(box, style = getComputedStyle(box)) {
   const { top, height } = box.getBoundingClientRect();
-  if (fixedInWindow(box, style)) return { stance: "fixed", down: top + height };
+  if (inWindow(box, style)) return { stance: "fixed", down: top + height };
   if (style.position !== "sticky" || style.top === "auto") return null;
   let scroller = renderedParent(box);
   while (scroller && !scrollContainer(scroller)) scroller = renderedParent(scroller);
@@ -176,7 +176,7 @@ function findHeads() {
   const candidates = new Set([
     ...document
       .elementsFromPoint(x, top + 1)
-      .filter((el) => inPage(el) && fixedInWindow(el)),
+      .filter((el) => inPage(el) && inWindow(el)),
     ...leading.boxes,
   ]);
   /** @type {Map<Element, {stance: Stance, down: number}>} */

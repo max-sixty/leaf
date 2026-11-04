@@ -36,15 +36,19 @@ export function shadowStage(host, nodes) {
   // Keep retained nodes connected, preserving their focus and widget lifecycle.
   setChildren(root, [...styles, ...nodes]);
   for (const child of [...host.childNodes]) child.remove();
+  host.removeAttribute("data-lf-failed");
   return root;
 }
 
 // An x-shadow widget shows only what its stage holds, so its failure box stands there,
-// and the widget's next stage replaces it.
+// and the widget's next stage replaces it. Page layout can't see into the stage, so
+// `data-lf-failed` says on the host that the stage holds a failure, as a light child
+// `.lf-error` says it for every other widget.
 /** @param {Element} host */
 function stageFor(host) {
   stagesFailure(host, (box) => {
     shadowStage(host, [box]);
+    host.setAttribute("data-lf-failed", "");
     return true;
   });
   return host.attachShadow({ mode: "open" });

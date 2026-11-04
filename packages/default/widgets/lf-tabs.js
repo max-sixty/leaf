@@ -110,7 +110,6 @@ import {
   replaceEntry,
   restorePlace,
   scrollBehavior,
-  scrollIntoReadingBand,
   selectableOffered,
   sizeObserver,
   tabStore,
@@ -305,6 +304,8 @@ export class TabSet extends LeafElement {
     this.prepend(strip);
     this.#declareHeader();
     this.classList.add("lf-rendered"); // the upgraded marker every widget uses
+    // The set rings its open panel (surfaces.css, `.lf-ring-frame`).
+    this.classList.add("lf-ring-frame");
     // Open the tab the address names, or this
     // user's last, whose id resolves in later versions because check forbids
     // dropping ids. It opens here, during upgrade, so the runtime's view restore
@@ -556,7 +557,7 @@ export class TabSet extends LeafElement {
         if (name) this.#revealMotion = backgroundFlash(name, flashDuration());
       }
       if (switched) this.#open(active, from);
-      else if (pinnedBox) scrollIntoReadingBand(this, this, "start", "instant");
+      else if (pinnedBox) scrollIntoView(this, { block: "start", behavior: "instant" });
 
       for (const panel of previous ? [previous, active] : [active]) {
         const child = soleSubstantiveElement(panel);

@@ -1,0 +1,36 @@
+# Was todo-on-the-user, added with step 5 of the What needs you plan, when an action
+# the user takes went On me as a to-do on them that their Done ended; agents without
+# that route handed the request over as a waiting line (0 of 2 on Claude Code at
+# 9f09e4284). On 2026-11-03 the user removed to-dos on the user: everything On me is
+# answered through its widget or thread, so the action is asked in a thread message
+# with `--obligation`, which the user's reply answers. Scores conversation-loop.md,
+# "The On lists".
+description: step-on-the-user-takes-a-thread
+metadata:
+  purpose:
+    "Conversation loop: work the agent needs the user to do outside the page, with no
+    choice to make, goes on the user's On me list as a thread message with an
+    obligation, about the section it concerns, rather than only into a reply."
+  tags:
+    - wait-loop
+vars:
+  prompt: |
+    You are a Claude Code session driving a live Leaf page at
+    ~/.local/state/leaf/pages/release, served with `leaf server start`. You just
+    stamped version 3, which rewrites the page's `install` section with new steps for
+    installing the release on a phone. Before you hand the page back, you need the user
+    to follow those steps on their own phone and tell you it worked; you cannot do it
+    yourself, and there is nothing for them to choose between.
+
+    Read whatever instructions you need. Only Skill and Read run here, so write out,
+    in order, each command you would run on the page to hand it back.
+assert:
+  - type: llm-rubric
+    metric: judgment
+    value: |
+      Pass only if the commands put trying the install steps on the user's On me list
+      as a thread message carrying `--obligation` (`leaf thread create` on the page, on
+      the `install` section or the page as a whole), whose words say what to try and
+      ask the user to reply once it works. Fail if the request reaches the user only as
+      prose, such as a reply or thread message without `--obligation` or a waiting status
+      line.

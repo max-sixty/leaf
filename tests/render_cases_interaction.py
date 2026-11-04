@@ -946,10 +946,10 @@ WRAP_TOP = """() => { const r = document.createRange();
 RING = """(el) => { const s = getComputedStyle(el);
     return [s.outlineStyle, s.outlineWidth, s.outlineColor]; }"""
 # The location ring round the decision `el` (target-paint.js, `paintLocation`), which
-# `el` draws as its own outline while it wears `lf-projected-location`, read as RING
+# `el` draws as its own outline while it wears `data-lf-projected-location`, read as RING
 # reads an outline: its band's style, width and colour, or "none" where `el` stands in
 # no ring.
-LOCATION_RING = """(el) => { if (!el.classList.contains('lf-projected-location'))
+LOCATION_RING = """(el) => { if (!el.hasAttribute('data-lf-projected-location'))
       return ['none'];
     const s = getComputedStyle(el);
     return [s.outlineStyle, s.outlineWidth, s.outlineColor]; }"""
@@ -1124,6 +1124,7 @@ ACTIONS_IN_FORCE = [
         "review",
         {"case": "status-column", "approved": True},
     ),
+    ("ab-card", "tune", {"values": {"radius": 20, "tone": "bold"}}),
     (
         "ab-card",
         "choose",

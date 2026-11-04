@@ -116,7 +116,8 @@ def test_a_website_turn_posts_its_answer_when_the_move_is_settled_first(
     # The agent's resolution is news, so the thread the user is writing in stays open
     # in front of them, holding it behind its notice.
     expect(thread).to_be_visible()
-    expect(news).to_have_text("Resolved")
+    expect(news).to_have_text("1 new")
+    expect(news).to_have_attribute("title", "Resolved")
     expect(metadata.locator(".lf-msg-sending")).to_have_count(0)
     if read_elsewhere:
         box = page_comment(page)

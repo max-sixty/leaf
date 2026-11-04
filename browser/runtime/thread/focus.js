@@ -13,7 +13,8 @@ import { nextRender } from "../rendering.js";
 import { repaint } from "../repaint.js";
 import { drawnThreadId, threadPart, THREAD } from "./selectors.js";
 import { threadNamed } from "./state.js";
-import { replyControlDestination, replyThreadKey } from "./replies.js";
+import { threadKey } from "./model.js";
+import { replyControlDestination, replyIsEditing, replyThreadKey } from "./replies.js";
 
 /** @typedef {ReturnType<typeof retainUserIntent>} UserIntent */
 /** @typedef {ReturnType<typeof import("./destination.js").createThreadDestinations>["openPageThread"]} OpenThread */
@@ -94,10 +95,16 @@ onPress(
 export const currentLocationThreadId = () => heldThreadId() ?? pressed;
 
 // The intent restricted to the thread `id` still present: every thread takes a reply,
-// a resolved one too, which the reply reopens.
+// a resolved one too, which the reply reopens. A resolved thread takes the user's box
+// along only while a reply is being written in it (`replyIsEditing`): carrying the
+// caret would otherwise start that session itself, and keep a card that settlement
+// closed open over a box the user had finished with, as the empty box Send leaves.
 /** @param {string} id @param {UserIntent} intent */
 const mayReplyTo = (id, intent) =>
-  restrictUserIntent(intent, () => threadNamed(id) !== null);
+  restrictUserIntent(intent, () => {
+    const thread = threadNamed(id);
+    return Boolean(thread && (!thread.resolved || replyIsEditing(threadKey(thread))));
+  });
 // Whether the thread `id` names stands open.
 /** @param {string} id */
 const standsOpen = (id) => {

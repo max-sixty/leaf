@@ -103,14 +103,20 @@ reading in and redraws, for a "Show new" control, and `release()` lets the next 
 
 ### Scrolling to a destination
 
-To take the user somewhere, call `scrollIntoView(target, {block, behavior})`, which
-reveals the target inside any box that clips it, then places it in each reading region
-around it; `block` defaults to `start`. To bring an item into its own strip or list and
-leave the page where it is, pass that box as `within`. For a vertical move that keeps
-the sideways scroll, use `scrollIntoReadingBand(target, holder, block, behavior)`, where
-`target` is an element or a Range and `holder` the element whose regions contain it.
-Unlike native `Element.scrollIntoView`, both stay inside a live sample. Use them only
-for a deliberate move; focusing a visible control or redrawing keeps the scroll.
+To take the user somewhere, call `scrollIntoView(target, {block, behavior})`, where
+`target` is an element or a Range. It places the target at `block` in its own reading
+region, the box that scrolls it as the user reads, and every other box that scrolls
+it, inside or around that region, reveals it at the nearest edge, so a start landing in
+a bounded pane aligns it in the pane and moves the page only to show it; `block`
+defaults to `start`. Sideways, each box reveals it at the nearest edge. A `nearest`
+landing moves nothing where the target is already shown: the user sees all of it where
+it fits, and as much of it as the window holds where it is longer, which
+`alreadyShown(target)` answers for a widget deciding whether to land something else.
+Pass `sideways: false` to align what the user is reading and keep their place across
+its lines. To bring an item into its own strip or list and leave the page where
+it is, pass that box as `within`. Unlike native `Element.scrollIntoView`, it stays
+inside a live sample. Use it only for a deliberate move; focusing a visible control or
+redrawing keeps the scroll.
 
 A landing keeps the target's `scroll-margin` clear on every side, so a focused
 control's ring shows. `fitsWhole(target)` says whether the target and those margins

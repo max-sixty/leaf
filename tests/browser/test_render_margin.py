@@ -105,7 +105,12 @@ def test_a_settled_page_with_a_reaction_in_force_stops_rendering_its_margin(
     page = open_page(browser, serve(MARGIN_ACTIONS_PAGE, events=MARGIN_ACTIONS_EVENTS))
     resized(page, 1280, 900)
     margins_laid_out(page)
-    assert page.locator(".lf-react-mark").count() >= 1
+    assert (
+        page.locator(
+            '[data-lf-margin-entry-owner="reactions"][data-lf-behavior="disclosure"]'
+        ).count()
+        >= 1
+    )
 
     layouts = page.evaluate(
         """async frames => {
@@ -206,8 +211,7 @@ def test_margin_target_pointer_ownership_ends_with_its_host(browser, serve):
         "y": int(box["y"] + box["height"] / 2),
     }
     page.mouse.move(pointer["x"], pointer["y"])
-    traced = re.compile(r"\blf-traced\b")
-    expect(target).to_have_class(traced)
+    expect(target).to_have_attribute("data-lf-traced", "")
 
     suggestion = target.element_handle()
     old_host = host.element_handle()
@@ -235,7 +239,7 @@ def test_margin_target_pointer_ownership_ends_with_its_host(browser, serve):
     expect(
         target,
         "the replacement host inherited pointer ownership from its disconnected peer",
-    ).not_to_have_class(traced)
+    ).not_to_have_attribute("data-lf-traced", "")
 
     replacement = page.locator('[data-lf-margin-for="s-replace"]')
     replacement_box = replacement.bounding_box()
@@ -243,7 +247,7 @@ def test_margin_target_pointer_ownership_ends_with_its_host(browser, serve):
         int(replacement_box["x"] + replacement_box["width"] / 2),
         int(replacement_box["y"] + replacement_box["height"] / 2),
     )
-    expect(target).to_have_class(traced)
+    expect(target).to_have_attribute("data-lf-traced", "")
 
 
 def test_margin_target_hover_requires_pointer_movement(browser, serve):
@@ -282,14 +286,14 @@ def test_margin_target_hover_requires_pointer_movement(browser, serve):
         }""",
         arg=pointer,
     )
-    target, traced = page.locator("#route-ask"), re.compile(r"\blf-traced\b")
+    target = page.locator("#route-ask")
     expect(
         target,
         "moving the margin under a stationary pointer claimed pointer ownership",
-    ).not_to_have_class(traced)
+    ).not_to_have_attribute("data-lf-traced", "")
 
     page.mouse.move(pointer["x"] + 1, pointer["y"])
-    expect(target).to_have_class(traced)
+    expect(target).to_have_attribute("data-lf-traced", "")
 
 
 def test_a_thread_uses_a_free_margin_and_tracks_its_source(browser, serve):

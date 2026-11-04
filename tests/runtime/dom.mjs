@@ -23,6 +23,18 @@ GlobalRegistrator.register({ url: "https://leaf.test/" });
 HTMLElement.prototype.attachInternals ??= function () {
   return { states: new Set() };
 };
+// happy-dom assigns a host's children to its slots, by name or by `assign()`, but
+// answers no `assignedSlot`, so the runtime's climb through the rendered tree
+// (`renderedParent`) would pass every slot by. A node's slot is the one in its parent's
+// open shadow tree whose assignment holds it, as in a browser.
+for (const { prototype } of [Element, Text])
+  Object.defineProperty(prototype, "assignedSlot", {
+    configurable: true,
+    get() {
+      const slots = this.parentElement?.shadowRoot?.querySelectorAll("slot") ?? [];
+      return [...slots].find((slot) => slot.assignedNodes().includes(this)) ?? null;
+    },
+  });
 // Nothing is laid out here, so every box is whatever a test states. The window is the
 // one box this world states itself, as a browser does: the root reports its size, and
 // the visual viewport, which happy-dom lacks and geometry.js reads (`shownWindow`) and

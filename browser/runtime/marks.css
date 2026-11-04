@@ -16,6 +16,15 @@
   content: "";
   anchor-name: attr(data-lf-content-start type(<custom-ident>));
 }
+/* The heading a link shows for, named for the link to stand by (heading-links.js): one
+   of two names, since links show for two headings at most, the one under the pointer
+   and the one the user is on. */
+[data-lf-heading-link="1"] {
+  anchor-name: --lf-heading-link-1;
+}
+[data-lf-heading-link="2"] {
+  anchor-name: --lf-heading-link-2;
+}
 /* The target of an action takes a press. Its mark is drawn from `data-lf-mark`
    (visual-mark-paint.js, surfaces.css). */
 .lf-action-target {

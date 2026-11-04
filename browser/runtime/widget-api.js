@@ -68,13 +68,7 @@ export { comparisonChanges } from "./version.js";
 export { answerWords } from "./obligations/answer.js";
 // A view's reading and writing of another widget's answer (x-shows).
 export { shownAnswer } from "./shown-answer.js";
-export {
-  readWork,
-  workRole,
-  workElements,
-  directWorkElements,
-  workAncestor,
-} from "./work.js";
+export { readWork, workAncestor } from "./work.js";
 export { obligationActions } from "./application.js";
 export { readQueues, queueItemKey } from "./queue-api.js";
 export { queueTitle } from "./queue-title.js";
@@ -123,7 +117,7 @@ export {
 } from "./markdown.js";
 export { isCanonicalMediaUrl, scopedMediaUrl } from "./media.js";
 export { atScrollEnd, pageScroller, scrollLimit } from "./scrolling.js";
-export { fitsWhole } from "./landing-scroll.js";
+export { alreadyShown, fitsWhole } from "./landing-scroll.js";
 // The user's place as a landmark, and the history entries a widget adds.
 export { capturePlace, restorePlace } from "./reading-place.js";
 export { claimTraversals, pushEntry, replaceEntry } from "./history.js";

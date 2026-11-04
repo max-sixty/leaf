@@ -119,11 +119,11 @@ def test_desktop_target_picker_arms_the_page_as_alt_does(browser, serve):
     )
     link = page.get_by_role("link", name="Follow this link")
     link.hover()
-    expect(page.locator(".lf-aimed")).to_have_count(0)
+    expect(page.locator("[data-lf-aimed]")).to_have_count(0)
     # Opened under a still mouse, the promise paints without waiting for a move.
     page.keyboard.press("s")
     expect(page.locator(".lf-target-picker-hint")).not_to_have_count(0)
-    expect(page.locator(".lf-aimed")).to_have_id("link")
+    expect(page.locator("[data-lf-aimed]")).to_have_id("link")
     # A middle press is armed too: it opens no tab and chooses nothing, so the picker stands.
     link.click(button="middle")
     expect(page.locator(".lf-target-picker-hint")).not_to_have_count(0)
@@ -131,7 +131,7 @@ def test_desktop_target_picker_arms_the_page_as_alt_does(browser, serve):
     link.dblclick()
     expect(page.locator(".lf-fab-input")).to_be_focused()
     expect(page.locator(".lf-target-picker-hint")).to_have_count(0)
-    expect(page.locator(".lf-aimed")).to_have_count(0)
+    expect(page.locator("[data-lf-aimed]")).to_have_count(0)
     assert not page.url.endswith("#elsewhere"), "the picker's press followed the link"
     assert page.context.pages == [page], "the picker's middle press opened the link"
 
@@ -140,11 +140,11 @@ def test_target_picker_takes_a_margin_press_as_the_target_it_stands_by(browser, 
     """Over a suggestion's ✓ Accept, the picker comments on the change, as Alt does."""
     page = open_page(browser, serve(named_source("release-notes")))
     before = len(events_model.read_events(serve.page_dir))
-    accept = page.locator(".lf-margin-cluster .lf-sug-accept").first
+    accept = page.locator(".lf-margin-cluster [data-lf-margin-entry-key=accept]").first
     accept.scroll_into_view_if_needed()
     accept.hover()
     page.keyboard.press("s")
-    expect(page.locator(".lf-aimed")).not_to_have_count(0)
+    expect(page.locator("[data-lf-aimed]")).not_to_have_count(0)
     promised = page.evaluate(AIMED)
     assert promised, "the picker painted no target over the margin row"
     accept.click()

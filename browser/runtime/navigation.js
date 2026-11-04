@@ -35,7 +35,7 @@ import { focused } from "./focus.js";
 import { pageSelection } from "./composing/capture.js";
 import { blockAt, closestAcross } from "./passages.js";
 import { readingBlock } from "./reading-place.js";
-import { scrollIntoReadingBand, scrollIntoView } from "./landing-scroll.js";
+import { scrollIntoView } from "./landing-scroll.js";
 import { drawnThreadId, THREAD } from "./thread/selectors.js";
 import { threadIn } from "./thread/focus.js";
 import { threadList } from "./thread/state.js";
@@ -263,7 +263,11 @@ export function createNavigation({ threadDestinations, placedAt }) {
       const item = currentItem();
       if (!item) return;
       for (const box of scrollersOf(item)) stopGlide(box);
-      scrollIntoReadingBand(item, item, "start", scrollBehavior());
+      scrollIntoView(item, {
+        block: "start",
+        behavior: scrollBehavior(),
+        sideways: false,
+      });
     },
   };
   const move = stepReading;

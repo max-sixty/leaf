@@ -1747,6 +1747,7 @@ _TEXT = {
     "wordless-message": lambda at, v: (
         f"message {v['message']!r} has no words to revise"
     ),
+    "withdrawn-message": lambda at, v: f"message {v['message']!r} has been taken back",
     "stale-edit": lambda at, v: (
         f"edit of {v['message']!r} was written over {v['base']!r}, and"
         f" {v['latest']!r} has since revised it"
@@ -1774,22 +1775,9 @@ _TEXT = {
         f"{v['target']} {v['undoes']} is not the user's own gesture"
     ),
     "withdrawn-gesture": lambda at, v: f"{v['undoes']} has already been taken back",
-    "said-message": lambda at, v: (
-        f"{v['target']} {v['undoes']} is not a reaction; a message with words in it"
-        " is said rather than unsaid"
-    ),
-    "answered-reaction": lambda at, v: (
-        f"reaction {v['undoes']} has a reply or task attached; continue in its thread"
-    ),
-    "answered-edit": lambda at, v: (
-        f"edit {v['undoes']} has been answered; rewrite the message or reply instead"
-    ),
-    "resolved-reaction": lambda at, v: (
-        f"reaction {v['undoes']} stands on a resolved thread"
-    ),
     "unundoable": lambda at, v: (
         f"{v['target']} events cannot be taken back (the kinds that can are"
-        f" {', '.join(v['undoable'])} and a reaction)"
+        f" {', '.join(v['undoable'])})"
     ),
     "absorbed-move": lambda at, v: (
         f"move {v['undoes']} was made on r{v['revision']}, and a later revision's"
@@ -1813,10 +1801,6 @@ _TEXT = {
         f"{v['widget']} has no work seat; its widget declares no x-work and it holds"
         " no unsettled action"
     ),
-    "duplicate-obligation": lambda at, v: (
-        f"{v['widget']!r} already has obligation {v['obligation']!r}; use that obligation instead of"
-        " opening duplicate work"
-    ),
     "plan-depth": lambda at, v: (
         f"plan step {v['step']!r} is at depth {v['depth']}, more than one below the"
         " step before it; the first step is at depth 0 and each step is at most one"
@@ -1833,9 +1817,6 @@ _TEXT = {
     ),
     "widget-obligation": lambda at, v: (
         f"{v['todo']!r} is answered by its widget's state, so retire it in the document"
-    ),
-    "users-question": lambda at, v: (
-        "the user's message or settling reaction answers a question asked in words"
     ),
     "ended-obligation": lambda at, v: (
         f"obligation {v['todo']!r} is already {v['status']}"
@@ -1856,9 +1837,6 @@ _TEXT = {
         " before ending it from another session"
     ),
     "unknown-todo": lambda at, v: f"unknown to-do {v['todo']!r}",
-    "agents-todo": lambda at, v: (
-        f"to-do {v['todo']!r} is the agent's; the user ends only a to-do on them"
-    ),
     # What other commands note beside their result (`note`). `page open` over
     # updates it still owes an answer, each named by the command that answers it:
     "page-open-owes": lambda at, v: (

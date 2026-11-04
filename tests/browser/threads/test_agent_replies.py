@@ -1242,11 +1242,22 @@ def test_a_reply_sent_after_progress_stands_below_it(browser, serve, request):
     ).to_have_count(0)
 
 
-@pytest.mark.watch_shifts
+# The run's height above the user's message: the steps `ids` names, as they show, and
+# its face.
+RUN_HEIGHT = """([thread, message, ids]) => [...thread.querySelectorAll(
+  ['.lf-thread-working', ...ids.map(id => `.lf-msg[data-lf-event="${id}"]`)].join())]
+  .filter(node => node.compareDocumentPosition(message) & Node.DOCUMENT_POSITION_FOLLOWING)
+  .reduce((sum, node) => sum + node.getBoundingClientRect().height, 0)"""
+
+
 def test_progress_the_user_spoke_after_keeps_its_steps_and_its_place(browser, serve):
     """Until an answer arrives, progress before a user's message offers its earlier
-    steps itself, and a rewrite of the step it shows waits behind the
-    thread's notice where it would move the user's message below it."""
+    steps itself, and they stay as the user leaves them, shown or hidden. A rewrite of
+    the step it shows draws at once while the user stands on its toggle in the thread,
+    as news in the thread the user is in does: the toggle stays where it stood, the
+    page scrolling away what grows above it, and the user's message below moves by the
+    run's growth alone. It once waited behind the thread's notice ("1 message
+    edited")."""
     url = serve(SEATED_OBLIGATION_PAGE)
     root = panel_comment(serve.page_dir, "Which job comes first?", {"section": "jobs"})
     steps = [
@@ -1268,59 +1279,73 @@ def test_progress_the_user_spoke_after_keeps_its_steps_and_its_place(browser, se
     first = thread.locator(f'.lf-msg[data-lf-event="{steps[0]["id"]}"]')
     expect(first).to_be_hidden()
     show = thread.get_by_role("button", name="Show 2 progress messages", exact=True)
+    hide = thread.get_by_role("button", name="Hide 2 progress messages", exact=True)
     show.press("Enter")
     expect(first).to_be_visible()
-    thread.get_by_role("button", name="Hide 2 progress messages", exact=True).press(
-        "Enter"
+    hide.press("Enter")
+    expect(first).to_be_hidden()
+    expect(show).to_be_focused()
+
+    message = thread.locator(".lf-msg[data-lf-author=user]", has_text="And the camera?")
+
+    def rewrite(text, toggle):
+        rendered(page)
+        handles = [
+            thread.element_handle(),
+            message.element_handle(),
+            [step["id"] for step in steps],
+        ]
+        stood = toggle.bounding_box()
+        was = message.bounding_box()["y"]
+        run = page.evaluate(RUN_HEIGHT, handles)
+        scroll = page.evaluate("document.scrollingElement.scrollTop")
+        append_carried_log_record(
+            serve.page_dir,
+            {
+                "kind": "edit",
+                "author": "agent",
+                "agent": "Codex",
+                "session": "pytest",
+                "message": steps[1]["id"],
+                "text": text,
+            },
+        )
+        told(page)
+        # The working message says a step without its closing full stop.
+        expect(thread.locator(".lf-thread-working").first).to_contain_text(
+            text.rstrip(".")
+        )
+        rendered(page)
+        expect(thread.locator(".lf-thread-news")).to_have_count(0)
+        expect(toggle).to_be_focused()
+        assert toggle.bounding_box() == pytest.approx(stood, abs=0.5)
+        grew = page.evaluate(RUN_HEIGHT, handles) - run
+        scrolled = page.evaluate("document.scrollingElement.scrollTop") - scroll
+        assert message.bounding_box()["y"] - was == pytest.approx(
+            grew - scrolled, abs=0.5
+        )
+
+    rewrite(
+        "Comparing the frost dates for the mounts, the bird bath and the camera, "
+        "and what each one needs before it can start.",
+        show,
     )
     expect(first).to_be_hidden()
 
-    message = thread.locator(".lf-msg[data-lf-author=user]", has_text="And the camera?")
-    rendered(page)
-    box = message.bounding_box()
-    append_carried_log_record(
-        serve.page_dir,
-        {
-            "kind": "edit",
-            "author": "agent",
-            "agent": "Codex",
-            "session": "pytest",
-            "message": steps[1]["id"],
-            "text": "Comparing the frost dates for the mounts, the bird bath and the "
-            "camera, and what each one needs before it can start.",
-        },
-    )
-    told(page)
-    notice = thread.get_by_role("button", name="1 new", exact=True)
-    expect(notice).to_have_accessible_description("1 message edited")
-    rendered(page)
-    assert message.bounding_box() == pytest.approx(box, abs=0.5)
-    notice.click()
-    expect(thread.locator(".lf-thread-working").first).to_contain_text("bird bath")
-
-    # Opened, the run shows the step itself above its face, which can stand below the
-    # window while the step shows; a rewrite of it holds the same.
+    # Opened, the run shows the step itself above its face. A rewrite of it keeps the
+    # steps shown, and the page scrolls the step's growth above the toggle away. The
+    # toggle stands clear of the floating panel at the window's foot, where it would be
+    # out of the user's sight and so held for nobody (user-place.js, `focusedInView`).
     show.press("Enter")
     expect(first).to_be_visible()
     resized(page, 390, 540)
-    page.evaluate("scrollTo(0, 0)")
-    rendered(page)
-    box = message.bounding_box()
-    append_carried_log_record(
-        serve.page_dir,
-        {
-            "kind": "edit",
-            "author": "agent",
-            "agent": "Codex",
-            "session": "pytest",
-            "message": steps[1]["id"],
-            "text": "Comparing the frost dates.",
-        },
+    hide.evaluate("t => scrollBy(0, t.getBoundingClientRect().top - innerHeight / 3)")
+    rewrite(
+        "Comparing the frost dates for the mounts, the bird bath and the camera, what "
+        "each one needs before it can start, and which of them can wait for spring.",
+        hide,
     )
-    told(page)
-    expect(notice).to_be_visible()
-    rendered(page)
-    assert message.bounding_box() == pytest.approx(box, abs=0.5)
+    expect(first).to_be_visible()
 
 
 def test_an_older_answer_keeps_newer_work_visible_without_its_progress_history(

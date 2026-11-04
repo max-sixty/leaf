@@ -7,9 +7,12 @@
    disclosure after its open ones, closed until the reader opens it, so however many
    conversations a datum has settled they take one row. Inside it each thread draws as
    any page thread does, its Reopen where Resolve stands, and keeps its reply box, whose
-   send reopens it. A thread that resolves while the user writes a reply in it stays
-   among the open ones until they finish, and one they write in inside the disclosure
-   stays there, so the box they type in never moves out from under them.
+   send reopens it. A thread that resolves while the user is in it, writing its reply
+   or standing anywhere in it, stays among the open ones until they finish or leave,
+   and one they write in inside the disclosure stays there, so neither the box they
+   type in nor the place they stand moves out from under them, and an answer the agent
+   settles the thread with stays in front of them. Their own Resolve folds it at once,
+   taking them to the disclosure's summary.
    Rejected: folding each resolved thread to a summary of its own, which repeated
    "Resolved" once per thread and named none of them.
 
@@ -22,11 +25,17 @@ import { generatedElement } from "../widget-elements.js";
 import { html, render } from "/runtime/framework.js";
 import { seatRoot, threadKey } from "./model.js";
 import { ThreadView, threadReading } from "./thread-card.js";
-import { holdFocus, focused, focusDestination, currentLocationIn } from "../focus.js";
+import {
+  holdFocus,
+  focused,
+  focusDestination,
+  currentLocationIn,
+  followingFocus,
+} from "../focus.js";
 import { registry } from "../registry.js";
 import { loadDraft } from "../drafts.js";
-import { holdBox, scrollsAway } from "./reply-landing.js";
-import { HeldNews } from "./held-news.js";
+import { holdBox } from "./reply-landing.js";
+import { gesturedOn, HeldNews } from "./held-news.js";
 import { releaseReplies, replyIsEditing } from "./replies.js";
 import { passOn } from "../user-intent.js";
 import { foldBlock } from "../motion.js";
@@ -91,9 +100,8 @@ class ThreadSeat {
   // margin's floating card is a seat too, so it holds news as a seat in the page's flow
   // does. A thread in the flow that the user is in draws its news at once, as a chat
   // does, since the seat keeps the control they are on still (`holdBox`) by scrolling
-  // what stands above it up. A page that can't scroll has no room for that, so there the
-  // thread holds as any other does (`scrollsAway`). The margin's card keeps its own
-  // rule for a user in it (thread-card.js, `newsMoves`).
+  // what stands above it up, as far as the page can scroll. The margin's card keeps its
+  // own rule for a user in it (thread-card.js, `newsMoves`).
   /** @type {HeldNews | null} */
   #held = null;
   #commands;
@@ -151,8 +159,7 @@ class ThreadSeat {
             progressOpen: view.progressOpen,
             /** @param {import("./held-news.js").ThreadChange} change */
             newsMoves: (change) =>
-              !(currentLocationIn(view.node) && scrollsAway(view.node)) &&
-              view.newsMoves(change),
+              !currentLocationIn(view.node) && view.newsMoves(change),
           };
         },
         () => this.present(this.#model),
@@ -173,11 +180,21 @@ class ThreadSeat {
         releaseReplies(view.node);
         view.retire();
       }
+    // Where the user is is read following their moves (focus.js, `followingFocus`), so
+    // leaving the thread draws the seat again, which folds it.
+    /** @param {ThreadViewModel} thread */
+    const userIn = (thread) =>
+      replyIsEditing(thread.key) ||
+      (!gesturedOn(thread) &&
+        followingFocus(() => {
+          const view = this.#views.get(thread.key);
+          return view !== undefined && currentLocationIn(view.node);
+        }));
     const settled = shown.threads.filter(
       (thread) =>
         thread.surface !== "margin" &&
         thread.resolved &&
-        (!replyIsEditing(thread.key) || this.#settled.has(thread.key)),
+        (this.#settled.has(thread.key) || !userIn(thread)),
     );
     this.#settled = new Set(settled.map(({ key }) => key));
     // The disclosure owns semantic placement immediately. Only the old room stays

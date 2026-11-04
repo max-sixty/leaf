@@ -877,6 +877,37 @@ def test_a_thread_resolved_while_its_reply_is_written_keeps_the_user_on_it(
     expect(thread.locator(".lf-msg", has_text="Half tr a thought")).to_be_visible()
 
 
+def test_an_agent_resolving_the_thread_the_user_is_on_waits_until_they_leave(
+    browser, serve
+):
+    """The agent resolving the seat thread the user stood on, with nothing written in
+    its box, folded the thread into the seat's closed Resolved disclosure and moved them
+    to its summary, which hid an answer the agent settled the thread with. The
+    resolution shows at once, the thread stays among the open ones with the user on it,
+    and it folds into Resolved once they leave it."""
+    url, root = seated_thread(serve, "task", 2)
+    page = open_page(browser, url)
+    thread = page.locator(f'.lf-page-thread[data-lf-thread="{root}"]')
+    thread.scroll_into_view_if_needed()
+    thread.focus()
+    expect(thread).to_be_focused()
+    append_carried_log_record(
+        serve.page_dir,
+        {"kind": "resolve", "author": "agent", "agent": "Codex", "parent": root},
+    )
+    told(page)
+    expect(thread).to_have_attribute("data-lf-resolved", "true")
+    rendered(page)
+    expect(thread).to_be_visible()
+    expect(thread).to_be_focused()
+    expect(thread.locator(".lf-thread-news")).to_have_count(0)
+    expect(page.locator(".lf-resolved-summary")).to_have_count(0)
+
+    page.evaluate(RELEASE_FOCUS)
+    expect(page.locator(".lf-resolved-summary")).to_have_text("Resolved · 1")
+    expect(thread).to_be_hidden()
+
+
 def _seat_manifest(patch):
     return {
         "files": [

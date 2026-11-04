@@ -53,13 +53,7 @@ import {
   keepInBand,
   scrollIntoView,
 } from "../landing-scroll.js";
-import {
-  aimedTop,
-  moveScrollerBy,
-  SCROLL_SLACK,
-  scrollLimit,
-  scrollToEnd,
-} from "../scrolling.js";
+import { aimedTop, moveScrollerBy, scrollToEnd } from "../scrolling.js";
 import { SAYS_IN, SAY_BOX, SAY_ROW, THREAD } from "./selectors.js";
 
 /** @param {Element} held @param {Element} control */
@@ -375,15 +369,6 @@ function returnTo(node, edge, at) {
   }
 }
 
-// Whether growth around `node` can be scrolled away, so a hold keeps the control the user
-// is on still (`holdBox`): some box scrolling it has more than it shows. A page shorter
-// than its window has no scroll to give, so growth there moves what follows it, the
-// user's box included, however the hold scrolls. Where a box can scroll, its content's
-// end lies past its foot, so growth adds to its scroll what the hold scrolls by.
-/** @param {Element} node */
-export const scrollsAway = (node) =>
-  [...scrollersOf(node)].some((box) => scrollLimit(box) > SCROLL_SLACK);
-
 // A render that inserts above the control the user is on, such as an agent's turn
 // arriving in the thread they are writing in (held-news.js) or an edit growing a turn
 // above their box, moves it by what it inserted. `holdBox`
@@ -395,8 +380,9 @@ export const scrollsAway = (node) =>
 // box, so the box is what stays still while it is in view, as a chat's composer does. A
 // control the render replaced, or one that left the thread view it stood in, as a reply
 // going on where its thread now stands does (replies.js, `releaseReplies`), has nothing
-// to hold. The hold scrolls, so it keeps the control still only where a box scrolling
-// it can scroll (`scrollsAway`).
+// to hold. The hold scrolls what the boxes scrolling the control can take; where they
+// can't take it all, as on a page shorter than its window or a short panel at the
+// page's foot, whose room the growth fills first, the control moves by the rest.
 /** @param {Element | null | undefined} control */
 export function holdBox(control) {
   if (control == null || control !== focusedInView()) return () => {};

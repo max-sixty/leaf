@@ -691,18 +691,18 @@ def test_pending_progress_is_the_threads_working_message_and_never_unread(
     expect(line).not_to_have_attribute("data-lf-live", "")
 
 
-@pytest.mark.watch_shifts
-@pytest.mark.parametrize("room", ["scrolls", "short"])
-def test_a_new_step_in_the_thread_being_written_in_leaves_the_draft_where_it_stands(
-    browser, serve, room
-):
+# Only "scrolls" is watched for shifts: on the short page the draft moves with no input,
+# which the rule accepts where the page has no scroll to give.
+@pytest.mark.parametrize(
+    "room", [pytest.param("scrolls", marks=pytest.mark.watch_shifts), "short"]
+)
+def test_a_new_step_shows_at_once_in_the_thread_being_written_in(browser, serve, room):
     """A step's words wrap, so a new step can change the working message's height. In
     the seat's thread the user writes in, the step shows as it comes, as in a chat, and
     the draft stays where it stands while the page scrolls the step's room away above
     it ("scrolls"). A page shorter than its window ("short") has no scroll to give, so
-    there the step waits, as news does in a thread the user isn't in, and sending the
-    draft shows it: drawn at once, it moved the draft 42px down the page. The thread
-    says no news waits either way, since progress is no unread news."""
+    the step shows there too and the draft moves down by it. The thread says no news
+    waits either way, since progress is no unread news."""
     source = SEATED_OBLIGATION_PAGE
     if room == "scrolls":
         source = source.replace("</lf-test-plan>", "</lf-test-plan>" + SEAT_FILLER, 1)
@@ -735,18 +735,15 @@ def test_a_new_step_in_the_thread_being_written_in_leaves_the_draft_where_it_sta
         ephemeral=True,
     )
     told(page)
-    step = "what each one needs before it can start"
-    if room == "scrolls":
-        expect(words).to_contain_text(step)
-    else:
-        expect(words).to_have_text("Reading the jobs")
+    expect(words).to_contain_text("what each one needs before it can start")
     expect(thread.locator(".lf-thread-news")).to_have_count(0)
     rendered(page)
-    assert editor.bounding_box() == pytest.approx(box, abs=0.5)
-    if room == "short":
-        with sending(page, "the draft"):
-            editor.press("Enter")
-        expect(words).to_contain_text(step)
+    expect(editor).to_be_focused()
+    moved = editor.bounding_box()["y"] - box["y"]
+    if room == "scrolls":
+        assert moved == pytest.approx(0, abs=0.5)
+    else:
+        assert moved > 0, "the step's growth had nowhere to go but under the draft"
 
 
 # Whether a box's words stand whole inside it, to the fraction of a pixel that

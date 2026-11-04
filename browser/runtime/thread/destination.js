@@ -30,7 +30,6 @@
    thread as it declines (floating-panel.js, `reveal`), so the reply the field holds
    and a walk's position name the thread the user arrived at. The user chose this on
    23 October 2026, after a `t` walk left the panel's thread open under a card.
-   A compact preview keeps held widget arrivals held until its own release gesture.
    The optional preview supplies physical
    opening, placement proof, current focus node and target accompaniment; it owns
    no destination policy. A command retains its original intent through placement

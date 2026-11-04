@@ -21,9 +21,9 @@
      control they are on still by scrolling what stands above it up by the growth
      (inline.js; reply-landing.js, `holdBox`). That control is where the user is: a
      message they stand on stays and the reply box below it moves down by the turn; on
-     the thread itself, as a send leaves them, its reply box stays. A page that can't
-     scroll, being shorter than its window, can't take the growth, so there the thread
-     holds as the next case does (`scrollsAway`);
+     the thread itself, as a send leaves them, its reply box stays. Where the page
+     can't scroll by all of the growth, as when it is shorter than its window, the
+     control moves by the rest;
    - any other thread drawn there keeps drawing what it drew, and says that news waits
      in its control row, the head row beside Resolve or Reopen, at a fixed size: its new
      turns, a reaction put on a reply or taken off it, a summary that comes or goes, and
@@ -443,23 +443,21 @@ export const NEWS_ROOM = newsCount(99);
 
 // What a notice says: the count (`text`), and each fact of the news, most telling
 // first, as the line its title, and so its accessible description, reads (`label`).
+// Null where only the working message changed, which waits with no notice (the header).
 /** @param {ThreadChange["news"]} news */
 const said = (news) => {
   const { settled, replies, messages, edits, reactions, summaries } = news;
   const total = (settled ? 1 : 0) + replies + messages + edits + reactions + summaries;
-  return { text: newsCount(total), label: newsParts(news).join(" · "), total };
+  return total ? { text: newsCount(total), label: newsParts(news).join(" · ") } : null;
 };
 
-/** @typedef {{text: string, label: string, total: number,
- * open: () => Element | null}} NewsNotice */
+/** @typedef {{text: string, label: string, open: () => Element | null}} NewsNotice */
 
 /** The control that says what a row holds and shows it. `set(news)` gives it the
  *  reading's `news` ({text, label, open}); `open` returns the thread to land a
  *  keyboard on, since the notice goes with what it held. It is an inline press that
  *  announces news waiting (`data-lf-news`, controls.css), in the accent the unread dot
- *  wears. A `header` notice
- *  stands in a resolved panel card's title as a node of its own, since the notice in
- *  the card's rows may have stood elsewhere a moment before. It says one count of all
+ *  wears. It says one count of all
  *  that waits, "2 new", in every placement, which is its accessible name too, so a
  *  voice user saying the words they see reaches it; its title, and so its accessible
  *  description, says each fact, "1 new reply · 1 new message". A name of the facts
@@ -500,7 +498,7 @@ export function newsNotice() {
   ]);
   return {
     node,
-    /** @param {Omit<NewsNotice, "total">} news */
+    /** @param {NewsNotice} news */
     set(news) {
       keepsText(words, news.text);
       keeps(node, "title", news.label);
@@ -648,14 +646,13 @@ export class HeldNews {
           return { ...thread, news: null, change: held };
         this.#holds.add(thread.key);
         const notice = said(held.news);
-        // What the news changes stands as drawn. News of the working message alone
-        // waits with no notice (the header).
+        // What the news changes stands as drawn.
         return {
           ...thread.reread(withheld(was.source, thread.source)),
           // Workflows and to-dos update in place, but the working message itself
           // keeps its drawn presence while its arrival or departure is held.
           working: held.news.working ? was.working : thread.working,
-          news: notice.total
+          news: notice
             ? {
                 ...notice,
                 open: () => {

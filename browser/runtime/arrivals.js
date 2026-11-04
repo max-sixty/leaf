@@ -188,9 +188,7 @@ const stands = (el) => {
 };
 
 // An owner (`watchOwner`) can be any element, so finding the owners in what a mutation
-// added visits every element there, and offers only the owners. Watched as `*`, every
-// row of a long text document was offered and held, though no subscription stood on
-// it: in Chromium, 0.9 s of loading 30 documents of 50,000 lines.
+// added visits every element there, and offers only the owners.
 /** @type {Kind} */
 const ownerKind = {
   is: (el) => owners.has(el),

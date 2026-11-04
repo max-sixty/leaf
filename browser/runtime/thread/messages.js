@@ -14,7 +14,7 @@
    The fragment is captured inertly before its first upgrade; presentation waits for
    preparation before capturing typed authored state. */
 import { html, keyed, render, nothing, ref } from "/runtime/framework.js";
-import { generatedElement, offeredAction } from "../widget-elements.js";
+import { generatedElement, offeredAction, worksInside } from "../widget-elements.js";
 import {
   loadMarkdown,
   markdownReady,
@@ -456,7 +456,8 @@ export class MessageView {
       this.node.addEventListener("dblclick", (event) => {
         if (
           event.target instanceof Element &&
-          event.target.closest(".lf-msg-editor, .lf-msg-controls, a[href]")
+          (event.target.closest(".lf-msg-editor, .lf-msg-controls") ||
+            worksInside(event.target, this.node))
         )
           return;
         if (!this.#model?.editable) return;

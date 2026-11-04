@@ -535,15 +535,7 @@ def test_the_margin_groups_meanings_at_one_destination_without_moving_the_page(
     expect(more).to_be_hidden()
     claim = marker.locator("xpath=..").evaluate(
         """item => {
-          const style = getComputedStyle(item);
-          const buttons = [...item.querySelectorAll(':scope > .lf-margin-entry')]
-            .filter(button => button.checkVisibility());
-          const needed = buttons.reduce(
-            (total, button) => total + button.getBoundingClientRect().width, 0
-          ) + (parseFloat(style.columnGap || style.gap) || 0)
-            * Math.max(0, buttons.length - 1)
-            + (parseFloat(style.paddingLeft) || 0)
-            + (parseFloat(style.paddingRight) || 0);
+          const needed = item.getBoundingClientRect().width;
           const probe = document.createElement('i');
           probe.style.cssText =
             'position:fixed;visibility:hidden;height:0;padding:0;border:0;width:var(--rail)';

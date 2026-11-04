@@ -847,6 +847,22 @@ def test_a_rewrite_saves_its_exact_words(browser, serve):
     assert [e["text"] for e in edits] == ["Fit the north bracket. "]
 
 
+def test_a_double_click_on_a_message_s_copy_is_the_control_s(browser, serve):
+    """A double click on the user's words opens them for rewriting. One on a code block's
+    Copy belongs to Copy, though the click arrives retargeted to the control's host."""
+    page, _, message = _rewrite_surface(
+        browser, serve, "panel", text="Fit it:\n\n```\nnorth\n```"
+    )
+    message.locator("pre").hover()
+    copy = page.locator(".lf-code-copy")
+    expect(copy).to_be_visible()
+    copy.dblclick()
+    rendered(page)
+    expect(message.locator(".lf-msg-editor")).to_have_count(0)
+    message.locator(".lf-msg-text p").dblclick()
+    expect(message.locator(".lf-msg-editor leaf-text")).to_be_focused()
+
+
 PICTURE = "![Attached image](/media/051bee487bfb5d13.png)"
 
 

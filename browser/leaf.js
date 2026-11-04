@@ -745,7 +745,7 @@ async function boot() {
     app.mountAnnotations();
     app.overlay?.mount();
     // Margin rows insert before the permanent foreground home, so these chips are laid
-    // out after every target they name while retaining their native modal ancestor.
+    // out after every target they name.
     chromeForeground.append(goToHintLayer, commandHintLayer, targetPickerHintLayer);
     app.mountRead();
     layout.mountLayoutObservers();

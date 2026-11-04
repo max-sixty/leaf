@@ -61,7 +61,16 @@ export { ensureSyntaxLanguage, synNodes, syntax, tokenLines } from "./syntax-tok
 export { actionName } from "./icon-paths.js";
 export { onMotionPreferenceChange, reducedMotion } from "./motion.js";
 // The time axis the Playwright timeline and lf-timeline both draw on.
-export { assignRows, axisTicks, textWidth } from "./time-axis.js";
+export {
+  AXIS_EDGE,
+  AXIS_LABEL_CHROME,
+  AXIS_LABEL_GAP,
+  AXIS_TICK_SPACING,
+  assignRows,
+  axisTicks,
+  seconds,
+  textWidth,
+} from "./time-axis.js";
 
 export { actionClass } from "./control-faces.js";
 export { actionTemplate } from "./icons.js";

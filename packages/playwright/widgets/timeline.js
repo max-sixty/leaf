@@ -34,6 +34,10 @@ import {
   assignRows,
   axisTicks,
   textWidth as measure,
+  AXIS_EDGE as EDGE,
+  AXIS_LABEL_CHROME as LABEL_CHROME,
+  AXIS_LABEL_GAP as LABEL_GAP,
+  AXIS_TICK_SPACING as TICK_SPACING,
 } from "/runtime/widget-api.js";
 
 /** @typedef {{id: string, label: string, title: string, current: boolean}} NamedMark */
@@ -49,10 +53,6 @@ import {
 /** @typedef {{zoom: number, start: number}} TimelineView */
 /** @typedef {{target: Element, clientX: number}} MarkPoint */
 
-const LABEL_GAP = 6;
-const LABEL_CHROME = 12;
-const TICK_SPACING = 84;
-const EDGE = 12;
 const CLUSTER_WIDTH = 168;
 
 export class RecordingTimeline {
@@ -503,7 +503,7 @@ export class RecordingTimeline {
               @pointerover=${(/** @type {PointerEvent} */ event) => this.#hover(event)}
               @pointerout=${(/** @type {PointerEvent} */ event) => this.#hover(event, true)}
             >
-              <div class="lf-trace-ruler"></div>
+              <div class="lf-trace-ruler lf-axis-ruler"></div>
               ${
                 model.moments.length
                   ? html`<div class="lf-trace-lane lf-trace-lane-moments">
@@ -646,7 +646,7 @@ export class RecordingTimeline {
     );
     const track = this.#part(".lf-trace-track");
     track?.style.setProperty("--lf-trace-zoom", String(this.#zoom));
-    track?.style.setProperty("--lf-trace-edge", `${EDGE}px`);
+    track?.style.setProperty("--lf-axis-edge", `${EDGE}px`);
     track?.style.setProperty("--lf-trace-time", String(this.#fraction(this.#time)));
     this.#drawRuler();
   }
@@ -703,12 +703,11 @@ export class RecordingTimeline {
     const ruler = this.#part(".lf-trace-ruler");
     const scroller = this.scroller;
     if (!ruler || !scroller?.clientWidth || !this.#model) return;
-    const pxPerMs = this.#pxPerMs();
     const ticks = axisTicks(
       this.#pxToTime(scroller.scrollLeft - TICK_SPACING),
       this.#pxToTime(scroller.scrollLeft + scroller.clientWidth + TICK_SPACING),
       this.#recording.duration,
-      pxPerMs,
+      this.#pxPerMs(),
     );
     render(
       repeat(
@@ -716,9 +715,10 @@ export class RecordingTimeline {
         (tick) => `${tick.step}:${tick.time}`,
         (tick) =>
           html`<span
-            class="lf-trace-tick ${tick.major ? "lf-trace-tick-major" : ""}"
-            ?data-lf-flip=${tick.major && (this.#recording.duration - tick.time) * pxPerMs < 44}
-            style="--t: ${this.#fraction(tick.time)}"
+            class="lf-axis-tick"
+            ?data-lf-major=${tick.major}
+            ?data-lf-flip=${tick.flip}
+            style="--lf-axis-at: ${this.#fraction(tick.time)}"
             >${tick.label ?? nothing}</span
           >`,
       ),

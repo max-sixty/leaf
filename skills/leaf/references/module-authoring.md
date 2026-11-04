@@ -365,13 +365,23 @@ layout's 1/64px; `atLayoutPrecision(length)` returns the rounded number.
 
 ## Time axes
 
-`axisTicks(from, to, duration, pxPerMs)` returns `{time, major, label, step}` ticks
-for a visible time span, clipped to the duration. Times and steps are milliseconds;
-major labels use seconds. `assignRows(items, start, end)` maps each item's `id` to a
-zero-based row, arranging the extents returned by `start(item)` and `end(item)` so
-overlapping extents use different rows. `textWidth(text, font)` measures text in
-pixels using a CSS font shorthand. These helpers support a drawing before widget
-upgrade as well as later updates.
+`axisTicks(from, to, duration, pxPerMs)` returns `{time, major, label, flip, step}`
+ticks for a visible time span, clipped to the duration. Times and steps are
+milliseconds; major labels use seconds, and `flip` marks a label that reads back from
+its tick because it would run past the axis's end. Draw each tick as a
+`span.lf-axis-tick` inside an `.lf-axis-ruler`, with `data-lf-major` and
+`data-lf-flip` as the tick says, its fraction of the axis in `--lf-axis-at`, and
+`--lf-axis-edge` set on the drawing to `AXIS_EDGE` pixels, the inset at each end of
+the axis's span; a major tick's line runs down the drawing below the ruler, so clip
+the drawing at its foot. `AXIS_TICK_SPACING`, `AXIS_LABEL_CHROME` and `AXIS_LABEL_GAP`
+are the least room between major ticks, what a mark's label adds to its words, and
+the least room between two labels in one row. `seconds(ms, digits)` writes a time as
+seconds, with as few decimals as show it to the millisecond unless `digits` is given.
+`assignRows(items, start, end)` maps each item's `id` to a zero-based row, arranging
+the extents returned by `start(item)` and `end(item)` so overlapping extents use
+different rows. `textWidth(text, font)` measures text in pixels using a CSS font
+shorthand. These helpers support a drawing before widget upgrade as well as later
+updates.
 
 ## Contained examples and scoped appearance
 

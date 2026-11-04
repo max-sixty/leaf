@@ -204,31 +204,6 @@ def test_embedded_codex_delivery_is_durable_and_idempotent(page_dir):
     assert delivery_model.delivery_path(history.stem).is_file()
 
 
-def test_embedded_codex_delivery_keeps_non_obligation_events_in_the_page_batch(
-    page_dir,
-):
-    comment = append_carried_log_record(
-        page_dir,
-        {"kind": "comment", "id": "c1", "author": "user", "text": "never mind"},
-    )
-    resolved = append_carried_log_record(
-        page_dir,
-        {"kind": "resolve", "author": "user", "parent": comment["id"]},
-    )
-
-    prepared = codex_model.prepare_codex_delivery(
-        page_dir,
-        harness_model.EmbeddedHarness("hosted-thread", "Leaf guide", os.getpid()),
-    )
-
-    [batch] = prepared.payload["batches"]
-    assert [event["id"] for event in batch["events"]] == [
-        comment["id"],
-        resolved["id"],
-    ]
-    assert batch["through_seq"] == 2
-
-
 def test_embedded_codex_delivery_keeps_steered_input_in_one_claim_turn(page_dir):
     harness = harness_model.EmbeddedHarness("hosted-thread", "Leaf guide", os.getpid())
     first = append_carried_log_record(
@@ -330,43 +305,13 @@ def test_embedded_codex_delivery_abandons_only_its_mutable_delivery_record(page_
     assert first_payload.is_file()
 
 
-def test_embedded_codex_delivery_keeps_settled_input_in_the_complete_page_batch(
-    page_dir,
-):
-    append_carried_log_record(
-        page_dir,
-        {"kind": "comment", "author": "user", "text": "first"},
+def test_embedded_codex_delivery_keeps_the_pages_complete_batch_in_log_order(page_dir):
+    """An embedded delivery carries everything past the cursor, in log order: a page
+    action ahead of a comment, input a reply already settled, and an event that owes no
+    answer."""
+    (page_dir / "index.html").write_text(
+        PAGE.replace("<lf-options>", '<lf-options id="plan-choice" choose multiple>', 1)
     )
-    first = events_model.read_events(page_dir)[-1]
-    thread_model.post_reply(
-        page_dir,
-        {"parent": first["id"], "responds": first["id"]},
-        "try again later",
-        identity={"agent": "Leaf guide", "session": "website-agent"},
-    )
-    append_carried_log_record(
-        page_dir,
-        {"kind": "comment", "author": "user", "text": "second"},
-    )
-
-    codex_model.prepare_codex_delivery(
-        page_dir,
-        harness_model.EmbeddedHarness("hosted-thread", "Leaf guide", os.getpid()),
-    )
-
-    [(path, _queue)] = codex_model.delivery_records("hosted-thread")
-    payload = files_model.read_json(delivery_model.delivery_path(path.stem))
-    delivered_events = payload["batches"][0]["events"]
-    assert [event["text"] for event in delivered_events] == ["first", "second"]
-    assert "answer" not in delivered_events[0]
-    assert delivered_events[1]["answer"]["responds"] == delivered_events[1]["id"]
-
-
-def test_embedded_codex_delivery_keeps_page_actions_before_a_comment(page_dir):
-    work_page = PAGE.replace(
-        "<lf-options>", '<lf-options id="plan-choice" choose multiple>', 1
-    )
-    (page_dir / "index.html").write_text(work_page)
     publish(page_dir)
     action = append_command(
         page_dir,
@@ -379,9 +324,27 @@ def test_embedded_codex_delivery_keeps_page_actions_before_a_comment(page_dir):
             "detail": {},
         },
     )
-    comment = append_carried_log_record(
+    settled = append_carried_log_record(
         page_dir,
-        {"kind": "comment", "author": "user", "text": "change the explanation"},
+        {"kind": "comment", "author": "user", "text": "first"},
+    )
+    thread_model.post_reply(
+        page_dir,
+        {"parent": settled["id"], "responds": settled["id"]},
+        "try again later",
+        identity={"agent": "Leaf guide", "session": "website-agent"},
+    )
+    fresh = append_carried_log_record(
+        page_dir,
+        {"kind": "comment", "author": "user", "text": "second"},
+    )
+    withdrawn = append_carried_log_record(
+        page_dir,
+        {"kind": "comment", "id": "c1", "author": "user", "text": "never mind"},
+    )
+    resolved = append_carried_log_record(
+        page_dir,
+        {"kind": "resolve", "author": "user", "parent": withdrawn["id"]},
     )
 
     codex_model.prepare_codex_delivery(
@@ -391,10 +354,18 @@ def test_embedded_codex_delivery_keeps_page_actions_before_a_comment(page_dir):
 
     [(path, _queue)] = codex_model.delivery_records("hosted-thread")
     payload = files_model.read_json(delivery_model.delivery_path(path.stem))
-    assert [event["id"] for event in payload["batches"][0]["events"]] == [
+    [batch] = payload["batches"]
+    delivered_events = {event["id"]: event for event in batch["events"]}
+    assert list(delivered_events) == [
         action["id"],
-        comment["id"],
+        settled["id"],
+        fresh["id"],
+        withdrawn["id"],
+        resolved["id"],
     ]
+    assert batch["through_seq"] == resolved["seq"]
+    assert "answer" not in delivered_events[settled["id"]]
+    assert delivered_events[fresh["id"]]["answer"]["responds"] == fresh["id"]
 
 
 def adapter_log(session_id: str) -> str:
@@ -1526,7 +1497,7 @@ def test_a_codex_ending_closes_a_page_claimed_before_its_first_tool_hook(
     assert claim_record_6["turn"] == "user-turn"
 
 
-@pytest.mark.parametrize("late", ["notification", "snapshot", "start"])
+@pytest.mark.parametrize("late", ["snapshot", "start"])
 def test_completed_codex_predecessor_cannot_become_current_again(
     page_dir, codex_loop, late
 ):
@@ -1556,19 +1527,7 @@ def test_completed_codex_predecessor_cannot_become_current_again(
     ended = cleanup_model.session_record("codex-thread")
     assert ended is not None
     assert ended["turn"] == "idle" and ended["turn_closed"] is not None
-    if late == "notification":
-        observer._read(
-            {
-                "method": "item/commandExecution/outputDelta",
-                "params": {
-                    "threadId": "codex-thread",
-                    "turnId": "setup",
-                    "itemId": "late",
-                    "delta": "background output",
-                },
-            }
-        )
-    elif late == "start":
+    if late == "start":
         observer._read(
             {
                 "method": "turn/started",

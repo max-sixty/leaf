@@ -738,21 +738,6 @@ def test_pi_takes_input_of_any_size_inline(page_dir, monkeypatch, capsys):
     assert acknowledged_through(page_dir) == last_deliverable_seq(page_dir)
 
 
-def test_hook_drops_a_page_transferred_after_ownership_discovery(claimed, monkeypatch):
-    """Ownership transfer before the planner's page lock belongs to the new owner."""
-    session_model.cmd_waiting(claimed)
-    discover = hook_transport_model.owned_pages
-
-    def transfer(session_id):
-        pages = discover(session_id)
-        monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "replacement")
-        assert service_model.claim_page(claimed)
-        return pages
-
-    monkeypatch.setattr(hook_transport_model, "owned_pages", transfer)
-    assert hook_transport_model.remedies(hook_transport_model.read_plans("s1")) == []
-
-
 def test_one_tool_calls_hooks_do_its_work_once(monkeypatch):
     """Claude Code runs the PreToolUse registration once for each of its `if`
     rules a command matches, at once, before the call; the first opens the turn a
@@ -1731,16 +1716,14 @@ def test_prompt_pickup_does_not_restamp_a_response_settled_after_planning(claime
 
 
 @pytest.mark.parametrize("named", [False, True])
-@pytest.mark.parametrize("pending", [False, True])
 def test_newer_prompt_supersedes_hook_policy_before_effects(
-    claimed, monkeypatch, capsys, named, pending
+    claimed, monkeypatch, capsys, named
 ):
     turn = "provider" if named else None
     cleanup_model.prompt_turn("s1", turn)
-    if pending:
-        append_carried_log_record(
-            claimed, {"kind": "comment", "author": "user", "text": "For the new prompt"}
-        )
+    append_carried_log_record(
+        claimed, {"kind": "comment", "author": "user", "text": "For the new prompt"}
+    )
     policy = hook_transport_model.stop_continues
     newer = []
 

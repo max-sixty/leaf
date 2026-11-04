@@ -472,6 +472,7 @@
         --lf-breakout: 1;
       }
       > :is([data-lf-space="available"], .layout-sidebar) {
+        position: relative;
         inline-size: calc(100% + var(--lf-free-start) + var(--lf-free-end));
         max-inline-size: none;
         --lf-breakout: 1;
@@ -491,7 +492,6 @@
        * Firefox lacks `justify-self` on a block, which would centre it
        * (notes/browser-support.md). */
       > table[data-lf-space="available"] {
-        position: relative;
         max-inline-size: calc(100% + var(--lf-free-start) + var(--lf-free-end));
       }
       &:dir(ltr) > table[data-lf-space="available"] {

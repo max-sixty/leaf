@@ -192,7 +192,7 @@ const placedParts = sizeObserver((entries) => {
     read?.();
 });
 
-// How far a lift of the theme's (`--raise-N`, base.css) paints past the box it raises,
+// How far a lift of the theme's (`--raise-N`, styles/tokens.css) paints past the box it raises,
 // cast as a filter's drop shadow: its drop, and twice its blur, which a filter takes as
 // the deviation of its Gaussian, so the shadow has faded to nothing seen by then. Read
 // off `element`, where the theme registers them as lengths. Cut at the drop and one

@@ -676,7 +676,7 @@ export class Transcript {
         .join(" ")}
       @click=${() => this.#setSummaryExpanded(ids, !expanded)}
     >
-      <span data-room=${`Show ${subject}`}><span>${label}</span></span>
+      <span data-lf-room=${`Show ${subject}`}><span>${label}</span></span>
     </button>`;
   }
 

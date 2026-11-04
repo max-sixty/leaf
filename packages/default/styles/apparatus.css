@@ -3,7 +3,7 @@
  * widgets wear. One rule per package, because what counts as apparatus is a judgement,
  * and a judgement made per
  * widget is a dozen chances to answer it differently. Each label's own rule names its
- * font (base.css, `--font-*`), which sets it in the UI sans, so what this rule adds is
+ * font (tokens.css, `--font-*`), which sets it in the UI sans, so what this rule adds is
  * the figures, and it is imported after the widgets' sheets, whose fonts would
  * otherwise set them back.
  *

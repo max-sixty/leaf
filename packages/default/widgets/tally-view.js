@@ -20,7 +20,7 @@ export function render(
   onNext = null,
 ) {
   return html`<span class="lf-tally-face" data-lf-gen="1" ?data-lf-ready=${ready}>
-    <span class=${done ? "lf-tally-count lf-chip ok" : "lf-tally-count lf-chip"}>
+    <span class="lf-tally-count lf-chip" data-lf-tone=${done ? "ok" : nothing}>
       <span class="lf-tally-room" aria-hidden="true">${generic}</span>
       <span class="lf-tally-room" aria-hidden="true">${named}</span>
       <span class="lf-tally-words">${words}</span>

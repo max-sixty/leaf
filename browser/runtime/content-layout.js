@@ -124,7 +124,7 @@ export const railStands = (main = layoutBox()) => {
   return shellRight() - proseRect(main).right >= width;
 };
 // Whether the window has room for the rail: as wide as the column with a rail on either
-// side (`--lf-rail-room`, base.css), the width at which a column page's rail stands
+// side (`--lf-rail-room`, styles/tokens.css), the width at which a column page's rail stands
 // (`railStands`), whatever this page's own Layout or body does with the room. A
 // workspace keeps no rail at any width, and still has this room on a desktop's window.
 export const windowHoldsRail = () =>

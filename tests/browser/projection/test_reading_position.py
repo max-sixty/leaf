@@ -839,7 +839,7 @@ def test_revision_does_not_move_an_offset_between_bounded_region_owners(browser,
         "description": "A test-owned reading scroller.",
         "type": "object",
         "properties": {
-            "id": {"type": "string", "pattern": "^[a-z][a-z0-9-]*$"},
+            "id": {"type": "string"},
         },
         "required": ["id"],
         "additionalProperties": False,

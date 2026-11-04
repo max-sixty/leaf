@@ -72,7 +72,12 @@ from .revision_delivery import (
     rebase_document,
     runtime_settings,
 )
-from .runtime_selection import executing, execution_identity, serving_runtime
+from .runtime_selection import (
+    executing,
+    execution_identity,
+    named_execution,
+    serving_runtime,
+)
 from .samples import Samples
 from .schema import (
     BINARY_TYPES,
@@ -1018,11 +1023,11 @@ class PageEndpoint:
         revision, name = int(match.group("revision")), match.group("name")
         if self.source.revision_names.get(revision) != name + ".html":
             return None
-        artifact = self._artifact(revision)
-        if match.group("runtime") != execution_identity(artifact):
+        artifact = named_execution(self._artifact(revision), match.group("runtime"))
+        if artifact is None:
             return None
         response = self._revision_resource(
-            revision, "/" + match.group("resource"), self._named_root(name, artifact)
+            artifact, "/" + match.group("resource"), self._named_root(name, artifact)
         )
         if response is not None:
             # The revision name carries its manifest digest, the execution identity
@@ -1035,11 +1040,11 @@ class PageEndpoint:
         return response
 
     def _revision_resource(
-        self, revision: int, logical: str, root: str
+        self, artifact: RevisionArtifact, logical: str, root: str
     ) -> Response | None:
         """One resource of a revision as its documents run it, addressed at `root`
         (`runtime_selection.executing`), or None for a path the revision lacks."""
-        artifact = executing(self._artifact(revision))
+        artifact = executing(artifact)
         self.response_layer = artifact.registry["$layer"]["generation"]
         resource = delivered_resource(
             artifact, logical, DeliveryAddress(self.page_root, root)

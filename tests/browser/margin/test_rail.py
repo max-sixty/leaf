@@ -144,7 +144,7 @@ def test_a_page_s_own_body_and_column_units_keep_its_cards(browser, serve):
     """Whether a card stands asks the window, not the page's boxes: a page that narrows
     its body still opens a card from its marker on a wide window. A column the page
     states as a percentage keeps its width, and with no window width of its own
-    (base.css, `--lf-rail-room`) leaves cards opening at every width. Measuring the body
+    (tokens.css, `--lf-rail-room`) leaves cards opening at every width. Measuring the body
     took the card from the first page, and registering `--col` as a length left the
     second a 0px column."""
     page = open_page(browser, serve(PANEL_PAGE, events=[_comment_on("lede")]))

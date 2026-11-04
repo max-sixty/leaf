@@ -84,6 +84,7 @@ resending the main thread's own last request.
 import json
 from pathlib import Path
 
+from .registry.kernel import title_limit
 from .state import (
     STRING,
     Record,
@@ -94,12 +95,6 @@ from .state import (
     session_lock_path,
     session_record,
 )
-
-# The length of a thread's or to-do's title (`comment` and `todo` in the kernel
-# registry), which the fork is asked to keep a title under. A model can't count characters, so the answer takes a
-# longer title and Leaf shortens it to fit (`_title`) rather than refusing the answer
-# and every ask it found.
-TITLE_LIMIT = 80
 
 ANSWER = {
     "type": "object",
@@ -217,7 +212,7 @@ This message comes from Leaf, not the user. You are a fork of this session, made
 On me is where the user finds everything waiting on them. Name each decision, answer, permission or step the agent left to the user, in its replies or anywhere in the conversation, that no On me item above holds and the user hasn't answered since. Leave out what the agent will settle itself. Give each:
 - "page": the page's path.
 - "kind": "step" for an action the user takes and then confirms with Done, such as running a command or trying a build; "question" for anything they answer, decide or permit.
-- "title": for a question, a few words naming its thread's subject ("Merging the two mark styles"); for a step, the action itself, whole, as the only words the user reads of it ("Run /reload-plugins in this Claude session"). Keep it under {TITLE_LIMIT} characters.
+- "title": for a question, a few words naming its thread's subject ("Merging the two mark styles"); for a step, the action itself, whole, as the only words the user reads of it ("Run /reload-plugins in this Claude session"). Keep it under {title_limit()} characters.
 - "text": for a question, the message that asks it, as the agent would write it. The user reads it on the page, perhaps days later and without the chat, so say what is waiting, why it arises and what each answer leads to, naming things as the page does, and end with the question. It shows in a narrow card, so keep it to three or four short sentences of Markdown; link a pull request or commit by its URL where the conversation gives one. For a step, "".
 - "passage": where the ask concerns one passage of the page, a few of its words, exactly as the page shows them and found nowhere else on it, which the ask then stands on; else "", and it stands on the page as a whole.
 - "quote": the agent's words that leave it to the user.
@@ -293,15 +288,6 @@ def _facts(page_dir: Path) -> dict | None:
         return None
 
 
-def _title(words: str) -> str:
-    """`words` as a thread's title: on one line, and cut at a word to fit
-    `TITLE_LIMIT`, ending in an ellipsis where it was cut."""
-    title = " ".join(words.split())
-    if len(title) <= TITLE_LIMIT:
-        return title
-    return title[: TITLE_LIMIT - 1].rsplit(" ", 1)[0].rstrip(" ,;:") + "…"
-
-
 def apply_answer(session_id: str, answer: dict, asked: dict | None) -> dict:
     """Put each of `answer`'s asks On me as the agent's own, on the page it names among
     those `session_id` holds: a question in a thread of its own, opened by the agent's
@@ -312,6 +298,7 @@ def apply_answer(session_id: str, answer: dict, asked: dict | None) -> dict:
     from .findings import Rejected
     from .leases import page_locked
     from .service import PageTransaction, owned_pages
+    from .thread import fit_title
     from .todos import TodoReading
     from .validation.admission import checked_text
 
@@ -360,7 +347,7 @@ def apply_answer(session_id: str, answer: dict, asked: dict | None) -> dict:
                 messages = [
                     (
                         item["kind"],
-                        _title(item["title"]),
+                        fit_title(item["title"]),
                         checked_text(page_dir, item["text"])
                         if item["kind"] == "question"
                         else "",

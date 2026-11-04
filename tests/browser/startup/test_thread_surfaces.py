@@ -25,7 +25,6 @@ from browser.threads import open_panel_thread
 from leaf import event_log as events_model
 from leaf.findings import Finding
 from leaf.render_checks import rendered
-from leaf.schema import ELEMENT_ID
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -76,8 +75,8 @@ def _exercise_failed_thread_surface(browser, serve, failure, *, activation):
         "description": "A project-supplied thread surface.",
         "type": "object",
         "properties": {
-            "id": {"type": "string", "pattern": f"^{ELEMENT_ID}$"},
-            "source": {"type": "string", "pattern": "^[a-z][a-z0-9-]*$"},
+            "id": {"type": "string"},
+            "source": {"type": "string"},
         },
         "required": ["id"],
         "additionalProperties": False,
@@ -508,7 +507,7 @@ def test_widgets_claim_before_page_and_only_required_page_failures_fail_proof(
         "properties": {
             "id": {"type": "string"},
             "style": {"type": "string"},
-            "source": {"type": "string", "pattern": "^[a-z][a-z0-9-]*$"},
+            "source": {"type": "string"},
         },
         "required": ["id"],
         "additionalProperties": False,
@@ -665,7 +664,7 @@ def test_required_page_failure_retains_composer_seat_focus_and_caret(browser, se
         "type": "object",
         "properties": {
             "id": {"type": "string"},
-            "source": {"type": "string", "pattern": "^[a-z][a-z0-9-]*$"},
+            "source": {"type": "string"},
         },
         "required": ["id"],
         "additionalProperties": False,

@@ -241,7 +241,7 @@ def capture(state: State, folder: Path, arm: str, visit: Visit) -> None:
             "height": min(window["height"], bounds["y"] + bounds["height"] + room) - y,
         }
         visit.reading["region"] = {key: value * SCALE for key, value in clip.items()}
-    screenshot(page, folder / f"{arm}.png")
+    (folder / f"{arm}.png").write_bytes(screenshot(page))
     reading = page.evaluate(STYLES, STYLED)
     visit.reading["styles"] = {
         key: reading["faces"][face] for key, face in reading["elements"].items()

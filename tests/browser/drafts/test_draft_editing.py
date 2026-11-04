@@ -857,6 +857,7 @@ def test_draft_controls_survive_hiding_annotations_and_escape_discards(browser, 
     page.keyboard.press("Escape")
     copy.click()
     assert page.evaluate("navigator.clipboard.readText()") == "Saved **source**."
+    expect(editor).to_have_count(0)
 
 
 def test_an_open_edit_back_to_the_authored_text_survives_reload(browser, serve):
@@ -1023,7 +1024,6 @@ def test_a_finger_s_reach_on_a_draft_copies_past_copy_and_stops_short_of_the_wor
         expect(field).to_be_focused()
         expect(draft_control(page, "cancel", "note")).to_be_visible()
         page.keyboard.press("Escape")
-    # Last, since this press also opens the editor.
     with subtests.test("a press just past Copy"):
         copy = page.locator("#note .lf-draft-tools > wa-copy-button")
         copy.evaluate(
@@ -1042,6 +1042,7 @@ def test_a_finger_s_reach_on_a_draft_copies_past_copy_and_stops_short_of_the_wor
             "() => document.querySelector('#note .lf-draft-tools > wa-copy-button')"
             ".presses === 1"
         )
+        expect(page.locator("#note .lf-draft-edit")).to_have_count(0)
 
 
 def test_a_draft_button_keeps_its_target_when_pointerdown_focuses_it(browser, serve):

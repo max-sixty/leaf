@@ -228,7 +228,11 @@ customElements.define(
         if (
           pressIsKeyboardActivation(ev) ||
           ev.button !== 0 ||
-          (ev.target instanceof Element && ev.target.closest(`${PRESSABLE}, a, button`))
+          ev
+            .composedPath()
+            .some(
+              (node) => node instanceof Element && node.matches(`${PRESSABLE}, a, button`),
+            )
         )
           return;
         if (reachedForWords(this)) return;

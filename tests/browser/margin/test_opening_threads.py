@@ -436,7 +436,7 @@ def test_show_on_page_on_a_phone_lands_on_the_thread_s_marker(browser, serve):
     page.locator(".lf-fp-on-page").click()
     expect(view).to_have_count(0)
     expect(marker).to_be_focused()
-    expect(page.locator("#open-words")).to_have_class(re.compile(r"\blf-traced\b"))
+    expect(page.locator("#open-words")).to_have_attribute("data-lf-traced", "")
     page.keyboard.press("Enter")
     expect(view.locator(".lf-page-thread")).to_be_visible()
 
@@ -568,7 +568,7 @@ def test_the_margin_groups_meanings_at_one_destination_without_moving_the_page(
     expect(marker.locator(".lf-margin-entry-label")).to_be_hidden()
     # The thread the user now stands in marks its element; no trace doubles it.
     expect(page.locator('[data-lf-mark~="here"]')).to_have_id("bracket")
-    expect(page.locator("#bracket")).not_to_have_class(re.compile(r"\blf-traced\b"))
+    expect(page.locator("#bracket")).not_to_have_attribute("data-lf-traced", "")
     preview_box = preview.bounding_box()
     assert preview_box["x"] >= page.evaluate(WORDS_RIGHT) + 7.5
     assert preview_box["x"] >= 0
@@ -1449,7 +1449,7 @@ def test_focusing_a_thread_margin_entry_does_not_open_its_card(browser, serve):
 
     expect(toggle).to_be_focused()
     expect(preview).to_be_hidden()
-    expect(page.locator("#bracket")).not_to_have_class(re.compile(r"\blf-traced\b"))
+    expect(page.locator("#bracket")).not_to_have_attribute("data-lf-traced", "")
 
 
 def test_a_card_follows_the_margin_entry_it_hangs_from_in_the_tab_order(browser, serve):

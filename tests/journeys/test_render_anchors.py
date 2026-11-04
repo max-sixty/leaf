@@ -753,7 +753,7 @@ diff --git a/README.md b/README.md
 
     summary.hover(position={"x": 100, "y": 10})
     page.keyboard.down("Alt")
-    expect(page.locator(".lf-aimed").first).to_be_visible()
+    expect(page.locator("[data-lf-aimed]").first).to_be_visible()
     page.keyboard.up("Alt")
     summary.click(modifiers=["Alt"])
     expect(page.locator(".lf-fab-bar")).to_be_visible()

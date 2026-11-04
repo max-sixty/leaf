@@ -1710,7 +1710,7 @@ def aim_cut_by_pane(page: Page) -> None:
     page.mouse.move(box["x"] + 120, box["y"] + 20)
     page.keyboard.down("Alt")
     page.wait_for_function(
-        "() => document.getElementById('sort-source-note')?.classList.contains('lf-aimed')"
+        "() => document.getElementById('sort-source-note')?.hasAttribute('data-lf-aimed')"
     )
 
 

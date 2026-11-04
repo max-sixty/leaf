@@ -262,56 +262,62 @@ a[data-lf-external]::after,
 /* A visible focus destination wears the layer's band unless its own rule supplies
    a carrier, or another mark on it carries it: a comment's mark
    (`.lf-projected-mark`, visual-mark-paint.js), or the location ring round the decision
-   the user stands in (`.lf-projected-location`, target-paint.js). Each stands where the
+   the user stands in (`[data-lf-projected-location]`, target-paint.js). Each stands where the
    box says, as this band does. Controls and reading destinations follow browser focus
    visibility. Current location remains separate, so pointer focus can reveal controls
    without drawing a ring.
    A box that says nothing stands its band at a control's gap. At no weight, so a
    carrier's band wins. Retargeting shadow hosts and a label press's intermediate nodes
    get no band. */
-:where([data-lf-focus-visible]:not(.lf-projected-mark, .lf-projected-location)) {
+:where([data-lf-focus-visible]:not(.lf-projected-mark, [data-lf-projected-location])) {
   outline: var(--focus-ring);
   outline-offset: var(--lf-ring-at, var(--focus-ring-gap));
 }
 /* Every mark on a box is drawn by the box itself, as its outline, so it moves with the
    box through every scroll, transform and layout change in every engine, and passes
    under what the page stacks over the box as the box's own words do. The Alt aim
-   (`.lf-aimed`), the margin trace (`.lf-traced`), a comment's mark (`data-lf-mark`,
+   (`[data-lf-aimed]`), the margin trace (`[data-lf-traced]`), a comment's mark (`data-lf-mark`,
    visual-mark-paint.js), the location ring round the decision the user stands in
-   (`.lf-projected-location`) and the proxy ring (`.lf-proxied`) each stand where the
+   (`[data-lf-projected-location]`) and the proxy ring (`[data-lf-proxied]`) each stand where the
    box says (`--lf-ring-at`), or where a region's or a control's marks stand when it
    says nothing. The outline is important, so a rule of the page's or a widget's that
    sets the box's outline, as one turning off a focus ring does, leaves the mark
    standing while it shows. */
-:where(.lf-aimed, .lf-traced, .lf-proxied, [data-lf-mark], .lf-projected-location) {
+:where(
+  [data-lf-aimed],
+  [data-lf-traced],
+  [data-lf-proxied],
+  [data-lf-mark],
+  [data-lf-projected-location]
+) {
   --lf-band-gap: var(--lf-ring-at, var(--focus-region-gap));
   outline: var(--lf-band-w, var(--focus-ring-w)) solid var(--lf-band-ink, var(--accent)) !important;
   outline-offset: var(--lf-band-gap) !important;
 }
 :where(a[href], button, input, select, textarea, summary, [role]):where(
-  .lf-aimed,
-  .lf-traced,
-  .lf-proxied,
+  [data-lf-aimed],
+  [data-lf-traced],
+  [data-lf-proxied],
   [data-lf-mark],
-  .lf-projected-location
+  [data-lf-projected-location]
 ) {
   --lf-band-gap: var(--lf-ring-at, var(--focus-ring-gap));
 }
 /* The margin trace takes its own ink, and an action's target alone a quieter line. */
-:where(.lf-traced) {
+:where([data-lf-traced]) {
   --lf-band-ink: var(--target-trace-ink);
 }
-:where([data-lf-mark="action"]:not(.lf-traced)) {
+:where([data-lf-mark="action"]:not([data-lf-traced])) {
   --lf-band-ink: var(--mark-contour-ink);
   --lf-band-w: 1px;
 }
 /* Any other mark on the box keeps the accent over those two: the aim, a comment's
    mark, the proxy or location ring, or the focus ring the box wears. */
 :where(
-  :is(.lf-traced, [data-lf-mark="action"]):is(
-    .lf-aimed,
-    .lf-proxied,
-    .lf-projected-location,
+  :is([data-lf-traced], [data-lf-mark="action"]):is(
+    [data-lf-aimed],
+    [data-lf-proxied],
+    [data-lf-projected-location],
     [data-lf-mark]:not([data-lf-mark="action"]),
     [data-lf-focus-visible],
     :has(> [data-lf-focus-visible])
@@ -323,13 +329,19 @@ a[data-lf-external]::after,
 /* A forced palette draws marks in its highlight, as it does the focus ring
    (tokens.css). */
 @media (forced-colors: active) {
-  :where(.lf-aimed, .lf-traced, .lf-proxied, [data-lf-mark], .lf-projected-location) {
+  :where(
+    [data-lf-aimed],
+    [data-lf-traced],
+    [data-lf-proxied],
+    [data-lf-mark],
+    [data-lf-projected-location]
+  ) {
     --lf-band-ink: Highlight;
   }
 }
 /* The aim's veil fills the box and the gap round it, so it and its brackets read as
    one box. */
-:where(.lf-aimed) {
+:where([data-lf-aimed]) {
   --lf-aim-veil: color-mix(in srgb, var(--accent) 4%, transparent);
   box-shadow:
     inset 0 0 0 100vmax var(--lf-aim-veil),
@@ -346,9 +358,9 @@ a[data-lf-external]::after,
    band's cut neither paints nor takes a press. A box that clips itself keeps its own
    clip, which cuts the mark as it cuts the box. */
 :where(
-  :is(.lf-aimed, .lf-traced, [data-lf-mark]):not(
-    .lf-projected-location,
-    .lf-proxied,
+  :is([data-lf-aimed], [data-lf-traced], [data-lf-mark]):not(
+    [data-lf-projected-location],
+    [data-lf-proxied],
     [data-lf-mark~="focus"],
     [data-lf-focus-visible],
     :has(> [data-lf-focus-visible])
@@ -382,11 +394,11 @@ a[data-lf-external]::after,
    outline is, so a drawing's own stroke rules leave the mark standing while it shows;
    its words keep their own. A comment's mark there takes the quieter contour ink. */
 :where(svg *:not(foreignObject *)):where(
-  .lf-aimed,
-  .lf-traced,
-  .lf-proxied,
+  [data-lf-aimed],
+  [data-lf-traced],
+  [data-lf-proxied],
   [data-lf-mark],
-  .lf-projected-location
+  [data-lf-projected-location]
 ) {
   --lf-shape-ink: var(--lf-band-ink, var(--accent));
   --lf-shape-w: var(--lf-band-w, var(--focus-ring-w));
@@ -395,18 +407,18 @@ a[data-lf-external]::after,
   box-shadow: none;
 }
 :where(svg *:not(foreignObject *)):where(
-    .lf-aimed,
-    .lf-traced,
-    .lf-proxied,
+    [data-lf-aimed],
+    [data-lf-traced],
+    [data-lf-proxied],
     [data-lf-mark],
-    .lf-projected-location
+    [data-lf-projected-location]
   ):where(path, rect, circle, ellipse, line, polyline, polygon),
 :where(svg *:not(foreignObject *)):where(
-    .lf-aimed,
-    .lf-traced,
-    .lf-proxied,
+    [data-lf-aimed],
+    [data-lf-traced],
+    [data-lf-proxied],
     [data-lf-mark],
-    .lf-projected-location
+    [data-lf-projected-location]
   )
   :where(path, rect, circle, ellipse, line, polyline, polygon) {
   stroke: var(--lf-shape-ink) !important;

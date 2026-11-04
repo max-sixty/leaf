@@ -267,12 +267,15 @@ export function createMarginProjection({
   /** @param {(number | null)[]} positions */
   function nameMarkers(positions) {
     spokenPositions = positions;
+    // Each entry's place in the inventory, read once rather than searched for per host.
+    const places = new Map(pageInventory.map((entry, place) => [entry, place]));
+    const placeOf = (/** @type {Entry} */ entry) => places.get(entry) ?? -1;
     const walked = [...hosts.values()].sort(
-      (a, b) => pageInventory.indexOf(a.lfEntry) - pageInventory.indexOf(b.lfEntry),
+      (a, b) => placeOf(a.lfEntry) - placeOf(b.lfEntry),
     );
     walked.forEach((host, index) => {
       const entry = host.lfEntry;
-      const position = positions[pageInventory.indexOf(entry)];
+      const position = positions[placeOf(entry)];
       const name = markerName(entry, index, walked.length, position);
       paintMarker(host.marker, entry, Boolean(host.primary), {
         suppressed: Boolean(

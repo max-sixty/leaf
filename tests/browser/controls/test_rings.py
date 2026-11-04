@@ -12,6 +12,7 @@ from PIL import Image
 from playwright.sync_api import expect
 from render_cases_layout import (
     MARK,
+    NAMED,
     current_location_ring,
     mark_edges,
     ring_faults,
@@ -744,10 +745,11 @@ def test_the_ring_reading_distinguishes_target_brackets_from_focus(browser, serv
     target = page.locator("#target")
     target.hover()
     page.keyboard.down("Alt")
-    expect(target).to_have_class(re.compile(r"\blf-aimed\b"))
+    expect(target).to_have_attribute("data-lf-aimed", "")
     aim = target.evaluate(MARK)
     assert aim and aim["style"] == "solid" and aim["brackets"], aim
-    assert not any("lf-aimed" in seen["who"] for seen in rings_drawn(page))
+    aimed = target.evaluate(NAMED)
+    assert not any(seen["who"] == aimed for seen in rings_drawn(page))
     page.keyboard.up("Alt")
     page.keyboard.press("Tab")
     expect(target).to_be_focused()
@@ -1337,9 +1339,9 @@ def test_an_obligations_margin_marker_keeps_its_location_ring_whole(browser, ser
         ),
     )
     marker = page.locator('.lf-margin-entry[data-lf-kinds="on-me"]')
-    decision, traced = page.locator("#decision"), re.compile(r"\blf-traced\b")
+    decision = page.locator("#decision")
     marker.hover()
-    expect(decision).to_have_class(traced)
+    expect(decision).to_have_attribute("data-lf-traced", "")
     page.mouse.move(0, 0)
     for _ in range(40):
         page.keyboard.press("Tab")
@@ -1348,8 +1350,8 @@ def test_an_obligations_margin_marker_keeps_its_location_ring_whole(browser, ser
     else:
         pytest.fail("Tab did not reach the obligation's margin marker")
     rendered(page)
-    expect(page.locator(".lf-traced")).to_have_count(0)
-    expect(decision).to_have_class(re.compile(r"\blf-projected-location\b"))
+    expect(page.locator("[data-lf-traced]")).to_have_count(0)
+    expect(decision).to_have_attribute("data-lf-projected-location", "")
     drawn = rings_drawn(page)
-    assert any("lf-projected-location" in ring["who"] for ring in drawn), drawn
+    assert any(ring["who"] == decision.evaluate(NAMED) for ring in drawn), drawn
     assert not ring_faults(drawn, "on the obligation's margin marker")

@@ -38,6 +38,14 @@ export const RUNTIME_PAINT_ATTRIBUTE = Object.freeze({
   traffic: "data-lf-traffic",
   // A recording playing through the runtime's controls (video-controls.js).
   player: "data-lf-player",
+  // The marks the runtime draws round a box as its outline (target-paint.js,
+  // surfaces.css): the aim, the trace a margin entry draws on what it concerns, the proxy
+  // ring and the location ring. Attributes rather than classes, so an observer of the
+  // page's classes, such as the margin's (margin-layout.js), hears none of them.
+  aimed: "data-lf-aimed",
+  traced: "data-lf-traced",
+  proxied: "data-lf-proxied",
+  location: "data-lf-projected-location",
 });
 
 export const PAGE_PAINT_ATTRIBUTE = Object.freeze({

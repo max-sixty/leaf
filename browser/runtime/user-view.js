@@ -164,9 +164,13 @@ export function observeUserView() {
     if (!Number.isInteger(runtime.currentRevision)) return;
     const view = context();
     if (!view) return;
+    // The checks walk the whole page, so they are read again for a new revision,
+    // window or scheme, and otherwise only by the heartbeat. A change in state, such
+    // as an option the user picks, reaches them at the next heartbeat, as a disclosure
+    // the user opens does, rather than costing every gesture a walk of the page. They
+    // keep the log position they were read at, so `matches_view` says when they lag it.
     const basis = JSON.stringify([
       view.revision,
-      view.through_seq,
       view.viewport,
       view.visual_viewport,
       view.shown_window,

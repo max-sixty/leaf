@@ -142,7 +142,7 @@
 
     "runtime/copyable-text.js": "b4252f63a205ebd26d5e158c5127b3da844e61b553527350b69564bc71be04ef",
 
-    "runtime/css-anchors.js": "9f12de4aac61b83b328f047bef5f1ecbaea25f2aad177f1da85a5867aa0cb8eb",
+    "runtime/css-anchors.js": "413c79ae1b0d4f69ae545b300e49e9c81f819ed4d71565a9c23d73dc8b540a18",
 
     "runtime/current-target.js": "caf76ef138c45b35c46982272ac827e571f49a300a46dbe12630c4993ad52d86",
 
@@ -530,7 +530,7 @@
 
     "runtime/user-place.js": "74029dc735ce7f4b7394aeea834598119a1a0838dfea482601ac5fc4f71e54fe",
 
-    "runtime/user-view.js": "fea258d7c282cce9202d0220af60532034cc3ef3da5adf53513483f0ff10a022",
+    "runtime/user-view.js": "82f2c777c9e95fa8d496c7f8164c1eb3cfd6d5d0ee1546ef4650fd35a89f737e",
 
     "runtime/validation.js": "27763c6a16dbc46d5f80c4df0c400bfcea05aa0d4226539ded35edb0385b3342",
 
@@ -626,9 +626,9 @@
 
     "vendor/syntax/yaml.js": "d26d797bdd23183ea23fc5bd145ac49288f4513af32700f080139d1e484e1fcb",
 
-    "vendor/webawesome-chrome.js": "4b62264597ae845cdbe4bea3cd471f4c1f073a6e37722bc29a722463eefc0712",
+    "vendor/webawesome-chrome.js": "e5c9ddc6d44cc4ff533e76481f5fd6aa866cbdae5fc39b7cd94297d7a9a68daf",
 
-    "vendor/webawesome/chunk-ZGMFNASY.js": "2d9087146189f1515f7985fc1cb0405344d5382291483bf9f848072577bff67d",
+    "vendor/webawesome/chunk-UZNIMLIR.js": "2d9087146189f1515f7985fc1cb0405344d5382291483bf9f848072577bff67d",
 
     "widgets/lf-suggestion.js": "c3b8e56ee47c7cb277a280f0c81a2979dd25bb6e1ada795ad1e7519533037760"
   },

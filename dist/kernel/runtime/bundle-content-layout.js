@@ -1568,14 +1568,16 @@ const anchorName = (el) => nameAnchor(anchorReading(el));
 let dropsTransforms;
 function anchorDropsTransforms() {
 	if (dropsTransforms !== void 0) return dropsTransforms;
+	const probe = document.createElement("div");
 	const moved = document.createElement("div");
 	const anchored = document.createElement("div");
+	probe.style.cssText = "position: fixed; left: 0; top: 0; contain: layout";
 	moved.style.cssText = "position: fixed; left: 0; top: 0; translate: 8px 0; anchor-name: --lf-moved";
 	anchored.style.cssText = "position: fixed; top: 0; position-anchor: --lf-moved; left: anchor(left, 8px)";
-	chromeRoot.append(moved, anchored);
+	probe.append(moved, anchored);
+	chromeRoot.append(probe);
 	dropsTransforms = anchored.getBoundingClientRect().left < 4;
-	moved.remove();
-	anchored.remove();
+	probe.remove();
 	return dropsTransforms;
 }
 const moves = (style) => style.transform !== "none" || style.translate !== "none" || style.rotate !== "none" || style.scale !== "none" || style.offsetPath !== "none";

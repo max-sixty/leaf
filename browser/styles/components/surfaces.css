@@ -1228,11 +1228,6 @@ button.lf-thread-news {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.lf-seat-news {
-  display: flex;
-  align-items: center;
-  box-sizing: border-box;
-}
 .lf-msg-head time {
   color: var(--muted);
 }

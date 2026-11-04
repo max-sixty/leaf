@@ -53,8 +53,14 @@ import {
   keepInBand,
   scrollIntoView,
 } from "../landing-scroll.js";
-import { aimedTop, moveScrollerBy, scrollToEnd } from "../scrolling.js";
-import { SAYS_IN, SAY_ROW } from "./selectors.js";
+import {
+  aimedTop,
+  moveScrollerBy,
+  SCROLL_SLACK,
+  scrollLimit,
+  scrollToEnd,
+} from "../scrolling.js";
+import { SAYS_IN, SAY_BOX, SAY_ROW, THREAD } from "./selectors.js";
 
 /** @param {Element} held @param {Element} control */
 const replyRowOf = (held, control) => {
@@ -369,23 +375,38 @@ function returnTo(node, edge, at) {
   }
 }
 
-// A render that inserts above the control the user is on, such as an edit growing a
-// turn above the box they are writing in, moves it by what it inserted; an agent's turn
-// arriving there waits behind its thread's notice instead (held-news.js). `holdBox`
+// Whether growth around `node` can be scrolled away, so a hold keeps the control the user
+// is on still (`holdBox`): some box scrolling it has more than it shows. A page shorter
+// than its window has no scroll to give, so growth there moves what follows it, the
+// user's box included, however the hold scrolls. Where a box can scroll, its content's
+// end lies past its foot, so growth adds to its scroll what the hold scrolls by.
+/** @param {Element} node */
+export const scrollsAway = (node) =>
+  [...scrollersOf(node)].some((box) => scrollLimit(box) > SCROLL_SLACK);
+
+// A render that inserts above the control the user is on, such as an agent's turn
+// arriving in the thread they are writing in (held-news.js) or an edit growing a turn
+// above their box, moves it by what it inserted. `holdBox`
 // reads where the focused control stands and returns the step that puts it back, so
 // news moves no control under the user's hands. Only one in view is under their hands
-// (user-place.js, `focusedInView`). A control the render replaced, or one that left the
-// thread view it stood in, as a reply going on where its thread now stands does
-// (replies.js, `releaseReplies`), has nothing to hold.
+// (user-place.js, `focusedInView`). The control is where the user is, so a message they
+// stand on inside the thread is what stays still, and the reply box below it moves down
+// by the turn. A user on the thread itself, where a send leaves them, waits at its reply
+// box, so the box is what stays still while it is in view, as a chat's composer does. A
+// control the render replaced, or one that left the thread view it stood in, as a reply
+// going on where its thread now stands does (replies.js, `releaseReplies`), has nothing
+// to hold. The hold scrolls, so it keeps the control still only where a box scrolling
+// it can scroll (`scrollsAway`).
 /** @param {Element | null | undefined} control */
 export function holdBox(control) {
   if (control == null || control !== focusedInView()) return () => {};
   const held = control.closest(SAYS_IN);
   if (!held) return () => {};
-  const top = currentLocationAt(control, "top");
+  const box = control.matches(THREAD) ? control.querySelector(SAY_BOX) : null;
+  const still = box && seenRect(box, new Map()) ? box : control;
+  const top = currentLocationAt(still, "top");
   return () => {
-    if (focused() !== control || !control.isConnected || !held.contains(control))
-      return;
-    returnTo(control, "top", top);
+    if (focused() !== control || !still.isConnected || !held.contains(still)) return;
+    returnTo(still, "top", top);
   };
 }

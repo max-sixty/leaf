@@ -35,6 +35,7 @@ from render_harness import (
 from browser.threads import (
     PANEL_NEWS,
     PANEL_REPLY,
+    SEAT_FILLER,
     STREAM_ATTEMPT,
     append_user_reply,
     claim_for_codex,
@@ -691,12 +692,21 @@ def test_pending_progress_is_the_threads_working_message_and_never_unread(
 
 
 @pytest.mark.watch_shifts
-def test_a_new_step_waits_where_its_words_would_move_the_draft(browser, serve):
-    """A step's words wrap, so a new step can change the working message's height. In a
-    seat where that would move the reply being typed, the step waits and the draft
-    keeps its place. The notice says nothing of it, since progress is no unread news,
-    and sending the draft shows it."""
-    url = serve(SEATED_OBLIGATION_PAGE)
+@pytest.mark.parametrize("room", ["scrolls", "short"])
+def test_a_new_step_in_the_thread_being_written_in_leaves_the_draft_where_it_stands(
+    browser, serve, room
+):
+    """A step's words wrap, so a new step can change the working message's height. In
+    the seat's thread the user writes in, the step shows as it comes, as in a chat, and
+    the draft stays where it stands while the page scrolls the step's room away above
+    it ("scrolls"). A page shorter than its window ("short") has no scroll to give, so
+    there the step waits, as news does in a thread the user isn't in, and sending the
+    draft shows it: drawn at once, it moved the draft 42px down the page. The thread
+    says no news waits either way, since progress is no unread news."""
+    source = SEATED_OBLIGATION_PAGE
+    if room == "scrolls":
+        source = source.replace("</lf-test-plan>", "</lf-test-plan>" + SEAT_FILLER, 1)
+    url = serve(source)
     root = panel_comment(serve.page_dir, "Which job comes first?", {"section": "jobs"})
     thread_model.post_reply(
         serve.page_dir,
@@ -712,6 +722,9 @@ def test_a_new_step_waits_where_its_words_would_move_the_draft(browser, serve):
     editor = thread.locator("leaf-text")
     write(editor, "Start with the mounts.")
     rendered(page)
+    assert page.evaluate(
+        "() => document.scrollingElement.scrollHeight > innerHeight"
+    ) == (room == "scrolls")
     box = editor.bounding_box()
 
     thread_model.post_reply(
@@ -722,14 +735,18 @@ def test_a_new_step_waits_where_its_words_would_move_the_draft(browser, serve):
         ephemeral=True,
     )
     told(page)
-    expect(words).to_have_text("Reading the jobs")
+    step = "what each one needs before it can start"
+    if room == "scrolls":
+        expect(words).to_contain_text(step)
+    else:
+        expect(words).to_have_text("Reading the jobs")
     expect(thread.locator(".lf-thread-news")).to_have_count(0)
     rendered(page)
     assert editor.bounding_box() == pytest.approx(box, abs=0.5)
-
-    with sending(page, "the draft"):
-        editor.press("Enter")
-    expect(words).to_contain_text("what each one needs before it can start")
+    if room == "short":
+        with sending(page, "the draft"):
+            editor.press("Enter")
+        expect(words).to_contain_text(step)
 
 
 # Whether a box's words stand whole inside it, to the fraction of a pixel that
@@ -744,10 +761,11 @@ WORDS_FIT = """box => {
 
 def test_held_news_says_one_count_of_all_it_holds(browser, serve):
     """A seat's notice says one count of what waits, "1 new" and then "2 new", at the
-    width it first stood at. Its name is the count it shows, so a voice user saying it
-    finds it, and its description says each fact. It said the facts and, past its room,
-    dropped the later ones behind a "+1", so one piece of news read three ways on three
-    surfaces; then its name said only the facts, which the words shown never said."""
+    width it first stood at, while the user reads beside the thread. Its name is the
+    count it shows, so a voice user saying it finds it, and its description says each
+    fact. It said the facts and, past its room, dropped the later ones behind a "+1", so
+    one piece of news read three ways on three surfaces; then its name said only the
+    facts, which the words shown never said."""
     url = serve(SEATED_OBLIGATION_PAGE)
     # An agent's opening message has no delivery receipt competing with the news.
     root = panel_comment(
@@ -757,7 +775,6 @@ def test_held_news_says_one_count_of_all_it_holds(browser, serve):
     resized(page, 390, 900)
     thread = page.locator("#jobs .lf-page-thread")
     expect(thread).to_be_visible()
-    write(thread.locator("leaf-text"), "Start with the mounts.")
     rendered(page)
 
     thread_model.post_reply(serve.page_dir, {"parent": root}, "The mounts come first.")

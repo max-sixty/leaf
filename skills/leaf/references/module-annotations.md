@@ -224,8 +224,7 @@ threadOutlets(targets, { onCommit }) {
 ```
 
 Return `null` for data that is filtered out, collapsed or not loaded, and its thread
-stays in the margin. A thread the agent starts on a visible datum also waits in the
-margin until the user opens it. Call `threadSurface(this).update()` after a change that
+stays in the margin. Call `threadSurface(this).update()` after a change that
 only shows or hides data.
 
 The widget creates, lays out and removes its outlets, and Leaf fills them. An outlet you

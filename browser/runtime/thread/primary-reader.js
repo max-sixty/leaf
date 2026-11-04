@@ -230,14 +230,11 @@ export function createPrimaryReader(
     const abort = new AbortController();
     pending = abort;
     void cancelled.then(() => abort.abort());
-    const candidate = held.prepare(
-      {
-        threads: collection.threads.map((thread) =>
-          threadReading(thread, "outlet", { ...commands, authoredRank: 3 }),
-        ),
-      },
-      { row: false },
-    );
+    const candidate = held.prepare({
+      threads: collection.threads.map((thread) =>
+        threadReading(thread, "outlet", { ...commands, authoredRank: 3 }),
+      ),
+    });
     const byKey = new Map(
       candidate.reading.threads.map((thread) => [thread.key, thread.source]),
     );

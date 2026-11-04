@@ -12,7 +12,7 @@
    repaint — a draft, a hover — claims the same region through `present`.
    The pass paints no other owner's region: what it decides about a thread reaches the
    margin as readings the margin's paint follows (anchor-placement.js `placedAt`,
-   surfaces.js `claimed` and `heldOut`), so a commit that moves one has the margin
+   surfaces.js `claimed`), so a commit that moves one has the margin
    repainted before the pass settles, and one that moves none leaves it drawn once.
    Reply continuity begins once the margin has committed, since the route it lands on
    may be a margin card, and runs independently: its selected route may itself need

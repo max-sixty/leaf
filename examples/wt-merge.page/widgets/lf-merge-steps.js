@@ -33,12 +33,12 @@ customElements.define(
 
     updated(changed) {
       super.updated(changed);
+      // A film that leaves publishes null, which draws no step as playing or reached.
       const d = this.frame;
-      if (!d) return;
       for (const { li, button, run } of this.steps) {
         const key = button.value;
-        const now = key === d.chapter;
-        const state = d.status[key] ?? "run";
+        const now = key === d?.chapter;
+        const state = d?.status[key] ?? "run";
         keeps(li, "data-state", state);
         keeps(button, "disabled", state === "unreached" ? "" : null);
         li.toggleAttribute("data-now", now);
@@ -47,7 +47,7 @@ customElements.define(
         // step's number and name, which the list already shows.
         const telling = key === "setup" || key === "end" || state !== "run";
         keepsText(run, now && telling ? d.caption.replace(/^\d · [^—]+— /, "") : "");
-        keeps(run, "data-tone", d.captionTone);
+        keeps(run, "data-tone", d?.captionTone ?? null);
       }
     }
   },

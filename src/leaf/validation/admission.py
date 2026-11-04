@@ -214,8 +214,10 @@ def message_markup_errors(
     thread = thread_structure(events)
     if clash := sorted(frag.ids & (prior_ids | page.ids | thread.ids)):
         return [Finding("ids-taken", values={"ids": clash})]
-    ids = page.ids | thread.ids | frag.ids
-    by_id = {**page.by_id, **thread.by_id, **frag.by_id}
+    # A reference reads the message's own document and then the page
+    # (`runtime/references.js`), so an id in another message would resolve to nothing.
+    ids = page.ids | frag.ids
+    by_id = {**page.by_id, **frag.by_id}
     if reference_errs := reference_errors(
         frag.lf_elements, registry, ids, by_id, thread_ids=thread_ids(events)
     ) + invoker_errors(frag, registry, ids, by_id):

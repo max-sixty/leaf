@@ -1917,6 +1917,41 @@ def test_an_invoker_names_an_element_and_a_command_it_handles(page_dir):
     )
 
 
+def test_a_message_names_only_its_own_document_and_the_page(page_dir):
+    """A reference reads the message's document and then the page, so one naming an id
+    in another message would draw nothing; it is refused where the agent writes it."""
+    registry = load_registry(page_dir)
+    append_carried_log_record(
+        page_dir,
+        {
+            "kind": "comment",
+            "id": "c1",
+            "author": "agent",
+            "text": "Here",
+            "markup": '<lf-code id="earlier"><pre>1</pre></lf-code>',
+        },
+    )
+
+    assert found(
+        message_markup_errors(
+            page_dir,
+            structure_model.SourceDocument(
+                '<lf-tally id="count" for="earlier"></lf-tally>'
+            ),
+            events_model.read_events(page_dir),
+            registry,
+            structure_model.SourceDocument(PAGE),
+            set(),
+            [],
+            {},
+            None,
+        ),
+        "unknown-reference",
+        attr="for",
+        target="earlier",
+    )
+
+
 def test_message_widget_thread_references_use_the_same_namespace(page_dir):
     registry = copy.deepcopy(load_registry(page_dir))
     registry["lf-options"]["properties"]["resolves"] = {"type": "string"}

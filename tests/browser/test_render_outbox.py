@@ -66,7 +66,6 @@ from render_harness import (
     resized,
     root_overflow,
     round_trip,
-    said,
     scroll_settled,
     sending,
     stamp_page,
@@ -3103,10 +3102,10 @@ def test_an_optimistic_presentation_fault_does_not_change_delivery_result(
     # One fault, one report, from the widget paint that raised it. The gesture's own
     # promise carries the same rejection for a caller that restores a draft from it, and
     # accounts for it no second time.
-    errors = take_browser_errors(page)
-    assert [said(error) for error in errors] == [
-        'leaf: <lf-suggestion id="sug-refill"> failed: injected optimistic presentation fault'
-    ], errors
+    reported_browser_errors(
+        page,
+        'leaf: <lf-suggestion id="sug-refill"> failed: injected optimistic presentation fault',
+    )
 
 
 def test_a_draft_that_outlives_its_passage_returns_with_that_passage(browser, serve):

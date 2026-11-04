@@ -212,9 +212,10 @@ move `HOME`. Declare other process conditions through fixtures (`sessionless`,
 Choose the page fixture by boundary: `serve` for a complete page over real HTTP,
 `page_dir` for command-level files, and `ModelPage` with `model_folds.py` for markup and
 a log handed straight to admission or `browser_state`. Build markup with `leaf_page`,
-or open an authored page or product document by its name with `named_source`; a sweep
-over authored pages reads `authored_sources()`. `initialized_page` lends one prepared
-page per composition shape; a test of initialization runs `page init` itself.
+or open an authored page or product document by its name with `named_source`. A sweep
+over authored pages reads `authored_sources()`, and one over the public site's pages
+`published_sources()`. `initialized_page` lends one prepared page per composition
+shape; a test of initialization runs `page init` itself.
 
 Use the `browser` and `serve` fixtures for browser tests. Each pytest worker shares one
 Playwright driver and Chromium, and contexts and page directories keep tests apart.

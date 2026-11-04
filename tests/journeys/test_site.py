@@ -31,6 +31,7 @@ from interact_support import declared, running_http_server, wait_for
 from PIL import Image
 from playwright.sync_api import expect
 from render_harness import (
+    FEATURE_GALLERY,
     OPEN_THREAD_COUNT,
     PANEL_THREAD,
     compare_with,
@@ -89,7 +90,6 @@ from leaf_dev.leaf_assets import pinned_assets
 from leaf_dev.page_fixtures import authored_markup, read_event_lines, source_packages
 
 ROOT = Path(__file__).parents[2]
-FEATURE_GALLERY = named_source("feature-gallery")
 
 
 def open_count(page):

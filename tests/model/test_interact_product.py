@@ -61,9 +61,7 @@ from leaf.validation.admission import (
     revision_publication,
 )
 from leaf.validation.instances import reference_errors
-from leaf_dev.example_data import authored_sources, named_source
-
-FEATURE_GALLERY = named_source("feature-gallery")
+from leaf_dev.example_data import authored_sources, named_source, page_files
 
 
 def authored_tags(document: SourceDocument) -> set[str]:
@@ -524,7 +522,7 @@ def test_every_default_widget_stands_in_the_feature_gallery():
         (schema_model.DEFAULT_PACKAGE / "registry.json").read_text(encoding="utf-8")
     )
     authored = authored_tags(
-        SourceDocument(FEATURE_GALLERY.read_text(encoding="utf-8"))
+        SourceDocument(named_source("feature-gallery").read_text(encoding="utf-8"))
     )
     tags = [tag for tag in registry if tag.startswith("lf-")]
     assert tags, "the default package declares no widgets"
@@ -537,11 +535,10 @@ def test_every_default_widget_stands_in_the_feature_gallery():
 
 def test_the_feature_gallery_eyebrows_index_literal_code_names():
     """Every showcased element is indexed by a code name, never descriptive prose."""
-    authored = FEATURE_GALLERY.read_text(encoding="utf-8")
+    gallery = named_source("feature-gallery")
+    authored = gallery.read_text(encoding="utf-8")
     gallery_registry = json.loads(
-        (FEATURE_GALLERY.with_suffix(".page") / "registry.json").read_text(
-            encoding="utf-8"
-        )
+        (page_files(gallery) / "registry.json").read_text(encoding="utf-8")
     )
     apparatus = {
         tag for tag, entry in gallery_registry.items() if entry.get("x-exhibit")

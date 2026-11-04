@@ -905,7 +905,12 @@ def test_markdown_body_passages_preserve_source_state_and_read_visible_words():
     assert reading.spoken["note"].words == "Keep --dry-run. First Second"
     spec = {"record": {"kind": "body"}}
     assert (
-        projection_model.markup_value("note", spec, doc.by_id, reading.spoken, registry)
+        projection_model.markup_value(
+            "note",
+            spec,
+            doc.by_id,
+            projection_model.attribute_marks(doc.by_id, reading.spoken, registry),
+        )
         == source
     )
     edited = "**Changed** `--dry-run`.\n\n- First\n- [Second](https://example.com)"
@@ -965,9 +970,7 @@ def folded(page_dir, board="b1"):
         board,
         "move",
         registry["lf-board"]["x-state"]["move"]["record"],
-        document.document.by_id,
-        document.spoken,
-        registry,
+        projection_model.AuthoredOrders(document.document.by_id, registry),
         document.projection,
     )
 
@@ -1074,9 +1077,7 @@ def test_the_position_fold_matches_the_browser_cases(case):
         "board",
         "move",
         spec["record"],
-        document.by_id,
-        passages_model.SourceReading(document, registry).spoken,
-        registry,
+        projection_model.AuthoredOrders(document.by_id, registry),
         projection,
     )
     assert order == case["order"]
@@ -1087,7 +1088,7 @@ def test_a_position_is_never_read_as_one_actions_markup_value():
     the way a pick or a value is read would fall through to the unit's words."""
     spec = {"record": {"kind": "position", "within": "lf-column"}}
     with pytest.raises(ValueError, match="recorded_state"):
-        projection_model.markup_value("x", spec, {}, {}, {})
+        projection_model.markup_value("x", spec, {}, {})
 
 
 def _todo_order(page_dir):

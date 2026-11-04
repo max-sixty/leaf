@@ -44,7 +44,7 @@ export class ReactionStripView {
           (choice) =>
             html` <button
               ${offeredAction("reaction", `lf-react ${HOLDS_WORD}`)}
-              data-token=${choice.name}
+              data-lf-token=${choice.name}
               title=${choice.label}
               aria-label=${choice.label}
               aria-pressed=${String(Boolean(choice.inForce))}
@@ -85,7 +85,7 @@ export class ReactionStripView {
             .some(
               (node) =>
                 node instanceof HTMLButtonElement &&
-                node.matches(".lf-react[data-token]"),
+                node.matches(".lf-react[data-lf-token]"),
             )
         )
           return;

@@ -570,7 +570,8 @@ customElements.define(
       return html`
         <span class="lf-deck-pips" aria-hidden="true"
           >${this.#cards.map(
-            (each) => html`<span class="lf-deck-pip" data-state=${mark(each)}></span>`,
+            (each) =>
+              html`<span class="lf-deck-pip" data-lf-state=${mark(each)}></span>`,
           )}</span
         >
         <span class="lf-deck-count" role="status">${count}</span>

@@ -11,7 +11,7 @@ overrides:
 
 patchedDependencies:
   '@awesome.me/webawesome@3.14.0':
-    hash: 2928c22e22312ffcdc826cbb67372eceba5c5a0171862b04349b25ca19b47ee4
+    hash: fceb7eeb7836acd3f8a507a353484cce187114be8655cde1daacdb904714b653
     path: build/@awesome.me__webawesome@3.14.0.patch
   '@blazediff/core@1.10.0':
     hash: 1bb8a055b7a9e33b9cc1c6cbf919d9ec7b2e5d6e4c481cf08c81341560f50965
@@ -45,7 +45,7 @@ importers:
         version: 0.3.309(@anthropic-ai/sdk@0.133.0(zod@4.6.7))(@modelcontextprotocol/sdk@1.32.2(zod@4.6.7))(zod@4.6.7)
       '@awesome.me/webawesome':
         specifier: 3.14.0
-        version: 3.14.0(patch_hash=2928c22e22312ffcdc826cbb67372eceba5c5a0171862b04349b25ca19b47ee4)(@floating-ui/utils@0.2.12)(@types/node@26.6.5)(@types/react@19.3.0)
+        version: 3.14.0(patch_hash=fceb7eeb7836acd3f8a507a353484cce187114be8655cde1daacdb904714b653)(@floating-ui/utils@0.2.12)(@types/node@26.6.5)(@types/react@19.3.0)
       '@blazediff/core':
         specifier: 1.10.0
         version: 1.10.0(patch_hash=1bb8a055b7a9e33b9cc1c6cbf919d9ec7b2e5d6e4c481cf08c81341560f50965)
@@ -5124,7 +5124,7 @@ snapshots:
       is-potential-custom-element-name: 1.0.1
       lru-cache: 11.5.3
 
-  '@awesome.me/webawesome@3.14.0(patch_hash=2928c22e22312ffcdc826cbb67372eceba5c5a0171862b04349b25ca19b47ee4)(@floating-ui/utils@0.2.12)(@types/node@26.6.5)(@types/react@19.3.0)':
+  '@awesome.me/webawesome@3.14.0(patch_hash=fceb7eeb7836acd3f8a507a353484cce187114be8655cde1daacdb904714b653)(@floating-ui/utils@0.2.12)(@types/node@26.6.5)(@types/react@19.3.0)':
     dependencies:
       '@ctrl/tinycolor': 4.1.0
       '@floating-ui/dom': 1.8.0(patch_hash=a4068154e932aa84d9335be05a60e3f9d922fa91a428bb3e166796abb14317d3)

@@ -94,7 +94,7 @@ customElements.define(
     #resumeProjection = null;
 
     setup() {
-      if (!this.classList.contains("scroll")) this.classList.add("scroll");
+      this.toggleAttribute("data-lf-scroll", true);
       this.#structure();
       // A quoted board is an exhibit: no grips, no sortable, no grip keys in
       // the command reference dialog — it stays the static board the theme renders anyway.

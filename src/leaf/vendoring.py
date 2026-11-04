@@ -65,7 +65,6 @@ from .state import (
     session_record,
 )
 from .themes import ThemeChoice, selected_theme, with_theme
-from .validation.source import check_source
 
 
 def cmd_init(
@@ -287,6 +286,7 @@ def _init_page(
     return what keeps a re-selected index.html from activating; a re-selection
     `still` no longer wants under the transaction commits nothing."""
     from .revisioning import activate_checked_source
+    from .validation.source import check_source
 
     # The restart around this took the server down, but the page lock came after
     # it, and a start can land in between.

@@ -20,8 +20,9 @@ import { offlineInteractive, offlineState, pageUrl, runtime } from "./context.js
 import { applicationState } from "./semantic-state.js";
 import { completeReadingReturn, readingReturn } from "./reading-continuity.js";
 import {
-  completeData,
-  dataHeaders,
+  completeState,
+  heldHeaders,
+  heldReading,
   layerHeaders,
   admitResponse,
   reportCarried,
@@ -44,11 +45,11 @@ async function readState(bound) {
   try {
     if (offlineInteractive) return { state: await offlineState(), fault: null };
     const signal = globalThis.AbortSignal.timeout(bound);
-    const held = runtime.data;
+    const held = heldReading();
     let res;
     try {
       res = await fetch(pageUrl("api/state"), {
-        headers: layerHeaders(dataHeaders(held)),
+        headers: layerHeaders(heldHeaders(held)),
         // Coalescing bounds concurrency; this bounds its other dimension. A proxy that
         // never answers cannot own the page's single read slot forever.
         signal,
@@ -84,7 +85,7 @@ async function readState(bound) {
     }
     /** @type {import("./layer-client.js").StateAnswer} */
     const state = JSON.parse(text);
-    return { state: completeData(state, held), fault: null };
+    return { state: completeState(state, held), fault: null };
   } finally {
     // Heard once the read has ended whichever way: the body in hand, or nothing.
     countTraffic("heard");

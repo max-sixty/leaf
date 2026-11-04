@@ -19,8 +19,6 @@ from render_cases_widgets import (
 )
 from render_harness import (
     ANCHOR_SOURCES,
-    CORPUS_SOURCES,
-    EXAMPLES,
     INLINE_PAGE,
     PANEL_THREAD,
     leaf_page,
@@ -44,13 +42,14 @@ from leaf.passages import enclosing_ids, page_passages
 from leaf.registry import storage as registry_storage
 from leaf.render_checks import wait_until_ready
 from leaf.render_gate import version as render_gate_model
+from leaf_dev.example_data import authored_sources, named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
 
 def test_sort_film_comment_restores_its_input_and_step(browser, serve):
     """A moment thread returns to the trace it described after input changes."""
-    example = next(path for path in EXAMPLES if path.stem == "rust-sort")
+    example = named_source("rust-sort")
     context = browser.new_context(
         reduced_motion="reduce", viewport={"width": 1715, "height": 1046}
     )
@@ -142,7 +141,7 @@ def test_a_shipped_log_replays_its_example_state(browser, serve):
 
     Looped rather than parametrized so an empty corpus fails here instead of
     collecting no tests and reporting green."""
-    seeded = [p for p in CORPUS_SOURCES if p.with_suffix(".jsonl").exists()]
+    seeded = [p for p in authored_sources() if p.with_suffix(".jsonl").exists()]
     assert seeded, "no corpus source ships a log; this gate is reading nothing"
     drawn = []
     replied = []
@@ -838,7 +837,7 @@ def test_a_layout_on_a_child_of_main_arranges_it_as_it_would_main(browser, serve
 @pytest.mark.watch_shifts
 def test_sort_film_playback_keeps_the_stage_and_controls_still(browser, serve):
     """Each trace step paints inside a fixed layout at both wide pane widths."""
-    example = next(path for path in EXAMPLES if path.stem == "rust-sort")
+    example = named_source("rust-sort")
     context = browser.new_context(
         reduced_motion="reduce", viewport={"width": 1715, "height": 1046}
     )

@@ -11,6 +11,7 @@ import { elementFrame } from "./element-frame.js";
 import { layoutWindow, shellRight } from "./geometry.js";
 import { union } from "./rect.js";
 import { syncLayoutRegion } from "./reading-regions.js";
+import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
 
 let documentLayoutOpen = false;
 /** @type {((changed: boolean) => unknown) | null | undefined} */
@@ -147,8 +148,8 @@ const title = () => {
     node;
     node = node.previousElementSibling
   ) {
-    if (!node.classList.contains("scroll")) {
-      node.classList.add("scroll");
+    if (!node.hasAttribute(PAGE_PAINT_ATTRIBUTE.scrollSurface)) {
+      node.toggleAttribute(PAGE_PAINT_ATTRIBUTE.scrollSurface, true);
       marked = true;
     }
   }

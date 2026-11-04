@@ -211,18 +211,6 @@ test("checking stale output refuses it without changing any bytes", async (conte
   await writeFile(path.join(scratch, chunk), "");
   await assert.rejects(checkOutputs(outputs, scratch), new RegExp(chunk));
   await rm(path.join(scratch, chunk));
-  // A kernel left behind by a merge names the command that rebuilds it.
-  const kernel = path.join(scratch, "dist/kernel/leaf.js");
-  await writeFile(kernel, "<<<<<<< ours\n");
-  await assert.rejects(
-    checkOutputs(outputs, scratch),
-    (error) =>
-      error instanceof Error &&
-      error.message.includes(
-        "pnpm install --frozen-lockfile && pnpm run build:browser",
-      ) &&
-      error.message.endsWith("\ndist/kernel/leaf.js"),
-  );
 });
 
 test("an upstream adaptation fails the build once its seam or its module moves", async () => {

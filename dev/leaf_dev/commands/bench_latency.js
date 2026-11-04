@@ -167,12 +167,10 @@
       frames: () => window.__leafMainThread.reading().frames,
       revision: () =>
         Number(document.querySelector('meta[name="lf-revision"]')?.content),
+      // Every trip this document made to the server has ended (runtime/traffic.js).
       quiet() {
-        const ready =
-          document.querySelector("script[data-lf-entry]")?.lfReadiness?.() === null;
         const trips = ledger();
         return (
-          ready &&
           trips.acked === trips.sends &&
           trips.heard === trips.asked &&
           !trips.pending?.length

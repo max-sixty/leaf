@@ -66,6 +66,7 @@ import click
 from playwright.sync_api import Browser, Page
 from playwright.sync_api import Error as PlaywrightError
 
+from leaf.render_checks import OUTSTANDING, wait_until_ready
 from leaf_dev import ROOT
 from leaf_dev.arms import (
     base_option,
@@ -112,6 +113,12 @@ THREAD_TEXT = "Bench thread.\n\n" + "\n\n".join(
 )
 
 PROBE = Path(__file__).with_suffix(".js")
+# The page is still ready, read as `wait_until_ready` reads it, and every trip it made
+# to the server has ended.
+QUIET = (
+    f"() => ({OUTSTANDING})({{held: null, through: null}}) === 'ready'"
+    " && window.__leafBench.quiet()"
+)
 
 # What --profile traces, and how it reads the trace.
 CATEGORIES = [
@@ -238,13 +245,15 @@ class Session:
         go_to_threads(self.page)
 
     def settle(self) -> None:
-        """Wait until the page is quiet and has stayed quiet for SETTLE_MS."""
-        quiet = "() => window.__leafBench.quiet()"
+        """Wait until the page is ready, as every reader outside it waits
+        (`wait_until_ready`), then until it is quiet (`QUIET`) and has stayed quiet for
+        SETTLE_MS, so the traffic read next counts each trip the ledger counts."""
+        wait_until_ready(self.page)
         deadline = time.monotonic() + DEADLINE_S
         while time.monotonic() < deadline:
-            until(self.page, quiet, "the page never settled")
+            until(self.page, QUIET, "the page never settled")
             time.sleep(SETTLE_MS / 1000)
-            if self.page.evaluate(quiet):
+            if self.page.evaluate(QUIET):
                 return
         raise click.ClickException(f"{self.page.url}: the page never stayed quiet")
 

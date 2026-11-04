@@ -79,23 +79,23 @@ the answer it must give (`ANSWER`), and what Leaf does with that answer
 the same way; neither does yet.
 
 The fork can't author the page, so it writes what the agent would write without a
-widget, choosing per ask as the agent does (`conversation-loop.md`, "The On lists").
-A question goes in a thread of its own, opened by the agent's message with an
-obligation (`threads.md`): the message holds the whole question, On me lists it until
-the user replies or settles it, and their reply reaches the agent as any reply does.
-A step the user takes and confirms with Done, such as running a command, goes On me
-as the agent's to-do on the user, titled as the action. Each stands on the passage
-the ask concerns where the fork names words the page shows once, a to-do on the
-element holding them, and otherwise on the page as a whole, which is also where words
-the page doesn't show once leave it, since the fork has no next attempt.
+widget (`conversation-loop.md`, "The On lists"): each ask, a step the user takes
+included, goes in a thread of its own, opened by the agent's message with an
+obligation (`threads.md`). The message holds the whole ask, On me lists it until the
+user replies or settles it, and their reply reaches the agent as any reply does. It
+stands on the passage the ask concerns where the fork names words the page shows
+once, and otherwise on the page as a whole, which is also where words the page
+doesn't show once leave it, since the fork has no next attempt.
 
 A first version wrote every ask as a to-do on the user on the page, titled from the
 chat line, and `m` left a long title cut to half a line in the panel (2026-10-31).
 The user asked for the routes a question asked well takes, a widget that asks or a
-thread, then declined to mandate one placement or form, and chose to let the fork
-pick a to-do for a step once `m` opened On me on a to-do, where its title reads whole
-(queue-walk.js). A step asked as a thread question had a cost: a clarifying reply
-such as "where do I run it?" answers it, and the agent has to ask again.
+thread, and for a while let the fork put a step On me as a to-do on the user, which
+the user ended with Done. On 2026-11-03 the user removed to-dos on the user
+altogether (`todos`): what is asked of the user is answered through the widget or
+thread it stands on, never a Done Leaf adds, so a step is asked in a thread too. That
+keeps a cost the to-do avoided: a clarifying reply such as "where do I run it?"
+answers it, and the agent has to ask again.
 
 The fork reads each page's words as the user reads them, a block to a line
 (`page_text`, from the passage reading `leaf thread create` quotes against), so it
@@ -200,21 +200,17 @@ ANSWER = {
                 "type": "object",
                 "properties": {
                     "page": {"type": "string", "minLength": 1},
-                    "kind": {"enum": ["question", "step"]},
                     "title": _WORDS,
-                    # A question's message; a step has none, its title being all
-                    # the user reads of its to-do.
-                    "text": {"type": "string"},
+                    # The message that asks it.
+                    "text": _WORDS,
                     # The page's words the ask concerns, or "" for the page as a whole.
                     "passage": {"type": "string"},
                     # The agent's words, which ground the ask in the conversation;
                     # Leaf writes only the title, text and passage.
                     "quote": {"type": "string"},
                 },
-                "required": ["page", "kind", "title", "text", "passage", "quote"],
+                "required": ["page", "title", "text", "passage", "quote"],
                 "additionalProperties": False,
-                "if": {"properties": {"kind": {"const": "question"}}},
-                "then": {"properties": {"text": _WORDS}},
             },
         },
         "findings": {
@@ -263,9 +259,9 @@ def answer_form() -> str:
     return (
         "Reply with only this JSON object, no code fence, with empty lists where there "
         f"is nothing, and each title under {title_limit()} characters:\n"
-        '{"asks": [{"page": "<page path>", "kind": "question" or "step", "title": '
-        '"<title>", "text": "<message, empty for a step>", "passage": "<the page\'s '
-        'words, or empty>", "quote": "<the agent\'s words>"}], "findings": [{"kind": '
+        '{"asks": [{"page": "<page path>", "title": "<title>", "text": '
+        '"<message>", "passage": "<the page\'s words, or empty>", "quote": "<the '
+        'agent\'s words>"}], "findings": [{"kind": '
         '"stale" or "settled" or "unshown", "page": "<page path>", "summary": '
         '"<summary>", "quote": "<the words it rests on>", "edit": {"words": "<the '
         'page\'s words>", "replacement": "<the new words>"} or null}]}'
@@ -297,9 +293,9 @@ OPENING = "<leaf-fork-check>"
 
 def page_facts(state: dict, events: list) -> dict:
     """What the fork is shown of one page, from `state` as `leaf page state` prints
-    it and the page's `events`: its On me, the questions and to-dos on the user that
-    are answered, ended or withdrawn, which the fork must not ask again, and each item
-    the agent has started with the line its start gives it (`todos.item_starts`)."""
+    it and the page's `events`: its On me, the questions asked in words that are
+    answered or withdrawn, which the fork must not ask again, and each item the agent
+    has started with the line its start gives it (`todos.item_starts`)."""
     from .todos import item_starts
 
     threads = {thread["id"]: thread for thread in state["threads"]}
@@ -316,9 +312,6 @@ def page_facts(state: dict, events: list) -> dict:
 
     on_me = []
     for row in state["queues"]["on_user"]:
-        if row["kind"] == "todo":
-            on_me.append(f"to-do: {todos[row['id']]['title']}")
-            continue
         record = obligations[row["id"]]
         if row["kind"] == "message":
             on_me.append(
@@ -334,8 +327,7 @@ def page_facts(state: dict, events: list) -> dict:
         + ("dropped" if record["status"] == "withdrawn" else "answered")
         + ")"
         for record in state["obligations"]
-        if record["source"]["kind"] in {"todo", "message"}
-        and record["status"] != "open"
+        if record["source"]["kind"] == "message" and record["status"] != "open"
     ]
     started = []
     for item, start in item_starts(events).items():
@@ -639,15 +631,13 @@ def apply_answer(
 def _ask(page_dir: Path, page, asks: list[dict], identity: dict):
     """Each of `asks` put On me as the agent's own in `page`, an open transaction,
     with the line telling the agent: a question in a thread of its own, opened by the
-    agent's message with an obligation, and a step as a to-do on the user; none whose
-    title an ask the agent made there already has."""
+    agent's message with an obligation; none whose title a thread the agent opened
+    there to ask something already has."""
     from .findings import Rejected
     from .thread import fit_title
-    from .todos import TodoReading
     from .validation.admission import checked_text
 
-    # The asks the agent made there, by title: the threads it opened to ask something
-    # and its to-dos on the user, open or ended.
+    # The asks the agent made there, by title: the threads it opened to ask something.
     asked_in = {
         event["title"].casefold()
         for event in page.events
@@ -655,34 +645,29 @@ def _ask(page_dir: Path, page, asks: list[dict], identity: dict):
         and event["author"] == "agent"
         and event.get("obligation")
         and "title" in event
-    } | {
-        todo["title"].casefold()
-        for todo in TodoReading(page.events).todos
-        if todo["owner"] == "user"
     }
     # Every message is checked before the first is written, so a refused one leaves
     # the page as the fork found it.
     messages = [
         (
-            item["kind"],
             fit_title(item["title"]),
-            checked_text(page_dir, item["text"]) if item["kind"] == "question" else "",
+            checked_text(page_dir, item["text"]),
             item["passage"].strip(),
         )
         for item in asks
     ]
-    for kind, title, text, passage in messages:
+    for title, text, passage in messages:
         if title.casefold() in asked_in:
             continue
         asked_in.add(title.casefold())
-        ask = (page_dir, page, kind, title, text, identity)
+        ask = (page_dir, page, title, text, identity)
         try:
             record = _put(*ask, passage)
         except Rejected:
             if not passage:
                 raise
             record = _put(*ask, "")
-        yield record, _told(str(page_dir), kind, title, text, passage, record)
+        yield record, _told(str(page_dir), title, text, passage, record)
 
 
 def _found(
@@ -936,42 +921,30 @@ def _append(session_id: str, lines: list[str]) -> None:
         QUEUED.write(path, {"lines": [*held["lines"], *lines]})
 
 
-def _put(page_dir, page, kind, title, text, identity, passage) -> dict:
-    """The record putting one ask On me as the agent's own in `page`, an open
-    transaction: a question's thread, or a step's to-do on the user, on `passage` where
-    it names one; refused, as `thread create --quote` is, where the page doesn't show
-    `passage` once."""
-    from .thread import current_anchor, open_thread
-    from .todos import open_todo
+def _put(page_dir, page, title, text, identity, passage) -> dict:
+    """The thread putting one ask On me as the agent's own in `page`, an open
+    transaction, on `passage` where it names one; refused, as `thread create --quote`
+    is, where the page doesn't show `passage` once."""
+    from .thread import open_thread
 
-    if kind == "question":
-        return open_thread(
-            page_dir,
-            page,
-            text,
-            passage,
-            title=title,
-            obligation=True,
-            identity=identity,
-        )
-    _, anchor = current_anchor(page_dir, page.events, passage, "", "", transaction=page)
-    section = (anchor or {}).get("section")
-    subject = {"kind": "element", "id": section} if section else {"kind": "page"}
-    return open_todo(page, subject, title, "user", identity)
+    return open_thread(
+        page_dir,
+        page,
+        text,
+        passage,
+        title=title,
+        obligation=True,
+        identity=identity,
+    )
 
 
-def _told(path: str, kind: str, title: str, text: str, passage: str, record: dict):
+def _told(path: str, title: str, text: str, passage: str, record: dict):
     """The line telling the agent what Leaf put On me as its own, and where."""
-    placed = "anchor" in record or record.get("subject", {}).get("kind") == "element"
-    where = f'the words "{passage}" in {path}' if placed else f"{path} as a whole"
-    if kind == "step":
-        withdraw = f"leaf task end {path} {record['id']} dropped"
-        return (
-            f'From your last reply, Leaf put the step "{title}" On me as your to-do '
-            f"{record['id']} on the user, on {where}. It is yours like any to-do you "
-            f"write: if it isn't the user's to do, end it with `{withdraw}`, and ask "
-            "it another way if you'd rather."
-        )
+    where = (
+        f'the words "{passage}" in {path}'
+        if "anchor" in record
+        else f"{path} as a whole"
+    )
     quoted = "\n".join(f"> {line}" for line in text.splitlines())
     withdraw = f"leaf task end {path} message:{record['id']} dropped"
     return (

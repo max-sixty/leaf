@@ -132,7 +132,7 @@
  *   the pointer, and a compact cap with the larger size behind a gesture, which leaves
  *   every long thread scrolling in a small box until the user finds that gesture.
  *   While it stands it covers the page under it, which reads as unseen (geometry.js,
- *   `declareOccluder`).
+ *   `declareCover`).
  *
  * The leaf's menu is the On view's first tab, beside On me, On <agent> and Threads,
  * and the leaf opens the view on it: the full status over the rest of the page's
@@ -248,7 +248,7 @@ import {
 } from "./thread/messages.js";
 import { drawnThreadId, THREAD } from "./thread/selectors.js";
 import { declareThreadParts } from "./thread/selectors.js";
-import { quoteReading, threadTodos } from "./thread/thread-card.js";
+import { quoteReading } from "./thread/thread-card.js";
 import { inPageOrder } from "./thread/placement.js";
 import { dismissReply, releaseReplies } from "./thread/replies.js";
 import {
@@ -322,11 +322,13 @@ import {
 } from "./scrolling.js";
 import { showReturnTurn } from "./thread/reply-landing.js";
 import {
-  coveredShare,
-  declareOccluder,
-  declareWindowChrome,
+  announceRoom,
+  covered,
+  declareCover,
+  placeBox,
   placeHolder,
 } from "./geometry.js";
+import { overlaps } from "./rect.js";
 import { registerReadingRegion } from "./reading-regions.js";
 import { sectionsInView } from "./reading-place.js";
 import { agentName, documentChanged } from "./semantic-state.js";
@@ -532,7 +534,7 @@ export function createFloatingPanel({
         "symbol",
         exit ? "lf-fp-exit" : "lf-fp-on-user",
         exit ? exit.label : onUserName,
-        { action: exit ? (exit.action ?? "close") : "on-me" },
+        { action: exit ? "close" : "on-me" },
       )}
       ?data-lf-due=${!exit && onUser > 0}
       ?disabled=${Boolean(exit?.disabled)}
@@ -705,9 +707,10 @@ export function createFloatingPanel({
         ${peek?.content ?? nothing}
       </div>
       <button
-        ${offeredAction("mark", "lf-corner-mark lf-fp-minimize", "Fold to the leaf", {
+        ${offeredAction("mark", "lf-fp-minimize", "Fold to the leaf", {
           action: "minimize",
         })}
+        data-lf-corner
         tabindex="-1"
         @click=${() =>
           rows()
@@ -729,7 +732,6 @@ export function createFloatingPanel({
   const stage = shell("stage");
   const head = shell("head");
   const controls = shell("controls");
-  const row = shell("row");
   let peekAsked = false; // pointer or focus on the folded leaf
   /** @type {import("./activity-words.js").Words | null} */
   let peekReading = null;
@@ -762,17 +764,6 @@ export function createFloatingPanel({
     pointer = null;
     readCorner();
   });
-  // The row stands over the window's foot, so what the page reveals stands clear of it.
-  // A view opened above it is itself read, and stands over the page only while it is
-  // used, so it leaves the page's room alone; but what it stands over is hidden while it
-  // does (`declareOccluder`), and a landing stands clear of it (`--lf-panel-reach`,
-  // `followBox`).
-  declareWindowChrome(() => {
-    const box = row.getBoundingClientRect();
-    return box.width > 0 && box.height > 0 ? [box] : [];
-  }, [row]);
-  declareOccluder(opened);
-
   const leaf = shell("leaf");
   const field = shell("field");
   const editorSeat = shell("editors");
@@ -1183,7 +1174,7 @@ export function createFloatingPanel({
   // the user expected on 27 October and as every thread card does since 28 October.
   // The field once took no words there and said only Resolved, so writing in a
   // resolved thread took Reopen first.
-  const replyOutlet = el("div", "lf-fp-reply");
+  const replyOutlet = el("div", "lf-fp-reply-outlet");
   const replyInput = () => replyOutlet.querySelector(TEXT_FIELD);
   /** @type {Map<string, import("./thread/replies.js").ReplyOptions>} */
   const replyOptions = new Map();
@@ -1735,6 +1726,17 @@ export function createFloatingPanel({
   // The ground stands beside the panel rather than in it, so it carries the panel's
   // part too, and the tokens a theme sets there colour both.
   ground.setAttribute("part", "panel");
+  // The box stands over the window's foot, the row and any view open above it: what it
+  // covers reads as unseen (geometry.js, `declareCover`), and a landing stands clear of
+  // its reach (`--lf-panel-reach`, `followBox`). It covers where its surface is drawn
+  // (box-motion.js, `outline`): while the box moves, the card stands transparent at its
+  // rest and the surface carries the panel from where it stood. The card's own box is
+  // where that motion ends, which a landing about to show a place asks (`standsOver`).
+  declareCover(
+    host,
+    () => following.outline(),
+    () => card.getBoundingClientRect(),
+  );
   // A send is the user's change joining the stream the box shows (box-motion.js,
   // "send"): the box reads where that stream stands before the send draws, and the
   // readings until the send's rendering settles carry it from there on the box's own
@@ -1749,11 +1751,13 @@ export function createFloatingPanel({
     // under it. The browser's own reveals read the same padding. CSS can't size the
     // root's padding from a fixed box in the chrome's shadow tree, so the box states it.
     const box = card.getBoundingClientRect();
-    setRuntimeRootStyle(
-      document.documentElement,
-      "--lf-panel-reach",
-      layoutPx(box.height > 0 ? ground.getBoundingClientRect().bottom - box.top : 0),
+    const reach = layoutPx(
+      box.height > 0 ? ground.getBoundingClientRect().bottom - box.top : 0,
     );
+    if (document.documentElement.style.getPropertyValue("--lf-panel-reach") !== reach) {
+      setRuntimeRootStyle(document.documentElement, "--lf-panel-reach", reach);
+      announceRoom();
+    }
     const compact = host.dataset.lfRest === "mark";
     const duration = compact
       ? foldMs()
@@ -2853,13 +2857,16 @@ export function createFloatingPanel({
   // do. The user chose the fold on 27 October over the newest three resolved with the
   // rest behind a row, which put a second order in a list read in the page's, and over
   // resolved threads only searched for, which left them nothing to browse.
-  /** @param {string} key @param {string} title @param {number} count */
-  function settledHeading(key, title, count) {
+  // In an On list the heading is its group's band, and takes the band's ink
+  // (controls.css, `data-lf-band`).
+  /** @param {string} key @param {string} title @param {number} count @param {boolean} [band] */
+  function settledHeading(key, title, count, band = false) {
     const open = unfolded.has(key);
     return html`<h3 class="lf-rows-head">
       <button
         type="button"
         ${offeredAction("row", "lf-fp-settled lf-disclosure-marker")}
+        ?data-lf-band=${band}
         aria-expanded=${open ? "true" : "false"}
         @click=${() => {
           if (open) unfolded.delete(key);
@@ -3195,9 +3202,7 @@ export function createFloatingPanel({
     const thread = threadByKey(key);
     if (!thread) return nothing;
     const waiting = opening.waiting;
-    return html`${quoteHead(thread)}${threadTodos(thread.userTodos, (id) =>
-        queueActions.done(queueItemKey({ kind: "todo", id })),
-      )}
+    return html`${quoteHead(thread)}
       <div class="lf-fp-messages lf-fp-outlet" data-lf-reflow="append"></div>
       ${
         waiting?.key === key
@@ -3283,24 +3288,6 @@ export function createFloatingPanel({
     const turned = chooseQueueTab("you");
     if (turned && showing({ view: "queue" })) paint();
     else open({ view: "queue" });
-  }
-  // On me standing open on the user's list, as the `m` walk asks where it arrives at a
-  // to-do (queue-walk.js), with focus left where the walk put it; or, given a to-do with
-  // no place on the page, with focus on that to-do's card. Answers whether the card was
-  // there to land on.
-  /** @param {string} [obligation] */
-  function showOnMe(obligation) {
-    const turned = chooseQueueTab("you");
-    if (!showing({ view: "queue" })) open({ view: "queue" }, { focus: false });
-    else if (turned) paint();
-    if (obligation === undefined) return true;
-    const row = listRows().find(
-      (candidate) =>
-        closestAcross(candidate, ON_CARD)?.getAttribute("data-lf-obligation-id") ===
-        obligation,
-    );
-    if (row) focusDestination(row, "move");
-    return Boolean(row);
   }
   // The mark opens On me, or Threads where nothing waits on the user but a reply they
   // have not read, as the Threads mark it replaced opened on its Unread filter. It
@@ -3508,7 +3495,7 @@ export function createFloatingPanel({
   // when.
   /** @param {PanelQueueItem} item */
   const workOn = (item) =>
-    item.kind === "todo" && item.owner === "agent"
+    item.kind === "todo"
       ? {
           word: todoWord(item.todo.running),
           line: item.todo.running ? agentSays(item.todo.running.text) : null,
@@ -3777,12 +3764,6 @@ export function createFloatingPanel({
           }
         </button>`;
       })}`;
-    else if (item.offers?.done)
-      answers = html`<button
-        type="button"
-        ${offeredAction("symbol", "", undefined, { action: "done" })}
-        @click=${() => queueActions.done(queueItemKey(item))}
-      ></button>`;
     else if (inWords && thread) {
       discussHere = false;
       answers = html`<button
@@ -3800,17 +3781,16 @@ export function createFloatingPanel({
     // A line says what its item is: what waits on the user in the walk's word for it,
     // so a suggestion says Insertion, Deletion or Rewrite as the field does after `m`,
     // and the agent's as the reply, answer or to-do it owes. A line of the user's under
-    // Done names none, since how it ended, a to-do's Done or a question's answer, says
-    // what it was.
+    // Done names none, since how it ended, such as the answer it took, says what it
+    // was.
     const kind = mine ? (list === "done" ? "" : stop.noun) : agentNoun(item);
     const where = says === "place" ? "" : onMe.place(item);
     const walked = leads && queueTab === "you" && walkedStop() === stop.key;
     // On me's card says only where its item stands over its question, where its band
     // doesn't say it, and keeps that once it is answered, so the answer moves nothing.
-    // It names no kind: its question and answers say what it is, a to-do telling itself
-    // from a question by its Done. The user chose that on 26 October 2026 over a kind
-    // word before every card's place, which repeated what the card's answers already
-    // say.
+    // It names no kind: its question and answers say what it is. The user chose that
+    // on 26 October 2026 over a kind word before every card's place, which repeated
+    // what the card's answers already say.
     if (card)
       return html`<section
         class="lf-fp-on-item"
@@ -3958,7 +3938,7 @@ export function createFloatingPanel({
           return html`<section class="lf-fp-on-group lf-rows-group">
             ${
               group.folds
-                ? settledHeading(String(group.key), group.title, count)
+                ? settledHeading(String(group.key), group.title, count, true)
                 : html`<h3 class="lf-rows-head">
                     <span class="lf-fp-label">${group.title}</span
                     ><span class="lf-row-end">${count}</span>
@@ -4471,6 +4451,8 @@ export function createFloatingPanel({
           thread.resolved ? "Reopen" : "Resolve thread",
           { action: thread.resolved ? "reopen" : "resolve" },
         )}
+        data-lf-disc
+        data-lf-tone=${thread.resolved ? "positive" : "ink"}
         @click=${() => {
           if (!thread.resolved) dismissReply(thread.key);
           void settleThread({
@@ -5044,19 +5026,29 @@ export function createFloatingPanel({
   );
   // Travel to a place on the page (anchor-travel.js, `arrive`) shows it, so the view
   // open above the row gives way where it would stand over any of that place once
-  // landed (`landed`, landing-scroll.js `landedBox`; geometry.js, `coveredShare`), as
-  // it gives way to a press on the page: a long thread's view covers most of the
-  // window, and a place at the page's foot can't be scrolled above even a short one. A
-  // view the landing clears stays, so a link followed from a thread's view leaves the
-  // thread open for Back to return to. On me stays too where it lists the item travel
-  // lands on (`onMe.lists`), since its card shows that item, ringed where the `m` walk
-  // reached it (`walkedStop`); a thread On me doesn't list, as `t` reaches, has no card
-  // there. A Tab onto a page stop the view would stand over clears it the same way,
-  // since the ring the user follows would stand under it. What the panel holds is its
-  // own to show.
-  /** @param {Parameters<typeof coveredShare>[1]} where @param {DOMRect | null} landed */
-  const standsOver = (where, landed) =>
-    trail.value.length > 0 && coveredShare(opened, where, landed) > 0;
+  // landed (`landed`, landing-scroll.js `landedBox`), as it gives way to a press on the
+  // page: a long thread's view covers most of the window, and a place at the page's
+  // foot can't be scrolled above even a short one. A view the landing clears stays, so
+  // a link followed from a thread's view leaves the thread open for Back to return to.
+  // On me stays too where it lists the item travel lands on (`onMe.lists`), since its
+  // card shows that item, ringed where the `m` walk reached it (`walkedStop`); a thread
+  // On me doesn't list, as `t` reaches, has no card there. A Tab onto a page stop the
+  // view would stand over clears it the same way, since the ring the user follows would
+  // stand under it. Whether the panel stands over the place at all is its cover's
+  // answer, by the rule every reading of what the user sees takes (geometry.js,
+  // `covered`), so a place in the top layer or the panel's own is never under it; the
+  // view gives way only where it is the part that does, and the row stays either way.
+  /** @param {Element | Range} where @param {DOMRect | null} landed */
+  const standsOver = (where, landed) => {
+    const holder = placeHolder(where);
+    const box = landed ?? placeBox(where);
+    return Boolean(
+      trail.value.length &&
+      holder &&
+      covered(box, holder) &&
+      overlaps(box, opened.getBoundingClientRect()),
+    );
+  };
   /** @type {import("./anchor-travel.js").TravelOptions["clearFor"]} */
   function clearFor({ where, focus }, landed) {
     if (
@@ -5270,7 +5262,6 @@ export function createFloatingPanel({
     pageComment,
     searchPage,
     doors,
-    showOnMe,
     showForSample,
     openThread,
     captureCurrentLocation,

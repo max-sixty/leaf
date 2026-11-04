@@ -2,15 +2,18 @@
 import assert from "node:assert/strict";
 import test, { beforeEach } from "node:test";
 import {
+  buttonCommand,
   commandScope,
   commandsOn,
   commandsWithin,
   projectCommandScope,
   keys,
   paintKeys,
+  paintKeysWithin,
   reflectFirstScopes,
   reflectKeys,
   saying,
+  watchCommandScopes,
 } from "../../browser/runtime/keyboard/scopes.js";
 import {
   activeRows,
@@ -27,6 +30,13 @@ import { dispatchKey, keyReady } from "../../browser/runtime/keyboard/dispatch.j
 import { applicationState } from "../../browser/runtime/semantic-state.js";
 import { commandsChanged } from "../../browser/runtime/widget-upgrade.js";
 import { focused } from "../../browser/runtime/focus.js";
+import { adoptShadowStage } from "../../browser/runtime/shadow-stage.js";
+import { watchOwner } from "../../browser/runtime/arrivals.js";
+import { mountRepaint } from "../../browser/runtime/repaint.js";
+import { nextRender } from "../../browser/runtime/rendering.js";
+import { signal } from "/runtime/framework.js";
+import { setFlagsFromString } from "node:v8";
+import { runInNewContext } from "node:vm";
 
 // Ordinary control tests begin with saved input available; startup tests withhold it.
 beforeEach(() => applicationState.setPhase("ready"));
@@ -397,6 +407,841 @@ test("a button a projected scope names activates before its declaration is paint
   projectCommandScope(owner, "probe", null);
   owner.remove();
   control.remove();
+});
+
+// A widget that withdraws its keys and repaints the whole register in the same task
+// left its button running the withdrawn command: the full paint read only the elements
+// still declaring, and the withdrawn one had already left them.
+test("a withdrawn command leaves its button even when a full paint follows", () => {
+  const owner = document.createElement("section");
+  const control = document.createElement("button");
+  owner.append(control);
+  document.body.append(owner);
+  let count = 0;
+  owner.lfCommands = {
+    title: "Withdrawn",
+    rows: [
+      { id: "probe.withdrawn", title: "Act", keys: ["x"], control, run: () => count++ },
+    ],
+  };
+  commandsChanged(owner);
+  reflectFirstScopes();
+  try {
+    control.click();
+    assert.equal(count, 1);
+    owner.lfCommands = null;
+    commandsChanged(owner);
+    paintKeys();
+    reflectKeys();
+    control.click();
+    assert.equal(count, 1);
+  } finally {
+    owner.remove();
+  }
+});
+
+/** A host whose open shadow tree holds `inner` around one slot of `name`. */
+function slottedHost(name = "", inner = document.createElement("div")) {
+  const host = document.createElement("div");
+  const slot = document.createElement("slot");
+  if (name) slot.name = name;
+  inner.append(slot);
+  host.attachShadow({ mode: "open" }).append(inner);
+  return { host, inner, slot };
+}
+
+// Each slotted host is both its parent's child and its slot's assigned element: a walk
+// taking both steps visited the innermost host once per path, doubling with each level.
+test("the scopes inside a widget are found once each, however deep its slots nest", () => {
+  const depth = 16;
+  const { host: outer } = slottedHost();
+  let parent = outer;
+  const controls = [];
+  for (let level = 0; level < depth; level++) {
+    const { host } = slottedHost();
+    const control = document.createElement("button");
+    host.append(control);
+    keys(control, null, [
+      { id: `probe.nested${level}`, title: "Act", keys: ["Alt+1"], run: () => {} },
+    ]);
+    controls.push(control);
+    parent.append(host);
+    parent = host;
+  }
+  document.body.append(outer);
+  const slotReads = { count: 0 };
+  const read = window.HTMLSlotElement.prototype.assignedElements;
+  window.HTMLSlotElement.prototype.assignedElements = function (...args) {
+    slotReads.count++;
+    return read.apply(this, args);
+  };
+  try {
+    assert.deepEqual(
+      commandsWithin(outer).map(({ row }) => row.id),
+      controls.map((_, level) => `probe.nested${level}`),
+    );
+    // At most one reading of each slot's assignment.
+    assert.ok(slotReads.count <= depth + 1, `${slotReads.count} slot readings`);
+  } finally {
+    window.HTMLSlotElement.prototype.assignedElements = read;
+    outer.remove();
+  }
+});
+
+// A named slot forwarded into an inner component's slot renders inside that slot, so a
+// scope standing on the forwarded slot is inside the inner component, as the climb
+// through `renderedParent` finds it.
+test("a scope on a slot forwarded into another component stands inside it", () => {
+  const { host: outer, inner: outerTree } = slottedHost();
+  const { host: component, inner: componentTree } = slottedHost("forwarded");
+  const forwarded = document.createElement("slot");
+  forwarded.name = "outer";
+  forwarded.slot = "forwarded";
+  component.append(forwarded);
+  outerTree.append(component);
+  const item = document.createElement("span");
+  item.slot = "outer";
+  outer.append(item);
+  document.body.append(outer);
+  keys(forwarded, null, [
+    { id: "probe.forwarded", title: "Act", keys: ["Alt+2"], run: () => {} },
+  ]);
+  keys(item, null, [
+    { id: "probe.item", title: "Act", keys: ["Alt+3"], run: () => {} },
+  ]);
+  try {
+    assert.deepEqual(
+      commandsWithin(componentTree).map(({ row }) => row.id),
+      ["probe.forwarded", "probe.item"],
+    );
+  } finally {
+    outer.remove();
+  }
+});
+
+// A slot a script fills by hand renders what it was given, as a named one does.
+test("a child assigned to a slot by hand stands inside that slot", () => {
+  const host = document.createElement("div");
+  const tree = host.attachShadow({ mode: "open", slotAssignment: "manual" });
+  const wrapper = document.createElement("div");
+  const slot = document.createElement("slot");
+  wrapper.append(slot);
+  tree.append(wrapper);
+  const child = document.createElement("span");
+  host.append(child);
+  slot.assign(child);
+  document.body.append(host);
+  keys(child, null, [
+    { id: "probe.assigned", title: "Act", keys: ["Alt+5"], run: () => {} },
+  ]);
+  try {
+    assert.equal(child.assignedSlot, slot);
+    assert.deepEqual(
+      commandsWithin(wrapper).map(({ row }) => row.id),
+      ["probe.assigned"],
+    );
+  } finally {
+    host.remove();
+  }
+});
+
+// A route and the key it binds can move with the owner's state. The button presses the
+// route its command names now, as its shortcut says, and a control named by a computed
+// value moves with it.
+test("a button runs the route and control its command names now", () => {
+  const owner = document.createElement("section");
+  const [first, second] = [0, 1].map(() => document.createElement("button"));
+  owner.append(first, second);
+  document.body.append(owner);
+  const key = signal("x");
+  const control = signal(first);
+  const pressed = [];
+  keys(owner, "Moving", [
+    {
+      id: "probe.moving",
+      title: "Act",
+      keys: () => [key.value],
+      routes: () => [{ id: "probe.moving-route", title: "Act", binding: key.value }],
+      control: () => control.value,
+      runKey: (binding) => pressed.push(binding),
+    },
+  ]);
+  reflectFirstScopes();
+  try {
+    first.click();
+    key.value = "y";
+    reflectKeys();
+    first.click();
+    assert.deepEqual(pressed, ["x", "y"]);
+    control.value = second;
+    reflectKeys();
+    second.click();
+    first.click();
+    assert.deepEqual(pressed, ["x", "y", "y"]);
+  } finally {
+    owner.remove();
+  }
+});
+
+// A section naming a button outside it, then taken out of the page, leaves the button as
+// it found it: neither the section's unavailable command nor its refusal stays on it,
+// though no paint reaches the button.
+test("a button outside a removed owner lets the owner's command go", async () => {
+  const parent = document.createElement("div");
+  const owner = document.createElement("section");
+  const control = document.createElement("button");
+  parent.append(owner);
+  document.body.append(parent, control);
+  keys(owner, "Beside", [
+    {
+      id: "probe.beside",
+      title: "Act",
+      keys: ["x"],
+      control,
+      when: () => false,
+      run: () => {},
+    },
+  ]);
+  reflectFirstScopes();
+  try {
+    assert.equal(control.getAttribute("aria-disabled"), "true");
+    owner.remove();
+    // The page reads the departure as it reads any mutation, after the script.
+    await new Promise((resolve) => setTimeout(resolve));
+    paintKeysWithin(parent);
+    control.focus();
+    reflectKeys();
+    assert.equal(control.getAttribute("aria-disabled"), null);
+    assert.equal(buttonCommand(control), undefined);
+  } finally {
+    parent.remove();
+    control.remove();
+  }
+});
+
+// A declaration replaced in the same task as the press answers that press: the press
+// reads the reading the replacement bumped, not one the frame has yet to take.
+test("a press runs the command declared in its own task", () => {
+  const owner = document.createElement("section");
+  const control = document.createElement("button");
+  owner.append(control);
+  document.body.append(owner);
+  const pressed = [];
+  /** @param {string} name */
+  const declare = (name) =>
+    keys(owner, "Replaced", [
+      {
+        id: "probe.replaced",
+        title: "Act",
+        keys: ["x"],
+        control,
+        run: () => pressed.push(name),
+      },
+    ]);
+  declare("first");
+  reflectFirstScopes();
+  try {
+    declare("second");
+    control.click();
+    assert.deepEqual(pressed, ["second"]);
+  } finally {
+    owner.remove();
+  }
+});
+
+// A widget may keep its controls in a closed shadow tree it makes a stage, which no host
+// answers through `shadowRoot`: the climb out of it reaches the host, and so does the
+// walk down, whether the scope was declared before or after it entered the tree.
+test("a scope inside a closed stage stands inside its host", () => {
+  const host = document.createElement("div");
+  const tree = adoptShadowStage(host.attachShadow({ mode: "closed" }));
+  const before = document.createElement("button");
+  const after = document.createElement("button");
+  keys(before, null, [
+    { id: "probe.before", title: "Act", keys: ["Alt+3"], run: () => {} },
+  ]);
+  tree.append(before, after);
+  keys(after, null, [
+    { id: "probe.after", title: "Act", keys: ["Alt+4"], run: () => {} },
+  ]);
+  document.body.append(host);
+  try {
+    assert.deepEqual(
+      commandsWithin(host).map(({ row }) => row.id),
+      ["probe.before", "probe.after"],
+    );
+  } finally {
+    host.remove();
+  }
+});
+
+// A source inside a closed stage naming a button outside it leaves the button as it
+// found it once its host leaves the page.
+test("a button outside a closed stage lets go when the stage's host leaves", async () => {
+  const host = document.createElement("div");
+  const tree = adoptShadowStage(host.attachShadow({ mode: "closed" }));
+  const owner = document.createElement("section");
+  const control = document.createElement("button");
+  tree.append(owner);
+  document.body.append(host, control);
+  keys(owner, "Staged", [
+    {
+      id: "probe.staged",
+      title: "Act",
+      keys: ["x"],
+      control,
+      when: () => false,
+      run: () => {},
+    },
+  ]);
+  reflectFirstScopes();
+  try {
+    assert.equal(control.getAttribute("aria-disabled"), "true");
+    host.remove();
+    await new Promise((resolve) => setTimeout(resolve));
+    reflectFirstScopes();
+    reflectKeys();
+    assert.equal(control.getAttribute("aria-disabled"), null);
+    assert.equal(buttonCommand(control), undefined);
+  } finally {
+    control.remove();
+  }
+});
+
+// One signal moving one control costs reads in proportion to its source's buttons, not
+// to their square: each button reads its own slice of the source's one reading, so a
+// source naming four times the buttons costs about four times the reads.
+test("a moved control costs its source's size, not a read per sibling button", () => {
+  /** @param {number} size */
+  const readsFor = (size) => {
+    const owner = document.createElement("section");
+    const buttons = Array.from({ length: size }, () =>
+      document.createElement("button"),
+    );
+    const spare = document.createElement("button");
+    owner.append(...buttons, spare);
+    document.body.append(owner);
+    const moved = signal(buttons[0]);
+    let reads = 0;
+    keys(
+      owner,
+      "Siblings",
+      buttons.map((button, index) => ({
+        id: `probe.sibling${index}`,
+        title: "Act",
+        control: () => {
+          reads++;
+          return index === 0 ? moved.value : button;
+        },
+        run: () => {},
+      })),
+    );
+    reflectFirstScopes();
+    reflectKeys();
+    try {
+      reads = 0;
+      moved.value = spare;
+      reflectFirstScopes();
+      reflectKeys();
+      return reads;
+    } finally {
+      owner.remove();
+    }
+  };
+  const small = readsFor(16);
+  const large = readsFor(64);
+  assert.ok(large <= 5 * small, `${small} reads at 16 buttons, ${large} at 64`);
+});
+
+// A button whose command waits on its owner's state is held while it waits, and answers
+// once the state lets it, whatever repaints the page meanwhile.
+test("a button whose command starts unavailable answers once it is available", () => {
+  const owner = document.createElement("section");
+  const control = document.createElement("button");
+  control.disabled = true;
+  document.body.append(owner, control);
+  const ready = signal(false);
+  let count = 0;
+  keys(owner, "Waiting", [
+    {
+      id: "probe.waiting",
+      title: "Act",
+      keys: ["x"],
+      control,
+      when: () => ready.value,
+      run: () => count++,
+    },
+  ]);
+  reflectFirstScopes();
+  try {
+    assert.equal(control.getAttribute("aria-disabled"), "true");
+    ready.value = true;
+    paintKeys();
+    reflectFirstScopes();
+    reflectKeys();
+    assert.equal(control.disabled, false);
+    assert.equal(control.getAttribute("aria-disabled"), null);
+    assert.equal(buttonCommand(control)?.row.id, "probe.waiting");
+    control.click();
+    assert.equal(count, 1);
+  } finally {
+    owner.remove();
+    control.remove();
+  }
+});
+
+// A declaration replaced by another naming the same button through a computed control
+// leaves the button describing and running the new command.
+test("a replaced declaration naming the same button through a getter reads the new one", () => {
+  const owner = document.createElement("section");
+  const control = document.createElement("button");
+  owner.append(control);
+  document.body.append(owner);
+  const pressed = [];
+  /** @param {string} id @param {boolean} available */
+  const declare = (id, available) =>
+    keys(owner, "Replaced", [
+      {
+        id,
+        title: "Act",
+        keys: ["x"],
+        control: () => control,
+        when: () => available,
+        run: () => pressed.push(id),
+      },
+    ]);
+  declare("probe.old", false);
+  reflectFirstScopes();
+  try {
+    assert.equal(control.getAttribute("aria-disabled"), "true");
+    declare("probe.new", true);
+    reflectFirstScopes();
+    reflectKeys();
+    assert.equal(control.getAttribute("aria-disabled"), null);
+    assert.equal(buttonCommand(control)?.row.id, "probe.new");
+    control.click();
+    assert.deepEqual(pressed, ["probe.new"]);
+  } finally {
+    owner.remove();
+  }
+});
+
+// A declaration whose control is a query over its own subtree is read again when a
+// renderer inside it repaints, so the button the render put there answers.
+test("a paint inside a declaring element reaches its query for a replaced button", () => {
+  const owner = document.createElement("section");
+  const inner = document.createElement("div");
+  owner.append(inner);
+  inner.append(document.createElement("button"));
+  document.body.append(owner);
+  let count = 0;
+  keys(owner, "Queried", [
+    {
+      id: "probe.queried",
+      title: "Act",
+      keys: ["x"],
+      control: () => owner.querySelector("button"),
+      run: () => count++,
+    },
+  ]);
+  reflectFirstScopes();
+  try {
+    const replacement = document.createElement("button");
+    inner.replaceChildren(replacement);
+    paintKeysWithin(inner);
+    reflectFirstScopes();
+    reflectKeys();
+    replacement.click();
+    assert.equal(count, 1);
+  } finally {
+    owner.remove();
+  }
+});
+test("paints beside each other read the element around them once", () => {
+  /** @param {number} size */
+  const readsFor = (size) => {
+    const owner = document.createElement("section");
+    const parts = Array.from({ length: size }, () => {
+      const part = document.createElement("div");
+      part.append(document.createElement("button"));
+      return part;
+    });
+    owner.append(...parts);
+    document.body.append(owner);
+    let reads = 0;
+    keys(
+      owner,
+      "Parts",
+      parts.map((part, index) => ({
+        id: `probe.part${index}`,
+        title: "Act",
+        control: () => {
+          reads++;
+          return part.querySelector("button");
+        },
+        run: () => {},
+      })),
+    );
+    reflectFirstScopes();
+    reflectKeys();
+    try {
+      reads = 0;
+      for (const part of parts) paintKeysWithin(part);
+      reflectFirstScopes();
+      reflectKeys();
+      return reads;
+    } finally {
+      owner.remove();
+    }
+  };
+  const small = readsFor(16);
+  const large = readsFor(64);
+  assert.ok(large <= 5 * small, `${small} reads at 16 parts, ${large} at 64`);
+});
+test("a press runs a command whose control moved onto it in the same task", () => {
+  const owner = document.createElement("section");
+  const first = document.createElement("button");
+  const second = document.createElement("button");
+  const other = document.createElement("section");
+  document.body.append(owner, first, second, other);
+  // Another command holds the second button, so it is wired before the move.
+  keys(other, "Other", [
+    {
+      id: "probe.other",
+      title: "Other",
+      control: second,
+      when: () => false,
+      run: () => {},
+    },
+  ]);
+  const target = signal(first);
+  let count = 0;
+  keys(owner, "Moving", [
+    {
+      id: "probe.moving",
+      title: "Act",
+      keys: ["x"],
+      control: () => target.value,
+      run: () => count++,
+    },
+  ]);
+  reflectFirstScopes();
+  reflectKeys();
+  try {
+    target.value = second;
+    second.click();
+    assert.equal(count, 1);
+  } finally {
+    owner.remove();
+    first.remove();
+    second.remove();
+    other.remove();
+  }
+});
+test("a press runs the command of an owner put back in the same task", async () => {
+  const owner = document.createElement("section");
+  const control = document.createElement("button");
+  document.body.append(owner, control);
+  let count = 0;
+  keys(owner, "Returning", [
+    { id: "probe.returning", title: "Act", keys: ["x"], control, run: () => count++ },
+  ]);
+  reflectFirstScopes();
+  reflectKeys();
+  try {
+    owner.remove();
+    await new Promise((resolve) => setTimeout(resolve));
+    reflectKeys();
+    assert.equal(buttonCommand(control), undefined);
+    document.body.append(owner);
+    control.click();
+    assert.equal(count, 1);
+  } finally {
+    owner.remove();
+    control.remove();
+  }
+});
+test("a paint reaches a query inside a closed stage", () => {
+  const host = document.createElement("div");
+  const tree = adoptShadowStage(host.attachShadow({ mode: "closed" }));
+  const owner = document.createElement("section");
+  owner.append(document.createElement("button"));
+  tree.append(owner);
+  document.body.append(host);
+  let count = 0;
+  keys(owner, "Staged", [
+    {
+      id: "probe.staged-query",
+      title: "Act",
+      keys: ["x"],
+      control: () => owner.querySelector("button"),
+      run: () => count++,
+    },
+  ]);
+  reflectFirstScopes();
+  reflectKeys();
+  try {
+    const replacement = document.createElement("button");
+    owner.replaceChildren(replacement);
+    paintKeysWithin(host);
+    reflectFirstScopes();
+    reflectKeys();
+    replacement.click();
+    assert.equal(count, 1);
+  } finally {
+    host.remove();
+  }
+});
+test("an owner that has left the page is not held by its keys", async () => {
+  setFlagsFromString("--expose-gc");
+  const collect = runInNewContext("gc");
+  const ref = (() => {
+    const owner = document.createElement("section");
+    document.body.append(owner);
+    keys(owner, "Keys only", [
+      { id: "probe.keys-only", title: "Act", keys: ["x"], run: () => {} },
+    ]);
+    reflectFirstScopes();
+    reflectKeys();
+    owner.remove();
+    return new WeakRef(owner);
+  })();
+  for (let turn = 0; turn < 12 && ref.deref(); turn++) {
+    await new Promise((resolve) => setTimeout(resolve));
+    reflectFirstScopes();
+    reflectKeys();
+    collect();
+  }
+  assert.equal(ref.deref(), undefined);
+});
+test("a press from an arrival's callback finds an owner put back in the same batch", async () => {
+  const owner = document.createElement("section");
+  const control = document.createElement("button");
+  document.body.append(owner, control);
+  let count = 0;
+  keys(owner, "Returning", [
+    { id: "probe.batch", title: "Act", keys: ["x"], control, run: () => count++ },
+  ]);
+  reflectFirstScopes();
+  reflectKeys();
+  const presser = document.createElement("div");
+  watchOwner(presser, { connect: () => control.click() });
+  try {
+    owner.remove();
+    await new Promise((resolve) => setTimeout(resolve));
+    reflectKeys();
+    // One batch puts both back, and the presser's arrival is delivered first.
+    document.body.append(presser, owner);
+    await new Promise((resolve) => setTimeout(resolve));
+    assert.equal(count, 1);
+  } finally {
+    presser.remove();
+    owner.remove();
+    control.remove();
+  }
+});
+test("a press costs the same after an insertion however many stages stand", () => {
+  /** @param {number} size */
+  const derefsFor = (size) => {
+    const hosts = Array.from({ length: size }, () => {
+      const host = document.createElement("div");
+      adoptShadowStage(host.attachShadow({ mode: "open" }));
+      return host;
+    });
+    const owner = document.createElement("section");
+    const control = document.createElement("button");
+    document.body.append(...hosts, owner, control);
+    keys(owner, "Stable", [
+      { id: "probe.stable", title: "Act", keys: ["x"], control, run: () => {} },
+    ]);
+    reflectFirstScopes();
+    reflectKeys();
+    const { deref } = WeakRef.prototype;
+    let derefs = 0;
+    WeakRef.prototype.deref = function () {
+      derefs++;
+      return deref.call(this);
+    };
+    try {
+      document.body.append(document.createElement("p"));
+      control.click();
+      return derefs;
+    } finally {
+      WeakRef.prototype.deref = deref;
+      for (const host of hosts) host.remove();
+      owner.remove();
+      control.remove();
+    }
+  };
+  const small = derefsFor(8);
+  const large = derefsFor(64);
+  assert.ok(large <= small, `${small} derefs beside 8 stages, ${large} beside 64`);
+});
+test("a paint reaches a page command whose control moved", () => {
+  const first = document.createElement("button");
+  const second = document.createElement("button");
+  const around = document.createElement("div");
+  around.append(first, second);
+  document.body.append(around);
+  let target = first;
+  let count = 0;
+  const { scope } = commandScope("Page", [
+    { id: "probe.page-moved", title: "Act", control: () => target, run: () => count++ },
+  ]);
+  const stop = watchCommandScopes(() => [scope]);
+  paintKeys();
+  reflectFirstScopes();
+  reflectKeys();
+  try {
+    target = second;
+    paintKeysWithin(around);
+    reflectFirstScopes();
+    reflectKeys();
+    second.click();
+    assert.equal(count, 1);
+  } finally {
+    stop();
+    paintKeys();
+    reflectKeys();
+    around.remove();
+  }
+});
+test("a press runs no arrival's callback, a paint's included", async () => {
+  const owner = document.createElement("section");
+  const control = document.createElement("button");
+  owner.append(control);
+  document.body.append(owner);
+  keys(owner, "Painted", [
+    {
+      id: "probe.painted",
+      title: "Act",
+      keys: ["x"],
+      control: () => control,
+      run: () => {},
+    },
+  ]);
+  reflectFirstScopes();
+  reflectKeys();
+  await new Promise((resolve) => setTimeout(resolve));
+  const other = document.createElement("div");
+  let arrived = 0;
+  watchOwner(other, { connect: () => arrived++ });
+  try {
+    document.body.append(other);
+    paintKeysWithin(owner);
+    control.click();
+    assert.equal(arrived, 0);
+    await new Promise((resolve) => setTimeout(resolve));
+    assert.equal(arrived, 1);
+  } finally {
+    other.remove();
+    owner.remove();
+  }
+});
+test("a painter projecting an equal command every frame asks for no next frame", async () => {
+  const control = document.createElement("button");
+  document.body.append(control);
+  const projector = Symbol("every frame");
+  const project = () =>
+    projectCommandScope(
+      control,
+      projector,
+      commandScope(null, [
+        {
+          id: "probe.local",
+          title: "Act",
+          keys: ["x"],
+          // Fresh, equal routes on every reading.
+          routes: () => [
+            { id: "probe.local.route", title: "Act here", binding: "x", control },
+          ],
+          run: () => {},
+        },
+      ]),
+    );
+  let frames = 0;
+  const frame = () => new Promise((resolve) => nextRender(resolve));
+  mountRepaint({
+    reflectFirstScopes,
+    paintCommandHints: () => {
+      frames++;
+      project();
+    },
+    reflectKeys,
+  });
+  try {
+    await frame();
+    // One more frame asked for, as any change does.
+    paintKeysWithin(control);
+    for (let turn = 0; turn < 3; turn++) await frame();
+    const settled = frames;
+    for (let turn = 0; turn < 3; turn++) await frame();
+    assert.equal(frames, settled);
+  } finally {
+    mountRepaint({});
+    projectCommandScope(control, projector, null);
+    control.remove();
+  }
+});
+test("a button a widget declared before it was placed answers once it is", async () => {
+  const owner = document.createElement("section");
+  const control = document.createElement("button");
+  owner.append(control);
+  owner.lfCommands = {
+    title: "Early",
+    rows: [
+      { id: "probe.early", title: "Act", control, when: () => false, run: () => {} },
+    ],
+  };
+  commandsChanged(owner);
+  reflectFirstScopes();
+  reflectKeys();
+  document.body.append(owner);
+  try {
+    await new Promise((resolve) => setTimeout(resolve));
+    reflectFirstScopes();
+    reflectKeys();
+    assert.equal(control.getAttribute("aria-disabled"), "true");
+  } finally {
+    owner.remove();
+  }
+});
+test("a widget saying its commands changed reads only its own", () => {
+  const sources = Array.from({ length: 32 }, () => {
+    const owner = document.createElement("section");
+    owner.append(document.createElement("button"));
+    document.body.append(owner);
+    return owner;
+  });
+  let reads = 0;
+  for (const [index, owner] of sources.entries()) {
+    owner.lfCommands = {
+      title: "Widget",
+      rows: [
+        {
+          id: `probe.widget${index}`,
+          title: "Act",
+          control: () => {
+            if (index) reads++;
+            return owner.querySelector("button");
+          },
+          run: () => {},
+        },
+      ],
+    };
+    commandsChanged(owner);
+  }
+  reflectFirstScopes();
+  reflectKeys();
+  try {
+    reads = 0;
+    commandsChanged(sources[0]);
+    reflectFirstScopes();
+    reflectKeys();
+    assert.equal(reads, 0);
+  } finally {
+    for (const owner of sources) owner.remove();
+  }
 });
 
 test("a contribution owns current focus across its controls' shadow roots", async () => {
@@ -1133,6 +1978,98 @@ test("a lent hint inside a button keeps its out-of-flow seat after withdrawal", 
     assert.equal(badge.classList.contains("lf-binding-seat"), true);
     assert.equal(control.contains(badge), true);
   } finally {
+    owner.remove();
+  }
+});
+
+// A paint lends every face before reading any, so a face lent in the same pass doesn't
+// cover another, and the earlier route keeps a place two faces share. A face in another
+// shadow tree reaches a hit test outside that tree as the tree's host, which must not
+// cover the earlier face either. (happy-dom's document is no `Document`, so each face
+// here stands in a shadow tree of its own.)
+test("an earlier route keeps its face under a later route's face in another shadow tree", async () => {
+  const { createCommandHints } =
+    await import("../../browser/runtime/keyboard/command-hints.js");
+  const owner = document.createElement("section");
+  /** @returns {[Element, Element, Element]} */
+  const faced = () => {
+    const host = document.createElement("div");
+    const control = document.createElement("button");
+    const face = document.createElement("kbd");
+    control.append(face);
+    host.attachShadow({ mode: "open" }).append(control);
+    owner.append(host);
+    return [host, control, face];
+  };
+  const [firstHost, first, firstFace] = faced();
+  const [secondHost, second, secondFace] = faced();
+  document.body.append(owner);
+  // The second control stands below the first, and its face hangs out of it over the
+  // first face.
+  const boxes = new Map([
+    [firstHost, new DOMRect(0, 0, 100, 20)],
+    [first, new DOMRect(0, 0, 100, 20)],
+    [firstFace, new DOMRect(4, 4, 12, 12)],
+    [secondHost, new DOMRect(0, 200, 100, 20)],
+    [second, new DOMRect(0, 200, 100, 20)],
+    [secondFace, new DOMRect(8, 6, 12, 12)],
+  ]);
+  for (const [element, box] of boxes) {
+    element.getBoundingClientRect = () => box;
+    element.getClientRects = () => [box];
+    element.checkVisibility = () => true;
+  }
+  // No chrome stands here to seat the chip a withheld face's route takes instead, so
+  // neither control takes one.
+  for (const control of [first, second]) control.checkVisibility = () => false;
+  // Each tree's hit test, topmost first, reads another tree's contents as its host.
+  const painted = [secondFace, second, firstFace, first, secondHost, firstHost];
+  for (const root of [document, firstHost.shadowRoot, secondHost.shadowRoot])
+    root.elementsFromPoint = (x, y) => [
+      ...new Set(
+        painted
+          .filter((element) => {
+            const { left, top, right, bottom } = boxes.get(element);
+            return x >= left && x <= right && y >= top && y <= bottom;
+          })
+          .map((element) =>
+            [root, document].includes(element.getRootNode())
+              ? element
+              : element.getRootNode().host,
+          ),
+      ),
+    ];
+  keys(owner, "Overlapping faces", [
+    {
+      id: "probe.first-face",
+      title: "First",
+      keys: ["1"],
+      control: first,
+      bindingBadge: firstFace,
+      run: () => {},
+    },
+    {
+      id: "probe.second-face",
+      title: "Second",
+      keys: ["2"],
+      control: second,
+      bindingBadge: secondFace,
+      run: () => {},
+    },
+  ]);
+  reflectFirstScopes();
+  first.focus();
+  const hints = createCommandHints({ presentedControl: () => null });
+  try {
+    hints.paint();
+    assert.deepEqual(
+      [firstFace, secondFace].map((face) => face.hasAttribute("data-lf-binding-badge")),
+      [true, false],
+    );
+    assert.equal(secondFace.style.opacity, "0");
+  } finally {
+    hints.destroy();
+    delete document.elementsFromPoint;
     owner.remove();
   }
 });

@@ -539,7 +539,7 @@
      * could not start shows each undrawn widget's source. Either is prose, so its host
      * keeps the prose's measure, without the margin a breakout reaches the room by,
      * and the source scrolls inside it. */
-    > [data-lf-space]:has(> .lf-error),
+    > [data-lf-space]:is(:has(> .lf-error), [data-lf-failed]),
     html[data-lf-startup-error]:not([data-lf-interactive]) & > [data-lf-space] {
       position: static;
       inline-size: 100%;
@@ -736,7 +736,12 @@
   }
   @media screen {
     html[data-lf-interactive]
-      [data-lf-height]:not([data-lf-height=""], .lf-rendered, :has(> .lf-error)) {
+      [data-lf-height]:not(
+        [data-lf-height=""],
+        .lf-rendered,
+        :has(> .lf-error),
+        [data-lf-failed]
+      ) {
       box-sizing: border-box;
       block-size: attr(data-lf-height px);
       overflow: clip;

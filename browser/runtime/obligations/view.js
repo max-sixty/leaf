@@ -1,12 +1,10 @@
-/* Mechanical presentation and arrival for the obligations placed on the page: widgets'
-   and to-dos on the user (obligations/place.js).
+/* Mechanical presentation and arrival for the obligations placed on the page, widgets'
+   (obligations/place.js).
 
    The application publisher owns the complete obligation inventory, typed answers,
    completion and attention. This view selects widget sources and resolves their
    current nodes for focus, geometry, contextual commands and blanket actions. Questions
-   answered in words navigate through their thread owner instead. A to-do has a place
-   and no source, so it takes the ring and the arrival and has no commands or choices:
-   its Done is the queue walk's (queue-walk.js).
+   answered in words navigate through their thread owner instead.
 
    An obligation keeps its source identity. Its prompt.target names where the user arrives:
    the enclosing widget (an lf-ask or another declaring `x-encloses`), otherwise
@@ -57,7 +55,7 @@ import { paintLocation } from "../target-paint.js";
 import { scrollBehavior } from "../motion.js";
 import { OBLIGATION_CONTROL } from "./view-elements.js";
 import { obligationWord, ownedObligationControl } from "./answer.js";
-import { obligationHolding, placeOf } from "../current-target.js";
+import { obligationAt, placeOf } from "../current-target.js";
 import { PRESENTATION } from "../presentation.js";
 import { retainUserIntent } from "../user-intent.js";
 import { bindQueuedWork } from "../queued-work.js";
@@ -91,7 +89,7 @@ export function createObligationView({
   const obligationNode = (item) => obligationPlace(item).node;
   /** @param {Obligation | null} item */
   const sourceNode = (item) => obligationPlace(item).source;
-  // The widget whose commands answer an obligation; a to-do has none.
+  // The widget whose commands answer an obligation.
   /** @param {Obligation | null} item */
   const sourceOwner = (item) =>
     item?.source.kind === "widget" ? elementById(item.source.id) : null;
@@ -246,12 +244,6 @@ export function createObligationView({
     reviewedThrough = null;
     return false;
   }
-  // Resolve a current location back to one record from the publisher-owned
-  // inventory: the source or unambiguous context holding where `node` stands
-  // (current-target.js). DOM containment says where focus is; it never decides whether
-  // the obligation belongs to that inventory.
-  /** @param {readonly Obligation[]} items @param {Element} node */
-  const obligationAt = (items, node) => obligationHolding(items, placeOf(node));
   // The obligation the user is in: the one holding the focus, or the one a control
   // hoisted into the margin decides, or the one a thread about it holds the focus for.
   //
@@ -267,7 +259,7 @@ export function createObligationView({
   // the same numeric action route so they can revise the recorded answer.
   function currentLocationObligation(held = focused()) {
     if (!held || held === document.body) return null;
-    const record = obligationAt(readObligations().all, held);
+    const record = obligationAt(held);
     if (!record) return null;
     if (readObligations().unanswered.some((item) => item.id === record.id))
       return record;
@@ -328,28 +320,19 @@ export function createObligationView({
         }),
     );
   }
-  // The widget obligation whose commands answer where `node` stands. A to-do has no
-  // commands, so one standing inside a question, or on it, leaves its digits live.
-  /** @param {Element | null} node */
-  const answerableAt = (node) => {
-    const all = readObligations().all;
-    return obligationHolding(
-      all.filter((item) => item.source.kind === "widget"),
-      placeOf(node),
-      all,
-    );
-  };
+  // The commands that answer where `origin` stands: the obligation there, which is a
+  // widget's, since only a widget's obligation has a place (`obligationPlace`).
   /** @param {Element | null} origin */
   function obligationContext(origin) {
     if (!origin) return null;
-    const record = answerableAt(placeOf(hostIn(origin, document)));
+    const record = obligationAt(placeOf(hostIn(origin, document)));
     let root = null;
     // Keep the projection outside any nearer widget scope, but inside the
     // keyboard boundary of a thread. Native input claims precede context scopes.
     /** @type {Element | null} */
     let node = origin;
     for (; record && node; node = upFrom(node)) {
-      if (answerableAt(node)?.id !== record.id) break;
+      if (obligationAt(node)?.id !== record.id) break;
       root = node;
       if (node.hasAttribute("data-lf-thread-surface")) break;
     }
@@ -626,11 +609,11 @@ export function createObligationView({
     // rather than a second one asked here.
     const destination = () => {
       const { node: target, source, context } = obligationPlace(next);
-      // A widget is arrived at once its source is drawn; a to-do has none.
-      if (!target || (!source && next.source.kind === "widget")) return null;
+      // A widget is arrived at once its source is drawn.
+      if (!target || !source) return null;
       const box = inChrome(target) ? null : scrollerFor(target);
       return box
-        ? { target, box, region: arrivalRegion(source ?? target, context, target) }
+        ? { target, box, region: arrivalRegion(source, context, target) }
         : { target, box: null, region: null };
     };
     const initial = destination();
@@ -677,12 +660,11 @@ export function createObligationView({
     return arrived;
   }
 
-  // A widget's obligation, which its thread draws first where it stands in one, and a
-  // to-do placed on the page outside any thread; the rest are their thread owner's.
+  // A widget's obligation, which its thread draws first where it stands in one; the
+  // rest are their thread owner's.
   /** @param {AnswerableObligation} next */
   function arriveAtRecord(next) {
-    const placed = next.thread === null && Boolean(obligationNode(next));
-    if (next.source.kind !== "widget" && !placed) return Promise.resolve(false);
+    if (next.source.kind !== "widget") return Promise.resolve(false);
     const ready = arriveAtRecordNow(next);
     void ready.catch(() => {});
     return ready;

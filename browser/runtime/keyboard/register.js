@@ -70,10 +70,6 @@ const STACK = [
   // first.
   "draw mode",
   "design mode",
-  // A to-do on the user at the walk’s current location, whose Done this scope carries.
-  // It stands outside the modes, so a mode entered on a to-do keeps the panel's way
-  // out (touch-controls.js, the innermost stance).
-  "todo",
   PAGE,
   // Outermost, so a page command still ranks ahead of the way out.
   RUNGS,

@@ -432,6 +432,41 @@ test("typed output readers retain authored scope and producer instance identity"
   await settleOutput();
 });
 
+test("an output change moves its readers and publishes no application state", async () => {
+  const { publishOutput } = await import("/runtime/widget-output.js");
+  const { applicationPresented, readApplication, whenApplicationPresented } =
+    await import("/runtime/semantic-state.js");
+  let release;
+  const rendering = new Promise((resolve) => (release = resolve));
+  const { producerTag, consumerTag } = outputScene((element, value) => {
+    if (value?.rows[0] === "held") return rendering;
+  });
+  document.body.innerHTML = `<main><${producerTag} id="feed"></${producerTag}><${consumerTag} id="consumer" for="feed"></${consumerTag}></main>`;
+  const producer = document.querySelector(producerTag);
+  await settleOutput();
+  await whenApplicationPresented();
+  const root = readApplication();
+  publishOutput(producer, "rows", { rows: ["held"] });
+  assert.equal(readApplication(), root, "nothing outside its readers hears the output");
+  assert.equal(
+    applicationPresented(),
+    false,
+    "its reader claims in the publishing stack",
+  );
+  let presented = false;
+  const waiting = whenApplicationPresented().then(() => (presented = true));
+  await settleOutput();
+  assert.equal(
+    presented,
+    false,
+    "the page reads as presented once the reader has drawn",
+  );
+  release();
+  await waiting;
+  document.body.replaceChildren();
+  await settleOutput();
+});
+
 test("source readiness includes asynchronous LeafElement output consumers", async () => {
   const { publishOutput } = await import("/runtime/widget-output.js");
   let release;

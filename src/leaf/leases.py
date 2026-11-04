@@ -11,7 +11,6 @@ replaced the shared path while it was opening it, and a holder that can be
 superseded asks the same of its own descriptor.
 """
 
-import contextlib
 import fcntl
 import functools
 import os
@@ -27,6 +26,7 @@ from leaf.state import (
     HOOKS_SUFFIX,
     TOOLS_SUFFIX,
     flocked,
+    flocked_descriptor,
     session_file,
     still_named,
 )
@@ -185,7 +185,6 @@ def end_if_terminated() -> None:
         sys.exit(128 + _terminated[0])
 
 
-@contextlib.contextmanager
 def page_locked(page_dir: Path):
     """Serialize one page's service changes, `page init`, and contract-bearing
     writes.
@@ -196,22 +195,9 @@ def page_locked(page_dir: Path):
     retire. The directory has to exist, which `page init` sees to before taking
     it. A page deleted and made again at its path while this waited is another
     directory, so the lock is taken again on whichever the path names once it is
-    held; a page deleted for good raises FileNotFoundError."""
-    while True:
-        held = os.open(page_dir, os.O_RDONLY | os.O_DIRECTORY)
-        try:
-            fcntl.flock(held, fcntl.LOCK_EX)
-            if still_named(held, page_dir):
-                break
-        except BaseException:
-            os.close(held)
-            raise
-        os.close(held)
-    try:
-        yield
-    finally:
-        fcntl.flock(held, fcntl.LOCK_UN)
-        os.close(held)
+    held (`state.flocked_descriptor`); a page deleted for good raises
+    FileNotFoundError, since the directory is opened, never created."""
+    return flocked_descriptor(page_dir, os.O_RDONLY | os.O_DIRECTORY)
 
 
 def contract_writer(function):

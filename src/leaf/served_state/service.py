@@ -187,9 +187,7 @@ class PageStateService:
         self.preview = preview
         self.publication = publication
 
-    def page_state(
-        self, view_revision: int | None = None, *, held: str | None = None
-    ) -> dict:
+    def page_state(self, view_revision: int | None = None) -> dict:
         with self.source.state_read(with_token=True) as (
             context,
             reading,
@@ -201,7 +199,6 @@ class PageStateService:
                 publication=self.publication,
                 source_error=source_error,
                 view_revision=view_revision,
-                held=held,
             ).state
             state = {
                 "layer": served_page.served_layer_identity(context, view_revision),

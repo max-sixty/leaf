@@ -51,20 +51,18 @@ def test_read_acknowledges_only_the_named_content_version_without_agent_work(
 
     status, answer = _post_read(server, {"message": original, "version": original})
     assert status == 200, answer
-    assert _unread(answer["state"], original) == []
+    assert _unread(answer["state"], original) == {}
     assert answer["state"]["pending"] == 0
     assert service_model.unacknowledged(event_log_model.read_events(page_dir), 0) == []
 
     [edit] = thread_model.cmd_edit(page_dir, original, "Revised answer.")
     status, answer = _post_read(server, {"message": original, "version": original})
     assert status == 200, answer  # a delayed older acknowledgement remains valid
-    assert _unread(answer["state"], original) == [
-        {"message": original, "version": edit["id"]}
-    ]
+    assert _unread(answer["state"], original) == {original: edit["id"]}
 
     status, answer = _post_read(server, {"message": original, "version": edit["id"]})
     assert status == 200, answer
-    assert _unread(answer["state"], original) == []
+    assert _unread(answer["state"], original) == {}
 
 
 def test_what_the_user_does_in_a_thread_acknowledges_what_it_said(page_dir, server):
@@ -95,7 +93,7 @@ def test_what_the_user_does_in_a_thread_acknowledges_what_it_said(page_dir, serv
         },
     )
     assert status == 200, answer
-    assert _unread(answer["state"], root) == []
+    assert _unread(answer["state"], root) == {}
 
     reply = thread_model.post_reply(
         page_dir, {"responds": _last_id(page_dir)}, "Mounts first, then."
@@ -105,21 +103,21 @@ def test_what_the_user_does_in_a_thread_acknowledges_what_it_said(page_dir, serv
         server, {"kind": "reply", "parent": reply, "revision": 1, "text": "Thanks."}
     )
     assert status == 200, answer
-    assert _unread(answer["state"], root) == []
+    assert _unread(answer["state"], root) == {}
 
     later = thread_model.post_reply(
         page_dir, {"responds": _last_id(page_dir)}, "Done."
     )["id"]
     status, answer = _post(server, {"kind": "resolve", "parent": root})
     assert status == 200, answer
-    assert _unread(answer["state"], root) == []
+    assert _unread(answer["state"], root) == {}
     # A move the user takes back is no evidence either.
     status, answer = _post(server, {"kind": "undo", "undoes": _last_id(page_dir)})
     assert status == 200, answer
-    assert _unread(answer["state"], root) == [{"message": later, "version": later}]
+    assert _unread(answer["state"], root) == {later: later}
     status, answer = _post(server, {"kind": "resolve", "parent": root})
     assert status == 200, answer
-    assert _unread(answer["state"], root) == []
+    assert _unread(answer["state"], root) == {}
 
     [edit] = thread_model.cmd_edit(page_dir, later, "Done, and tested.")
     assert state_json(page_dir)["threads"][0]["unread"] == [later]
@@ -173,7 +171,6 @@ def test_read_does_not_nudge_a_closed_agent_turn(page_dir, monkeypatch):
             "kind": "read",
             "messages": [{"message": message["id"], "version": message["id"]}],
         },
-        dict,
     )
     assert status == 200, answer
     assert nudges == []
@@ -181,7 +178,6 @@ def test_read_does_not_nudge_a_closed_agent_turn(page_dir, monkeypatch):
     status, body = endpoint_model.accept_event(
         page_dir,
         {"kind": "comment", "revision": 1, "text": "Please continue."},
-        dict,
     )
     assert status == 200, body
     assert nudges == [page_dir.resolve()]

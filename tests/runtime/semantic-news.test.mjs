@@ -33,9 +33,11 @@ const thread = (id, msgs, attention = null) =>
     {
       id,
       attention,
-      unread: msgs
-        .filter((item) => item.unread !== false)
-        .map((item) => ({ message: item.id, version: item.content_version })),
+      unread: Object.fromEntries(
+        msgs
+          .filter((item) => item.unread !== false)
+          .map((item) => [item.id, item.content_version]),
+      ),
     },
   );
 const item = (id, thread = null) => ({

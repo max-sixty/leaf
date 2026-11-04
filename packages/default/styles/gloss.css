@@ -3,7 +3,7 @@
  * this phrase goes nowhere — and the top-layer card uses the page's ordinary paper,
  * ink, and rule rather than inventing a tooltip palette. The explanation is words in
  * a card standing over the page, so it takes the face a thread card's words take
- * (`--font-message`, base.css), upright and regular even where the phrase is
+ * (`--font-message`, tokens.css), upright and regular even where the phrase is
  * emphasised. Paper puts the explanation after the phrase, where it can honour its
  * words. */
 lf-gloss {

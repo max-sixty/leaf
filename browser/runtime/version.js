@@ -642,8 +642,8 @@ const comparisonTextNodes = (root, opaque = diffOpaqueSel()) =>
 const comparisonWords = (root, opaque) => quoteFrom(comparisonTextNodes(root, opaque));
 
 // Formatting may render authored words while keeping their source on the formatted
-// island. The keys compare that source; an inline comparison reads the formatted words,
-// which are what the user sees.
+// island. The keys compare that source; the change's card reads the formatted words
+// (`diffWordsOf`), which are what the user sees.
 /** @param {Element} block @param {string} opaque */
 function diffWords(block, opaque) {
   const words = (/** @type {Element} */ root) => comparisonWords(root, opaque);
@@ -2054,8 +2054,8 @@ export function createVersionController({
       activates: () =>
         activates(
           (node) =>
-            // Installation closes inline comparisons, which can own the comment’s
-            // rendered subject independently of the authored patch.
+            // Installation turns a selected comparison off and back on, and its marks
+            // can own the comment’s rendered subject independently of the authored patch.
             selectedBase() === null &&
             patchRetains(outgoing, source, node, patchRules(doc)),
         ),

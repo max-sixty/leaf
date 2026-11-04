@@ -241,10 +241,29 @@
 }
 /* Where a box's marks stand (:root, "Where it stands"). It has no initial value, so a
  * box that states none reads as stating none, which `outline-offset`'s initial 0 could
- * not say: a field's edge read as nothing stated, and an overlay mark stood 3px out
- * round a field whose focus ring replaces its border. It does not inherit, so a box
+ * not say: a field's edge read as nothing stated, and a mark stood 3px out round a
+ * field whose focus ring replaces its border. It does not inherit, so a box
  * inside a stated one answers for itself. */
 @property --lf-ring-at {
+  syntax: "*";
+  inherits: false;
+}
+/* What a mark drawn on a box is drawn with (surfaces.css): its gap, band, ink and the
+ * room it reaches past the box. None inherits, so a box inside a marked one is marked
+ * only as it is itself. */
+@property --lf-band-gap {
+  syntax: "*";
+  inherits: false;
+}
+@property --lf-band-w {
+  syntax: "*";
+  inherits: false;
+}
+@property --lf-band-ink {
+  syntax: "*";
+  inherits: false;
+}
+@property --lf-band-room {
   syntax: "*";
   inherits: false;
 }

@@ -93,8 +93,10 @@ def read_contract_error(event: dict, events: list[dict]) -> Finding | None:
 
 def unread_content(
     events: list[dict], threads: dict, names: dict, widgets: dict
-) -> dict[str, list[dict]]:
-    """Each thread's agent content versions the user has not taken in, in log order.
+) -> dict[str, dict[str, str]]:
+    """Each thread's agent content versions the user has not taken in, each by the
+    message it is a version of, in log order. A message has one current version, so
+    a reading of one message adds or drops one entry.
 
     `threads` is the `build_threads` fold keyed by thread id; `names` and `widgets`
     are `thread_context.thread_names` and `thread_widgets` over the same log.
@@ -115,14 +117,14 @@ def unread_content(
     unread = {}
     for thread_id, thread in threads.items():
         moved = latest_move.get(thread_id, 0)
-        unread[thread_id] = [
-            {"message": message["id"], "version": version}
+        unread[thread_id] = {
+            message["id"]: version
             for message in thread["msgs"]
             if user_message_content(message)
             and not message.get("ephemeral")
             and message.get("edited", {}).get("seq", message["seq"]) > moved
             and (message["id"], version := content_version(message)) not in marked
-        ]
+        }
     return unread
 
 

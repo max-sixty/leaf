@@ -809,7 +809,7 @@ def test_plain_choices_stand_one_per_line_until_the_author_sets_columns(browser,
     resized(page, 1700, 1000)
     read = """control => {
       const box = node => node.getBoundingClientRect();
-      const faces = [...control.querySelectorAll('label.choice')].map(face => {
+      const faces = [...control.querySelectorAll('label.lf-choice')].map(face => {
         const words = document.createRange();
         words.selectNodeContents(face.querySelector('.lf-playground-choice-label'));
         const edges = box(face);
@@ -820,7 +820,7 @@ def test_plain_choices_stand_one_per_line_until_the_author_sets_columns(browser,
         left: box(control).left, right: box(control).right, top: box(control).top,
         faces,
         labelLeft: box(control.querySelector('.lf-playground-control-label')).left,
-        markLeft: box(control.querySelector('label.choice > input')).left,
+        markLeft: box(control.querySelector('label.lf-choice > input')).left,
       };
     }"""
     controls = [

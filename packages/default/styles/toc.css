@@ -154,9 +154,13 @@ lf-toc a[data-lf-focus] {
      * blocks, such as a status line, start past the map's resting box, clear of the
      * spine and of the strip that opens the labels, so a press on their first words
      * reaches the words rather than opening the map. Revealed, the labels still cover
-     * them. */
-    .layout-track:has(> lf-toc) > :not(lf-toc) {
-      margin-inline-start: var(--sp-4);
+     * them. The rule is a scope rather than `:has(> lf-toc) > *`, which Chromium
+     * matches by reading the parent's children again for each child, a cost that grows
+     * with the square of a long column; it finds a scope's root once per element. */
+    @scope (:has(> lf-toc)) {
+      :scope > :not(lf-toc) {
+        margin-inline-start: var(--sp-4);
+      }
     }
     /* The revealed background includes the space above and below the spine, where
        * the first and last labels extend beyond their markers. */

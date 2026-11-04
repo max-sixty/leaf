@@ -73,8 +73,8 @@ model pins. Use only Astra or Opus for judging, including independent visual rev
 Sol can author pages. Vary author models to test guidance transfer, and cross-check
 judgments with the other allowed judge. A failure specific to one harness makes
 that harness the focus. Validate a repair on both
-harnesses, since their authors hit different refusals and read different references. `evals/workflows/eval.yaml` owns
-the viewport presets and dimensions. Use `desktop` for routine authoring and primary
+harnesses, since their authors hit different refusals and read different references. `WINDOWS` in `dev/leaf_dev/browser.py` owns
+the named windows and their dimensions. Use `desktop` for routine authoring and primary
 judging; occasionally add `large`, `short` or `phone` to answer a concrete layout or
 access question. Extra sizes on saved pages can be explored with
 `eval --from RUN --judge discovery` without expanding the original authoring task.

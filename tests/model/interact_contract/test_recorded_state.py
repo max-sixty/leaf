@@ -428,7 +428,7 @@ def _independent_member_records():
 
 def test_member_records_compose_without_claiming_each_others_state(tmp_path):
     from leaf.construction import constructed_content
-    from leaf.projection import page_reading
+    from leaf.projection import page_reading, retirement_outcomes
 
     page = _independent_member_records()
     reading = page.reading(1, page.registry(1))
@@ -457,13 +457,15 @@ def test_member_records_compose_without_claiming_each_others_state(tmp_path):
         events = model.served_reading(
             reading.document.html, commands, registry=reading.registry
         )["events"]
+        projection = page_reading(reading, events, 1).projection
         pending = constructed_content(
             reading.document,
-            page_reading(reading, events, 1).projection,
+            projection,
             reading.spoken,
             reading.registry,
             {"sources": {}},
             tmp_path,
+            outcomes=retirement_outcomes(projection.actions),
             retired=set(),
             thread="thread",
         )

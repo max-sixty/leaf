@@ -20,7 +20,7 @@ from leaf.codex import private_app_server
 from leaf.inference import CODEX_CONFIG, CODEX_SERVER_ARGUMENTS
 from leaf_dev import ROOT
 from leaf_dev.arms import codex_home, codex_program, environment, run_leaf, serving
-from leaf_dev.browser import headless_shell, load, tab
+from leaf_dev.browser import Window, headless_shell, load, tab
 from leaf_dev.codex_task import Task
 
 FIXTURES = ROOT / "evals/widget-formats"
@@ -316,7 +316,7 @@ def check(answer: str, condition: str, case: str, work: Path) -> dict:
         with (
             serving(ROOT, state, page) as url,
             headless_shell() as browser,
-            tab(browser, viewport=(900, 760)) as view,
+            tab(browser, Window((900, 760))) as view,
         ):
             errors = []
             view.on("pageerror", lambda error: errors.append(str(error)))

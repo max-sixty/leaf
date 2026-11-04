@@ -2,16 +2,15 @@
  *
  * Installed before each document. The goals stay in sessionStorage so a revision
  * that reloads the page is sampled by the document that replaces it. Sampling
- * records the first painted frame that meets each goal, the traffic from arming
- * through settlement, and the long animation frames this
+ * records the first painted frame that meets each goal, the trips the runtime's
+ * ledger counted from arming through settlement, and the long animation frames this
  * document ran since arming, with the scripts that ran in each; Python drives the
- * gestures and agent writes in the top tab. Embedded examples have their own
- * semantic document and share no measurement.
+ * gestures and agent writes in the top tab, and reads the requests from the browser.
+ * Embedded examples have their own semantic document and share no measurement.
  */
 (() => {
   if (window !== window.top || location.protocol === "about:") return;
   const WATCH = "leaf-bench-watch";
-  performance.setResourceTimingBufferSize(1000000);
   const documentId = crypto.randomUUID();
   const clock = () => performance.timeOrigin + performance.now();
   let input = null;
@@ -26,7 +25,7 @@
   const messages = (words) =>
     [
       ...document.querySelectorAll(
-        ":is(.lf-thread, .lf-page-thread) :is([data-mid], [data-event])",
+        ":is(.lf-thread, .lf-page-thread) :is([data-mid], [data-lf-event])",
       ),
     ].filter((node) => node.textContent.includes(words) && shown(node));
   let semantic = null;
@@ -47,7 +46,7 @@
       semantic.applicationPresented() &&
       semantic
         .readApplication()
-        .authoritative?.browser.receipts.some((receipt) => receipt.attempt === attempt),
+        .authoritative?.events.some((event) => event.attempt === attempt),
     card: ({ card, to }) => {
       const node = document.getElementById(card);
       return (
@@ -108,19 +107,6 @@
   }
   const ledger = () =>
     JSON.parse(document.documentElement.dataset.lfTraffic ?? '{"sends":0,"asked":0}');
-  const resources = (entries) => ({
-    requests: entries.length,
-    bytes: entries.reduce((total, entry) => total + entry.transferSize, 0),
-    // Each request, for results.json: what a count or a byte total cannot say.
-    entries: entries.map((entry) => ({
-      url: entry.name,
-      initiator: entry.initiatorType,
-      bytes: entry.transferSize,
-      // When it started and its last byte arrived, in epoch milliseconds.
-      start: performance.timeOrigin + entry.startTime,
-      end: performance.timeOrigin + entry.responseEnd,
-    })),
-  });
   Object.defineProperty(window, "__leafBench", {
     value: Object.freeze({
       async arm(goals) {
@@ -132,7 +118,6 @@
         const watch = {
           goals: goals.map((goal) => ({ ...goal, at: null })),
           document: documentId,
-          since: performance.now(),
           ledger: ledger(),
         };
         sessionStorage.setItem(WATCH, JSON.stringify(watch));
@@ -169,19 +154,18 @@
       frames: () => window.__leafMainThread.reading().frames,
       revision: () =>
         Number(document.querySelector('meta[name="lf-revision"]')?.content),
+      // Every trip the runtime's ledger counts, its event posts and state reads, has
+      // ended (runtime/traffic.js).
       quiet() {
-        const ready =
-          document.querySelector("script[data-lf-entry]")?.lfReadiness?.() === null;
         const trips = ledger();
         return (
-          ready &&
           trips.acked === trips.sends &&
           trips.heard === trips.asked &&
           !trips.pending?.length
         );
       },
-      // What the page did since `arm`: in this document the resource entries started
-      // since then, and after a reload everything the new document loaded.
+      // The trips the runtime's ledger counted since `arm`, in this document or, after
+      // a reload, in the new one.
       traffic() {
         const watch = watched();
         const now = ledger();
@@ -190,21 +174,8 @@
             install: "in place",
             sends: now.sends - watch.ledger.sends,
             asked: now.asked - watch.ledger.asked,
-            ...resources(
-              performance
-                .getEntriesByType("resource")
-                .filter((entry) => entry.startTime >= watch.since),
-            ),
           };
-        return {
-          install: "reload",
-          sends: now.sends,
-          asked: now.asked,
-          ...resources([
-            ...performance.getEntriesByType("navigation"),
-            ...performance.getEntriesByType("resource"),
-          ]),
-        };
+        return { install: "reload", sends: now.sends, asked: now.asked };
       },
     }),
   });

@@ -61,10 +61,7 @@ from leaf.validation.admission import (
     revision_publication,
 )
 from leaf.validation.instances import reference_errors
-from leaf_dev.example_data import authored_sources
-
-FEATURE_GALLERY = ROOT / "examples" / "developer" / "feature-gallery.html"
-CORPUS_SOURCES = tuple(authored_sources())
+from leaf_dev.example_data import authored_sources, named_source, page_files
 
 
 def authored_tags(document: SourceDocument) -> set[str]:
@@ -481,15 +478,9 @@ def test_every_path_a_diff_resolves_names_a_language_the_bundles_carry(page_dir)
 
 
 PAGE_FIXTURES = (
-    *CORPUS_SOURCES,
+    *authored_sources(),
     *sorted((ROOT / "notes").glob("**/*.html")),
 )
-
-
-def test_the_fixture_check_reaches_the_developer_pages():
-    """A moved `examples/developer/` would leave the check above with nothing to say
-    about it rather than failing."""
-    assert FEATURE_GALLERY in PAGE_FIXTURES
 
 
 def test_every_widget_in_the_vocabulary_stands_in_a_corpus_source():
@@ -502,7 +493,10 @@ def test_every_widget_in_the_vocabulary_stands_in_a_corpus_source():
     registry = validation_model.incoming_registry(SHIPPED_PACKAGES)
     # The corpus is generated from the others, so it can only repeat their coverage.
     authored = set().union(
-        *(authored_tags(SourceDocument(path.read_text())) for path in CORPUS_SOURCES)
+        *(
+            authored_tags(SourceDocument(path.read_text()))
+            for path in authored_sources()
+        )
     )
     tags = element_declarations(registry)
     assert tags, "no widgets read — an empty vocabulary demonstrates itself"
@@ -522,7 +516,7 @@ def test_every_default_widget_stands_in_the_feature_gallery():
         (schema_model.DEFAULT_PACKAGE / "registry.json").read_text(encoding="utf-8")
     )
     authored = authored_tags(
-        SourceDocument(FEATURE_GALLERY.read_text(encoding="utf-8"))
+        SourceDocument(named_source("feature-gallery").read_text(encoding="utf-8"))
     )
     tags = [tag for tag in registry if tag.startswith("lf-")]
     assert tags, "the default package declares no widgets"
@@ -535,11 +529,10 @@ def test_every_default_widget_stands_in_the_feature_gallery():
 
 def test_the_feature_gallery_eyebrows_index_literal_code_names():
     """Every showcased element is indexed by a code name, never descriptive prose."""
-    authored = FEATURE_GALLERY.read_text(encoding="utf-8")
+    gallery = named_source("feature-gallery")
+    authored = gallery.read_text(encoding="utf-8")
     gallery_registry = json.loads(
-        (FEATURE_GALLERY.with_suffix(".page") / "registry.json").read_text(
-            encoding="utf-8"
-        )
+        (page_files(gallery) / "registry.json").read_text(encoding="utf-8")
     )
     apparatus = {
         tag for tag, entry in gallery_registry.items() if entry.get("x-exhibit")

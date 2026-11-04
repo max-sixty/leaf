@@ -104,7 +104,7 @@ class _FailedTurn:
 
     def locator(self, selector: str):
         assert selector in {
-            ".lf-floating-panel[data-open]",
+            ".lf-floating-panel[data-lf-open]",
             ".lf-fp-close",
             ".lf-fp-field leaf-text",
         }

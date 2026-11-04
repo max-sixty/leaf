@@ -13,12 +13,12 @@ from interact_support import (
     fragment_errors,
     publish,
 )
-from model.test_interact_product import CORPUS_SOURCES, PAGE_FIXTURES
+from model.test_interact_product import PAGE_FIXTURES
 
 import leaf.validation.command as checking_command
 from leaf import cli as cli_model
 from leaf.registry import storage as registry_storage
-from leaf_dev.example_data import named_source
+from leaf_dev.example_data import authored_sources, named_source
 from leaf_dev.page_fixtures import leaf_in_process, prepare_page, read_fixture
 
 
@@ -117,7 +117,7 @@ def test_every_seeded_fragment_passes_the_door_it_never_came_through(
     refused in a version, and until recently accepted in a reply. No seed carries one
     today, which is what a floor is for."""
     monkeypatch.chdir(tmp_path)  # keep the project layer out of the overlay
-    seeded = [p for p in CORPUS_SOURCES if p.with_suffix(".jsonl").exists()]
+    seeded = [p for p in authored_sources() if p.with_suffix(".jsonl").exists()]
     assert seeded, "no example ships a log; this gate is reading nothing"
     read = 0
     for example in seeded:

@@ -317,7 +317,9 @@ def test_a_question_reply_appends_one_event_across_tabs(browser, serve, one_user
     )
     first = open_page(browser, url, context=one_user)
     second = open_page(browser, url, context=one_user)
-    selector = f'#jobs > .lf-thread-seat > .lf-page-thread[data-thread="{root["id"]}"]'
+    selector = (
+        f'#jobs > .lf-thread-seat > .lf-page-thread[data-lf-thread="{root["id"]}"]'
+    )
     first_thread = first.locator(selector)
     second_thread = second.locator(selector)
     raw = "  The camera, then the mounting work.  "
@@ -819,7 +821,7 @@ def test_an_intentional_later_identical_reply_gets_a_fresh_attempt(browser, serv
         },
     )
     page = open_page(browser, url)
-    thread = page.locator(f'#jobs .lf-page-thread[data-thread="{root["id"]}"]')
+    thread = page.locator(f'#jobs .lf-page-thread[data-lf-thread="{root["id"]}"]')
     text = "Still true."
     for _ in range(2):
         write(thread.locator("leaf-text"), text)

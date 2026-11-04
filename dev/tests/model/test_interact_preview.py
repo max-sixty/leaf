@@ -46,6 +46,7 @@ from leaf.registry.storage import layer_record, load_registry, selected
 from leaf.structure import SourceDocument
 from leaf_dev import arms, page_fixtures
 from leaf_dev.commands import preview, record_demo, site
+from leaf_dev.example_data import named_source
 from leaf_dev.page_fixtures import leaf_in_process, prepare_page, read_fixture
 
 LEAF_S_THEME = {"name": "reading", "source": "default"}
@@ -192,7 +193,7 @@ def test_product_previews_prepare_the_authored_layer_and_media(
     tmp_path, monkeypatch, name
 ):
     """A product preview includes its site furniture, composed parts, and images."""
-    source = ROOT / "docs" / f"{name}.html"
+    source = named_source(name)
     page = tmp_path / "preview"
     monkeypatch.chdir(ROOT)
     prepare_page(page, read_fixture(source), leaf_in_process, final_status=None)
@@ -215,7 +216,7 @@ def test_product_previews_prepare_the_authored_layer_and_media(
     assert str(ROOT / "docs" / "layer.json") in watched.paths
     # A composed part's owner is an input: a caption follows its example's edit.
     if name == "examples":
-        assert str(ROOT / "examples" / "review-a-plan.html") in watched.paths
+        assert str(named_source("review-a-plan")) in watched.paths
 
 
 @pytest.mark.parametrize("kind", ["image", "css", "inline", "stylesheet", "sample"])
@@ -294,7 +295,7 @@ def test_a_preview_subscribes_to_a_root_over_every_input_it_follows():
     """
     from leaf.layer import layer_inputs
 
-    source = ROOT / "examples" / "heat-loss.html"
+    source = named_source("heat-loss")
     packages = json.loads((ROOT / "examples" / "layer.json").read_text())
     watched = preview.watch_paths(
         source,
@@ -448,7 +449,7 @@ def test_corpus_preview_follows_authored_sources(tmp_path, monkeypatch, capsys):
     """Native source events regenerate the corpus before its live page is refreshed."""
     from leaf.data import read_data
     from leaf.registry.storage import load_registry
-    from leaf_dev.example_data import data_file, named_source, page_files
+    from leaf_dev.example_data import data_file, page_files
 
     examples = tmp_path / "examples"
     examples.mkdir()
@@ -1185,7 +1186,7 @@ def test_a_fixture_acknowledges_its_seed_with_the_runtime_it_was_read_for(tmp_pa
     prepare_page(
         page,
         read_fixture(
-            ROOT / "examples/log-retention.html",
+            named_source("log-retention"),
             runtime=runtime,
             env=arms.environment(XDG_STATE_HOME=str(state)),
         ),

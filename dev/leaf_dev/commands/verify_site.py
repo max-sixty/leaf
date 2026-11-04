@@ -854,8 +854,8 @@ def verify_saved_state(browser, worker: LocalWorker) -> dict[str, dict]:
     page.locator("#saved-state-recall").wait_for(state="visible")
     page.locator("#heat-opt-window[chosen]").wait_for(state="visible")
     go_to_threads(page)
-    page.locator(f'.lf-fp-thread[data-key="{seeded["comment"]}"]').click()
-    page.locator(".lf-fp-view[data-view=thread]").get_by_text(
+    page.locator(f'.lf-fp-thread[data-lf-key="{seeded["comment"]}"]').click()
+    page.locator(".lf-fp-view[data-lf-route=thread]").get_by_text(
         "Saved before the container stopped.", exact=True
     ).wait_for(state="visible")
     state_response = read_state(context.request, state_url)

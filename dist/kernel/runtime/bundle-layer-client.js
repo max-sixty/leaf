@@ -450,14 +450,61 @@ function layerHeaders(headers) {
 	new Headers(headers).forEach((value, name) => result.set(name, value));
 	return result;
 }
-const dataHeaders = (held) => held.version === null ? {} : { "Leaf-Data-Version": held.version };
-const completeData = (state, held) => ({
-	...state,
-	data: {
-		...state.data,
-		sources: state.data.sources ?? held.sources
-	}
+const heldReading = () => ({
+	data: runtime.data,
+	state: runtime.state
 });
+const heldHeaders = ({ data, state }) => ({
+	...data.version !== null && { "Leaf-Data-Version": data.version },
+	...state && { "Leaf-Held-Basis": state.browser.basis.key }
+});
+const extended = (held, sent, dropped, order = 1) => {
+	const replaced = /* @__PURE__ */ new Set([...dropped, ...sent.map(({ event }) => event.id)]);
+	return [...held.filter(({ event }) => !replaced.has(event.id)), ...sent].sort((a, b) => order * ((a.event.seq ?? 0) - (b.event.seq ?? 0)));
+};
+function completeState(answer, held) {
+	const { since, ...rest } = answer;
+	const data = {
+		...rest.data,
+		sources: rest.data.sources ?? held.data.sources
+	};
+	if (!since) return {
+		...rest,
+		data
+	};
+	const prior = held.state;
+	if (prior?.browser.basis.through_seq !== since.through_seq) throw new Error("The state answer extends a reading this tab did not name");
+	const views = Object.fromEntries(Object.entries(rest.browser.views).map(([revision, view]) => {
+		const before = prior.browser.views[revision];
+		const dropped = since.dropped[revision];
+		if (!before || !dropped) throw new Error(`The state answer extends a view r${revision} this tab lacks`);
+		const projection = (part) => ({
+			...view[part].projection,
+			entries: extended(before[part].projection.entries, view[part].projection.entries, dropped[part])
+		});
+		return [revision, {
+			...view,
+			document: {
+				...view.document,
+				projection: projection("document")
+			},
+			thread: {
+				...view.thread,
+				projection: projection("thread")
+			},
+			undo: extended(before.undo, view.undo, dropped.undo, -1)
+		}];
+	}));
+	return {
+		...rest,
+		data,
+		events: [...prior.events, ...rest.events],
+		browser: {
+			...rest.browser,
+			views
+		}
+	};
+}
 var LayerRefused = class extends Error {};
 var RequestError = class extends Error {
 	constructor(message, { status, body, cause, current, said }) {
@@ -553,7 +600,7 @@ const revealLayer = () => {
 };
 const encoder = new window.TextEncoder();
 const KEEPALIVE_BYTES = 6e4;
-const postEvent = async (event, held = runtime.data) => {
+const postEvent = async (event, held = heldReading()) => {
 	if (offlineInteractive) throw new Error("no agent or server is available in an interactive export");
 	if (!layerKnown) await layerReady;
 	countTraffic("sends");
@@ -568,7 +615,7 @@ const postEvent = async (event, held = runtime.data) => {
 			method: "POST",
 			headers: layerHeaders({
 				"Content-Type": "application/json",
-				...dataHeaders(held)
+				...heldHeaders(held)
 			}),
 			body,
 			keepalive: encoder.encode(body).byteLength < KEEPALIVE_BYTES
@@ -647,4 +694,4 @@ window.addEventListener("unhandledrejection", (e) => {
 });
 
 //#endregion
-export { LayerRefused, RequestError, admitReading, admitResponse, completeData, countTraffic, dataHeaders, layerHeaders, postEvent, randomId, recordInteraction, removeRuntimeRootStyle, reportCarried, reportPageError, requestJson, revealLayer, runtimeRootState, sameLayer, sessionIsActive, setRuntimeRootAttribute, setRuntimeRootStyle, uploadMedia, watchPendingTraffic };
+export { LayerRefused, RequestError, admitReading, admitResponse, completeState, countTraffic, heldHeaders, heldReading, layerHeaders, postEvent, randomId, recordInteraction, removeRuntimeRootStyle, reportCarried, reportPageError, requestJson, revealLayer, runtimeRootState, sameLayer, sessionIsActive, setRuntimeRootAttribute, setRuntimeRootStyle, uploadMedia, watchPendingTraffic };

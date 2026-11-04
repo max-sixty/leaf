@@ -29,7 +29,6 @@ const reading = (events) =>
     events,
     browser: {
       basis: { through_seq: events.length },
-      receipts: events,
       views: {
         1: {
           basis: { through_seq: events.length },

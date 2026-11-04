@@ -82,6 +82,10 @@ export const servedObligationRow = (item, changes) =>
 // The same admitted undo/refusal/revision sequence used by the Python fold test.
 export const servedGestureSequence = () => structuredClone(RECORDS.gestures);
 
+// Answers that complete a reading the browser holds, `{name, held, tail, whole}`:
+// that reading, the answer to a request naming it, and the whole answer.
+export const servedTails = () => structuredClone(RECORDS.tails);
+
 // Cross-runtime typed obligation values use the same real server fold.
 export const servedObligationValues = () => structuredClone(RECORDS.obligation_values);
 

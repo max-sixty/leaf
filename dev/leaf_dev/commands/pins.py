@@ -623,8 +623,7 @@ def capture(browser, address: str, out: Path) -> dict:
     `{case: {viewport: {"faults", "unaccepted", "reading", "shot"}}}`."""
     result = {case.name: {} for case in CASES}
     for viewport in VIEWPORTS:
-        window = WINDOWS[viewport]
-        with tab(browser, window.size, touch=window.touch, scale=SCALE) as page:
+        with tab(browser, WINDOWS[viewport], scale=SCALE) as page:
             load(page, address)
             for case in CASES:
                 reading = read(page, case)

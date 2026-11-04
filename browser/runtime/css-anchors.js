@@ -404,19 +404,24 @@ export const anchorName = (el) => nameAnchor(anchorReading(el));
 // no anchor in a native layer.
 /** @type {boolean | undefined} */
 let dropsTransforms;
-// Firefox lacks transforms in `anchor()`; read once whether this engine does.
+// Firefox lacks transforms in `anchor()`; read once whether this engine does. The probe
+// stands in a box with layout containment, which holds its anchor and the box anchored
+// to it: in the window's containing block, Chromium restyled every anchored element on
+// the page when they left, 200 ms on a page of 512 asks.
 function anchorDropsTransforms() {
   if (dropsTransforms !== undefined) return dropsTransforms;
+  const probe = document.createElement("div");
   const moved = document.createElement("div");
   const anchored = document.createElement("div");
+  probe.style.cssText = "position: fixed; left: 0; top: 0; contain: layout";
   moved.style.cssText =
     "position: fixed; left: 0; top: 0; translate: 8px 0; anchor-name: --lf-moved";
   anchored.style.cssText =
     "position: fixed; top: 0; position-anchor: --lf-moved; left: anchor(left, 8px)";
-  chromeRoot.append(moved, anchored);
+  probe.append(moved, anchored);
+  chromeRoot.append(probe);
   dropsTransforms = anchored.getBoundingClientRect().left < 4;
-  moved.remove();
-  anchored.remove();
+  probe.remove();
   return dropsTransforms;
 }
 // Whether `style` moves its box from where layout put it.

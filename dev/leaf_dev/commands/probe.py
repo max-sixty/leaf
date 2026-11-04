@@ -35,7 +35,13 @@ from playwright.sync_api import Page
 
 from leaf_dev import ROOT
 from leaf_dev.arms import base_option, choose_arms, run_directory
-from leaf_dev.browser import engine_option, launch, tab_options
+from leaf_dev.browser import (
+    chosen_window,
+    engine_option,
+    launch,
+    screenshot,
+    tab_options,
+)
 from leaf_dev.example_data import named_source
 from leaf_dev.recording import recording
 from leaf_dev.states import STATES, State
@@ -297,8 +303,9 @@ def probe(
             visit.reading["result"] = visit.page.evaluate(expression)
         if shots:
             visit.doing = "shot"
-            visit.reading["shot"] = str(shots / f"{arm}.png")
-            visit.page.screenshot(path=visit.reading["shot"])
+            shot = shots / f"{arm}.png"
+            visit.reading["shot"] = str(shot)
+            screenshot(visit.page, shot)
 
     def record(page: Page, arm: str) -> AbstractContextManager:
         assert record_dir
@@ -319,7 +326,8 @@ def probe(
             state,
             source,
             Path(built),
-            window=state.window(viewport, scheme, touch),
+            window=chosen_window(state.window, viewport, touch),
+            scheme=scheme,
             read=read,
             motion=motion or "no-preference",
             log=log,

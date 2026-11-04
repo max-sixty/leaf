@@ -133,7 +133,7 @@ from leaf.structure import SourceDocument
 from leaf.thread import successful_replies
 from leaf_dev import ROOT
 from leaf_dev.arms import PAYLOAD, PageClient, extract_payload, run_directory, run_leaf
-from leaf_dev.browser import DESKTOP, headless_shell
+from leaf_dev.browser import WINDOWS, headless_shell
 from leaf_dev.commands.response_times import Records, page_timings
 from leaf_dev.commands.verify_site import (
     LocalWorker,
@@ -1545,9 +1545,10 @@ def working_version(commit: str) -> str:
 
 
 def local_session(browser, url: str) -> Session:
-    """A user's session, in a desktop window, on the page a local server serves at
+    """A user's session, in a MacBook's window, on the page a local server serves at
     its keyed `url`."""
-    context = browser.new_context(viewport={"width": DESKTOP[0], "height": DESKTOP[1]})
+    width, height = WINDOWS["macbook"].size
+    context = browser.new_context(viewport={"width": width, "height": height})
     page = context.new_page()
     failures = observe_startup(page)
     response = page.goto(url, wait_until="load", timeout=120_000)

@@ -50,7 +50,6 @@ from render_cases_widgets import (
     WIDE_DIAGRAM_PAGE,
 )
 from render_harness import (
-    EXAMPLES,
     INLINE_PAGE,
     LONG_PAGE,
     REPLY_HOST_PAGE,
@@ -86,13 +85,14 @@ from leaf import schema as schema_model
 from leaf.registry.storage import load_registry
 from leaf.render_checks import evaluate_probe, rendered, wait_until_ready
 from leaf.render_gate.scheme import console_finding
+from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
 
 def test_sort_film_readout_and_narration(browser, serve):
     """Changing step numbers hold their space, and narration renders inline Markdown."""
-    example = next(path for path in EXAMPLES if path.stem == "rust-sort")
+    example = named_source("rust-sort")
     page = open_page(browser, serve(example))
     assert (
         "collapse(): merge if one is true"
@@ -152,7 +152,7 @@ def test_sort_film_fits_its_pane_where_the_panes_stand_side_by_side(browser, ser
     """A workspace is a screen, so in a 900px-tall window at the narrowest width the
     page sets its panes side by side, the whole player shows in its pane, the last
     step's longer summary included (page-layout.md, "A workspace")."""
-    example = next(path for path in EXAMPLES if path.stem == "rust-sort")
+    example = named_source("rust-sort")
     context = browser.new_context(
         reduced_motion="reduce", viewport={"width": 720, "height": 900}
     )
@@ -175,7 +175,7 @@ def test_sort_film_fits_its_pane_where_the_panes_stand_side_by_side(browser, ser
 
 
 def test_ship_review_summary_is_addressable_and_baseline_aligned(browser, serve):
-    example = next(path for path in EXAMPLES if path.stem == "ship-review")
+    example = named_source("ship-review")
     page = open_page(browser, serve(example))
     summary = page.locator("#off-facts")
     expect(summary).to_be_visible()
@@ -748,7 +748,7 @@ def test_a_screenshot_comment_contour_paints_above_its_edge_to_edge_frame(
     down both sides. Both projected brackets, including their end caps, remain above
     the frame.
     """
-    example = next(path for path in EXAMPLES if path.stem == "release-notes")
+    example = named_source("release-notes")
     page = open_page(browser, serve(example))
     shot = page.locator("#rn-console-shot")
     shot.get_by_role("button", name="Slider", exact=True).click()
@@ -807,7 +807,7 @@ def test_a_focused_card_comment_never_paints_over_the_cards_contents(browser, se
     Comparing the interior with that overlay hidden makes the guarantee independent of
     the widget's DOM, colors, and stacking choices.
     """
-    example = next(path for path in EXAMPLES if path.stem == "live-progress")
+    example = named_source("live-progress")
     url = serve(example)
     append_carried_log_record(
         serve.page_dir,
@@ -852,7 +852,7 @@ def test_a_focused_card_comment_never_paints_over_the_cards_contents(browser, se
 
 def test_a_screenshot_margin_trace_paints_both_quiet_brackets(browser, serve):
     """A margin control traces a visual target above its edge-to-edge children."""
-    example = next(path for path in EXAMPLES if path.stem == "release-notes")
+    example = named_source("release-notes")
     page = open_page(browser, serve(example))
     resized(page, 1200, 900)
     margins_laid_out(page)
@@ -1740,6 +1740,13 @@ def test_a_table_granted_room_stands_on_the_prose_axis(
             assert at[kept][edge] == pytest.approx(at["cell"][edge], abs=1), (kept, at)
     assert width(at["beside"]) == pytest.approx(width(at["cell"]), abs=1), at
     assert root_overflow(page) == 0
+    # A focus ring beside the tables leaves nothing to scroll sideways either
+    # (test_a_breakout_grows_only_from_a_holder_that_spans_the_column).
+    page.evaluate(
+        """() => { const p = document.getElementById('prose');
+          p.tabIndex = -1; p.focus({focusVisible: true}); }"""
+    )
+    assert root_overflow(page) == 0
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser", "webkit_browser"])
@@ -2092,12 +2099,17 @@ INDENTED_PAGE = leaf_page(
 def test_a_breakout_grows_only_from_a_holder_that_spans_the_column(
     request, serve, direction, engine
 ):
-    """An explicit flow shares the column's room; ordinary holders contain their exhibits."""
+    """An explicit flow shares the column's room; ordinary holders contain their exhibits.
+    A focus ring beside a breakout leaves nothing to scroll sideways: Firefox counted a
+    breakout moved by a relative offset at its place in flow once a ring restyled its
+    holder, so closing a thread card, which rings the paragraph it leaves the user at,
+    left the page 456px wider than a 1728px window."""
     browser = request.getfixturevalue(engine)
     source = leaf_page(
         "Native exhibit tracks",
         '<h1>Evidence</h1><p id="prose">Reading measure.</p>'
-        '<section class="layout-flow"><div id="wide" data-width="wide">Wide</div>'
+        '<section class="layout-flow"><p id="beside">Beside the breakouts.</p>'
+        '<div id="wide" data-width="wide">Wide</div>'
         '<div id="available" data-width="available">Available</div></section>'
         '<div id="holder" style="margin-inline-start:40px"><div id="nested" data-width="available">Contained</div></div>'
         '<div id="grid" style="display:grid;grid-template-columns:1fr 1fr;gap:16px">'
@@ -2118,6 +2130,12 @@ def test_a_breakout_grows_only_from_a_holder_that_spans_the_column(
             (at["grid"]["width"] - 16) / 2, abs=1
         )
         assert root_overflow(page) == 0
+    resized(page, 1440, 900)
+    page.evaluate(
+        """() => { const p = document.getElementById('beside');
+          p.tabIndex = -1; p.focus({focusVisible: true}); }"""
+    )
+    assert root_overflow(page) == 0
 
 
 def test_a_breakout_a_revision_inserts_deeper_lands_before_it_paints(browser, serve):

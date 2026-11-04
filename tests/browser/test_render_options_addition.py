@@ -18,7 +18,6 @@ from render_cases_layout import (
     token_colour,
 )
 from render_harness import (
-    EXAMPLES,
     consume_browser_errors,
     example_media,
     expect_error_waits_in_menu,
@@ -37,6 +36,7 @@ from render_harness import (
 )
 
 from leaf import event_log as events_model
+from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -514,7 +514,7 @@ def test_the_add_field_says_its_whole_hint_on_a_phone(browser, serve):
     "Another option — add to select" to "Another option — ad…", which lost the verb.
     The hint says the same in words that fit, and the room it keeps is measured here
     rather than restated."""
-    example = next(p for p in EXAMPLES if p.stem == "alert-review")
+    example = named_source("alert-review")
     context = browser.new_context(
         viewport={"width": 360, "height": 740}, has_touch=True, is_mobile=True
     )

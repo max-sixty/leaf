@@ -9,9 +9,7 @@ from interact_support import append_carried_log_record
 from playwright.sync_api import expect
 from render_cases_interaction import OBLIGATION_PAGE, PANEL_PAGE, panel_comment
 from render_harness import (
-    EXAMPLES,
     PANEL,
-    ROOT,
     holding,
     leaf_page,
     margins_laid_out,
@@ -41,6 +39,7 @@ from browser.threads import append_agent_reply, append_user_reply
 from leaf import event_log
 from leaf import thread as thread_model
 from leaf.render_checks import rendered
+from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -428,7 +427,7 @@ def test_a_card_above_its_target_holds_news_it_would_grow_up_for(browser, serve)
 
 def test_the_shipped_long_thread_keeps_the_margin_and_its_height(browser, serve):
     """The shipped exchange stands beside its controls, and crosses them before it shrinks."""
-    example = next(page for page in EXAMPLES if page.stem == "ship-review")
+    example = named_source("ship-review")
     page = open_page(browser, serve(example))
     page.emulate_media(reduced_motion="reduce")
     resized_shell(page, 1920, 900)
@@ -795,9 +794,7 @@ def test_a_focused_thread_covers_the_pages_choice_hints(browser, serve):
     stands over the ask's options, below its marker in the Mac's faces and in Linux
     CI's wider DejaVu alike: at 1000x838, DejaVu left the card no room below, and it
     stood above the options."""
-    page = open_page(
-        browser, serve(ROOT / "tests/fixtures/pages/thread-choice-hints.html")
-    )
+    page = open_page(browser, serve(named_source("thread-choice-hints")))
     resized(page, 1100, 900)
     page.locator(".lf-margin-marker").first.focus()
     page.keyboard.press("Enter")

@@ -10,7 +10,6 @@ from playwright.sync_api import expect
 from render_cases_interaction import PANEL_PAGE
 from render_cases_widgets import RAIL_BAND_PAGE
 from render_harness import (
-    EXAMPLES,
     PANEL,
     RELEASE_FOCUS,
     leaf_page,
@@ -32,6 +31,7 @@ from browser.margin import (
 from leaf.render_checks import rendered
 from leaf_dev.browser import WINDOWS
 from leaf_dev.commands import pins as pin_cases
+from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -172,7 +172,7 @@ def test_release_notes_pins_under_a_finger_stand_by_the_words_they_decide(
     )
     page = open_page(
         browser,
-        serve(next(e for e in EXAMPLES if e.stem == "release-notes")),
+        serve(named_source("release-notes")),
         context=context,
     )
     margins_laid_out(page)

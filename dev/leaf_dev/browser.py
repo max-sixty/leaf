@@ -5,8 +5,8 @@ import os
 import subprocess
 import sys
 from contextlib import contextmanager
-from dataclasses import dataclass
-from functools import cache, wraps
+from dataclasses import dataclass, replace
+from functools import cache
 from pathlib import Path
 
 import click
@@ -16,30 +16,40 @@ from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from leaf.render_checks import rendered, wait_for_probe, wait_until_ready
 from leaf_dev import ROOT
 
-DESKTOP = (1440, 900)
-PHONE = (390, 844)
-
 
 @dataclass(frozen=True)
 class Window:
-    """A window a tab opens at: its size in CSS pixels, whether a finger drives it
-    (`tab`'s `touch`), and the words a prompt uses for it."""
+    """A window a tab opens in (`tab`): its size in CSS pixels, whether a finger
+    drives it, with a coarse pointer and mobile emulation, and the words a prompt
+    uses for it, which only a window a tool names (`WINDOWS`) has."""
 
     size: tuple[int, int]
-    description: str
     touch: bool = False
+    description: str = ""
 
 
 # The windows a tool opens a page in by name, as `eval --viewport large` or
-# `stills --viewport phone` does. An eval author's request and a judge's instructions
-# give a window's description, which states its size, so a change to either changes
-# what those agents are asked.
+# `stills --viewport phone` does. `tab`, and stills and probe for a state that names
+# no window of its own (`states.State`), open `macbook` unless told another. An eval
+# author's request and a judge's instructions give a window's description, which
+# states its size, so a change to either changes what those agents are asked.
 WINDOWS = {
-    "desktop": Window((1280, 800), "a 1280px by 800px desktop content viewport"),
-    "large": Window((1600, 1000), "a large 1600px by 1000px desktop content viewport"),
-    "short": Window((900, 600), "a short 900px by 600px desktop window"),
-    "middle": Window((900, 700), "a 900px by 700px laptop window beside other work"),
-    "phone": Window(PHONE, "a 390px by 844px phone window", touch=True),
+    "macbook": Window(
+        (1440, 900), description="a 1440px by 900px MacBook content viewport"
+    ),
+    "desktop": Window(
+        (1280, 800), description="a 1280px by 800px desktop content viewport"
+    ),
+    "large": Window(
+        (1600, 1000), description="a large 1600px by 1000px desktop content viewport"
+    ),
+    "short": Window((900, 600), description="a short 900px by 600px desktop window"),
+    "middle": Window(
+        (900, 700), description="a 900px by 700px laptop window beside other work"
+    ),
+    "phone": Window(
+        (390, 844), touch=True, description="a 390px by 844px phone window"
+    ),
 }
 
 # The fixed fontconfig that lays text out in DejaVu faces on Linux (`use_linux_fonts`).
@@ -110,19 +120,38 @@ def engine_option(command):
 @contextmanager
 def launch(engine: str, scheme: str = "light"):
     """The browser `engine` names, closed however the block is left: Playwright's
-    Chromium shell (`headless_shell`) showing the scrollbars readers see, including
-    the room a classic bar takes; Playwright's Firefox or WebKit, which readers use
-    as well; or a WebDriver session on the iOS simulator's Safari in `scheme`
-    (`ios_safari`), for a difference only iPhones show. A host without a Playwright
-    engine gets Playwright's own error, which names the install command."""
+    Chromium shell (`headless_shell`'s build) showing the scrollbars readers see,
+    including the room a classic bar takes; Playwright's Firefox or WebKit, which
+    readers use as well; or a WebDriver session on the iOS simulator's Safari in
+    `scheme` (`ios_safari`), for a difference only iPhones show. A host without a
+    Playwright engine gets Playwright's own error, which names the install command.
+
+    The Chromium shell keeps an overlay scrollbar shown after a scroll, as `screenshot`
+    requires, by disabling Chromium's `ScrollbarAnimations` feature, which Chromium
+    keeps so that web platform tests' screenshots can't flake on their timing."""
     if engine == "ios":
         from leaf_dev.ios_safari import ios_safari
 
         with ios_safari(scheme) as driver:
             yield driver
     elif engine == "chromium":
-        with headless_shell(ignore_default_args=["--hide-scrollbars"]) as browser:
-            yield browser
+        with sync_playwright() as playwright:
+            # Chromium keeps only the last of a repeated switch, so ours extends the
+            # --disable-features Playwright passes, read from a shell it launched
+            # (CDP reads the command line only under --enable-automation).
+            with playwright.chromium.launch(args=["--enable-automation"]) as plain:
+                features = next(
+                    switch
+                    for switch in plain.new_browser_cdp_session().send(
+                        "Browser.getBrowserCommandLine"
+                    )["arguments"]
+                    if switch.startswith("--disable-features=")
+                )
+            with playwright.chromium.launch(
+                ignore_default_args=["--hide-scrollbars", features],
+                args=[f"{features},ScrollbarAnimations"],
+            ) as browser:
+                yield browser
     else:
         with (
             sync_playwright() as playwright,
@@ -159,25 +188,24 @@ def shell_executable() -> str:
 @contextmanager
 def tab(
     browser: Browser,
-    viewport=DESKTOP,
+    window: Window = WINDOWS["macbook"],
     scheme="light",
-    touch=False,
     *,
     motion="reduce",
     scale=1,
 ):
-    """A fresh blank tab at `viewport` and in `scheme`, with reduced motion so a still
+    """A fresh blank tab in `window` and `scheme`, with reduced motion so a still
     never catches a transition midway (pass motion="no-preference" for a journey),
-    and under a finger (a coarse pointer, a mobile
-    viewport) when `touch`, drawing `scale` device pixels to a CSS pixel. A caller
-    listens on it before it `load`s."""
+    drawing `scale` device pixels to a CSS pixel. A caller listens on it before it
+    `load`s."""
+    width, height = window.size
     context = browser.new_context(
-        viewport={"width": viewport[0], "height": viewport[1]},
+        viewport={"width": width, "height": height},
         device_scale_factor=scale,
         color_scheme=scheme,
         reduced_motion=motion,
-        has_touch=touch,
-        is_mobile=touch,
+        has_touch=window.touch,
+        is_mobile=window.touch,
     )
     try:
         page = context.new_page()
@@ -187,8 +215,9 @@ def tab(
         context.close()
 
 
-def window(value: str) -> Window | tuple[int, int]:
-    """The window `--viewport` names, or the size it spells as WIDTHxHEIGHT."""
+def parse_window(value: str) -> Window:
+    """The window `--viewport` names, or one under a mouse at the size it spells as
+    WIDTHxHEIGHT."""
     if value in WINDOWS:
         return WINDOWS[value]
     width, _, height = value.partition("x")
@@ -196,34 +225,26 @@ def window(value: str) -> Window | tuple[int, int]:
         raise click.BadParameter(
             f"{value!r} is neither WIDTHxHEIGHT nor a window: {', '.join(WINDOWS)}"
         )
-    return int(width), int(height)
+    return Window((int(width), int(height)))
 
 
 def tab_options(command):
-    """Give a command `tab`'s viewport, scheme and pointer as `--viewport`, `--scheme`
-    and `--touch`. A window `--viewport` names brings its pointer unless `--touch` or
-    `--no-touch` is given. `viewport` and `touch` reach the command as a size and a
-    flag, each None unless given, so it can tell a default from a choice."""
-
-    @wraps(command)
-    def sized(*args, viewport, touch, **kwargs):
-        if isinstance(viewport, Window):
-            viewport, touch = viewport.size, viewport.touch if touch is None else touch
-        return command(*args, viewport=viewport, touch=touch, **kwargs)
-
-    sized = click.option(
+    """Give a command `tab`'s window and scheme as `--viewport`, `--touch` and
+    `--scheme`. The command receives `viewport`, the window `--viewport` gives, and
+    `touch`, the pointer `--touch` or `--no-touch` gives, each None unless given, and
+    opens each tab in the window `chosen_window` makes of them."""
+    command = click.option(
         "--touch/--no-touch",
         default=None,
-        help="Show the page under a finger: a coarse pointer and mobile emulation, at "
-        "--viewport's size. Overrides the pointer of the window --viewport names "
-        "or of a state; without either, off.",
-    )(sized)
-    sized = click.option(
+        help="Show the page under a finger (a coarse pointer and mobile emulation), "
+        "or under a mouse with --no-touch, in place of the window's own pointer.",
+    )(command)
+    command = click.option(
         "--scheme",
         type=click.Choice(["light", "dark"]),
         default="light",
         help="The colour scheme the page is shown in.",
-    )(sized)
+    )(command)
     named = ", ".join(
         f"{name} ({each.size[0]}x{each.size[1]}{', touch' if each.touch else ''})"
         for name, each in WINDOWS.items()
@@ -231,10 +252,57 @@ def tab_options(command):
     return click.option(
         "--viewport",
         metavar="WIDTHxHEIGHT|NAME",
-        callback=lambda c, p, value: value and window(value),
-        help=f"By default {DESKTOP[0]}x{DESKTOP[1]}. A NAME is one of the windows "
-        f"{named}.",
-    )(sized)
+        callback=lambda c, p, value: value and parse_window(value),
+        help="By default the state's own window, macbook unless it names another. "
+        f"A NAME is one of the windows {named}; a WIDTHxHEIGHT window has a mouse.",
+    )(command)
+
+
+def chosen_window(own: Window, viewport: Window | None, touch: bool | None) -> Window:
+    """The window a tab opens in when its command (`tab_options`) would open `own`:
+    the window `--viewport` gave, if any, in its place, and under a finger or a mouse
+    where `--touch` or `--no-touch` says so."""
+    window = viewport or own
+    return window if touch is None else replace(window, touch=touch)
+
+
+# The style `screenshot` adds to the page and its open shadow roots for the shot.
+HELD = """:root { caret-animation: manual; }
+@supports not (caret-animation: manual) {
+  * { caret-color: transparent !important; }
+}"""
+
+
+def screenshot(page, path: Path) -> None:
+    """Screenshot the viewport of `page`, a tab `visits` brought to a state, to `path`.
+
+    A capture holds each animation the browser draws of its own accord in one state,
+    so two captures of one state draw it alike whenever each is taken, however loaded
+    the host:
+
+    - A caret is drawn steadily where the engine can stop its blink, as Chromium can
+      (`caret-animation: manual`), and hidden where it can't: on 2026-11-03
+      Playwright's WebKit (build 2370) faded it in and out, and its Firefox (build
+      1555) drew none. Both declarations are inherited, so they reach the caret
+      inside Leaf's text field, whose closed shadow root takes the caret's colour
+      from its host (`runtime/composing/text-field.js`).
+    - An overlay scrollbar, such as a Mac's, starts to fade half a second after its
+      box scrolls. The Chromium shell `launch` opens keeps it shown until the pointer
+      passes over it and leaves, as a reader sees it while scrolling; Playwright's
+      Firefox and WebKit draw no overlay bar, and a classic bar never fades.
+
+    The page's own motion is the page's: `visits` waits for a Leaf page whose runtime
+    runs to settle, so no smooth scroll or finite transition is under way, and an
+    endless one, such as the sheen on work under way, follows the tab's `motion`.
+    Stills reduces motion, and probe shows what a user sees unless told to reduce it,
+    so a probe shot can catch that motion at any point.
+
+    Safari on the iOS simulator takes no input, so it draws no caret or scrollbar to
+    hold."""
+    if isinstance(page, Page):
+        page.screenshot(path=path, caret="initial", style=HELD)
+    else:
+        page.screenshot(path=path)
 
 
 def slow_cpu(page: Page, rate: float) -> None:

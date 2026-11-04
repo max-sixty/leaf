@@ -32,7 +32,7 @@ import json
 
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 
-from leaf_dev.browser import WINDOWS, headless_shell, load, tab
+from leaf_dev.browser import WINDOWS, Window, headless_shell, load, tab
 
 # Each region's reading on arrival. The empty share counts the 16px cells of its
 # visible box with no text or drawn element within a cell of them, so the gaps
@@ -180,7 +180,7 @@ def read(url: str, widths: dict) -> dict:
     with headless_shell() as browser:
         for name, size in widths.items():
             viewport = tuple(size["viewport"] if isinstance(size, dict) else size)
-            with tab(browser, viewport=viewport, touch=WINDOWS[name].touch) as view:
+            with tab(browser, Window(viewport, WINDOWS[name].touch)) as view:
                 try:
                     load(view, url)
                     reading = view.evaluate(READINGS)

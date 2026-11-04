@@ -31,6 +31,7 @@ from interact_support import declared, running_http_server, wait_for
 from PIL import Image
 from playwright.sync_api import expect
 from render_harness import (
+    FEATURE_GALLERY,
     OPEN_THREAD_COUNT,
     PANEL_THREAD,
     compare_with,
@@ -75,21 +76,20 @@ from leaf.service import acknowledged
 from leaf.structure import SourceDocument
 from leaf_dev.browser import panel_tab, show_resolved
 from leaf_dev.commands import site as site_build
+from leaf_dev.docs import DOCS, product_sources
 from leaf_dev.example_data import (
     WORKED_EXAMPLES,
     authored_sources,
     catalog_sources,
     data_operations,
     example_versions,
+    named_source,
     published_sources,
 )
 from leaf_dev.leaf_assets import pinned_assets
 from leaf_dev.page_fixtures import authored_markup, read_event_lines, source_packages
 
 ROOT = Path(__file__).parents[2]
-DOCS = ROOT / "docs"
-EXAMPLES = ROOT / "examples"
-FEATURE_GALLERY = EXAMPLES / "developer" / "feature-gallery.html"
 
 
 def open_count(page):
@@ -137,16 +137,6 @@ def sample_allocation(page, url, template):
     return allocation
 
 
-def pages_under(directory):
-    """The pages a sweep walks, proved to exist before it walks them. A check that
-    is a loop over a glob and nothing else turns, when its directory moves or is
-    renamed, into a sweep that pressed nothing — green, and for the wrong reason
-    (tests/AGENTS.md, "Sweeps over controls")."""
-    pages = sorted(directory.glob("*.html"))
-    assert pages, f"no pages under {directory}"
-    return pages
-
-
 def heading(source: str) -> str:
     """The words of the h1 an authored source carries, as the parser reads them."""
     select_one_result = SourceDocument(source).tree.select_one("h1")
@@ -157,7 +147,7 @@ def heading(source: str) -> str:
 def example_title(stem: str) -> str:
     """The h1 an example's own source carries, so a retitled example cannot strand a
     test on its old words."""
-    return heading((EXAMPLES / f"{stem}.html").read_text(encoding="utf-8"))
+    return heading(named_source(stem).read_text(encoding="utf-8"))
 
 
 def authored_examples():
@@ -297,11 +287,6 @@ def served_example(site, tmp_path):
         yield serve
 
 
-def product_url(hosted, name):
-    """The canonical route for one product source."""
-    return hosted + site_build.product_route(Path(name))
-
-
 media_url = site_build.media_url
 
 
@@ -320,7 +305,7 @@ def opened(page, url):
 
 def test_product_pages_select_the_sources_packages(site):
     """Publication and local previews compose the product source's same layer."""
-    for page in pages_under(DOCS):
+    for page in product_sources():
         target = site_build.product_page(site, page.name)
         source_markup = page.read_text()
         assert 'href="/theme.css"' not in source_markup, page.name
@@ -363,7 +348,7 @@ def test_published_examples_keep_the_site_theme_out_of_their_layer(site, monkeyp
 
 
 def test_published_example_has_the_normal_leaf_layout(hosted, browser, serve):
-    source = EXAMPLES / "wt-merge.html"
+    source = named_source("wt-merge")
     normal = open_page(browser, serve(source))
     published = open_page(browser, f"{hosted}/examples/wt-merge/")
     layout = """() => Object.fromEntries(
@@ -388,7 +373,7 @@ def test_published_example_has_the_normal_leaf_layout(hosted, browser, serve):
 def test_product_pages_are_published_as_complete_page_records(site):
     """Each page retains its layer selection, history, and every captured media
     input."""
-    sources = pages_under(DOCS)
+    sources = product_sources()
     for source in sources:
         page = site_build.product_page(site, source.name)
         expected = authored_markup(source)
@@ -426,7 +411,7 @@ def test_the_asset_site_is_the_live_immutable_half_of_each_page(site):
     assets = site_build.asset_site(site)
     pinned = pinned_assets()
     root_media = SourceDocument(
-        authored_markup(DOCS / "index.html")
+        authored_markup(named_source("index"))
     ).authoring.media_refs
     root_media.add(media_url(pinned / site_build.SOCIAL_CARD))
     product_media = {
@@ -1099,7 +1084,6 @@ def test_every_product_route_is_a_live_leaf_page(site, hosted, browser):
     takes its paper from the theme in both schemes, and nothing scrolls sideways at
     390px: the nav wraps, the screenshots scale, and a command too long for the
     column scrolls inside its own block, as the architecture diagram fits its box."""
-    names = [source.name for source in site_build.product_sources()]
     page = browser.new_page()
     failed = []
     page.on(
@@ -1111,12 +1095,13 @@ def test_every_product_route_is_a_live_leaf_page(site, hosted, browser):
         ),
     )
     paper = "getComputedStyle(document.body).backgroundColor"
-    for name in names:
+    for document in product_sources():
+        name = document.name
         page.set_viewport_size({"width": 1200, "height": 900})
-        page.goto(product_url(hosted, name), wait_until="load")
+        page.goto(hosted + site_build.product_route(document), wait_until="load")
         wait_until_ready(page)
         assert page.evaluate("document.compatMode") == "CSS1Compat", name
-        source = (DOCS / name).read_text(encoding="utf-8")
+        source = document.read_text(encoding="utf-8")
         expected_title = SourceDocument(source).authoring.title.strip()
         assert expected_title
         assert page.title() == expected_title, name
@@ -1512,7 +1497,7 @@ def test_a_published_example_has_no_agent_claim(served_example, browser):
             }"""
     )
     assert answer["status"] == 200
-    assert answer["body"]["browser"]["basis"] == {"through_seq": answer["through"]}
+    assert answer["body"]["browser"]["basis"]["through_seq"] == answer["through"]
     assert set(answer["body"]["browser"]["views"]) == {"1"}
 
 
@@ -1528,7 +1513,7 @@ def test_a_shipped_log_opens_its_example_on_its_thread(served_example, browser):
     with no error anywhere."""
     page_dir, url = served_example("ship-review")
     page = open_page(browser, url)
-    source = EXAMPLES / "ship-review.html"
+    source = named_source("ship-review")
     events = read_events(page_dir)
     threads = [
         thread

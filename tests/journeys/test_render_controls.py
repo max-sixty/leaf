@@ -35,14 +35,12 @@ from render_cases_navigation import (
 )
 from render_harness import (
     BOARD_PAGE,
-    CORPUS_SOURCES,
     EXAMPLES,
     FEATURE_GALLERY,
     LONG_PAGE,
     PANEL,
     PANEL_THREAD,
     RELEASE_FOCUS,
-    ROOT,
     Traffic,
     any_draft_control,
     any_owner_entry,
@@ -71,13 +69,12 @@ from render_harness import (
 
 from leaf import event_log as events_model
 from leaf.render_checks import rendered, wait_until_ready
+from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
 
-VISUAL_REVIEW_GALLERY = next(
-    path for path in CORPUS_SOURCES if path.stem == "visual-review-gallery"
-)
+VISUAL_REVIEW_GALLERY = named_source("visual-review-gallery")
 
 
 # One practice page, for the journeys that need no second child to compare against:
@@ -480,7 +477,7 @@ RING_EXAMPLE_FILES = {
     for example in (
         *EXAMPLES,
         FEATURE_GALLERY,
-        ROOT / "tests/fixtures/pages/current-proposed-comparison.html",
+        named_source("current-proposed-comparison"),
     )
 }
 
@@ -831,8 +828,7 @@ def test_live_sample_full_view_keeps_the_child_and_returns_after_inner_escape(
 
 def test_thread_panel_gallery_shows_independent_live_views(browser, serve):
     """Child pages hold independent panel and anchored views across sample Reset."""
-    gallery = FEATURE_GALLERY.parent / "thread-panel-gallery.html"
-    page = open_page(browser, serve(gallery))
+    page = open_page(browser, serve(named_source("thread-panel-gallery")))
     views = {
         "overview": page.frame_locator("#overview-sample iframe"),
         "you": page.frame_locator("#on-you-sample iframe"),
@@ -1317,7 +1313,7 @@ def test_the_stop_reading_names_a_control_with_nothing_drawn_on_it(browser, serv
 
     # A tab's label carries focus inside its larger click target. Removing that child
     # ring must still report the focused tab, rather than crediting selection's fill.
-    page = open_page(browser, serve(ROOT / "tests/fixtures/pages/root-tabs.html"))
+    page = open_page(browser, serve(named_source("root-tabs")))
     page.keyboard.press("Tab")
     page.locator(".lf-tab-btn").first.focus()
     assert seen_stop(page) is None

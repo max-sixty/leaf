@@ -1,7 +1,6 @@
 """The real-browser gate the broad selection keeps."""
 
 import re
-from pathlib import Path
 
 import pytest
 from model_folds import leaf_page
@@ -19,25 +18,17 @@ from render_harness import (
 from leaf import event_log as events_model
 from leaf.render_checks import rendered
 from leaf.render_gate import version as render_gate_model
-
-ROOT = Path(__file__).parents[2]
+from leaf_dev.example_data import named_source
 
 
 def test_a_shipped_page_passes_the_real_browser_gate(browser, serve):
-    example = ROOT / "examples" / "ship-review.html"
+    example = named_source("ship-review")
     assert render_gate_model.render_version(browser, serve(example)).failures == []
 
 
 def test_ship_review_obligations_are_directly_answerable(browser, serve):
-    example = ROOT / "examples" / "ship-review.html"
+    example = named_source("ship-review")
     page = open_page(browser, serve(example))
-
-    # The page runs the prepared kernel its server supplies (`runtime_selection`).
-    loaded = page.evaluate(
-        "performance.getEntriesByType('resource').map((entry) => entry.name)"
-    )
-    assert any("/runtime/bundle-" in url for url in loaded), loaded
-    assert not any(url.endswith("/runtime/semantic-state.js") for url in loaded)
 
     expect_obligations_answered(page, "1/3")
     expect(page.locator("#off-workaround-review .lf-pick")).to_have_count(2)

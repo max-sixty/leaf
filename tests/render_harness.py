@@ -81,7 +81,7 @@ from leaf.render_checks import one_frame, rendered, wait_until_ready
 from leaf.render_gate import scheme as render_gate_model
 from leaf_dev import browser as dev_browser
 from leaf_dev.browser import ON_ME_MARK, scroll_settled, slow_cpu, threads_tab
-from leaf_dev.example_data import WORKED_EXAMPLES, authored_sources
+from leaf_dev.example_data import WORKED_EXAMPLES, authored_sources, named_source
 from leaf_dev.page_fixtures import (
     example_media,
     prepare_page,
@@ -179,23 +179,19 @@ def shift_watch_source():
 EXAMPLE_PACKAGES = json.loads((ROOT / "examples" / "layer.json").read_text())
 EXAMPLES = authored_sources(directories=(WORKED_EXAMPLES,))
 assert EXAMPLES, "no examples found — parametrizing over an empty list tests nothing"
-FEATURE_GALLERY = ROOT / "examples" / "developer" / "feature-gallery.html"
-assert FEATURE_GALLERY.is_file(), "the developer feature gallery is missing"
-# The inputs `leaf-dev corpus` composes. Every authored-content sweep uses this
-# source set, while public-site tests read the pages the site publishes.
-CORPUS_SOURCES = tuple(authored_sources())
+FEATURE_GALLERY = named_source("feature-gallery")
 
 PASSAGE_SOURCES = (
     FEATURE_GALLERY,
-    ROOT / "examples" / "pr-walkthrough.html",
-    ROOT / "examples" / "ship-review.html",
-    ROOT / "examples" / "developer" / "visual-review-gallery.html",
+    named_source("pr-walkthrough"),
+    named_source("ship-review"),
+    named_source("visual-review-gallery"),
 )
 
 ANCHOR_SOURCES = (
     FEATURE_GALLERY,
-    ROOT / "examples" / "pr-walkthrough.html",
-    ROOT / "examples" / "ship-review.html",
+    named_source("pr-walkthrough"),
+    named_source("ship-review"),
 )
 
 
@@ -2980,8 +2976,8 @@ _GESTURE = """async ([scroller, by, sample, frames]) => {
   const start = box.scrollTop;
   const samples = [];
   let frame = 0;
-  const {scrollGlides, watchScrollEnds} = await window.__lfCheckApi();
-  scrollGlides(true);
+  const {holdScroll, watchScrollEnds} = await window.__lfCheckApi();
+  const release = holdScroll(box);
   // A task posted from a frame callback runs once that frame has rendered.
   const rendered = () => new Promise((then) => {
     const {port1, port2} = new MessageChannel();
@@ -2998,9 +2994,9 @@ _GESTURE = """async ([scroller, by, sample, frames]) => {
     samples.push({scrolled: box.scrollTop, read: read()});
   }
   const settled = new Promise((then) => {
-    const stop = watchScrollEnds(() => { stop(); then(); });
+    const stop = watchScrollEnds((ended) => { if (ended === box) { stop(); then(); } });
   });
-  scrollGlides(false);
+  release();
   await settled;
   await new Promise(requestAnimationFrame);
   await rendered();
@@ -3020,10 +3016,9 @@ def gesture_writes(page, by, scroller="document.scrollingElement", sample=None):
     so read in one it stands where the frame before drew it.
 
     The test drives the frames, rather than a smooth `scrollBy`, so a slow host draws
-    as many as a fast one. The runtime settles on each write's own `scrollend`, and
-    between frames further apart than `SETTLE_MS`, so the gesture holds it as the
-    runtime's own frame-by-frame scrolls do (arrivals.js, `scrollGlides`) and lets it
-    settle once, after the last frame."""
+    as many as a fast one. The runtime ends a scroll at each write's own `scrollend`,
+    so the gesture holds the box as the runtime's own glide does (arrivals.js,
+    `holdScroll`) and lets its scroll end once, after the last frame."""
     page.mouse.move(2, 300)
     rendered(page)
     start = page.evaluate(f"() => {scroller}.scrollTop")

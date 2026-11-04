@@ -72,7 +72,12 @@ from .revision_delivery import (
     rebase_document,
     runtime_settings,
 )
-from .runtime_selection import executing, execution_identity, serving_runtime
+from .runtime_selection import (
+    executing,
+    execution_identity,
+    named_execution,
+    serving_runtime,
+)
 from .samples import Samples
 from .schema import (
     BINARY_TYPES,
@@ -500,13 +505,18 @@ class PageEndpoint:
         what it was just handed. Between the two, the worst case is a token already
         stale on arrival, which costs one more request and no news.
 
-        A tab names the data version it holds in `Leaf-Data-Version`, and an answer
-        whose data is still that version leaves out its sources, which the tab
-        restores from the reading it named (`completeData` in `layer-client.js`).
-        Data moves only when an agent sets it, so without this every gesture's
-        answer would carry back each source value the tab already holds.
+        A tab names what it holds, and the answer leaves that out for the tab to
+        restore from the reading it named (`completeState` in `layer-client.js`):
+        `Leaf-Data-Version` names its data version, and an answer whose data is still
+        that version leaves out its sources, since data moves only when an agent sets
+        it; `Leaf-Held-Basis` names its reading, by the `browser.basis.key` that
+        reading carried, and an answer that can extend it carries only the history
+        since (`served_state.tail`). Without these every gesture's answer would carry
+        back each source value and every past event the tab already holds.
         """
-        state = self._state_service().page_state(view_revision)
+        state = self._state_service().page_state(
+            view_revision, held=self.headers.get("Leaf-Held-Basis")
+        )
         if self.headers.get("Leaf-Data-Version") == state["data"]["version"]:
             state["data"] = {"version": state["data"]["version"]}
         return state
@@ -1013,11 +1023,11 @@ class PageEndpoint:
         revision, name = int(match.group("revision")), match.group("name")
         if self.source.revision_names.get(revision) != name + ".html":
             return None
-        artifact = self._artifact(revision)
-        if match.group("runtime") != execution_identity(artifact):
+        artifact = named_execution(self._artifact(revision), match.group("runtime"))
+        if artifact is None:
             return None
         response = self._revision_resource(
-            revision, "/" + match.group("resource"), self._named_root(name, artifact)
+            artifact, "/" + match.group("resource"), self._named_root(name, artifact)
         )
         if response is not None:
             # The revision name carries its manifest digest, the execution identity
@@ -1030,11 +1040,11 @@ class PageEndpoint:
         return response
 
     def _revision_resource(
-        self, revision: int, logical: str, root: str
+        self, artifact: RevisionArtifact, logical: str, root: str
     ) -> Response | None:
         """One resource of a revision as its documents run it, addressed at `root`
         (`runtime_selection.executing`), or None for a path the revision lacks."""
-        artifact = executing(self._artifact(revision))
+        artifact = executing(artifact)
         self.response_layer = artifact.registry["$layer"]["generation"]
         resource = delivered_resource(
             artifact, logical, DeliveryAddress(self.page_root, root)

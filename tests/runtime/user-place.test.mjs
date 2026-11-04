@@ -3,13 +3,15 @@
    Asked over boxes this file states, since happy-dom lays nothing out: focus scrolled
    away or riding in a stuck header names no place, and a hold puts the node it read
    back where it stood, or its stand-in where the change hid it, paying only for what
-   the browser's own anchoring left. */
+   the browser's own anchoring left. The user's place across a reading is the first the
+   change moved of those they named, and its keep yields to any scroll or input since. */
 
 import assert from "node:assert/strict";
 import test from "node:test";
 
+import { recentPlaceInput } from "/runtime/focus.js";
 import { pointerAt } from "/runtime/pointer.js";
-import { focusedInView, holdPlace } from "/runtime/user-place.js";
+import { focusedInView, holdPlace, holdUserPlace } from "/runtime/user-place.js";
 
 // A scroller whose boxes are stated: each node's viewport top is its content top less
 // the scroller's scrollTop.
@@ -120,7 +122,9 @@ test("a change that hides the held node puts its stand-in where it stood", () =>
   scrollTo(1080);
   const hold = holdPlace(folded, (node) => (node === folded ? gist : null));
   // The fold hides the block being read, and the gist it runs under stays put above.
+  // happy-dom applies no user-agent sheet, so the block states what `[hidden]` computes.
   folded.hidden = true;
+  folded.style.display = "none";
   hold();
   assert.equal(scrolled(), 980);
   assert.equal(gist.getBoundingClientRect().top, 20);
@@ -131,5 +135,99 @@ test("a change that hides the held node puts its stand-in where it stood", () =>
   scrollTo(900);
   lost();
   assert.equal(scrolled(), 900);
+  scroller.remove();
+});
+
+// The pointer moved to rest over `node`, as the platform reports what lies under it.
+/** @param {Element | null} node */
+function restOn(node) {
+  document.elementFromPoint = () => node;
+  const movement = new Event("pointermove");
+  Object.defineProperties(movement, { clientX: { value: 10 }, clientY: { value: 10 } });
+  document.dispatchEvent(movement);
+}
+
+test("the keep puts back the first place the change moved", () => {
+  const page = laidOut();
+  const rail = laidOut();
+  const read = page.item("read", 1150);
+  const resting = rail.item("rail", 0);
+  page.scroller.append(read);
+  rail.scroller.append(resting);
+  page.scrollTo(1100);
+  read.tabIndex = 0;
+  read.focus();
+  // The pointer, moved last, rests on a rail of its own that the edit leaves still, so
+  // the focused block it pushed down 126px is the place kept.
+  restOn(resting);
+  assert.equal(recentPlaceInput(), "pointer");
+  const keep = holdUserPlace();
+  page.at.set(read, 1276);
+  keep();
+  assert.equal(page.scrolled(), 1226);
+  // With focus in a field that names no place, the row under the resting pointer is kept.
+  const search = document.createElement("input");
+  document.body.append(search);
+  search.focus();
+  restOn(read);
+  const row = holdUserPlace();
+  page.at.set(read, 1400);
+  row();
+  assert.equal(page.scrolled(), 1350);
+  [page.scroller, rail.scroller, search].forEach((node) => node.remove());
+  restOn(null);
+});
+
+test("a place the change left still keeps its scroller", () => {
+  const { scroller, item, at, scrolled, scrollTo } = laidOut();
+  const [above, below] = [item("above", 1150), item("below", 1300)];
+  scroller.append(above, below);
+  scrollTo(1100);
+  // Focus arrives last on the upper block, with the pointer resting on the lower one;
+  // news joins between them, and anchoring holds the upper block.
+  restOn(below);
+  above.tabIndex = 0;
+  above.focus();
+  assert.equal(recentPlaceInput(), "focus");
+  const keep = holdUserPlace();
+  at.set(below, 1426);
+  keep();
+  assert.equal(scrolled(), 1100, "the block under the pointer moved the focused one");
+  scroller.remove();
+  restOn(null);
+});
+
+test("the keep yields to a scroll under way and to any input since the reading", () => {
+  for (const since of [
+    (/** @type {Element} */ box) => box.dispatchEvent(new Event("scroll")),
+    () => window.dispatchEvent(new Event("wheel")),
+  ]) {
+    const { scroller, item, at, scrolled, scrollTo } = laidOut();
+    const read = item("read", 1150);
+    scroller.append(read);
+    scrollTo(1100);
+    read.tabIndex = 0;
+    read.focus();
+    const keep = holdUserPlace();
+    at.set(read, 1276);
+    since(scroller);
+    keep();
+    assert.equal(scrolled(), 1100, `the keep overrode ${since}`);
+    scroller.remove();
+  }
+});
+
+test("a block folded until found holds its stand-in, though it keeps a box", () => {
+  const { scroller, item, scrolled, scrollTo } = laidOut();
+  const [gist, folded] = [item("gist", 1000), item("folded", 1100)];
+  scroller.append(gist, folded);
+  scrollTo(1080);
+  const hold = holdPlace(folded, (node) => (node === folded ? gist : null));
+  // `hidden="until-found"` keeps the block's box and hides its contents.
+  folded.setAttribute("hidden", "until-found");
+  folded.style.display = "block";
+  assert.ok(folded.checkVisibility());
+  hold();
+  assert.equal(scrolled(), 980);
   scroller.remove();
 });

@@ -69,12 +69,14 @@ own (`../SOUL.md`, "Keep the foundation small and extensible").
   control under the user's hands, the reading line where growth starts between
   anchoring's box and it, and a place the change hides. A reading from outside the tab
   takes it where it is applied and keeps it once the page shows it
-  (`state-application.js`), so no surface decides it for itself; a gesture's own result
-  is its handler's to place, and the dial holds its own fold. Owner: `user-place.js`
+  (`state-application.js`), whichever surfaces the reading redraws. A surface that
+  changes with no reading behind it takes the same hold around that change, as Page
+  Map does when a widget's own contribution joins it, and the dial around its fold; a
+  gesture's own result is its handler's to place. Owner: `user-place.js`
   (`holdUserPlace`, `holdPlace`), whose header records the costs the user accepted.
   Checks:
   `test_an_edit_above_the_paragraph_read_holds_it_with_the_reply_box_scrolled_away`,
-  `test_a_thread_joining_page_map_above_the_focused_row_leaves_it_still`.
+  `test_a_thread_joining_page_map_above_the_row_the_user_is_on_leaves_it_still`.
 - **Nothing Leaf draws moves the page's content.** Pins, passage marks and runtime
   controls sit over the page and take no space, and no rule pads or widens a block to
   make room for them. The rail sits right of `main` when the window is wide enough and

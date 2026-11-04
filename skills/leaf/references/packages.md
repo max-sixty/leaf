@@ -104,7 +104,8 @@ adding a widget does not change its theme styling.
 
 A page without Leaf links the layer's `portable.css`, served beside `/widgets/`, for
 its widgets' look (`module-authoring.md`, "A widget that also runs off Leaf"). It holds
-the theme's tokens, Leaf's faces for what widgets build, kept to the widgets' insides,
+the theme's tokens, Web Awesome's tokens that Leaf's faces read, Leaf's faces for what
+widgets build, kept to the widgets' insides,
 and the `defaults.css` and `widget-shadow.css` of each package that ships widgets, so
 a theme's rules stay out and the page's own markup keeps its look. The rules stand in `lf-base`, so the page's
 own unlayered CSS outranks them and restyles its widgets by restating a token such as

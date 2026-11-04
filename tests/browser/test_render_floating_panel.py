@@ -520,9 +520,9 @@ def test_a_resolve_s_notice_stands_for_that_resolve_alone(browser, serve):
     """The row's "Resolved “…” · Undo" names one gesture. The log refusing that
     Resolve takes the notice away with it, and its press takes back that Resolve
     even once another gesture of the user's is the newest, the one `z` would take: a
-    press that ran `z` took back an earlier gesture once its own was refused. Where
-    the agent has picked that Resolve up, the press shows it first, and `z`, the key
-    the notice offers, then takes that Resolve, not the newest gesture."""
+    press that ran `z` took back an earlier gesture once its own was refused. The
+    agent having picked that Resolve up changes nothing: the press still takes that
+    Resolve, not the newest gesture (#5320)."""
     url = serve(LONG_PAGE)
     roots = {
         text: panel_comment(serve.page_dir, text)
@@ -569,8 +569,7 @@ def test_a_resolve_s_notice_stands_for_that_resolve_alone(browser, serve):
     append_carried_log_record(
         serve.page_dir, {"kind": "resolve", "author": "user", "parent": roots[other]}
     )
-    # The agent picks that Resolve up, so the press shows it and says "Press again"
-    # before taking it, and `z`, the key the notice offers, then takes that Resolve too.
+    # The agent picks that Resolve up, and the notice's press still takes it back.
     (resolved,) = (
         event["id"]
         for event in events_model.read_events(serve.page_dir)
@@ -588,10 +587,8 @@ def test_a_resolve_s_notice_stands_for_that_resolve_alone(browser, serve):
         },
     )
     told(page)
-    notice.get_by_role("button").click()
-    expect(page.get_by_text("Press again to undo", exact=False)).to_be_visible()
     with sending(page, "the undo"):
-        page.keyboard.press("z")
+        notice.get_by_role("button").click()
     events = events_model.read_events(serve.page_dir)
     assert [event["undoes"] for event in events if event["kind"] == "undo"] == [
         resolved
@@ -5656,7 +5653,7 @@ def test_a_send_s_reply_field_takes_the_row_s_seat_where_it_stands(browser, serv
     page.keyboard.press("Enter")
     # The box's tween as the thread's view opens over the row.
     held_motion(page, ".lf-fp-opened")
-    reply = page.locator(".lf-fp-reply")
+    reply = page.locator(".lf-fp-reply-outlet")
     drawn = (
         "reply => [reply.getBoundingClientRect().top, getComputedStyle(reply).clipPath]"
     )

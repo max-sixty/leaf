@@ -115,6 +115,9 @@ const anchorChoices = (anchor) =>
 /** @param {{name: string, glyph: string, label: string}} choice @param {(name: string) => unknown} pressed */
 function reactionChip({ name, glyph, label }, pressed) {
   const chip = offerAction("response", `lf-react ${HOLDS_WORD}`);
+  // A toggle from the start, before the bar paints which reactions stand
+  // (`paintBarReactions`), so it wears a reaction's face (controls.css).
+  chip.setAttribute("aria-pressed", "false");
   chip.dataset.lfToken = name;
   chip.title = label;
   chip.setAttribute("aria-label", label);
@@ -314,7 +317,6 @@ export function createReactionController({
           glyph: choice.glyph,
           label: choice.label,
           rank: "secondary",
-          className: "lf-react",
           pressed: Boolean(choice.inForce),
         })),
         readings: [],

@@ -817,7 +817,7 @@ def test_trace_overview_shows_every_row_and_preserves_page_scrolling(browser, se
         # Keyboard stepping moves the playhead, not the whole-recording window.
         timeline.focus()
         ruler_reading = "nodes => nodes.map(node => [node.textContent, node.getBoundingClientRect().x])"
-        ruler = widget.locator(".lf-trace-tick-major")
+        ruler = widget.locator(".lf-axis-tick[data-lf-major]")
         time_window = ruler.evaluate_all(ruler_reading)
         position = widget.locator(".lf-trace-position")
         for _ in range(4):
@@ -1026,7 +1026,7 @@ def test_trace_render_gate_restores_the_zoomed_time_window(browser, serve):
     for _ in range(3):
         widget.get_by_role("button", name="Zoom in", exact=True).click()
     rendered(user)
-    ruler = widget.locator(".lf-trace-tick-major")
+    ruler = widget.locator(".lf-axis-tick[data-lf-major]")
 
     def time_window():
         return ruler.evaluate_all("""nodes => nodes.map(node => ({

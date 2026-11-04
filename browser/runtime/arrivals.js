@@ -47,21 +47,47 @@
    This module is the stages' one registry (`liveStages`), held weakly: a stage outlives
    its widget only as garbage. A stage built while its host was detached arrives with the
    host. */
-import { isElement, under } from "./shadow-tree.js";
+import { isElement, shadowHost, under } from "./shadow-tree.js";
 import { cancelRender, nextFrame, nextRender } from "./rendering.js";
 
 /** @typedef {{selector: string, attributes: string[], observer: MutationObserver, offerMany: (elements: Iterable<Element>) => void}} ArrivalWatch
  * @typedef {{connect(): void, disconnect(): void}} Connection */
 /** @type {Set<ArrivalWatch>} */
 const watches = new Set();
-/** @type {WeakSet<Node>} */
-const stages = new WeakSet();
 /** @type {Set<WeakRef<ShadowRoot>>} */
 const stageRefs = new Set();
+// Each stage by its host, closed ones included, which no host answers through
+// `shadowRoot`.
+/** @type {WeakMap<Element, ShadowRoot>} */
+const hostStages = new WeakMap();
+/** @param {Element} host */
+export const stageOf = (host) => hostStages.get(host) ?? null;
 /** @type {WeakMap<Element, Set<Connection>>} */
 const owners = new WeakMap();
 /** @type {((element: Element) => void) | undefined} */
 let offerOwner;
+
+/** @param {Element} element @param {keyof Connection} method */
+function notifyOwners(element, method) {
+  for (const subscription of owners.get(element) ?? []) {
+    try {
+      subscription[method]();
+    } catch (error) {
+      // A failed owner reports through the window's error channel while the
+      // remaining owners in this arrival batch still receive their transition.
+      queueMicrotask(() => {
+        throw error;
+      });
+    }
+  }
+}
+// The one watch every owner shares, made on first use. It is made here, not in the
+// first owner's call, whose scope its callbacks would otherwise keep alive.
+const ownerWatch = () =>
+  (offerOwner ??= watchArrivals("*", [], {
+    arrive: (element) => notifyOwners(element, "connect"),
+    leave: (element) => notifyOwners(element, "disconnect"),
+  }));
 
 // Independent subscriptions share their element's connection lifetime. The arrival
 // batch decides whether it actually left, so an in-document move retains them.
@@ -88,29 +114,10 @@ export function watchOwner(owner, lifecycle) {
       lifecycle.disconnect?.();
     },
   };
-  if (!offerOwner) {
-    /** @param {Element} element @param {keyof Connection} method */
-    const notify = (element, method) => {
-      for (const subscription of owners.get(element) ?? []) {
-        try {
-          subscription[method]();
-        } catch (error) {
-          // A failed owner reports through the window's error channel while the
-          // remaining owners in this arrival batch still receive their transition.
-          queueMicrotask(() => {
-            throw error;
-          });
-        }
-      }
-    };
-    offerOwner = watchArrivals("*", [], {
-      arrive: (element) => notify(element, "connect"),
-      leave: (element) => notify(element, "disconnect"),
-    });
-  }
+  const offer = ownerWatch();
   // A synchronous connection can begin and end before the first arrival batch.
   // Offer the owner before setup so that batch still knows its resources must leave.
-  if (owner.isConnected) offerOwner(owner);
+  if (owner.isConnected) offer(owner);
   subscriptions.add(subscription);
   const stop = () => {
     subscriptions.delete(subscription);
@@ -176,7 +183,10 @@ export function liveStages() {
 }
 
 /** @param {Node} root @returns {root is ShadowRoot} */
-export const isStage = (root) => stages.has(root);
+export const isStage = (root) => {
+  const host = shadowHost(root);
+  return host !== null && hostStages.get(host) === root;
+};
 
 /** @param {Element} el */
 const stands = (el) => {
@@ -274,8 +284,8 @@ function enroll({ selector, attributes, observer, offerMany }, root) {
 
 /** @param {ShadowRoot} stage */
 export function watchArrivalsIn(stage) {
-  if (stages.has(stage)) return;
-  stages.add(stage);
+  if (hostStages.get(stage.host) === stage) return;
+  hostStages.set(stage.host, stage);
   stageRefs.add(new WeakRef(stage));
   for (const watch of watches) enroll(watch, stage);
   hearScrollsIn(stage);

@@ -1,8 +1,7 @@
 """Document-scoped browser projection and undo readings."""
 
-from ..delivery import opened_input_ids
 from ..document_reading import DocumentReading
-from ..events import UndoReading, action_retracted
+from ..events import UndoReading, action_retracted, is_reaction
 from ..gesture_words import GestureWords
 from ..projection import StateProjection
 from ..registry.kernel import kinds_declaring
@@ -43,23 +42,19 @@ def browser_undo_candidates(
 
     `z` takes back the user's newest gesture or nothing, so the head carries
     `newest` only when it is that gesture: the newest of the user's events that
-    is neither bookkeeping, an undo, nor already withdrawn. A reply sent after a
-    resolve ends the walk rather than letting `z` reach past it, and so does a
-    gesture this document no longer paints. Every entry stays on the list for the
-    exact control that names it.
+    is neither bookkeeping, an undo, nor already withdrawn. A gesture the door
+    refuses or this document no longer paints, such as a move a later revision's
+    markup places, ends the walk rather than letting `z` reach past it. Every entry
+    stays on the list for the exact control that names it, but a message with words,
+    which no exact control names, is listed only while it is the newest gesture: an
+    older one is deleted by rewriting it to no words (events.md, "Undo").
 
     The head carries `gesture`, what an action did in its own document's words
     (`GestureWords.gesture`), so `z` names what it takes in every tab and after a
     reload. Only the head pays for that reading: an exact control names the
     gesture it shows, and the browser words the other kinds from what it already
-    holds (undo.js).
-
-    An entry the agent has picked up carries `picked_up`: a delivery handed it into
-    an agent's turn (`delivery.opened_input_ids`, the Delivered stage `workflows`
-    reads). `z` shows such a gesture before it takes it back, wherever it stands,
-    since the agent may have acted on it (undo.js)."""
+    holds (undo.js)."""
     candidates = []
-    picked_up = opened_input_ids(events)
     withdrawn = undo_reading.withdrawn
     bookkeeping = kinds_declaring("bookkeeping")
     newest = next(
@@ -82,9 +77,13 @@ def browser_undo_candidates(
             continue
         if undo_reading.error({"undoes": event["id"]}):
             continue
+        if (
+            event["kind"] in kinds_declaring("message")
+            and not is_reaction(event)
+            and event["id"] != newest
+        ):
+            continue
         item: dict = {"event": event}
-        if event["id"] in picked_up:
-            item["picked_up"] = True
         if event["kind"] == "action":
             if event["id"] in document.projection.classified:
                 if action_retracted(event, document.floors, document.within):

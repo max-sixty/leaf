@@ -30,6 +30,7 @@ from leaf.schema import LAYER_FILE
 from leaf.served_state import page as served_page
 from leaf.structure import SourceDocument
 from leaf_dev.commands import journey, verify_site
+from leaf_dev.page_fixtures import example_media
 from process.website_server import (
     FakeCodexHarness,
     get,
@@ -349,6 +350,18 @@ def test_website_samples_serve_private_pages_without_starting_an_agent(
             {"Leaf-Layer": state["layer"]["generation"]},
         )
         assert accepted["state"]["events"][-1]["text"] == "Try this here"
+        # An image attached in the child is as private as one attached on its parent.
+        upload = urllib.request.Request(
+            url + "api/media",
+            data=(example_media() / "051bee487bfb5d13.png").read_bytes(),
+            headers={
+                "Content-Type": "image/png",
+                "Leaf-Layer": state["layer"]["generation"],
+            },
+        )
+        with urllib.request.urlopen(upload) as stored:
+            media = json.loads(stored.read())["path"]
+        assert get(url + media.lstrip("/"))[1]["Cache-Control"] == "no-store"
         assert read_events(published) == []
         assert harness.attached == []
 
@@ -437,6 +450,20 @@ def test_a_website_example_uses_the_real_page_server(page_dir, tmp_path, monkeyp
         assert headers["Leaf-Layer"] == state["layer"]["generation"]
         assert headers["Leaf-Session"] == "active"
         assert headers["Cache-Control"] == "no-store"
+
+        # So does an image the visitor attaches, though a local server lets the
+        # browser keep page media for good.
+        upload = urllib.request.Request(
+            f"{root}/examples/decision/api/media",
+            data=(example_media() / "051bee487bfb5d13.png").read_bytes(),
+            headers={
+                "Content-Type": "image/png",
+                "Leaf-Layer": state["layer"]["generation"],
+            },
+        )
+        with urllib.request.urlopen(upload) as stored:
+            media = json.loads(stored.read())["path"]
+        assert get(f"{root}/examples/decision{media}")[1]["Cache-Control"] == "no-store"
 
         raw_view, _ = get(
             verify_site.activation_url(f"{root}/examples/decision/", state)

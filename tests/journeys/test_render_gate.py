@@ -438,6 +438,9 @@ def test_a_failed_probe_import_keeps_its_original_throw_site(browser, serve, fau
         serve(LONG_PAGE),
     ).failures
     assert len(failures) == 2, failures
+    # A dynamic import's failure is no page fault. The gate's own wait must not echo it
+    # back as one, or its timing would split one finding per render.
+    assert all(failure.values["console"] == [] for failure in failures), failures
     errors = [failure.values["error"] for failure in failures]
     assert all('File "' not in error for error in errors), failures
     if fault == "exception":

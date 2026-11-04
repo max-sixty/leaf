@@ -421,7 +421,7 @@ def sent(browser, serve, name, shots):
     return reading
 
 
-@pytest.mark.parametrize(("route", "width"), [("pointer", 900), ("search", 1650)])
+@pytest.mark.parametrize(("route", "width"), [("pointer", 1000), ("search", 1650)])
 def test_a_quoted_passage_keeps_its_inline_attachment_before_and_after_send(
     browser, serve, width, route
 ):

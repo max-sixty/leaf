@@ -315,6 +315,37 @@ def test_reply_admission_finishes_or_restores_its_native_session(
     assert stored_draft_text(page, "reply:" + root) == next_words
 
 
+def test_typing_in_the_box_a_send_left_keeps_its_reply_through_settlement(
+    browser, serve
+):
+    """The box Send leaves the caret in counts as written in once the user types there.
+
+    An agent's Resolve then retains the card and its editor, as it does for any reply
+    the user is writing, though the caret never left the box to come back to it.
+    """
+    url = serve(LONG_PAGE, anchored=[("p3", "Paragraph 3.")])
+    root = thread_root(serve.page_dir, "margin")
+    page = open_page(browser, url)
+    card, field = open_reply(page, "margin", root)
+    write(field, "The first reply.")
+    with sending(page, "the first reply"):
+        page.keyboard.press("ControlOrMeta+Enter")
+    rendered(page)
+    expect(field).to_be_focused()
+    words = "A second reply, typed without leaving the box."
+    page.keyboard.type(words)
+    expect(field).to_have_js_property("value", words)
+    events_model.append_event(
+        serve.page_dir,
+        {"kind": "resolve", "author": "agent", "agent": "Codex", "parent": root},
+    )
+    told(page)
+    rendered(page)
+    expect_resolved(page, "margin", card, True)
+    expect(field).to_be_focused()
+    expect(field).to_have_js_property("value", words)
+
+
 @pytest.mark.parametrize(
     "surface, resolution",
     [("panel", "user"), ("margin", "active-agent"), ("panel", "inactive-agent")],

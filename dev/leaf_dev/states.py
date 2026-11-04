@@ -90,6 +90,42 @@ def captured_source(page: Page) -> None:
     page.locator("#bg-source-captures").scroll_into_view_if_needed()
 
 
+def long_source_selected(page: Page) -> None:
+    """A long captured source scrolled to where its 128th line, which ends the first
+    run of lines the listing draws, meets the next, each coloured as it shows, with a
+    selection from the middle of one into the other."""
+    page.locator("#pr-prepared-diff-evidence > summary").click()
+    pre = page.locator("#pr-prepared-diff-source pre")
+    pre.scroll_into_view_if_needed()
+    pre.evaluate("pre => { pre.scrollTop = 2400; }")
+    scroll_settled(page, "#pr-prepared-diff-source pre")
+    start, end = pre.evaluate("""pre => {
+      const walker = document.createTreeWalker(pre, NodeFilter.SHOW_TEXT);
+      const at = (words) => {
+        for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+          const index = node.data.indexOf(words);
+          if (index < 0) continue;
+          const range = document.createRange();
+          range.setStart(node, index);
+          range.setEnd(node, index + words.length);
+          return range.getBoundingClientRect().toJSON();
+        }
+      };
+      return [at('from_slice'), at('stream')];
+    }""")
+    page.mouse.move(start["left"] + 1, start["top"] + start["height"] / 2)
+    page.mouse.down()
+    page.mouse.move(end["left"] + 1, end["top"] + end["height"] / 2, steps=6)
+    page.mouse.up()
+
+
+def captured_source_by_keyboard(page: Page) -> None:
+    """The captured source's scroller focused by keyboard, its ring over the lines."""
+    captured_source(page)
+    page.keyboard.press("Tab")
+    page.locator("#bg-source-live .lf-text-document-listing > pre").focus()
+
+
 def native_code(page: Page) -> None:
     """Native fenced code using short language labels."""
     page.locator("#bg-gallery-tabs").get_by_role(
@@ -169,6 +205,13 @@ def boxed_tab_by_keyboard(page: Page) -> None:
     page.locator("#bg-tabs").scroll_into_view_if_needed()
     page.keyboard.press("Tab")
     page.locator("#bg-tabs .lf-tab-btn").first.focus()
+
+
+def boxed_tab_panel_by_keyboard(page: Page) -> None:
+    """A boxed tab set's open panel focused by keyboard, ringed inside its border."""
+    boxed_tab_by_keyboard(page)
+    page.keyboard.press("Tab")
+    expect(page.locator("#bg-tabs > lf-tab:not([hidden])")).to_be_focused()
 
 
 def drawing_comment(page: Page) -> None:
@@ -441,6 +484,35 @@ def reaction_pressed(page: Page) -> None:
     settle(page)
 
 
+MARGIN_SUGGESTION = '.lf-margin-cluster[data-lf-margin-for="rn-sug-dry"]'
+
+
+def margin_reaction_choices(page: Page) -> None:
+    """A suggestion's margin row with the reactions `e` raises from its Accept, each a
+    margin entry."""
+    row = page.locator(MARGIN_SUGGESTION)
+    row.locator('[data-lf-margin-entry-key="accept"]').focus()
+    page.keyboard.press("e")
+    expect(
+        row.locator('[data-lf-margin-entry-owner="responses"]:visible')
+    ).to_have_count(6)
+    settle(page)
+
+
+def margin_reaction_mark(page: Page) -> None:
+    """The same row once a reaction stands on its target, unfolded to show the
+    reaction's own margin entry beside Reject."""
+    margin_reaction_choices(page)
+    row = page.locator(MARGIN_SUGGESTION)
+    row.locator('[data-lf-margin-entry-owner="responses"]:visible').first.click()
+    mark = row.locator('[data-lf-margin-entry-owner="reactions"]')
+    expect(mark).to_have_count(1)
+    row.locator(".lf-margin-more").click()
+    expect(mark).to_be_visible()
+    page.mouse.move(0, 0)
+    settle(page)
+
+
 def floating_thread_retitled(page: Page) -> None:
     """The same thread once its opening message is rewritten short, so its title is far
     narrower than the view it names."""
@@ -571,11 +643,9 @@ def panel_dictating(page: Page) -> None:
 
 def comment_on(section: str) -> None:
     """A comment the user left on `section`, posted as another of their tabs would."""
-    client = PageClient(served_page.get().address)
-    client.post(
+    PageClient(served_page.get().address).post(
         {
             "kind": "comment",
-            "revision": client.state()["active"]["revision"],
             "attempt": f"stills-proxy-{section}",
             "text": "Worth a second look.",
             "anchor": {"section": section},
@@ -778,12 +848,10 @@ def held_news(page: Page, thread: Locator) -> None:
     as_agent("thread", "reply", root, "--text", "That one goes first.")
     notice = thread.locator(".lf-thread-news")
     expect(notice).to_have_attribute("title", "1 new reply")
-    client = PageClient(served_page.get().address)
-    client.post(
+    PageClient(served_page.get().address).post(
         {
             "kind": "reply",
             "parent": root,
-            "revision": client.state()["active"]["revision"],
             "attempt": "stills-held-news-other-tab",
             "text": "Sent from my other tab.",
         }
@@ -880,22 +948,26 @@ def on_me(page: Page) -> None:
     expect(page.locator(panel_view("queue"))).to_be_visible()
 
 
-def on_me_todo(page: Page) -> None:
-    """On me opened on a to-do's card, its whole title over its Done, after the On me
-    walk arrives at the to-do's subject."""
+def on_me_question(page: Page) -> None:
+    """On me opened on the card of a question the agent asked in a thread with
+    `--obligation`, its whole words over the card's Reply."""
+    question = (
+        "Can you review the change or name a reviewer, then merge it after checking "
+        "the build?"
+    )
     as_agent(
-        "task",
+        "thread",
         "create",
+        "--section",
         "plan-context",
-        "--title",
-        "Review the change or name a reviewer, then merge it after checking the build",
-        "--on",
-        "user",
+        "--text",
+        question,
+        "--obligation",
     )
     page.reload()
     wait_until_ready(page, PageClient(served_page.get().address).state())
-    page.locator("#plan-top").click()
-    page.keyboard.press("m")
+    on_me(page)
+    page.locator(".lf-fp-on-item", has_text=question).scroll_into_view_if_needed()
 
 
 def on_me_choice(page: Page) -> None:
@@ -1683,7 +1755,7 @@ def aim_cut_by_pane(page: Page) -> None:
     page.mouse.move(box["x"] + 120, box["y"] + 20)
     page.keyboard.down("Alt")
     page.wait_for_function(
-        "() => document.getElementById('sort-source-note')?.classList.contains('lf-aimed')"
+        "() => document.getElementById('sort-source-note')?.hasAttribute('data-lf-aimed')"
     )
 
 
@@ -2035,9 +2107,13 @@ def trace_comparison(page: Page) -> None:
 
 
 def film_inspector(page: Page) -> None:
-    """Details beside the selected SVG commit in the merge film."""
+    """Details beside the selected SVG commit in the merge film. The pointer leaves
+    before the stage scrolls into place: one the scroll left over the stage would close
+    the details at its next `pointermove`, which WebKit sends by itself after a
+    scroll."""
     page.get_by_role("button", name="Inspect next element", exact=True).click()
     expect(page.locator("#merge-film .film-inspect")).to_be_visible()
+    page.mouse.move(0, 0)
     page.locator("#merge-film .film-stage").evaluate(
         "node => node.scrollIntoView({block: 'center'})"
     )
@@ -2064,6 +2140,13 @@ def live_sample_full_view(page: Page) -> None:
     sample = page.locator("#bg-live-sample")
     sample.get_by_role("button", name="Full view", exact=True).click()
     expect(sample.get_by_role("dialog", name="practice release note")).to_be_visible()
+
+
+def trace_image_by_keyboard(page: Page) -> None:
+    """The recording's captured image focused by keyboard, its ring over the marks."""
+    trace_controls(page)
+    page.keyboard.press("Tab")
+    page.locator("#release-trace .lf-trace-canvas").first.focus()
 
 
 def trace_timeline_by_keyboard(page: Page) -> None:
@@ -2142,10 +2225,22 @@ STATES = (
         region="#bg-markdown-preview",
     ),
     State(
+        "long-source-selected",
+        "pr-walkthrough",
+        long_source_selected,
+        region="#pr-prepared-diff-source",
+    ),
+    State(
         "captured-source",
         "feature-gallery",
         captured_source,
         region="#bg-source-captures",
+    ),
+    State(
+        "captured-source-keyboard",
+        "feature-gallery",
+        captured_source_by_keyboard,
+        region="#bg-source-live",
     ),
     State(
         "recorded-video",
@@ -2397,6 +2492,12 @@ STATES = (
         "playwright-trace-gallery",
         trace_timeline_by_keyboard,
     ),
+    State(
+        "trace-image-keyboard",
+        "playwright-trace-gallery",
+        trace_image_by_keyboard,
+        region="#release-trace .lf-trace-canvas",
+    ),
     State("retained-quote", "feature-gallery", retained_quote),
     State("retained-quote-full", "feature-gallery", retained_quote_full),
     State(
@@ -2444,6 +2545,12 @@ STATES = (
     State("gallery-tab-focus", "feature-gallery", tab_by_keyboard),
     State("gallery-tab-hover", "feature-gallery", tab_by_pointer),
     State("gallery-boxed-tab-focus", "feature-gallery", boxed_tab_by_keyboard),
+    State(
+        "boxed-tab-panel-keyboard",
+        "feature-gallery",
+        boxed_tab_panel_by_keyboard,
+        region="#bg-tabs",
+    ),
     State("side-tab-focus", "alert-review", tab_by_keyboard),
     State("frame-edges", "feature-gallery", frame_edges),
     State("gallery-metrics", "feature-gallery", gallery_metrics),
@@ -2476,6 +2583,18 @@ STATES = (
     State("plan-card", "review-a-plan", card_by_pointer),
     State("reaction-palette", "ship-review", reaction_palette),
     State("reaction-pressed", "ship-review", reaction_pressed),
+    State(
+        "margin-reaction-choices",
+        "release-notes",
+        margin_reaction_choices,
+        region=MARGIN_SUGGESTION,
+    ),
+    State(
+        "margin-reaction-mark",
+        "release-notes",
+        margin_reaction_mark,
+        region=MARGIN_SUGGESTION,
+    ),
     State("plan-card-keyboard", "review-a-plan", card_by_keyboard),
     # A window with room for the rail but none beside the ask, so the card stands over
     # its options and covers a choice's hint.
@@ -2757,7 +2876,7 @@ STATES = (
         card_by_pointer,
         window=Window((1440, 480)),
     ),
-    State("on-me-todo", "review-a-plan", on_me_todo),
+    State("on-me-question", "review-a-plan", on_me_question),
     State("on-me", "corpus", on_me),
     State("on-agent", "corpus", on_agent),
     State("hub-on-me", "command-hub", on_me),

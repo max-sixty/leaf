@@ -88,12 +88,11 @@ export function declareSide(bridge, { beside = false } = {}) {
 // inside a proposal's new text does, so the nearest place holding the node names the
 // obligation rather than the kind of place: on the inner question's enclosing widget the user
 // is on that question, not on the proposal whose source holds it. Of two standing at one
-// place, as a to-do on a widget does beside the widget's own question, the first the
-// inventory lists names it, and the inventory lists widgets' obligations before to-dos.
-// `items` may be a selection, such as those waiting on the user, placed as the whole
-// `inventory` places them. Only the obligations whose place names one of the node's
-// ancestors are placed (`namedPlaces`), so a keystroke, which asks this many times,
-// costs the node's depth rather than the inventory.
+// place, the first the inventory lists names it. `items` may be a selection, such as
+// those waiting on the user, placed as the whole `inventory` places them. Only the
+// obligations whose place names one of the node's ancestors are placed
+// (`namedPlaces`), so a keystroke, which asks this many times, costs the node's depth
+// rather than the inventory.
 /** @template {import("./framework/application.js").ObligationRecord} T
  * @param {readonly T[]} items @param {Node | null} node
  * @param {readonly import("./framework/application.js").ObligationRecord[]} inventory */
@@ -125,8 +124,8 @@ export function obligationHolding(items, node, inventory = items) {
 // The obligations of a list that could stand at an element, by what names their places
 // (`obligationPlace`): the id of a widget's source and of its context; for a record unit,
 // which stands only at its datum, the widget's id with the datum's key, as the datum
-// carries them (`data-lf-projection`, `data-lf-datum`); and the id of a to-do's subject.
-// Each name keeps the list's order. Read from the records alone, once per list, so it
+// carries them (`data-lf-projection`, `data-lf-datum`). Each name keeps the list's
+// order. Read from the records alone, once per list, so it
 // holds however the document changes; a name finds candidates, and placing each says
 // whether it stands there.
 /** @type {WeakMap<readonly import("./framework/application.js").ObligationRecord[], Map<string, [number, any][]>>} */
@@ -146,11 +145,7 @@ function namedPlaces(items) {
   };
   items.forEach((item, order) => {
     const { source } = item;
-    if (source.kind === "todo") {
-      const place = source.subject;
-      if (place.kind !== "page" && place.kind !== "thread")
-        add(`#${place.id}`, order, item);
-    } else if (source.kind === "widget" && source.unit) {
+    if (source.kind === "widget" && source.unit) {
       add(`@${source.id} ${source.unit}`, order, item);
     } else if (source.kind === "widget") {
       add(`#${source.id}`, order, item);

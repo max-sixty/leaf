@@ -753,7 +753,7 @@ diff --git a/README.md b/README.md
 
     summary.hover(position={"x": 100, "y": 10})
     page.keyboard.down("Alt")
-    expect(page.locator(".lf-aimed").first).to_be_visible()
+    expect(page.locator("[data-lf-aimed]").first).to_be_visible()
     page.keyboard.up("Alt")
     summary.click(modifiers=["Alt"])
     expect(page.locator(".lf-fab-bar")).to_be_visible()
@@ -1208,10 +1208,9 @@ def test_the_widget_reads_the_diff_patch_table(browser, serve):
     readings = page.locator("lf-diff").evaluate_all(
         """hosts => Object.fromEntries(hosts.map(host => [host.id, {
           rendered: host.classList.contains('lf-rendered'),
-          errors: [...new Set([...host.querySelectorAll('.lf-error'),
-            ...(host.shadowRoot?.querySelectorAll('.lf-error') ?? [])]
-            .map(box => box.firstChild?.textContent ?? null))],
-          source: host.querySelector('.lf-error pre')?.textContent ?? null,
+          errors: [...(host.shadowRoot?.querySelectorAll('.lf-error') ?? [])]
+            .map(box => box.firstChild?.textContent ?? null),
+          source: host.shadowRoot?.querySelector('.lf-error pre')?.textContent ?? null,
           files: [...(host.shadowRoot?.querySelectorAll('.lf-diff-path') ?? [])].map(
             path => (path.querySelector('.lf-diff-destination-path') ?? path)
               .textContent.replaceAll('\\u200b', '')),
@@ -1271,7 +1270,7 @@ def test_the_widget_reads_the_diff_patch_table(browser, serve):
       const { says, wrote } = await window.__lfWidgetApi();
       return {
         rendered: host.classList.contains('lf-rendered'),
-        error: host.querySelector('.lf-error')?.firstChild?.textContent ?? null,
+        error: host.shadowRoot?.querySelector('.lf-error')?.firstChild?.textContent ?? null,
         details: shadow?.querySelectorAll('details').length ?? 0,
         diffs: shadow?.querySelectorAll('pre').length ?? 0,
         renameCount: renames.length,
@@ -1315,7 +1314,7 @@ def test_the_widget_reads_the_diff_patch_table(browser, serve):
       const host = document.querySelector('#final-empty-context-diff');
       return {
         rendered: host.classList.contains('lf-rendered'),
-        error: host.querySelector('.lf-error')?.firstChild?.textContent ?? null,
+        error: host.shadowRoot?.querySelector('.lf-error')?.firstChild?.textContent ?? null,
         lines: [...(host.shadowRoot?.querySelectorAll('[data-line]') ?? [])]
           .map(line => line.textContent),
       };

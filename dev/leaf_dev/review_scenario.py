@@ -106,21 +106,14 @@ def post(url: str, step: str, text: str | None = None) -> str:
     tab posts one, and return its admitted id: the scenario's (`COMMENTS`) on its
     section, or `text` on the page as a whole."""
     section, text = COMMENTS[step] if text is None else (None, text)
-    client = PageClient(url)
-    state = client.post(
+    return PageClient(url).post(
         {
             "kind": "comment",
-            "revision": client.state()["active"]["revision"],
             "attempt": attempt(step),
             "text": text,
             **({"anchor": {"section": section}} if section else {}),
         }
-    )
-    return next(
-        event["id"]
-        for event in state["events"]
-        if event.get("attempt") == attempt(step)
-    )
+    )["id"]
 
 
 def require[T](condition: T | None, message: str) -> T:

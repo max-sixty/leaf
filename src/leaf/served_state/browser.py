@@ -151,16 +151,11 @@ def browser_state(
     withdrawn = durable.log.withdrawn
     threads = durable.threads
     undo_reading = UndoReading(
-        events,
-        threads=threads,
-        withdrawn=withdrawn,
-        absorbed=active_page.projection.absorbed,
+        events, withdrawn=withdrawn, absorbed=active_page.projection.absorbed
     )
     workflows = work.workflows
     todos = durable.page_todos(work.activity["todos"])
-    agent_todos = [
-        todo for todo in todos if todo["owner"] == "agent" and todo["state"] == "open"
-    ]
+    open_todos = [todo for todo in todos if todo["state"] == "open"]
 
     words = GestureWords(events, active_registry, revisions or readings.__getitem__)
     views = {}
@@ -187,7 +182,7 @@ def browser_state(
         # the page's updates', served once: a list row names a
         # record by its id.
         items = viewed.all_obligations["all"] + durable.updates["all"]
-        _apply_thread_attention(items, workflows, thread["threads"], agent_todos)
+        _apply_thread_attention(items, workflows, thread["threads"], open_todos)
         documents[revision] = reading
         projection = reading.projection
         published_at = next(

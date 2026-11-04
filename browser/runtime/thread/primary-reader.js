@@ -431,7 +431,7 @@ export function createPrimaryReader(
           view = whole;
         } else {
           const node = document.createElement("div");
-          node.className = "lf-page-thread lf-ui lf-primary-part";
+          node.className = "lf-page-thread lf-ring-overlay lf-ui lf-primary-part";
           node.dataset.lfPart = item.kind;
           node.tabIndex = -1;
           node.dataset.lfRuntime = "";

@@ -57,6 +57,7 @@ from render_harness import (
     TOKEN,
     consume_browser_errors,
     expect_open_threads,
+    fetch_whole_state,
     held_frames,
     http_error_console,
     leaf_page,
@@ -405,8 +406,7 @@ def test_a_failed_agent_root_restores_the_focused_first_message_composer(
         if broken:
             refuse(route)
             return
-        response = route.fetch()
-        state = response.json()
+        response, state = fetch_whole_state(route)
         view = state["browser"]["views"][str(state["active"]["revision"])]
         view["document"]["projection"]["entries"].append(None)
         broken.append(True)
@@ -485,8 +485,7 @@ def test_a_failed_resolution_restores_a_focused_inline_reply(browser, serve):
         if broken:
             refuse(route)
             return
-        response = route.fetch()
-        state = response.json()
+        response, state = fetch_whole_state(route)
         view = state["browser"]["views"][str(state["active"]["revision"])]
         view["document"]["projection"]["entries"].append(None)
         broken.append(True)
@@ -520,7 +519,8 @@ def test_a_failed_resolution_restores_a_focused_inline_reply(browser, serve):
     # The remote resolution waits behind the thread's notice while the focused
     # draft is in view. The user can reveal it without losing their reply.
     notice = thread.locator(".lf-thread-news")
-    expect(notice).to_have_text("Resolved")
+    expect(notice).to_have_text("1 new")
+    expect(notice).to_have_attribute("title", "Resolved")
     expect(thread).to_have_attribute("data-lf-resolved", "false")
     notice.click()
     expect(thread.get_by_role("button", name="Reopen")).to_be_visible()
@@ -553,8 +553,7 @@ def test_failed_resolve_candidate_restores_focused_reply(browser, serve):
         if broken:
             refuse(route)
             return
-        response = route.fetch()
-        state = response.json()
+        response, state = fetch_whole_state(route)
         view = state["browser"]["views"][str(state["active"]["revision"])]
         view["document"]["projection"]["entries"].append(None)
         broken.append(True)
@@ -582,7 +581,8 @@ def test_failed_resolve_candidate_restores_focused_reply(browser, serve):
     # The view keeps the user's editing place and says the remote resolution in a
     # notice the user opens.
     news = page.locator(".lf-fp-head .lf-thread-news")
-    expect(news).to_have_text("Resolved")
+    expect(news).to_have_text("1 new")
+    expect(news).to_have_attribute("title", "Resolved")
     expect(draft).to_have_js_property("value", "keep this unfinished reply")
     news.click()
     expect(view).to_be_visible()
@@ -603,8 +603,6 @@ def test_a_failed_state_keeps_focus_in_the_open_versions_menu(browser, serve):
     page.keyboard.press("g")
     page.keyboard.press("Shift+V")
     versions = page.locator(panel_view("versions"))
-    expect(versions).to_be_focused()
-    page.keyboard.press("ArrowDown")
     row = versions.locator(".lf-fp-version .lf-fp-item").first
     expect(row).to_be_focused()
 
@@ -614,8 +612,7 @@ def test_a_failed_state_keeps_focus_in_the_open_versions_menu(browser, serve):
         if broken:
             refuse(route)
             return
-        response = route.fetch()
-        state = response.json()
+        response, state = fetch_whole_state(route)
         view = state["browser"]["views"][str(state["active"]["revision"])]
         view["document"]["projection"]["entries"].append(None)
         broken.append(True)
@@ -888,7 +885,7 @@ def test_a_screenshot_margin_trace_paints_both_quiet_brackets(browser, serve):
     margins_laid_out(page)
     toggle = page.get_by_role("button", name="Review capture", exact=True)
     toggle.hover()
-    expect(shot).to_have_class(re.compile(r"\blf-traced\b"))
+    expect(shot).to_have_attribute("data-lf-traced", "")
     ink = shot.evaluate(_MARK_INK)
     traced = screenshot()
 
@@ -1094,17 +1091,39 @@ def test_a_marked_scrolling_visual_keeps_its_keyboard_focus_ring(browser, serve)
     expect(diagram).to_have_css("outline-style", "solid")
 
 
-def test_a_widget_that_failed_soft_claims_no_room(browser, serve):
+# A patch naming one file twice, with a line wider than the column.
+_WIDE_LINE = "+" + "wide " * 60
+_REFUSED_DIFF_PAGE = leaf_page(
+    "refused diff",
+    '<h1 id="t">Refused</h1>\n<lf-diff id="bad"><pre>\n'
+    + (
+        "diff --git a/a.txt b/a.txt\n--- a/a.txt\n+++ b/a.txt\n@@ -1 +1 @@\n-x\n"
+        + _WIDE_LINE
+        + "\n"
+    )
+    * 2
+    + "</pre></lf-diff>",
+)
+
+
+@pytest.mark.parametrize(
+    ("source", "tag"),
+    [(BROKEN_DIAGRAM_PAGE, "lf-diagram"), (_REFUSED_DIFF_PAGE, "lf-diff")],
+    ids=["light", "shadow"],
+)
+def test_a_widget_that_failed_soft_claims_no_room(browser, serve, source, tag):
     """A wide widget's room is for the thing it draws, and a widget whose upgrade failed
     has not drawn it: what stands there is the message and the source it choked on, which
     is prose and belongs in the measure the page's prose is set to. Taking the room
-    anyway put a parse error across the whole window with its message on one line."""
-    page = open_page(browser, serve(BROKEN_DIAGRAM_PAGE))
+    anyway put a parse error across the whole window with its message on one line. A
+    shadow widget shows its failure in its stage, where page layout can't look."""
+    page = open_page(browser, serve(source))
     # The page reports the renderer's refusal, which is what the fixture is for.
-    consume_browser_errors(page, '<lf-diagram id="bad"> failed: ')
+    consume_browser_errors(page, f'<{tag} id="bad"> failed: ')
     resized(page, 1600, 900)
     at = page.evaluate("""() => {
-        const box = document.getElementById('bad').querySelector('.lf-error');
+        const bad = document.getElementById('bad');
+        const box = (bad.shadowRoot ?? bad).querySelector('.lf-error');
         const column = document.querySelector('main > h1').getBoundingClientRect();
         return { failed: !!box,
                  box: box ? box.getBoundingClientRect().width : 0,
@@ -3439,8 +3458,7 @@ def test_a_reply_notice_survives_a_failed_state_and_keeps_its_agent(browser, ser
         if broken:
             refuse(route)
             return
-        response = route.fetch()
-        state = response.json()
+        response, state = fetch_whole_state(route)
         state["agent"] = "Rejected agent"
         rejected_version = {
             **state["versions"][-1],

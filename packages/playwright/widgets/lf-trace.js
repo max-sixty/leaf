@@ -118,6 +118,7 @@ import {
   whileConnected,
   currentLocationIn,
   commandsChanged,
+  seconds,
 } from "/runtime/widget-api.js";
 
 import { advancePlayback, mergeIntervals } from "./playback.js";
@@ -275,8 +276,6 @@ function streamOrigins(trace) {
 const nodeName = (node) =>
   [node.role, node.name || node.text].filter(Boolean).join(" · ") ||
   "Unnamed saved element";
-/** @param {number} ms */
-const seconds = (ms) => `${(ms / 1000).toFixed(3)} s`;
 // During playback a plain image shows each capture in time; the inspectable
 // Viewer surface takes over again when playback stops. The canvas is the part;
 // the Viewer image names it to assistive tech.
@@ -821,7 +820,8 @@ export class Trace extends LeafElement {
   #time(value, stream) {
     const origin = this.#origin(stream);
     if (!origin) throw new Error(`The recording has no origin for stream ${stream}`);
-    return seconds(value - origin.start);
+    // Every time keeps three decimals, so the readout holds its width as it changes.
+    return seconds(value - origin.start, 3);
   }
   /** @param {string} id */
   #pageLabel(id) {
@@ -2605,7 +2605,7 @@ export class Trace extends LeafElement {
         const status = el("span", "lf-trace-image-status", "Loading captured image…");
         figure.classList.add("lf-trace-image-loading");
 
-        const canvas = el("div", "lf-trace-canvas");
+        const canvas = el("div", "lf-trace-canvas lf-ring-overlay");
         canvas.tabIndex = 0;
         canvas.setAttribute("role", "group");
         canvas.setAttribute(

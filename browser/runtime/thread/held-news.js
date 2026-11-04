@@ -19,7 +19,7 @@
    - the thread the user is in, by focus or by a gesture of theirs still in flight
      (`gesturedOn`), draws what its news adds at once, as a chat does, and the seat
      keeps the control they are on still by scrolling what stands above it up by the
-     growth (user-place.js, `keepPlace`). That control is where the user
+     growth (user-place.js, `holdUserPlace`). That control is where the user
      is: a message they stand on stays and the reply box below it moves down by the
      turn; on the thread itself, as a send leaves them, its reply box stays. Where the
      page can't scroll by all of the growth, as when it is shorter than its window, the

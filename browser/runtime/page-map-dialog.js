@@ -27,6 +27,7 @@
 import { showNativeLayer, closeNativeLayer } from "./keyboard/layer-stack.js";
 import { scrollIntoView } from "./landing-scroll.js";
 import { registerReadingRegion } from "./reading-regions.js";
+import { holdUserPlace } from "./user-place.js";
 import { nextRender } from "./rendering.js";
 import { blockAt, says } from "./passages.js";
 import {
@@ -95,7 +96,7 @@ dialogList.toggleAttribute("data-lf-scroll", true);
 // While the map stands its list scrolls on its own, so it is a reading region then, as
 // the command reference's list is: the list is what scrolls a row, and what keeps the
 // row the user is on where it stood as the sheet re-renders (user-place.js,
-// `keepPlace`).
+// `holdUserPlace`).
 /** @type {(() => void) | null} */
 let stopListReading = null;
 dialog.addEventListener("close", () => {
@@ -389,7 +390,13 @@ export function createPageMapDialog({
   function renderPageMapDialog(nextEntries) {
     if (nextEntries.length !== entries.length) pageControlsChanged();
     entries = nextEntries;
-    if (dialog.open) renderSheet();
+    if (!dialog.open) return;
+    // What the map lists can change with no reading behind it, as a widget's own
+    // contribution does once its work finishes, so the map keeps the row the user is on
+    // across that as a reading does (user-place.js, `holdUserPlace`).
+    const keep = holdUserPlace();
+    renderSheet();
+    keep();
   }
 
   /** @param {Entry | null} [entry] @param {{invoker?: Element | null, focusSpill?: boolean}} [options] */

@@ -1000,58 +1000,52 @@ def test_a_page_map_update_keeps_the_row_the_user_was_on(browser, serve):
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
-def test_an_action_joining_page_map_above_the_focused_row_leaves_it_still(
+def test_a_thread_joining_page_map_above_the_focused_row_leaves_it_still(
     request, serve, engine
 ):
-    """An action joining Page Map between the first row in view and the row the user is
-    on pushed that row down by the group it added, 32px: the browser's scroll anchoring
-    holds the first row in view, and nothing held the focused one. The sheet's re-render
-    keeps the control the user is on where it stood, as every surface's does."""
+    """A thread the agent starts joins Page Map between the first row in view and the
+    row the user is on, and pushed that row down by the row it added, 63px: the
+    browser's scroll anchoring holds the first row in view, and nothing held the focused
+    one. The reading that brings the thread keeps the control the user is on where it
+    stood once the page shows it, as it does for every surface."""
     fixture = leaf_page(
         "Page Map focus",
-        "".join(f'<p id="place-{index}">Target {index}</p>' for index in range(30)),
+        "".join(
+            f'<p id="place-{index}">Target {index} of the plan.</p>'
+            for index in range(30)
+        ),
     )
-    page = open_page(request.getfixturevalue(engine), serve(fixture))
+    url = serve(fixture)
+    for index in range(30):
+        if index != 14:
+            panel_comment(
+                serve.page_dir,
+                f"Question {index:02d}?",
+                {"section": f"place-{index}"},
+                author="agent",
+            )
+    page = open_page(request.getfixturevalue(engine), url)
     resized(page, 1280, 600)
-    page.evaluate(
-        """async () => {
-          const {contributionEntry, registerContribution} =
-            await window.__lfWidgetApi();
-          const contribute = (key, target, label) => registerContribution({
-            key, target,
-            read: () => ({entries: [contributionEntry({key: 'action', icon: 'dot', label})]}),
-            activate: () => {},
-          });
-          for (let index = 0; index < 29; index++)
-            contribute(`place-${index}`, document.querySelector(`#place-${index}`),
-              `Action ${index}`);
-          let at = 29;
-          const moving = contribute(
-            'moving', () => document.querySelector(`#place-${at}`), 'Moving action');
-          window.lfMoveInside = () => {
-            at = 14;
-            moving.update({immediate: true});
-          };
-        }"""
-    )
     page.keyboard.press("g")
     page.keyboard.press("Shift+p")
     dialog = page.get_by_role("dialog", name="Page Map", exact=True)
     expect(dialog).to_be_visible()
-    row = dialog.get_by_role("button", name="Action 15", exact=True)
+    rows = dialog.locator(".lf-page-map-action")
+    row = rows.filter(has_text="Question 15?")
     row.evaluate("node => node.scrollIntoView({block: 'center'})")
     row.focus()
-    joins = dialog.get_by_role("button", name="Action 14", exact=True)
-    assert joins.evaluate(
+    assert rows.filter(has_text="Question 13?").evaluate(
         "node => node.getBoundingClientRect().top"
         " > node.closest('.lf-page-map-list').getBoundingClientRect().top"
-    ), "the group joins inside the list's view, below its first row there"
+    ), "the row joins inside the list's view, below its first row there"
     top = row.evaluate("node => node.getBoundingClientRect().top")
 
-    page.evaluate("() => window.lfMoveInside()")
-    expect(
-        dialog.get_by_role("button", name="Moving action", exact=True)
-    ).to_be_visible()
+    panel_comment(
+        serve.page_dir, "Question 14?", {"section": "place-14"}, author="agent"
+    )
+    told(page)
+    expect(rows.filter(has_text="Question 14?")).to_have_count(1)
+    rendered(page)
     expect(row).to_be_focused()
     assert row.evaluate("node => node.getBoundingClientRect().top") == pytest.approx(
         top, abs=1

@@ -210,10 +210,7 @@ returns `null` when the user is outside `scope`. Moving nodes needs no hold
 (`module-authoring.md`, "Retained nodes"). `restore` puts the user back on the same
 node, or on a stand-in passed to it, unless they have gone elsewhere since. For a keyed
 list, `holdFocus(list, { key })` names the attribute holding each item's key, and the
-user lands on the same item, or the nearest survivor. Called in the task that drew the
-redraw, `restore` also keeps the control the user is on where it stood on screen, or,
-where they scrolled away from it, what stands at the reading line, unless the redraw
-answers their own input, whose result its handler places.
+user lands on the same item, or the nearest survivor.
 
 A live revision moves focus from a generated control to its replacement by a
 `data-lf-carry` key, unique within the control's nearest authored ancestor with an id.

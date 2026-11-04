@@ -349,7 +349,8 @@ export function readBoxPlace(input) {
 
 // A render that inserts above the control the user is on, such as an agent's turn
 // arriving in the thread they are writing in (held-news.js), keeps that control where it
-// stood, as every surface's re-render does (user-place.js, `keepPlace`). A user on the
+// stood, as every reading from outside the tab does (user-place.js,
+// `holdUserPlace`). A user on the
 // thread itself, where a send leaves them, waits at its reply box, so the box is what
 // stays still while it is shown, as a chat's composer does, and what stands above it
 // moves up by the turn; a message they stand on stays and the box below it moves down.

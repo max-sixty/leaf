@@ -89,11 +89,11 @@ class ThreadSeat {
   // A seat holds back news that would move what the reader reads (held-news.js). The
   // margin's floating card is a seat too, so it holds news as a seat in the page's flow
   // does. A thread in the flow that the user is in draws what its news adds at once,
-  // as a chat does, since its focus hold keeps the control they are on still by
-  // scrolling what stands above it up (user-place.js, `keepPlace`). Its settlement
-  // still waits behind its notice, since resolving or reopening moves the thread
-  // between the seat's open threads and its Resolved disclosure, out from under the
-  // user. The margin's card keeps its own rule for a user in it (thread-card.js,
+  // as a chat does, since the reading that brings it keeps the control they are on
+  // still by scrolling what stands above it up (user-place.js, `holdUserPlace`). Its
+  // settlement still waits behind its notice, since resolving or reopening moves the
+  // thread between the seat's open threads and its Resolved disclosure, out from under
+  // the user. The margin's card keeps its own rule for a user in it (thread-card.js,
   // `newsMoves`).
   /** @type {HeldNews | null} */
   #held = null;

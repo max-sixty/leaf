@@ -47,7 +47,9 @@ import {
   scrollToEnd,
   scrollLimit,
 } from "../scrolling.js";
-import { cancelRender, nextRender, sizeObserver } from "../rendering.js";
+import { computed, signal } from "/runtime/framework.js";
+import { tick } from "../version-signal.js";
+import { cancelRender, nextRender } from "../rendering.js";
 import { spokenSubject } from "../contribution-model.js";
 import { labelWords } from "../words.js";
 import { THREAD_CARD } from "./margin-layout.js";
@@ -59,6 +61,7 @@ import {
   onCurrentLocation,
   onUserInput,
   focused,
+  focusRevision,
   tabStops,
 } from "../focus.js";
 import { TEXT_FIELD } from "../control-selectors.js";
@@ -72,6 +75,7 @@ import { chromeRoot, chromeForeground } from "../chrome.js";
 import { boxMotion } from "../box-motion.js";
 import { paintKeysWithin } from "../keyboard/scopes.js";
 import { closestAcross } from "../passages.js";
+import { drawnThreadsWithId } from "../thread/selectors.js";
 import { threadIdNamed } from "../thread/state.js";
 import { turns } from "../thread/model.js";
 import { anchorLabel, releaseAuthoredUnder } from "../thread/messages.js";
@@ -86,12 +90,7 @@ import {
   makeRoom,
 } from "./comment-placement.js";
 import { passageGeometry } from "../resolved-target.js";
-import {
-  floatingPlacement,
-  floatingUi,
-  floatingGeometry,
-  heldEdges,
-} from "./floating.js";
+import { floatingPlacement, floatingUi, floatingGeometry } from "./floating.js";
 import { surfaceGrip } from "./surface-grip.js";
 import { placeKeeper } from "../user-place.js";
 import { renderedOrder, renderedUnder, under } from "../shadow.js";
@@ -149,6 +148,10 @@ export function createThreadPreview({
 }) {
   /** @type {Session | null} */
   let previewSession = null;
+  // The entry the card hangs from changes as the card opens, closes or moves to another
+  // entry, which a row asking whether the user is on that entry reads through this
+  // revision, as it reads where the user is through focus.js's (`onOpener`).
+  const cardRevision = signal(0);
   const { targetFor, entryPoint, entryPlace } = inventory;
   // The card is the margin's, as the cluster it hangs from is, rather than a layer over
   // the page: a top-layer popover made every press on the page a light dismissal and
@@ -211,27 +214,12 @@ export function createThreadPreview({
   face.append(previewList);
   // The card follows every change of its layout as the panel does, on the panel's
   // tween, whoever made it: a send, typing, an answer arriving, another thread. It reads
-  // in the plane its placement stands it in, by the edges that hold it there
-  // (floating.js, `heldEdges`), so a scroll or a carry that moves it whole moves
-  // nothing in it. A card no placement stands yet has nothing to move from.
-  const followCard = () => {
-    if (!preview.hasAttribute("data-lf-thread-placement")) return following.forget();
-    following.follow();
-  };
-  // A change of the card's size can move its placement too, as a line taking it past
-  // the window's foot holds it there, so the reading waits for the placement it asks
-  // for, which lands before this frame paints (box-motion.js, `placed`). A card being
-  // carried stands where the pointer holds it.
-  const followed = sizeObserver(() => {
-    const session = previewSession;
-    if (
-      session &&
-      preview.hasAttribute("data-lf-thread-placement") &&
-      !preview.hasAttribute("data-lf-carried")
-    )
-      void placedThreadPreview(session).then((stands) => stands && followCard());
-    else followCard();
-  });
+  // in the plane its placement stands it in, by the edges that hold it there, so a
+  // scroll or a carry that moves it whole moves nothing in it, and a change of its size
+  // asks for its placement first (box-motion.js, `placed`). A card no placement stands
+  // yet, or put away, has nothing to move from, and one being carried stands where the
+  // pointer holds it. A card closing stands where its placement left it until its fade
+  // ends (`close`), so the card another thread opens meanwhile travels from there.
   const following = boxMotion({
     // The face is the root, so the grip beside it, whose clip opens its middle to
     // the card's own presses, is never cut by the motion.
@@ -246,11 +234,20 @@ export function createThreadPreview({
     surface: "lf-margin-preview-ground",
     lift: 3,
     outset: 0,
-    observer: followed,
-    held: () => heldEdges(preview),
+    placement: {
+      held: () => placementDriver.held(),
+      place: () => {
+        const session = previewSession;
+        return (
+          session !== null &&
+          preview.hasAttribute("data-lf-thread-placement") &&
+          !preview.hasAttribute("data-lf-carried") &&
+          placeNow(session)
+        );
+      },
+    },
   });
   preview.append(following.ground, carry.grip, face);
-  followed.observe(face);
   // The card follows the margin entry it hangs from (`session.control`) in the Tab
   // order, as a popover follows its invoker: Tab on the entry enters the card, Shift+Tab
   // from before the card's first stop returns to the entry, and Tab past the card's last
@@ -263,7 +260,14 @@ export function createThreadPreview({
   // there, as the floating panel's menu does.
   const opener = () =>
     previewSession?.control?.checkVisibility() ? previewSession.control : null;
-  const onOpener = () => Boolean(opener()) && focused() === opener();
+  // Every cluster declares the entry's half of these keys (`openerKeys`), so whether the
+  // user is on the entry is one computed their reflections share.
+  const onOpener = computed(() => {
+    focusRevision();
+    void cardRevision.value;
+    const target = opener();
+    return Boolean(target) && focused() === target;
+  });
   // The stops in `root` before (-1) or after (1) `at`, in the browser's order.
   /** @param {Element} root @param {Element} at @param {number} side */
   const stopsBeside = (root, at, side) =>
@@ -288,9 +292,9 @@ export function createThreadPreview({
       repeat: true,
       runFromCommandReference: false,
       when: () => atCardEdge(-1),
-      get run() {
+      run: () => {
         const target = opener();
-        return target ? () => focusDestination(target, "step") : undefined;
+        if (target) focusDestination(target, "step");
       },
     },
     {
@@ -301,9 +305,9 @@ export function createThreadPreview({
       repeat: true,
       runFromCommandReference: false,
       when: () => atCardEdge(1),
-      get run() {
+      run: () => {
         const target = opener();
-        return target ? () => focusDestination(target, "return") : undefined;
+        if (target) focusDestination(target, "return");
       },
     },
   ]);
@@ -315,10 +319,10 @@ export function createThreadPreview({
       title: "into the thread card",
       repeat: true,
       runFromCommandReference: false,
-      when: () => onOpener() && tabStops(preview).length > 0,
-      get run() {
-        const target = tabStops(preview)[0];
-        return target ? () => focusDestination(target, "step") : undefined;
+      when: () => onOpener.value && tabStops(preview).length > 0,
+      run: () => {
+        const [target] = tabStops(preview);
+        if (target) focusDestination(target, "step");
       },
     },
     {
@@ -329,11 +333,9 @@ export function createThreadPreview({
       repeat: true,
       runFromCommandReference: false,
       when: () => {
-        const target = opener();
+        const target = onOpener.value ? opener() : null;
         return (
-          target !== null &&
-          onOpener() &&
-          under(stopsBeside(chromeRoot, target, -1).at(-1), preview)
+          target !== null && under(stopsBeside(chromeRoot, target, -1).at(-1), preview)
         );
       },
       run: () => focusDestination(preview, "return"),
@@ -367,8 +369,8 @@ export function createThreadPreview({
     session.stopFoot = transcript ? keepFoot(transcript, { atEnd: true }) : null;
     session.place = transcript
       ? placeKeeper(transcript, {
-          items: ".lf-msg[data-event]",
-          identity: (message) => message.getAttribute("data-event"),
+          items: ".lf-msg[data-lf-event]",
+          identity: (message) => message.getAttribute("data-lf-event"),
         })
       : null;
     if (previewRegionMounted && transcript) {
@@ -450,11 +452,16 @@ export function createThreadPreview({
   /** @param {Session} session */
   const placedThreadPreview = (session) => {
     session.positionResult ??= Promise.withResolvers();
-    cancelRender(session.positionFrame);
-    session.positionFrame = 0;
-    placeThreadPreview();
+    placeNow(session);
     return session.positionResult.promise;
   };
+  // Places the card now, in place of any placement a frame has queued.
+  /** @param {Session} session */
+  function placeNow(session) {
+    cancelRender(session.positionFrame);
+    session.positionFrame = 0;
+    return placeThreadPreview();
+  }
   // Floating UI follows what moves the card's target: its scroll containers, the window
   // and visual viewport, and the target and card changing size or moving.
   // A card that stays open keeps its spot while its next placement is worked out from
@@ -482,6 +489,7 @@ export function createThreadPreview({
     session.stopFoot?.();
     preview.style.removeProperty("visibility");
     previewSession = null;
+    tick(cardRevision);
   }
   // A card's focus waits for its placement; a newer input the user gave meanwhile, or
   // focus they took elsewhere, keeps them where they went.
@@ -733,13 +741,26 @@ export function createThreadPreview({
         // card opened low in the window rises back to it once a scroll gives it room.
         const { scale } = session.side.landed(position);
         anchored.commit();
+        // The card's first spot is the first reading its motion follows from. The card
+        // another thread opens travels there from where the last one stood
+        // (box-motion.js, `placed`). A card Send opened grows out of the field it
+        // replaces, as any box's outline travels: the box paints only its field while
+        // it is written, and the user preferred (19 October) a field that opens into
+        // its card at Send to a box painted as the card throughout (#3157). The card
+        // stands whole under its outline from the first frame, so no word moves.
+        const anew = !session.followed;
+        if (anew) {
+          session.followed = true;
+          if (session.sent) following.drawnAt(session.sent.field);
+        }
         // An unchanged declaration is the browser's own no-op, and `keeps` is the rest's.
         // A drag the grip carried ends where the placement stands the card.
         following.placed(() => {
           const moved = placementDriver.stand(position);
           carry.placed();
+          keeps(preview, "data-lf-thread-placement", THREAD_SIDES[side]);
           return moved;
-        });
+        }, anew);
         session.width ??= preview.getBoundingClientRect().width;
         preview.style.removeProperty("visibility");
         session.withheldFocus?.();
@@ -767,18 +788,6 @@ export function createThreadPreview({
               layoutPx(Math.max(cut, -following.shadowReach())),
             );
         } else for (const edge of CUT_EDGES) preview.style.removeProperty(edge);
-        keeps(preview, "data-lf-thread-placement", THREAD_SIDES[side]);
-        // The card's first spot is the first reading its motion follows from. A card
-        // Send opened grows out of the field it replaces, as any box's outline travels
-        // (box-motion.js): the box paints only its field while it is written, and the
-        // user preferred (19 October) a field that opens into its card at Send to a box
-        // painted as the card throughout (#3157). The card stands whole under its
-        // outline from the first frame, so no word moves.
-        if (!session.followed) {
-          session.followed = true;
-          if (session.sent) following.drawnAt(session.sent.field);
-          followCard();
-        }
         keepThreadLanding(previewList.querySelector(".lf-page-thread"));
         session.positionResult?.resolve(true);
         session.positionResult = null;
@@ -809,6 +818,7 @@ export function createThreadPreview({
     if (!session) return;
     forgetThreadPreviewPlacement(session);
     session.control = button;
+    tick(cardRevision);
     if (carry && button) focusDestination(button, "return");
   }
 
@@ -838,7 +848,7 @@ export function createThreadPreview({
       latest: null,
       arriving: true,
       // The box Send replaced, whose reading the card keeps (`showArrival`) and whose
-      // field it grows out of (`followCard`).
+      // field it grows out of (`placeThreadPreview`).
       sent: origin ? { fromEnd: origin.fromEnd, field: origin.field } : null,
       away: false,
       positionFrame: 0,
@@ -859,10 +869,12 @@ export function createThreadPreview({
       itemView: null,
       width: origin?.box.width ?? null,
       scroller: pageScroller,
-      // Whether the card's motion has read the card at its first spot (`followCard`).
+      // Whether the card's placement has landed for this selection, whose first spot its
+      // motion follows from (`placeThreadPreview`).
       followed: false,
     };
     previewSession = session;
+    tick(cardRevision);
     if (origin) session.side.adopt(origin);
     // A card Send opened stands at once where its box stood and grows out of the box's
     // field, rather than fade in (annotation-chrome.css).
@@ -1166,9 +1178,7 @@ export function createThreadPreview({
   /** @param {string} name @param {{part?: import("../thread/destination.js").ThreadPart}} [options] */
   function focusTarget(name, { part = null } = {}) {
     const id = threadIdNamed(name);
-    const thread = [...previewList.querySelectorAll(".lf-page-thread")].find(
-      (candidate) => candidate.getAttribute("data-thread") === id,
-    );
+    const thread = drawnThreadsWithId(previewList, id)[0];
     return thread
       ? threadFocusDestination(thread, { part: part ?? "thread", message: name })
       : null;

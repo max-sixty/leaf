@@ -18,6 +18,7 @@ from pathlib import Path
 import pytest
 from conftest import CLAUDE_IDENTITY, HOOKED_SESSIONS, LEAF_COMMAND
 from interact_support import (
+    EVERY_TURN_DEPENDENCIES,
     PAGE,
     STATED_TIMEOUT,
     _observer,
@@ -33,12 +34,14 @@ from interact_support import (
     declared,
     delivered,
     delivered_ref,
+    fresh_imports,
     last_deliverable_seq,
     page_state,
     publish,
     receive_through,
     record_claim,
     serving,
+    unlisted_dependencies,
 )
 
 from leaf import codex as codex_model
@@ -1262,35 +1265,22 @@ def test_codex_tool_hook_reads_a_quiet_page_without_the_page_model(
         "codex-thread", cleanup_model.STATUS_CHECKED_SUFFIX
     ).touch()
     program = """
-import json, sys
 from leaf.hooks import cmd_hook
 
 cmd_hook(
     "codex",
     {"hook_event_name": "PostToolUse", "session_id": "codex-thread", "turn_id": "user-turn"},
 )
-heavy = ("jsonschema", "markdown_it", "turbohtml")
-print(json.dumps(sorted(name for name in heavy if name in sys.modules)))
 """
-
-    def hook():
-        done = subprocess.run(
-            [sys.executable, "-c", program],
-            capture_output=True,
-            text=True,
-            check=True,
-            timeout=STATED_TIMEOUT,
-        )
-        *offered, imported = done.stdout.splitlines()
-        return offered, json.loads(imported)
-
-    assert hook() == ([], [])
+    offered, imported = fresh_imports(program)
+    assert offered == ""
+    assert unlisted_dependencies(imported, EVERY_TURN_DEPENDENCIES) == {}
     # The same process does reach the page: a comment is offered to the turn.
     append_carried_log_record(
         page_dir,
         {"kind": "comment", "author": "user", "text": "Keep the existing layout"},
     )
-    [offer], _ = hook()
+    offer, _ = fresh_imports(program)
     assert json.loads(offer)["hookSpecificOutput"]["hookEventName"] == "PostToolUse"
 
 

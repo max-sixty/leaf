@@ -152,9 +152,13 @@
   let firstBoxes = [];
   const captureFirstBoxes = () => {
     /** @type {NodeListOf<HTMLElement>} */
-    const elements = document.querySelectorAll("body > main *");
+    const elements = document.querySelectorAll("body *");
     firstBoxes = [...elements]
-      .filter((element) => element.localName.startsWith("lf-"))
+      .filter(
+        (element) =>
+          element.localName.startsWith("lf-") &&
+          !element.closest(".lf-chrome, [data-lf-runtime]"),
+      )
       .map((element) => {
         const { width, height } = element.getBoundingClientRect();
         return { element, width, height };

@@ -198,7 +198,7 @@ lf-card {
   position: relative;
   --lf-ground: var(--card);
   background: var(--lf-ground);
-  font: var(--t-5)/1.5 var(--sans);
+  font: var(--font-widget);
   border: 1px solid var(--rule);
   border-radius: var(--r);
   padding: var(--lf-card-inset-block) var(--lf-card-inset);
@@ -250,8 +250,7 @@ lf-card {
    set its prose 13px lower than a sentence's. */
 lf-card > strong {
   display: block;
-  font-weight: 600;
-  line-height: 1.4;
+  font: var(--font-title);
   margin: 0;
 }
 lf-card > strong + p {

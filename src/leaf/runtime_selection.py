@@ -193,12 +193,12 @@ def read_runtime() -> ServingRuntime:
     record = KERNEL / "kernel.json"
     if record.is_file():
         built = json.loads(record.read_text())
-        # The build records the SHA-256 of each file it read: `leaf.js`, each `.js`
-        # under the kernel's browser directories, and each file it compiled in as
-        # values, such as the kernel registry (`build/runtime-bundle.mjs`,
-        # `kernelOutputs`). A tree whose files differ, such as a branch whose runtime or
-        # registry edit has not been rebuilt, runs its source modules, so an install
-        # never runs a runtime other than the one its tree holds.
+        # A prepared installation's build records the SHA-256 of each file it read:
+        # `leaf.js`, each `.js` under the kernel's browser directories, and each file
+        # it compiled in as values, such as the kernel registry
+        # (`build/runtime-bundle.mjs`, `kernelOutputs`). A tree whose files differ
+        # runs its source modules, so an install never runs a runtime other than the
+        # one its tree holds.
         modules = {
             path.lstrip("/"): hashlib.sha256(data).hexdigest()
             for path, data in {**source, **_files(ASSETS, "widgets")}.items()
@@ -224,6 +224,23 @@ def serving_runtime() -> ServingRuntime:
 def execution_identity(artifact: RevisionArtifact) -> str:
     """The identity of the same runtime and layer that supplies the artifact's bytes."""
     return executing(artifact).identity
+
+
+def named_execution(
+    artifact: RevisionArtifact, identity: str
+) -> _ExecutingArtifact | None:
+    """The execution of `artifact` an address names by `identity`, or None where
+    this process runs it under no such identity.
+
+    An address names the same bytes for as long as a browser may cache it, so the
+    execution a document was served under answers the few hundred resource requests
+    its load makes without `executing` reading the page's package copies again for
+    each; the next document load is where a replaced copy shows."""
+    held = serving_runtime()._executed.get(artifact)
+    if held is not None and held[1].identity == identity:
+        return held[1]
+    executed = executing(artifact)
+    return executed if executed.identity == identity else None
 
 
 def executing(artifact: RevisionArtifact) -> _ExecutingArtifact:

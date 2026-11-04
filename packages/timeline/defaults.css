@@ -41,11 +41,11 @@ lf-event::before {
   --lf-timeline-row: 22px;
   --lf-timeline-bar: 22px;
   --lf-timeline-ruler: 22px;
-  --lf-timeline-ground: var(--lf-ground, var(--paper));
+  --lf-timeline-ground: var(--lf-ground);
   display: grid;
   grid-template-columns: max-content minmax(0, 1fr);
   grid-template-rows: var(--lf-timeline-ruler) repeat(var(--lf-timeline-bands, 1), auto);
-  /* The labels are the drawing's references (base.css, `--font-status`). Each stands in
+  /* The labels are the drawing's references (tokens.css, `--font-status`). Each stands in
      a row of a stated height, so its line is as tall as its words, as a mark's count
      is. */
   font: var(--font-status);
@@ -102,7 +102,7 @@ lf-event::before {
   border-inline-start: 1px solid var(--border-2);
   white-space: nowrap;
 }
-.lf-timeline-tick[data-major] {
+.lf-timeline-tick[data-lf-major] {
   block-size: 100%;
   box-sizing: border-box;
   padding-inline-start: 3px;
@@ -112,7 +112,7 @@ lf-event::before {
   font-variant-numeric: tabular-nums;
 }
 /* The last label reads back from its tick, inside the scale. */
-.lf-timeline-tick[data-flip] {
+.lf-timeline-tick[data-lf-flip] {
   translate: -100% 0;
   padding-inline: 0 3px;
   border-inline-start: 0;
@@ -152,10 +152,10 @@ lf-event::before {
   pointer-events: none;
   --lf-timeline-tone: var(--ink);
 }
-.lf-timeline-event[data-state="current"] {
+.lf-timeline-event[data-lf-state="current"] {
   --lf-timeline-tone: var(--accent);
 }
-.lf-timeline-event[data-state="future"] {
+.lf-timeline-event[data-lf-state="future"] {
   --lf-timeline-tone: var(--muted);
 }
 /* Label row 0 sits nearest the bar row. Labels stand in front of the playhead on
@@ -186,17 +186,17 @@ lf-event::before {
   pointer-events: auto;
   cursor: pointer;
 }
-.lf-timeline-label[data-place="flip"] {
+.lf-timeline-label[data-lf-place="flip"] {
   translate: -100% 0;
   border-inline-start: 0;
   border-inline-end: 2px solid var(--lf-timeline-tone);
 }
 /* Too long to read either way from its mark: against the axis end. */
-.lf-timeline-label[data-place="end"] {
+.lf-timeline-label[data-lf-place="end"] {
   left: auto;
   right: 0;
 }
-.lf-timeline-event[data-state="current"] .lf-timeline-label {
+.lf-timeline-event[data-lf-state="current"] .lf-timeline-label {
   font-weight: 600;
 }
 .lf-timeline-mark {
@@ -209,7 +209,7 @@ lf-event::before {
   pointer-events: auto;
   cursor: pointer;
 }
-.lf-timeline-mark[data-kind="span"] {
+.lf-timeline-mark[data-lf-kind="span"] {
   inset-block-end: 6px;
   block-size: 10px;
   inline-size: max(4px, var(--lf-timeline-span) * (100% - 2 * var(--lf-timeline-edge)));
@@ -223,7 +223,7 @@ lf-event::before {
     transparent 0
   );
 }
-.lf-timeline-mark[data-kind="instant"] {
+.lf-timeline-mark[data-lf-kind="instant"] {
   inset-block-end: 5px;
   inline-size: 12px;
   block-size: 12px;
@@ -233,7 +233,7 @@ lf-event::before {
   border: 2px solid var(--lf-timeline-ground);
   box-sizing: border-box;
 }
-.lf-timeline-event[data-state="future"] .lf-timeline-mark[data-kind="instant"] {
+.lf-timeline-event[data-lf-state="future"] .lf-timeline-mark[data-lf-kind="instant"] {
   background: var(--lf-timeline-ground);
   border-color: var(--muted);
 }
@@ -259,7 +259,7 @@ lf-event::before {
  * reduced-motion guards suppress this transition when the page must appear at rest. */
 @media screen {
   .lf-timeline-playhead-line {
-    transition: left 160ms ease;
+    transition: left var(--lf-motion-mark) ease;
   }
 }
 
@@ -278,7 +278,7 @@ lf-event::before {
 .lf-timeline-steps > li {
   break-inside: avoid;
 }
-.lf-timeline-step:not([data-past], [aria-current]) {
+.lf-timeline-step:not([data-lf-past], [aria-current]) {
   color: var(--muted);
 }
 .lf-timeline-step-lane {

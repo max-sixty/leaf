@@ -61,7 +61,8 @@ import { THREAD } from "./thread/selectors.js";
 import { readObligations } from "./obligations/model.js";
 import { obligationPlace } from "./obligations/place.js";
 import { ON_CARD } from "./obligations/view-elements.js";
-import { renderedOrder, renderedUnder, under } from "./shadow.js";
+import { composedParentNode, renderedOrder, renderedUnder, under } from "./shadow.js";
+import { isElement } from "./shadow-tree.js";
 import { eventSource } from "./pointer.js";
 import { pageReadingBlock } from "./reading-place.js";
 
@@ -90,22 +91,74 @@ export function declareSide(bridge, { beside = false } = {}) {
 // place, as a to-do on a widget does beside the widget's own question, the first the
 // inventory lists names it, and the inventory lists widgets' obligations before to-dos.
 // `items` may be a selection, such as those waiting on the user, placed as the whole
-// `inventory` places them.
+// `inventory` places them. Only the obligations whose place names one of the node's
+// ancestors are placed (`namedPlaces`), so a keystroke, which asks this many times,
+// costs the node's depth rather than the inventory.
 /** @template {import("./framework/application.js").ObligationRecord} T
  * @param {readonly T[]} items @param {Node | null} node
  * @param {readonly import("./framework/application.js").ObligationRecord[]} inventory */
 export function obligationHolding(items, node, inventory = items) {
   if (!node) return null;
+  const names = namedPlaces(items);
+  /** @type {Map<T, number>} */
+  const near = new Map();
+  for (let at = /** @type {Node | null} */ (node); at; at = composedParentNode(at)) {
+    if (!isElement(at)) continue;
+    const datum = at.getAttribute("data-lf-datum");
+    const owner = at.getAttribute("data-lf-projection");
+    for (const name of [at.id && `#${at.id}`, datum !== null && `@${owner} ${datum}`])
+      for (const [order, item] of (name && names.get(name)) || [])
+        near.set(item, order);
+  }
   /** @param {Element | null} element */
   const holds = (element) => element && under(node, element);
   /** @type {{item: T, at: Element} | null} */
   let held = null;
-  for (const item of items) {
+  for (const [item] of [...near].sort((a, b) => a[1] - b[1])) {
     const { source, node: target } = obligationPlace(item, inventory);
     const at = holds(source) ? source : holds(target) ? target : null;
     if (at && (!held || (at !== held.at && under(at, held.at)))) held = { item, at };
   }
   return held?.item ?? null;
+}
+
+// The obligations of a list that could stand at an element, by what names their places
+// (`obligationPlace`): the id of a widget's source and of its context; for a record unit,
+// which stands only at its datum, the widget's id with the datum's key, as the datum
+// carries them (`data-lf-projection`, `data-lf-datum`); and the id of a to-do's subject.
+// Each name keeps the list's order. Read from the records alone, once per list, so it
+// holds however the document changes; a name finds candidates, and placing each says
+// whether it stands there.
+/** @type {WeakMap<readonly import("./framework/application.js").ObligationRecord[], Map<string, [number, any][]>>} */
+const placeNames = new WeakMap();
+/** @template {import("./framework/application.js").ObligationRecord} T
+ * @param {readonly T[]} items @returns {Map<string, [number, T][]>} */
+function namedPlaces(items) {
+  const held = placeNames.get(items);
+  if (held) return held;
+  /** @type {Map<string, [number, T][]>} */
+  const names = new Map();
+  /** @param {string} name @param {number} order @param {T} item */
+  const add = (name, order, item) => {
+    const listed = names.get(name);
+    if (!listed) names.set(name, [[order, item]]);
+    else if (listed.at(-1)?.[1] !== item) listed.push([order, item]);
+  };
+  items.forEach((item, order) => {
+    const { source } = item;
+    if (source.kind === "todo") {
+      const place = source.subject;
+      if (place.kind !== "page" && place.kind !== "thread")
+        add(`#${place.id}`, order, item);
+    } else if (source.kind === "widget" && source.unit) {
+      add(`@${source.id} ${source.unit}`, order, item);
+    } else if (source.kind === "widget") {
+      add(`#${source.id}`, order, item);
+      if (item.prompt.target) add(`#${item.prompt.target}`, order, item);
+    }
+  });
+  placeNames.set(items, names);
+  return names;
 }
 
 /** @param {Node | null | undefined} node */

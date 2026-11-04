@@ -134,7 +134,8 @@ or an obligation (it stays ordinary English for a list item or a row of a list),
 | Term | Identity criterion |
 |---|---|
 | **Page shell** | The body-level box that sizes the page after the chrome takes its space |
-| **Content frame** | `body > main`, the root of authored content and its reading column when its scroll behavior is `flow` |
+| **Page** | `body` less Leaf's own elements (`.lf-chrome, [data-lf-runtime]`), the root of authored content (`passages.js` `pageDocument`, `inPage`) |
+| **Content frame** | `body > main`, the box a page Layout arranges and its reading column when its scroll behavior is `flow` |
 | **Layout** | A shipped class (`layouts.css`, the `lf-layouts` cascade layer) that arranges the box it is on: a page Layout on the content frame only, `layout-tiles` on any block |
 | **Frame** | A box whose size comes from outside it, such as `main`, a root tab panel, a part, a pane or a cell of a Layout, or any box declaring `--lf-block-frame`. It sets its children's width and trims their outer margins |
 | **Text** and **surface** | How a block uses its frame's width. Text (a paragraph, list item, quote, caption, heading, or a block given the column) keeps the reading measure. Every other block is a surface and takes the width its frame allows: `wide` up to `--wide`, `available` all of it |
@@ -158,7 +159,7 @@ behavior. A compound widget may own reading regions without being a pane.
 
 | Term | Identity criterion |
 |---|---|
-| **Chrome** | Interface the runtime draws outside authored content, rooted at the one `.lf-chrome` container |
+| **Chrome** | Interface the runtime draws outside authored content, rooted at the one `.lf-chrome` container after `body` |
 | **Leaf panel** | Leaf's chrome (`floating-panel.js`): one box floating at the bottom of the window. Its **row** contains the leaf, the comment field, and one **seat** at the end. That seat shows the **On me mark**, with its count and a dot when a thread has an unread reply. While a view or stance is active, the seat instead shows the ✕ that closes it. A **folded** panel shows only the leaf in the window's corner |
 | **Leaf** | The mark at the row's start, coloured by the agent's state; a press opens the On view on the leaf's menu, or unfolds a folded panel |
 | **Leaf's menu** | The On view's first tab, **Menu**: the full status over the page's other controls (`page-controls.js`), one line each with its shortcut. A row ending in a chevron opens its list over the menu: Navigate, Annotations, Versions. While it stands, the comment field is its search |
@@ -221,7 +222,6 @@ the headings over the document's height.
 | **Done** | The control with which the user ends a to-do the agent gave them (`todo_end`). A widget may also call its own submit control Done |
 | **Done items** | The items that left either list, under a Done heading at the foot of the On view; resolved threads stand likewise under Resolved at the foot of Threads, folded to that heading until the user opens it |
 | **Navigation step** | One move to a destination, such as a thread's passage, an obligation, or the element a followed fragment link names. It clears any surface hiding the destination, then stays put if the user already sees it, or moves and adds a history entry (`history.js`) |
-| **Navigation group** | Consecutive navigation steps, each starting where the last landed, that share one history entry, so Back returns to where the first began |
 | **Current location** | The destination the user is at, directly or through a control inside it: a thread on the page or in the panel, an obligation, or authored page content. A panel thread's title and its messages are one destination; chrome controls, margin rows, comment notes and contents links are not destinations |
 | **Current target** | The addressable element the user is at, whether focus is on the element, inside it, on its margin cluster, on a note it names on the details shelf, or on the thread card showing its threads (`current-target.js`) |
 | **Floor** | The place in a layer where the user is at nothing: the page's body, or an open view of Leaf's panel as a whole |

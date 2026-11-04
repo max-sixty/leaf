@@ -48,7 +48,6 @@ import {
   declaredBindings,
   titleOf,
   descriptionOf,
-  declaresCommandHandler,
   live,
   parsed,
   spokenBinding,
@@ -56,8 +55,10 @@ import {
   word,
 } from "./bindings.js";
 import { nativeActivationAt, nativeClaimAt } from "./text-entry.js";
-import { renderedParent, under } from "../shadow.js";
+import { composedParentNode, renderedParent } from "../shadow.js";
+import { isElement } from "../shadow-tree.js";
 import { repaint } from "../repaint.js";
+import { installMoveKeys } from "../dom-move.js";
 import { keeps } from "../keeps.js";
 import { COMMANDS, commandsChangedOn, refuseCommands } from "../widget-upgrade.js";
 
@@ -315,11 +316,7 @@ function wireButton(control) {
 function wireDeclaredButtons(scope) {
   if (scope.contextual || scope.sequence) return;
   for (const row of scope.rows) {
-    if (
-      (!declaresCommandHandler(row, "run") && !declaresCommandHandler(row, "runKey")) ||
-      typeof row.routes === "function"
-    )
-      continue;
+    if ((!row.run && !row.runKey) || typeof row.routes === "function") continue;
     for (const entry of row.routes?.length ? row.routes : [row]) {
       const control = entry.control ?? row.control;
       if (control instanceof HTMLButtonElement && !projectedOnto(control, scope))
@@ -546,7 +543,7 @@ function forgetScopedElement(el) {
  *
  * Registering at upgrade rather than at module load is what keeps the reference honest:
  * a module stays loaded after the last element it upgraded leaves — a version activation
- * replaces main, a panel body is rebuilt — so a scope declared at the top level would go
+ * replaces the page's content, a panel body is rebuilt — so a scope declared at the top level would go
  * on as reference content for a widget the page no longer has. The dispatch scope leaves through the weak map; the
  * enumerable reference prunes its element when it disconnects. A connected control that
  * stops answering a key says so in the row's `when`, where every surface can read it.
@@ -923,6 +920,7 @@ function reflectAvailabilityReaders() {
   if (failure) throw failure;
 }
 function reflectButtonsTracked() {
+  claimPaintedRoots();
   if (!buttonsDirty && !dirtyButtons.size && !availabilityDirty) return;
   const every = buttonsDirty;
   buttonsDirty = false;
@@ -994,6 +992,7 @@ function reflectTracked(element) {
   if (failure) throw failure;
 }
 export function reflectKeys() {
+  claimPaintedRoots();
   if (!keysDirty && !dirtyElements.size) return;
   const every = keysDirty;
   keysDirty = false;
@@ -1021,15 +1020,61 @@ export const paintKeys = () => {
  * the hints among them, read the same rows. */
 /** @param {Node} root */
 export const paintKeysWithin = (root) => {
-  for (const ref of scopeRefs) {
-    const scoped = ref.deref();
-    if (scoped && under(scoped, root)) {
-      dirtyElements.add(scoped);
-      dirtyButtons.add(scoped);
-    }
-  }
+  paintedRoots.add(root);
   repaint();
 };
+// The roots renderers painted since the frame last reflected, resolved to the scoped
+// elements inside them by a walk of each outermost root, so a frame costs what was
+// painted however many renderers painted, where a scan per paint cost every widget's
+// update the whole page's scoped elements. A placed node about to move out of a painted
+// root takes the marks of the scoped elements it holds with it (dom-move.js), so the
+// frame finds them wherever they land.
+/** @type {Set<Node>} */
+const paintedRoots = new Set();
+installMoveKeys((node) => {
+  if (!paintedRoots.size) return;
+  for (let at = /** @type {Node | null} */ (node); at; at = composedParentNode(at))
+    if (paintedRoots.has(at)) return markScopedIn(node);
+});
+/** @param {Node} node */
+function markScopedIn(node) {
+  if (isElement(node) && scopeRefFor.has(node)) {
+    dirtyElements.add(node);
+    dirtyButtons.add(node);
+  }
+  for (const child of node.childNodes) markScopedIn(child);
+  if (isElement(node) && node.shadowRoot) markScopedIn(node.shadowRoot);
+}
+function claimPaintedRoots() {
+  if (!paintedRoots.size) return;
+  // Whether a node is a painted root or stands in one, remembered for every node a climb
+  // passes, so roots that share ancestors climb each of them once.
+  /** @type {Map<Node, boolean>} */
+  const covered = new Map();
+  /** @param {Node | null} node */
+  const coveredFrom = (node) => {
+    /** @type {Node[]} */
+    const passed = [];
+    let answer = false;
+    for (let at = node; at; at = composedParentNode(at)) {
+      const known = covered.get(at);
+      if (known !== undefined) {
+        answer = known;
+        break;
+      }
+      passed.push(at);
+      if (paintedRoots.has(at)) {
+        answer = true;
+        break;
+      }
+    }
+    for (const at of passed) covered.set(at, answer);
+    return answer;
+  };
+  for (const root of paintedRoots)
+    if (!coveredFrom(composedParentNode(root))) markScopedIn(root);
+  paintedRoots.clear();
+}
 /** What a scope answers right now, as a listener hears it read out — key names rather than
  * the chips the eye reads, since a screen reader renders "esc" literally. Off the register,
  * so an announcement cannot name a key the rows stopped binding.

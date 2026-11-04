@@ -31,7 +31,6 @@ from render_cases_layout import (
 )
 from render_harness import (
     LONG_PAGE,
-    PANEL_THREAD,
     comment_note,
     draft_control,
     example_media,
@@ -49,6 +48,7 @@ from render_harness import (
 from leaf import cli as cli_model
 from leaf import event_log as events_model
 from leaf.render_checks import rendered
+from leaf_dev.browser import PANEL_THREAD
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -223,7 +223,7 @@ def _open_thread(page, target, thread_id):
     page.locator(f"#{target}").scroll_into_view_if_needed()
     comment_note(page, f"#{target}").press("Enter")
     walked = page.locator(".lf-margin-preview .lf-page-thread")
-    expect(walked).to_have_attribute("data-thread", thread_id)
+    expect(walked).to_have_attribute("data-lf-thread", thread_id)
     expect(walked).to_be_focused()
     rendered(page)
 
@@ -851,7 +851,7 @@ def test_draft_and_page_map_reaction_actions_stay_reachable(browser, serve, widt
     expect(dialog).to_be_hidden()
     expect(
         page.locator(
-            f'[data-lf-margin-for="s-crowded"] [data-event="{reaction["id"]}"]'
+            f'[data-lf-margin-for="s-crowded"] [data-lf-event="{reaction["id"]}"]'
         )
     ).to_have_count(0)
     last = events_model.read_events(serve.page_dir)[-1]

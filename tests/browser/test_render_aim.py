@@ -30,9 +30,13 @@ from render_cases_layout import (
     AIMED,
     CORNER_PAGE,
     DRAFT_MARK,
+    DRAWN_MARK,
     FOCUS_IN_PAGE,
     LEGEND_TRUE,
+    MARK,
     PAGE_MARKUP,
+    assert_drawn_in,
+    token_colour,
 )
 from render_cases_navigation import source_revision
 from render_cases_widgets import (
@@ -43,9 +47,6 @@ from render_cases_widgets import (
     PART_DIAGRAM_V2,
     PICTURE_PAGE,
     PREFIXED_VISUAL_PAGE,
-    SHADOW_SCROLLER_LAYER,
-    SHADOW_SCROLLER_PAGE,
-    SHADOW_SCROLLER_WIDGETS,
     SHADOW_VISUAL_LAYER,
     SHADOW_VISUAL_PAGE,
     SHADOW_VISUAL_WIDGETS,
@@ -54,11 +55,9 @@ from render_cases_widgets import (
 )
 from render_harness import (
     EDITOR_ROOTS,
-    EXAMPLES,
     FOLLOWER_MARK,
     LONG_PAGE,
     PANEL,
-    PANEL_THREAD,
     RELEASE_FOCUS,
     REPLAYED_PAGE,
     SUBJECT_MARK,
@@ -101,6 +100,8 @@ from leaf.render_checks import rendered, wait_until_ready
 from leaf.render_gate.scheme import collect_page_exceptions
 from leaf.served_state import context as served_context
 from leaf.validation import composition as validation_model
+from leaf_dev.browser import PANEL_THREAD
+from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -129,12 +130,12 @@ AIM_PRESS_CASES = (
     ),
     (
         "release-notes",
-        next(p for p in EXAMPLES if p.stem == "release-notes"),
+        named_source("release-notes"),
         frozenset({"draft mousedown", "suggestion margin control"}),
     ),
     (
         "ship-review",
-        next(p for p in EXAMPLES if p.stem == "ship-review"),
+        named_source("ship-review"),
         frozenset({"option click", "existing mark"}),
     ),
 )
@@ -182,7 +183,7 @@ def test_the_catalog_sidenote_can_be_aimed_whole(browser, serve):
 
     note.hover()
     page.keyboard.down("Alt")
-    expect(page.locator(".lf-aim")).to_have_attribute("data-for", "logout-frequency")
+    expect(page.locator(".lf-aimed")).to_have_id("logout-frequency")
     note.click()
     page.keyboard.up("Alt")
 
@@ -251,7 +252,7 @@ def test_a_compact_comment_carries_its_box_into_the_inline_thread(browser, serve
     expect(preview.locator(".lf-page-thread")).to_be_focused()
     message = preview.locator(".lf-msg-body").first
     expect(preview.locator(".lf-page-thread")).to_have_attribute(
-        "data-thread", admitted["id"]
+        "data-lf-thread", admitted["id"]
     )
     expect(message).to_have_text("Carry this comment into its thread.")
     full = message.evaluate(
@@ -287,21 +288,17 @@ def test_an_aimed_comment_keeps_its_place_with_on_me_open(browser, serve, width)
     # where the comment press below also lands.
     target.hover(position={"x": 12, "y": 12})
     page.keyboard.down("Alt")
-    expect(page.locator(".lf-aim")).to_have_attribute("data-for", "lq-keep")
+    expect(page.locator(".lf-aimed")).to_have_id("lq-keep")
     # Open by script so the pointer remains parked on the target while the view arrives.
     page.locator(".lf-fp-on-user").evaluate("node => node.click()")
     panel_settled(page, view="queue")
-    expect(page.locator(".lf-aim")).to_be_visible()
-    expect(page.locator(".lf-aim")).to_have_attribute("data-for", "lq-keep")
+    expect(page.locator(".lf-aimed")).to_have_id("lq-keep")
     aligned = page.evaluate(
         """() => {
-          const target = document.getElementById('lq-keep').getBoundingClientRect();
-          const aim = document.querySelector('.lf-aim').getBoundingClientRect();
           const chrome = document.querySelector('.lf-chrome');
           return { rootPosition: getComputedStyle(document.documentElement).position,
                    bodyPosition: getComputedStyle(document.body).position,
-                   chromePosition: getComputedStyle(chrome).position,
-                   dx: aim.left - target.left, dy: aim.top - target.top };
+                   chromePosition: getComputedStyle(chrome).position };
         }"""
     )
     assert aligned["rootPosition"] == "static", (
@@ -312,9 +309,6 @@ def test_an_aimed_comment_keeps_its_place_with_on_me_open(browser, serve, width)
     )
     assert aligned["chromePosition"] == "static", (
         "authored div positioning captured the chrome's document coordinate plane"
-    )
-    assert abs(aligned["dx"]) < 2 and abs(aligned["dy"]) < 2, (
-        f"the aim moved {aligned['dx']:.1f}px across and {aligned['dy']:.1f}px down "
     )
 
     # The press lands on the obligation's start, clear of the panel at the window's foot.
@@ -565,7 +559,7 @@ def test_a_growing_comment_is_independent_of_page_controls(browser, serve):
     """
     page = open_page(
         browser,
-        serve(next(example for example in EXAMPLES if example.stem == "release-notes")),
+        serve(named_source("release-notes")),
     )
     resized(page, 1337, 386)
     page.evaluate("() => { location.hash = '#rn-console-why' }")
@@ -1236,9 +1230,9 @@ def test_a_pointed_comment_keeps_the_rows_still_owed(browser, serve, case):
         page.keyboard.press("t")
         shown = page.locator(".lf-margin-preview .lf-page-thread")
         expect(shown).to_have_count(1)
-        if shown.get_attribute("data-thread") != first:
+        if shown.get_attribute("data-lf-thread") != first:
             page.keyboard.press("Shift+t")
-        expect(shown).to_have_attribute("data-thread", first)
+        expect(shown).to_have_attribute("data-lf-thread", first)
         scroll_settled(page)
         rendered(page)
         card = page.locator(".lf-margin-preview").bounding_box()
@@ -1572,7 +1566,7 @@ def test_a_comment_rechooses_after_target_width_reflow(browser, serve):
     """New horizontal room invalidates the old fallback instead of detaching it."""
     page = open_page(
         browser,
-        serve(next(example for example in EXAMPLES if example.stem == "release-notes")),
+        serve(named_source("release-notes")),
     )
     resized(page, 700, 600)
     target = page.locator("#rn-console-why")
@@ -1606,7 +1600,7 @@ def test_a_draft_below_its_passage_keeps_its_lane_whatever_it_holds(browser, ser
     same draft typed into an empty field."""
     page = open_page(
         browser,
-        serve(next(example for example in EXAMPLES if example.stem == "release-notes")),
+        serve(named_source("release-notes")),
     )
     resized(page, 700, 600)
     target = page.locator("#rn-console-why")
@@ -1680,7 +1674,7 @@ def test_a_comment_rechooses_its_side_after_vertical_target_motion(browser, serv
     moves with it (comment-placement.js)."""
     page = open_page(
         browser,
-        serve(next(example for example in EXAMPLES if example.stem == "release-notes")),
+        serve(named_source("release-notes")),
     )
     resized(page, 700, 600)
     target = page.locator("#rn-console-why")
@@ -1747,13 +1741,13 @@ def test_design_legend_tracks_a_height_only_page_reflow(browser, serve):
     page.evaluate(RELEASE_FOCUS)
     page.keyboard.press("l")
     expect(page.locator("body")).to_have_attribute("data-lf-design-mode", "")
-    legend = page.locator('.lf-legend-box[data-for="p30"]')
+    legend = page.locator('.lf-legend-box[data-lf-for="p30"]')
     expect(legend).to_be_visible()
 
     before = page.evaluate(
         """() => {
           const target = document.getElementById('p30').getBoundingClientRect();
-          const legend = document.querySelector('.lf-legend-box[data-for="p30"]')
+          const legend = document.querySelector('.lf-legend-box[data-lf-for="p30"]')
             .getBoundingClientRect();
           return {targetTop: target.top, dx: legend.left - target.left,
                   dy: legend.top - target.top,
@@ -1779,7 +1773,7 @@ def test_design_legend_tracks_a_height_only_page_reflow(browser, serve):
             () => requestAnimationFrame(() => requestAnimationFrame(done))
           ));
           const targetBox = target.getBoundingClientRect();
-          const legendBox = document.querySelector('.lf-legend-box[data-for="p30"]')
+          const legendBox = document.querySelector('.lf-legend-box[data-lf-for="p30"]')
             .getBoundingClientRect();
           return {targetTop: targetBox.top, dx: legendBox.left - targetBox.left,
                   dy: legendBox.top - targetBox.top};
@@ -1819,31 +1813,28 @@ def test_a_margin_label_covers_the_target_trace(browser, serve, monkeypatch):
     )
     marker.hover()
     label = marker.locator(":scope > .lf-margin-entry-label")
-    trace = page.locator('.lf-target-trace[data-for="jobs"]')
+    traced = page.locator("#jobs")
     expect(label).to_be_visible()
-    expect(trace).to_be_visible()
+    expect(traced).to_have_class(re.compile(r"\blf-traced\b"))
     label.evaluate(
         "node => Promise.all(node.getAnimations().map(animation => animation.finished))"
     )
 
     label_box = label.bounding_box()
-    trace_box = trace.bounding_box()
-    assert (
-        label_box["x"]
-        < trace_box["x"] + trace_box["width"]
-        < label_box["x"] + label_box["width"]
-    ), "the status label does not cross the target trace"
-    traced = Image.open(io.BytesIO(label.screenshot())).convert("RGB")
-    trace.evaluate("node => { node.style.visibility = 'hidden' }")
-    untraced = Image.open(io.BytesIO(label.screenshot())).convert("RGB")
-    # Toggling the trace's paint layer can change Chrome's text antialiasing
-    # without changing which surface covers the trace. Compare the solid label
-    # background at the trace's crossing instead of its glyph pixels.
-    edge = round(
-        (trace_box["x"] + trace_box["width"] - label_box["x"])
-        * untraced.width
-        / label_box["width"]
+    # The trace's right run, the outer edge of the target's outline.
+    trace_right = traced.evaluate(MARK)["ring"]["right"]
+    assert label_box["x"] < trace_right < label_box["x"] + label_box["width"], (
+        "the status label does not cross the target trace"
     )
+    with_trace = Image.open(io.BytesIO(label.screenshot())).convert("RGB")
+    traced.evaluate(
+        "node => { node.style.setProperty('outline-style', 'none', 'important') }"
+    )
+    untraced = Image.open(io.BytesIO(label.screenshot())).convert("RGB")
+    # Taking the trace off can change Chrome's text antialiasing without changing
+    # which surface covers the trace. Compare the solid label background at the
+    # trace's crossing instead of its glyph pixels.
+    edge = round((trace_right - label_box["x"]) * untraced.width / label_box["width"])
     background = untraced.getpixel((5, 5))
     crossing = [
         (x, y)
@@ -1852,7 +1843,7 @@ def test_a_margin_label_covers_the_target_trace(browser, serve, monkeypatch):
         if untraced.getpixel((x, y)) == background
     ]
     assert crossing
-    assert all(traced.getpixel(point) == background for point in crossing), (
+    assert all(with_trace.getpixel(point) == background for point in crossing), (
         "the target trace paints over the status label"
     )
 
@@ -1885,7 +1876,7 @@ def test_the_aim_reads_the_pointer_where_the_press_is_dispatched_from(browser, s
 
     page.mouse.move(seam["x"], seam["y"])
     page.keyboard.down("Alt")
-    expect(page.locator(".lf-aim")).to_have_attribute("data-for", seam["at"])
+    expect(page.locator(".lf-aimed")).to_have_id(seam["at"])
     page.mouse.click(seam["x"], seam["y"])
     page.keyboard.up("Alt")
 
@@ -2050,12 +2041,12 @@ def test_a_reload_under_a_held_aim_rearms_on_the_first_move(browser, serve):
     heading = page.locator("#t")
     heading.hover()
     page.keyboard.down("Alt")
-    expect(page.locator(".lf-aim")).to_have_attribute("data-for", "t")
+    expect(page.locator(".lf-aimed")).to_have_id("t")
     page.reload()
     wait_until_ready(page)
-    expect(page.locator(".lf-aim[data-for]")).to_have_count(0)  # the latch is gone
+    expect(page.locator(".lf-aimed")).to_have_count(0)  # the latch is gone
     heading.hover()  # the first move under the still-held key
-    expect(page.locator(".lf-aim")).to_have_attribute("data-for", "t")
+    expect(page.locator(".lf-aimed")).to_have_id("t")
     page.keyboard.up("Alt")
 
 
@@ -2087,11 +2078,13 @@ def test_design_mode_comments_on_what_a_press_lands_on_and_nothing_else(browser,
     # box on every item, and on every item but a widget's parts its name — the group
     # is named, its options wear the hairline alone and are named under the pointer.
     def box_of(element_id):
-        return page.locator(f'.lf-legend-box[data-for="{element_id}"]')
+        return page.locator(f'.lf-legend-box[data-lf-for="{element_id}"]')
 
     expect(box_of("t")).to_be_visible()
     assert set(
-        page.eval_on_selector_all(".lf-legend-box", "bs => bs.map(b => b.dataset.for)")
+        page.eval_on_selector_all(
+            ".lf-legend-box", "bs => bs.map(b => b.dataset.lfFor)"
+        )
     ) == set(page.eval_on_selector_all("main [id]", "es => es.map(e => e.id)"))
     expect(box_of("approach").locator(".lf-legend-tag")).to_have_text(
         "lf-options · approach"
@@ -2103,7 +2096,7 @@ def test_design_mode_comments_on_what_a_press_lands_on_and_nothing_else(browser,
     # draws the aim's own box on it, the promise about the next press.
     option.hover()
     expect(page.locator(".lf-inspect")).to_have_text("lf-option · opt-shim")
-    expect(page.locator(".lf-aim")).to_have_attribute("data-for", "opt-shim")
+    expect(page.locator(".lf-aimed")).to_have_id("opt-shim")
     option.click(modifiers=["Alt"])
     composer = page.locator(".lf-composer")
     expect(composer).to_be_visible()
@@ -2188,13 +2181,13 @@ def test_target_picker_selects_in_the_current_comment_mode(browser, serve, mode,
     expect(hints.first).to_be_visible()
     if mode == "l":
         expect(
-            page.locator('.lf-legend-box[data-for="subject"] .lf-legend-tag')
+            page.locator('.lf-legend-box[data-lf-for="subject"] .lf-legend-tag')
         ).to_be_hidden()
         page.keyboard.press("Escape")
         expect(hints).to_have_count(0)
         expect(page.locator("body")).to_have_attribute("data-lf-design-mode", "")
         expect(
-            page.locator('.lf-legend-box[data-for="subject"] .lf-legend-tag')
+            page.locator('.lf-legend-box[data-lf-for="subject"] .lf-legend-tag')
         ).to_be_visible()
         page.keyboard.press("s")
         expect(hints.first).to_be_visible()
@@ -2652,7 +2645,7 @@ def test_design_mode_leaves_leaves_surfaces_working_inside_a_widget(browser, ser
     )
     page = open_page(browser, url)
     resized(page, 1440, 900)
-    thread = page.locator(f'lf-diff .lf-page-thread[data-thread="{root["id"]}"]')
+    thread = page.locator(f'lf-diff .lf-page-thread[data-lf-thread="{root["id"]}"]')
     reply = thread.locator("leaf-text")
     expect(reply).to_be_visible()
     page.keyboard.press("l")
@@ -2711,7 +2704,7 @@ def test_design_mode_settles_on_a_page_with_marked_elements(browser, serve):
     )
     expect(page.locator("#commented.lf-mark-el")).to_have_count(1)
     page.keyboard.press("l")
-    expect(page.locator('.lf-legend-box[data-for="reacted"]')).to_be_visible()
+    expect(page.locator('.lf-legend-box[data-lf-for="reacted"]')).to_be_visible()
     rendered(page)
 
 
@@ -2755,35 +2748,24 @@ def test_the_legend_follows_the_page_it_is_a_reading_of(browser, serve):
     re-centred, every block reflowed, and no scroll or replay said so — each obligation's own
     resize does), and the name under the pointer, which is drawn beside the box in the
     same space: it sat in viewport space once, with the scroll added on top, and stood a
-    screen below its box on any page scrolled at all. The aim is one more of the
-    chrome's promises over the same page, so the reflow doors repaint it too
-    (pageShifted): it once kept its old coordinates through the panel's column motion, a box
-    and name floating half a panel to the right of the element they claimed."""
+    screen below its box on any page scrolled at all. The aim's name is one more of
+    the chrome's promises over the same page, so the reflow doors repaint it too
+    (pageShifted): it once kept its old coordinates through the panel's column motion,
+    floating half a panel to the right of the element it named."""
     page = open_page(browser, serve(LONG_PAGE))
     page.keyboard.press("l")
     page.wait_for_function(LEGEND_TRUE)
     page.evaluate("() => { document.scrollingElement.scrollTop = 1200; }")
     p = page.locator("#p20")
     expect(p).to_be_in_viewport()
-    expect(page.locator('.lf-legend-box[data-for="p20"]')).to_be_visible()
+    expect(page.locator('.lf-legend-box[data-lf-for="p20"]')).to_be_visible()
     page.wait_for_function(LEGEND_TRUE)
     # The name floats where the box's tag stood, over the item's corner — on a scrolled
     # page as on a fresh one.
     p.hover()
     expect(page.locator(".lf-inspect")).to_have_text("paragraph · p20")
-    box = page.locator(".lf-aim").bounding_box()
-    name = page.locator(".lf-inspect").bounding_box()
-    # The label touches the painted perimeter, outside the target's box. Read the
-    # outline the brackets draw, so this still checks attachment when its gap changes.
-    perimeter = page.locator(".lf-aim").evaluate(
-        """node => {
-          const style = getComputedStyle(node, '::before');
-          return node.getBoundingClientRect().top
-            - parseFloat(style.outlineOffset) - parseFloat(style.outlineWidth);
-        }"""
-    )
-    assert abs(name["y"] + name["height"] - perimeter) < 1, (name, box, perimeter)
-    assert abs(name["x"] - box["x"]) < 4, (name, box)
+    expect(page.locator(".lf-aimed")).to_have_id("p20")
+    _label_stands_on_the_aim(page, p)
     # Threads opens over the page. Opened by key.
     page.keyboard.press("g")
     page.keyboard.press("Shift+T")
@@ -2791,17 +2773,19 @@ def test_the_legend_follows_the_page_it_is_a_reading_of(browser, serve):
     page.wait_for_function(LEGEND_TRUE)
     # The legend's repaint above consumed the reflow's edge, and the aim was refreshed
     # in the same pageShifted, so one plain read is the settled answer: the pointer
-    # still rests in p20, and the promise is about where p20 stands now.
-    aim = page.evaluate(
-        """() => {
-      const b = document.querySelector('.lf-aim');
-      const it = document.getElementById(b.dataset.for);
-      const r = it.getBoundingClientRect();
-      const bb = b.getBoundingClientRect();
-      return { on: b.dataset.for, dx: bb.left - r.left, dy: bb.top - r.top };
-    }"""
-    )
-    assert aim["on"] == "p20" and abs(aim["dx"]) < 2 and abs(aim["dy"]) < 2, aim
+    # still rests in p20, and the name stands where p20 stands now.
+    expect(page.locator(".lf-aimed")).to_have_id("p20")
+    _label_stands_on_the_aim(page, p)
+
+
+def _label_stands_on_the_aim(page, target):
+    """The design name stands on the aim's top-left corner, touching the outer edge of
+    the outline `target` draws it as, so this still checks attachment when its gap
+    changes."""
+    ring = target.evaluate(MARK)
+    name = page.locator(".lf-inspect").bounding_box()
+    assert abs(name["y"] + name["height"] - ring["ring"]["top"]) < 1, (name, ring)
+    assert abs(name["x"] - ring["box"]["left"]) < 4, (name, ring)
 
 
 def test_two_names_at_one_corner_step_apart(browser, serve):
@@ -2813,10 +2797,10 @@ def test_two_names_at_one_corner_step_apart(browser, serve):
     page = open_page(browser, serve(CORNER_PAGE))
     page.keyboard.press("l")
     expect(
-        page.locator('.lf-legend-box[data-for="wrap"] .lf-legend-tag')
+        page.locator('.lf-legend-box[data-lf-for="wrap"] .lf-legend-tag')
     ).to_be_visible()
     expect(
-        page.locator('.lf-legend-box[data-for="inner"] .lf-legend-tag')
+        page.locator('.lf-legend-box[data-lf-for="inner"] .lf-legend-tag')
     ).to_be_visible()
     clash = page.evaluate(
         """() => {
@@ -2848,11 +2832,13 @@ def test_a_picture_is_one_addressable_element_however_many_ids_its_renderer_coin
     expect(node).to_be_visible()
     node.hover()
     page.keyboard.down("Alt")
-    expect(page.locator(".lf-aim")).to_have_attribute("data-for", "flow")
+    expect(page.locator(".lf-aimed")).to_have_id("flow")
     page.keyboard.up("Alt")
     page.keyboard.press("l")
     assert set(
-        page.eval_on_selector_all(".lf-legend-box", "bs => bs.map(b => b.dataset.for)")
+        page.eval_on_selector_all(
+            ".lf-legend-box", "bs => bs.map(b => b.dataset.lfFor)"
+        )
     ) == {"t", "p", "flow", "tree"}
     node.hover()
     expect(page.locator(".lf-inspect")).to_have_text("lf-diagram · flow")
@@ -2883,11 +2869,11 @@ height="56" fill="#ddd"></rect><text x="52" y="34" text-anchor="middle">Drawer</
     corner = {"x": 8, "y": 8}
     drawer.hover(position=corner)
     page.keyboard.down("Alt")
-    expect(page.locator(".lf-aim")).to_have_attribute("data-for", "fig-drawer")
+    expect(page.locator(".lf-aimed")).to_have_id("fig-drawer")
     page.keyboard.up("Alt")
     page.locator("#fig svg > rect").hover()
     page.keyboard.down("Alt")
-    expect(page.locator(".lf-aim")).to_have_attribute("data-for", "fig")
+    expect(page.locator(".lf-aimed")).to_have_id("fig")
     page.keyboard.up("Alt")
 
     drawer.click(modifiers=["Alt"], position=corner)
@@ -2899,60 +2885,14 @@ height="56" fill="#ddd"></rect><text x="52" y="34" text-anchor="middle">Drawer</
     assert sent["anchor"] == {"section": "fig-drawer"}
 
 
-def test_a_visual_part_aim_follows_its_drawn_svg_shape(browser, serve):
-    """A visual part's rendered SVG supplies its contour without a package contract.
-
-    A diamond leaves the four corners of that box empty. The armed pixel diff must do
-    the same while still washing the shape's middle, which distinguishes the rendered
-    contour from a rectangle that merely has the same dimensions.
-    """
-    from PIL import Image, ImageChops
-
-    diamond_page = PART_DIAGRAM_PAGE.replace("S[Start request]", "S{Start request}", 1)
-    page = open_page(browser, serve(diamond_page))
-    diamond = page.locator('#flow g[data-id="S"]')
-    diamond.hover()
-    box = diamond.bounding_box()
-    clip = {
-        "x": math.floor(box["x"]),
-        "y": math.floor(box["y"]),
-        "width": math.floor(box["width"]),
-        "height": math.floor(box["height"]),
-    }
-    quiet = Image.open(io.BytesIO(page.screenshot(clip=clip))).convert("RGB")
-
-    page.keyboard.down("Alt")
-    armed = Image.open(io.BytesIO(page.screenshot(clip=clip))).convert("RGB")
-    delta = ImageChops.difference(quiet, armed)
-    changed = [
-        max(pixel) >= 6 for pixel in zip(*[iter(delta.tobytes())] * 3, strict=True)
-    ]
-    width, height = delta.size
-
-    def ratio(where):
-        pixels = [
-            changed[y * width + x]
-            for y in range(height)
-            for x in range(width)
-            if where(x / width, y / height)
-        ]
-        return sum(pixels) / len(pixels)
-
-    middle = ratio(lambda x, y: abs(x - 0.5) + abs(y - 0.5) < 0.25)
-    corners = ratio(lambda x, y: abs(x - 0.5) + abs(y - 0.5) > 0.75)
-    assert middle > 0.5, f"the diamond's middle changed by only {middle:.0%}"
-    assert corners < 0.05, f"the empty corners changed by {corners:.0%}"
-    page.keyboard.up("Alt")
-
-
 def test_a_generic_package_gets_nested_hits_and_can_narrow_a_paint_surface(
     browser, serve
 ):
     """Core derives hit lookup from one package inventory.
 
     The inner part wins even though the containing part appears first. The outer part's
-    explicit surface excludes its decorative line, while the inner part's default surface
-    follows all painted geometry it contains.
+    explicit surface draws its aim, excluding its decorative line, while the inner part
+    draws its own along every shape it contains, its diamond's sides included.
     """
     page = open_page(
         browser,
@@ -2965,62 +2905,24 @@ def test_a_generic_package_gets_nested_hits_and_can_narrow_a_paint_surface(
 
     page.locator("#outer-surface").hover(position={"x": 20, "y": 20})
     page.keyboard.down("Alt")
-    expect(page.locator(".lf-aim")).to_have_attribute("data-for", "outer")
-    assert page.eval_on_selector_all(
-        ".lf-aim-shape > g > *", "nodes => nodes.map(node => node.localName)"
-    ) == ["rect"]
+    # The outer part's surface draws its aim, leaving out its decorative line.
+    expect(page.locator(".lf-aimed")).to_have_id("outer-surface")
+    accent = token_colour(page, "--accent")
+    assert_drawn_in(page.locator("#outer-surface"), accent, 2)
+    assert (
+        page.locator("#outer-decoration").evaluate(
+            "line => getComputedStyle(line).stroke"
+        )
+        != accent
+    )
     page.keyboard.up("Alt")
 
     page.locator("#inner path").hover()
     page.keyboard.down("Alt")
-    expect(page.locator(".lf-aim")).to_have_attribute("data-for", "inner")
-    assert page.eval_on_selector_all(
-        ".lf-aim-shape > g > *", "nodes => nodes.map(node => node.localName)"
-    ) == ["path", "line"]
+    # The inner part, with no surface of its own, draws it along all it holds.
+    expect(page.locator(".lf-aimed")).to_have_id("inner")
+    assert_drawn_in(page.locator("#inner"), accent, 2)
     page.keyboard.up("Alt")
-
-
-def test_a_registered_visual_rebuilds_same_bounds_geometry_on_update(browser, serve):
-    """The package's update signal rebuilds a contour even when its box does not move.
-
-    The contour is the one entering the part's thread raises; at rest a thread draws
-    nothing on its element."""
-    url = serve(
-        GENERIC_VISUAL_PAGE,
-        layer_registry=GENERIC_VISUAL_LAYER,
-        layer_widgets=GENERIC_VISUAL_WIDGETS,
-    )
-    append_carried_log_record(
-        serve.page_dir,
-        {
-            "kind": "comment",
-            "id": "outer-comment",
-            "author": "user",
-            "revision": 1,
-            "text": "Keep the boundary visible.",
-            "anchor": {"section": "visual", "visual": "outer"},
-        },
-    )
-    page = open_page(browser, url)
-    page.keyboard.press("t")
-    expect(page.locator(".lf-page-thread")).to_be_focused()
-    contour = page.locator(".lf-visual-mark-shape > g > rect")
-    expect(contour).to_have_attribute("rx", "8")
-    before = page.evaluate(
-        """() => {
-          const contour = document.querySelector('.lf-visual-mark-shape > g > rect');
-          window.lfOldContour = contour;
-          return contour.getBoundingClientRect();
-        }"""
-    )
-
-    page.locator("#visual").evaluate("visual => visual.redraw()")
-    expect(contour).to_have_attribute("rx", "28")
-    after = contour.evaluate("contour => contour.getBoundingClientRect()")
-    assert before == after
-    assert page.evaluate(
-        "() => window.lfOldContour !== document.querySelector('.lf-visual-mark-shape > g > rect')"
-    )
 
 
 def test_a_part_drawn_in_another_state_stands_on_its_visual_until_travel_reveals_it(
@@ -3051,14 +2953,11 @@ def test_a_part_drawn_in_another_state_stands_on_its_visual_until_travel_reveals
     page.keyboard.press("t")
     expect(page.locator(".lf-page-thread")).to_be_focused()
     expect(inner).to_be_visible()
-    page.wait_for_function(
-        """() => {
-          const mark = document.querySelector('.lf-visual-mark-here');
-          const inner = document.querySelector('#inner').getBoundingClientRect();
-          const box = mark?.getBoundingClientRect();
-          return box && box.width < inner.width + 40 && box.height < inner.height + 40;
-        }"""
+    expect(inner).to_have_attribute("data-lf-mark", re.compile(r"\bhere\b"))
+    expect(page.locator("#visual")).not_to_have_attribute(
+        "data-lf-mark", re.compile(".*")
     )
+    assert_drawn_in(inner, token_colour(page, "--mark-contour-ink"), 1.5)
 
 
 def test_a_prefixed_visual_part_is_marked_and_aimed_like_an_authored_one(
@@ -3093,12 +2992,7 @@ def test_a_prefixed_visual_part_is_marked_and_aimed_like_an_authored_one(
     page.keyboard.press("Escape")
     page.locator("#html-surface").click(modifiers=["Alt"])
     expect(page.locator(".lf-composer")).to_be_visible()
-    assert (
-        page.evaluate(
-            "() => [...document.querySelectorAll('.lf-visual-mark-pending')].length"
-        )
-        == 1
-    )
+    expect(page.locator('[data-lf-mark~="pending"]')).to_have_id("html-surface")
     expect(page.locator("#html")).to_have_class(re.compile(r"\blf-projected-mark\b"))
 
 
@@ -3108,9 +3002,9 @@ def test_a_visual_surface_narrows_paint_without_narrowing_semantic_interaction(
     """Decoration omitted from a contour still belongs to its semantic part.
 
     The posted comment opens from the line inside the registered element, while the
-    package-selected rectangle remains the only cloned paint of the contour its open
-    thread raises. A second draft on the same part wears the pending contour, since the posted
-    comment draws none at rest.
+    package-selected rectangle alone draws the contour its open thread raises. A second
+    draft on the same part wears the pending contour, since the posted comment draws
+    none at rest.
     """
     url = serve(
         GENERIC_VISUAL_PAGE,
@@ -3131,8 +3025,8 @@ def test_a_visual_surface_narrows_paint_without_narrowing_semantic_interaction(
     page = open_page(browser, url)
     outer = page.locator("#outer")
     decoration = page.locator("#outer-decoration")
-    mark = page.locator(".lf-visual-mark")
-    expect(mark).to_have_count(0)
+    surface = page.locator("#outer-surface")
+    expect(page.locator("[data-lf-mark]")).to_have_count(0)
 
     def midpoint(line):
         return line.evaluate(
@@ -3151,13 +3045,13 @@ def test_a_visual_surface_narrows_paint_without_narrowing_semantic_interaction(
     expect(page.locator("body")).to_have_class(re.compile(r"\blf-over-mark\b"))
     page.mouse.click(point["x"], point["y"])
     expect(
-        page.locator('.lf-margin-preview .lf-page-thread[data-thread="outer-comment"]')
+        page.locator(
+            '.lf-margin-preview .lf-page-thread[data-lf-thread="outer-comment"]'
+        )
     ).to_be_visible()
     expect(outer).to_have_class(re.compile(r"\blf-projected-mark\b"))
-    assert page.eval_on_selector_all(
-        ".lf-visual-mark-shape > g > *", "nodes => nodes.map(node => node.localName)"
-    ) == ["rect"]
-    expect(page.locator(PANEL)).not_to_have_attribute("data-open", re.compile("."))
+    expect(page.locator("[data-lf-mark]")).to_have_id("outer-surface")
+    expect(page.locator(PANEL)).not_to_have_attribute("data-lf-open", re.compile("."))
     expect(page.locator(".lf-composer")).to_be_hidden()
 
     point = midpoint(decoration)
@@ -3166,11 +3060,12 @@ def test_a_visual_surface_narrows_paint_without_narrowing_semantic_interaction(
     page.mouse.click(point["x"], point["y"])
     page.keyboard.up("Alt")
     expect(page.locator(".lf-composer")).to_be_visible()
-    expect(mark).to_have_class(re.compile(r"\blf-visual-mark-pending\b"))
+    expect(surface).to_have_attribute("data-lf-mark", re.compile(r"\bpending\b"))
 
 
 def test_a_non_geometry_visual_surface_uses_one_box_for_aim_and_mark(browser, serve):
-    """The painter owns the rectangular fallback as well as SVG contours."""
+    """A part's HTML surface draws its comment's mark and the aim, as one box; the part
+    it stands for, which holds a decoration too, draws neither."""
     url = serve(
         GENERIC_VISUAL_PAGE,
         layer_registry=GENERIC_VISUAL_LAYER,
@@ -3190,34 +3085,24 @@ def test_a_non_geometry_visual_surface_uses_one_box_for_aim_and_mark(browser, se
     page = open_page(browser, url)
     semantic = page.locator("#html")
     surface = page.locator("#html-surface")
-    mark = page.locator(".lf-visual-mark")
 
     surface.click()
     expect(semantic).to_have_class(re.compile(r"\blf-projected-mark\b"))
-    expect(mark).to_be_visible()
-    expect(mark).not_to_have_class(re.compile(r"\blf-shaped\b"))
-    expect(mark).to_have_css("border-radius", "12px")
-    assert mark.locator(".lf-visual-mark-shape > *").count() == 0
-    marked = mark.bounding_box()
-    painted = surface.bounding_box()
-    assert all(
-        abs(marked[key] - painted[key]) <= 1 for key in ("x", "y", "width", "height")
-    ), (marked, painted)
+    expect(page.locator("[data-lf-mark]")).to_have_id("html-surface")
+    marked = surface.evaluate(MARK)
+    assert marked and marked["style"] == "solid", marked
 
     surface.hover()
     page.keyboard.down("Alt")
-    aim = page.locator(".lf-aim")
-    expect(aim).not_to_have_class(re.compile(r"\blf-shaped\b"))
-    expect(aim).to_have_css("border-radius", "12px")
-    aimed = aim.bounding_box()
-    assert all(
-        abs(aimed[key] - painted[key]) <= 1 for key in ("x", "y", "width", "height")
-    ), (aimed, painted)
+    expect(page.locator(".lf-aimed")).to_have_id("html-surface")
+    aimed = surface.evaluate(MARK)
+    assert aimed["ring"] == marked["ring"], (aimed, marked)
     page.keyboard.up("Alt")
 
 
 def test_a_shadow_visual_surface_is_clipped_by_its_host(browser, serve):
-    """Core follows package geometry through its host into the page's clip chain."""
+    """A part in a widget's shadow tree draws its comment's mark and the aim itself, so
+    the host that clips the part clips its marks as it does any of its content."""
     url = serve(
         SHADOW_VISUAL_PAGE,
         layer_registry=SHADOW_VISUAL_LAYER,
@@ -3237,211 +3122,42 @@ def test_a_shadow_visual_surface_is_clipped_by_its_host(browser, serve):
     page = open_page(browser, url)
     host = page.locator("#shadow-visual")
     surface = host.locator("#wide-surface")
-    mark = page.locator(".lf-visual-mark")
 
     surface.click(position={"x": 20, "y": 20})
-    expect(mark).to_be_visible()
-    host_box = host.bounding_box()
-    # The host cuts the wider shadow surface, so its marks stop exactly at that
-    # boundary, for both references and aim: a band on an edge the clip already cuts
-    # would stand over whatever lies past it.
-    right = host_box["x"] + host_box["width"]
-    assert surface.bounding_box()["width"] > host_box["width"] + 10
-    shown = page.evaluate(SHOWN_PAINT, ".lf-visual-mark")
-    assert shown["left"] >= host_box["x"]
-    assert shown["right"] == pytest.approx(right)
+    expect(surface).to_have_attribute("data-lf-mark", re.compile("."))
+    assert_drawn_in(surface, token_colour(page, "--mark-contour-ink"), 1.5)
+    assert host.evaluate("host => getComputedStyle(host).overflowX") == "hidden"
+    assert surface.bounding_box()["width"] > host.bounding_box()["width"] + 10
 
     page.keyboard.down("Alt")
-    aim = page.locator(".lf-aim")
-    expect(aim).to_have_attribute("data-for", "wide-surface")
-    shown = page.evaluate(SHOWN_PAINT, ".lf-aim")
-    assert shown["left"] >= host_box["x"]
-    assert shown["right"] == pytest.approx(right)
+    expect(page.locator(".lf-aimed")).to_have_id("wide-surface")
+    assert_drawn_in(surface, token_colour(page, "--mark-contour-ink"), 1.5)
     page.keyboard.up("Alt")
 
 
-def test_an_aim_follows_a_scroll_inside_a_widgets_shadow_stage(browser, serve):
-    """A scroll inside a widget's shadow stage reaches the page's scroll door, though
-    no scroll event leaves a shadow tree: the aim over a part in a box that began to
-    scroll after the aim stood, anchored through the widget, stands over the part
-    again once that box scrolls."""
-    url = serve(
-        SHADOW_SCROLLER_PAGE,
-        layer_registry=SHADOW_SCROLLER_LAYER,
-        layer_widgets=SHADOW_SCROLLER_WIDGETS,
-    )
-    page = open_page(browser, url)
-    host = page.locator("#shadow-scroller")
-    part = host.locator(".part")
-    part.hover()
-    page.keyboard.down("Alt")
-    expect(page.locator(".lf-aim")).to_be_visible()
-    offset = """() => {
-      const part = document.querySelector('#shadow-scroller').shadowRoot
-        .querySelector('.part').getBoundingClientRect();
-      const aim = document.querySelector('.lf-aim').getBoundingClientRect();
-      return [aim.left - part.left, aim.top - part.top];
-    }"""
-    at = page.evaluate(offset)
-    assert at == pytest.approx([0, 0], abs=1), "the aim stood off its part"
-    host.evaluate(
-        "host => { host.shadowRoot.querySelector('.content').style.height = '600px'; }"
-    )
-    rendered(page)
-    host.evaluate("host => { host.shadowRoot.querySelector('.port').scrollTop = 20; }")
-    page.wait_for_function(
-        f"([x, y]) => {{ const [dx, dy] = ({offset})(); "
-        "return Math.abs(dx - x) < 1 && Math.abs(dy - y) < 1; }",
-        arg=at,
-    )
-    page.keyboard.up("Alt")
-
-
-# What of a paint box shows across: its box, cut by each frame round it that clips across
-# (target-paint-geometry.js, `paintStand`).
-SHOWN_PAINT = """(selector) => {
-  const paint = document.querySelector(selector);
-  let { left, right } = paint.getBoundingClientRect();
-  // Leaf's zero-size frames extend their clip to the measured band.
-  for (let frame = paint.parentElement; frame; frame = frame.parentElement)
-    if (frame.matches('.lf-paint-frame')) {
-      const inset = /^inset\\((-?[\\d.]+)px (-?[\\d.]+)px (-?[\\d.]+)px (-?[\\d.]+)px\\)$/
-        .exec(getComputedStyle(frame).clipPath);
-      if (!inset) continue;
-      const cut = frame.getBoundingClientRect();
-      left = Math.max(left, cut.left + Number(inset[4]));
-      right = Math.min(right, cut.right - Number(inset[2]));
-    }
-  return { left, right };
-}"""
-
-
-def test_a_visual_part_mark_follows_its_drawn_svg_shape(browser, serve):
-    """A posted comment's contour keeps the same semantic geometry the aim promised.
-
-    The diamond's diagonal contour must change while the empty bounding-box corners do
-    not. A CSS outline on the returned group produces the opposite result.
-    """
-    from PIL import Image, ImageChops
-
-    diamond_page = PART_DIAGRAM_PAGE.replace("S[Start request]", "S{Start request}", 1)
-    page = open_page(browser, serve(diamond_page))
-    diamond = page.locator('#flow g[data-id="S"]')
-    expect(diamond).to_be_visible()
-    box = diamond.bounding_box()
-    clip = {
-        "x": math.floor(box["x"]),
-        "y": math.floor(box["y"]),
-        "width": math.floor(box["width"]),
-        "height": math.floor(box["height"]),
-    }
-    quiet = Image.open(io.BytesIO(page.screenshot(clip=clip))).convert("RGB")
-
-    append_carried_log_record(
-        serve.page_dir,
-        {
-            "kind": "comment",
-            "id": "diamond-comment",
-            "author": "user",
-            "revision": 1,
-            "text": "Keep this branch explicit.",
-            "anchor": {"section": "flow", "visual": "node:S"},
-        },
-    )
-    told(page)
-    expect(diamond).to_have_class(re.compile(r"\blf-mark-el\b"))
-    # Located in the thread raises the contour; at rest the thread draws none.
-    page.keyboard.press("t")
-    expect(page.locator(".lf-page-thread")).to_be_focused()
-    expect(diamond).to_have_class(re.compile(r"\blf-projected-mark\b"))
-    # The comment's margin row stands on the diagram; nothing Leaf draws moves the
-    # page's content, so the diamond is read where it stands rather than assumed.
-    moved = diamond.bounding_box()
-    clip = {**clip, "x": math.floor(moved["x"]), "y": math.floor(moved["y"])}
-    painted = Image.open(io.BytesIO(page.screenshot(clip=clip))).convert("RGB")
-    delta = ImageChops.difference(quiet, painted)
-    changed = [
-        max(pixel) >= 6 for pixel in zip(*[iter(delta.tobytes())] * 3, strict=True)
-    ]
-    width, height = delta.size
-
-    def ratio(where):
-        pixels = [
-            changed[y * width + x]
-            for y in range(height)
-            for x in range(width)
-            if where(x / width, y / height)
-        ]
-        return sum(pixels) / len(pixels)
-
-    diagonal = ratio(lambda x, y: 0.45 < abs(x - 0.5) + abs(y - 0.5) < 0.55)
-    corners = ratio(lambda x, y: abs(x - 0.5) + abs(y - 0.5) > 0.8)
-    assert diagonal > 0.08, f"only {diagonal:.0%} of the diamond contour changed"
-    assert corners < 0.03, f"the empty corners changed by {corners:.0%}"
-
-    offset = page.evaluate(
-        """() => {
-          const source = document.querySelector('#flow g[data-id="S"]').getBoundingClientRect();
-          const mark = document.querySelector('.lf-visual-mark').getBoundingClientRect();
-          return [mark.left - source.left, mark.top - source.top,
-                  mark.right - source.right, mark.bottom - source.bottom];
-        }"""
-    )
-    page.evaluate(
-        """() => {
-          window.__lfCurrentLocationContour = document.querySelector(
-            '.lf-visual-mark-shape > g > *'
-          );
-        }"""
-    )
-    page.evaluate("() => scrollBy(0, 80)")
-    page.wait_for_function(
-        """(before) => {
-          const source = document.querySelector('#flow g[data-id="S"]').getBoundingClientRect();
-          const mark = document.querySelector('.lf-visual-mark').getBoundingClientRect();
-          const after = [mark.left - source.left, mark.top - source.top,
-                         mark.right - source.right, mark.bottom - source.bottom];
-          return after.every((value, index) => Math.abs(value - before[index]) < 0.5);
-        }""",
-        arg=offset,
-    )
-    page.evaluate(
-        "() => new Promise(done => requestAnimationFrame(() => requestAnimationFrame(done)))"
-    )
-    assert page.evaluate(
-        """() => window.__lfCurrentLocationContour === document.querySelector(
-          '.lf-visual-mark-shape > g > *'
-        )"""
-    )
-
-
-def test_a_rounded_diagram_part_aim_has_room_to_cover_the_shape_edge(browser, serve):
-    """A contour's paint viewport includes the outside half of its stroke.
-
-    SVG strokes straddle their geometry. If the runtime gives the cloned contour the
-    node's exact bounds, the viewport cuts off its outside half: on rounded ends the
-    original border then remains visible beside the aim instead of under it.
-    """
+def test_a_rounded_diagram_part_aim_follows_its_rounded_edge(browser, serve):
+    """A diagram node's aim is drawn along the node's own edge, round its rounded ends,
+    as the stroke of the shape it draws, which takes the place of the node's border
+    while it shows: an outline round the node's box stood a square frame off its
+    rounded ends. The node's words keep their own paint."""
     rounded_page = PART_DIAGRAM_PAGE.replace(
         "S[Start request]", "S([Start request])", 1
     )
     page = open_page(browser, serve(rounded_page))
     rounded = page.locator('#flow g[data-id="S"]')
+    border = rounded.evaluate(DRAWN_MARK)["strokes"]
     rounded.hover()
     page.keyboard.down("Alt")
-    geometry = page.evaluate(
-        """() => ({
-          node: document.querySelector('#flow g[data-id="S"]').getBoundingClientRect(),
-          aim: document.querySelector('.lf-aim').getBoundingClientRect(),
-        })"""
+    aimed = page.locator(".lf-aimed")
+    expect(aimed).to_have_count(1)
+    assert_drawn_in(aimed, token_colour(page, "--accent"), 2)
+    assert (
+        rounded.locator("text").first.evaluate("text => getComputedStyle(text).stroke")
+        == "none"
     )
-
-    node, aim = geometry["node"], geometry["aim"]
-    assert node["left"] - aim["left"] >= 1
-    assert node["top"] - aim["top"] >= 1
-    assert aim["right"] - node["right"] >= 1
-    assert aim["bottom"] - node["bottom"] >= 1
     page.keyboard.up("Alt")
+    expect(aimed).to_have_count(0)
+    assert rounded.evaluate(DRAWN_MARK)["strokes"] == border
 
 
 def test_a_declared_flowchart_node_keeps_its_comment_across_renderings(browser, serve):
@@ -3562,7 +3278,7 @@ def test_a_scroll_under_a_held_aim_moves_the_promise_with_the_page(browser, serv
     )
     page.wait_for_function(
         """(first) => {
-      const promised = document.querySelector(".lf-aim")?.getAttribute("data-for");
+      const promised = document.querySelector(".lf-aimed")?.closest("[id]")?.id;
       const at = document.elementFromPoint(600, 300)?.closest("[id]:not(.lf-ui)");
       return Boolean(promised) && promised === at?.id && promised !== first;
     }""",
@@ -3571,52 +3287,14 @@ def test_a_scroll_under_a_held_aim_moves_the_promise_with_the_page(browser, serv
     page.keyboard.up("Alt")
 
 
-def test_a_held_aim_in_a_pane_paints_in_the_frame_its_target_scrolls(browser, serve):
-    """Every frame Chrome draws while a pane scrolls under a held aim shows the outline
-    level with what it outlines, since the browser carries both through the same scroll
-    (target-paint-geometry.js, `paintStand`). The target stands taller than a wheel step,
-    so the pointer stays on it and the aim stays its."""
-    page = open_page(
-        browser,
-        serve(
-            leaf_page(
-                "an aim in a pane",
-                """
-  <div id="aim-split">
-    <lf-pane id="aim-pane" label="Findings">
-      <div>
-        <div style="height: 200px"></div>
-        <p id="pane-target" style="height: 260px">The first finding, aimed at.</p>
-        <div style="height: 1600px"></div>
-      </div>
-    </lf-pane>
-    <lf-pane id="other-pane" label="Notes"><div><p>Notes.</p></div></lf-pane>
-  </div>""",
-                head=regions_side_by_side("aim-split")
-                + f"<style>#pane-target {{ background:{SUBJECT_MARK}; }}"
-                f" .lf-aim {{ outline:6px solid {FOLLOWER_MARK} !important; }}</style>",
-                layout="workspace",
-            )
-        ),
-    )
-    resized(page, 1280, 720)
-    pane_scroll_behavior(page, page.locator("#aim-pane"), "bounded")
-    target = page.locator("#pane-target").bounding_box()
-    page.mouse.move(target["x"] + 40, target["y"] + 130)
-    page.keyboard.down("Alt")
-    expect(page.locator(".lf-aim")).to_have_attribute("data-for", "pane-target")
-    rendered(page)
-    assert_follows_in_every_frame(page, "#aim-pane > div")
-    page.keyboard.up("Alt")
-
-
 def test_target_brackets_and_focus_share_the_visible_boundary(browser, serve, subtests):
-    """Leaving Comment changes the mark, not which rectangle it identifies, and every
-    mark stands on the region's perimeter, at the gap the location ring takes.
+    """Leaving Comment changes the mark, not which box draws it: the target draws the
+    aim, a draft's mark and focus as its own outline, on the region's perimeter at the
+    gap the location ring takes, the gestures as brackets and focus whole.
 
-    A native table ends at its last row, a card follows its authored corners, and a
-    partly scrolled card keeps its shape behind the scrollport's cut. Compare to the content,
-    not only to the other overlay: both painters once agreed on the wrong box.
+    A table and a card with authored corners draw them alike. A mark stands over an
+    outline the page gave the target while it lasts, and the page's own comes back once
+    no mark stands there.
     """
     page = open_page(
         browser,
@@ -3627,14 +3305,11 @@ def test_target_brackets_and_focus_share_the_visible_boundary(browser, serve, su
 <h1>Target boundaries</h1>
 <table id="square"><tr><th>West</th><th>East</th></tr>
   <tr><td>16 jobs</td><td>8 jobs</td></tr></table>
-<div id="port"><div style="height:20px"></div>
-  <div id="rounded" class="authored-contour">Fallback procedure<div style="height:240px"></div>Last step</div>
-  <div style="height:500px"></div></div>
+<div id="rounded" class="authored-contour">Fallback procedure</div>
 """,
                 head="""<style>
   #square { display:table; border-collapse:collapse; width:400px; }
   #square :is(th,td) { border:1px solid; }
-  #port { height:400px; width:440px; overflow:auto; border:1px solid; }
   #rounded { border:1px solid; border-radius:12px; margin:12px; padding:12px; }
   .authored-contour { outline:1px dashed var(--ink-2); }
   </style>""",
@@ -3642,117 +3317,51 @@ def test_target_brackets_and_focus_share_the_visible_boundary(browser, serve, su
         ),
     )
     resized(page, 1100, 900)
-    read = r"""([id, selector]) => {
-      const target = document.getElementById(id), node = document.querySelector(selector);
-      const box = target.getBoundingClientRect(), shown = {...box.toJSON()};
-      if (id === 'rounded') {
-        const port = document.getElementById('port'), clip = port.getBoundingClientRect();
-        shown.left = Math.max(box.left, clip.left + port.clientLeft);
-        shown.top = Math.max(box.top, clip.top + port.clientTop);
-        shown.right = Math.min(box.right, clip.left + port.clientLeft + port.clientWidth);
-        shown.bottom = Math.min(box.bottom, clip.top + port.clientTop + port.clientHeight);
-      }
-      const style = getComputedStyle(node), end = getComputedStyle(node, '::after');
-      const ink = end.content !== 'none' ? end : style;
-      const rect = node.getBoundingClientRect();
-      const stroke = parseFloat(ink.outlineWidth), gap = parseFloat(ink.outlineOffset);
-      const reach = stroke + gap;
-      const painted = {left:rect.left - reach, top:rect.top - reach,
-        right:rect.right + reach, bottom:rect.bottom + reach};
-      const region = parseFloat(getComputedStyle(document.documentElement)
-        .getPropertyValue('--focus-region-gap'));
-      for (let frame = node.parentElement; frame; frame = frame.parentElement) {
-        if (!frame.matches('.lf-paint-frame')) continue;
-        const values = getComputedStyle(frame).clipPath.match(/-?[\d.]+px/g)?.map(parseFloat);
-        if (values?.length !== 4) throw new Error('Expected a rectangular clip');
-        const box = frame.getBoundingClientRect();
-        painted.left = Math.max(painted.left, box.left + values[3]);
-        painted.top = Math.max(painted.top, box.top + values[0]);
-        painted.right = Math.min(painted.right, box.right - values[1]);
-        painted.bottom = Math.min(painted.bottom, box.bottom - values[2]);
-      }
-      return {source:box.toJSON(), shown, painted, rect:rect.toJSON(), stroke, gap, region, ink:ink.outlineStyle,
-        radius:style.borderRadius, clip:ink.clipPath,
-        nativeOutline:getComputedStyle(target).outlineStyle,
-        rowBottom:id === 'square' ? target.rows[target.rows.length - 1].getBoundingClientRect().bottom : null};
-    }"""
+    region = page.evaluate(
+        "() => parseFloat(getComputedStyle(document.documentElement)"
+        ".getPropertyValue('--focus-region-gap'))"
+    )
 
-    def boundary(target, selector):
-        reading = page.evaluate(read, [target, selector])
-        assert reading["ink"] == "solid", reading
-        assert (reading["stroke"], reading["gap"]) == (2, reading["region"]), reading
-        reach = reading["stroke"] + reading["gap"]
-        for edge in ("left", "top", "right", "bottom"):
-            assert reading["rect"][edge] == pytest.approx(
-                reading["source"][edge], abs=0.5
-            ), reading
-            # An edge the scrollport cuts keeps no band past the cut.
-            cut = abs(reading["shown"][edge] - reading["source"][edge]) > 0.5
-            outside = 0 if cut else -reach if edge in ("left", "top") else reach
-            assert reading["painted"][edge] == pytest.approx(
-                reading["shown"][edge] + outside, abs=0.5
-            ), reading
-        if target == "square":
-            assert reading["shown"]["bottom"] - reading["rowBottom"] <= 1, reading
-            assert reading["radius"] == "0px", reading
-        return reading
+    def boundary(node, brackets):
+        mark = node.evaluate(MARK)
+        assert mark and mark["style"] == "solid", mark
+        assert (mark["width"], mark["offset"], mark["brackets"]) == (
+            2,
+            region,
+            brackets,
+        ), mark
 
     for target in ("square", "rounded"):
         with subtests.test(target=target):
             node = page.locator(f"#{target}")
             node.hover(position={"x": 10, "y": 10})
             page.keyboard.down("Alt")
-            expect(page.locator(".lf-aim")).to_have_attribute("data-for", target)
-            aimed = boundary(target, ".lf-aim")
-            if target == "rounded":
-                assert aimed["radius"] == "12px", aimed
+            expect(page.locator(".lf-aimed")).to_have_id(target)
+            boundary(node, brackets=True)
             page.mouse.down()
             page.mouse.up()
             page.keyboard.up("Alt")
             open_compact_comment(page)
-            expect(page.locator(".lf-visual-mark-pending")).to_be_visible()
-            pending = boundary(target, ".lf-visual-mark-pending")
-            if target == "rounded":
-                # A projected reference replaces Leaf's annotation paint, not an
-                # outline the page itself gave this target.
-                assert pending["nativeOutline"] == "dashed", pending
+            expect(node).to_have_attribute("data-lf-mark", re.compile(r"\bpending\b"))
+            boundary(node, brackets=True)
             page.keyboard.press("Escape")
             expect(node).to_be_focused()
-            focus = page.locator(f'.lf-visual-mark-focus[data-for="{target}"]')
-            expect(focus).to_be_visible()
-            focused = boundary(target, f'.lf-visual-mark-focus[data-for="{target}"]')
-            assert focused["radius"] == aimed["radius"], (aimed, focused)
-            assert focused["clip"] == "none", focused
-            assert focused["nativeOutline"] == "none", focused
+            expect(node).to_have_attribute("data-lf-mark", re.compile(r"\bfocus\b"))
+            boundary(node, brackets=False)
+            page.evaluate(RELEASE_FOCUS)
+            expect(node).not_to_have_attribute("data-lf-mark", re.compile(".*"))
             if target == "rounded":
-                port = page.locator("#port")
-                port.hover(position={"x": 5, "y": 60})
-                page.mouse.wheel(0, 150)
-                page.wait_for_function("document.getElementById('port').scrollTop > 0")
-                scroll_settled(page, "#port")
-                rendered(page)
-                clipped = boundary(
-                    target, f'.lf-visual-mark-focus[data-for="{target}"]'
-                )
-                # The original top is outside the clip: neither focus nor brackets
-                # invent a horizontal edge across the surviving part of the card.
-                assert clipped["rect"]["top"] < clipped["painted"]["top"] - 10, clipped
-                assert clipped["radius"] == "12px", clipped
-                page.keyboard.down("Alt")
-                port.hover(position={"x": 25, "y": 60})
-                expect(page.locator(".lf-aim")).to_have_attribute("data-for", target)
-                aimed = boundary(target, ".lf-aim")
-                assert aimed["radius"] == clipped["radius"], (aimed, clipped)
-                page.keyboard.up("Alt")
+                expect(node).to_have_css("outline-style", "dashed")
 
 
 def test_the_aim_and_a_comment_stand_inside_a_cell_their_frame_leaves_no_room(
     browser, serve
 ):
-    """A joined choice clips its cells, so a cell leaves no room for a mark outside it.
-    The aim and the comment's mark both stand just inside it: the aim stood outside,
-    across the frame and the next cell, while the comment's stood inside, so going from
-    one to the other moved the frame 7px."""
+    """A joined choice clips its cells, so a cell leaves no room for a mark outside it
+    and states its marks one band inside its edge (options.css). The aim and the
+    comment's mark both stand there: the aim stood outside, across the frame and the
+    next cell, while the comment's stood inside, so going from one to the other moved
+    the frame 7px."""
     page = open_page(
         browser,
         serve(
@@ -3769,60 +3378,21 @@ def test_the_aim_and_a_comment_stand_inside_a_cell_their_frame_leaves_no_room(
     cell = page.locator("#ship-thursday")
     cell.hover(position={"x": 300, "y": 10})
     page.keyboard.down("Alt")
-    aim = page.locator(".lf-aim")
-    expect(aim).to_have_attribute("data-for", "ship-thursday")
-    inner = "node => getComputedStyle(node, '::before').outlineOffset"
-    assert aim.evaluate(inner) == "-2px"
+    expect(page.locator(".lf-aimed")).to_have_id("ship-thursday")
+    aimed = cell.evaluate(MARK)
+    assert aimed["offset"] + aimed["width"] <= 0, aimed
     page.mouse.down()
     page.mouse.up()
     page.keyboard.up("Alt")
     open_compact_comment(page)
-    pending = page.locator('.lf-visual-mark-pending[data-for="ship-thursday"]')
-    expect(pending).to_be_visible()
-    assert pending.evaluate(inner) == "-2px"
-
-
-def test_the_aim_on_a_row_a_clip_packs_stays_inside_the_row(browser, serve):
-    """A box that clips its rows holds them edge to edge, so the aim on a row whose
-    sides the box meets stands inside the row on every side. Standing outside above
-    and below, where the box leaves room, it ran over the neighbouring rows' words."""
-    page = open_page(
-        browser,
-        serve(
-            leaf_page(
-                "Packed rows",
-                """<h1 id="h">Packed rows</h1>
-<div id="rows" style="overflow: clip">
-  <p id="row-1" style="margin: 0">First row</p>
-  <p id="row-2" style="margin: 0">Second row</p>
-  <p id="row-3" style="margin: 0">Third row</p>
-</div>""",
-            )
-        ),
-    )
-    row = page.locator("#row-2")
-    row.hover(position={"x": 20, "y": 5})
-    page.keyboard.down("Alt")
-    aim = page.locator(".lf-aim")
-    expect(aim).to_have_attribute("data-for", "row-2")
-    drawn = aim.evaluate(
-        """node => {
-          const ring = getComputedStyle(node, '::before');
-          const out = parseFloat(ring.outlineOffset) + parseFloat(ring.outlineWidth);
-          const box = node.getBoundingClientRect();
-          return {top: box.top - out, bottom: box.bottom + out};
-        }"""
-    )
-    box = row.bounding_box()
-    assert box is not None
-    assert drawn["top"] >= box["y"] - 0.5, (drawn, box)
-    assert drawn["bottom"] <= box["y"] + box["height"] + 0.5, (drawn, box)
-    page.keyboard.up("Alt")
+    expect(cell).to_have_attribute("data-lf-mark", re.compile(r"\bpending\b"))
+    pending = cell.evaluate(MARK)
+    assert pending["ring"] == aimed["ring"], (aimed, pending)
 
 
 def test_the_aim_round_a_field_stands_on_its_edge_where_its_ring_does(browser, serve):
     """A field's ring replaces its border, so it stands on the field's edge, and the aim
-    over the field stands there too. It stood a control's gap outside, because the
+    the field draws stands there too. It stood a control's gap outside, because the
     field's edge, 0, read as no place stated: 0 is also where the outline of a box that
     states nothing stands."""
     page = open_page(
@@ -3838,11 +3408,13 @@ def test_the_aim_round_a_field_stands_on_its_edge_where_its_ring_does(browser, s
     field = page.locator("#name")
     field.hover(position={"x": 8, "y": 6})
     page.keyboard.down("Alt")
-    aim = page.locator(".lf-aim")
-    expect(aim).to_have_attribute("data-for", "name")
-    gap = "node => getComputedStyle(node, '::before').outlineOffset"
-    assert aim.evaluate(gap) == "0px"
-    assert field.evaluate("node => getComputedStyle(node).outlineOffset") == "0px"
+    expect(page.locator(".lf-aimed")).to_have_id("name")
+    aim = field.evaluate(MARK)
+    assert aim and aim["style"] == "solid" and aim["offset"] == 0, aim
+
+
+# A box drawing the target painter's focus state as its ring (visual-mark-paint.js).
+FOCUS_MARK = '[data-lf-mark~="focus"]'
 
 
 def test_focus_projection_follows_modality_and_leaves_private_controls_their_ring(
@@ -3884,15 +3456,14 @@ def test_focus_projection_follows_modality_and_leaves_private_controls_their_rin
             expect(control).to_be_focused()
             rendered(page)
             assert not control.evaluate("node => node.matches(':focus-visible')")
-            expect(page.locator(".lf-visual-mark-focus")).to_have_count(0)
+            expect(page.locator(FOCUS_MARK)).to_have_count(0)
             page.keyboard.press("ArrowRight")
             expect(control).to_be_focused()
             assert control.evaluate("node => node.matches(':focus-visible')")
-            mark = page.locator(".lf-visual-mark-focus")
-            expect(mark).to_have_count(1)
-            expect(mark).to_be_visible()
-            expect(control).to_have_css("outline-style", "none")
-            assert mark.bounding_box() == pytest.approx(control.bounding_box(), abs=0.5)
+            expect(page.locator(FOCUS_MARK)).to_have_count(1)
+            expect(control).to_have_attribute("data-lf-mark", re.compile(r"\bfocus\b"))
+            ring = control.evaluate(MARK)
+            assert ring and ring["style"] == "solid" and not ring["brackets"], ring
 
     page.keyboard.press("Tab")
     private = page.get_by_role("button", name="Private control", exact=True)
@@ -3900,7 +3471,7 @@ def test_focus_projection_follows_modality_and_leaves_private_controls_their_rin
     expect(private).to_have_css("outline-style", "solid")
     expect(private).to_have_css("outline-width", "2px")
     rendered(page)
-    expect(page.locator(".lf-visual-mark-focus")).to_have_count(0)
+    expect(page.locator(FOCUS_MARK)).to_have_count(0)
     expect(private).not_to_have_class(re.compile(r"\blf-projected-mark\b"))
 
     page.keyboard.press("Tab")
@@ -3910,7 +3481,7 @@ def test_focus_projection_follows_modality_and_leaves_private_controls_their_rin
     expect(page.locator(".choice")).to_have_css("outline-width", "2px")
     expect(page.locator(".choice")).to_have_css("outline-style", "solid")
     rendered(page)
-    expect(page.locator(".lf-visual-mark-focus")).to_have_count(0)
+    expect(page.locator(FOCUS_MARK)).to_have_count(0)
 
     page.keyboard.press("Tab")
     expect(page.get_by_role("tab", name="First", exact=True)).to_be_focused()
@@ -3925,7 +3496,7 @@ def test_focus_projection_follows_modality_and_leaves_private_controls_their_rin
           return {content:ring.content, style:ring.outlineStyle, width:ring.outlineWidth};
         }"""
     ) == {"content": '""', "style": "solid", "width": "2px"}
-    expect(page.locator(".lf-visual-mark-focus")).to_have_count(0)
+    expect(page.locator(FOCUS_MARK)).to_have_count(0)
 
     page.keyboard.press("Tab")
     expect(page.locator("#pane-body")).to_be_focused()
@@ -3937,69 +3508,7 @@ def test_focus_projection_follows_modality_and_leaves_private_controls_their_rin
         )
         == "solid"
     )
-    expect(page.locator(".lf-visual-mark-focus")).to_have_count(0)
-
-
-@pytest.mark.parametrize("subject", ["words", "diagram node"])
-def test_an_aim_in_a_pane_stands_anchored_to_what_it_outlines(browser, serve, subject):
-    """The aim over a target in a pane stands fixed and anchored to that target, cut by
-    a frame anchored to the pane's scroller, with no scroll-driven layer, which can
-    paint a frame off the scroll it carries (target-paint-geometry.js, `paintStand`). A
-    diagram's node anchors through its drawing, which clips what it draws and scrolls
-    none of it, so it stands anchored too."""
-    page = open_page(
-        browser,
-        serve(
-            leaf_page(
-                "an aim in a pane",
-                """
-  <div id="aim-split">
-    <lf-pane id="aim-pane" label="Findings">
-      <div>
-        <div style="height: 200px"></div>
-        <p id="pane-words">The first finding, aimed at.</p>
-        <lf-diagram id="flow" parts="all"><pre>
-graph LR
-  S[Start request] --> H[Handle request]
-</pre></lf-diagram>
-        <div style="height: 1600px"></div>
-      </div>
-    </lf-pane>
-    <lf-pane id="other-pane" label="Notes"><div><p>Notes.</p></div></lf-pane>
-  </div>""",
-                head=regions_side_by_side("aim-split"),
-                layout="workspace",
-            )
-        ),
-    )
-    resized(page, 1280, 720)
-    pane_scroll_behavior(page, page.locator("#aim-pane"), "bounded")
-    if subject == "words":
-        page.locator("#pane-words").hover()
-        page.keyboard.down("Alt")
-        expect(page.locator(".lf-aim")).to_have_attribute("data-for", "pane-words")
-    else:
-        page.locator('#flow g[data-id="S"]').hover()
-        page.keyboard.down("Alt")
-        # A part's aim is drawn as its shape's contour.
-        expect(page.locator(".lf-aim.lf-shaped")).to_be_visible()
-    stand = page.evaluate(
-        """() => {
-          const aim = document.querySelector('.lf-aim');
-          const stand = aim.closest('.lf-paint-stand');
-          return {
-            boxes: [aim, ...stand.querySelectorAll('.lf-paint-frame')].map((box) => ({
-              position: getComputedStyle(box).position,
-              anchor: getComputedStyle(box).positionAnchor,
-            })),
-          };
-        }"""
-    )
-    page.keyboard.up("Alt")
-    assert all(
-        box["position"] == "fixed" and box["anchor"].startswith("--lf-a")
-        for box in stand["boxes"]
-    ), stand
+    expect(page.locator(FOCUS_MARK)).to_have_count(0)
 
 
 def test_a_replay_under_a_held_aim_repaints_the_promise(browser, serve):
@@ -4019,7 +3528,7 @@ def test_a_replay_under_a_held_aim_repaints_the_promise(browser, serve):
     )
     page.mouse.move(*spot)
     page.keyboard.down("Alt")
-    expect(page.locator(".lf-aim")).to_have_attribute("data-for", "card-importer")
+    expect(page.locator(".lf-aimed")).to_have_id("card-importer")
     append_command(
         serve.page_dir,
         {
@@ -4036,7 +3545,7 @@ def test_a_replay_under_a_held_aim_repaints_the_promise(browser, serve):
     page.wait_for_function(
         """([x, y]) => {
       const promised =
-        document.querySelector(".lf-aim")?.getAttribute("data-for") ?? null;
+        document.querySelector(".lf-aimed")?.closest("[id]")?.id ?? null;
       const at = document.elementFromPoint(x, y)?.closest("[id]:not(.lf-ui)") ?? null;
       return promised === (at?.id ?? null) && promised !== "card-importer";
     }""",
@@ -4045,22 +3554,15 @@ def test_a_replay_under_a_held_aim_repaints_the_promise(browser, serve):
     page.keyboard.up("Alt")
 
 
-def test_the_aims_box_is_what_the_page_shows_of_the_element(browser, serve):
-    """The promise paints in the chrome's layer, and claims what the page shows.
+def test_the_aim_shows_over_the_widgets_own_paint(browser, serve):
+    """The promise is visible over the widget's own paint.
 
-    The aim used to wear the mark's rail, and that band sat at the
-    border edge — the one band of an element nobody else paints in, and exactly where a
-    widget draws a border of its own. Over an accented option, whose border is
-    already the accent, arming changed nothing a user could see, and what was
-    reported was no box at all. So the aim paints in the layer above the page, which no
-    widget can reach; the pixel diff here is armed against unarmed with the pointer
-    held still, so the widget's own hover wash is in both frames and the difference is
-    the promise alone.
-
-    A layer no widget can paint over is also one no ancestor's clip can reach, so the
-    second half holds the box to the page's own showing of the item: a row's table box
-    runs on under its group's overflow: hidden, and a box drawn from the raw rect
-    would claim pixels the page has refused, over whatever stands in them."""
+    The aim used to wear the mark's rail, and that band sat at the border edge — the one
+    band of an element nobody else paints in, and exactly where a widget draws a border
+    of its own. Over an accented option, whose border is already the accent, arming
+    changed nothing a user could see. The aim's veil fills the box; the pixel diff
+    here is armed against unarmed with the pointer held still, so the widget's own
+    hover wash is in both frames and the difference is the promise alone."""
     from PIL import Image, ImageChops  # a dev dependency already, for the demo recorder
 
     page = open_page(browser, serve(AIM_PAINT_PAGE))
@@ -4077,16 +3579,9 @@ def test_the_aims_box_is_what_the_page_shows_of_the_element(browser, serve):
     clip |= {"width": math.floor(box["width"]), "height": math.floor(box["height"])}
     quiet = Image.open(io.BytesIO(page.screenshot(clip=clip))).convert("RGB")
     page.keyboard.down("Alt")
-    expect(page.locator(".lf-aim")).to_have_attribute("data-for", "card-star")
+    expect(page.locator(".lf-aimed")).to_have_id("card-star")
     armed = Image.open(io.BytesIO(page.screenshot(clip=clip))).convert("RGB")
     assert quiet.size == armed.size
-    geometry = page.evaluate("""() => {
-        const item = document.getElementById("card-star").getBoundingClientRect();
-        const box = document.querySelector(".lf-aim").getBoundingClientRect();
-        return [box.left - item.left, box.top - item.top,
-                box.width - item.width, box.height - item.height].map(Math.abs);
-    }""")
-    assert max(geometry) < 1, f"the box missed the card it promises by {geometry}"
     pixels = zip(
         *[iter(ImageChops.difference(quiet, armed).tobytes())] * 3, strict=True
     )
@@ -4094,21 +3589,6 @@ def test_the_aims_box_is_what_the_page_shows_of_the_element(browser, serve):
     assert changed > 0.5, (
         f"arming changed {changed:.0%} of the card's pixels — the promise is not "
         "something a user can see over the widget's own paint"
-    )
-
-    row = page.locator("#row-ship")
-    row.hover()
-    expect(page.locator(".lf-aim")).to_have_attribute("data-for", "row-ship")
-    edges = page.evaluate("""() => {
-        const group = document.getElementById("rows").getBoundingClientRect();
-        const row = document.getElementById("row-ship").getBoundingClientRect();
-        return { shown: Math.min(row.right, group.right), raw: row.right };
-    }""")
-    edges["box"] = page.evaluate(SHOWN_PAINT, ".lf-aim")["right"]
-    assert abs(edges["box"] - edges["shown"]) < 1, (
-        f"the box ends at {edges['box']} where the page shows the row to "
-        f"{edges['shown']} (its unclipped box runs to {edges['raw']}): a clip the "
-        "page enforces went unhonoured"
     )
     page.keyboard.up("Alt")
 
@@ -4163,22 +3643,22 @@ def test_the_armed_cursor_says_whether_a_press_would_take_anything(browser, serv
 
     page.mouse.move(*on_item)
     page.keyboard.down("Alt")
-    expect(page.locator(".lf-aim")).to_have_attribute("data-for", "p2")
+    expect(page.locator(".lf-aimed")).to_have_id("p2")
     assert page.evaluate(at_pointer, on_item) == "pointer", (
         "the aim boxed the paragraph and the cursor declined to promise the press"
     )
 
     page.mouse.move(*in_gap)
-    expect(page.locator(".lf-aim[data-for]")).to_have_count(0)
+    expect(page.locator(".lf-aimed")).to_have_count(0)
     assert page.evaluate(at_pointer, in_gap) == "default", (
         "the aim had nothing to take and the hand promised a press anyway"
     )
 
     # Back on the item, so the arm coming off is read from the state that promises most.
     page.mouse.move(*on_item)
-    expect(page.locator(".lf-aim")).to_have_attribute("data-for", "p2")
+    expect(page.locator(".lf-aimed")).to_have_id("p2")
     page.keyboard.up("Alt")
-    expect(page.locator(".lf-aim[data-for]")).to_have_count(0)
+    expect(page.locator(".lf-aimed")).to_have_count(0)
     assert page.evaluate(at_pointer, on_item) == "auto", (
         "the key came up and the page went on offering the aim's press"
     )
@@ -4327,7 +3807,7 @@ def _open_attachment_draft(browser, url, target):
     page = open_page(browser, url)
     rendered(page)
     expect(page.locator(".lf-fp-field leaf-text")).not_to_have_attribute(
-        "data-says", "notice"
+        "data-lf-says", "notice"
     )
     destination = page.locator(target).first
     for _ in range(50):
@@ -4348,7 +3828,7 @@ def test_quote_attachment_can_hide_while_its_paragraph_remains(browser, serve):
     page = open_page(browser, serve(COMPOSER_ATTACHMENT_PAGE))
     rendered(page)
     expect(page.locator(".lf-fp-field leaf-text")).not_to_have_attribute(
-        "data-says", "notice"
+        "data-lf-says", "notice"
     )
     page.locator("#quote-holder").scroll_into_view_if_needed()
     points = page.locator("#quote-holder").evaluate(
@@ -4627,12 +4107,14 @@ def test_a_scroll_carries_paint_over_targets_and_writes_it_once_settled(
     _paint_mode(page, mode, "finding" if scroller == "pane" else "Paragraph 3")
     if mode == "design":
         named = ["pane-target", "pane-later"] if scroller == "pane" else ["p3", "p4"]
-        expect(page.locator(f'.lf-legend-box[data-for="{named[0]}"]')).to_be_visible()
+        expect(
+            page.locator(f'.lf-legend-box[data-lf-for="{named[0]}"]')
+        ).to_be_visible()
         # The boxes one set of frames cuts share its stand, each anchored to what it
         # names.
         stand = page.evaluate(
             """([first, next]) => {
-              const box = (id) => document.querySelector(`.lf-legend-box[data-for="${id}"]`);
+              const box = (id) => document.querySelector(`.lf-legend-box[data-lf-for="${id}"]`);
               return {shared: box(first).closest('.lf-paint-stand')
                         === box(next).closest('.lf-paint-stand'),
                       anchors: [box(first), box(next)].map(
@@ -4751,7 +4233,7 @@ def test_design_paint_in_a_pane_paints_in_the_frame_its_target_scrolls(
     follower = (
         f".lf-inspect {{ background: {FOLLOWER_MARK} !important; }}"
         if paint == "inspect"
-        else '.lf-legend-box[data-for="pane-target"]'
+        else '.lf-legend-box[data-lf-for="pane-target"]'
         f" {{ border: 6px solid {FOLLOWER_MARK} !important; }}"
     )
     page = open_page(
@@ -4800,12 +4282,12 @@ def test_legend_tags_step_apart_as_the_page_slides_under_a_sticky_bar(browser, s
     resized(page, 1280, 720)
     _design_mode(page)
     expect(
-        page.locator('.lf-legend-box[data-for="nav"] .lf-legend-tag')
+        page.locator('.lf-legend-box[data-lf-for="nav"] .lf-legend-tag')
     ).to_be_visible()
     overlaps = """() => {
       const tags = [...document.querySelectorAll('.lf-legend-tag')]
         .filter((tag) => tag.checkVisibility())
-        .map((tag) => [tag.closest('.lf-legend-box').dataset.for,
+        .map((tag) => [tag.closest('.lf-legend-box').dataset.lfFor,
                        tag.getBoundingClientRect()]);
       const found = [];
       for (const [i, [a, r]] of tags.entries())
@@ -4833,14 +4315,14 @@ def test_each_legend_box_stays_on_what_it_names_without_a_pass(browser, serve):
     page.evaluate("() => document.getElementById('pop').showPopover()")
     _design_mode(page)
     offsets = """(ids) => ids.map((id) => {
-      const box = document.querySelector(`.lf-legend-box[data-for="${id}"]`);
+      const box = document.querySelector(`.lf-legend-box[data-lf-for="${id}"]`);
       if (!box?.isConnected) return [id, null];
       const b = box.getBoundingClientRect();
       const it = document.getElementById(id).getBoundingClientRect();
       return [id, Math.round(b.left - it.left), Math.round(b.top - it.top)];
     })"""
     ids = ["nav", "p3", "fixedbar", "inpop"]
-    expect(page.locator('.lf-legend-box[data-for="inpop"]')).to_be_visible()
+    expect(page.locator('.lf-legend-box[data-lf-for="inpop"]')).to_be_visible()
     assert page.evaluate(offsets, ids) == [[id, -1, -1] for id in ids]
     page.mouse.move(2, 300)
     page.mouse.wheel(0, 600)
@@ -6048,7 +5530,7 @@ def test_design_mode_survives_the_reload_a_new_version_brings(browser, serve):
     page.reload()
     wait_until_ready(page)
     expect(page.locator("body")).to_have_attribute("data-lf-design-mode", "")
-    expect(page.locator('.lf-legend-box[data-for="approach"]')).to_be_visible()
+    expect(page.locator('.lf-legend-box[data-lf-for="approach"]')).to_be_visible()
     page.keyboard.press("Escape")
     expect(page.locator("body")).not_to_have_attribute("data-lf-design-mode", "")
     page.reload()

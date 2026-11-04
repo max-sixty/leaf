@@ -33,6 +33,7 @@
  * the reader can turn it wherever they are reading rather than only at the top, which
  * is where keeping their place matters. */
 import {
+  authoredScope,
   focusDestination,
   foldDuration,
   keeps,
@@ -48,6 +49,7 @@ import {
   scrollerFor,
   shownWindow,
   tabStore,
+  viewDocument,
   whileConnected,
   commandsChanged,
 } from "/runtime/widget-api.js";
@@ -108,9 +110,16 @@ customElements.define(
       return `lf-dial:${this.id}`;
     }
 
-    // The document the dial governs.
+    // The document the dial governs: the view or `main` holding it, the page's `main`
+    // for a dial standing beside it, and in an agent's message that message's markup.
     get #scope() {
-      return this.closest("[data-lf-views] > *, main") ?? this.ownerDocument.body;
+      const scope = authoredScope(this);
+      return (
+        viewDocument(this) ??
+        (scope === this.ownerDocument.body
+          ? scope.querySelector(":scope > main")
+          : scope)
+      );
     }
 
     setup() {
@@ -125,9 +134,11 @@ customElements.define(
       }
       this.append(group);
       const [back, ahead] = rowArrows(this);
+      // The depth one step from the current one; each end has none past it.
+      const beside = (/** @type {number} */ by) =>
+        DEPTHS[DEPTHS.findIndex((depth) => depth.name === this.#depth) + by];
       const step = (/** @type {number} */ by) => {
-        const at = DEPTHS.findIndex((depth) => depth.name === this.#depth);
-        const next = DEPTHS[at + by];
+        const next = beside(by);
         if (!next) return;
         this.turn(next.name);
         const button = this.#buttons.get(next.name);
@@ -136,11 +147,22 @@ customElements.define(
       this.lfCommands = {
         title: "In the detail dial",
         rows: [
-          { id: "dial.less", keys: [back], title: "Less detail", run: () => step(-1) },
-          { id: "dial.more", keys: [ahead], title: "More detail", run: () => step(1) },
+          {
+            id: "dial.less",
+            keys: [back],
+            title: "Less detail",
+            when: () => Boolean(beside(-1)),
+            run: () => step(-1),
+          },
+          {
+            id: "dial.more",
+            keys: [ahead],
+            title: "More detail",
+            when: () => Boolean(beside(1)),
+            run: () => step(1),
+          },
         ],
       };
-      commandsChanged(this);
       this.#draw();
       whileConnected(this, (signal) => {
         // A revision applied in place rebuilds the folds over its new structure.
@@ -169,14 +191,18 @@ customElements.define(
       this.#apply(name, { moving: true });
     }
 
+    // The depth decides which of the dial's commands are available, so drawing a depth
+    // has Leaf read them again.
     #draw() {
       for (const [name, button] of this.#buttons)
         keeps(button, "aria-pressed", String(name === this.#depth));
+      commandsChanged(this);
     }
 
     /** @param {string} name @param {{moving: boolean}} options */
     #apply(name, { moving }) {
       const scope = this.#scope;
+      if (!scope) return;
       const before = moving ? this.#positions(scope) : null;
       const change = () => {
         this.#restore();
@@ -309,6 +335,7 @@ customElements.define(
       const run = this.#runs.get(marker);
       if (!run) return;
       const scope = this.#scope;
+      if (!scope) return;
       const before = pressed ? this.#positions(scope) : null;
       for (const block of run.blocks) this.#unfoldBlock(block);
       this.#runs.delete(marker);

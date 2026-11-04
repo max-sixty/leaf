@@ -53,10 +53,11 @@
  * Travel into a hidden panel briefly highlights its selected name, without moving
  * focus from the destination or delaying it. Reduced motion keeps the selected state
  * without the highlight; switching again or disconnecting cancels an unfinished cue.
- * Adjacent pointer choices along a horizontal strip move only the selection underline
- * for 160ms. Content and accessible selection change at once; keyboard and vertical
- * navigation stay immediate. A reversed choice continues from the line's painted place,
- * and scrolling or resizing the strip ends the cue at its selected tab.
+ * Adjacent pointer choices along a horizontal strip move only the selection underline,
+ * in a mark's time (`--lf-motion-mark`). Content and accessible selection change at
+ * once; keyboard and vertical navigation stay immediate. A reversed choice continues
+ * from the line's painted place, and scrolling or resizing the strip ends the cue at
+ * its selected tab.
  * Every tab's accessible name is its label; what else the tab shows describes it. A
  * side list stands each run of neighbouring panels that share a `group` under a label
  * of that group, which each of their tabs' descriptions names. A side list's row adds
@@ -166,7 +167,7 @@ export class TabSet extends LeafElement {
   #root = false;
   /** @type {(MutationObserver) | null} */
   #contextObserver = null;
-  #strip = offer("div", "lf-tabstrip scroll");
+  #strip = offer("div", "lf-tabstrip");
   /** @type {(() => void) | null} */
   #stopHeader = null;
   #side = false;
@@ -205,6 +206,7 @@ export class TabSet extends LeafElement {
     // is what makes a drag across the name possible at all.
     const strip = this.#strip;
     strip.setAttribute("role", "tablist");
+    strip.toggleAttribute("data-lf-scroll", true);
     if (down) strip.setAttribute("aria-orientation", "vertical");
     // Group runs are fixed by authored panels. Lit owns every generated child;
     // panel nodes stay outside its render root, with native reading and focus state.
@@ -217,7 +219,7 @@ export class TabSet extends LeafElement {
         this.#runs.push(run);
       }
       run.panels.push(panel);
-      if (!panel.classList.contains("scroll")) panel.classList.add("scroll");
+      panel.toggleAttribute("data-lf-scroll", true);
       panel.setAttribute("role", "tabpanel");
       keeps(panel, "aria-label", panel.getAttribute("label"));
       // The browser found something inside (find-in-page, an anchor jump), or
@@ -641,7 +643,7 @@ export class TabSet extends LeafElement {
   // the tabs are the keyboard's route, and a focused tab brings itself into view.
   /** @param {"start" | "end"} to */
   #edge(to) {
-    return html`<span class="lf-tabstrip-scroll" data-to=${to} aria-hidden="true"
+    return html`<span class="lf-tabstrip-scroll" data-lf-to=${to} aria-hidden="true"
       ><span
         @click=${() => {
           const strip = this.#strip;
@@ -690,9 +692,7 @@ export class TabSet extends LeafElement {
       const size = label.getBoundingClientRect().width;
       const apart = size + gap + btn.getBoundingClientRect().width > room;
       run.toggleAttribute("data-lf-group-apart", apart);
-      const measured = layoutPx(size);
-      if (run.style.getPropertyValue("--lf-tab-group-size") !== measured)
-        run.style.setProperty("--lf-tab-group-size", measured);
+      run.style.setProperty("--lf-tab-group-size", layoutPx(size));
       scrollIntoView(btn, { block: "nearest", within: strip });
       return;
     }

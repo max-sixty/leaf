@@ -35,7 +35,6 @@ from render_cases_navigation import (
 from render_harness import (
     CARRIED_PAGE,
     EXAMPLE_PACKAGES,
-    EXAMPLES,
     REPLAYED_PAGE,
     REPLY_HOST_PAGE,
     SAMPLE_MARKUP,
@@ -72,6 +71,7 @@ from leaf import delivery as delivery_model
 from leaf import event_log as events_model
 from leaf import service as service_model
 from leaf.render_checks import rendered
+from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -477,7 +477,7 @@ def test_unchanged_markdown_option_is_not_a_version_change(browser, serve):
     ) == ["job-camera"]
 
 
-def test_markdown_option_state_change_has_no_inline_text_diff(browser, serve):
+def test_markdown_option_state_change_offers_no_card(browser, serve):
     source = OBLIGATION_PAGE.replace(
         "Replace the <code>M8</code> mounts", "Ask the _widget_ to decide"
     )
@@ -2607,9 +2607,7 @@ def test_a_thread_obligations_done_press_keeps_its_keys_and_one_workflow(
     A tick followed by Done are two coordinates. The message carries their shared
     strongest workflow once rather than painting two receipt classifiers.
     """
-    page = open_page(
-        browser, serve(next(p for p in EXAMPLES if p.stem == "ship-review"))
-    )
+    page = open_page(browser, serve(named_source("ship-review")))
     # The example's one thread whose reply asks with options.
     question = open_panel_thread(page, "7b3e0a41").locator("lf-options[choose]").first
     question.locator("lf-option:not([chosen]) > .lf-pick").first.click()
@@ -2647,9 +2645,7 @@ def test_an_answered_cards_badges_keep_their_seats_beside_a_pin(browser, serve):
     chip hung on the mark's corner, 10px higher, with the mark showing under it. The mark
     now takes the digit's box, and every card wears its own digit. A chosen card is filled
     in the tint of an ok chip, so its "recommended" chip keeps a ground of its own there."""
-    page = open_page(
-        browser, serve(next(p for p in EXAMPLES if p.stem == "alert-review"))
-    )
+    page = open_page(browser, serve(named_source("alert-review")))
     resized(page, 1440, 900)
     page.keyboard.press("m")
     expect(page.locator("#ar-canary-decision")).to_be_focused()
@@ -2688,9 +2684,7 @@ def test_an_obligation_digit_hangs_off_a_corner_clear_of_its_neighbours(browser,
     the notification playground at 1024px its Create button wraps under Reset and Copy,
     8px below them, and a digit hung on that corner stood over Reset's; it now takes the
     first corner that stands over no other control."""
-    page = open_page(
-        browser, serve(next(p for p in EXAMPLES if p.stem == "notification-playground"))
-    )
+    page = open_page(browser, serve(named_source("notification-playground")))
     resized(page, 1024, 768)
     page.keyboard.press("m")
     chip = page.locator(".lf-command-binding-badges .lf-command-binding-badge")

@@ -7,6 +7,7 @@
  * not yet done. Leaf's own interface is held out, since its motion is Leaf's to stop.
  * A transition runs only while a property changes, so a settled page shows none; one
  * the page starts on a gesture is outside this reading. */
+import { inPage } from "/runtime/check-api.js";
 import { at } from "./locate.js";
 
 export function unreducedMotion() {
@@ -15,7 +16,7 @@ export function unreducedMotion() {
     const { effect } = animation;
     const target = effect && "target" in effect ? effect.target : null;
     if (!(target instanceof Element) || animation.playState !== "running") continue;
-    if (!target.closest("main") || target.closest(".lf-chrome, .lf-ui")) continue;
+    if (!inPage(target) || target.closest(".lf-ui")) continue;
     found.set(target, { code: "unreduced-motion", at: at(target) });
   }
   return [...found.values()];

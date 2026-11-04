@@ -12,18 +12,30 @@ looks for, which would inflate their measured recall.
 The assertion passes when the judge finds no defect. Its metadata carries a
 status and reason for every outcome, including an unscored run, and on completion
 the defects with their check readings and the findings the author's checks raised,
-so a run's defect rate and the checks' recall read from `results.json`.
+so a run's defect rate and the checks' recall read from `results.json`. Each
+grading keeps its evidence in a fresh `defects-*` directory under the sample, so
+grading the sample again with `eval --from` keeps the earlier judge's.
 """
 
 import json
+import tempfile
 from pathlib import Path
 
 from leaf_dev.arms import observed_sum, run_agent, scratch, trace_result, trace_summary
 from leaf_dev.arrangement_eval import judge_pages
+from leaf_dev.browser import WINDOWS
 from leaf_dev.eval_cases import definition
 
 DEFINITION = definition("page_defects")
 SKILL_PREFIX = definition("eval")["skill_prefix"]
+# Each window the judge uses the page in, as its instructions describe it.
+WIDTHS = {
+    name: {
+        "viewport": list(WINDOWS[name].size),
+        "description": WINDOWS[name].description,
+    }
+    for name in DEFINITION["widths"]
+}
 
 
 def match(defects: list[dict], response: dict, evidence: Path) -> tuple[dict, dict]:
@@ -64,6 +76,7 @@ def get_assert(output: str, context: dict) -> dict:
         return unscored(
             f"No authored page to inspect at {work / 'page' / 'index.html'}"
         )
+    evidence = Path(tempfile.mkdtemp(prefix="defects-", dir=work))
     judged = judge_pages(
         {
             "final": {
@@ -72,24 +85,25 @@ def get_assert(output: str, context: dict) -> dict:
                 "condition": "leaf",
             }
         },
-        DEFINITION["widths"],
+        WIDTHS,
         DEFINITION["judge"].format(
             request=context["vars"]["prompt"].removeprefix(SKILL_PREFIX)
         ),
         DEFINITION["schemas"]["defects"],
-        work / "defects" / "judge",
+        evidence / "judge",
     )
     if "error" in judged:
-        return unscored(judged["error"])
+        return unscored(judged["error"], evidence)
     verdict = judged["output"]
     if verdict["status"] == "insufficient_evidence":
-        return unscored(verdict["reason"])
-    readings, matching = match(verdict["defects"], response, work / "defects" / "match")
+        return unscored(verdict["reason"], evidence)
+    readings, matching = match(verdict["defects"], response, evidence / "match")
     indices = [reading.pop("index") for reading in readings["defects"]]
     if sorted(indices) != list(range(len(verdict["defects"]))):
         return unscored(
             f"the check matcher read defects {sorted(indices)} of "
-            f"{len(verdict['defects'])}; see {work / 'defects' / 'match'}"
+            f"{len(verdict['defects'])}; see {evidence / 'match'}",
+            evidence,
         )
     by_index = dict(zip(indices, readings["defects"], strict=True))
     defects = [
@@ -119,15 +133,22 @@ def get_assert(output: str, context: dict) -> dict:
                 "session_findings": readings["session_findings"],
                 "judge": judged["metadata"]["trace"],
                 "matcher": matching,
+                "evidence": str(evidence),
             }
         },
     }
 
 
-def unscored(reason: str) -> dict:
+def unscored(reason: str, evidence: Path | None = None) -> dict:
     return {
         "pass": False,
         "score": 0.0,
         "reason": f"unscored: {reason}",
-        "metadata": {"page_defects": {"status": "unscored", "reason": reason}},
+        "metadata": {
+            "page_defects": {
+                "status": "unscored",
+                "reason": reason,
+                **({"evidence": str(evidence)} if evidence else {}),
+            }
+        },
     }

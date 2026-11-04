@@ -57,7 +57,7 @@ def test_sample_upgrade_does_not_wait_for_child_saved_state(
     sample.evaluate("async sample => await sample.ready")
     child = sample.locator("iframe").element_handle().content_frame()
     expect(child.locator("body")).to_have_attribute("data-lf-upgraded", "1")
-    expect(child.locator("body")).not_to_have_attribute("inert")
+    expect(child.locator("html")).not_to_have_attribute("inert")
     expect(child.locator("body")).not_to_have_attribute("data-lf-presented", "1")
     expect(child.locator(".lf-fp-leaf")).to_have_attribute(
         "aria-label", "Page menu · Loading comments and choices…"
@@ -112,7 +112,9 @@ def test_sample_upgrade_does_not_wait_for_child_saved_state(
     if newer_input:
         expect(inner_box).to_be_focused()
     if not shown:
-        expect(child.locator(PANEL)).not_to_have_attribute("data-open", re.compile("."))
+        expect(child.locator(PANEL)).not_to_have_attribute(
+            "data-lf-open", re.compile(".")
+        )
         return
     expect(
         child.locator(".lf-page-thread").get_by_text(

@@ -77,12 +77,8 @@ import {
   clearAim,
   geometryChanged,
   labelAim,
-  locationLayer,
-  mountTargetPaint,
   paintAim,
-  proxyRingLayer,
   shifted,
-  targetTraceLayer,
 } from "./runtime/target-paint.js";
 import { pointerAt } from "./runtime/pointer.js";
 import { createWritingResume } from "./runtime/drafts.js";
@@ -322,7 +318,6 @@ async function boot() {
     pointer: pointerAt,
     designMode,
     targetPaint: { clearAim, geometryChanged, labelAim, paintAim, shifted },
-    visualMarkPaint,
     shiftDrawings: drawingPaint.shifted,
     queueLegend: designMode.queueLegend,
     legendScrolled: designMode.legendScrolled,
@@ -717,9 +712,6 @@ async function boot() {
     // One permanent home for the chrome's foreground; none of these live descendants is
     // reparented.
     chromeForeground.append(
-      locationLayer,
-      targetTraceLayer,
-      proxyRingLayer,
       aimLayer,
       liveEl,
       mediaViewer,
@@ -729,12 +721,12 @@ async function boot() {
     chromeRoot.append(
       legendRoot,
       marginBarLayer,
-      ...(visualMarkPaint ? [visualMarkPaint.layer] : []),
       drawingPaint.layer,
       fabBar,
       chromeForeground,
     );
-    document.body.append(chromeRoot);
+    // After body, where it stacks over every box the page writes (base.css).
+    document.body.after(chromeRoot);
     version.mount();
     mountPageStatus();
     floatingPanel.mount(chromeForeground);
@@ -744,7 +736,6 @@ async function boot() {
     targets.mount();
     drawing.mount();
     aim.mount();
-    mountTargetPaint();
     anchorPaint?.mount();
     anchorControls.mount();
     pageGeometry.mount();
@@ -778,7 +769,7 @@ async function boot() {
   } else {
     document.adoptedStyleSheets = [...document.adoptedStyleSheets, chromeSheet];
     chromeRoot.append(mediaViewer);
-    document.body.append(chromeRoot);
+    document.body.after(chromeRoot);
     // Exports retain image inspection, but no page controls. Their other current location is
     // what a widget's own box shows, such as an options group's addition field.
     mountRepaint({

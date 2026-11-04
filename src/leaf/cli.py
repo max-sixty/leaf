@@ -24,9 +24,10 @@ from typing import NamedTuple, TextIO
 
 import click
 
+from leaf.registry.kernel import title_limit
 from leaf.render_gate.browser import VARIABLES as BROWSER_VARIABLES
 from leaf.schema import WAIT_BATCH_OUTPUT_INSTRUCTION
-from leaf.state import EVENTS_FILE, PLUGIN_ROOT
+from leaf.state import PLUGIN_ROOT
 
 
 class Reported(NamedTuple):
@@ -39,6 +40,7 @@ class Reported(NamedTuple):
 def resolve_dir(dir_arg: str, *, renew: bool = True) -> Path:
     """The page a command names. A write may renew an older layer for its owning
     session (`vendoring.renew_layer`); reads and service stops leave it alone."""
+    from leaf.event_log import initialized
     from leaf.interaction_log import acting_on
 
     page_dir = page_path(dir_arg)
@@ -46,7 +48,7 @@ def resolve_dir(dir_arg: str, *, renew: bool = True) -> Path:
         raise click.ClickException(
             f"{page_dir} is a file; a page command takes the page's directory"
         )
-    if not (page_dir / EVENTS_FILE).is_file():
+    if not initialized(page_dir):
         raise click.ClickException(
             f"{page_dir} is not an initialized page; "
             f"run `leaf page init {shlex.quote(str(page_dir))}`"
@@ -1314,7 +1316,7 @@ def _title_option(command):
         "--title",
         help=(
             "name the thread for the panel unless it has a name: a few words, at "
-            "most 80 characters"
+            f"most {title_limit()} characters"
         ),
     )(command)
 
@@ -1447,7 +1449,10 @@ def thread_reply(
 @body_options("the replacement text")
 @click.option(
     "--title",
-    help="rename MESSAGE's thread for the panel: a few words, at most 80 characters",
+    help=(
+        "rename MESSAGE's thread for the panel: a few words, at most "
+        f"{title_limit()} characters"
+    ),
 )
 def thread_edit(
     page_dir: Path, message: str, text: str | None, body_file, title: str | None

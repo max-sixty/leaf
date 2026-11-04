@@ -580,9 +580,10 @@ def test_a_bare_choice_hands_its_ring_to_the_row_the_user_tabs_to(browser, serve
     page.keyboard.press("m")
     expect(choice).to_have_attribute("data-lf-obligation", "1")
     assert choice.evaluate(LOCATION_RING)[0] == "solid"
-    arrived = page.evaluate(
-        "() => [document.querySelector('.lf-location').style.getPropertyValue('--lf-mark-offset'),"
-        " getComputedStyle(document.documentElement).getPropertyValue('--focus-region-gap').trim()]"
+    # An arrival rings the decision at the region's gap, outside its frame.
+    arrived = choice.evaluate(
+        "el => [getComputedStyle(el).outlineOffset, getComputedStyle("
+        "document.documentElement).getPropertyValue('--focus-region-gap').trim()]"
     )
     assert arrived[0] == arrived[1], arrived
 
@@ -824,7 +825,7 @@ def test_a_thread_opened_in_the_panel_by_the_keyboard_opens_no_card_beside_it(
     expect(page.locator(PANEL_REPLY)).to_be_focused()
     expect(page.locator("#store-ask")).to_have_attribute("data-lf-obligation", "1")
     page.keyboard.press("Escape")
-    expect(page.locator(".lf-fp-view[data-thread='t-open']")).to_be_focused()
+    expect(page.locator(".lf-fp-view[data-lf-thread='t-open']")).to_be_focused()
     rendered(page)
     expect(card).to_be_hidden()
     page.keyboard.press("Escape")
@@ -854,7 +855,7 @@ def test_an_on_me_card_represents_its_ask(browser, serve):
     page = open_page(browser, serve(STORE_ASK_PAGE))
     page.locator(".lf-fp-on-user").click()
     panel_settled(page, view="queue")
-    card = page.locator(""".lf-fp-on-item[data-key='["widget","widget:store"]']""")
+    card = page.locator(""".lf-fp-on-item[data-lf-key='["widget","widget:store"]']""")
     card.focus()
     expect(page.locator("#store-ask")).to_have_attribute("data-lf-obligation", "1")
     page.keyboard.press("2")

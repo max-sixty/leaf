@@ -1,0 +1,38 @@
+# The fork that answers a held thread message or hands it to the session
+# (`src/leaf/forks.py`), replayed on a short conversation written for each decision
+# its prompt asks about. Run every case with `uv run leaf-dev eval 'fork-reply*'
+# --harness claude-code`; inputs, decisions and rubrics are in
+# workflows/fork_eval.yaml.
+description: Forked thread reply
+metadata:
+  purpose: A question about why the session's finding holds is answered from the conversation.
+  tags: [workflow, forks, threads]
+  harnesses: [claude-code]
+  conditions: [leaf]
+  executor: leaf_dev.fork_eval
+  scenario: why-ci
+variants:
+  meaning:
+    metadata:
+      scenario: meaning
+      purpose: A question about what something means is answered from what the session read.
+  work-request:
+    metadata:
+      scenario: work-request
+      purpose: A request for a change, however small, goes to the session.
+  user-decides:
+    metadata:
+      scenario: user-decides
+      purpose: The user's answer to the session's question goes to the session to record.
+  still-running:
+    metadata:
+      scenario: still-running
+      purpose: A question whose answer is a running command's result goes to the session.
+  work-out:
+    metadata:
+      scenario: work-out
+      purpose: A question the session never looked at, which the fork would have to work out, goes to the session.
+  still-deciding:
+    metadata:
+      scenario: still-deciding
+      purpose: A question whose answer would settle what the session is still deciding goes to the session.

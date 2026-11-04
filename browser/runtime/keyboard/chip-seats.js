@@ -12,14 +12,16 @@
    level, in a surface standing over the page, where the chip stands above every
    surface instead (chrome.css, `.lf-key-chips`). */
 import { paintSet } from "../target-paint-geometry.js";
-import { stackLevel } from "../geometry.js";
+import { CHROME_LEVEL, stackLevel } from "../geometry.js";
 
 let chipLevel = 0;
 /** @param {Element | null} target */
 const plane = (target) => {
-  chipLevel ||= Number.parseFloat(
-    getComputedStyle(document.documentElement).getPropertyValue("--lf-z-page-hints"),
-  );
+  chipLevel ||=
+    CHROME_LEVEL +
+    Number.parseFloat(
+      getComputedStyle(document.documentElement).getPropertyValue("--lf-z-page-hints"),
+    );
   return !target || stackLevel(target) >= chipLevel ? "chrome" : "page";
 };
 
@@ -96,7 +98,7 @@ export function chipSeats(root) {
       const kept = new Set(seated.map(({ seat }) => seat));
       for (const [key, seat] of seats)
         if (!kept.has(seat)) seats.delete(key);
-        else if (seat.style.visibility) seat.style.removeProperty("visibility");
+        else seat.style.removeProperty("visibility");
     },
     clear() {
       set.clear();

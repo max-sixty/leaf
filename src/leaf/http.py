@@ -40,7 +40,7 @@ from .data import (
     StaleDataError,
     deferred_value,
 )
-from .event_endpoint import accept_event, event_fault, event_rejection
+from .event_endpoint import accept_event, event_fault, event_rejection, with_state
 from .file_bindings import FileBindingError, StaleFileError, read_file, save_file
 from .files import (
     missing_revision,
@@ -72,7 +72,12 @@ from .revision_delivery import (
     rebase_document,
     runtime_settings,
 )
-from .runtime_selection import executing, execution_identity, serving_runtime
+from .runtime_selection import (
+    executing,
+    execution_identity,
+    named_execution,
+    serving_runtime,
+)
 from .samples import Samples
 from .schema import (
     BINARY_TYPES,
@@ -83,6 +88,7 @@ from .schema import (
     SERVED_PATH,
 )
 from .served_state.service import LivePage, PageSource, PageStateService
+from .served_state.tail import answer as tail_answer
 from .server import page_origin, preview_metadata, running_server
 from .structure import FRAME_ANCESTORS_CSP
 from .user_views import observe_user_view
@@ -500,16 +506,42 @@ class PageEndpoint:
         what it was just handed. Between the two, the worst case is a token already
         stale on arrival, which costs one more request and no news.
 
-        A tab names the data version it holds in `Leaf-Data-Version`, and an answer
-        whose data is still that version leaves out its sources, which the tab
-        restores from the reading it named (`completeData` in `layer-client.js`).
-        Data moves only when an agent sets it, so without this every gesture's
-        answer would carry back each source value the tab already holds.
+        A tab names the data it holds by `Leaf-Data-Version`, and an answer whose data
+        is still that version leaves out its sources for the tab to restore
+        (`completeState` in `layer-client.js`), since data moves only when an agent
+        sets it. What a tab is sent of the rest is `sent`'s to say.
         """
         state = self._state_service().page_state(view_revision)
         if self.headers.get("Leaf-Data-Version") == state["data"]["version"]:
             state["data"] = {"version": state["data"]["version"]}
         return state
+
+    def sent(self, state: dict) -> dict:
+        """What a tab is sent of `state`, addressed at this page's root
+        (`scope_page_urls`), so the readings this names and compares are the ones the
+        tab holds: only what changed since the reading it names by `Leaf-Held-Basis`,
+        where this process still remembers that reading, else the whole of it
+        (`served_state.tail`). Without this every gesture's answer would carry back
+        every record and past event the tab already holds. The answer goes out as
+        it stands (`_json_body`), since addressing it again would address its
+        markup twice. The log travels apart from the reading, as only the events
+        after the held reading's, so only the events sent are addressed, rather than
+        every message's markup the session has logged.
+
+        A capture's readings are whole and unnamed: a render check reads them, or
+        leaf.page saves them as a published page's responses, one for each revision,
+        and none is a reading a tab goes on to extend from this process, so
+        remembering them would only push out the readings the tabs hold."""
+        reading = {key: value for key, value in state.items() if key != "events"}
+        scoped = {**scope_page_urls(reading, self.page_root), "events": state["events"]}
+        answer = (
+            scoped
+            if self.page_snapshot is not None
+            else tail_answer(
+                scoped, self.headers.get("Leaf-Held-Basis"), str(self.page_dir)
+            )
+        )
+        return {**answer, "events": scope_page_urls(answer["events"], self.page_root)}
 
     def page_browser_view(self, view_revision: int, through_seq: int) -> dict:
         """One revision projected at an exact already-observed log boundary."""
@@ -681,12 +713,12 @@ class PageEndpoint:
         return self._content(200, ctype, resource.content)
 
     def _json(self, obj, status: int = 200) -> Response:
+        return self._json_body(scope_page_urls(obj, self.page_root), status)
+
+    def _json_body(self, obj, status: int = 200) -> Response:
+        """`obj`, already addressed at this page's root, as a JSON answer."""
         return self._content(
-            status,
-            "application/json",
-            json.dumps(
-                scope_page_urls(obj, self.page_root), ensure_ascii=False
-            ).encode(),
+            status, "application/json", json.dumps(obj, ensure_ascii=False).encode()
         )
 
     def _select_page(self) -> Response | None:
@@ -1013,11 +1045,11 @@ class PageEndpoint:
         revision, name = int(match.group("revision")), match.group("name")
         if self.source.revision_names.get(revision) != name + ".html":
             return None
-        artifact = self._artifact(revision)
-        if match.group("runtime") != execution_identity(artifact):
+        artifact = named_execution(self._artifact(revision), match.group("runtime"))
+        if artifact is None:
             return None
         response = self._revision_resource(
-            revision, "/" + match.group("resource"), self._named_root(name, artifact)
+            artifact, "/" + match.group("resource"), self._named_root(name, artifact)
         )
         if response is not None:
             # The revision name carries its manifest digest, the execution identity
@@ -1030,11 +1062,11 @@ class PageEndpoint:
         return response
 
     def _revision_resource(
-        self, revision: int, logical: str, root: str
+        self, artifact: RevisionArtifact, logical: str, root: str
     ) -> Response | None:
         """One resource of a revision as its documents run it, addressed at `root`
         (`runtime_selection.executing`), or None for a path the revision lacks."""
-        artifact = executing(self._artifact(revision))
+        artifact = executing(artifact)
         self.response_layer = artifact.registry["$layer"]["generation"]
         resource = delivered_resource(
             artifact, logical, DeliveryAddress(self.page_root, root)
@@ -1119,7 +1151,7 @@ class PageEndpoint:
             if revision is None and state["active"] is not None:
                 revision = state["active"]["revision"]
             self.response_layer = self._revision_layer(revision)
-            return self._json(state)
+            return self._json_body(self.sent(state))
         if path == "/api/deferred":
             try:
                 deferred = self.deferred_value()
@@ -1388,10 +1420,10 @@ class PageEndpoint:
 
     def _accept_event(self) -> Response:
         view_revision = self.requested_view_revision()
-        status, answer = accept_event(
-            self.page_dir, self.posted, lambda: self.page_state(view_revision)
-        )
-        return self._json(answer, status)
+        status, answer = accept_event(self.page_dir, self.posted)
+        state = self.page_state(view_revision)
+        envelope = scope_page_urls(answer, self.page_root)
+        return self._json_body(with_state(envelope, state, self.sent(state)), status)
 
     # Every POST a page answers, by path pattern. A route lists its gates in the
     # order they refuse; its body is already read when the first one runs. File
@@ -1477,16 +1509,17 @@ class SampleEndpoint(PageEndpoint):
 
     def _delivery(self, artifact: RevisionArtifact, revision: int) -> Delivery:
         # Every child arrives inert, so its startup cannot take focus from the page;
-        # the host releases it once it presents. Whether the child lays out as a
-        # block or a window is its frame's to say (sample.js), which its bootstrap
-        # asks before it paints.
+        # the host releases it once it presents. The root carries it, since Leaf's
+        # chrome stands after the body. Whether the child lays out as a block or a
+        # window is its frame's to say (sample.js), which its bootstrap asks before it
+        # paints.
         return replace(
             super()._delivery(artifact, revision),
             html_attributes={
                 "data-lf-user-scope": self.page_root + "/",
                 "data-lf-sample": "",
+                "inert": "",
             },
-            body_attributes={"inert": ""},
         )
 
 

@@ -8,6 +8,8 @@ opening Chromium would put a browser between the cause and the claim without
 putting one in the claim.
 """
 
+from copy import deepcopy
+
 import model_folds as model
 from interact_support import page_packages, served_obligations
 
@@ -173,7 +175,7 @@ def test_ephemeral_updates_wait_for_an_answer_and_preserve_user_interjections():
     )
     pending = model.threads(model.reading(HUB, messages))["e1"]
     assert pending["summaries"] == []
-    assert pending["unread"] == []
+    assert pending["unread"] == {}
 
     answer = {"kind": "reply", **identity, "parent": "e1", "text": "Both fit."}
     later_progress = {
@@ -200,7 +202,7 @@ def test_ephemeral_updates_wait_for_an_answer_and_preserve_user_interjections():
         "Both fit.",
         "Checking the next week.",
     ]
-    assert completed["unread"] == [{"message": "e5", "version": "e5"}]
+    assert completed["unread"] == {"e5": "e5"}
 
 
 def test_progress_completion_survives_edits_and_explicit_summaries():
@@ -241,7 +243,7 @@ def test_progress_completion_survives_edits_and_explicit_summaries():
     assert corrected["msgs"][1]["completed_by"] == "e4"
     assert corrected["msgs"][2]["completed_by"] == "e4"
     assert corrected["msgs"][1]["text"] == "Mounts checked."
-    assert corrected["unread"] == [{"message": "e4", "version": "e4"}]
+    assert corrected["unread"] == {"e4": "e4"}
 
     explicit = model.threads(
         model.reading(
@@ -264,7 +266,7 @@ def test_progress_completion_survives_edits_and_explicit_summaries():
     ]
     assert explicit["msgs"][1]["completed_by"] == "e4"
     assert explicit["msgs"][2]["completed_by"] == "e4"
-    assert explicit["unread"] == [{"message": "e4", "version": "e4"}]
+    assert explicit["unread"] == {"e4": "e4"}
 
 
 def test_only_a_main_reply_in_the_same_thread_supersedes_progress():
@@ -286,13 +288,11 @@ def test_only_a_main_reply_in_the_same_thread_supersedes_progress():
     )
     pending = model.threads(model.reading(HUB, messages))["e1"]
     assert pending["summaries"] == []
-    assert pending["unread"] == [{"message": "e4", "version": "e4"}]
+    assert pending["unread"] == {"e4": "e4"}
 
     completed = (*messages, {**reply, "text": "Both mounts fit."})
     thread = model.threads(model.reading(HUB, completed))["e1"]
-    assert thread["unread"] == [
-        {"message": identity, "version": identity} for identity in ("e4", "e8")
-    ]
+    assert thread["unread"] == {"e4": "e4", "e8": "e8"}
     assert thread["summaries"] == []
     assert {
         message["id"]: message["completed_by"]
@@ -310,10 +310,7 @@ def test_only_a_main_reply_in_the_same_thread_supersedes_progress():
             ),
         )
     )["e1"]
-    assert revised["unread"] == [
-        {"message": "e4", "version": "e4"},
-        {"message": "e8", "version": "e10"},
-    ]
+    assert revised["unread"] == {"e4": "e4", "e8": "e10"}
 
 
 def test_a_decision_on_any_message_settles_the_thread_it_belongs_to():
@@ -605,3 +602,121 @@ def test_summary_protects_the_unanswered_obligation_after_later_agent_messages()
     [summary] = thread["summaries"]
     assert summary["covers"] == ["e1", "e2"]
     assert summary["protected"] == ["e1"]
+
+
+def test_an_answer_sends_a_held_reading_only_what_changed():
+    """A browser that names the reading it holds is sent what changed since, however
+    many threads the page holds: a pick changes its widget's record and history, and
+    nothing of any thread (`served_state.tail`, and `tests/runtime/state-tail.test.mjs`
+    for the whole answer it completes to)."""
+    page = model.leaf_page(
+        "Tail",
+        '<p id="p">One.</p><lf-ask id="ask"><h2>Which?</h2>'
+        '<lf-options id="pick" choose><lf-option id="one">One</lf-option>'
+        '<lf-option id="two">Two</lf-option></lf-options></lf-ask>',
+    )
+    pick = {
+        "kind": "action",
+        "widget": "pick",
+        "action": "choose",
+        "detail": {"value": ["one"]},
+        "attempt": "tail-pick-attempt-01",
+    }
+
+    def answer(threads: int) -> dict:
+        log = [
+            message
+            for at in range(threads)
+            for message in (
+                {"kind": "comment", "text": f"Why {at}?"},
+                {
+                    "kind": "reply",
+                    "author": "agent",
+                    "parent": f"e{2 * at + 1}",
+                    "text": "So.",
+                },
+            )
+        ]
+        held = model.served_reading(page, log)["browser"]["basis"]["key"]
+        return model.served_reading(page, [*log, pick], held=held)
+
+    few, many = answer(2), answer(40)
+    assert [change["at"] for change in few["patch"]] == [
+        change["at"] for change in many["patch"]
+    ]
+    [picked] = many["events"]
+    assert picked["attempt"] == "tail-pick-attempt-01"
+    changed = {tuple(change["at"]): change for change in many["patch"]}
+    assert ("browser", "views", "1", "thread", "threads") not in changed
+    # The pick answers its widget's question and owes the agent an update.
+    obligations = changed[("browser", "views", "1", "obligations")]
+    assert [name for name, _ in obligations["changed"]] == ["widget:pick"]
+    assert [item["id"] for item in obligations["items"]] == [f"update:{picked['id']}"]
+
+
+def test_a_reply_sends_its_message_and_what_it_changed_of_its_thread():
+    """However long the thread a reply joins, its answer carries the new message and
+    the fields of the thread it changed, and none of the thread's other messages
+    (`served_state.tail`)."""
+    page = model.leaf_page("Tail", '<p id="p">One.</p>')
+
+    def thread_change(replies: int) -> list:
+        log = [
+            {"kind": "comment", "text": "Why?"},
+            *(
+                {"kind": "reply", "parent": "e1", "text": f"And {at}?"}
+                if at % 2
+                else {"kind": "reply", "author": "agent", "parent": "e1", "text": "So."}
+                for at in range(replies)
+            ),
+        ]
+        held = model.served_reading(page, log)["browser"]["basis"]["key"]
+        reply = {"kind": "reply", "parent": "e1", "text": "Thanks."}
+        tail = model.served_reading(page, [*log, reply], held=held)
+        [threads] = [
+            change
+            for change in tail["patch"]
+            if change["at"] == ["browser", "views", "1", "thread", "threads"]
+        ]
+        assert set(threads) == {"at", "by", "changed"}
+        [[name, changes]] = threads["changed"]
+        assert name == "e1"
+        return changes
+
+    short, long = thread_change(4), thread_change(40)
+    assert [change["at"] for change in short] == [change["at"] for change in long]
+    [messages] = [change for change in long if change["at"] == ["msgs"]]
+    assert set(messages) == {"at", "by", "items", "after"}
+    assert [message["text"] for message in messages["items"]] == ["Thanks."]
+
+
+def test_an_answer_to_a_reading_the_server_does_not_remember_is_whole():
+    """A key the server never named, or named so many readings ago that it has
+    forgotten it, gets the whole answer (`served_state.tail.REMEMBERED`)."""
+    from leaf.served_state.tail import REMEMBERED
+
+    page = model.leaf_page("Tail", '<p id="p">One.</p>')
+    log = [{"kind": "comment", "text": "Why?"}]
+    held = model.served_reading(page, log)["browser"]["basis"]["key"]
+    for at in range(REMEMBERED):
+        model.served_reading(page, [*log, {"kind": "comment", "text": f"And {at}?"}])
+    for key in (held, "not a key"):
+        whole = model.served_reading(page, log, held=key)
+        assert "since" not in whole, key
+        assert [event["id"] for event in whole["events"]] == ["e1"], key
+
+
+def test_one_pages_answers_leave_another_readings_remembered(monkeypatch):
+    """A process serving several pages, or a page and its live samples, remembers each
+    page's readings apart, so one page's answers never push out the reading another
+    page's tab holds (`served_state.tail.PAGES`)."""
+    from leaf.served_state import tail
+
+    monkeypatch.setattr(tail, "REMEMBERED", 1)
+    page = model.leaf_page("Tail", '<p id="p">One.</p>')
+    log = [{"kind": "comment", "text": "Why?"}]
+    first = model.served_reading(page, log)
+    later = model.served_reading(page, [*log, {"kind": "comment", "text": "And?"}])
+    held = tail.answer(deepcopy(first), None, "page")["browser"]["basis"]["key"]
+    tail.answer(deepcopy(later), None, "sample")
+    assert "since" in tail.answer(deepcopy(later), held, "page")

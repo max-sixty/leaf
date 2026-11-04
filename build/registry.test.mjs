@@ -38,9 +38,7 @@ const registry = JSON.parse(
 const tracked = (...patterns) =>
   execFileSync("git", ["ls-files", ...patterns], { cwd: root, encoding: "utf8" })
     .split("\n")
-    .filter(
-      (file) => file && !file.startsWith("dist/kernel/") && !file.includes("/vendor/"),
-    );
+    .filter((file) => file && !file.includes("/vendor/"));
 const python = tracked("src/*.py", "src/*.js");
 const browser = tracked(
   "browser/*.css",

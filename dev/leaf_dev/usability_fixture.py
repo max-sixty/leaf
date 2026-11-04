@@ -17,7 +17,7 @@ from leaf.thread import post_response
 
 
 def admit(directory: str, event: str) -> None:
-    status, body = event_endpoint.accept_event(Path(directory), json.loads(event), dict)
+    status, body = event_endpoint.accept_event(Path(directory), json.loads(event))
     assert status == 200, body
 
 

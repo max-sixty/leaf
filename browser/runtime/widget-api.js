@@ -32,7 +32,7 @@ export { fragmentUrl } from "./anchor-coordinate.js";
 export { addressableLabel, addressableWord } from "./addressable-names.js";
 // The name Threads, the margin, and reactions give a comment's anchor.
 export { anchorLabel } from "./thread/messages.js";
-// The page's `main`, or the body of the message whose markup a node stands in.
+// The authored page body, or the body of the message whose markup a node stands in.
 export { authoredScope, elementById } from "./passages.js";
 export { navigateToDatum } from "./application.js";
 // `growthIsSeen(element)`: whether the element changing size now would move what the
@@ -138,7 +138,7 @@ export {
 } from "./reading-regions.js";
 export { notice } from "./notifications.js";
 export { raiseError } from "./errors.js";
-export { alignText } from "./text-alignment.js";
+export { alignText, MAX_EDIT_LENGTH } from "./text-alignment.js";
 export { says, wrote } from "./passages.js";
 export { ago, clockValue, quietSince, shortAgo } from "./presence.js";
 export { revisionLabel } from "./context.js";
@@ -177,7 +177,7 @@ export { copyControl } from "./copy-control.js";
 // and whether a click came from the keyboard rather than a pointer.
 export { plainPress, pressIsKeyboardActivation } from "./pointer.js";
 export { onUserInput } from "./focus.js";
-export { keepView, openingView, viewMembers } from "./storage.js";
+export { keepView, openingView, viewDocument, viewMembers } from "./storage.js";
 export { highlightBlocks } from "./syntax.js";
 export {
   saidAt,

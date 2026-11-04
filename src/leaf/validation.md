@@ -9,7 +9,9 @@ directly:
 check`, activation, `page stamp` and `page init` all run ("Static validation");
 - message markup an agent hands in at `admission.check_markup`, which applies the same
   structure and vocabulary checks to an HTML fragment;
-- a layer `page init` would vendor at `composition.incoming_registry`;
+- a layer at `composition.incoming_registry`, wherever a Leaf composes its files:
+  `page init`, `page check`, serving and export, but not reading the page
+  ([layer-registry.md](layer-registry.md));
 - what only a browser can see at `page check --render` ("Browser validation").
 
 ## Static validation

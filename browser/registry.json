@@ -4,10 +4,7 @@
     "x-instructions": "Copy the current markup verbatim into lf-old and put the proposed markup in lf-new. Both slots replace, lf-new alone inserts, and lf-old alone deletes; a change to a widget also uses its complete old and new markup. Suggestions cannot nest, contain a draft, or appear in a reply. Set `resolves` to the comment whose thread should close when the user accepts. To withdraw an undecided suggestion, replace the whole `lf-suggestion` with `lf-old`'s contents. Keeping `lf-new`'s contents instead would accept it without the user's decision.",
     "type": "object",
     "properties": {
-      "id": {
-        "type": "string",
-        "pattern": "^[a-z0-9][a-z0-9-]*$"
-      },
+      "id": { "type": "string" },
       "resolves": {
         "type": "string",
         "pattern": "^[a-z0-9]+$"
@@ -53,10 +50,7 @@
     "x-instructions": "Copy the current markup verbatim, including its ids. Omit this slot for an insertion.",
     "type": "object",
     "properties": {
-      "id": {
-        "type": "string",
-        "pattern": "^[a-z0-9][a-z0-9-]*$"
-      }
+      "id": { "type": "string" }
     },
     "additionalProperties": false,
     "x-owners": ["lf-suggestion"],
@@ -70,10 +64,7 @@
     "x-instructions": "Omit this slot for a deletion.",
     "type": "object",
     "properties": {
-      "id": {
-        "type": "string",
-        "pattern": "^[a-z0-9][a-z0-9-]*$"
-      }
+      "id": { "type": "string" }
     },
     "additionalProperties": false,
     "x-owners": ["lf-suggestion"],
@@ -145,6 +136,7 @@
     "x-instructions": "Instructions for an author using this widget, read after choosing it and before writing markup. One non-empty string, separate from the short `description` and the schema.",
     "x-inline": "The element sits inline among the surrounding words. The render check therefore requires neither a width of its own nor a place where a block may stand.",
     "x-language": "The attribute that names a code language. Composing the vocabulary gives it `$languages.names` as its `enum`, so a new tag that takes a language needs only this declaration.",
+    "x-prepaint": "The attribute that names the notation of the element's written `<pre>`. Where it names `markdown`, Leaf draws that text as a Markdown file, its soft line breaks read as spaces, in a `.lf-markdown-body` beside the `<pre>` before the element's module draws: the server in the first document, the browser in a revision or a message. So the element first paints at the size its module will draw that rendering, and the module replaces it when it draws.",
     "x-reading-role": "The structural role the element plays. The only role is `pane`: a reading region, named by its required `label`, whose body scrolls on its own while the workspace is full-height. A pane holds exactly one body element, optionally between a direct `header` and `footer`; a visible heading goes in the header. Validation reads this declaration, not tag names, so a package can contribute panes under its own tags.",
     "x-measured": "A value in authored content tied to the data run that produced it. `input` names the widget's x-data input, and `run` its required receipt attribute. When the source holds a different run, `page check` warns that the measurement is stale, and `page state` reports it. Rewriting the source counts as a new run even with the same value; age alone never makes a measurement stale.",
     "x-patch": "How a revision reaches an upgraded widget the user has open. By default any change to the widget's markup replaces the whole widget, rebuilding whatever the user had open in it. `members` says the module builds beside its direct authored children, leaves them where the author wrote them or moves them all into the authored body its initial drawing builds, and reads only their attributes; those children may be native markup or declared member widgets. While a revision keeps the element's attributes and each child's tag and attributes in order, Leaf edits inside those children in place. A module that moved them into an authored body reads none of them, so there only the element's own attributes need to stay the same. Requires `x-content: members` or `markup`, and x-upgrade.",
@@ -182,7 +174,7 @@
     "writer": "`\"agent\"`: the agent writes the verb with `leaf page report`, as `report` events ($report). Without it the user writes it from the page, as `action` events. An agent verb declares an `attribute` or `value` record, so a version's markup can be compared with the report, and creates no child.",
     "text": "`true`, on an agent verb only: each report carries a non-empty `detail.text`, a short note the report feed shows as written.",
     "decides": "`true` declares the widget\u2019s one deciding user verb: it folds by widget and requires a string-enum `outcome` in its detail. That outcome selects which members retire (x-retired-when) or withdraws the proposal (x-withdrawn-as). Other verbs may use an `outcome` field without deciding semantics. Obligation answers remain the conditions in x-awaits.",
-    "contract": "An optional instance binding `{field, attribute}` on a custom-detail verb. The widget declares `attribute` as a string matching the data contract name pattern. Its authored value names one $data.contracts entry whose schema also validates the entire detail `field`; the package\u2019s base detail schema still applies. An absent attribute keeps the base schema. Page checks refuse unknown contracts, and admission reads the binding from the immutable document that sent the action. This selects an instance\u2019s payload contract without replacing the widget declaration.",
+    "contract": "An optional instance binding `{field, attribute}` on a custom-detail verb. The widget declares `attribute` a string, and composition gives it the data contract name grammar. Its authored value names one $data.contracts entry whose schema also validates the entire detail `field`; the package\u2019s base detail schema still applies. An absent attribute keeps the base schema. Page checks refuse unknown contracts, and admission reads the binding from the immutable document that sent the action. This selects an instance\u2019s payload contract without replacing the widget declaration.",
     "creates": "An x-state verb that adds a child element declares `{child, words}`: `child` is the tag it creates, and `words` names the detail field holding the child's text; the verb's `unit` field holds the child's id. While the action is in force, the widget has that child; undoing or retracting the action removes it. Admission records the child's tag in `meaning.creates`, so a reader without the registry still knows what the action made, and refuses an id the sending document already uses. It also stores the verb's state definition in `meaning.state`, so a later incompatible definition doesn't change how the action reads.",
     "record": "How the state reads in markup. `{kind: \"attribute\", attr}`: the elements inside the unit that carry `attr`, as the list of ids in `detail.value`, an array even where the widget allows one. `{kind: \"value\", attr}`: one scalar in the unit's own `attr`; `detail.value` takes that attribute's schema, so the log and the markup can't disagree. `{kind: \"body\"}`: the unit's own words. `{kind: \"position\", within}`: where the unit sits in a `within` container. `detail.unit` names the moved member (never the widget), `detail.value` the container, and `detail.rank` its sort key there: a base-36 fraction, digits 0-9a-z not ending in 0, compared as a string, ties broken by id. Authored members rank by authored order, and a widget computes a dropped member's rank between its new neighbours with `rankAt` from `runtime/widget-api.js`. The rank places the member in the same gap while later revisions author the container the same way. A revision that authors it differently absorbs the move: the member is written where the move left it, and the move can no longer be undone. Admission refuses a move made on an older revision whose container the newest one authors differently. Two tabs dropping into one gap get equal ranks, and the id order can put the later drop outside that gap. Leaf starts from the authored value (null for an absent value attribute or a verb with no record, the authored ids for an attribute set), applies the actions in force and the user's unsent updates, and renders the complete state without resetting or rebuilding the DOM on undo or refusal."
   },

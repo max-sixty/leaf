@@ -15,13 +15,15 @@ import { LAYOUT } from "./widget-upgrade.js";
 import { eventSource } from "./pointer.js";
 import { keeps } from "./keeps.js";
 
-// Scroll owners opt into reach with `scroll`. Their CSS owns overflow, including
-// changes at breakpoints; the shared rule contains positioned descendants.
-// Style discovery measures only these surfaces. Stop eligibility still checks the
-// rendered controls inside them. Reading-region registration opts its body in.
+// Scroll owners opt into reach: the page's markup with the `scroll` class, and code,
+// Leaf's or a package's, with `data-lf-scroll`, a name a page's own CSS can't reach by
+// accident. Their CSS owns overflow, including changes at breakpoints; the shared rule
+// contains positioned descendants. Style discovery measures only these surfaces. Stop
+// eligibility still checks the rendered controls inside them. Reading-region
+// registration opts its body in.
 /** @typedef {Document | Element | ShadowRoot} Scope
  * @typedef {Pick<CSSStyleDeclaration, "overflowX" | "overflowY" | "position" | "direction">} ScrollStyle */
-const SCROLL_SURFACE = ".scroll";
+const SCROLL_SURFACE = ".scroll, [data-lf-scroll]";
 /** @type {WeakMap<Element, {classes: string | null, style: string | null}>} */
 const seenDeclarations = new WeakMap();
 /** @type {WeakSet<Node>} */
@@ -143,7 +145,7 @@ watchScrolls((box) => {
 });
 /** @param {Element} el @param {((before: boolean) => void) | undefined} paintContinuation */
 export function reachReadingScroller(el, paintContinuation) {
-  el.classList.toggle("scroll", true);
+  el.toggleAttribute(PAGE_PAINT_ATTRIBUTE.scrollSurface, true);
   downwards.set(el, paintContinuation);
   sweep(el);
   paintReach();
@@ -203,7 +205,7 @@ export function reachScrollers(root) {
   paintReach();
   if (watchingSurfaces) return;
   watchingSurfaces = true;
-  watchArrivals(SCROLL_SURFACE, ["class", "style"], {
+  watchArrivals(SCROLL_SURFACE, ["class", "data-lf-scroll", "style"], {
     arriveBatch(surfaces) {
       for (const el of surfaces) {
         const classes = el.getAttribute("class");
@@ -555,7 +557,7 @@ const queries = sizeObserver(
   },
   { counted: false },
 );
-addEventListener("resize", () => reread(document.body));
+addEventListener("resize", () => reread(document.documentElement));
 // A widget can rearrange descendants without changing its outer box. ResizeObserver
 // cannot hear that case; the layer's shared geometry signal can. One repaint updates
 // every candidate and registered reading region after the new layout is stated, and

@@ -1,6 +1,8 @@
 """Which keyboard scope answers a key, and how Escape unwinds the layers in front of the
 user."""
 
+import re
+
 import pytest
 from interact_support import append_carried_log_record
 from playwright.sync_api import expect
@@ -27,7 +29,6 @@ from render_harness import (
     INLINE_PAGE,
     LONG_PAGE,
     PANEL,
-    PANEL_THREAD,
     available_commands,
     consume_browser_errors,
     draft_control,
@@ -52,6 +53,7 @@ from browser.threads import open_panel_thread
 from browser.threads.test_rewrites import _rewrite_surface
 from leaf import event_log as events_model
 from leaf.render_checks import rendered
+from leaf_dev.browser import PANEL_THREAD
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -96,7 +98,7 @@ def test_a_walked_thread_leaves_through_what_holds_it(browser, serve):
     preview = page.locator(".lf-margin-preview")
     # The view holds one thread at a time, so the walk's landings are told apart by id.
     threads = [
-        page.locator(f'.lf-margin-preview .lf-page-thread[data-thread="{root}"]')
+        page.locator(f'.lf-margin-preview .lf-page-thread[data-lf-thread="{root}"]')
         for root in roots
     ]
 
@@ -116,7 +118,7 @@ def test_a_walked_thread_leaves_through_what_holds_it(browser, serve):
     page.keyboard.press("t")
     expect(threads[1]).to_be_focused()
     page.keyboard.press("t")
-    agents = preview.locator(f'.lf-page-thread[data-thread="{asked}"]')
+    agents = preview.locator(f'.lf-page-thread[data-lf-thread="{asked}"]')
     expect(agents).to_be_focused()
     page.keyboard.press("Escape")
     expect(preview).to_be_hidden()
@@ -181,7 +183,7 @@ def test_the_thread_walk_goes_on_from_the_place_the_panel_holds(browser, serve):
     )
     page = open_page(browser, url)
     threads = [
-        page.locator(f'.lf-margin-preview .lf-page-thread[data-thread="{root}"]')
+        page.locator(f'.lf-margin-preview .lf-page-thread[data-lf-thread="{root}"]')
         for root in roots
     ]
     page.keyboard.press("t")
@@ -217,7 +219,7 @@ def test_a_layer_is_left_the_same_way_however_it_was_reached(browser, serve):
     toggle = page.locator(".lf-fp-on-user")
     marker = page.locator('[data-lf-margin-for="p"] > .lf-margin-marker')
     threads = [
-        page.locator(f'.lf-margin-preview .lf-page-thread[data-thread="{root}"]')
+        page.locator(f'.lf-margin-preview .lf-page-thread[data-lf-thread="{root}"]')
         for root in roots
     ]
 
@@ -310,7 +312,7 @@ def test_a_view_reached_from_another_view_leaves_both_of_them_shut(browser, serv
 
     page.keyboard.press("g")
     page.keyboard.press("Shift+m")
-    row = page.locator(".lf-fp-on-item[data-key*='\"widget:second-options\"']")
+    row = page.locator(".lf-fp-on-item[data-lf-key*='\"widget:second-options\"']")
     expect(row).to_be_visible()
     row.focus()
     expect(row).to_be_focused()
@@ -602,6 +604,64 @@ def test_a_dialog_shown_as_a_popover_stands_as_a_popover(browser, serve):
     assert kinds == {"popover": ["popover"], "modal": ["modal"]}
 
 
+def test_a_popover_its_control_opens_hands_the_user_back_to_the_control(browser, serve):
+    """A control that opens a popover with `popovertarget` holds the user as it opens, so
+    Escape hands them back to it. A script that opens a popover naming a control as its
+    source moves no one. Either way the control's `aria-expanded` follows the popover.
+
+    Safari and Firefox on macOS leave a pressed button unfocused, so the platform's
+    return went wherever focus stood before the press. `click()` presses the control
+    without focusing it, as those browsers do."""
+    page = open_page(browser, serve(LONG_PAGE))
+    page.evaluate("""() => {
+      const control = document.createElement('button');
+      control.id = 'menu-control';
+      control.textContent = 'Options';
+      control.setAttribute('popovertarget', 'menu');
+      control.setAttribute('aria-expanded', 'false');
+      const menu = document.createElement('div');
+      menu.id = 'menu';
+      menu.popover = 'auto';
+      menu.innerHTML = '<button>Choice</button>';
+      const opener = document.createElement('button');
+      opener.id = 'scripted-control';
+      opener.textContent = 'More';
+      opener.setAttribute('aria-expanded', 'false');
+      const list = document.createElement('div');
+      list.id = 'scripted-list';
+      list.popover = 'auto';
+      list.textContent = 'A list';
+      const outside = document.createElement('button');
+      outside.id = 'outside';
+      outside.textContent = 'Elsewhere';
+      document.querySelector('main').append(control, menu, opener, list, outside);
+      control.click();
+    }""")
+    control = page.locator("#menu-control")
+    expect(control).to_be_focused()
+    expect(control).to_have_attribute("aria-expanded", "true")
+    page.keyboard.press("Escape")
+    expect(page.locator("#menu")).to_be_hidden()
+    expect(control).to_be_focused()
+    expect(control).to_have_attribute("aria-expanded", "false")
+
+    outside = page.locator("#outside")
+    outside.focus()
+    page.evaluate("""async () => {
+      const {showNativeLayer} = await window.__lfWidgetApi();
+      showNativeLayer(document.querySelector('#scripted-list'), {
+        source: document.querySelector('#scripted-control'),
+      });
+    }""")
+    opener = page.locator("#scripted-control")
+    expect(page.locator("#scripted-list")).to_be_visible()
+    expect(opener).to_have_attribute("aria-expanded", "true")
+    expect(outside).to_be_focused()
+    page.keyboard.press("Escape")
+    expect(page.locator("#scripted-list")).to_be_hidden()
+    expect(opener).to_have_attribute("aria-expanded", "false")
+
+
 def test_a_text_box_keeps_its_keys_from_the_widget_around_it(browser, serve):
     """A widget scope may contain a text box, but its bare keys still type there.
 
@@ -623,7 +683,7 @@ def test_a_text_box_keeps_its_keys_from_the_widget_around_it(browser, serve):
             {id: 'test.widget',
              keys: ['a', 'Enter', 'Shift+ArrowLeft', 'Mod+z', 'Escape'],
              title: 'Work the widget', line: 'work widget',
-             run: (binding) => host.dataset.fired = binding},
+             runKey: (binding) => host.dataset.fired = binding},
           ] };
           commandsChanged(host);
           box.focus();
@@ -659,7 +719,7 @@ def test_radio_and_slider_keys_stay_with_the_control_inside_a_modal(browser, ser
           dialog.lfCommands = { title: 'Around native controls', rows: [{id: 'test.ancestor',
             keys: ['ArrowDown', 'Shift+ArrowRight', 'Home'],
             title: 'Work the widget', line: 'work widget',
-            run: (binding) => dialog.dataset.fired = binding}] };
+            runKey: (binding) => dialog.dataset.fired = binding}] };
           commandsChanged(dialog);
           dialog.showModal();
         }"""
@@ -1203,10 +1263,10 @@ def test_a_focused_scope_owns_its_declared_key_while_the_command_is_unavailable(
     )
     page.keyboard.press("?")
     reference = page.locator(".lf-command-reference")
-    expect(reference.get_by_role("button", name="Run outer F2")).to_have_attribute(
+    expect(reference.get_by_role("option", name="Run outer F2")).to_have_attribute(
         "data-lf-available", "false"
     )
-    expect(reference.get_by_role("button", name="Run outer F3")).to_have_attribute(
+    expect(reference.get_by_role("option", name="Run outer F3")).to_have_attribute(
         "data-lf-available", "true"
     )
     page.keyboard.press("Escape")
@@ -1293,9 +1353,9 @@ def test_holding_a_key_repeats_only_where_the_press_is_a_walk(
     page.keyboard.press("t")
     walked = page.locator(PANEL_THREAD)
     expect(walked).to_be_focused()
-    first = walked.get_attribute("data-thread")
+    first = walked.get_attribute("data-lf-thread")
     page.evaluate(press, ["t", True])  # a walk repeats
-    expect(walked).not_to_have_attribute("data-thread", first)
+    expect(walked).not_to_have_attribute("data-lf-thread", first)
     expect(walked).to_be_focused()
 
     page.keyboard.press("m")
@@ -1744,9 +1804,7 @@ def test_a_label_press_keeps_the_controls_current_keyboard_location(browser, ser
     assert offered_routes(page) == current_location
     held_obligation = page.locator("#first-question-decision[data-lf-obligation]")
     expect(held_obligation).to_have_count(1)
-    expect(
-        page.locator(".lf-location[data-for='first-question-decision']")
-    ).to_be_visible()
+    expect(held_obligation).to_have_class(re.compile(r"\blf-projected-location\b"))
     # Native label activation temporarily blurs the radio. Its logical input
     # destination remains in place until the label's click transfers focus. The
     # pointer press removes its keyboard cue without moving that location.
@@ -1850,7 +1908,7 @@ def test_escape_on_a_declaring_control_does_exactly_what_it_says(browser, serve)
     # the view the ladder would have put away stands.
     expect(page.locator(".lf-lift")).to_have_count(0)
     expect(page.locator("#col-todo #card-heater")).to_have_count(1)
-    expect(page.locator(PANEL)).to_have_attribute("data-open", "threads")
+    expect(page.locator(PANEL)).to_have_attribute("data-lf-open", "threads")
 
 
 @pytest.mark.parametrize("entry", ["walk", "option", "aim"])
@@ -1980,7 +2038,7 @@ def test_a_command_button_owns_activation_and_the_native_form_default(browser, s
             routes: [{id: 'test.form-one', title: 'First', binding: '1',
               when: () => commandForm.firstRouteAvailable},
               {id: 'test.form-two', title: 'Second', binding: '2', control: two}],
-            run: binding => commandForm.routes.push(binding),
+            runKey: binding => commandForm.routes.push(binding),
           }] };
           commandsChanged(one.form);
           commandForm.invalidate();

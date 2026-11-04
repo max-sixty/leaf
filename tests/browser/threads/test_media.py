@@ -12,7 +12,6 @@ from render_cases_interaction import live_url, panel_comment
 from render_cases_layout import solid_png
 from render_harness import (
     LONG_PAGE,
-    PANEL_THREAD,
     example_media,
     leaf_page,
     open_page,
@@ -34,6 +33,7 @@ from browser.threads import (
 from leaf import event_log as events_model
 from leaf import media as media_model
 from leaf.render_checks import rendered
+from leaf_dev.browser import PANEL_THREAD
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -281,7 +281,7 @@ def test_a_tap_at_the_comment_field_s_edge_stays_the_field_s(
     passage.click(click_count=3)
     # Under a finger the panel's field offers the selected words, and a press there
     # opens the comment box on them.
-    page.locator('.lf-fp-field leaf-text[data-says="selection"]').click()
+    page.locator('.lf-fp-field leaf-text[data-lf-says="selection"]').click()
     field = page.locator(".lf-fab-input")
     field.click()
     paste_image(field, picture())

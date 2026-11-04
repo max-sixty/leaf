@@ -19,6 +19,7 @@
    mirrored draft stayed in the box of the last native edit, clipped mid-glyph. */
 import { growthIsSeen, whenNone } from "../geometry.js";
 import { layoutPx } from "../keeps.js";
+import { drawnThreadId } from "./selectors.js";
 import { placeKeeper } from "../user-place.js";
 import { scrollerFor } from "../reading-regions.js";
 import { offFlowSurfaceOf } from "../off-flow.js";
@@ -79,7 +80,7 @@ export class ReplyContinuity {
       ? null
       : placeKeeper(scrollerFor(this.#owner), {
           items: ".lf-reply-continuity",
-          identity: (node) => node.getAttribute("data-thread"),
+          identity: drawnThreadId,
           preferred: () => this.#owner,
         });
     return { extent, place, held: place?.take({ spans: false }) };
@@ -112,15 +113,12 @@ export class ReplyContinuity {
   #keep(space) {
     if (space === this.#space) return;
     this.#space = space;
-    const value = layoutPx(space);
-    if (this.gap.style.getPropertyValue("--lf-reply-space") !== value)
-      this.gap.style.setProperty("--lf-reply-space", value);
+    this.gap.style.setProperty("--lf-reply-space", layoutPx(space));
   }
   release() {
     this.#departure?.();
     this.#departure = null;
     this.#space = 0;
-    if (this.gap.style.getPropertyValue("--lf-reply-space"))
-      this.gap.style.removeProperty("--lf-reply-space");
+    this.gap.style.removeProperty("--lf-reply-space");
   }
 }

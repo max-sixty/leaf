@@ -672,6 +672,7 @@
     "x-content": "markup",
     "x-reading-role": "pane",
     "x-upgrade": true,
+    "x-patch": "members",
     "x-verbatim": true,
     "x-example": "<lf-pane id=\"detail\" label=\"Selected record\"><p>Read the selected record.</p></lf-pane>"
   },

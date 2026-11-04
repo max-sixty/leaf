@@ -5,6 +5,7 @@
 import "./move-focus.js";
 export {
   AsyncDirective,
+  Directive,
   LitElement,
   PartType,
   createRef,

@@ -7,6 +7,7 @@ import {
   patchTree,
   setChildLists,
   setChildren,
+  setRenderedChildren,
 } from "/runtime/dom-children.js";
 import { under } from "/runtime/shadow.js";
 import { shadowStage } from "/runtime/shadow-stage.js";
@@ -363,4 +364,27 @@ test("a reorder moves only the nodes that left the run in place", () => {
   } finally {
     Element.prototype.moveBefore = nativeMove;
   }
+});
+
+test("rendered markup redrawn keeps the nodes an edit leaves and its rewritten words' node", () => {
+  const words = document.createElement("div");
+  document.body.replaceChildren(words);
+  /** @param {string} markup */
+  const draw = (markup) => {
+    const parsed = document.createElement("template");
+    parsed.innerHTML = markup;
+    setRenderedChildren(words, parsed.content.childNodes);
+  };
+  draw("<p>First.</p>\n<p>Second, being read.</p>\n<p>Third.</p>");
+  const [first, second, third] = words.children;
+  // An edit grows the first paragraph: the browser's scroll anchor in the second, and
+  // a selection in the third, stand in nodes the redraw keeps, and the first keeps its
+  // node with its words rewritten.
+  const grown = "<p>First, grown.</p>\n<p>Second, being read.</p>\n<p>Third.</p>";
+  draw(grown);
+  assert.equal(words.innerHTML, grown);
+  assert.deepEqual([...words.children], [first, second, third]);
+  // A paragraph that goes takes only itself.
+  draw("<p>First, grown.</p>\n<p>Third.</p>");
+  assert.deepEqual([...words.children], [first, third]);
 });

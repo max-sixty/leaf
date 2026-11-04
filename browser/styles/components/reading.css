@@ -216,7 +216,7 @@
 
 /* Every picture in reading content wears one face: a 1px ring in its surface's edge
    colour (`--lf-ring`, which a surface on another ground sets) and the lowest lift
-   (base.css, `--raise-1`, which an image lies at). A capture whose edge is the
+   (tokens.css, `--raise-1`, which an image lies at). A capture whose edge is the
    ground's colour, such as a screenshot of a white page, then shows where it ends: on
    the page, in a thread wherever it is drawn, and on a draft's shelf as once it is
    sent. A box that frames a picture wears the face for it by declaring
@@ -312,7 +312,7 @@ dl:is(.facts, .lf-facts) dd {
     /* A code block is sized by how many characters it takes across, which is why its size
      * is off the serif ladder above. At --code-size, the column keeps a few more than the
      * 80 characters most source is written to (about 84 at 13.5px), and a `wide` block
-     * 100 (base.css, --wide).
+     * 100 (tokens.css, --wide).
      *
      * The size and leading are tokens because plain blocks, upgraded widgets, and the diff's
      * shadow tree must keep one density through upgrade. */

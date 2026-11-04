@@ -992,7 +992,7 @@ wa-copy-button.lf-icon-action {
    block's corner (`.lf-mark-bar`, integration.css), as a code block's Copy and a
    draft's Edit, Save and Discard do. Every mark wears this one face at one size: the
    face the user chose on 22 October from the panel's fold, its icon in the dim ink and
-   full ink under the pointer, at the fold's 20px (`--mark-size`, base.css). On 25
+   full ink under the pointer, at the fold's 20px (`--mark-size`, tokens.css). On 25
    October the user gave it to the toolbars' marks as well, which had been 26px with a
    quiet wash under the pointer, a second look for the same kind of press. A seat gives
    its marks only a place and a ground: a corner mark a patch of its own, a toolbar's

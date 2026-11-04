@@ -28,7 +28,7 @@ from render_harness import (
     told,
 )
 
-from browser.navigation import expect_walk_position, walk_position
+from browser.navigation import expect_walk_position
 from leaf.render_checks import rendered, wait_until_ready
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -114,7 +114,9 @@ def test_on_me_lists_open_and_answered_obligations(browser, serve):
         "Answered: Signed tokens"
     ), answered
 
-    page.locator("[data-lf-margin-for='sug-refill'] .lf-sug-accept").click()
+    page.locator(
+        "[data-lf-margin-for='sug-refill'] [data-lf-margin-entry-key=accept]"
+    ).click()
     round_trip(page)
     open_on_me(page)
     show_done(page)
@@ -332,7 +334,9 @@ def test_an_answered_boxless_obligation_is_taken_back_from_its_card(browser, ser
     resized(page, 560, 620)
     expect_obligations_answered(page, "0/4")
 
-    page.locator("[data-lf-margin-for='sug-delete'] .lf-sug-accept").click()
+    page.locator(
+        "[data-lf-margin-for='sug-delete'] [data-lf-margin-entry-key=accept]"
+    ).click()
     round_trip(page)
     expect(page.locator("#sug-delete")).to_be_hidden()
     expect_obligations_answered(page, "1/4")
@@ -455,34 +459,42 @@ ORDERED_PAGE = leaf_page(
 )
 
 
+def ask_in_thread(page_dir, section, question):
+    """A question the agent asks the user in a thread of its own on `section`, as
+    `leaf thread create --section --obligation` does."""
+    append_carried_log_record(
+        page_dir,
+        {
+            "kind": "comment",
+            "author": "agent",
+            "agent": "Claude",
+            "revision": 1,
+            "anchor": {"section": section},
+            "text": question,
+            "obligation": True,
+        },
+    )
+
+
 def test_on_me_lists_its_cards_in_the_order_m_walks_them(browser, serve):
     """On me lists its cards in the order `m` reaches their items, by where each is on
     the page, rather than the server's order, which puts what the page asks before
-    to-dos. So successive presses of `m` outline successive cards."""
+    the questions asked in threads. So successive presses of `m` outline successive
+    cards."""
     url = serve(ORDERED_PAGE)
-    for subject, title in (
-        ("cadence", "Check the cadence"),
-        ("notes", "Check the notes"),
-    ):
-        append_carried_log_record(
-            serve.page_dir,
-            {
-                "kind": "todo",
-                "author": "agent",
-                "agent": "Agent",
-                "session": "walk-order",
-                "owner": "user",
-                "subject": {"kind": "element", "id": subject},
-                "title": title,
-            },
-        )
+    ask_in_thread(serve.page_dir, "cadence", "Can you check the cadence?")
+    ask_in_thread(serve.page_dir, "notes", "Can you check the notes?")
     page = open_page(browser, url)
     resized(page, 1440, 900)
     view = open_on_me(page)
     cards = view.locator(".lf-fp-on-item")
     expect(cards).to_have_count(3)
-    expect(cards.locator(".lf-fp-prompt")).to_have_text(
-        ["Check the cadence", "Which channel first?", "Check the notes"]
+    expect(cards).to_have_text(
+        [
+            re.compile("Can you check the cadence"),
+            re.compile("Which channel first"),
+            re.compile("Can you check the notes"),
+        ]
     )
 
     def walked():
@@ -513,20 +525,7 @@ GROUPED_PAGE = leaf_page(
 )
 
 
-def put_fork_todo(page_dir):
-    """A to-do on the user about the Implementation section's paragraph."""
-    append_carried_log_record(
-        page_dir,
-        {
-            "kind": "todo",
-            "author": "agent",
-            "agent": "Agent",
-            "session": "grouped",
-            "owner": "user",
-            "subject": {"kind": "element", "id": "reap"},
-            "title": "Try the sandboxed run on a fork",
-        },
-    )
+FORK_QUESTION = "Can you try the sandboxed run on a fork?"
 
 
 def test_the_chosen_grouping_orders_on_me_and_the_m_walk_alike(browser, serve):
@@ -537,7 +536,7 @@ def test_the_chosen_grouping_orders_on_me_and_the_m_walk_alike(browser, serve):
     reload. Either way `m` steps
     through the items in the order the list shows them, rather than in page order."""
     url = serve(GROUPED_PAGE)
-    put_fork_todo(serve.page_dir)
+    ask_in_thread(serve.page_dir, "reap", FORK_QUESTION)
     page = open_page(browser, url)
     resized(page, 1440, 900)
     view = open_on_me(page)
@@ -552,11 +551,11 @@ def test_the_chosen_grouping_orders_on_me_and_the_m_walk_alike(browser, serve):
         ]
     )
     cards = view.locator(".lf-fp-on-item")
-    expect(cards.locator(".lf-fp-prompt")).to_have_text(
+    expect(cards).to_have_text(
         [
-            "Which exit code?",
-            "Try the sandboxed run on a fork",
-            "Include self-hosted runners?",
+            re.compile("Which exit code"),
+            re.compile(re.escape(FORK_QUESTION)),
+            re.compile("Include self-hosted runners"),
         ]
     )
     # Under its place's band a card says nothing over its question.
@@ -568,18 +567,18 @@ def test_the_chosen_grouping_orders_on_me_and_the_m_walk_alike(browser, serve):
 
     chooser.select_option("kind")
     expect(groups).to_have_text(
-        [re.compile(r"^\s*Options\s*2\s*$"), re.compile(r"^\s*To-do\s*1\s*$")]
+        [re.compile(r"^\s*Options\s*2\s*$"), re.compile(r"^\s*Reply\s*1\s*$")]
     )
     page.reload()
     wait_until_ready(page)
     view = open_on_me(page)
     expect(page.get_by_role("combobox", name="Group On me")).to_have_value("kind")
     cards = view.locator(".lf-fp-on-item")
-    expect(cards.locator(".lf-fp-prompt")).to_have_text(
+    expect(cards).to_have_text(
         [
-            "Which exit code?",
-            "Include self-hosted runners?",
-            "Try the sandboxed run on a fork",
+            re.compile("Which exit code"),
+            re.compile("Include self-hosted runners"),
+            re.compile(re.escape(FORK_QUESTION)),
         ]
     )
     expect(cards.locator(".lf-fp-on-place")).to_have_text(
@@ -636,10 +635,10 @@ def test_an_answer_in_on_me_keeps_its_groups_and_the_m_walk_in_one_order(
     """An item answered in On me keeps its seat, and the groups keep their order, read
     from everything On me has held rather than from what remains, so the list and the
     `m` walk, which steps over the answered item, still agree. Grouped by kind, the
-    first question answered leaves Options above To-do, as the walk goes; its group
+    first question answered leaves Options above Reply, as the walk goes; its group
     keeps its band, two cards still under it, and counts what still waits."""
     url = serve(GROUPED_PAGE)
-    put_fork_todo(serve.page_dir)
+    ask_in_thread(serve.page_dir, "reap", FORK_QUESTION)
     page = open_page(browser, url)
     resized(page, 1440, 900)
     view = open_on_me(page)
@@ -650,7 +649,7 @@ def test_an_answer_in_on_me_keeps_its_groups_and_the_m_walk_in_one_order(
     expect(exit_code.locator(".lf-fp-said")).to_contain_text("Answered: 75")
     groups = view.locator(".lf-fp-on-group > .lf-rows-head")
     expect(groups).to_have_text(
-        [re.compile(r"^\s*Options\s*1\s*$"), re.compile(r"^\s*To-do\s*1\s*$")]
+        [re.compile(r"^\s*Options\s*1\s*$"), re.compile(r"^\s*Reply\s*1\s*$")]
     )
     runners = on_card(page, "widget:runners")
     # Where the first `m` lands depends on the reading position, so it may take a
@@ -663,16 +662,16 @@ def test_an_answer_in_on_me_keeps_its_groups_and_the_m_walk_in_one_order(
     expect(runners).to_have_attribute("data-lf-walked", "")
     expect_walk_position(page, "1 of 2 waiting on me · Options")
     page.keyboard.press("m")
-    expect_walk_position(page, "2 of 2 waiting on me · To-do")
+    expect_walk_position(page, "2 of 2 waiting on me · Reply")
 
 
 def test_an_item_arriving_above_takes_its_walk_place_and_moves_no_card_read(
     browser, serve
 ):
     """An item that joins On me while it is open takes its place in the walk's order,
-    so a to-do arriving on the page's title is the first card as `m` reaches it
-    first. The list scrolled to a later card keeps that card where it stood on screen:
-    the browser's scroll anchoring holds it as the new card grows the list above."""
+    so a question asked on the page's title is the first card as `m` reaches it first.
+    The list scrolled to a later card keeps that card where it stood on screen: the
+    browser's scroll anchoring holds it as the new card grows the list above."""
     url = serve(WALKED_PAGE)
     page = open_page(browser, url)
     resized(page, 1000, 560)
@@ -682,21 +681,10 @@ def test_an_item_arriving_above_takes_its_walk_place_and_moves_no_card_read(
     view.evaluate("view => { view.scrollTop = view.scrollHeight; }")
     read = on_card(page, "widget:pick-7")
     before = read.bounding_box()
-    append_carried_log_record(
-        serve.page_dir,
-        {
-            "kind": "todo",
-            "author": "agent",
-            "agent": "Agent",
-            "session": "walk-order",
-            "owner": "user",
-            "subject": {"kind": "element", "id": "title"},
-            "title": "Check the title",
-        },
-    )
+    ask_in_thread(serve.page_dir, "title", "Can you check the title?")
     told(page)
     expect(cards).to_have_count(9)
-    expect(cards.first).to_contain_text("Check the title")
+    expect(cards.first).to_contain_text("Can you check the title?")
     # Scroll anchoring restores the offset to the scroller's subpixel precision.
     after = read.bounding_box()
     assert after["y"] == pytest.approx(before["y"], abs=1), (before, after)
@@ -878,44 +866,6 @@ def test_an_answer_about_a_decision_rides_on_the_decisions_card(browser, serve):
     expect(
         view.locator(f'.lf-fp-on-item[data-lf-key=\'["message","message:{reply}"]\']')
     ).to_be_visible()
-
-
-def test_m_steps_off_a_decision_its_threads_card_stands_beside(browser, serve):
-    """A to-do in a thread about a decision is a stop of its own, though the thread's card
-    stands beside the decision: standing at the decision is being on the decision, so
-    `m` steps on from each to the next and reaches all three."""
-    url = serve(TWO_DECISIONS_PAGE)
-    root, _ = thread_about_the_timeline(serve.page_dir)
-    append_carried_log_record(
-        serve.page_dir,
-        {
-            "kind": "todo",
-            "author": "agent",
-            "agent": "Claude",
-            "session": "previews",
-            "owner": "user",
-            "subject": {"kind": "thread", "id": root},
-            "title": "Try the previews",
-        },
-    )
-    page = open_page(browser, url)
-    reached = [None]
-    for _ in range(3):
-        page.keyboard.press("m")
-        walk_position(page)
-        page.wait_for_function(
-            "said => (window.__lfWalkPosition()?.text ?? null) !== said",
-            arg=reached[-1],
-        )
-        reached.append(walk_position(page)["text"])
-    reached = reached[1:]
-    assert reached is not None
-    assert all(isinstance(position, str) for position in reached)
-    assert sorted(position for position in reached if position is not None) == [
-        "1 of 3 waiting on me · To-do",
-        "2 of 3 waiting on me · Options",
-        "3 of 3 waiting on me · Options",
-    ], reached
 
 
 def test_a_decision_answered_on_the_page_keeps_the_answer_it_carries_listed(

@@ -31,8 +31,8 @@ rubrics:
       where this test expects it, and the changes Leaf made to the page from the
       answer's edits. Pass only if all of these hold. A question's title names its
       subject and its text asks what the conversation leaves to the user, correctly,
-      in a way the user can answer from the card alone. A step's title is the action
-      the user takes, whole. A finding's summary says correctly what the conversation
+      in a way the user can answer from the card alone; for a step the user takes,
+      it says what to do and asks for a reply once it is done. A finding's summary says correctly what the conversation
       shows. Each change makes the page say what the conversation shows now, in the
       page's own register. Each item not labelled is one the question asks for and
       the conversation clearly shows: an ask the agent left to the user that no On me
@@ -320,7 +320,7 @@ cases:
       - from: flag-asked
     labels:
       expect:
-        - kind: step
+        - kind: question
           words: *flag-step
     assert:
       - *items
@@ -342,7 +342,7 @@ cases:
       - assistant: The page now says staging has it on.
     labels:
       absent:
-        - kind: step
+        - kind: question
           words: *flag-step
     assert:
       - *items
@@ -504,7 +504,6 @@ cases:
       - kind: todo
         author: agent
         agent: Claude
-        owner: agent
         id: t1
         ts: "2026-11-03T09:00:10+00:00"
         subject:
@@ -523,7 +522,7 @@ cases:
         input:
           command: leaf task create {page} --title "Rebuild production eu-west"
           description: Put the rebuild on my list
-        result: '{"kind": "todo", "id": "t1", "owner": "agent", "title": "Rebuild production eu-west"}'
+        result: '{"kind": "todo", "id": "t1", "title": "Rebuild production eu-west"}'
       - tool: Bash
         input:
           command: leaf task start {page} t1 --text "Rebuilding eu-west's five shards, about 40 minutes"

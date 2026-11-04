@@ -30,16 +30,17 @@ def test_releasing_a_drawing_and_its_preview_read_only_the_drawn_card(browser, s
         for number in range(40)
     )
     url = serve(leaf_page("long drawing", f"<section>{cards}</section>"))
+    # Something waiting on the user that stands at no place on the page.
     append_carried_log_record(
         serve.page_dir,
         {
-            "kind": "todo",
+            "kind": "comment",
             "author": "agent",
             "agent": "Agent",
             "session": "drawing-review",
-            "owner": "user",
-            "subject": {"kind": "page"},
-            "title": "Review the drawing",
+            "revision": 1,
+            "text": "Does the drawing cover the right card?",
+            "obligation": True,
         },
     )
     # The optional user-view audit walks the whole page. Hold its module until
@@ -52,7 +53,7 @@ def test_releasing_a_drawing_and_its_preview_read_only_the_drawn_card(browser, s
     assert (
         page.evaluate("""async () => {
       const {readQueues} = await window.__lfWidgetApi();
-      return readQueues().on_user.filter(item => item.offers.done).length;
+      return readQueues().on_user.filter(item => item.kind === "message").length;
     }""")
         == 1
     )

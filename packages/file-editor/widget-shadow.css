@@ -90,9 +90,6 @@
 :host(lf-file-editor) .lf-file-editor-choices .lf-btn {
   text-align: left;
 }
-:host(lf-file-editor) .lf-file-editor-choices .lf-btn[aria-checked="true"] {
-  color: var(--accent);
-}
 /* A row is packed against the menu's edge, so its ring is drawn inset. */
 :host(lf-file-editor) .lf-file-editor-choices .lf-btn {
   --lf-ring-at: var(--focus-ring-inset);

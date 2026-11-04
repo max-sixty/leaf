@@ -319,6 +319,8 @@ customElements.define(
         () => this.#editor?.value ?? this.#savedText,
         "Markdown",
       );
+      // Among the toolbar's marks, Copy is one of them rather than a toolbar of its own.
+      this.#copy.toggleAttribute("data-lf-bar", false);
       this.#paintTools();
       this.#ensureCommands();
     }

@@ -125,6 +125,7 @@ export const fabOptionsTrigger = offerAction(
   "Other responses",
   { action: "more" },
 );
+fabOptionsTrigger.setAttribute("data-lf-disc", "");
 fabOptionsTrigger.setAttribute("aria-controls", fabOptions.id);
 // The layer stack keeps it as the options open and close (keyboard/layer-stack.js).
 fabOptionsTrigger.setAttribute("aria-expanded", "false");

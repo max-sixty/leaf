@@ -939,36 +939,6 @@ def test_todo_validation_does_not_rewrite_obligation_identity_and_refuses_bare_s
     assert refused_on(refused.value).code == "unknown-todo"
 
 
-@pytest.mark.parametrize("state", ["answered", "withdrawn"])
-def test_user_work_can_stand_on_a_source_after_its_obligation_ends(state):
-    documents = page() if state == "answered" else {1: page(), 2: page("")}
-    events: list[dict] = (
-        [
-            {
-                "kind": "action",
-                "widget": "choice",
-                "action": "choose",
-                "detail": {"value": ["a"]},
-            }
-        ]
-        if state == "answered"
-        else []
-    )
-    events.append(
-        {
-            "kind": "todo",
-            "author": "agent",
-            "owner": "user",
-            "title": "Check rollout numbers",
-            "subject": {"kind": "widget", "id": "choice"},
-        }
-    )
-    reading = model.reading(documents, events)
-    revision = 1 if state == "answered" else 2
-    assert page_obligations(reading, revision)["all"][0]["status"] == state
-    assert reading["todos"][0]["title"] == "Check rollout numbers"
-
-
 def test_repicking_a_withdrawn_request_records_provenance_without_reclosing_thread():
     registry = deepcopy(model.model_layer())
     registry["lf-options"]["properties"]["resolves"] = {"type": "string"}

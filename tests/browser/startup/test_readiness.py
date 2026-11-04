@@ -175,7 +175,9 @@ def test_authored_page_paints_but_durable_controls_wait_for_first_replay(
     expect(choice).to_be_visible()
     choice.dispatch_event("click")
     expect(page.locator("#startup-a")).not_to_have_attribute("chosen", "")
-    suggestion_accept = page.locator("[data-lf-margin-for='sug'] .lf-sug-accept")
+    suggestion_accept = page.locator(
+        "[data-lf-margin-for='sug'] [data-lf-margin-entry-key=accept]"
+    )
     expect(suggestion_accept).to_be_disabled()
     assert suggestion_accept.evaluate(
         """button => lfUnwatched(() => {
@@ -719,7 +721,9 @@ def test_unavailable_optional_user_view_checks_create_no_agent_work(browser, ser
         page.goto(serve(SUGGESTION_PAGE), wait_until="load")
     wait_until_ready(page)
     with sending(page, "the suggestion decision"):
-        page.locator("[data-lf-margin-for='sug-refill'] .lf-sug-accept").click()
+        page.locator(
+            "[data-lf-margin-for='sug-refill'] [data-lf-margin-entry-key=accept]"
+        ).click()
     expect(page.locator("#sug-refill")).to_have_attribute("data-lf-state", "accept")
     assert not [
         event

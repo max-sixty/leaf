@@ -31,7 +31,8 @@ html[data-lf-interactive] lf-dial:not(:defined)::before {
   padding: 2px;
   border: 1px solid var(--rule);
   border-radius: calc(var(--r) * 2);
-  background: var(--paper);
+  /* Opaque, since the page scrolls under it, in the ground it stands on. */
+  background: var(--lf-ground);
   font: var(--font-compact);
 }
 .lf-dial-depths > .lf-btn {

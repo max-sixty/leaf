@@ -10,7 +10,6 @@ from render_cases_interaction import OBLIGATION_PAGE, panel_comment
 from render_cases_navigation import source_revision
 from render_harness import (
     PANEL,
-    PANEL_THREAD,
     RELEASE_FOCUS,
     consume_browser_errors,
     http_error_console,
@@ -42,6 +41,7 @@ from browser.threads import (
 from leaf import data as data_model
 from leaf import event_log as events_model
 from leaf.render_checks import rendered, wait_until_ready
+from leaf_dev.browser import PANEL_THREAD
 
 pytestmark = pytest.mark.shifts_unsurveyed
 

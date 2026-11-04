@@ -34,7 +34,6 @@ from render_cases_navigation import (
 from render_harness import (
     EXAMPLE_PACKAGES,
     IMPORTER_CARD,
-    PANEL_THREAD,
     REPLAYED_PAGE,
     REPLY_HOST_PAGE,
     TOKEN,
@@ -70,6 +69,7 @@ from leaf.registry import storage as registry_storage
 from leaf.render_checks import rendered
 from leaf.render_gate import version as render_gate_model
 from leaf.render_gate.preview import preview_server
+from leaf_dev.browser import PANEL_THREAD
 
 pytestmark = pytest.mark.shifts_unsurveyed
 

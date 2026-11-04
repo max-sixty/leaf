@@ -129,7 +129,6 @@
 
   Object.defineProperty(window, "__leafStartup", {
     value: Object.freeze({
-      milestones: () => Object.keys(startup),
       resourceNames: () => observedResources().map((entry) => entry.name),
       layoutShifts() {
         recordShifts(shiftObserver.takeRecords());

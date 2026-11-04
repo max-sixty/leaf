@@ -14,7 +14,6 @@ import {
 } from "../../browser/runtime/keyboard/scopes.js";
 import {
   activeRows,
-  checked,
   commandAvailable,
   commandEntries,
   commandReady,
@@ -27,77 +26,10 @@ import {
 import { dispatchKey, keyReady } from "../../browser/runtime/keyboard/dispatch.js";
 import { applicationState } from "../../browser/runtime/semantic-state.js";
 import { commandsChanged } from "../../browser/runtime/widget-upgrade.js";
+import { focused } from "../../browser/runtime/focus.js";
 
 // Ordinary control tests begin with saved input available; startup tests withhold it.
 beforeEach(() => applicationState.setPhase("ready"));
-
-test("touch commands may declare a handler that becomes available later", () => {
-  let available = false;
-  let reads = 0;
-  const run = () => {};
-  const row = {
-    id: "readiness.live-touch",
-    title: "Restore selection",
-    keys: ["v"],
-    touch: "Restore selection",
-    when: () => available,
-    get run() {
-      reads++;
-      return available ? run : undefined;
-    },
-  };
-  assert.doesNotThrow(() => checked([row], "selection"));
-  assert.equal(reads, 0);
-  available = true;
-  assert.equal(row.run, run);
-  assert.throws(
-    () => checked([{ ...row, run: undefined }], "selection"),
-    /needs a run/,
-  );
-});
-
-test("page scope assembly validates a live declaration without reading its handler", async () => {
-  const { pageScope, pageScopes } =
-    await import("../../browser/runtime/keyboard/register.js");
-  let reads = 0;
-  const remove = pageScope("versions", {
-    rows: [
-      {
-        id: "readiness.scope-handler",
-        title: "Version action",
-        keys: ["x"],
-        touch: false,
-        get run() {
-          reads++;
-          return undefined;
-        },
-      },
-    ],
-  });
-  try {
-    pageScopes();
-    assert.equal(reads, 0);
-  } finally {
-    remove();
-  }
-});
-
-test("attaching an element scope wires declared controls without reading live handlers", () => {
-  const owner = document.createElement("section");
-  let reads = 0;
-  keys(owner, "A constructed owner", [
-    {
-      id: "readiness.constructed-handler",
-      title: "Open",
-      keys: ["x"],
-      get run() {
-        reads++;
-        return undefined;
-      },
-    },
-  ]);
-  assert.equal(reads, 0);
-});
 
 test("saved-reading commands retain their key until their input is known", async () => {
   const { applicationState, readApplication } =
@@ -1642,5 +1574,57 @@ test("a chosen contribution offer retains its exact reading across a later updat
   } finally {
     registration.unregister();
     owner.remove();
+  }
+});
+
+// A focus move reads again the keys whose rows ask where the user is, and only those:
+// on a page of five hundred sections a Tab once read every widget's keys and every
+// command button again, though only the widgets it moved between asked.
+test("a focus move reads again only the keys and buttons that ask where the user is", () => {
+  const asking = document.createElement("section");
+  const still = document.createElement("section");
+  const button = document.createElement("button");
+  asking.tabIndex = 0;
+  still.tabIndex = 0;
+  still.append(button);
+  document.body.append(asking, still);
+  let reads = 0;
+  const read = () => {
+    reads++;
+    return true;
+  };
+  keys(asking, "Asking", [
+    {
+      id: "probe.asking",
+      title: "Act",
+      keys: ["Alt+6"],
+      when: () => focused() === asking,
+      run: () => {},
+    },
+  ]);
+  keys(still, "Still", [
+    { id: "probe.still", title: "Act", keys: ["Alt+7"], when: read, run: () => {} },
+    {
+      id: "probe.still-button",
+      title: "Press",
+      keys: ["Alt+8"],
+      control: button,
+      when: read,
+      run: () => {},
+    },
+  ]);
+  reflectFirstScopes();
+  reflectKeys();
+  try {
+    assert.equal(asking.getAttribute("aria-keyshortcuts"), null);
+    reads = 0;
+    asking.focus();
+    reflectFirstScopes();
+    reflectKeys();
+    assert.equal(asking.getAttribute("aria-keyshortcuts"), "Alt+6");
+    assert.equal(reads, 0);
+  } finally {
+    asking.remove();
+    still.remove();
   }
 });

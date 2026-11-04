@@ -59,8 +59,13 @@ with the reply in the thread's digest, and the clerk's queue (`clerk.queue`) add
 line saying a fork wrote it, for the session to correct where what it knows shows the
 reply wrong: replayed on real messages, about one fork reply in eight or more was.
 Every outcome goes to the page's diagnostics
-(`interaction_log`, type `fork_reply`), with the fork's tokens and time, which is
-what a later replay or audit scores.
+(`interaction_log`, type `fork_reply`), with the fork's tokens and time, why Leaf
+refused its answer where it did, and the request it resent (`request` in `hooks/claude-code.ts`, which says where a replay
+cuts the conversation: to `sent` while `running` lists a call, else to `row`), as
+the clerk's `turn_end_check` notes have it, which is what a later replay or audit
+scores. `leaf-dev eval 'fork-reply*' --harness claude-code --base` scores a change
+to the prompt on a short constructed conversation for each of its decisions
+(`dev/leaf_dev/fork_eval.py`).
 """
 
 import json
@@ -329,6 +334,7 @@ def cmd_reply(session_id: str, payload: dict) -> dict | None:
             usage=payload.get("usage"),
             elapsed_ms=payload.get("elapsed_ms"),
             running=payload.get("running") or [],
+            request=payload.get("request"),
         )
     return ask(session_id, basis, payload.get("running") or [])
 
@@ -417,6 +423,7 @@ def take(
     usage: dict | None = None,
     elapsed_ms: float | None = None,
     running: list[dict] | None = None,
+    request: dict | None = None,
 ) -> dict:
     """Post the fork's reply, or hand the thread to the session where it handed
     over, failed (`failed`, its reason) or gave an answer `ANSWER` refuses; what came
@@ -425,13 +432,15 @@ def take(
     from .refusals import Refused
 
     decided: dict
+    refused = None
     if answer is None:
         decided = {"hand_over": f"the fork failed: {failed}"}
     else:
         try:
             decided = read_answer(answer, ANSWER)
         except Refused as error:
-            decided = {"hand_over": str(error)}
+            refused = str(error)
+            decided = {"hand_over": refused}
     outcome: dict
     if "reply" in decided:
         outcome = _post(session_id, basis, decided["reply"])
@@ -442,9 +451,13 @@ def take(
         basis,
         {
             **outcome,
+            # A refused answer hands the thread over too; the note keeps why, as the
+            # clerk's notes a refused answer, so an audit can tell it from the fork's.
+            **({"refused": refused, "answer": answer} if refused else {}),
             "running": running or [],
             **({"usage": usage} if usage else {}),
             **({"elapsedMs": elapsed_ms} if elapsed_ms is not None else {}),
+            **({"request": request} if request else {}),
         },
     )
     return outcome
@@ -489,9 +502,10 @@ def _post(session_id: str, basis: dict, text: str) -> dict:
     except (FileNotFoundError, ReceiptRefused):
         return {"outcome": "dropped", "text": text}
     except (Rejected, Refused) as error:
-        # The reply's own checks refused it, so the session answers instead.
-        handed = _hand_over(session_id, basis, f"the reply was refused: {error}")
-        return {**handed, "text": text}
+        # The reply's own checks refused it, so the session answers instead, and the
+        # note says why, as it does for an answer `take` refused.
+        why = f"the reply was refused: {error}"
+        return {**_hand_over(session_id, basis, why), "text": text, "refused": why}
     if record is None:
         return {"outcome": "dropped", "text": text}
     queue(

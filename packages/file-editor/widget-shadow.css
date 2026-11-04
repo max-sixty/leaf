@@ -68,7 +68,8 @@
 }
 /* The conflict's choices hang from the control that names them, inward from its edge,
  * and flip above it where the window has no room below. The other two sides are taken
- * back from the popover UA rule, which centres a popover with inset 0 and auto margins. */
+ * back from the popover UA rule, which centres a popover with inset 0 and auto margins.
+ * It wears the popover face (controls.css, `.lf-popover`). */
 :host(lf-file-editor) .lf-file-editor-choices {
   position-anchor: --lf-file-editor-conflict;
   top: anchor(bottom);
@@ -81,11 +82,6 @@
   flex-direction: column;
   gap: 1px;
   padding: 4px;
-  border: 1px solid var(--border-2);
-  border-radius: var(--r);
-  background: var(--card);
-  color: var(--ink);
-  box-shadow: var(--raise-2);
   font: var(--font-ui);
 }
 :host(lf-file-editor) .lf-file-editor-choices:popover-open {
@@ -109,7 +105,8 @@
   flex-direction: column;
   min-block-size: 0;
   padding: 0.75rem 1rem 1rem;
-  background: var(--paper);
+  --lf-ground: var(--paper);
+  background: var(--lf-ground);
   border-top: 1px solid var(--border-2);
 }
 :host(lf-file-editor) .lf-file-editor-compared[hidden] {

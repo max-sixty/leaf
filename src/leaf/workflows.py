@@ -61,6 +61,8 @@ The update's record then waits on the user, and its workflow stays at `answered`
 the failed response, until the user acts again or the markup records the action.
 """
 
+from bisect import bisect_right
+from itertools import accumulate
 from operator import itemgetter
 from typing import NamedTuple
 
@@ -74,6 +76,7 @@ from .events import (
 from .obligations import collection, update_obligation
 from .projection import (
     NO_RECORD,
+    AuthoredOrders,
     PageReading,
     attribute_marks,
     generated_children,
@@ -163,12 +166,54 @@ def agent_inputs(work) -> set[str]:
     }
 
 
+class PageSettlement:
+    """What settles the page's actions, read once for all the actions in force one
+    reading weighs, so each action costs what it touches rather than the page: the
+    document's `(by_id, attribute_marks, AuthoredOrders)`, the children each owner's
+    creating actions supply, each position owner's placements (`recorded_state`), and
+    the newest revision a version's note stamped after each point in the log."""
+
+    def __init__(self, page: PageReading):
+        self.page = page
+        byid = page.document.by_id
+        self.markup = (
+            byid,
+            attribute_marks(byid, page.spoken, page.registry),
+            AuthoredOrders(byid, page.registry),
+        )
+        self.added = {
+            owner: {child["id"] for child in children}
+            for owner, children in generated_children(
+                page.projection.desired, set(byid)
+            ).items()
+        }
+        self.placements: dict = {}
+        notes = sorted(
+            (event["seq"], event["revision"])
+            for event in page.events
+            if event["kind"] == "note"
+        )
+        self._note_seqs = [seq for seq, _revision in notes]
+        # The greatest revision any note from each position on stamped.
+        self._newest_after = list(
+            accumulate(reversed([revision for _seq, revision in notes]), max)
+        )[::-1]
+
+    def versioned(self, source: dict) -> bool:
+        """Whether a version's note follows `source` in the log and stamps a revision
+        after the one it was made on."""
+        later = bisect_right(self._note_seqs, source["seq"])
+        return (
+            later < len(self._note_seqs)
+            and self._newest_after[later] > source["revision"]
+        )
+
+
 def page_action_unsettled(
     coordinate: tuple,
     source: dict,
     spec: dict,
-    page: PageReading,
-    markup: tuple[dict, dict],
+    settlement: PageSettlement,
     *,
     owed: bool,
 ) -> bool:
@@ -186,36 +231,29 @@ def page_action_unsettled(
     it, and no version has to write it in. So a pick naming one names an element
     the markup need not hold: the markup records the authored part of the pick, and
     a later version's note takes in the part only the log holds.
-
-    `markup` is the page document's `(by_id, attribute_marks)`, read once for every
-    action a reading settles.
     """
     widget, unit, _verb = coordinate
-    byid = markup[0]
+    page = settlement.page
+    byid = settlement.markup[0]
     if widget not in byid or (
         (spec.get("record") or spec.get("creates")) and unit not in byid
     ):
         return False
     reading = recorded_state(
-        coordinate, source, spec, markup, byid, page.registry, page.projection
+        coordinate,
+        source,
+        spec,
+        settlement.markup,
+        page.projection,
+        settlement.placements,
     )
-    versioned = any(
-        event["kind"] == "note"
-        and event["seq"] > source["seq"]
-        and event["revision"] > source["revision"]
-        for event in page.events
-    )
+    versioned = settlement.versioned(source)
     if reading is NO_RECORD:
         return not versioned
     shown, left = reading
     logged = False
     if spec["record"]["kind"] == "attribute":
-        added = {
-            child["id"]
-            for child in generated_children(page.projection.desired, set(byid)).get(
-                widget, []
-            )
-        }
+        added = settlement.added.get(widget, set())
         logged = any(identity in added for identity in left)
         left = [identity for identity in left if identity not in added]
     recorded = shown == left
@@ -443,13 +481,13 @@ def handed_over(
             continue
         target = {"kind": "thread", "id": thread_id}
         coordinate = ["thread", thread_id]
-        turns_by_id = {message["id"]: message for message in turns}
-        for input_id, response in failed_responses.items():
-            source = turns_by_id.get(input_id)
-            if source is None or any(
-                message["author"] != "agent" and message["seq"] > response["seq"]
-                for message in turns
-            ):
+        newest_input = max(
+            (message["seq"] for message in turns if message["author"] != "agent"),
+            default=0,
+        )
+        for source in turns:
+            response = failed_responses.get(source["id"])
+            if response is None or newest_input > response["seq"]:
                 continue
             handed_back = publish(
                 update_obligation(
@@ -499,22 +537,20 @@ def handed_over(
     # obligation the user is still answering has not been handed over, so it has no receipt
     # until the finishing action carries one. The two documents differ only in what
     # settles an action and which operation answers an owed one.
-    markup: tuple[dict, dict] | None = None
+    page_settlement: PageSettlement | None = None
 
     def page_action(coordinate: tuple, source: dict, spec: dict, owed: bool):
-        nonlocal markup
+        nonlocal page_settlement
         assert page is not None
-        if markup is None:
-            byid = page.document.by_id
-            markup = (byid, attribute_marks(byid, page.spoken, page.registry))
+        if page_settlement is None:
+            page_settlement = PageSettlement(page)
         return page_action_unsettled(
-            coordinate,
-            source,
-            spec,
-            page,
-            markup,
-            owed=owed,
+            coordinate, source, spec, page_settlement, owed=owed
         )
+
+    # Each thread's agent turns that settle frozen actions: the inputs they answer,
+    # and when the newest was said.
+    settling: dict[str, tuple[set, int]] = {}
 
     def thread_action(_coordinate: tuple, source: dict, _spec: dict, owed: bool):
         # No later authored document absorbs frozen markup, so the thread's next
@@ -531,17 +567,18 @@ def handed_over(
             thread["resolved"] and thread["resolved"]["seq"] >= source["seq"]
         ):
             return False
-        settled = any(
-            message["author"] == "agent"
-            and not message.get("failure")
-            and (
-                message.get("responds") == source["id"]
-                if owed
-                else message["seq"] > source["seq"]
+        if thread_id not in settling:
+            turns = [
+                message
+                for message in conversation_turns(thread)
+                if message["author"] == "agent" and not message.get("failure")
+            ]
+            settling[thread_id] = (
+                {message.get("responds") for message in turns},
+                max((message["seq"] for message in turns), default=0),
             )
-            for message in conversation_turns(thread)
-        )
-        return not settled
+        answered, newest = settling[thread_id]
+        return not (source["id"] in answered if owed else newest > source["seq"])
 
     holding_message = (
         widget_messages(thread_reading.structure) if thread_reading is not None else {}

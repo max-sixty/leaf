@@ -45,7 +45,7 @@ export default {
     "worker/{src/index,test/**/*}.ts",
     ".dependency-cruiser.mjs",
   ],
-  project: ["**/*.{js,mjs,cjs,ts}", "!**/vendor/**", "!dist/**"],
+  project: ["**/*.{js,mjs,cjs,ts}", "!**/vendor/**"],
   // Declarations generated per schema definition or bundle export, whichever a reader
   // selects.
   ignore: ["browser/types/{contract,lit,signals-core}.d.ts"],

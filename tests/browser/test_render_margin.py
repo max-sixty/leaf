@@ -211,8 +211,8 @@ def test_margin_target_pointer_ownership_ends_with_its_host(browser, serve):
         "y": int(box["y"] + box["height"] / 2),
     }
     page.mouse.move(pointer["x"], pointer["y"])
-    trace = page.locator('.lf-target-trace[data-for="s-replace"]')
-    expect(trace).to_be_visible()
+    traced = re.compile(r"\blf-traced\b")
+    expect(target).to_have_class(traced)
 
     suggestion = target.element_handle()
     old_host = host.element_handle()
@@ -238,9 +238,9 @@ def test_margin_target_pointer_ownership_ends_with_its_host(browser, serve):
         old_host,
     )
     expect(
-        trace,
+        target,
         "the replacement host inherited pointer ownership from its disconnected peer",
-    ).to_be_hidden()
+    ).not_to_have_class(traced)
 
     replacement = page.locator('[data-lf-margin-for="s-replace"]')
     replacement_box = replacement.bounding_box()
@@ -248,7 +248,7 @@ def test_margin_target_pointer_ownership_ends_with_its_host(browser, serve):
         int(replacement_box["x"] + replacement_box["width"] / 2),
         int(replacement_box["y"] + replacement_box["height"] / 2),
     )
-    expect(trace).to_be_visible()
+    expect(target).to_have_class(traced)
 
 
 def test_margin_target_hover_requires_pointer_movement(browser, serve):
@@ -287,14 +287,14 @@ def test_margin_target_hover_requires_pointer_movement(browser, serve):
         }""",
         arg=pointer,
     )
-    trace = page.locator('.lf-target-trace[data-for="route-ask"]')
+    target, traced = page.locator("#route-ask"), re.compile(r"\blf-traced\b")
     expect(
-        trace,
+        target,
         "moving the margin under a stationary pointer claimed pointer ownership",
-    ).to_be_hidden()
+    ).not_to_have_class(traced)
 
     page.mouse.move(pointer["x"] + 1, pointer["y"])
-    expect(trace).to_be_visible()
+    expect(target).to_have_class(traced)
 
 
 def test_a_thread_uses_a_free_margin_and_tracks_its_source(browser, serve):

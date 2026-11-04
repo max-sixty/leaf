@@ -118,7 +118,7 @@ function reactionChip({ name, glyph, label }, pressed) {
   // A toggle from the start, before the bar paints which reactions stand
   // (`paintBarReactions`), so it wears a reaction's face (controls.css).
   chip.setAttribute("aria-pressed", "false");
-  chip.dataset.token = name;
+  chip.dataset.lfToken = name;
   chip.title = label;
   chip.setAttribute("aria-label", label);
   responseAction(chip, { glyph, label: name, collapse: true });
@@ -143,7 +143,7 @@ function reactionChip({ name, glyph, label }, pressed) {
 export function paintBarReactions(anchor) {
   const by = new Map(anchorChoices(anchor).map((choice) => [choice.name, choice]));
   for (const chip of fabBar.querySelectorAll(".lf-react-palette > .lf-react")) {
-    const inForce = by.get(chip.getAttribute("data-token") ?? "")?.inForce;
+    const inForce = by.get(chip.getAttribute("data-lf-token") ?? "")?.inForce;
     keeps(chip, "aria-pressed", String(Boolean(inForce)));
   }
 }
@@ -356,7 +356,6 @@ export function createReactionController({
     // The platform hands focus back to the opener as the list closes, the layer's own
     // return (focus.js).
     if (picker) closeNativeLayer(picker.palette);
-    picker?.trigger.setAttribute("aria-expanded", "false");
   }
 
   // A page picker lives in the target's shared margin entry options and therefore owns its
@@ -447,7 +446,6 @@ export function createReactionController({
         reactDeparture = whenNone([picker.trigger], seen, () => {
           if (reactSurface === opened) setReact(false);
         });
-        picker.trigger.setAttribute("aria-expanded", "true");
         const first =
           surface &&
           reactFrom() === picker.trigger &&

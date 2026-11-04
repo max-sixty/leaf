@@ -12,12 +12,21 @@ import sys
 import pytest
 from conftest import LEAF_COMMAND
 from interact_support import (
+    ADMITTING_DEPENDENCIES,
     COMPOSITE_TIMEOUT,
+    EVERY_TURN_DEPENDENCIES,
     PLUGIN_ROOT,
+    READING_DEPENDENCIES,
     STATED_TIMEOUT,
     append_carried_log_record,
+    append_command,
+    fresh_imports,
+    leaf_main,
+    published,
     record_claim,
+    response_reference,
     serving,
+    unlisted_dependencies,
     wait_for,
 )
 
@@ -417,6 +426,7 @@ def test_the_registered_hook_leaves_library_execution_to_uv(harness, event, tmp_
         "--project",
         str(project),
         "python",
+        "-P",
         "-m",
         "leaf",
         *_registered_hook_arguments(harness, event),
@@ -504,9 +514,8 @@ def test_a_hook_in_a_session_holding_no_page_imports_no_page_reading_or_server(
     neither the page servers nor page reading: markup, registry schemas, and
     anchor capture. Run in a fresh interpreter, whose `sys.modules` is the hook's."""
     record_claim(page_dir, id="another-session")
-    probe = """\
+    program = """
 import io, json, runpy, sys
-imported = [sorted(sys.modules)]
 HOOK = ["hook", "--harness", "codex"]
 cases = (
     ("UserPromptSubmit", HOOK, None),
@@ -533,35 +542,25 @@ for event, args, turn_id in cases:
         observed = hook_turn("holds-nothing")
         assert observed["turn"] == turn_id
         assert observed["running"] == (event not in ("Stop", "Interrupt"))
-    imported.append(sorted(sys.modules))
-print(json.dumps(imported))
 """
-    done = subprocess.run(
-        [sys.executable, "-c", probe],
-        capture_output=True,
-        text=True,
-        timeout=STATED_TIMEOUT,
-        check=True,
-    )
-    heavy = (
-        "psutil",
+    _, imported = fresh_imports(program)
+    assert unlisted_dependencies(imported, EVERY_TURN_DEPENDENCIES) == {}
+    page_reading_or_serving = (
         "leaf.hosting",
-        "uvicorn",
         "leaf.http",
         "leaf.codex",
         "leaf.delivery",
         "leaf.thread",
-        "websockets",
         "leaf.hook_transport",
         "leaf.served_state.page",
         "leaf.event_contracts",
         "leaf.anchor_capture",
-        "jsonschema",
-        "markdown_it",
-        "turbohtml",
     )
-    for loaded in json.loads(done.stdout):
-        assert [module for module in heavy if module in loaded] == []
+    assert {
+        module: imported[module]
+        for module in page_reading_or_serving
+        if module in imported
+    } == {}
 
 
 def test_the_hook_transport_imports_no_page_model():
@@ -570,25 +569,53 @@ def test_the_hook_transport_imports_no_page_model():
     transport loads the schema validators, the HTML, Markdown, CSS and script
     parsers and the file watcher only where a hook reads a page, vendors it or
     watches it; each costs tens of milliseconds at every start."""
-    probe = (
-        "import sys, json, leaf.hook_transport; print(json.dumps(sorted(sys.modules)))"
-    )
-    done = subprocess.run(
-        [sys.executable, "-c", probe],
-        capture_output=True,
-        text=True,
-        timeout=STATED_TIMEOUT,
-        check=True,
-    )
-    loaded = set(json.loads(done.stdout))
-    assert {
-        "jsonschema",
-        "markdown_it",
-        "tinycss2",
-        "tree_sitter",
-        "turbohtml",
-        "watchdog",
-    } & loaded == set()
+    _, imported = fresh_imports("import leaf.hook_transport\n")
+    assert unlisted_dependencies(imported, EVERY_TURN_DEPENDENCIES) == {}
+
+
+@pytest.mark.parametrize(
+    ("process", "listed"),
+    [
+        pytest.param("Stop", READING_DEPENDENCIES, id="stop"),
+        pytest.param("UserPromptSubmit", ADMITTING_DEPENDENCIES, id="prompt"),
+        pytest.param("thread reply", ADMITTING_DEPENDENCIES, id="reply"),
+    ],
+)
+def test_a_session_holding_a_page_loads_only_the_dependencies_each_step_uses(
+    claimed, process, listed
+):
+    """A session holding a page starts Leaf at each step of every turn, and each
+    process pays at every start for what it imports. A Stop hook with nothing to hand
+    over reads the page in its layer's vocabulary, which is merged and stamped but
+    not validated (`layer-registry.md`), so it loads no schema validator. A prompt
+    hook delivering the user's comment, and the agent's reply, load the validator to
+    match handling clauses and to admit the event, and neither loads the page's
+    source checks, the server or the file watcher."""
+    published(claimed)
+    hook = ["hook", "--harness", "claude-code"]
+    payload = {"hook_event_name": process, "session_id": "s1", "prompt_id": "p1"}
+    if process == "Stop":
+        _, imported = fresh_imports(leaf_main(*hook, stdin=json.dumps(payload)))
+        assert "leaf.served_state.context" in imported, "the hook read no page"
+    else:
+        asked = append_command(
+            claimed,
+            {"kind": "comment", "author": "user", "revision": 1, "text": "Check it."},
+        )
+        printed, imported = fresh_imports(
+            leaf_main(*hook, stdin=json.dumps(payload))
+            if process == "UserPromptSubmit"
+            else leaf_main(
+                "thread",
+                "reply",
+                response_reference(claimed, asked),
+                "--ephemeral",
+                "--text",
+                "Checking.",
+            )
+        )
+        assert asked["id"] in printed, printed
+    assert unlisted_dependencies(imported, listed) == {}
 
 
 @pytest.mark.parametrize(

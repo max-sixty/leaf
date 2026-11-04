@@ -212,8 +212,8 @@ export function render(host, current, model, layout) {
             (tick) =>
               html`<span
                 class="lf-timeline-tick"
-                ?data-major=${tick.major}
-                ?data-flip=${tick.major && (tick.time / model.duration) * layout.span > layout.span - 36}
+                ?data-lf-major=${tick.major}
+                ?data-lf-flip=${tick.major && (tick.time / model.duration) * layout.span > layout.span - 36}
                 style="--lf-timeline-at: ${along(tick.time)}"
                 >${tick.label ?? nothing}</span
               >`,
@@ -245,19 +245,19 @@ export function render(host, current, model, layout) {
                 const { state, done } = stateAt(event, now);
                 return html`<div
                   class="lf-timeline-event"
-                  data-event=${event.id}
-                  data-step=${event.step}
-                  data-state=${state}
+                  data-lf-event=${event.id}
+                  data-lf-step=${event.step}
+                  data-lf-state=${state}
                 >
                   <span
                     class="lf-timeline-label"
-                    data-place=${label?.place ?? "start"}
+                    data-lf-place=${label?.place ?? "start"}
                     style="--lf-timeline-row-index: ${label?.row ?? 0}; --lf-timeline-at: ${along(event.at)}"
                     >${event.label}</span
                   >
                   <span
                     class="lf-timeline-mark"
-                    data-kind=${event.end === null ? "instant" : "span"}
+                    data-lf-kind=${event.end === null ? "instant" : "span"}
                     style="--lf-timeline-at: ${along(
                       event.at,
                     )}; --lf-timeline-span: ${along(
@@ -286,7 +286,7 @@ export function render(host, current, model, layout) {
               ${selectableOffered("button", "lf-timeline-step", "row")}
               ${generated({ says: true })}
               tabindex="0"
-              data-step=${index}
+              data-lf-step=${index}
               aria-current=${index === current ? "step" : nothing}
               ?data-lf-ahead=${index > current}
             >

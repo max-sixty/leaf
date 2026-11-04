@@ -87,7 +87,7 @@ def test_the_live_page_adopts_a_revision_and_stamps_it_without_replacing_main(
     assert "/versions/" not in page.url, (
         f"the update changed the live address to {page.url}"
     )
-    expect(page.locator(PANEL)).to_have_attribute("data-open", "threads")
+    expect(page.locator(PANEL)).to_have_attribute("data-lf-open", "threads")
     after = page.locator("#live-reading").evaluate(
         "el => el.getBoundingClientRect().top"
     )
@@ -98,7 +98,7 @@ def test_the_live_page_adopts_a_revision_and_stamps_it_without_replacing_main(
         "Draft"
     )
     versions = panel_menu(page, "versions")
-    expect(versions.locator(".lf-fp-version[data-current]")).to_contain_text(
+    expect(versions.locator(".lf-fp-version[data-lf-current]")).to_contain_text(
         "Current · Draft after v1"
     )
     page.keyboard.press("Escape")
@@ -187,8 +187,8 @@ def test_a_stamped_live_draft_and_its_unstamped_view_keep_distinct_menu_rows(
     # had followed by then would come down to whether a state read landed between the
     # two presses. The keyboard route leaves the composer open through both.
     page.locator(".lf-fp-leaf").press("Enter")
-    expect(page.locator(PANEL)).to_have_attribute("data-open", "menu")
-    page.locator('.lf-fp-item[data-row="versions"]').press("Enter")
+    expect(page.locator(PANEL)).to_have_attribute("data-lf-open", "menu")
+    page.locator('.lf-fp-item[data-lf-row="versions"]').press("Enter")
     rows = page.locator(panel_view("versions")).locator(".lf-fp-version")
     # The third revision's row is what the hold leaves the page short of.
     expect(rows).to_have_count(4)
@@ -273,7 +273,7 @@ def test_a_stamped_url_stays_pinned_while_the_live_root_follows_a_draft(browser,
         "Draft"
     )
     expect(
-        panel_menu(live, "versions").locator(".lf-fp-version[data-current]")
+        panel_menu(live, "versions").locator(".lf-fp-version[data-lf-current]")
     ).to_contain_text("Current · Draft after v1")
     expect(pinned).to_have_title("Live first")
     expect(pinned).to_have_url(re.compile(r"/versions/v1\.html"))

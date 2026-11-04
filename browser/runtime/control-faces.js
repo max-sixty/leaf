@@ -39,14 +39,17 @@
      the list stands on (`aria-current`) wears the accent's stripe and tint. A step
      still ahead of it (`data-lf-ahead`) stands in the muted ink, and the row of the
      thread whose passage the pointer is on (`.lf-mark-hover`) in that passage's
-     wash. A thread's row on the user's turn says so in its closing words.
+     wash. A row that is its group's band (`data-lf-band`), as On's Done heading is,
+     takes the band's ink. A thread's row on the user's turn says so in its closing
+     words.
    - `answer`: one of the answers a question offers, such as a decision's choices on
      an On me card, framed so the set reads as one to pick from, the chosen one
      (`aria-pressed`) marked in the ok tone as the page marks its chosen option.
    - `entry`: a margin entry, a glyph out in the page's margin whose label a pointer
      or a key reveals, framed by what it promises: an action raised, a disclosure
      ringed, a status ghosted (contribution-controls.js), with its tone
-     (`data-lf-tone`) on its glyph. One in force (`aria-pressed`), as a reaction the
+     (`data-lf-tone`) on its glyph. A change's entry, a disclosure, is raised as an
+     action is (`data-lf-kinds="change"`). One in force (`aria-pressed`), as a reaction the
      user left in the margin is, stands on the chip, and a row standing as a pin over
      its block (`data-lf-place="pin"`) fills its entries with the pin's attention
      colour.
@@ -88,7 +91,7 @@
 const ACTION_FACES = {
   symbol: "lf-icon-action",
   word: "lf-btn",
-  commit: "lf-btn primary",
+  commit: "lf-btn lf-commit",
   mark: "lf-mark-action",
   inline: "lf-inline-action",
   row: "lf-row",

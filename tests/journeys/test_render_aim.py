@@ -539,7 +539,9 @@ def test_open_draft_retains_words_when_responsive_layout_hides_its_target(
                 # panel, whether or not the page draws its target, and the user goes
                 # on there in the editor they typed in.
                 panel_field = page.locator(".lf-fp-field leaf-text")
-                expect(page.locator(".lf-fp-view:not([data-leaving])")).to_have_count(1)
+                expect(
+                    page.locator(".lf-fp-view:not([data-lf-leaving])")
+                ).to_have_count(1)
                 assert panel_field.evaluate("el => el === window.lfTypedIn")
                 assert _draft_in_view(page, words, panel_field)
                 continue
@@ -560,7 +562,7 @@ def test_open_draft_retains_words_when_responsive_layout_hides_its_target(
                     # narrow window, gives it back to the card, and the user goes on in
                     # the editor they typed in, with its caret and undo history.
                     expect(
-                        page.locator(".lf-fp-view:not([data-leaving])")
+                        page.locator(".lf-fp-view:not([data-lf-leaving])")
                     ).to_have_count(0)
                     assert field.evaluate("el => el === window.lfTypedIn")
                 assert _draft_in_view(page, words, field)

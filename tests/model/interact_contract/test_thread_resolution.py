@@ -242,7 +242,7 @@ def test_the_answer_that_settles_a_thread_acknowledges_what_it_said():
 
     def unread(*events):
         thread = model.threads(model.reading(SETTLED, (ASKED, reply, *events)))["e1"]
-        return [item["version"] for item in thread["unread"]]
+        return list(thread["unread"].values())
 
     assert unread() == ["e2"]
     assert unread(PICKED) == []

@@ -1,7 +1,5 @@
 """Widget state, record, and retirement contract validation."""
 
-from leaf.schema import DATA_CONTRACT_NAME, ELEMENT_ID
-
 from .contract import (
     deciding_outcomes,
     deciding_verbs,
@@ -23,12 +21,13 @@ def validate_widget_state_relations(
             # The created child is a row of its own: its id is the verb's fold unit,
             # so it stands on its own coordinate, and one detail field carries its
             # words. Anything else the detail carried would be state no reading keeps.
+            # `contract.detail_schema` holds the id field to the element-id grammar.
             detail = spec["detail"]
             unit, words = spec["unit"], creates["words"]
             if unit == "widget" or spec.get("record"):
                 raise registry_error("creates-unit", path, tag, verb=verb)
             expected_fields = {
-                unit: {"type": "string", "pattern": f"^{ELEMENT_ID}$"},
+                unit: {"type": "string"},
                 words: {"type": "string", "minLength": 1},
             }
             if (
@@ -57,11 +56,9 @@ def validate_widget_state_relations(
                 raise registry_error(
                     "creates-required", path, tag, verb=verb, child=child_tag
                 )
-            expected_id = {
-                "type": "string",
-                "pattern": f"^{ELEMENT_ID}$",
-            }
-            if child.get("properties", {}).get("id") != expected_id:
+            # Composition gives the child's id the same grammar
+            # (`contract.stamp_grammars`).
+            if not declares_string(child.get("properties", {}).get("id")):
                 raise registry_error(
                     "creates-id", path, tag, verb=verb, child=child_tag
                 )
@@ -137,12 +134,9 @@ def validate_widget_record_contracts(
         record = spec.get("record")
         if record is None:
             if binding := spec.get("contract"):
-                attribute = properties.get(binding["attribute"], {})
-                if (
-                    binding["field"] not in spec["detail"].get("properties", {})
-                    or not isinstance(attribute, dict)
-                    or attribute.get("type") != "string"
-                    or attribute.get("pattern") != f"^{DATA_CONTRACT_NAME}$"
+                fields = spec["detail"].get("properties", {})
+                if binding["field"] not in fields or not declares_string(
+                    properties.get(binding["attribute"])
                 ):
                     raise registry_error(
                         "verb-contract", path, tag, verb=verb, **binding

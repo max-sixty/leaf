@@ -151,7 +151,7 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
     expect(widget.locator(".lf-call-toggle")).to_have_attribute(
         "aria-label", "Collapse all 1 call-tree root"
     )
-    expect(lines.nth(0)).to_have_attribute("data-meta", "")
+    expect(lines.nth(0)).to_have_attribute("data-lf-meta", "")
     expect(lines.nth(0).locator(".lf-call-body")).to_have_text(
         "calldiff diff main → feature"
     )
@@ -189,10 +189,10 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
     expect(file_header).to_have_attribute(
         "data-lf-datum-label", "gateway/limits.py · file"
     )
-    expect(lines.nth(1)).to_have_attribute("data-root", "")
+    expect(lines.nth(1)).to_have_attribute("data-lf-root", "")
     expect(lines.nth(1)).to_have_attribute("data-lf-projection", "request-calls")
     expect(lines.nth(1)).to_have_attribute("data-lf-datum", re.compile(r".+"))
-    expect(lines.nth(2)).to_have_attribute("data-status", "added")
+    expect(lines.nth(2)).to_have_attribute("data-lf-status", "added")
     expect(lines.nth(2).locator(".lf-call-marker")).to_have_text("+")
     expect(lines.nth(2)).to_have_attribute(
         "data-lf-datum-label",

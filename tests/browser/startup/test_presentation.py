@@ -23,7 +23,6 @@ from browser.startup import _hold_startup
 from leaf import data as data_model
 from leaf import user_views as user_views_model
 from leaf.render_checks import wait_until_ready
-from leaf.schema import ELEMENT_ID
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -155,9 +154,9 @@ def test_a_sample_starts_without_its_host_s_saved_chrome(browser, serve):
     host = context.new_page()
     host.goto(url, wait_until="load")
     wait_until_ready(host.locator("#practice iframe").element_handle().content_frame())
-    expect(host.locator(PANEL)).to_have_attribute("data-rest", "mark")
+    expect(host.locator(PANEL)).to_have_attribute("data-lf-rest", "mark")
     child = host.frame_locator("#practice iframe")
-    expect(child.locator(PANEL)).to_have_attribute("data-rest", "row")
+    expect(child.locator(PANEL)).to_have_attribute("data-lf-rest", "row")
 
 
 def test_a_projected_external_link_gets_the_pages_link_treatment(browser, serve):
@@ -259,7 +258,7 @@ def test_reduced_motion_reaches_declared_shadow_stages(
     entry = {
         "description": "A package motion control.",
         "type": "object",
-        "properties": {"id": {"type": "string", "pattern": f"^{ELEMENT_ID}$"}},
+        "properties": {"id": {"type": "string"}},
         "required": ["id"],
         "additionalProperties": False,
         "x-content": "empty",
@@ -379,7 +378,7 @@ def test_settled_and_shadow_links_get_the_pages_link_treatment(browser, serve):
         "description": "A project-supplied link.",
         "type": "object",
         "properties": {
-            "id": {"type": "string", "pattern": f"^{ELEMENT_ID}$"},
+            "id": {"type": "string"},
         },
         "required": ["id"],
         "additionalProperties": False,

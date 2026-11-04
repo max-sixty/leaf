@@ -78,7 +78,7 @@ import { ago, shortAgo } from "../presence.js";
 import { retainUserIntent } from "../user-intent.js";
 import { scrollThreadIntoView, pinnedReply } from "./reply-landing.js";
 import { threadRewrites } from "./message-edit.js";
-import { newsNotice, threadChange } from "./held-news.js";
+import { NEWS_ROOM, newsNotice, threadChange } from "./held-news.js";
 import { ReplyContinuity } from "./reply-continuity.js";
 import { Transcript } from "./transcript.js";
 
@@ -333,7 +333,6 @@ export function threadReading(thread, surface, commands) {
         // Where a message's widgets stand when several drawings show it (messages.js,
         // `authoredHolders`): the primary reader's, then a margin card, then a seat.
         authoredRank: commands.authoredRank ?? (surface === "margin" ? 2 : 1),
-        reactions: surface === "outlet" ? message.reactions : null,
         workflows: message.workflows,
         leaves: leaves(message),
       }),
@@ -400,7 +399,7 @@ function wordsWidth(node) {
  * reply: import("./replies.js").ReplyCommands & import("./messages.js").MessageCommands["reply"],
  * read: Pick<ReturnType<typeof import("./read.js").createReadTracking>, "observeMessage" | "observeFeedback">,
  * reaction: Omit<import("./messages.js").MessageCommands["reaction"], "pressed">,
- * settlement: Omit<Parameters<typeof settleThread>[0], "parent" | "key" | "resolved" | "prepareLanding">,
+ * settlement: Omit<Parameters<typeof settleThread>[0], "parent" | "key" | "resolved" | "prepareLanding" | "reader">,
  * todos: {done: (id: string) => unknown},
  * landInThread: import("./replies.js").ReplyCommands["landInThread"]}} ThreadCommands */
 
@@ -689,9 +688,9 @@ export class ThreadView {
     if (model.news) notice.set(model.news);
     const news = model.news ? notice.node : nothing;
     // Its id names the surface too (`drawnThreadId`).
-    keeps(this.node, "data-thread", model.id);
-    keeps(this.node, "data-resolved", model.resolved);
-    keeps(this.node, "data-attempt", model.attempt || null);
+    keeps(this.node, "data-lf-thread", model.id);
+    keeps(this.node, "data-lf-resolved", model.resolved);
+    keeps(this.node, "data-lf-attempt", model.attempt || null);
     // A card is itself where a send or a walk stands the user, so it carries the
     // thread's name.
     keeps(this.node, "role", "group");
@@ -854,7 +853,7 @@ export class ThreadView {
     if (this.#observedHeader) this.#sizes.unobserve(this.#observedHeader);
     this.#observedHeader = null;
     this.#releaseHeaderItems();
-    this.#news.node.removeAttribute("data-room");
+    keeps(this.#news.node, "data-lf-room", null);
     this.#news.node.style.removeProperty("--lf-thread-news-start");
     this.#news.node.style.removeProperty("--lf-thread-news-visible-end");
   }
@@ -954,16 +953,16 @@ export class ThreadView {
     );
     notice.style.setProperty("--lf-thread-news-start", layoutPx(right - box.left));
     if (news) {
-      // While news stands, the notice keeps the width of the count it first showed, so
+      // While news stands, the notice holds the room of the widest count it says, so
       // later news never narrows or widens it under the pointer.
-      if (!notice.hasAttribute("data-room")) notice.dataset.room = news.text;
+      keeps(notice, "data-lf-room", NEWS_ROOM);
       const shown = shownRect(header, new Map());
       if (shown)
         notice.style.setProperty(
           "--lf-thread-news-visible-end",
           layoutPx(Math.max(0, shown.right - box.left)),
         );
-    } else notice.removeAttribute("data-room");
+    } else keeps(notice, "data-lf-room", null);
   }
 
   // Whether the progress behind the working message stood open when last drawn
@@ -1025,6 +1024,9 @@ export class ThreadView {
         model.surface === "margin" && !model.resolved
           ? (this.#marginControls?.prepareLanding ?? null)
           : this.#prepareThreadLanding,
+      // A margin card stands for the thread on the page, which a way back returns to;
+      // a seat or a primary reader's part leaves the route to choose (folding.js).
+      reader: model.surface === "margin" ? "page" : null,
       ...this.#commands.settlement,
     }).catch(() => {});
   };

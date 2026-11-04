@@ -118,7 +118,7 @@
   visibility: hidden;
   inline-size: max-content;
 }
-.lf-diff-head .lf-diff-dir[data-folder-hidden] {
+.lf-diff-head .lf-diff-dir[data-lf-folder-hidden] {
   opacity: 0;
 }
 .lf-diff-head .lf-diff-base {
@@ -138,28 +138,28 @@
 }
 /* The whole path, while the row has focus or a press is held on it
    (held-word.js), since the path's title shows only to a pointer resting on it. Only a
-   row that cuts its path short says it (`data-path-cut`, lf-diff.js), since a path the
-   row shows whole would read twice. It is drawn in a box under the row, over the rows
-   the row names, so nothing moves and the row keeps its stated height. Under the row,
-   the box stays clear of the window's top when the row is pinned, and of a finger pressing
-   the row from below. It wraps after the path's slashes (`data-path`, lf-diff.js) and
-   ends at the row's end. A press shows it once held; focus shows it at once,
-   whether the user arrived by pointer or keyboard. The row and the file's frame clip
-   what they hold, so both let it out while it shows, and the row rounds its own corners where the
-   frame's clip rounded them. The file stands over the files after it meanwhile, whose
-   rows and presses would otherwise cover a folded file's box, and keeps its own press
-   over its row. */
+   row that cuts its path short says it (`data-lf-path-cut`, lf-diff.js), since a path
+   the row shows whole would read twice. It is drawn in a box under the row, over the
+   rows the row names, so nothing moves and the row keeps its stated height. Under the
+   row, the box stays clear of the window's top when the row is pinned, and of a finger
+   pressing the row from below. It wraps after the path's slashes (`data-lf-path`,
+   lf-diff.js) and ends at the row's end. A press shows it once held; focus shows it at
+   once, whether the user arrived by pointer or keyboard. The row and the file's frame
+   clip what they hold, so both let it out while it shows, and the row rounds its own
+   corners where the frame's clip rounded them. The file stands over the files after it
+   meanwhile, whose rows and presses would otherwise cover a folded file's box, and
+   keeps its own press over its row. */
 :host(lf-diff.lf-rendered) :where(.lf-diff-file) > details > summary {
   position: relative;
 }
 .lf-diff-file:has(
   > .lf-diff-fold
-    > .lf-diff-head[data-path-cut]:is([data-lf-held-word], [data-lf-focus])
+    > .lf-diff-head[data-lf-path-cut]:is([data-lf-held-word], [data-lf-focus])
 ) {
   z-index: 4;
 }
 .lf-diff-fold:has(
-  > .lf-diff-head[data-path-cut]:is(
+  > .lf-diff-head[data-lf-path-cut]:is(
       [data-lf-held-word],
       [data-lf-focus],
       [data-lf-focus]
@@ -170,19 +170,19 @@
 :host(lf-diff.lf-rendered)
   :where(.lf-diff-file)
   > details
-  > summary[data-path-cut]:is([data-lf-held-word], [data-lf-focus]) {
+  > summary[data-lf-path-cut]:is([data-lf-held-word], [data-lf-focus]) {
   overflow: visible;
   border-start-start-radius: calc(var(--lf-diff-r-start) - 1px);
   border-start-end-radius: calc(var(--lf-diff-r-start) - 1px);
 }
 .lf-diff-fold:not([open])
-  > .lf-diff-head[data-path-cut]:is([data-lf-held-word], [data-lf-focus]) {
+  > .lf-diff-head[data-lf-path-cut]:is([data-lf-held-word], [data-lf-focus]) {
   border-end-start-radius: calc(var(--lf-diff-r-end) - 1px);
   border-end-end-radius: calc(var(--lf-diff-r-end) - 1px);
 }
-.lf-diff-head[data-path-cut]:is([data-lf-held-word], [data-lf-focus])
+.lf-diff-head[data-lf-path-cut]:is([data-lf-held-word], [data-lf-focus])
   > .lf-diff-path::after {
-  content: attr(data-path) / "";
+  content: attr(data-lf-path) / "";
   position: absolute;
   z-index: 3;
   inset-block-start: calc(100% + 4px);
@@ -570,11 +570,14 @@ pre[data-overflow="wrap"] .lf-diff-rows {
 }
 /* Container units are the visible reader width, while max-content lets source rows
    extend horizontally. Inline-size containment keeps a long remark from widening
-   the source; sticky positioning keeps the conversation in view while it scrolls. */
+   the source; sticky positioning keeps the conversation in view while it scrolls.
+   The conversation stands on the paper among the code's rows, a solid surface naming
+   its ground (package-themes.md). */
 .lf-diff-thread-outlet {
   min-width: 0;
   border-block: 1px solid var(--rule);
-  background: var(--paper);
+  --lf-ground: var(--paper);
+  background: var(--lf-ground);
   padding: 10px clamp(10px, 2vw, 18px);
   white-space: normal;
   font: var(--font-message);
@@ -624,7 +627,7 @@ pre[data-overflow="wrap"] .lf-diff-rows {
     :focus-within,
     :has(
       > leaf-composition-field > .lf-composer-media:not([hidden]),
-      > leaf-composition-field > .lf-compose-field[data-words],
+      > leaf-composition-field > .lf-compose-field[data-lf-words],
       .lf-compose-dictate[aria-pressed="true"],
       .lf-compose-error:not([hidden])
     )
@@ -673,7 +676,7 @@ pre[data-overflow="wrap"] .lf-diff-rows {
     white-space: pre-wrap;
     overflow-wrap: anywhere;
   }
-  .lf-diff-head .lf-diff-dir[data-folder-hidden] {
+  .lf-diff-head .lf-diff-dir[data-lf-folder-hidden] {
     opacity: 1;
   }
   .lf-diff-head wbr {

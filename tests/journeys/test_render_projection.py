@@ -34,7 +34,6 @@ from render_cases_navigation import (
 from render_harness import (
     EXAMPLE_PACKAGES,
     IMPORTER_CARD,
-    PANEL_THREAD,
     REPLAYED_PAGE,
     REPLY_HOST_PAGE,
     TOKEN,
@@ -70,6 +69,7 @@ from leaf.registry import storage as registry_storage
 from leaf.render_checks import rendered
 from leaf.render_gate import version as render_gate_model
 from leaf.render_gate.preview import preview_server
+from leaf_dev.browser import PANEL_THREAD
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -186,7 +186,7 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
     assert origin["path"] == ["cases", 0]
     expect(first.locator("lf-shot img")).to_have_count(2)
     expect(
-        first.locator(f'.lf-page-thread[data-thread="{case_thread["id"]}"]')
+        first.locator(f'.lf-page-thread[data-lf-thread="{case_thread["id"]}"]')
     ).to_have_count(1)
     first.get_by_role("button", name="Capture details").click()
     for label, href in (
@@ -967,7 +967,7 @@ def test_a_thread_obligation_waits_until_answered(browser, serve):
     expect_obligations_answered(page, "0/2")
 
     page.keyboard.press("m")
-    one = page.locator(f'{PANEL_THREAD}[data-thread="c-which"]')
+    one = page.locator(f'{PANEL_THREAD}[data-lf-thread="c-which"]')
     expect(one).to_be_visible()
     # The arrival stands on the question's own region; its picks are the next Tab stops.
     expect(page.locator("#tq-one-decision")).to_be_focused()

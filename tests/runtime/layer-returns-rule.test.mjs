@@ -1,40 +1,20 @@
 /* What `architecture/layer-returns` admits as a layer's return (eslint.config.mjs).
 
    A hand-back stands only in a landing's own synchronous body, a close's `close`
-   places nothing, and a return written out by hand after a hide is a layer return.
-   eslint itself lives in pre-commit's environment, not this one, so the rule's
-   visitors run here over acorn's tree, which is the ESTree eslint hands them. */
+   places nothing, and a return written out by hand after a hide is a layer return. */
 
 import assert from "node:assert/strict";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
-import { parse } from "acorn";
 import { layerReturnsRule } from "../../eslint.config.mjs";
+import { ruleReports } from "./lint-rule.mjs";
 
 const filename = fileURLToPath(
   new URL("../../browser/runtime/probe.js", import.meta.url),
 );
 
 // How many times the rule reports on `code`.
-function reports(code) {
-  let count = 0;
-  const visitors = layerReturnsRule.create({
-    filename,
-    options: [],
-    report: () => (count += 1),
-  });
-  const walk = (node, parent) => {
-    node.parent = parent;
-    visitors[node.type]?.(node);
-    for (const [key, value] of Object.entries(node)) {
-      if (key === "parent") continue;
-      for (const child of Array.isArray(value) ? value : [value])
-        if (child && typeof child.type === "string") walk(child, node);
-    }
-  };
-  walk(parse(code, { ecmaVersion: "latest", sourceType: "module" }), null);
-  return count;
-}
+const reports = (code) => ruleReports(layerReturnsRule, code, { filename }).length;
 
 test("a landing's own body may hand the user back", () => {
   for (const code of [

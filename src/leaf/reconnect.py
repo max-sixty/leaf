@@ -10,7 +10,8 @@ the agent may already have received advice before that change in either case.
 import shlex
 from pathlib import Path
 
-from .schema import EVENTS_FILE, PREVIEW_FILE
+from .event_log import initialized
+from .schema import PREVIEW_FILE
 from .service import claim_is_active, claim_records, page_claim
 from .state import session_record
 
@@ -29,7 +30,7 @@ def notices(
             claim is None
             or (claim["harness"], claim["id"]) != (harness, session_id)
             or (page_dir / PREVIEW_FILE).exists()
-            or not (page_dir / EVENTS_FILE).is_file()
+            or not initialized(page_dir)
         ):
             continue
         service = read_service(page_dir)

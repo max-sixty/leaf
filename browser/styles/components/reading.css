@@ -201,14 +201,14 @@
       inset-inline: 0;
       max-inline-size: 100cqi;
     }
-    /* A cell's marks, the ring of a cell the user is on, as a thread's target once its
-     * card closes, among them, stand inside its own box: cells meet edge to edge, and the
-     * table scrolls its columns, so it clips to its own edges, and the outer columns, the
-     * header row and the last row stand flush with them. The layer's outward ring there
-     * lost the side on the table's edge. Room outside the table would have to come from
-     * a negative margin, which overflows any scroller holding the table flush, as an
-     * x-bound box does. */
-    :is(th, td) {
+    /* The marks of a row or a cell, the ring of a cell the user is on, as a thread's
+     * target once its card closes, among them, stand inside its own box: rows and cells
+     * meet edge to edge, and the table scrolls its columns, so it clips to its own
+     * edges, and every row, the outer columns, the header row and the last row stand
+     * flush with them. An outward ring there lost the side on the table's edge. Room
+     * outside the table would have to come from a negative margin, which overflows any
+     * scroller holding the table flush, as an x-bound box does. */
+    :is(tr, th, td) {
       --lf-ring-at: var(--focus-ring-inset);
     }
   }
@@ -284,7 +284,7 @@ dl:is(.facts, .lf-facts) dd {
     /* A code block is sized by how many characters it takes across, which is why its size
      * is off the serif ladder above. At --code-size, the column keeps a few more than the
      * 80 characters most source is written to (about 84 at 13.5px), and a `wide` block
-     * 100 (base.css, --wide).
+     * 100 (tokens.css, --wide).
      *
      * The size and leading are tokens because plain blocks, upgraded widgets, and the diff's
      * shadow tree must keep one density through upgrade. */
@@ -378,9 +378,10 @@ dl:is(.facts, .lf-facts) dd {
     /* A table whose rows open with their names keeps that column in view as its other
        columns scroll sideways, since a value read without its row's name is a value
        read blind. The first cell of every row sticks at the table's start, the corner
-       over the names included, so the heading row stays aligned with the rows. Each
-       cell paints the ground it stands on, so the columns scrolling under it don't show
-       through.
+       over the names included, so the heading row stays aligned with the rows. While
+       columns lie under the names, each name's cell paints the ground it stands on, so
+       they don't show through; at the table's start it paints none, so the mark of a
+       row it stands in, drawn by the row beneath it, shows across it.
        The names stand whole at the table's start, so the fade that says columns lie
        before the scroll position (controls.css, `--lf-more-fade-start`) moves off that
        edge to the names' far side, where the columns pass under them: the same 24px
@@ -392,6 +393,11 @@ dl:is(.facts, .lf-facts) dd {
     table:has(> * > tr > th[scope="row"]:first-child) > * > tr > :first-child {
       position: sticky;
       inset-inline-start: 0;
+    }
+    table:has(> * > tr > th[scope="row"]:first-child)[data-lf-more-before]
+      > *
+      > tr
+      > :first-child {
       background: var(--lf-ground);
     }
     @media screen {

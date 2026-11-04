@@ -127,6 +127,7 @@ export const fabOptionsTrigger = offerAction(
 );
 fabOptionsTrigger.setAttribute("data-lf-disc", "");
 fabOptionsTrigger.setAttribute("aria-controls", fabOptions.id);
+// The layer stack keeps it as the options open and close (keyboard/layer-stack.js).
 fabOptionsTrigger.setAttribute("aria-expanded", "false");
 fabOptionsTrigger.popoverTargetElement = fabOptions;
 fabBar.append(fab, fabOptions);
@@ -437,7 +438,6 @@ export function createSelectionComposer({
     }
     if (next) setReact(false);
     responseOptionsOpen = next;
-    keeps(fabOptionsTrigger, "aria-expanded", String(next));
     if (next) showNativeLayer(fabOptions, { source: fabOptionsTrigger });
     else closeNativeLayer(fabOptions);
     if (next && focus) focusResponseOption(focus);

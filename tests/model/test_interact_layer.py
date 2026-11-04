@@ -70,6 +70,14 @@ from leaf.registry.contract import DECLARED_WORDS
 from leaf.render_gate import browser as browser_model
 from leaf.render_gate.preview import preview_server
 from leaf.revisioning import activate_source
+from leaf_dev.docs import DOCS, product_sources
+from leaf_dev.example_data import (
+    authored_sources,
+    data_file,
+    example_versions,
+    named_source,
+    page_files,
+)
 
 
 def storage_contract() -> tuple[list[str], list[str]]:
@@ -664,7 +672,9 @@ def test_shim_dispatches_every_command_through_one_uv_run(tmp_path, monkeypatch,
     # than whatever project the caller's directory sits in. `--no-dev` because
     # the dev group is the suite and the repo's own scripts, neither a harness's to
     # install. The module rather than the `leaf` console script because a long
-    # payload path turns the console script into a `/bin/sh` trampoline.
+    # payload path turns the console script into a `/bin/sh` trampoline. `-P`
+    # because `-m` would otherwise put the caller's directory first on the module
+    # path, where a `leaf.py` would run in Leaf's place.
     assert dispatched == [
         "run",
         "-q",
@@ -672,6 +682,7 @@ def test_shim_dispatches_every_command_through_one_uv_run(tmp_path, monkeypatch,
         "--project",
         str(PLUGIN_ROOT),
         "python",
+        "-P",
         "-m",
         "leaf",
         *args,
@@ -1370,6 +1381,64 @@ def test_the_chrome_restates_no_rule_a_page_side_sheet_already_makes():
     )
 
 
+def test_leaf_writes_its_own_marks_under_its_prefix():
+    """A class or data attribute Leaf writes on an element is `lf-` or `data-lf-`, the
+    names `page check` refuses an author, so a page's CSS for its own names never
+    reaches Leaf's elements (browser/AGENTS.md, "Leaf's elements wear only Leaf's
+    names"). Before #5050, a page rule for `.hi` turned lf-code's highlighted line blue,
+    and one for `.away` the panel's away leaf red; a rule for `.choice` once outlined a
+    playground's own choices the same way.
+
+    The names Leaf writes without its prefix are a library's, on an element Leaf draws
+    for that library to read or style: Pierre's row attributes on lf-diff's own rows,
+    and the class markdown-it gives a task item's checkbox, which the composer's editor
+    draws too.
+
+    Read from each module's source (`js_facts.mjs`, `marks`), with the classes of each
+    control face (`ACTION_FACES`, control-faces.js), so a name built from a dynamic
+    part, as `lf-${kind}` is, goes unread."""
+    libraries = {
+        "data-code",
+        "data-line-type",
+        "data-overflow",
+        "task-list-item-checkbox",
+    }
+    modules = [
+        module
+        for root in (schema_model.ASSETS, schema_model.BUNDLED_PACKAGES)
+        for module in sorted(root.rglob("*.js"))
+        if "vendor" not in module.parts
+    ]
+    marks = [
+        (f"{Path(module).relative_to(schema_model.PLUGIN_ROOT)}:{mark['line']}", mark)
+        for module, found in json.loads(js_facts("marks", modules)).items()
+        for mark in found
+    ]
+    assert len(marks) > 1000, "the reading of marks is broken"
+    faces = schema_model.ASSETS / "runtime" / "control-faces.js"
+    constants = json.loads(js_facts("literals", [faces]))[str(faces)]["constants"]
+    roles = {
+        key: value
+        for key, value in constants.items()
+        if key.startswith("ACTION_FACES.")
+    }
+    assert "ACTION_FACES.commit" in roles, "the reading of control faces is broken"
+    marks += [
+        (key, {"kind": "class", "name": name})
+        for key, value in roles.items()
+        for name in value.split()
+    ]
+    leaks = [
+        f"{where} {mark['name']}"
+        for where, mark in marks
+        if not mark["name"].startswith(
+            "data-lf-" if mark["kind"] == "attribute" else "lf-"
+        )
+        and mark["name"] not in libraries
+    ]
+    assert leaks == [], leaks
+
+
 def test_kernel_selectors_name_no_package_tag():
     """The kernel styles and finds a package widget by what its registry declares, a
     mark delivery paints such as `data-lf-space`, never by its tag: a rule naming
@@ -1570,9 +1639,7 @@ def test_controls_are_built_by_role_and_never_by_face():
     cannot draw two controls of one kind two ways. The classes of a role's face are
     spelled only in control-faces.js's `ACTION_FACES`, which `offerAction` reads; any other
     bundled module that spells one, in a string or a comment, has chosen a face itself.
-    module-authoring.md lists the roles for package authors, in the table's order.
-    `primary` and the authored `button` face are ordinary words too, so they count
-    where a string lists classes or a template's `class` attribute names them."""
+    module-authoring.md lists the roles for package authors, in the table's order."""
     owner = schema_model.ASSETS / "runtime" / "control-faces.js"
     table = re.search(r"const ACTION_FACES = \{(.*?)\};", owner.read_text(), re.DOTALL)
     assert table is not None
@@ -1582,13 +1649,7 @@ def test_controls_are_built_by_role_and_never_by_face():
     documented = re.findall(r"^- `\"(\w+)\"`, ", reference, re.MULTILINE)
     assert documented == list(roles), "module-authoring.md lists other roles"
     faces = {name for classes in roles.values() for name in classes.split()}
-    named = re.compile(
-        r"(?<![\w-])("
-        + "|".join(sorted(name for name in faces if name.startswith("lf-")))
-        + r")(?![\w-])"
-    )
-    words = {name for name in faces if not name.startswith("lf-")} | {"button"}
-    assert words == {"primary", "button"}, words
+    named = re.compile(r"(?<![\w-])(" + "|".join(sorted(faces)) + r")(?![\w-])")
     spelled = []
     for source in _bundled_modules():
         if source == owner:
@@ -1596,20 +1657,6 @@ def test_controls_are_built_by_role_and_never_by_face():
         text = source.read_text()
         where = source.relative_to(ROOT)
         spelled += [f"{where}: {match[1]}" for match in named.finditer(text)]
-        code = re.sub(r"/\*.*?\*/|(?<![:\w\"'])//[^\n]*", "", text, flags=re.DOTALL)
-        for literal in re.findall(r"([\"'`])((?:(?!\1).)*)\1", code):
-            classes = literal[1].split()
-            if (
-                len(classes) > 1
-                and all(re.fullmatch(r"[a-z][\w-]*", name) for name in classes)
-                and words & set(classes)
-            ):
-                spelled.append(f"{where}: {literal[1]}")
-        spelled += [
-            f"{where}: class={value[1]}"
-            for value in re.findall(r"class=([\"'])(.*?)\1", code)
-            if words & set(value[1].split())
-        ]
     assert not spelled, (
         "build these controls with offerAction or offeredAction by role:\n"
         + "\n".join(spelled)
@@ -1622,7 +1669,8 @@ def test_every_ring_stands_at_a_kind_of_box():
     `--lf-ring-at` in Leaf's sheets names its kind's token rather than a length, so a
     change to a kind reaches every box of it, and so does every `outline-offset`, which
     otherwise reads that declaration: every box's (surfaces.css), the floor's, and the
-    overlay's boxes, which take the gap their placement writes (`--lf-mark-offset`)."""
+    marks a box draws round itself, which stand at their band's gap (`--lf-band-gap`),
+    itself read from `--lf-ring-at`."""
     kinds = {
         "0",
         "var(--focus-region-gap)",
@@ -1632,7 +1680,7 @@ def test_every_ring_stands_at_a_kind_of_box():
     reads = {
         "var(--lf-ring-at, 0px)",
         "var(--lf-ring-at, var(--focus-ring-gap))",
-        "var(--lf-mark-offset)",
+        "var(--lf-band-gap)",
     }
     allowed = {"--lf-ring-at": kinds, "outline-offset": kinds | reads}
     stated = [
@@ -1983,8 +2031,8 @@ def test_no_rule_rounds_a_box_edged_on_one_side(tmp_path):
     """A box marked by a thick edge on one side is not also rounded (browser/AGENTS.md,
     "Visual treatment carries meaning"): a stripe bent around a corner reads as decoration rather than a
     contour, and marks a state another face already shows. A state is one whole contour,
-    or a stripe on a square box. Leaf's own sheets and pages are read, a page's from its
-    `<style>` and the sheets shipped beside it, the corpus's merged copy aside, and a
+    or a stripe on a square box. Leaf's own sheets and pages are read, an authored page's
+    from each version's `<style>` and the sheets shipped beside it, and a
     stripe is a side's border of 2px or more or an inset shadow offset
     along one axis only. A transparent side draws no edge: it keeps a stripe's room,
     as every row does for the current row's stripe (controls.css, `.lf-row`). The
@@ -2026,17 +2074,14 @@ def test_no_rule_rounds_a_box_edged_on_one_side(tmp_path):
         for sheet in sorted(root.rglob("*.css"))
         if "vendor" not in sheet.parts
     ]
-    for root in (ROOT / "examples", ROOT / "docs"):
-        sheets += [
-            (sheet.relative_to(ROOT), sheet)
-            for sheet in sorted(root.rglob("*.css"))
-            if not sheet.parent.name.startswith("corpus")
-        ]
-    for page in sorted(
-        [*(ROOT / "examples").rglob("*.html"), *(ROOT / "docs").glob("*.html")]
-    ):
-        if page.name.startswith("corpus"):
-            continue
+    authored = authored_sources()
+    sheets += [
+        (sheet.relative_to(ROOT), sheet)
+        for root in (DOCS, *map(page_files, authored))
+        for sheet in sorted(root.rglob("*.css"))
+    ]
+    versions = [version for source in authored for version in example_versions(source)]
+    for page in sorted([*product_sources(), *versions]):
         styles = re.findall(r"<style[^>]*>(.*?)</style>", page.read_text(), re.DOTALL)
         if styles:
             sheet = tmp_path / page.relative_to(ROOT).with_suffix(".css")
@@ -2528,17 +2573,22 @@ def test_reading_a_page_composes_only_its_layers_vocabulary(
             'export { x } from "/runtime/semantic-state.js";\n',
             "imports private kernel module",
         ),
+        (
+            "registry.json",
+            '{"$languages": {"paths": {".notes": "notes"}}}\n',
+            "$languages.names does not declare",
+        ),
     ],
-    ids=["sheet", "module"],
+    ids=["sheet", "module", "registry"],
 )
 def test_a_package_that_stops_composing_is_refused_where_the_page_is_served(
     tmp_path, monkeypatch, path, contents, named
 ):
     """`page init` refuses a package that doesn't compose, but its copy in the page can
     stop composing later, edited in place or read by a stricter Leaf. Reading the
-    page's state needs no package sheet or module, so the page reads on, and `page
-    check` and a server about to bind (`http.page_endpoint`, which `server start`
-    runs) refuse it, naming the repair."""
+    page's state needs no package sheet or module, nor a validated registry, so the
+    page reads on, and `page check` and a server about to bind (`http.page_endpoint`,
+    which `server start` runs) refuse it, naming the repair."""
     from leaf.http import page_endpoint
 
     monkeypatch.chdir(tmp_path)
@@ -2554,10 +2604,15 @@ def test_a_package_that_stops_composing_is_refused_where_the_page_is_served(
     )
     assert made.exit_code == 0, made.output
     (page / "index.html").write_text(leaf_page("Notes", '<p id="n">Ship Tuesday.</p>'))
+    stamped = runner.invoke(cli_model.cli, ["page", "stamp", str(page), "--text", "v1"])
+    assert stamped.exit_code == 0, stamped.output
     (page / schema_model.PACKAGES_DIR / "notes" / path).write_text(contents)
 
-    state = runner.invoke(cli_model.cli, ["page", "state", str(page)])
-    assert state.exit_code == 0, state.output
+    # A process of its own, as a hook is, which composes the layer afresh.
+    state = subprocess.run(
+        [*LEAF_COMMAND, "page", "state", str(page)], capture_output=True, text=True
+    )
+    assert state.returncode == 0, state.stderr
     checked = runner.invoke(cli_model.cli, ["page", "check", str(page)])
     assert checked.exit_code == 1
     [finding] = json.loads(checked.output)["findings"]
@@ -4540,17 +4595,15 @@ def test_data_set_refuses_a_visual_run_the_widget_cannot_show(
     that repeats an id or names a URL that parser refuses, rather than storing a run
     the widget cannot show."""
     monkeypatch.chdir(tmp_path)
-    example = Path(__file__).parents[2] / "examples" / "developer"
+    gallery = named_source("visual-review-gallery")
     page = tmp_path / "visual-review"
     runner = CliRunner()
     initialized = runner.invoke(
         cli_model.cli, ["page", "init", "--package", "visual-review", str(page)]
     )
     assert initialized.exit_code == 0, initialized.output
-    shutil.copy(example / "visual-review-gallery.html", page / "index.html")
-    run = json.loads((example / "visual-review-gallery.data.json").read_text())[
-        "gallery-visual-run"
-    ]
+    shutil.copy(gallery, page / "index.html")
+    run = json.loads(data_file(gallery).read_text())["gallery-visual-run"]
 
     def data_set(value):
         return runner.invoke(
@@ -5000,7 +5053,7 @@ def instruction_page(tmp_path: Path, monkeypatch):
             },
         }
     )
-    owner["properties"]["source"] = {"type": "string", "pattern": "^[a-z][a-z0-9-]*$"}
+    owner["properties"]["source"] = {"type": "string"}
     registry["lf-instruction-owner"] = owner
     registry[".instruction-summary"] = {
         "description": "A summary of the selected inputs.",

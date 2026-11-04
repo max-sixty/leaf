@@ -3,10 +3,7 @@
     "description": "Shared sticky playback controls for authored animations or video comparisons, with play, pause, replay, speed and a timeline. Its body holds all compared previews.",
     "type": "object",
     "properties": {
-      "id": {
-        "type": "string",
-        "pattern": "^[a-z0-9][a-z0-9-]*$"
-      },
+      "id": { "type": "string" },
       "duration": {
         "type": "string",
         "pattern": "^[1-9][0-9]*$"

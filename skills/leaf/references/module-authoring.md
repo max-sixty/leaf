@@ -446,8 +446,7 @@ face, symbol and name to an existing node. The roles are:
 - `"proxy"`, a hidden keyboard stand-in for something the pointer takes by itself, such
   as a phrase that explains; give that thing the ring its focus draws.
 
-`className` places the control and may set its type and size, never its face. Use a
-symbol where a standard
+`className` places the control; don't restyle its face. Use a symbol where a standard
 symbol for the action exists, one readers know from other software, and words where
 none does.
 Shared control styles (`page-layout.md`, "Page CSS and Leaf's controls") apply to
@@ -476,8 +475,9 @@ template, write `<h2 ${generated({ says: true })}>`. `wrote()` then leaves them 
 and a comment's quote doesn't run across them into the author's words. Don't write the
 `data-lf-gen`, `data-lf-said` or `data-lf-echo` attributes yourself.
 
-For changing text, use `page-layout.md`, "Space for changing text";
-the same `data-room` layout applies to authored and generated controls.
+A module writes `data-lf-room` where a page writes `data-room` (`page-layout.md`,
+"Space for changing text"), and `lf-choice` where it writes `choice`, so the page's
+CSS for them reaches only its own controls.
 
 A widget can upgrade inside a shut panel where every box measures zero, so take
 measurements inside `measure(element, take)`, which runs `take` once the element has a

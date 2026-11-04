@@ -159,9 +159,6 @@ browser assets and the packages into a page's layer.
 - `build/`: the build of every generated browser file (`build/AGENTS.md`). A
   `vendor/` directory, such as `browser/vendor/`, holds generated browser
   modules, not only third-party code.
-- `dist/kernel/`: the compiled core runtime pages run, generated and
-  committed; it is a delivery form of the runtime, not a skill or an
-  installation root.
 - `dev/`: the `leaf-dev` developer commands
   (`dev/AGENTS.md`).
 - `worker/`: the Cloudflare Worker and containers behind <https://leaf.page/>
@@ -215,20 +212,21 @@ cache and follow `main`. Claude Code's `--plugin-dir` and local-path marketplace
 plugins can load in place instead; point Codex at the git source, since its
 local-directory marketplace also copies a checkout's `.venv`. Nothing is built
 at install time: installing, authoring pages, writing custom packages and
-exporting need no browser build or npm. Pages run the browser runtime the serving
-install holds: the kernel committed in `dist/kernel/` while it matches the tree's
-modules, and the source modules where a merge has left it stale
-(`leaf.runtime_selection.read_runtime`). `bin/leaf` is `uv run --no-dev` on the tree, so
-the install must be writable, and Leaf writes nothing else there. A plugin
-update may replace the directory, so anything that must survive one belongs in
-the page directory or the state home.
+exporting need no browser build or npm. Pages run the browser runtime's source
+modules from the serving install, so a runtime change takes no build. Only a
+prepared installation, such as the website's container, compiles them into a
+kernel (`build/runtime-bundle.mjs`, `leaf.runtime_selection.read_runtime`).
+`bin/leaf` is `uv run --no-dev` on the tree, so the install must be writable,
+and Leaf writes nothing else there. A plugin update may replace the directory,
+so anything that must survive one belongs in the page directory or the state
+home.
 
 Runtime dependencies,
 including a bundled package script's, state a minimum version and no maximum. The
 host supplies Chrome and `jq`; Leaf never downloads a browser.
 
 Every tracked byte ships in every install and stays in history, so the tree holds
-no binary or large files except the kernel. An image a tool here reads lives in
+no binary or large files except the generated `vendor/` bundles. An image a tool here reads lives in
 `max-sixty/leaf-assets`, pinned by
 `leaf-assets.json`. Publish there as part of the change that needs it, with no
 separate approval, since publishing moves only this checkout's pin; the
@@ -315,6 +313,14 @@ segments that Python and the browser collapse and resolve by the same rules.
 the rendered page can't resolve. Repeated text with no context to pick one copy
 detaches instead of falling back to order or offsets.
 
+Each fact Leaf derives about the page is derived once, and each place that
+reports the page selects what its purpose needs. Whatever a delivery tells the
+agent about an event, apart from what it asks of the agent at the time (`answer`,
+`handling`, `waiting`), `leaf page state` tells a later session about the same
+event, or the message as it now reads, under the same name and from the same code
+(`event_facts.py`). A fact about the past, such as the settings the user had open
+when they wrote, is derived from the log and never stored as a second copy.
+
 ### Keep the layer open
 
 No code outside a content widget's module names it, so a new widget family needs
@@ -361,7 +367,7 @@ landing paths run them too. The website's delivery checks (the site build, the
 Worker's dry-run deploy, `leaf-dev verify-site website-worker`) run on a pull
 request and in `publish-site`, but not in `wt merge`.
 
-For a change that can alter browser startup, compare base and candidate: served
+For a change that can alter browser startup, compare base and head: served
 previews for a runtime change, `leaf-dev verify-site website-worker` for site
 delivery, Worker routing or containers. Read the comparison by phase (the
 document arriving, widgets upgrading, the page first showing the server's

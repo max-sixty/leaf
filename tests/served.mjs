@@ -1,4 +1,4 @@
-/* Served threads, workflows and activity, as `/api/state` sends them.
+/* Served threads, workflows, activity and whole answers, as `/api/state` sends them.
 
    Each importing process reads what `tests/served_records.py` folds through the
    server, so it carries every field the server sends. A test changes only the
@@ -40,6 +40,33 @@ export function servedActivity({ counts = {}, ...changes } = {}) {
   return { ...activity, counts: { ...activity.counts, ...counts } };
 }
 
+// The whole answer for a page with an empty log. An answer nests records, so
+// `changes` reach into them: a record this answer sends with fields is changed
+// field by field, and naming a field it lacks throws. Any other value is replaced:
+// a list, a record sent empty (a map, such as `files`), or a null. Replacing a
+// record or a list with a value of another kind throws. What a replaced list or
+// map holds, and what replaces a null, go unchecked.
+export const servedState = (changes = {}) =>
+  nested(structuredClone(RECORDS.state), changes, "state");
+
+const kind = (value) =>
+  Array.isArray(value) ? "list" : value?.constructor === Object ? "record" : "value";
+function nested(record, changes, path) {
+  for (const [field, value] of Object.entries(changes)) {
+    const at = `${path}.${field}`;
+    if (!Object.hasOwn(record, field))
+      throw new Error(`The server sends no ${path} field ${field}`);
+    const held = record[field];
+    if (kind(held) !== "value" && kind(value) !== kind(held))
+      throw new Error(`The server sends ${at} as a ${kind(held)}`);
+    record[field] =
+      kind(held) === "record" && Object.keys(held).length > 0
+        ? nested(held, value, at)
+        : value;
+  }
+  return record;
+}
+
 // A whole served reading, `{ threads, workflows }`, whose premise is the named case.
 export function servedReading(name) {
   if (!Object.hasOwn(RECORDS.readings, name))
@@ -54,6 +81,10 @@ export const servedObligationRow = (item, changes) =>
 
 // The same admitted undo/refusal/revision sequence used by the Python fold test.
 export const servedGestureSequence = () => structuredClone(RECORDS.gestures);
+
+// Answers that complete a reading the browser holds, `{name, held, tail, whole}`:
+// that reading, the answer to a request naming it, and the whole answer.
+export const servedTails = () => structuredClone(RECORDS.tails);
 
 // Cross-runtime typed obligation values use the same real server fold.
 export const servedObligationValues = () => structuredClone(RECORDS.obligation_values);

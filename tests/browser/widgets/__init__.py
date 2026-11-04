@@ -28,7 +28,7 @@ def expect_accept_all(page, count):
     """Read the leaf's menu offering Accept all for `count` pending suggestions, enabled,
     then put the menu away; `count` 0 reads no such row at all."""
     menu = panel_menu(page)
-    row = menu.locator('.lf-fp-item[data-row="blanket:accept"]')
+    row = menu.locator('.lf-fp-item[data-lf-row="blanket:accept"]')
     if count:
         expect(row).to_be_enabled()
         expect(row).to_contain_text(f"Accept all ({count})")

@@ -7,7 +7,12 @@
    they did, so it is sent on its own, once, and a failure costs only a fact the page
    will observe again; it neither waits behind a gesture nor holds one up. */
 import { runtime } from "./context.js";
-import { completeData, postEvent, reportCarried } from "./layer-client.js";
+import {
+  completeState,
+  heldReading,
+  postEvent,
+  reportCarried,
+} from "./layer-client.js";
 import { afterScript } from "./rendering.js";
 import { holdingError, raiseError } from "./errors.js";
 
@@ -71,7 +76,7 @@ export function createDelivery({
       if (!ledger.nameEvents(entry)) return { accepted: null };
       const { event } = entry;
       if (entry.admitted) return { accepted: entry.admitted };
-      const held = runtime.data;
+      const held = heldReading();
       const sent = await Promise.race([
         postEvent(event, held).then(
           (response) => ({ response }),
@@ -114,17 +119,16 @@ export function createDelivery({
       /** @type {EventAnswer} */
       const answer = decoded.answer;
       if (acceptedAnswer(sent.response, answer)) {
-        // An accepted answer settles this gesture only once its state holds the receipt.
-        const accepted = answer.state.browser?.receipts?.find(
+        // An accepted answer settles this gesture only once its state holds the receipt:
+        // the logged event that carries its attempt.
+        const state = completeState(answer.state, held);
+        const accepted = state.events.findLast(
           (candidate) => candidate.attempt === event.attempt,
         );
         if (accepted)
           return {
             accepted,
-            application: applyAnswerState(
-              applyAcceptedState,
-              completeData(answer.state, held),
-            ),
+            application: applyAnswerState(applyAcceptedState, state),
           };
       }
       if (
@@ -133,7 +137,7 @@ export function createDelivery({
       ) {
         return {
           accepted: null,
-          ...(answer.state ? { state: completeData(answer.state, held) } : {}),
+          ...(answer.state ? { state: completeState(answer.state, held) } : {}),
           refusal: `Couldn't ${event.kind === "edit" ? "save the edit" : "take this"} — ${answer.error || "it was refused"}`,
         };
       }
@@ -203,7 +207,7 @@ export function createDelivery({
 // and "unreached" when no complete answer came back, which a later send may still get.
 /** @param {import("../types/contract.js").BrowserCommand} event @param {ApplyState} applyState */
 export async function deliverBookkeeping(event, applyState) {
-  const held = runtime.data;
+  const held = heldReading();
   let response;
   try {
     response = await postEvent(event, held);
@@ -219,7 +223,7 @@ export async function deliverBookkeeping(event, applyState) {
     return "unreached";
   }
   if (answer && answer.state)
-    await applyAnswerState(applyState, completeData(answer.state, held));
+    await applyAnswerState(applyState, completeState(answer.state, held));
   return acceptedAnswer(response, answer)
     ? "accepted"
     : refusedAnswer(answer)

@@ -55,32 +55,20 @@ lf-shot {
   min-inline-size: var(--aim-floor);
   anchor-name: --lf-shot-options;
 }
+/* The options hang below their trigger, or above it where the window has no room
+   below, on the popover face (controls.css, `.lf-popover`). */
 .lf-shotoptions {
   box-sizing: border-box;
   position: fixed;
-  inset: 0;
-  margin: auto;
+  position-anchor: --lf-shot-options;
+  position-area: bottom span-left;
+  position-try-fallbacks: flip-block;
+  inset: auto;
+  margin: var(--sp-2) 0;
   inline-size: max-content;
   max-inline-size: calc(100vw - 32px);
   padding: var(--sp-2);
-  border: 1px solid var(--border-2);
-  border-radius: var(--r);
-  background: var(--paper);
-  color: var(--ink);
-  box-shadow: var(--raise-2);
   font: var(--font-compact);
-}
-@supports (position-area: bottom) {
-  .lf-shotoptions {
-    position-anchor: --lf-shot-options;
-    position-area: bottom span-left;
-    inset: auto;
-    margin: var(--sp-2) 0;
-    position-try-fallbacks: flip-block;
-  }
-}
-.lf-shotoptions::backdrop {
-  background: transparent;
 }
 .lf-shot-scale-options {
   display: flex;

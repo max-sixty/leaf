@@ -24,6 +24,7 @@ from render_harness import (
     post_event,
     resized,
     round_trip,
+    show_done,
     told,
 )
 
@@ -38,7 +39,7 @@ ON_ME = panel_view("queue")
 def open_on_me(page):
     """Open On me by its mark, unless it stands open, and return its view; another
     view standing open is put away first, by the ✕ in the mark's seat."""
-    shown = page.locator(PANEL).get_attribute("data-open")
+    shown = page.locator(PANEL).get_attribute("data-lf-open")
     if shown not in (None, "queue"):
         page.locator(".lf-fp-close").click()
         panel_settled(page, open=False)
@@ -50,13 +51,13 @@ def open_on_me(page):
 
 def on_card(page, at):
     """The On me card for the obligation `at` names, such as `widget:sug-refill`."""
-    return page.locator(f'{ON_ME} .lf-fp-on-item[data-key=\'["widget","{at}"]\']')
+    return page.locator(f'{ON_ME} .lf-fp-on-item[data-lf-key=\'["widget","{at}"]\']')
 
 
 def test_on_me_lists_open_and_answered_obligations(browser, serve):
     """The panel's On me mark lists every open obligation under On me, in document order, and
-    every answered one under Done with its current answer, so the user can review and
-    revise. A twelfth widget joins by declaring x-awaits.
+    every answered one folded under Done with its current answer, so the user can review
+    and revise. A twelfth widget joins by declaring x-awaits.
 
     A closed view holds no cards at all: they are the open view's rendering, the mark's
     count is the closed view's, and a hidden list of buttons is a set of controls no
@@ -69,6 +70,7 @@ def test_on_me_lists_open_and_answered_obligations(browser, serve):
     page.locator(".lf-fp-on-user").focus()
     page.keyboard.press("Enter")
     panel_settled(page, view="queue")
+    show_done(page)
     cards = page.evaluate(ON_ITEM_SAYS)
     assert [(c["id"], c["list"]) for c in cards] == [
         *(
@@ -104,6 +106,7 @@ def test_on_me_lists_open_and_answered_obligations(browser, serve):
     page.locator("#lq-token").click()
     expect_obligations_answered(page, "2/5")
     open_on_me(page)
+    show_done(page)
     expect(page.locator(f"{ON_ME} .lf-fp-on-item")).to_have_count(5)
     answered = {c["id"]: c for c in page.evaluate(ON_ITEM_SAYS)}
     assert answered["widget:live-question"]["list"] == "done", answered
@@ -116,6 +119,7 @@ def test_on_me_lists_open_and_answered_obligations(browser, serve):
     ).click()
     round_trip(page)
     open_on_me(page)
+    show_done(page)
     suggestion = next(
         c for c in page.evaluate(ON_ITEM_SAYS) if c["id"] == "widget:sug-refill"
     )
@@ -235,8 +239,8 @@ def test_obligation_cards_keep_identity_and_walk_order_when_the_live_dom_moves(
           window.__lfReadObligationPresentation = readApplicationPresentation;
           window.__lfPresentDocument = presentDocument;
           const cards = [...document.querySelectorAll(
-            '.lf-fp-view[data-view="queue"] .lf-fp-on-item')];
-          window.__lfObligationCards = new Map(cards.map(card => [card.dataset.key, card]));
+            '.lf-fp-view[data-lf-route="queue"] .lf-fp-on-item')];
+          window.__lfObligationCards = new Map(cards.map(card => [card.dataset.lfKey, card]));
           const honored = document.querySelector('#honored-decision');
           document.querySelector('#live-question-decision').before(honored);
           window.__lfObligationCards.get('["widget","widget:sug-refill"]').focus();
@@ -244,9 +248,9 @@ def test_obligation_cards_keep_identity_and_walk_order_when_the_live_dom_moves(
         }"""
     )
     page.wait_for_function("__lfReadObligationPresentation().pending.length === 0")
-    assert cards.evaluate_all("items => items.map(item => item.dataset.key)") == order
+    assert cards.evaluate_all("items => items.map(item => item.dataset.lfKey)") == order
     assert cards.evaluate_all(
-        "items => items.every(item => window.__lfObligationCards.get(item.dataset.key) === item)"
+        "items => items.every(item => window.__lfObligationCards.get(item.dataset.lfKey) === item)"
     )
     sug_refill = on_card(page, "widget:sug-refill")
     expect(sug_refill).to_be_focused()
@@ -261,7 +265,7 @@ def test_obligation_cards_keep_identity_and_walk_order_when_the_live_dom_moves(
         }"""
     )
     page.wait_for_function("__lfReadObligationPresentation().pending.length === 0")
-    assert cards.evaluate_all("items => items.map(item => item.dataset.key)") == [
+    assert cards.evaluate_all("items => items.map(item => item.dataset.lfKey)") == [
         order[0],
         order[2],
         order[3],
@@ -270,7 +274,7 @@ def test_obligation_cards_keep_identity_and_walk_order_when_the_live_dom_moves(
     ]
     expect(sug_refill).to_be_focused()
     assert cards.evaluate_all(
-        "items => items.every(item => window.__lfObligationCards.get(item.dataset.key) === item)"
+        "items => items.every(item => window.__lfObligationCards.get(item.dataset.lfKey) === item)"
     )
 
 
@@ -278,7 +282,8 @@ def test_a_completed_obligation_persists_and_on_me_says_its_current_answer(
     browser, serve
 ):
     """Completion survives a reload, and On me, opened from the keyboard, keeps the
-    answered obligation under Done saying its current answer, which follows a revision."""
+    answered obligation folded under Done, a line saying its current answer, which
+    follows a revision."""
     page = open_page(browser, serve(OBLIGATION_WITH_CONTEXT_PAGE))
     resized(page, 1200, 900)
     expect_obligations_answered(page, "0/1")
@@ -291,16 +296,22 @@ def test_a_completed_obligation_persists_and_on_me_says_its_current_answer(
     wait_until_ready(page)
     expect_obligations_answered(page, "1/1")
 
-    # With nothing on the user, the view opens on an empty list with Done under it; ↓
-    # enters the first card there, the obligation's.
+    # With nothing on the user, the view opens on an empty list with Done folded under
+    # it; ↓ enters Done's band, Enter unfolds it, and ↓ enters its first line, the
+    # obligation's.
     page.keyboard.press("g")
     page.keyboard.press("Shift+m")
     panel_settled(page, view="queue")
     page.keyboard.press("ArrowDown")
+    done = page.locator(f"{ON_ME} .lf-fp-settled")
+    expect(done).to_be_focused()
+    page.keyboard.press("Enter")
+    expect(done).to_have_attribute("aria-expanded", "true")
+    page.keyboard.press("ArrowDown")
     card = on_card(page, "widget:storage-options")
-    expect(card).to_be_focused()
-    expect(card).to_have_attribute("data-list", "done")
-    expect(card.locator(".lf-fp-said")).to_contain_text(
+    expect(card.locator(".lf-fp-on-line")).to_be_focused()
+    expect(card).to_have_attribute("data-lf-list", "done")
+    expect(card.locator(".lf-fp-on-says > .lf-fp-value")).to_contain_text(
         "Answered: Pause offline editing"
     )
 
@@ -309,15 +320,16 @@ def test_a_completed_obligation_persists_and_on_me_says_its_current_answer(
     expect(page.locator("#storage-evict")).to_have_attribute("chosen", "")
     expect_obligations_answered(page, "1/1")
     open_on_me(page)
-    expect(card.locator(".lf-fp-said")).to_contain_text(
+    show_done(page)
+    expect(card.locator(".lf-fp-on-says > .lf-fp-value")).to_contain_text(
         "Answered: Drop the oldest documents"
     )
 
 
 def test_an_answered_boxless_obligation_is_taken_back_from_its_card(browser, serve):
-    """An accepted deletion leaves no box on the page to arrive at, so On me's Done card
-    is where the user takes the decision back: it says what was decided, and its Undo
-    restores the change to decide again."""
+    """An accepted deletion leaves no box on the page to arrive at, so its line under On
+    me's Done is where the user takes the decision back: it says what was decided, and
+    opened, its Undo restores the change to decide again."""
     page = open_page(browser, serve(CHANGE_SHAPES_PAGE))
     resized(page, 560, 620)
     expect_obligations_answered(page, "0/4")
@@ -330,9 +342,13 @@ def test_an_answered_boxless_obligation_is_taken_back_from_its_card(browser, ser
     expect_obligations_answered(page, "1/4")
 
     open_on_me(page)
+    show_done(page)
     card = on_card(page, "widget:sug-delete")
-    expect(card).to_have_attribute("data-list", "done")
-    expect(card.locator(".lf-fp-said")).to_contain_text("Answered: Accepted")
+    expect(card).to_have_attribute("data-lf-list", "done")
+    expect(card.locator(".lf-fp-on-says > .lf-fp-value")).to_contain_text(
+        "Answered: Accepted"
+    )
+    card.locator(".lf-fp-on-line").click()
     card.get_by_role("button", name="Undo").click()
     round_trip(page)
     expect(page.locator("#sug-delete")).to_be_visible()
@@ -420,16 +436,16 @@ def test_the_m_walk_brings_its_card_into_on_me_s_view_and_rings_it(browser, serv
     page.keyboard.press("Shift+m")
     expect_walk_position(page, "8 of 8 waiting on me · Options")
     expect(page.locator("#ask-8")).to_be_focused()
-    expect(view.locator(".lf-fp-on-item[data-walked]")).to_have_count(1)
-    expect(last).to_have_attribute("data-walked", "")
+    expect(view.locator(".lf-fp-on-item[data-lf-walked]")).to_have_count(1)
+    expect(last).to_have_attribute("data-lf-walked", "")
     assert last.evaluate("card => getComputedStyle(card).outlineStyle") == "solid"
     assert shown(last)
 
     first = on_card(page, "widget:pick-1")
     page.keyboard.press("m")
     expect_walk_position(page, "1 of 8 waiting on me · Options")
-    expect(first).to_have_attribute("data-walked", "")
-    expect(last).not_to_have_attribute("data-walked", "")
+    expect(first).to_have_attribute("data-lf-walked", "")
+    expect(last).not_to_have_attribute("data-lf-walked", "")
     assert shown(first)
 
 
@@ -474,16 +490,16 @@ def test_on_me_lists_its_cards_in_the_order_m_walks_them(browser, serve):
     )
 
     def walked():
-        expect(view.locator(".lf-fp-on-item[data-walked]")).to_have_count(1)
+        expect(view.locator(".lf-fp-on-item[data-lf-walked]")).to_have_count(1)
         return cards.evaluate_all(
-            "cards => cards.findIndex((card) => card.hasAttribute('data-walked'))"
+            "cards => cards.findIndex((card) => card.hasAttribute('data-lf-walked'))"
         )
 
     page.keyboard.press("m")
     first = walked()
     for step in (1, 2, 3):
         page.keyboard.press("m")
-        expect(cards.nth((first + step) % 3)).to_have_attribute("data-walked", "")
+        expect(cards.nth((first + step) % 3)).to_have_attribute("data-lf-walked", "")
 
 
 GROUPED_PAGE = leaf_page(
@@ -519,9 +535,10 @@ def put_fork_todo(page_dir):
 
 def test_the_chosen_grouping_orders_on_me_and_the_m_walk_alike(browser, serve):
     """With no plan, On me groups its cards by the part of the page each item stands
-    in, under its heading, and its cards leave that part unsaid. The chooser at its
-    foot regroups the list by what each item is, the cards then naming their part
-    instead, and the browser keeps the choice across a reload. Either way `m` steps
+    in, each group under its band, one card alone included, and its cards leave that
+    part unsaid. The chooser at its foot regroups the list by what each item is, the
+    cards then naming their part instead, and the browser keeps the choice across a
+    reload. Either way `m` steps
     through the items in the order the list shows them, rather than in page order."""
     url = serve(GROUPED_PAGE)
     put_fork_todo(serve.page_dir)
@@ -530,9 +547,14 @@ def test_the_chosen_grouping_orders_on_me_and_the_m_walk_alike(browser, serve):
     view = open_on_me(page)
     chooser = page.get_by_role("combobox", name="Group On me")
     expect(chooser).to_have_value("place")
-    # A group of two has a heading; the card alone in its group says its name.
-    groups = view.locator(".lf-fp-on-list > .lf-rows-head")
-    expect(groups).to_have_text([re.compile(r"^\s*Implementation\s*2\s*$")])
+    # Every group has its band, the card alone in its group included.
+    groups = view.locator(".lf-fp-on-group > .lf-rows-head")
+    expect(groups).to_have_text(
+        [
+            re.compile(r"^\s*Implementation\s*2\s*$"),
+            re.compile(r"^\s*Rollout\s*1\s*$"),
+        ]
+    )
     cards = view.locator(".lf-fp-on-item")
     expect(cards.locator(".lf-fp-prompt")).to_have_text(
         [
@@ -541,15 +563,17 @@ def test_the_chosen_grouping_orders_on_me_and_the_m_walk_alike(browser, serve):
             "Include self-hosted runners?",
         ]
     )
-    # Under a heading a card says nothing over its question; alone, only its place.
-    expect(cards.locator(".lf-fp-on-place")).to_have_text(["Rollout"])
+    # Under its place's band a card says nothing over its question.
+    expect(cards.locator(".lf-fp-on-place")).to_have_count(0)
     # Its choices stand on the card, answered with one press.
     expect(
         on_card(page, "widget:exit").get_by_role("button", name="75")
     ).to_be_visible()
 
     chooser.select_option("kind")
-    expect(groups).to_have_text([re.compile(r"^\s*Options\s*2\s*$")])
+    expect(groups).to_have_text(
+        [re.compile(r"^\s*Options\s*2\s*$"), re.compile(r"^\s*To-do\s*1\s*$")]
+    )
     page.reload()
     wait_until_ready(page)
     view = open_on_me(page)
@@ -563,20 +587,20 @@ def test_the_chosen_grouping_orders_on_me_and_the_m_walk_alike(browser, serve):
         ]
     )
     expect(cards.locator(".lf-fp-on-place")).to_have_text(
-        ["Implementation", "Rollout", "To-do · Implementation"]
+        ["Implementation", "Rollout", "Implementation"]
     )
 
     def walked():
-        expect(view.locator(".lf-fp-on-item[data-walked]")).to_have_count(1)
+        expect(view.locator(".lf-fp-on-item[data-lf-walked]")).to_have_count(1)
         return cards.evaluate_all(
-            "cards => cards.findIndex((card) => card.hasAttribute('data-walked'))"
+            "cards => cards.findIndex((card) => card.hasAttribute('data-lf-walked'))"
         )
 
     page.keyboard.press("m")
     first = walked()
     for step in (1, 2, 3):
         page.keyboard.press("m")
-        expect(cards.nth((first + step) % 3)).to_have_attribute("data-walked", "")
+        expect(cards.nth((first + step) % 3)).to_have_attribute("data-lf-walked", "")
 
 
 TABBED_PAGE = leaf_page(
@@ -617,7 +641,7 @@ def test_an_answer_in_on_me_keeps_its_groups_and_the_m_walk_in_one_order(
     from everything On me has held rather than from what remains, so the list and the
     `m` walk, which steps over the answered item, still agree. Grouped by kind, the
     first question answered leaves Options above To-do, as the walk goes; its group
-    keeps its heading, two cards still under it, and counts what still waits."""
+    keeps its band, two cards still under it, and counts what still waits."""
     url = serve(GROUPED_PAGE)
     put_fork_todo(serve.page_dir)
     page = open_page(browser, url)
@@ -628,17 +652,19 @@ def test_an_answer_in_on_me_keeps_its_groups_and_the_m_walk_in_one_order(
     exit_code.get_by_role("button", name="75").click()
     round_trip(page)
     expect(exit_code.locator(".lf-fp-said")).to_contain_text("Answered: 75")
-    groups = view.locator(".lf-fp-on-list > .lf-rows-head")
-    expect(groups).to_have_text([re.compile(r"^\s*Options\s*1\s*$")])
+    groups = view.locator(".lf-fp-on-group > .lf-rows-head")
+    expect(groups).to_have_text(
+        [re.compile(r"^\s*Options\s*1\s*$"), re.compile(r"^\s*To-do\s*1\s*$")]
+    )
     runners = on_card(page, "widget:runners")
     # Where the first `m` lands depends on the reading position, so it may take a
     # second; read the ring only once the press's repaint has landed.
     for _ in range(2):
         page.keyboard.press("m")
         rendered(page)
-        if runners.get_attribute("data-walked") is not None:
+        if runners.get_attribute("data-lf-walked") is not None:
             break
-    expect(runners).to_have_attribute("data-walked", "")
+    expect(runners).to_have_attribute("data-lf-walked", "")
     expect_walk_position(page, "1 of 2 waiting on me · Options")
     page.keyboard.press("m")
     expect_walk_position(page, "2 of 2 waiting on me · To-do")
@@ -730,7 +756,7 @@ def test_an_option_s_choice_on_its_card_says_what_it_gives(browser, serve):
     expect(rule.locator(".lf-fp-choice-says")).to_have_text(
         "Authors keep writing one block."
     )
-    expect(none).not_to_have_attribute("data-told", "")
+    expect(none).not_to_have_attribute("data-lf-told", "")
     expect(none).to_have_text("Leave it")
 
     aside.click()
@@ -739,7 +765,7 @@ def test_an_option_s_choice_on_its_card_says_what_it_gives(browser, serve):
     card.get_by_role("button", name="Undo").click()
     round_trip(page)
     expect(page.locator("#stick-aside")).not_to_have_attribute("chosen", "")
-    expect(card.locator(".lf-fp-answer[data-told]")).to_have_count(3)
+    expect(card.locator(".lf-fp-answer[data-lf-told]")).to_have_count(3)
 
 
 def test_a_group_s_done_on_its_card_commits_rather_than_reading_as_a_choice(
@@ -765,7 +791,7 @@ def test_a_group_s_done_on_its_card_commits_rather_than_reading_as_a_choice(
     )
     open_on_me(page)
     card = on_card(page, "widget:tags")
-    told = card.locator(".lf-fp-answer[data-told]")
+    told = card.locator(".lf-fp-answer[data-lf-told]")
     expect(told).to_have_count(2)
     done = card.get_by_role("button", name="Done", exact=True)
     expect(done).to_have_text("Done")
@@ -854,7 +880,7 @@ def test_an_answer_about_a_decision_rides_on_the_decisions_card(browser, serve):
     page.keyboard.press("Escape")
     view = open_on_me(page)
     expect(
-        view.locator(f'.lf-fp-on-item[data-key=\'["message","message:{reply}"]\']')
+        view.locator(f'.lf-fp-on-item[data-lf-key=\'["message","message:{reply}"]\']')
     ).to_be_visible()
 
 

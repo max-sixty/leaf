@@ -1,7 +1,8 @@
-"""Changes in place: what changed since a version the user compares with in Versions,
-marked with a bar and walked with `h`, and where the agent is at work while it works
-(change-walk.js, margin-bars.js)."""
+"""Changes in place: what changed since a version, which `v` or a Compare in Versions
+marks with a bar and `h` walks, and where the agent is at work while it works
+(version.js, change-walk.js, margin-bars.js)."""
 
+import re
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -9,7 +10,7 @@ from interact_support import append_command
 from model_folds import leaf_page
 from playwright.sync_api import expect
 from render_cases_interaction import live_url
-from render_harness import compare_with, open_page, wait_for_revision
+from render_harness import compare_with, open_page, stamp_page, wait_for_revision
 
 from leaf import event_log as events_model
 from leaf import revisioning as revisioning_model
@@ -63,7 +64,7 @@ def test_a_comparison_marks_each_change_with_a_bar_and_h_walks_them(browser, ser
     # Each change's mark is a bar beside it, and the block keeps its own paint.
     bars = page.locator(".lf-change-bar")
     expect(bars).to_have_count(2)
-    assert sorted(bars.evaluate_all("bars => bars.map(b => b.dataset.for)")) == [
+    assert sorted(bars.evaluate_all("bars => bars.map(b => b.dataset.lfFor)")) == [
         "b",
         "d",
     ]
@@ -80,7 +81,7 @@ def test_a_comparison_marks_each_change_with_a_bar_and_h_walks_them(browser, ser
     page.keyboard.press("Escape")
     page.keyboard.press("Escape")
     expect(marked).to_have_count(2)
-    beta = page.locator('.lf-change-bar[data-for="b"]')
+    beta = page.locator('.lf-change-bar[data-lf-for="b"]')
     page.keyboard.press("o")
     expect(beta).to_have_css("background-color", clear)
     page.keyboard.press("o")
@@ -92,13 +93,41 @@ def test_a_comparison_marks_each_change_with_a_bar_and_h_walks_them(browser, ser
         """() => {
           const box = (s) => document.querySelector(s).getBoundingClientRect();
           const [block, change, work] = [
-            box('#b'), box('.lf-change-bar[data-for="b"]'), box('.lf-at-work-bar'),
+            box('#b'), box('.lf-change-bar[data-lf-for="b"]'), box('.lf-at-work-bar'),
           ];
           return change.right <= block.left && work.right <= change.left
             && change.top < block.bottom && change.bottom > block.top;
         }"""
     )
     assert lanes, "the change bar and the at-work bar don't stand in lanes of their own"
+
+
+def test_v_marks_what_changed_since_the_latest_version_and_takes_marks_off(
+    browser, serve
+):
+    """`v` compares with the newest version older than the one being read, and takes
+    any comparison off again, one a Compare in Versions started included."""
+    url = live_url(serve(PAGE))
+    d = serve.page_dir
+    page = open_page(browser, url)
+    stamp_page(d, revised(PAGE, BETA), "rewrote Beta")
+    wait_for_revision(page, 2)
+    revise(d, DELTA)
+    wait_for_revision(page, 3)
+    marked = page.locator("main .lf-ins-block")
+    # Since v2, not v1: only Delta changed.
+    page.keyboard.press("v")
+    expect(page.locator('.lf-change-bar[data-lf-for="d"]')).to_have_count(1)
+    assert marked_ids(page) == ["d"]
+    page.keyboard.press("v")
+    expect(marked).to_have_count(0)
+    # A screen reader hears the marks go.
+    expect(page.locator(".lf-live")).to_have_text("Changes hidden")
+    compare_with(page, 1)
+    page.keyboard.press("Escape")
+    expect(marked).to_have_count(2)
+    page.keyboard.press("v")
+    expect(marked).to_have_count(0)
 
 
 SECTION = "<h2>Routes</h2>\n<p>The old rule.</p>\n<p>The old reason.</p>"
@@ -165,6 +194,97 @@ def test_a_change_ends_where_a_disclosure_does(browser, serve, fold):
     ).to_be_visible()
 
 
+def test_a_paragraph_removed_is_a_change_at_its_gap(browser, serve):
+    """A paragraph removed with nothing in its place is a change like any other: its bar
+    is the change bar at zero blocks' length, in the gap; its entry, a raised press,
+    stands by the block after the gap and outlines the gap under the pointer; the walk
+    stops there; and its press opens a card over what follows holding the words it took
+    out, while the page under the card holds still."""
+    url = live_url(serve(PAGE))
+    d = serve.page_dir
+    revise(
+        d,
+        ('<p id="c">Gamma stays as it was.</p>\n', ""),
+        ("Alpha stays as it was.", "Alpha reads another way."),
+    )
+    page = open_page(browser, url)
+    compare_with(page, 1)
+    page.keyboard.press("Escape")
+    expect(page.locator("main .lf-ins-block")).to_have_count(1)
+    gap = page.locator('.lf-change-bar[data-lf-gap="before"][data-lf-for="d"]')
+    expect(gap).to_have_count(1)
+    between = page.evaluate(
+        """() => {
+          const box = (s) => document.querySelector(s).getBoundingClientRect();
+          const [b, d, gap] = [box('#b'), box('#d'), box('.lf-change-bar[data-lf-gap]')];
+          return gap.top >= b.bottom - 1 && gap.bottom <= d.top + 1 && gap.height > 0;
+        }"""
+    )
+    assert between, "the removal's bar doesn't stand in the gap it left"
+    removal = page.locator('[data-lf-margin-for="d"] [data-lf-kinds~="change"]')
+    expect(removal).to_have_css("border-top-width", "2px")
+    expect(removal).not_to_have_css("box-shadow", "none")
+    for expected in ("#a", "#d", "#a"):
+        page.keyboard.press("h")
+        expect(page.locator(expected)).to_be_focused()
+    page.keyboard.press("Escape")
+
+    removal.hover()
+    outline = page.locator(".lf-change-outline")
+    expect(outline).to_be_visible()
+    assert page.evaluate(
+        """() => {
+          const box = (s) => document.querySelector(s).getBoundingClientRect();
+          const [b, d, round] = [box('#b'), box('#d'), box('.lf-change-outline')];
+          return round.top <= b.bottom && round.bottom >= d.top - 1;
+        }"""
+    ), "the outline doesn't stand round the gap"
+
+    before = page.locator("#d").bounding_box()
+    removal.click()
+    card = page.locator("#lf-change-card")
+    expect(card).to_be_visible()
+    expect(removal).to_have_attribute("aria-expanded", "true")
+    expect(card.locator(".lf-change-card-head")).to_have_text(
+        re.compile(r"^1 paragraph removed · v1 → ")
+    )
+    expect(card.locator("del")).to_have_text("Gamma stays as it was.")
+    assert page.locator("#d").bounding_box() == before
+    page.keyboard.press("Escape")
+    expect(card).to_have_count(0)
+
+
+def test_a_change_s_card_reads_it_in_order(browser, serve):
+    """A change's card reads it in the order the reader met it: a paragraph the revision
+    took out between two it edited stands struck between their word diffs, and a new
+    paragraph reads as inserted. Assistive technology reaches the card as the entry's
+    disclosure, and a redline taller than the window scrolls inside the card."""
+    long = " ".join(["Beta reads one way."] * 400)
+    url = live_url(serve(PAGE.replace("Beta reads one way.", long)))
+    revise(
+        serve.page_dir,
+        ("Alpha stays as it was.", "Alpha reads another way."),
+        (f'<p id="b">{long}</p>\n', ""),
+        ("Gamma stays as it was.</p>", "Gamma reads another way.</p>\n<p>Epsilon.</p>"),
+    )
+    page = open_page(browser, url)
+    compare_with(page, 1)
+    page.keyboard.press("Escape")
+    page.locator('[data-lf-margin-for="a"] [data-lf-kinds~="change"]').click()
+    card = page.get_by_role("group", name="2 paragraphs edited, 1 replaced by 1")
+    expect(card).to_be_visible()
+    lines = card.locator(".lf-change-card-block")
+    expect(lines).to_have_count(4)
+    expect(lines.nth(0).locator("del")).to_have_text("Alpha stays as it was.")
+    expect(lines.nth(0).locator("ins")).to_have_text("Alpha reads another way.")
+    expect(lines.nth(1).locator("del")).to_have_text(long)
+    expect(lines.nth(2)).to_contain_text("Gamma")
+    expect(lines.nth(3).locator("ins")).to_have_text("Epsilon.")
+    assert card.evaluate(
+        "card => card.offsetHeight <= innerHeight && card.scrollHeight > card.clientHeight"
+    ), "the long redline doesn't scroll inside a card that fits the window"
+
+
 def _comment_on(d, section, words, revision=1):
     return append_command(
         d,
@@ -203,7 +323,7 @@ def test_the_agent_at_work_on_a_passage_marks_its_place(browser, serve):
     _start(d, quiet["id"], "Rewriting Delta", ts=long_ago)
     _start(d, comment["id"], "Rewriting Beta")
     expect(bars).to_have_count(1)
-    expect(bars).to_have_attribute("data-for", "b")
+    expect(bars).to_have_attribute("data-lf-for", "b")
     stalled = page.evaluate(
         """async () => (await (await fetch('/api/state')).json()).workflows
           .filter(w => w.at_work && w.condition?.kind === 'stale').length"""
@@ -255,4 +375,4 @@ def test_a_to_do_running_on_an_element_marks_it(browser, serve):
     expect(bars).to_have_count(0)
     _start(d, todo["id"], "Rewriting Gamma")
     expect(bars).to_have_count(1)
-    expect(bars).to_have_attribute("data-for", "c")
+    expect(bars).to_have_attribute("data-lf-for", "c")

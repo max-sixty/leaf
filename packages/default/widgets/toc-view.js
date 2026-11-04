@@ -1,4 +1,4 @@
-import { generatedElement, keeps } from "/runtime/widget-api.js";
+import { generatedElement, keeps, viewDocument } from "/runtime/widget-api.js";
 /* The contents view draws its frame and outline from the complete document.
  * The live widget supplies the canonical heading and chrome readings. */
 import { html, nothing, ref, repeat } from "/vendor/lit.js";
@@ -8,14 +8,13 @@ import { html, nothing, ref, repeat } from "/vendor/lit.js";
 /** @typedef {{start: {label: string, destination: Element, heading: Element | null} | null, items: OutlineItem[]}} Outline */
 const HEADING_SELECTOR = "h1, h2, h3, h4, h5, h6";
 
-// The outline belongs to the nearest declared view holding it, or the page's main.
-// Scope follows document ownership, not visibility: closed disclosures still contribute
-// headings that a native fragment link can reveal.
+// The outline belongs to the document holding it (`viewDocument`), or for contents
+// standing beside the page's main, that main. Scope follows document ownership, not
+// visibility: closed disclosures still contribute headings that a native fragment link
+// can reveal.
 /** @param {HTMLElement} host */
 const outlineDocument = (host) =>
-  host.closest("[data-lf-views] > *, main") ??
-  host.closest("body")?.querySelector(":scope > main") ??
-  null;
+  viewDocument(host) ?? host.closest("body")?.querySelector(":scope > main") ?? null;
 
 // Delivery and live behavior call this same template, retaining its native disclosure
 // and keyed links. Geometry readers collect the nodes only after its shared render.
@@ -69,7 +68,8 @@ export function drawToc(host, headingReading) {
       const { start, items } = outline;
       return html`
         <nav
-          class="lf-toc-nav lf-ui scroll"
+          class="lf-toc-nav lf-ui"
+          data-lf-scroll
           aria-label="On this page"
           ${generated(false)}
         >

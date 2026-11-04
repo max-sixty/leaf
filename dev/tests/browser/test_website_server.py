@@ -49,7 +49,7 @@ def test_a_failed_verifier_page_reports_its_browser_errors(browser):
         verify_site.await_presentation(page, url, failures, timeout=never_presents_ms)
     assert "widget resource unavailable" in str(caught.value)
     assert "runtime initialization failed" in str(caught.value)
-    assert "no startup milestone" in str(caught.value)
+    assert "the runtime never started" in str(caught.value)
     # The same two faults the verifier reported are what this page said.
     consume_browser_errors(
         page, "widget resource unavailable", "runtime initialization failed"

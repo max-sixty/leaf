@@ -373,7 +373,6 @@ export function createPrimaryReader(
     const message = messageSource(thread, key);
     return messageReading(message, {
       authoredRank: 3,
-      reactions: message.reactions,
       workflows: message.workflows,
     });
   };
@@ -537,8 +536,8 @@ export function createPrimaryReader(
         if (news) view.notice.set(news);
         keepsHidden(view.node, !news);
       } else {
-        keeps(view.node, "data-thread", item.thread.id);
-        keeps(view.node, "data-attempt", item.thread.root.attempt ?? null);
+        keeps(view.node, "data-lf-thread", item.thread.id);
+        keeps(view.node, "data-lf-attempt", item.thread.root.attempt ?? null);
         const news = shown.get(item.key)?.news;
         const nominated = selected.some(
           (part) => part.key === item.key && part.kind === "news",
@@ -631,7 +630,9 @@ export function createPrimaryReader(
       const id = shown.get(key)?.source.msgs.find((item) => item.key === message)?.id;
       if (!id) return null;
       for (const view of parts) {
-        const node = view.node.querySelector(`.lf-msg[data-event="${CSS.escape(id)}"]`);
+        const node = view.node.querySelector(
+          `.lf-msg[data-lf-event="${CSS.escape(id)}"]`,
+        );
         if (node) return node;
       }
       return null;

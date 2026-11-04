@@ -35,6 +35,7 @@ from render_harness import (
     post_event,
     resized,
     round_trip,
+    show_done,
     stamp_page,
     suggestion_control,
     told,
@@ -71,7 +72,7 @@ def test_a_projected_attribute_opens_an_obligation_captured_from_authored_markup
         "description": "A test-owned conditional Ask.",
         "type": "object",
         "properties": {
-            "id": {"type": "string", "pattern": "^[a-z][a-z0-9-]*$"},
+            "id": {"type": "string"},
             "phase": {"enum": ["closed", "open"]},
             "restated": {"type": "boolean"},
         },
@@ -119,7 +120,7 @@ customElements.define("lf-conditional", class extends LeafElement {
     )
     expect(page.locator(".lf-fp-on-user")).to_have_attribute("aria-label", "On me")
     view = page.locator(panel_view("queue"))
-    items = ".lf-fp-on-item[data-key^='[\"widget\"']"
+    items = ".lf-fp-on-item[data-lf-key^='[\"widget\"']"
 
     for phase, count in (("open", 1), ("closed", 0)):
         append_command(
@@ -137,15 +138,17 @@ customElements.define("lf-conditional", class extends LeafElement {
         if count:
             expect_obligations_answered(page, "0/1")
         # The phase move is the agent's to answer. The obligation leaves the user's
-        # queue when its condition closes, retaining its withdrawn card under Done.
+        # queue when its condition closes, retaining its withdrawn line under Done.
         # An open view keeps its cards seated, so each reading is a fresh opening.
         if view.count():
             page.locator(".lf-fp-close").click()
             panel_settled(page, open=False)
         page.locator(".lf-fp-on-user").click()
         panel_settled(page, view="queue")
-        expect(view.locator(f'{items}[data-list="you"]')).to_have_count(count)
-        withdrawn = view.locator(f'{items}[data-list="done"]')
+        expect(view.locator(f'{items}[data-lf-list="you"]')).to_have_count(count)
+        if not count:
+            show_done(page)
+        withdrawn = view.locator(f'{items}[data-lf-list="done"]')
         expect(withdrawn).to_have_count(1 - count)
         if not count:
             expect(withdrawn).to_contain_text("Withdrawn")

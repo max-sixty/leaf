@@ -16,7 +16,7 @@ test("words draw in their speakers' faces, and a run wears one voice only when a
   assert.deepEqual(
     [...host.childNodes]
       .filter((node) => node.nodeType !== Node.COMMENT_NODE)
-      .map((node) => [node.textContent, node.dataset?.voice ?? null]),
+      .map((node) => [node.textContent, node.dataset?.lfVoice ?? null]),
     [
       ["Draw mode · ", null],
       ["checking the roof", "agent"],

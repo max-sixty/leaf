@@ -16,7 +16,6 @@ from render_cases_interaction import (
 from render_harness import (
     LONG_PAGE,
     PANEL,
-    PANEL_THREAD,
     REPLY_HOST_PAGE,
     compare_with,
     open_page,
@@ -32,6 +31,7 @@ from render_harness import (
 from browser.threads import open_panel_thread
 from leaf import event_log as events_model
 from leaf.render_checks import rendered
+from leaf_dev.browser import PANEL_THREAD
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -311,17 +311,17 @@ def test_an_agent_message_edit_updates_the_panel_and_its_inline_thread(browser, 
     )
     page = open_page(browser, url)
     resized(page, 1200, 900)
-    inline = page.locator(f'#cd-q .lf-msg[data-event="{message["id"]}"]')
+    inline = page.locator(f'#cd-q .lf-msg[data-lf-event="{message["id"]}"]')
     expect(inline.locator(".lf-msg-text")).to_have_text("The north bracket fit.")
     panel_thread = open_panel_thread(page, "edited-agent-message")
-    panel = panel_thread.locator(f'.lf-msg[data-event="{message["id"]}"]')
+    panel = panel_thread.locator(f'.lf-msg[data-lf-event="{message["id"]}"]')
     expect(panel.locator(".lf-msg-text")).to_have_text("The north bracket fit.")
     page.evaluate(
         """([message]) => {
           window.__editedInline = document.querySelector(
-            `#cd-q .lf-msg[data-event="${message}"]`);
+            `#cd-q .lf-msg[data-lf-event="${message}"]`);
           window.__editedPanel = document.querySelector(
-            `.lf-fp-view .lf-msg[data-event="${message}"]`);
+            `.lf-fp-view .lf-msg[data-lf-event="${message}"]`);
           window.__editedWidget = document.querySelector('#edited-message-choice');
         }""",
         [message["id"]],
@@ -354,12 +354,12 @@ def test_an_agent_message_edit_updates_the_panel_and_its_inline_thread(browser, 
     # Editing updates the original message's disclosure in both views.
     expect(inline.locator(":scope > .lf-msg-head .lf-edited")).to_have_text("edited")
     expect(panel.locator(":scope > .lf-msg-head .lf-edited")).to_have_text("edited")
-    expect(page.locator(f'.lf-msg[data-event="{revision["id"]}"]')).to_have_count(0)
+    expect(page.locator(f'.lf-msg[data-lf-event="{revision["id"]}"]')).to_have_count(0)
     assert page.evaluate(
         f"""() => window.__editedInline === document.querySelector(
-          '#cd-q .lf-msg[data-event="{message["id"]}"]')
+          '#cd-q .lf-msg[data-lf-event="{message["id"]}"]')
           && window.__editedPanel === document.querySelector(
-            '.lf-fp-view .lf-msg[data-event="{message["id"]}"]')
+            '.lf-fp-view .lf-msg[data-lf-event="{message["id"]}"]')
           && window.__editedWidget === document.querySelector('#edited-message-choice')"""
     ), "the edit replaced an existing message or its frozen widget"
     assert (
@@ -490,7 +490,7 @@ def test_a_thread_on_a_widget_an_agent_sent_stands_in_its_message(browser, serve
     page.locator(".lf-fp-aux").get_by_role(
         "button", name="Show in message", exact=True
     ).click()
-    held = page.locator(f'{PANEL_THREAD}[data-thread="c-sent"]')
+    held = page.locator(f'{PANEL_THREAD}[data-lf-thread="c-sent"]')
     expect(held).to_be_visible()
     widget = held.locator("#ps-decision-region")
     expect(widget).to_be_in_viewport()

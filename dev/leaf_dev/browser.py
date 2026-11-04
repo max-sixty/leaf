@@ -333,6 +333,9 @@ def go_to_threads(page: Page, frame: FrameLocator | None = None) -> None:
     as `stills`, `bench-latency`, thread snapshots and `verify-site` do, takes this
     route, which both share."""
     within = frame or page
+    # Completing `g T` again closes the view (keyboard/go-to-sequence.js).
+    if within.locator(".lf-floating-panel").get_attribute("data-open") == "threads":
+        return
     # A press at the frame's top corner gives its document the keys; the page's own
     # only needs focus off any control.
     if frame:

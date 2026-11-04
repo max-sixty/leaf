@@ -75,7 +75,14 @@ from leaf.service import acknowledged
 from leaf.structure import SourceDocument
 from leaf_dev.browser import panel_tab, show_resolved
 from leaf_dev.commands import site as site_build
-from leaf_dev.example_data import catalog_sources, data_operations, example_versions
+from leaf_dev.example_data import (
+    WORKED_EXAMPLES,
+    authored_sources,
+    catalog_sources,
+    data_operations,
+    example_versions,
+    published_sources,
+)
 from leaf_dev.leaf_assets import pinned_assets
 from leaf_dev.page_fixtures import authored_markup, read_event_lines, source_packages
 
@@ -83,7 +90,6 @@ ROOT = Path(__file__).parents[2]
 DOCS = ROOT / "docs"
 EXAMPLES = ROOT / "examples"
 FEATURE_GALLERY = EXAMPLES / "developer" / "feature-gallery.html"
-DEVELOPER_PAGES = tuple(sorted((EXAMPLES / "developer").glob("*.html")))
 
 
 def open_count(page):
@@ -132,10 +138,10 @@ def sample_allocation(page, url, template):
 
 
 def pages_under(directory):
-    """The pages a sweep walks, proved to exist before it walks them. Four of the
-    checks below are loops over a glob and nothing else, so a directory that moved or
-    was renamed turns every one of them into a sweep that pressed nothing — green, and
-    for the wrong reason (tests/AGENTS.md, "Sweeps over controls")."""
+    """The pages a sweep walks, proved to exist before it walks them. A check that
+    is a loop over a glob and nothing else turns, when its directory moves or is
+    renamed, into a sweep that pressed nothing — green, and for the wrong reason
+    (tests/AGENTS.md, "Sweeps over controls")."""
     pages = sorted(directory.glob("*.html"))
     assert pages, f"no pages under {directory}"
     return pages
@@ -155,9 +161,8 @@ def example_title(stem: str) -> str:
 
 
 def authored_examples():
-    """The public examples, excluding any generated browser-stress snapshot."""
-    pages = pages_under(EXAMPLES)
-    authored = [page for page in pages if page.stem != "corpus"]
+    """The worked examples, the published pages besides the developer galleries."""
+    authored = authored_sources(directories=(WORKED_EXAMPLES,))
     assert authored, "no authored examples to publish"
     return authored
 
@@ -180,9 +185,10 @@ def framed_root_examples():
 
 
 def published_pages():
-    """The worked examples plus the linked developer reference."""
-    assert FEATURE_GALLERY in DEVELOPER_PAGES, "the core feature gallery is missing"
-    return [*authored_examples(), *DEVELOPER_PAGES]
+    """The pages the site publishes, the core feature gallery among them."""
+    pages = published_sources()
+    assert FEATURE_GALLERY in pages, "the core feature gallery is missing"
+    return pages
 
 
 @pytest.fixture(name="site", scope="module")
@@ -345,7 +351,7 @@ def test_published_examples_keep_the_site_theme_out_of_their_layer(site, monkeyp
     monkeypatch.chdir(ROOT)  # resolve project-relative package selections
     package = DOCS / "package"
     context_theme = layer_model.stylesheet(package / "overrides.css", package).rstrip()
-    for source in site_build.published_page_sources():
+    for source in published_pages():
         record = layer_record(site / "examples" / source.stem)
         assert record is not None
         theme = (
@@ -1275,7 +1281,7 @@ def test_the_public_catalog_is_a_visual_index_of_full_page_routes(
     expect(developer_galleries.locator("a.developer-gallery-link")).to_have_count(2)
     expect(page.locator("iframe, lf-tabs")).to_have_count(0)
     published = {path.name for path in (site / "examples").iterdir() if path.is_dir()}
-    assert published == authored | {source.stem for source in DEVELOPER_PAGES}
+    assert published == {source.stem for source in published_pages()}
     assert page.evaluate(
         "() => Boolean(document.querySelector('#pages')"
         ".compareDocumentPosition(document.querySelector('#developer-galleries'))"

@@ -1,4 +1,4 @@
-/* Browser-side latency measurement for leaf-dev bench-latency and profile.
+/* Browser-side latency measurement for leaf-dev bench-latency.
  *
  * Installed before each document. The goals stay in sessionStorage so a revision
  * that reloads the page is sampled by the document that replaces it. Sampling
@@ -92,7 +92,7 @@
             const met = facts[goal.fact](goal.arg, goal.attempt);
             if (met) {
               goal.at = at;
-              // Where a trace of the page finds this frame (`leaf-dev profile`).
+              // Where a trace of the page finds this frame (`bench-latency --profile`).
               performance.mark(`lf-bench:${goal.name}`);
             } else open = true;
           }

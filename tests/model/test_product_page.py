@@ -20,6 +20,7 @@ from leaf.state import kernel_registry
 from leaf.structure import SourceDocument
 from leaf.validation import composition as validation_model
 from leaf_dev import declared_records, docs
+from leaf_dev.example_data import published_sources
 from leaf_dev.page_fixtures import authored_markup
 
 ROOT = Path(__file__).parents[2]
@@ -27,7 +28,6 @@ ASSETS = ROOT / "browser"
 DEFAULT_PACKAGE = ROOT / "packages" / "default"
 DOCS = ROOT / "docs"
 EXAMPLES = ROOT / "examples"
-DEVELOPER_PAGES = tuple(sorted((EXAMPLES / "developer").glob("*.html")))
 
 
 def test_kernel_event_contracts_declare_closed_records():
@@ -65,11 +65,7 @@ def test_every_published_source_says_what_its_page_is():
     The build composes the rest of a page's card from these two and refuses a page
     without them, so the failure this catches is one that would stop a deploy.
     """
-    sources = [
-        *DOCS.glob("*.html"),
-        *(page for page in EXAMPLES.glob("*.html") if page.stem != "corpus"),
-        *DEVELOPER_PAGES,
-    ]
+    sources = [*DOCS.glob("*.html"), *published_sources()]
     descriptions = {}
     for page in sorted(sources):
         parsed = SourceDocument(page.read_text())

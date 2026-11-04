@@ -456,7 +456,7 @@ def pickup_wait(records: list[dict], admitted: str, picked_up: str) -> dict:
                         calls.append(label)
         calls.extend(out.values())
         return {**wait, "cause": "working", "calls": calls}
-    origin = took["origin"] if took and took["type"] == "turn_start" else None
+    origin = took.get("origin") if took and took["type"] == "turn_start" else None
     return {**wait, "cause": ORIGIN_CAUSES.get(origin, "other"), "origin": origin}
 
 

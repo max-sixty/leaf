@@ -18,8 +18,8 @@ commit message; hold its claims to the standard the diff is held to.
 
 ## Review threshold
 
-Apply `AGENTS.md`'s **Stage** and **Fix the underlying issue** sections and
-`/developing-leaf`'s **Weigh what a change adds** to the verdict; most of Tend's own
+Load `/developing-leaf`, and apply its **Weigh what a change adds** and `AGENTS.md`'s
+**Stage** and **Fix the underlying issue** sections to the verdict; most of Tend's own
 pull requests land on this review alone. Once a change moves Leaf toward a coherent
 architecture, its claimed path works and what it adds is worth keeping, the review
 is done. Reserve findings for architectural seams, cross-runtime invariants, public
@@ -307,6 +307,20 @@ request with the moves, listing each test and the times behind it.
 Run `/ui-sweep` before dependency maintenance, following its **Reconcile** route:
 a reproduced defect becomes a tested repair, and a design judgment stays in the
 run report.
+
+## Weekly: duplicate implementations
+
+Sweep one area for capabilities implemented more than once, taking the area by ISO
+week number (`date +%V`) modulo 4: 0, the JavaScript under `browser/`; 1, `packages/`
+and the CSS under `browser/`; 2, `src/leaf/` and `hooks/`; 3, `dev/`, `build/`,
+`tests/` and `worker/`. Load `/developing-leaf`. Copies seldom share a name or a
+directory, so list the questions the area's helpers, constants, selectors, style
+rules and inline checks answer, and search the whole tree for other answers to each,
+as its **What it repeats** says. Consolidate each set into one home with every caller
+moved, in one pull request for the area; leave a set another open pull request is
+changing to a later sweep. In the description, name each copy's introducing pull
+request (`git log -S`), so the copies added since the area's last sweep show what
+review let through.
 
 ## Weekly: vendored browser dependencies
 

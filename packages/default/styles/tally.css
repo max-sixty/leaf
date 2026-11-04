@@ -3,7 +3,7 @@
  * can take in one cell with the words, giving the chip its width, so a changing count
  * moves neither the control nor what follows. Until the page's first reading is in,
  * the tally keeps its room and shows nothing; once every obligation is answered the chip takes
- * the ok tone (`.lf-chip.ok`). */
+ * the ok tone (`.lf-chip[data-lf-tone="ok"]`). */
 lf-tally {
   display: inline-flex;
   align-items: center;

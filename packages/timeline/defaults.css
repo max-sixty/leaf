@@ -45,7 +45,7 @@ lf-event::before {
   display: grid;
   grid-template-columns: max-content minmax(0, 1fr);
   grid-template-rows: var(--lf-timeline-ruler) repeat(var(--lf-timeline-bands, 1), auto);
-  /* The labels are the drawing's references (base.css, `--font-status`). Each stands in
+  /* The labels are the drawing's references (tokens.css, `--font-status`). Each stands in
      a row of a stated height, so its line is as tall as its words, as a mark's count
      is. */
   font: var(--font-status);

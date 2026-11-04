@@ -494,7 +494,7 @@ customElements.define(
           </div>
           <div class="lf-vr-decision">
             <div class="lf-vr-review-actions">
-              <label class="choice lf-vr-approval"
+              <label class="lf-choice lf-vr-approval"
                 ><input
                   ${offered("lf-vr-approval-input")}
                   type="checkbox"

@@ -86,8 +86,8 @@ own (`../SOUL.md`, "Keep the foundation small and extensible").
   generated interface appears in its final position. A state that may never come, such
   as a failed save, shows in a slot already on screen, as a message's head carries its
   delivery status, and the user's gesture makes the room it needs. Feedback may repaint
-  a control or change its label, but never its size: `data-room` (`controls.css`) sizes
-  a label to the widest of the words it can show. Adjacent actions keep their hit areas
+  a control or change its label, but never its size: `data-lf-room` (`controls.css`)
+  sizes a label to the widest of the words it can show. Adjacent actions keep their hit areas
   apart.
 - **Shared containers determine control dimensions.** When several modes share a
   container, as the comment field, page search, Threads' search and a thread's reply
@@ -356,6 +356,15 @@ targets, or a condition its owner sets on the styled element, and measure with
   roles). A new role needs a difference in the user's task, not only in a widget's
   taste. Checks: `test_controls_are_built_by_role_and_never_by_face`,
   `test_every_press_is_built_by_role`.
+- **Leaf's elements wear only Leaf's names.** A class or data attribute the runtime
+  or a package module writes starts with `lf-` or `data-lf-`, the names `page check`
+  refuses an author (`../src/leaf/validation.md`), so a page's CSS for its own names
+  never reaches Leaf's elements; a page restyles Leaf on purpose through the theme's
+  tokens. Where a Leaf control looks like an idiom an author writes, such as `.button`
+  or `data-room`, it wears the idiom's `lf-` twin (`.lf-btn`, `data-lf-room`), and one
+  theme rule selects both. A library's names on an element Leaf draws for that library,
+  such as Pierre's row attributes, stay the library's. Check:
+  `test_leaf_writes_its_own_marks_under_its_prefix`.
 - **A face used twice is a token or a shared rule.** A lift names one of the theme's
   heights, `--raise-1` to `--raise-3` (`base.css`). Check:
   `test_every_lift_names_one_of_the_theme_s_heights_cast_in_the_scheme_s_ink`.
@@ -370,7 +379,7 @@ use it:
 
 | Question                                                                   | The browser feature that answers it                                                                                               |
 | -------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| How large a box is, including the widest of several labels                 | grid and flex tracks, `min-content` and `max-content`, labels stacked in one grid cell, `data-room`                               |
+| How large a box is, including the widest of several labels                 | grid and flex tracks, `min-content` and `max-content`, labels stacked in one grid cell, `data-lf-room`                            |
 | Where a box sits relative to another box or its scroller                   | the containing block, sticky positioning, anchor positioning, scroll timelines                                                    |
 | Which of Leaf's surfaces paints over which, with the page beneath them all | the top layer, and stacking contexts: the theme's `--lf-z-*` ladder, inside the chrome's root after `body` at the largest z-index |
 | Whether a box is rendered at all                                           | `checkVisibility`                                                                                                                 |
@@ -476,6 +485,7 @@ adds its row. Rows marked _lint_ are enforced in `eslint.config.mjs`.
 | Whether a box scrolls, for a script or for the user                                                   | `geometry.js` `scrollContainer`, `userScrollport`                                  |
 | Which axes a box clips                                                                                | `rect.js` `clippingAxes`                                                           |
 | Whether a box is at its scroll end                                                                    | `scrolling.js` `atScrollEnd`, `SCROLL_SLACK`                                       |
+| When a box's scroll ends, a glide's counted once, and whether the browser or a script moves it        | `arrivals.js` `watchScrollEnds`, `holdScroll`, `browserScrolls` (_lint_)           |
 | Whether the reader or layout chose a box's scroll position                                            | `scrolling.js` `chosenSince`, `placeKept`                                          |
 | The authored body, excluding Leaf's runtime surfaces                                                  | `passages.js` `pageDocument`, `inPage`                                             |
 | The document a node stands in: the view member or `main` holding it                                   | `storage.js` `viewDocument`                                                        |

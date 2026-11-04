@@ -521,8 +521,6 @@ export class ThreadView {
   #transcript;
   /** @type {ReturnType<typeof createReplyView> | null} */
   #reply = null;
-  /** @type {(() => Element | null) | null} */
-  #settlesAt = null;
   // What a thread in the page's flow holds back says so in its control row (held-news.js).
   #news = newsNotice();
   #continuity;
@@ -649,15 +647,6 @@ export class ThreadView {
     return this.#foldedInto && !this.#foldedInto.open ? this.#foldedInto : null;
   }
 
-  // Where the seat's flow would grow if the card's settlement changed (inline.js), read
-  // as the news comes: before the seat's next open thread, or before its Resolved
-  // disclosure, for a resolved card that reopens; the disclosure, while it stands open,
-  // for an open card that resolves into it. Null where nothing the seat draws grows.
-  /** @param {(() => Element | null) | null} place */
-  setSettlesAt(place) {
-    this.#settlesAt = place;
-  }
-
   // The last of the thread a reader can see, after which its news grows: the last
   // node its transcript shows (transcript.js, `foot`), and none while the thread is
   // folded. A card folded in its seat's Resolved disclosure draws nothing at all.
@@ -689,17 +678,13 @@ export class ThreadView {
   }
 
   // HeldNews compares readings; this owner decides whether their changed regions
-  // would move visible words. Existing-message changes and active compositions
-  // retain the hold. A pinned reply can absorb growth at the thread's end, but cannot
-  // absorb changes above it or settlement replacing the reply itself.
+  // would move visible words. Existing-message changes retain the hold. A pinned reply
+  // can absorb growth at the thread's end, but cannot absorb changes above it or
+  // settlement replacing the reply itself.
   /** @param {import("./held-news.js").ThreadChange} change */
   newsMoves({ news, changed, joined, folds, appendedAtEnd, footFold }) {
-    // Settling moves the card between the seat's open threads and its Resolved
-    // disclosure, so it grows the seat where the card lands as well as where it stood.
-    const lands = news.settled ? this.#settlesAt?.() : null;
-    if (lands && growthIsSeen(lands)) return true;
     // Folded in its seat's closed Resolved disclosure, the card moves nothing as it
-    // changes otherwise.
+    // changes, and draws at once whatever its settlement does to the seat.
     if (this.#fold) return false;
     const pinned = pinnedReply(this.#reply?.node);
     // An answer's own fold of the progress run at the thread's end changes only the

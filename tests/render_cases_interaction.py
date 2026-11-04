@@ -6,13 +6,12 @@ from datetime import datetime, timedelta
 from browser_sources import browser_source
 from interact_support import add_test_widget, append_carried_log_record, append_command
 from render_harness import (
-    CORPUS_SOURCES,
     TOKEN,
     leaf_page,
 )
 
 from leaf.schema import ELEMENT_ID
-from leaf_dev.example_data import named_source
+from leaf_dev.example_data import authored_sources, named_source
 
 # A page with an outline: three headings, and passages under each to hang threads on.
 # LONG_PAGE has one heading and sixty paragraphs, which cannot tell an order that
@@ -317,7 +316,7 @@ EXHIBIT_EXTENT = """
 }
 """
 
-SAMPLE_EXAMPLES = [p for p in CORPUS_SOURCES if "<lf-sample" in p.read_text()]
+SAMPLE_EXAMPLES = [p for p in authored_sources() if "<lf-sample" in p.read_text()]
 assert SAMPLE_EXAMPLES, (
     "no authored fixture holds a sample — the sweep below would drive the fixture "
     "page alone, and the rule it holds is one the corpus is the whole test of"

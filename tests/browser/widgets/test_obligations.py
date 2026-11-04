@@ -23,7 +23,6 @@ from render_cases_interaction import (
 from render_cases_layout import SHOT_SRC, SHOTS
 from render_cases_navigation import BINDING_BADGE_PAGE, actions
 from render_harness import (
-    ROOT,
     active_digit_bindings,
     available_commands,
     expect_comment_notes,
@@ -46,6 +45,7 @@ from browser.widgets import (
     observe_live_region,
 )
 from leaf.render_checks import rendered
+from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -371,7 +371,7 @@ def test_options_laid_across_take_a_widened_obligations_width(browser, serve):
 
 def test_ideas_shortlist_survives_revision_and_can_reopen(browser, serve):
     """Ordinary choices retain the implementation set and a reversible Done."""
-    example = ROOT / "examples/ideas-to-implement.html"
+    example = named_source("ideas-to-implement")
     context = browser.new_context(
         viewport={"width": 390, "height": 844}, has_touch=True
     )

@@ -9,8 +9,7 @@ import pytest
 from leaf.structure import SourceDocument
 from leaf_dev import docs
 from leaf_dev.commands import record_demo
-from leaf_dev.docs import DOCS, EXAMPLES
-from leaf_dev.example_data import document_metadata
+from leaf_dev.example_data import catalog_sources, document_metadata, named_source
 
 
 def test_catalog_descriptions_follow_example_metadata(tmp_path, monkeypatch):
@@ -19,12 +18,11 @@ def test_catalog_descriptions_follow_example_metadata(tmp_path, monkeypatch):
     The catalog authors its selection, grouping and order; every builder composes
     each caption from its example's description, escaped as text.
     """
-    source = DOCS / "examples.html"
+    source = named_source("examples")
     catalog = source.read_text()
     links = SourceDocument(catalog).tree.select("a.example-link")
-    for link in links:
-        name = docs.example_name(link)
-        (tmp_path / f"{name}.html").write_text((EXAMPLES / f"{name}.html").read_text())
+    for example in catalog_sources():
+        (tmp_path / example.name).write_text(example.read_text())
     changed = tmp_path / "review-a-plan.html"
     _, old = document_metadata(changed)
     description = 'Review a plan & choose <the next step> with "clear evidence".'
@@ -65,7 +63,7 @@ def test_catalog_descriptions_follow_example_metadata(tmp_path, monkeypatch):
 )
 def test_a_composed_part_refuses_an_authored_copy(slot, copy):
     """A slot holding a copy of its owner's facts would go stale silently."""
-    source = DOCS / "index.html"
+    source = named_source("index")
     authored = source.read_text()
     assert slot in authored
     with pytest.raises(ValueError, match="composed from its owner"):

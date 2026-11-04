@@ -39,11 +39,14 @@ _DATA_COMPANION = Draft202012Validator(
 
 # Where authored pages live in a checkout: the worked examples and the developer
 # galleries, which the public site publishes, and the full-page regression fixtures.
-# A command line names a page by its file's stem.
+# A command line or a test names a page by its file's stem.
 WORKED_EXAMPLES = Path("examples")
 DEVELOPER_GALLERIES = WORKED_EXAMPLES / "developer"
 PUBLISHED_DIRS = (WORKED_EXAMPLES, DEVELOPER_GALLERIES)
 SOURCE_DIRS = (*PUBLISHED_DIRS, Path("tests/fixtures/pages"))
+# The product documents (`leaf_dev.docs`): a name picks one as it picks an authored
+# page, but the corpus and the sweeps over authored pages leave them out.
+PRODUCT_DOCS = Path("docs")
 
 # `leaf-dev corpus` composes every authored page into this ignored path among the
 # worked examples, so it is a source a name picks but never an authored page.
@@ -72,11 +75,11 @@ def published_sources(root: Path = ROOT) -> list[Path]:
 
 
 def named_source(name: str, *, root: Path = ROOT) -> Path:
-    """The one source a name picks out of the authored pages and the corpus; a
-    ValueError says why a name picks none, or several. The corpus is generated on
-    demand."""
+    """The one source a name picks out of the authored pages, the product documents
+    and the corpus; a ValueError says why a name picks none, or several. The corpus
+    is generated on demand."""
     name = name.removesuffix(".html")
-    sources = [root / CORPUS, *authored_sources(root)]
+    sources = [root / CORPUS, *authored_sources(root, (*SOURCE_DIRS, PRODUCT_DOCS))]
     found = [path for path in sources if path.stem == name]
     if len(found) > 1:
         raise ValueError(f"{name} names more than one source: {found}")
@@ -99,7 +102,7 @@ def catalog_sources(root: Path = ROOT) -> list[Path]:
     """
 
     document = SourceDocument(
-        (root / "docs" / "examples.html").read_text(encoding="utf-8")
+        (root / PRODUCT_DOCS / "examples.html").read_text(encoding="utf-8")
     )
     sources = []
     for link in document.tree.select("a.example-link"):

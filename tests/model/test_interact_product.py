@@ -61,10 +61,9 @@ from leaf.validation.admission import (
     revision_publication,
 )
 from leaf.validation.instances import reference_errors
-from leaf_dev.example_data import authored_sources
+from leaf_dev.example_data import authored_sources, named_source
 
-FEATURE_GALLERY = ROOT / "examples" / "developer" / "feature-gallery.html"
-CORPUS_SOURCES = tuple(authored_sources())
+FEATURE_GALLERY = named_source("feature-gallery")
 
 
 def authored_tags(document: SourceDocument) -> set[str]:
@@ -487,15 +486,9 @@ def test_every_path_a_diff_resolves_names_a_language_the_bundles_carry(page_dir)
 
 
 PAGE_FIXTURES = (
-    *CORPUS_SOURCES,
+    *authored_sources(),
     *sorted((ROOT / "notes").glob("**/*.html")),
 )
-
-
-def test_the_fixture_check_reaches_the_developer_pages():
-    """A moved `examples/developer/` would leave the check above with nothing to say
-    about it rather than failing."""
-    assert FEATURE_GALLERY in PAGE_FIXTURES
 
 
 def test_every_widget_in_the_vocabulary_stands_in_a_corpus_source():
@@ -508,7 +501,10 @@ def test_every_widget_in_the_vocabulary_stands_in_a_corpus_source():
     registry = validation_model.incoming_registry(SHIPPED_PACKAGES)
     # The corpus is generated from the others, so it can only repeat their coverage.
     authored = set().union(
-        *(authored_tags(SourceDocument(path.read_text())) for path in CORPUS_SOURCES)
+        *(
+            authored_tags(SourceDocument(path.read_text()))
+            for path in authored_sources()
+        )
     )
     tags = element_declarations(registry)
     assert tags, "no widgets read — an empty vocabulary demonstrates itself"

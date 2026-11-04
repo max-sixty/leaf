@@ -34,10 +34,15 @@ from leaf.schema import MEDIA_DIR
 from leaf.state import KERNEL_REGISTRY
 from leaf.structure import SourceDocument
 from leaf_dev import ROOT, declared_records
-from leaf_dev.example_data import WORKED_EXAMPLES, document_metadata
+from leaf_dev.example_data import (
+    PRODUCT_DOCS,
+    WORKED_EXAMPLES,
+    authored_sources,
+    document_metadata,
+)
 from leaf_dev.leaf_assets import pinned_assets
 
-DOCS = ROOT / "docs"
+DOCS = ROOT / PRODUCT_DOCS
 EXAMPLES = ROOT / WORKED_EXAMPLES
 ASSETS = ROOT / "browser"
 PACKAGES = ROOT / "packages"
@@ -64,7 +69,7 @@ COLLAPSED_DETAIL_WORDS = 30
 
 def product_sources() -> list[Path]:
     """The top-level product documents, each published at its filename's route."""
-    return sorted(DOCS.glob("*.html"))
+    return authored_sources(directories=(PRODUCT_DOCS,))
 
 
 def product_route(source: Path) -> str:

@@ -287,7 +287,7 @@ def cmd_pages(payload: dict) -> None:
     if forking:
         from .file_changes import FileChanges, page_changes, wait
         from .forks import lane_path, take_lane
-        from .leases import end_if_terminated, release_lease
+        from .leases import release_lease
         from .page_memory import memory_of
 
         lane = take_lane(sid)
@@ -347,9 +347,6 @@ def cmd_pages(payload: dict) -> None:
                     default=float("inf"),
                 )
                 remaining = presence_due - time.monotonic()
-                # A stop whose raise a page memory's finalizer discarded ends the
-                # follower here (`release_on_termination`).
-                end_if_terminated()
                 wait(marks, max(0.0, min(remaining, bound - time.time())))
                 if time.monotonic() >= presence_due:
                     break
@@ -401,10 +398,7 @@ def main(
     """Read one harness payload and dispatch it.
 
     The Click hook command is the caller.
-    The harness ends a watch and the pages follower with SIGTERM or SIGHUP. Each
-    then unwinds, so the watch releases its leases and the follower its lane, and
-    exits 128 plus the signal, which Leaf's Claude Code hooks module reads as an
-    ending from outside.
+    A watch owns leases, so it releases them when the harness terminates it.
     """
     import os
     import sys
@@ -442,10 +436,6 @@ def main(
             ],
             environment,
         )
-    if watch or pages:
-        from .leases import release_on_termination
-
-        release_on_termination()
     if pages:
         cmd_pages(payload)
         return
@@ -461,6 +451,9 @@ def main(
             print(json.dumps(answered, ensure_ascii=False), flush=True)
         return
     if watch:
+        from .leases import release_on_termination
+
+        release_on_termination()
         if woke := cmd_watch(harness, payload):
             print(woke, flush=True)
         return

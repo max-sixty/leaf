@@ -305,8 +305,7 @@ def test_a_follower_terminated_from_outside_stays_out_of_the_conversation(
     rather than the conversation the user reads."""
     launcher = tmp_path / "bin" / "leaf"
     launcher.parent.mkdir()
-    # As the follower does when it is terminated
-    # (`test_a_terminated_pages_follower_exits_with_its_signal`).
+    # As `bin/leaf` does when its uv is terminated.
     launcher.write_text("#!/bin/sh\nsh -c 'kill -TERM $$'\nexit $?\n")
     launcher.chmod(0o755)
     driven = ClaudeCode(spawn, "cc-terminated", {"pluginRoot": str(tmp_path)})

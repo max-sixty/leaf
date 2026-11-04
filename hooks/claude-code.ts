@@ -151,10 +151,9 @@ function launcher($: EngineInterface) {
 }
 
 /** Log the follower's failure, to the conversation unless a signal from outside
- * the module ended it, which the follower reports as 128 plus the signal
- * (`leases.release_on_termination`): as SIGTERM ends it while a session sits
- * idle, or SIGHUP as its terminal closes. That ending is no failure of Leaf's to
- * show the user. */
+ * the module ended it, which the launcher's shell reports as 128 plus the signal:
+ * as SIGTERM ends it while a session sits idle, or SIGHUP as its terminal closes.
+ * That ending is no failure of Leaf's to show the user. */
 function report($: EngineInterface, text: string, code: number | null) {
   $.ui.log(text, code !== null && code > 128 ? { to: "debug" } : undefined);
 }

@@ -1198,11 +1198,24 @@
     inset-inline: 0;
     bottom: 0;
   }
-  /* A thread scrolled past its first lines fades out at its top edge rather than
-     cutting a line in half. */
+  /* A thread that continues past either edge of its view fades out there rather than
+     cutting a line in half. Each fade lies over the view's padding where the thread
+     ends, so it shows only where words run on. New reply's foot stands at the lower
+     edge on a ground of its own, which fades what passes under it. */
   .lf-fp-view[data-lf-route="thread"] {
-    padding-top: 10px;
-    mask-image: linear-gradient(to bottom, transparent 0, #000 12px);
+    --lf-fp-fade-end: 12px;
+    --lf-fp-view-pad-end: 10px;
+    padding-block: 10px var(--lf-fp-view-pad-end);
+    mask-image: linear-gradient(
+      to bottom,
+      transparent 0,
+      #000 12px,
+      #000 calc(100% - var(--lf-fp-fade-end)),
+      transparent 100%
+    );
+  }
+  .lf-fp-view[data-lf-route="thread"]:has(> .lf-fp-foot) {
+    --lf-fp-fade-end: 0px;
   }
   /* An answer waiting below the fold (floating-panel.js, `fitAnswer`): a press at the
      view's foot, where the answer begins, standing on the panel's ground, which fades
@@ -1215,8 +1228,8 @@
   .lf-fp-foot {
     position: sticky;
     --lf-head-inset: 0px;
-    bottom: -6px;
-    margin: 0 -6px -6px;
+    bottom: calc(-1 * var(--lf-fp-view-pad-end));
+    margin: 0 -6px calc(-1 * var(--lf-fp-view-pad-end));
     padding: 10px 0 6px;
     background: linear-gradient(transparent, var(--lf-fp-surface) 10px);
   }

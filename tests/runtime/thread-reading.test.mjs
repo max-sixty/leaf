@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { servedReading, servedThread, servedWorkflow } from "../served.mjs";
 
-const { lastMovedAt, moved, readThreadRecords } =
+const { foldThreads, lastMovedAt, moved, readThreadRecords, threadRecordReader } =
   await import("/runtime/thread/model.js");
 const { threadAttention } = await import("/runtime/thread/workflow.js");
 const { threadName, threadSummary, prepareAuthoredMessage, messageReading } =
@@ -78,6 +78,69 @@ test("a thread's unread is the server reading less what this tab is acknowledgin
     [true, false],
   );
   assert.deepEqual(current.unread, [{ message: "root", version: "root" }]);
+});
+
+test("a reading keeps the record of every thread nothing it reads has changed", () => {
+  const threads = ["a", "b", "c"].map((id) =>
+    servedThread([agent(id, { kind: "comment" })]),
+  );
+  const workflows = threads.map(({ id }) =>
+    servedWorkflow({ id: `w-${id}`, input: id, message: id, thread: id }),
+  );
+  const read = threadRecordReader();
+  const first = read(threads, NO_DOCUMENT, new Map(), workflows);
+  // The same inputs, or new lists holding the same records, keep every record.
+  assert.deepEqual(
+    read([...threads], NO_DOCUMENT, new Map(), [...workflows]).map(
+      (record, at) => record === first[at],
+    ),
+    [true, true, true],
+  );
+  // A new thread, and a workflow that moved on in another, read again only theirs.
+  const added = servedThread([agent("d", { kind: "comment" })]);
+  const moving = { ...workflows[1], stage: "picked_up" };
+  const next = read([...threads, added], NO_DOCUMENT, new Map(), [
+    workflows[0],
+    moving,
+    workflows[2],
+  ]);
+  assert.deepEqual(
+    next.slice(0, 3).map((record, at) => record === first[at]),
+    [true, false, true],
+  );
+  assert.deepEqual(next[1].workflows, [moving]);
+  assert.deepEqual(next[1].root.workflows, [moving]);
+  // A record is the one a fresh reading would make.
+  assert.deepEqual(
+    next,
+    readThreadRecords([...threads, added], NO_DOCUMENT, new Map(), [
+      workflows[0],
+      moving,
+      workflows[2],
+    ]),
+  );
+});
+
+test("a gesture copies only the thread it stands in", () => {
+  const threads = ["a", "b"].map((id) =>
+    servedThread([agent(id, { kind: "comment" })]),
+  );
+  const reply = {
+    ...agent("pending:r", { author: "user" }),
+    parent: "b",
+    pending: true,
+  };
+  const [a, b] = foldThreads(threads, [reply]);
+  assert.equal(a, threads[0]);
+  assert.notEqual(b, threads[1]);
+  assert.deepEqual(
+    b.msgs.map(({ id }) => id),
+    ["b", "pending:r"],
+  );
+  assert.deepEqual(
+    threads[1].msgs.map(({ id }) => id),
+    ["b"],
+  );
 });
 
 test("a message moves when it is edited, and a thread when any turn moves", () => {

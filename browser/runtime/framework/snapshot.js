@@ -97,6 +97,7 @@ const plain = (value) => {
  * `next`, with every subtree deep-equal to the matching one in `prior` replaced by
  * `prior`'s. Plain objects, arrays, Maps and Sets compare by contents (a Map or Set by
  * its entries in order, an object by its keys in any order); anything else by identity.
+ * An array's item that `prior`'s array holds at any index stays as it is.
  * Returns `prior` itself when the two are equal, and `next` itself when nothing in it
  * could be shared, so neither input is copied or mutated needlessly.
  *
@@ -116,7 +117,18 @@ export function share(prior, next) {
     return next;
   if (Array.isArray(next)) {
     if (!Array.isArray(prior)) return next;
-    const children = next.map((child, index) => share(prior[index], child));
+    // An item the prior list holds anywhere is already shared, so a list that gained,
+    // lost or reordered items compares each item that moved by identity, not contents.
+    /** @type {Set<unknown> | undefined} */
+    let held;
+    const children = next.map((child, index) =>
+      child !== prior[index] &&
+      child !== null &&
+      typeof child === "object" &&
+      (held ??= new Set(prior)).has(child)
+        ? child
+        : share(prior[index], child),
+    );
     if (
       prior.length === next.length &&
       children.every((child, index) => child === prior[index])

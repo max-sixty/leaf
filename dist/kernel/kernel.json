@@ -200,11 +200,11 @@
 
     "runtime/framework.js": "9f71bf57ffc03f55a6a09b6cda840c1c7e208bfed089f97f8b21e163b1f40fbb",
 
-    "runtime/framework/application.js": "c38d3119597f940075f21ed94008322ec018b0978d45af45c55b4a8147e964a7",
+    "runtime/framework/application.js": "41043cc29ec3338f5bc1b940e32890d37e961a0a6a9a0d6aac1141bbbe20417c",
 
     "runtime/framework/presentation.js": "1d2cd21628fc4c21a759b3d969588d71269921f970a0f49ee0671eb934790816",
 
-    "runtime/framework/snapshot.js": "588a54ad43a4221a2659a1fa1ed019e2027cfdbcbac4c27f57d5e9dac5eefe30",
+    "runtime/framework/snapshot.js": "655ee00f2759361c5964af2d976f04b51c420b7aadaf011d0a1112ed86529362",
 
     "runtime/geometry.js": "b90354eac5bd8cd16a3cf891852604912c8f4118a8f00ffea08784e8a8c39449",
 
@@ -486,7 +486,7 @@
 
     "runtime/thread/messages.js": "31f14a80eecad3298b13d80f34e66e943ad5f6731bca5646249f6ee8d0da68f7",
 
-    "runtime/thread/model.js": "97708981970747737174baa9149daa1f8f397e2577070292ffce9a92620c66ad",
+    "runtime/thread/model.js": "00cc40a8ca35b33481260c8fff099b017ee80c9bbac9721ac824398408ee82a2",
 
     "runtime/thread/placement.js": "2090ac624e57a1aac69f9d61cb22bd88e54e3a0b52399a20256a5852c8353c62",
 

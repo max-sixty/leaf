@@ -233,7 +233,8 @@ function share(prior, next) {
 	if (prior === null || next === null || typeof prior !== "object" || typeof next !== "object") return next;
 	if (Array.isArray(next)) {
 		if (!Array.isArray(prior)) return next;
-		const children = next.map((child, index) => share(prior[index], child));
+		let held;
+		const children = next.map((child, index) => child !== prior[index] && child !== null && typeof child === "object" && (held ??= new Set(prior)).has(child) ? child : share(prior[index], child));
 		if (prior.length === next.length && children.every((child, index) => child === prior[index])) return prior;
 		return children.every((child, index) => child === next[index]) ? next : children;
 	}
@@ -651,16 +652,30 @@ function unedited(thread, message, withdrawn) {
 function foldThreads(threads, gestures) {
 	if (!gestures.length) return [...threads];
 	const withdrawn = new Set(gestures.flatMap((gesture) => gesture.kind === "undo" ? [gesture.undoes] : []));
-	const copies = threads.filter((thread) => !withdrawn.has(thread.root.id)).map((thread) => {
+	const owned = /* @__PURE__ */ new Set();
+	const without = (thread) => {
 		const msgs = thread.msgs.filter((message) => !withdrawn.has(message.id)).map((message) => unedited(thread, message, withdrawn));
-		return {
+		const reopened = Boolean(thread.resolved && "id" in thread.resolved && withdrawn.has(thread.resolved.id));
+		if (!reopened && msgs.length === thread.msgs.length && msgs.every((message, at) => message === thread.msgs[at])) return thread;
+		const copy = {
 			...thread,
 			root: msgs.find(({ id }) => id === thread.root.id) ?? thread.root,
 			msgs,
-			...thread.resolved && "id" in thread.resolved && withdrawn.has(thread.resolved.id) ? { resolved: null } : {}
+			...reopened ? { resolved: null } : {}
 		};
-	});
+		owned.add(copy);
+		return copy;
+	};
+	const copies = withdrawn.size ? threads.filter((thread) => !withdrawn.has(thread.root.id)).map(without) : [...threads];
 	const byName = threadNames(copies);
+	const own = (thread) => {
+		if (owned.has(thread)) return thread;
+		const copy = { ...thread };
+		owned.add(copy);
+		copies[copies.indexOf(thread)] = copy;
+		for (const [name, named] of threadNames([thread])) if (named === thread) byName.set(name, copy);
+		return copy;
+	};
 	const opened = [];
 	for (const gesture of gestures) if (gesture.kind === "comment") {
 		const reaction = isReaction(gesture);
@@ -681,18 +696,21 @@ function foldThreads(threads, gestures) {
 			attention: reaction ? null : sending(gesture)
 		};
 		opened.push(thread);
+		owned.add(thread);
 		byName.set(gesture.id, thread);
 	} else if (gesture.kind === "reply") {
-		const thread = byName.get(gesture.parent);
-		if (!thread) continue;
+		const named = byName.get(gesture.parent);
+		if (!named) continue;
+		const thread = own(named);
 		const streaming = thread.msgs.at(-1)?.provisional ? 1 : 0;
 		thread.msgs = thread.msgs.toSpliced(thread.msgs.length - streaming, 0, gesture);
 		if (!isReaction(gesture)) thread.resolved = null;
 	} else if (gesture.kind === "edit") {
-		const thread = byName.get(gesture.message);
-		const at = thread?.msgs.findIndex(({ id }) => id === gesture.message) ?? -1;
-		const message = thread?.msgs[at];
-		if (!thread || !message) continue;
+		const named = byName.get(gesture.message);
+		const at = named?.msgs.findIndex(({ id }) => id === gesture.message) ?? -1;
+		const message = named?.msgs[at];
+		if (!named || !message) continue;
+		const thread = own(named);
 		thread.msgs = thread.msgs.with(at, {
 			...message,
 			text: gesture.text,
@@ -707,9 +725,9 @@ function foldThreads(threads, gestures) {
 		if (thread.root.id === gesture.message) thread.root = thread.msgs[at] ?? message;
 		thread.resolved = null;
 	} else if (gesture.kind === "resolve" || gesture.kind === "unresolve") {
-		const thread = byName.get(gesture.parent) ?? (gesture.localParent ? byName.get(gesture.localParent) : void 0);
-		if (!thread) continue;
-		thread.resolved = gesture.kind === "resolve" ? {
+		const named = byName.get(gesture.parent) ?? (gesture.localParent ? byName.get(gesture.localParent) : void 0);
+		if (!named) continue;
+		own(named).resolved = gesture.kind === "resolve" ? {
 			author: "user",
 			pending: true
 		} : null;
@@ -732,78 +750,146 @@ function lastMovedAt(thread) {
 	return latest;
 }
 const versionKey = ({ message, version }) => `${message}\u0000${version}`;
-function readThreadRecords(threads, document, widgets, workflows, todos = [], obligations = [], markingRead = [], ready = true) {
-	const locallyRead = new Set(markingRead.map(versionKey));
-	const unitsByMessage = /* @__PURE__ */ new Map();
-	for (const descriptor of document.descriptors.values()) {
-		if (descriptor.document.kind !== "thread") continue;
-		const units = unitsByMessage.get(descriptor.document.message) ?? [];
-		units.push({
-			id: descriptor.id,
-			tag: descriptor.tag,
-			state: widgets.get(descriptor.id)?.state ?? {}
-		});
-		unitsByMessage.set(descriptor.document.message, units);
+const BETWEEN = Symbol("between");
+function grouped(items, key) {
+	const groups = /* @__PURE__ */ new Map();
+	for (const item of items) {
+		const name = key(item);
+		if (name == null) continue;
+		const group = groups.get(name);
+		if (group) group.push(item);
+		else groups.set(name, [item]);
 	}
-	const readMessage = (message, unreadMessages, thread) => {
-		const { markup, plainText, attention, session, publication, responds, start, title, ...record } = message;
-		const units = unitsByMessage.get(message.id) ?? [];
-		const authored = document.messageBodies?.get(message.id);
-		if (markup && !authored) throw new Error(`Authored message ${message.id} has no captured body`);
-		const body = markup && authored ? {
-			kind: "authored",
-			...authored,
-			units
-		} : {
-			kind: message.token ? "reaction" : message.suggestion ? "suggestion" : "prose",
-			text: authored?.text ?? plainText ?? message.text ?? message.token ?? ""
+	return groups;
+}
+const NONE = Object.freeze([]);
+const NO_TOKENS = Object.freeze({});
+function threadRecordReader() {
+	let kept = /* @__PURE__ */ new Map();
+	return function readThreadRecords(threads, document, widgets, workflows, todos = [], obligations = [], markingRead = [], ready = true) {
+		const locallyRead = new Set(markingRead.map(versionKey));
+		const tokens = document.registry.$reactions?.tokens ?? NO_TOKENS;
+		const unitsByMessage = /* @__PURE__ */ new Map();
+		for (const descriptor of document.descriptors.values()) {
+			if (descriptor.document.kind !== "thread") continue;
+			const units = unitsByMessage.get(descriptor.document.message) ?? [];
+			units.push({
+				id: descriptor.id,
+				tag: descriptor.tag,
+				state: widgets.get(descriptor.id)?.state ?? {}
+			});
+			unitsByMessage.set(descriptor.document.message, units);
+		}
+		const published = new Map(workflows.map((workflow, at) => [workflow, at]));
+		const workflowsIn = grouped(workflows, (workflow) => workflow.thread);
+		const workflowsOf = grouped(workflows, (workflow) => workflow.message);
+		const workflowsOn = grouped(workflows, (workflow) => workflow.subject.kind === "widget" ? workflow.subject.id : null);
+		const obligationsIn = grouped(obligations, (obligation) => obligation.thread);
+		const agentTodosIn = grouped(todos.filter((todo) => todo.owner === "agent"), (todo) => todo.thread);
+		const userTodosIn = grouped(todos.filter((todo) => todo.owner === "user"), (todo) => todo.thread);
+		const messageWorkflows = (message) => {
+			const own = workflowsOf.get(message.id) ?? [];
+			const units = unitsByMessage.get(message.id);
+			if (!units) return own;
+			return [.../* @__PURE__ */ new Set([...own, ...units.flatMap((unit) => workflowsOn.get(unit.id) ?? [])])].sort((a, b) => published.get(a) - published.get(b));
 		};
-		const unitIds = new Set(units.map((unit) => unit.id));
-		return {
-			...record,
-			thread,
-			unread: unreadMessages.has(message.id),
-			key: messageKey(message),
-			body,
-			workflows: workflows.filter((workflow) => workflow.message === message.id || workflow.subject.kind === "widget" && unitIds.has(workflow.subject.id))
+		const readingOf = (thread) => {
+			const unread = thread.unread.filter((item) => !locallyRead.has(versionKey(item)));
+			const inputs = [
+				thread,
+				ready,
+				tokens,
+				...unread,
+				BETWEEN,
+				...workflowsIn.get(thread.id) ?? NONE,
+				BETWEEN,
+				...obligationsIn.get(thread.id) ?? NONE,
+				BETWEEN,
+				...agentTodosIn.get(thread.id) ?? NONE,
+				BETWEEN,
+				...userTodosIn.get(thread.id) ?? NONE
+			];
+			for (const message of thread.msgs) {
+				const body = document.messageBodies?.get(message.id);
+				inputs.push(BETWEEN, body?.text, body?.markup, ...messageWorkflows(message));
+				for (const unit of unitsByMessage.get(message.id) ?? NONE) inputs.push(BETWEEN, unit.id, unit.tag, JSON.stringify(unit.state));
+			}
+			return {
+				unread,
+				inputs
+			};
 		};
+		const readMessage = (message, unreadMessages, thread) => {
+			const { markup, plainText, attention, session, publication, responds, start, title, ...record } = message;
+			const units = unitsByMessage.get(message.id) ?? [];
+			const authored = document.messageBodies?.get(message.id);
+			if (markup && !authored) throw new Error(`Authored message ${message.id} has no captured body`);
+			const body = markup && authored ? {
+				kind: "authored",
+				...authored,
+				units
+			} : {
+				kind: message.token ? "reaction" : message.suggestion ? "suggestion" : "prose",
+				text: authored?.text ?? plainText ?? message.text ?? message.token ?? ""
+			};
+			return {
+				...record,
+				thread,
+				unread: unreadMessages.has(message.id),
+				key: messageKey(message),
+				body,
+				workflows: messageWorkflows(message)
+			};
+		};
+		const readRecord = (thread, unread) => {
+			const unreadMessages = new Set(unread.map((item) => item.message));
+			const msgs = thread.msgs.map((message) => readMessage(message, unreadMessages, threadKey(thread)));
+			const reactions = {
+				key: threadKey(thread),
+				resolved: thread.resolved,
+				msgs
+			};
+			const messages = msgs.map((message) => ({
+				...message,
+				reactions: ready ? reactionChoices(reactions, message, tokens) : null
+			}));
+			const root = messages.find((message) => message.id === thread.root.id);
+			if (!root) throw new Error(`Thread ${thread.id} has no root message`);
+			return {
+				id: thread.id,
+				key: threadKey(thread),
+				title: thread.title,
+				root,
+				msgs: messages,
+				unread: Object.freeze(unread),
+				anchor: thread.anchor,
+				detached_from: thread.detached_from,
+				rewritten_from: thread.rewritten_from,
+				resolved: thread.resolved,
+				attention: thread.attention,
+				obligations: obligationsIn.get(thread.id) ?? [],
+				todos: agentTodosIn.get(thread.id) ?? [],
+				userTodos: userTodosIn.get(thread.id) ?? [],
+				workflows: workflowsIn.get(thread.id) ?? [],
+				bare_reaction: thread.bare_reaction,
+				seat: thread.seat,
+				summaries: thread.summaries
+			};
+		};
+		const reading = /* @__PURE__ */ new Map();
+		const records = threads.map((thread) => {
+			const { unread, inputs } = readingOf(thread);
+			const prior = kept.get(thread.id);
+			const record = prior && prior.inputs.length === inputs.length && inputs.every((input, at) => Object.is(input, prior.inputs[at])) ? prior.record : readRecord(thread, unread);
+			reading.set(thread.id, {
+				inputs,
+				record
+			});
+			return record;
+		});
+		kept = reading;
+		return records;
 	};
-	return threads.map((thread) => {
-		const unread = thread.unread.filter((item) => !locallyRead.has(versionKey(item)));
-		const unreadMessages = new Set(unread.map((item) => item.message));
-		const msgs = thread.msgs.map((message) => readMessage(message, unreadMessages, threadKey(thread)));
-		const reactions = {
-			key: threadKey(thread),
-			resolved: thread.resolved,
-			msgs
-		};
-		const messages = msgs.map((message) => ({
-			...message,
-			reactions: ready ? reactionChoices(reactions, message, document.registry.$reactions?.tokens ?? {}) : null
-		}));
-		const root = messages.find((message) => message.id === thread.root.id);
-		if (!root) throw new Error(`Thread ${thread.id} has no root message`);
-		return {
-			id: thread.id,
-			key: threadKey(thread),
-			title: thread.title,
-			root,
-			msgs: messages,
-			unread: Object.freeze(unread),
-			anchor: thread.anchor,
-			detached_from: thread.detached_from,
-			rewritten_from: thread.rewritten_from,
-			resolved: thread.resolved,
-			attention: thread.attention,
-			obligations: obligations.filter((obligation) => obligation.thread === thread.id),
-			todos: todos.filter((todo) => todo.owner === "agent" && todo.thread === thread.id),
-			userTodos: todos.filter((todo) => todo.owner === "user" && todo.thread === thread.id),
-			workflows: workflows.filter((workflow) => workflow.thread === thread.id),
-			bare_reaction: thread.bare_reaction,
-			seat: thread.seat,
-			summaries: thread.summaries
-		};
-	});
 }
 
 //#endregion
@@ -1295,6 +1381,7 @@ function widgetReading(inputs, descriptor) {
 	};
 }
 function createSemanticApplication({ presentation } = {}) {
+	const threadRecords = threadRecordReader();
 	const initial = {
 		document: {
 			revision: null,
@@ -1486,7 +1573,7 @@ function createSemanticApplication({ presentation } = {}) {
 			user: [...servedItems.user, ...localRecords.filter((item) => item.next_actor === "user")],
 			unanswered: [...servedItems.unanswered, ...localRecords]
 		};
-		const threads = readThreadRecords(obligated, document, widgets, workflows, todos.open, items.all, markingRead, ready);
+		const threads = threadRecords(obligated, document, widgets, workflows, todos.open, items.all, markingRead, ready);
 		const selectedQueues = localQueues(ready ? view?.queues ?? NO_QUEUES : NO_QUEUES, workflows, todos, items, localRecords);
 		const serving = /* @__PURE__ */ new Map();
 		for (const workflow of workflows) if (workflow.obligation !== null && !serving.has(workflow.obligation)) serving.set(workflow.obligation, workflow);
@@ -1533,6 +1620,7 @@ function createSemanticApplication({ presentation } = {}) {
 			...prior,
 			...changes
 		};
+		next.authoritative = share(prior.authoritative, next.authoritative);
 		next.effective = share(prior.effective, derive(next.document, next.authoritative, next.unresolved, next.settled, next.markingRead, next.phase, next.hostAvailable));
 		next.data = share(prior.data, next.data);
 		next.outputs = share(prior.outputs, next.outputs);

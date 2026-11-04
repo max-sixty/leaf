@@ -23,7 +23,7 @@ import { stampedState, sameStateDefinition } from "../registry-contract.js";
 import {
   discussed,
   foldThreads,
-  readThreadRecords,
+  threadRecordReader,
   threadNames,
 } from "../thread/model.js";
 import {
@@ -903,6 +903,8 @@ function widgetReading(inputs, descriptor) {
 
 /** @param {{ presentation?: PresentationLifecycle }} [options] */
 export function createSemanticApplication({ presentation } = {}) {
+  // Each publication's thread records, read again only where what one reads changed.
+  const threadRecords = threadRecordReader();
   const initial = {
     document: /** @type {SemanticDocument} */ ({
       revision: null,
@@ -1217,7 +1219,7 @@ export function createSemanticApplication({ presentation } = {}) {
       ],
       unanswered: [...servedItems.unanswered, ...localRecords],
     };
-    const threads = readThreadRecords(
+    const threads = threadRecords(
       obligated,
       document,
       widgets,
@@ -1293,6 +1295,10 @@ export function createSemanticApplication({ presentation } = {}) {
   function publish(changes) {
     const prior = publisher.peek();
     const next = /** @type {typeof initial} */ ({ ...prior, ...changes });
+    // The folds read the server's reading as the root holds it, so each record the new
+    // answer left alone is the very object they read last time, and the record readers
+    // that keep what they read (`threadRecordReader`) keep it too.
+    next.authoritative = share(prior.authoritative, next.authoritative);
     // Shared against the current reading, so a part whose contents did not move keeps
     // its identity: that is what an epoch and every selection compare.
     next.effective = share(

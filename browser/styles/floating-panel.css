@@ -1738,7 +1738,7 @@
     min-height: var(--lf-fp-press);
   }
   /* The card keeps its height after an answer; keep its answers at the foot too,
-     so Show stays put when described choices give way to the result and Undo. */
+     so the result and Undo stand where the described choices ended. */
   .lf-fp-on-item[data-lf-card] > .lf-fp-answers {
     margin-top: auto;
     padding-top: 9px;
@@ -1750,6 +1750,25 @@
      word stands on the card's edge, as the card's heading and an answered line do. */
   .lf-fp-answers > .lf-fp-reply:first-child {
     margin-inline-start: calc(-1 * var(--lf-word-inset));
+  }
+  /* A card's first line ends in its Show (floating-panel.js, `cardHead`), centred on
+     a line that holds one, else on the first line of the message's face. */
+  .lf-fp-on-head {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    font: var(--font-message);
+  }
+  .lf-fp-on-head > :first-child {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+  .lf-fp-on-head > .lf-fp-show {
+    flex: none;
+    margin-block: calc((1lh - var(--lf-fp-press)) / 2);
+  }
+  .lf-fp-on-head:has(> :is(.lf-fp-on-place, .lf-fp-on-title):first-child) {
+    align-items: center;
   }
   /* A commit among the answers, a group's Done (floating-panel.js, `commits`), stands
      as tall as the answers beside it, inside its one-pixel contour. */

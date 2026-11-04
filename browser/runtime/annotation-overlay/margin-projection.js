@@ -329,6 +329,9 @@ export function createMarginProjection({
   let expandedOptionsOwner = null;
   /** @type {Element | null} */
   let hoveredHost = null;
+  // The control under the pointer in that cluster.
+  /** @type {Element | null} */
+  let hoveredControl = null;
   /** @type {Element | null} */
   let highlighted = null;
   let highlightFrame = 0;
@@ -1170,6 +1173,7 @@ export function createMarginProjection({
             .elementFromPoint(event.clientX, event.clientY)
             ?.closest?.(".lf-margin-entry");
           hoveredHost = control && created.contains(control) ? created : null;
+          hoveredControl = hoveredHost ? (control ?? null) : null;
           refreshHighlight();
         };
         created.addEventListener("pointermove", takePointerOwnership);
@@ -1354,9 +1358,15 @@ export function createMarginProjection({
     const obligationShown = target && target === currentLocationObligation();
     // A Change entry under the pointer or focus outlines its whole change, every block
     // and its gap, in place of the brackets round its first block (margin-bars.js), until
-    // its card stands open over the change.
+    // its card stands open over the change. A reading names its own change, as each of
+    // two gaps beside one block does.
+    const control = /** @type {Partial<ReadingNode> | null} */ (
+      pointerHost ? hoveredControl : active
+    );
     const changeSource = marker
-      ? entry?.items.map((item) => sourceItem(item)).find((source) => source?.change)
+      ? (control?.lfChoice?.items ?? entry?.items ?? [])
+          .map((item) => sourceItem(item))
+          .find((source) => source?.change)
       : null;
     outlineChange(
       changeSource?.change && !changeSource.discloses?.()?.open

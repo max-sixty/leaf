@@ -26,6 +26,7 @@ import {
 import { dispatchKey, keyReady } from "../../browser/runtime/keyboard/dispatch.js";
 import { applicationState } from "../../browser/runtime/semantic-state.js";
 import { commandsChanged } from "../../browser/runtime/widget-upgrade.js";
+import { focused } from "../../browser/runtime/focus.js";
 
 // Ordinary control tests begin with saved input available; startup tests withhold it.
 beforeEach(() => applicationState.setPhase("ready"));
@@ -1573,5 +1574,57 @@ test("a chosen contribution offer retains its exact reading across a later updat
   } finally {
     registration.unregister();
     owner.remove();
+  }
+});
+
+// A focus move reads again the keys whose rows ask where the user is, and only those:
+// on a page of five hundred sections a Tab once read every widget's keys and every
+// command button again, though only the widgets it moved between asked.
+test("a focus move reads again only the keys and buttons that ask where the user is", () => {
+  const asking = document.createElement("section");
+  const still = document.createElement("section");
+  const button = document.createElement("button");
+  asking.tabIndex = 0;
+  still.tabIndex = 0;
+  still.append(button);
+  document.body.append(asking, still);
+  let reads = 0;
+  const read = () => {
+    reads++;
+    return true;
+  };
+  keys(asking, "Asking", [
+    {
+      id: "probe.asking",
+      title: "Act",
+      keys: ["Alt+6"],
+      when: () => focused() === asking,
+      run: () => {},
+    },
+  ]);
+  keys(still, "Still", [
+    { id: "probe.still", title: "Act", keys: ["Alt+7"], when: read, run: () => {} },
+    {
+      id: "probe.still-button",
+      title: "Press",
+      keys: ["Alt+8"],
+      control: button,
+      when: read,
+      run: () => {},
+    },
+  ]);
+  reflectFirstScopes();
+  reflectKeys();
+  try {
+    assert.equal(asking.getAttribute("aria-keyshortcuts"), null);
+    reads = 0;
+    asking.focus();
+    reflectFirstScopes();
+    reflectKeys();
+    assert.equal(asking.getAttribute("aria-keyshortcuts"), "Alt+6");
+    assert.equal(reads, 0);
+  } finally {
+    asking.remove();
+    still.remove();
   }
 });

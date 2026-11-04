@@ -3576,6 +3576,13 @@ export function createFloatingPanel({
     if (card) scrollIntoView(card, { block: "nearest", within: view });
   }
 
+  // A card's first part, the line its Show ends (`onItemCard`), then the rest.
+  /** @param {readonly unknown[]} parts @param {unknown} show */
+  function cardHead(parts, show) {
+    const [first, ...rest] = parts.filter((part) => part !== null);
+    return html`<div class="lf-fp-on-head">${first}${show}</div>
+      ${rest}`;
+  }
   // One item: On me's card standing open (`card`), else a line opened into its card
   // while it is the open item. `says` names what the group's heading already says of
   // it, which the card leaves out where that is its `place`; `leads` whether it is the
@@ -3656,10 +3663,14 @@ export function createFloatingPanel({
         </button>`
       : nothing;
     // Show takes the user to the item where `m` would, by the walk's own arrival
-    // (queue-walk.js, `arriveAtItem`), wherever that leads anywhere but this card. It
-    // stands at the end of the answers' line, where an answer replacing the choices
-    // before it moves it nowhere. The arrival may open a thread in this panel; keep
-    // its current route until the destination decides, then close only for page travel.
+    // (queue-walk.js, `arriveAtItem`), wherever that leads anywhere but this card. On a
+    // card it stands at the end of the card's first line, as a thread's Show on page
+    // stands on its head line, beside what it shows and where an answer moves it
+    // nowhere; on a line opened into its card, at the end of its answers. The user chose
+    // this on 4 November over the end of a card's answers, where under a long message it
+    // stood far from the question it shows. The arrival may open a thread in this
+    // panel; keep its current route until the destination decides, then close only for
+    // page travel.
     // A card drawing the message it asks (`message`) holds that message's drawing ahead
     // of the page's (thread/messages.js, `authoredRank`), so an arrival with On me
     // standing landed in this card, and the user fell to the page as it closed. Where
@@ -3814,19 +3825,27 @@ export function createFloatingPanel({
         ?data-lf-walked=${walked}
         style=${opening.seatHeights.has(key) ? `min-height: ${opening.seatHeights.get(key)}px` : ""}
       >
-        ${where ? html`<p class="lf-fp-on-place lf-rows-head">${where}</p>` : nothing}${
-          message
-            ? html`${title ? html`<h3 class="lf-fp-on-title">${heading}</h3>` : nothing}
-                <div
-                  class="lf-fp-asked lf-fp-outlet"
-                  data-lf-thread=${message.thread.key}
-                  data-lf-message=${message.reading.key}
-                ></div>`
-            : prompt
-              ? html`<h3 class="lf-fp-on-title">${heading}</h3>
-                  <p class="lf-fp-prompt">${prompt}</p>`
-              : html`<p class="lf-fp-prompt">${heading}</p>`
-        }${carried.map(({ thread: where, message: asked }) =>
+        ${cardHead(
+          [
+            where ? html`<p class="lf-fp-on-place lf-rows-head">${where}</p>` : null,
+            ...(message
+              ? [
+                  title ? html`<h3 class="lf-fp-on-title">${heading}</h3>` : null,
+                  html`<div
+                    class="lf-fp-asked lf-fp-outlet"
+                    data-lf-thread=${message.thread.key}
+                    data-lf-message=${message.reading.key}
+                  ></div>`,
+                ]
+              : prompt
+                ? [
+                    html`<h3 class="lf-fp-on-title">${heading}</h3>`,
+                    html`<p class="lf-fp-prompt">${prompt}</p>`,
+                  ]
+                : [html`<p class="lf-fp-prompt">${heading}</p>`]),
+          ],
+          show,
+        )}${carried.map(({ thread: where, message: asked }) =>
           presentation?.primary !== false
             ? html`<div
                 class="lf-fp-asked lf-fp-outlet"
@@ -3837,9 +3856,7 @@ export function createFloatingPanel({
                 ${messageReading(asked, { workflows: [] }).body.plainText}
               </p>`,
         )}
-        <div class="lf-fp-answers">
-          ${answers}${discussHere ? discuss : nothing}${show}
-        </div>
+        <div class="lf-fp-answers">${answers}${discussHere ? discuss : nothing}</div>
       </section>`;
     // A line ends with the one thing the list most needs of it: the agent's stage and
     // how long it has stood there, how a finished item ended and when, an answer while

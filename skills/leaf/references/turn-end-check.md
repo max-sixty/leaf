@@ -48,7 +48,8 @@ passed on. Name:
   has since changed, such as a result, a capture, a lede, a question it still asks,
   or a section the user dropped in chat. Name only what the conversation shows the
   page saying now, quoting its words where it holds them, and leave out what the
-  page might still say. Where a few of the page's words say it and a few new words
+  page might still say. A page that doesn't yet mention something isn't stale; the
+  agent decides what to add. Where a few of the page's words say it and a few new words
   fix it, give the fix as `edit`: `words`, the page's words exactly as its text
   below shows them and found nowhere else on it, and `replacement`, the words that
   should stand there now, written as the page writes. Leaf makes the change and

@@ -76,9 +76,8 @@ def test_a_draft_s_image_closes_back_to_the_draft(browser, serve, editor):
 
 def test_original_image_link_has_a_standalone_target(browser, serve):
     # Under a finger the link takes the touch floor, the larger of the two.
-    touch = True
     context = browser.new_context(
-        viewport={"width": 320, "height": 720}, has_touch=touch
+        viewport={"width": 320, "height": 720}, has_touch=True
     )
     page = open_page(
         browser,
@@ -96,8 +95,7 @@ def test_original_image_link_has_a_standalone_target(browser, serve):
     expect(viewer.locator(".lf-media-viewer-caption")).to_be_hidden()
     original = viewer.get_by_role("link", name="Original")
     box = original.bounding_box()
-    floor = 44 if touch else 24
-    assert min(box["width"], box["height"]) >= floor - 0.5, box
+    assert min(box["width"], box["height"]) >= 44 - 0.5, box
     neighbours = viewer.locator(".lf-media-viewer-actions > *")
     boxes = [node.bounding_box() for node in neighbours.all()]
     for left, right in pairwise(boxes):

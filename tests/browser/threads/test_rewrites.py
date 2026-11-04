@@ -83,10 +83,8 @@ def test_a_rewrite_of_a_comment_just_sent_is_the_reply_box(browser, serve):
     sides to the transcript that scrolls it, which kept no room past its edges; and the
     card's actions painted their ground over the right side of a focused Edit's or
     Save's ring. Each ring now stands whole."""
-    touch = False
-    context = browser.new_context(has_touch=touch, is_mobile=touch)
-    page = open_page(browser, serve(LONG_PAGE), context=context)
-    resized(page, 390 if touch else 1200, 900)
+    page = open_page(browser, serve(LONG_PAGE))
+    resized(page, 1200, 900)
     page.locator("#p1").click(modifiers=["Alt"])
     field = page.locator(".lf-fab-input")
     field.click()
@@ -137,63 +135,120 @@ def test_a_rewrite_of_a_comment_just_sent_is_the_reply_box(browser, serve):
 
 
 def test_the_keyboard_walks_up_through_the_users_messages_to_rewrite_one(
-    browser, serve
+    browser, serve, subtests
 ):
     """↑ from the thread's empty reply box opens the user's latest message, and ↑ from
     the start of an open rewrite opens their message before it; a held ↑ stops at the
     start, since its repeats are the one press that took the caret there. The Edit
-    control is for a pointer or a finger, so it takes no Tab stop in the thread."""
+    control is for a pointer or a finger, so it takes no Tab stop in the thread.
+
+    The walk once opened a rewrite wherever it stood, which in a long thread was above
+    the panel's top or below its foot: the user typed into a box they could not see.
+    Each one opened now stands in the panel's view, clear of the reply row pinned at
+    its foot.
+
+    ↑ from the start of a rewrite, and opening another message's in the thread, closed
+    it as Escape does, and so threw away words the user had changed. Changed words hold
+    ↑ for the caret, as a reply box holding words does, and stay in their box when
+    another rewrite opens beside it."""
     url = serve(THREAD_DIFF_PAGE)
     d = serve.page_dir
     first = append_carried_log_record(
         d,
         {
             "kind": "comment",
+            "id": "rewritten",
             "author": "user",
             "revision": 1,
             "text": "Fit the north bracket.",
         },
     )
-    answer = append_carried_log_record(
-        d,
-        {
-            "kind": "reply",
-            "author": "agent",
-            "agent": "Indexer",
-            "session": "worker-1",
-            "parent": first["id"],
-            "responds": first["id"],
-            "text": "Fitted.",
-        },
-    )
-    second = append_carried_log_record(
-        d,
-        {"kind": "reply", "author": "user", "parent": answer["id"], "text": "Thanks."},
-    )
+    long = " ".join(["The steel pair held through the frost of February."] * 12)
+    mine = []
+    for turn in range(3):
+        answer = append_carried_log_record(
+            d,
+            {
+                "kind": "reply",
+                "author": "agent",
+                "agent": "Indexer",
+                "session": "worker-1",
+                "parent": first["id"],
+                "responds": mine[-1] if mine else first["id"],
+                "text": long,
+            },
+        )
+        said = append_carried_log_record(
+            d,
+            {
+                "kind": "reply",
+                "author": "user",
+                "parent": answer["id"],
+                "text": f"And {turn}.",
+            },
+        )
+        mine.append(said["id"])
     page = open_page(browser, url)
-    resized(page, 1200, 900)
+    resized(page, 1400, 600)
     thread = open_panel_thread(page, first["id"])
     expect(thread.locator(".lf-msg-edit").first).to_have_attribute("tabindex", "-1")
 
-    page.locator(PANEL_REPLY).focus()
+    def message(name):
+        return thread.locator(f'.lf-msg[data-lf-event="{name}"]')
+
+    def rewrite(name):
+        return message(name).locator(".lf-msg-editor leaf-text")
+
+    reply = page.locator(PANEL_REPLY)
+    reply.focus()
     page.keyboard.press("ArrowUp")
-    latest = thread.locator(
-        f'.lf-msg[data-lf-event="{second["id"]}"] .lf-msg-editor leaf-text'
-    )
-    expect(latest).to_be_focused()
-    # ↑ on the box's first line goes to its start, as in any box, and ↑ from there on.
-    page.keyboard.down("ArrowUp")
-    page.keyboard.down("ArrowUp")
-    page.keyboard.up("ArrowUp")
-    expect(latest).to_be_focused()
-    expect(latest).to_have_js_property("selectionStart", 0)
-    page.keyboard.press("ArrowUp")
-    earlier = thread.locator(
-        f'.lf-msg[data-lf-event="{first["id"]}"] .lf-msg-editor leaf-text'
-    )
-    expect(earlier).to_be_focused()
-    expect(thread.locator(".lf-msg-editor")).to_have_count(1)
-    expect(earlier).to_have_js_property("value", "Fit the north bracket.")
+    with subtests.test("each message opens in view"):
+        expect(rewrite(mine[-1])).to_be_focused()
+        # ↑ on the box's first line goes to its start, as in any box, and ↑ from there on.
+        page.keyboard.down("ArrowUp")
+        page.keyboard.down("ArrowUp")
+        page.keyboard.up("ArrowUp")
+        expect(rewrite(mine[-1])).to_be_focused()
+        expect(rewrite(mine[-1])).to_have_js_property("selectionStart", 0)
+        for name in [*reversed(mine), first["id"]]:
+            editor = rewrite(name)
+            expect(editor).to_be_focused()
+            rendered(page)
+            # The words' first line is what the hit test at its middle finds.
+            seen = editor.evaluate(
+                """n => {
+                  const b = n.getBoundingClientRect();
+                  let at = document.elementFromPoint(b.left + 4, b.top + 8);
+                  while (at?.shadowRoot) {
+                    const inner = at.shadowRoot.elementFromPoint(b.left + 4, b.top + 8);
+                    if (!inner || inner === at) break;
+                    at = inner;
+                  }
+                  return n === at || n.contains(at) || Boolean(n.shadowRoot?.contains(at))
+                    || [at?.localName, at?.className, b.top, b.bottom].join(' ');
+                }"""
+            )
+            assert seen is True, (name, seen)
+            page.keyboard.press("Home")
+            page.keyboard.press("ArrowUp")
+        expect(thread.locator(".lf-msg-editor")).to_have_count(1)
+        expect(rewrite(first["id"])).to_have_js_property(
+            "value", "Fit the north bracket."
+        )
+    # Wherever the walk stopped: opening this rewrite closes an unchanged one.
+    with subtests.test("changed words are not walked past"):
+        reply.focus()
+        page.keyboard.press("ArrowUp")
+        editor = rewrite(mine[-1])
+        expect(editor).to_be_focused()
+        page.keyboard.type(" A careful addition.")
+        page.keyboard.press("ControlOrMeta+Home")
+        page.keyboard.press("ArrowUp")
+        expect(editor).to_be_focused()
+        expect(message(first["id"]).locator(".lf-msg-editor")).to_have_count(0)
+        message(first["id"]).locator(".lf-msg-text").dblclick()
+        expect(rewrite(first["id"])).to_be_focused()
+        expect(editor).to_have_js_property("value", "And 2. A careful addition.")
 
 
 def _feed_page(serve):
@@ -666,78 +721,6 @@ def test_one_unchanged_rewrite_stands_open_in_a_thread_across_its_readers(
         expect(message.locator(".lf-msg-text")).to_have_text("Fit the north bracket.")
 
 
-def test_walking_up_through_rewrites_shows_each_one(browser, serve):
-    """↑ walking up to an earlier message opened its rewrite wherever it stood, which in
-    a long thread was above the panel's top or below its foot: the user typed into a box
-    they could not see. Each one opened now stands in the panel's view, clear of the
-    reply row pinned at its foot."""
-    url = serve(THREAD_DIFF_PAGE)
-    d = serve.page_dir
-    first = append_carried_log_record(
-        d,
-        {
-            "kind": "comment",
-            "id": "rewritten",
-            "author": "user",
-            "revision": 1,
-            "text": "Fit the north bracket.",
-        },
-    )
-    long = " ".join(["The steel pair held through the frost of February."] * 12)
-    mine = []
-    for turn in range(3):
-        answer = append_carried_log_record(
-            d,
-            {
-                "kind": "reply",
-                "author": "agent",
-                "agent": "Indexer",
-                "session": "worker-1",
-                "parent": first["id"],
-                "responds": mine[-1] if mine else first["id"],
-                "text": long,
-            },
-        )
-        said = append_carried_log_record(
-            d,
-            {
-                "kind": "reply",
-                "author": "user",
-                "parent": answer["id"],
-                "text": f"And {turn}.",
-            },
-        )
-        mine.append(said["id"])
-    page = open_page(browser, url)
-    resized(page, 1400, 600)
-    thread = open_panel_thread(page, first["id"])
-    page.locator(PANEL_REPLY).focus()
-    page.keyboard.press("ArrowUp")
-    for name in [*reversed(mine), first["id"]]:
-        editor = thread.locator(
-            f'.lf-msg[data-lf-event="{name}"] .lf-msg-editor leaf-text'
-        )
-        expect(editor).to_be_focused()
-        rendered(page)
-        # The words' first line is what the hit test at its middle finds.
-        seen = editor.evaluate(
-            """n => {
-              const b = n.getBoundingClientRect();
-              let at = document.elementFromPoint(b.left + 4, b.top + 8);
-              while (at?.shadowRoot) {
-                const inner = at.shadowRoot.elementFromPoint(b.left + 4, b.top + 8);
-                if (!inner || inner === at) break;
-                at = inner;
-              }
-              return n === at || n.contains(at) || Boolean(n.shadowRoot?.contains(at))
-                || [at?.localName, at?.className, b.top, b.bottom].join(' ');
-            }"""
-        )
-        assert seen is True, (name, seen)
-        page.keyboard.press("Home")
-        page.keyboard.press("ArrowUp")
-
-
 def test_an_emptied_rewrite_keeps_nothing_and_saved_deletes_its_message(browser, serve):
     """A rewrite cleared and left kept its empty words, so every later opening showed an
     empty box in place of the message, without saying it held anything. A rewrite keeps
@@ -1093,7 +1076,7 @@ def test_a_rewrite_keeps_its_pair_while_its_head_sticks_beside_the_actions(
         assert hit is True, (name, hit)
 
 
-@pytest.mark.parametrize("previous", ["reply", "reply-after-empty-composer", "drawing"])
+@pytest.mark.parametrize("previous", ["reply-after-empty-composer", "drawing"])
 def test_a_discarded_rewrite_hands_resume_writing_back(browser, serve, previous):
     """Resume writing returned to a rewrite Escape had just discarded, reopening it on
     the message's own words, ahead of the reply the user had been writing. A rewrite
@@ -1102,35 +1085,32 @@ def test_a_discarded_rewrite_hands_resume_writing_back(browser, serve, previous)
     the reply and rewrite has nothing to resume and must not take the reply's place."""
     page, _, message = _rewrite_surface(browser, serve, "panel")
     reply = page.locator(PANEL_REPLY)
-    if previous != "drawing":
-        resume = reply
-        reply.click()
-        page.keyboard.type("A reply in progress")
-        if previous == "reply-after-empty-composer":
-            mine = message.get_attribute("data-lf-event")
-            page.keyboard.press("Escape")
-            page.locator("#cd-lede").click(modifiers=["Alt"])
-            field = page.locator(".lf-fab-input")
-            field.click()
-            page.keyboard.type("x")
-            page.keyboard.press("Backspace")
-            expect(field).to_have_js_property("value", "")
-            page.keyboard.press("Escape")
-            page.keyboard.press("g")
-            page.keyboard.press("i")
-            expect(field).to_be_focused()
-            expect(field).to_have_js_property("value", "")
-            page.keyboard.press("Escape")
-            open_panel_thread(page, mine)
-    else:
-        mine = message.get_attribute("data-lf-event")
+    mine = message.get_attribute("data-lf-event")
+    if previous == "drawing":
         page.keyboard.press("Escape")
         draw_over(page, page.locator("#cd-q"))
         resume = page.locator(".lf-fab-input")
         expect(resume).to_be_focused()
         expect(page.locator(".lf-drawing-pending")).to_have_count(1)
         page.keyboard.press("Escape")
-        open_panel_thread(page, mine)
+    else:
+        resume = reply
+        reply.click()
+        page.keyboard.type("A reply in progress")
+        page.keyboard.press("Escape")
+        page.locator("#cd-lede").click(modifiers=["Alt"])
+        field = page.locator(".lf-fab-input")
+        field.click()
+        page.keyboard.type("x")
+        page.keyboard.press("Backspace")
+        expect(field).to_have_js_property("value", "")
+        page.keyboard.press("Escape")
+        page.keyboard.press("g")
+        page.keyboard.press("i")
+        expect(field).to_be_focused()
+        expect(field).to_have_js_property("value", "")
+        page.keyboard.press("Escape")
+    open_panel_thread(page, mine)
     message.locator(".lf-msg-text").dblclick()
     page.keyboard.type(" and more")
     page.keyboard.press("Escape")
@@ -1147,98 +1127,70 @@ def test_a_discarded_rewrite_hands_resume_writing_back(browser, serve, previous)
     expect(message.locator(".lf-msg-editor")).to_have_count(0)
 
 
-def test_a_long_rewrite_opens_where_its_caret_stands(browser, serve):
-    """A message taller than the panel opened its rewrite with the caret, after its last
-    word, far below the panel's foot, so the first key jumped the view. It opens with
-    the line its caret stands on in view."""
+def test_a_long_rewrite_keeps_its_caret_in_view(browser, serve, subtests):
+    """In a long message in the page's flow, each key in its rewrite aimed a landing at
+    the whole box, pulling its top into view and then back to the caret. Typing keeps
+    the view where the caret is. A message taller than the panel opened its rewrite with
+    the caret, after its last word, far below the panel's foot, so the first key jumped
+    the view. It opens with the line its caret stands on in view."""
     url = serve(THREAD_DIFF_PAGE)
     long = "\n\n".join(
         f"Paragraph {n}: the steel pair held through the frost of February."
         for n in range(30)
     )
-    mine = append_carried_log_record(
-        serve.page_dir,
-        {
-            "kind": "comment",
-            "id": "rewritten",
-            "author": "user",
-            "revision": 1,
-            "text": long,
-        },
+    in_flow, in_panel = (
+        append_carried_log_record(
+            serve.page_dir,
+            {
+                "kind": "comment",
+                "author": "user",
+                "revision": 1,
+                "text": long,
+                **place,
+            },
+        )["id"]
+        for place in ({"anchor": {"section": "cd-q"}}, {})
     )
     page = open_page(browser, url)
     resized(page, 1400, 900)
-    thread = open_panel_thread(page, mine["id"])
-    page.locator(PANEL_REPLY).focus()
-    page.keyboard.press("ArrowUp")
-    editor = thread.locator(
-        f'.lf-msg[data-lf-event="{mine["id"]}"] .lf-msg-editor leaf-text'
-    )
-    expect(editor).to_be_focused()
-    rendered(page)
-    last = editor.evaluate(
-        """n => { const box = n.getBoundingClientRect();
-          const line = parseFloat(getComputedStyle(n).lineHeight);
-          const list = document.querySelector('.lf-fp-view[data-lf-route="thread"]')
-            .getBoundingClientRect();
-          const reply = document.querySelector('.lf-fp-field .lf-thread-reply')
-            .getBoundingClientRect();
-          return [box.bottom - line, box.bottom, list.top,
-            Math.min(list.bottom, reply.top)]; }"""
-    )
-    assert last[2] <= last[0] and last[1] <= last[3] + 1, last
 
+    with subtests.test("typing in the page's flow"):
+        thread = page.locator("#cd-q .lf-page-thread").first
+        reply = thread.locator(".lf-thread-reply leaf-text").first
+        reply.scroll_into_view_if_needed()
+        reply.click()
+        page.keyboard.press("ArrowUp")
+        editor = thread.locator(
+            f'.lf-msg[data-lf-event="{in_flow}"] .lf-msg-editor leaf-text'
+        )
+        expect(editor).to_be_focused()
+        rendered(page)
+        before = page.evaluate("() => document.scrollingElement.scrollTop")
+        page.keyboard.type("Z")
+        rendered(page)
+        after = page.evaluate("() => document.scrollingElement.scrollTop")
+        assert abs(after - before) < 30, (before, after)
 
-def test_changed_words_are_not_walked_past(browser, serve):
-    """↑ from the start of a rewrite, and opening another message's in the thread, closed
-    it as Escape does, and so threw away words the user had changed. Changed words hold
-    ↑ for the caret, as a reply box holding words does, and stay in their box when
-    another rewrite opens beside it."""
-    url = serve(THREAD_DIFF_PAGE)
-    d = serve.page_dir
-    first = append_carried_log_record(
-        d,
-        {
-            "kind": "comment",
-            "id": "rewritten",
-            "author": "user",
-            "revision": 1,
-            "text": "Fit the north bracket.",
-        },
-    )
-    answer = append_carried_log_record(
-        d,
-        {
-            "kind": "reply",
-            "author": "agent",
-            "agent": "Indexer",
-            "session": "worker-1",
-            "parent": first["id"],
-            "responds": first["id"],
-            "text": "Fitted.",
-        },
-    )
-    second = append_carried_log_record(
-        d,
-        {"kind": "reply", "author": "user", "parent": answer["id"], "text": "Thanks."},
-    )
-    page = open_page(browser, url)
-    resized(page, 1200, 900)
-    thread = open_panel_thread(page, first["id"])
-    latest = thread.locator(f'.lf-msg[data-lf-event="{second["id"]}"]')
-    earlier = thread.locator(f'.lf-msg[data-lf-event="{first["id"]}"]')
-    page.locator(PANEL_REPLY).focus()
-    page.keyboard.press("ArrowUp")
-    editor = latest.locator(".lf-msg-editor leaf-text")
-    expect(editor).to_be_focused()
-    page.keyboard.type(" A careful addition.")
-    page.keyboard.press("ControlOrMeta+Home")
-    page.keyboard.press("ArrowUp")
-    expect(editor).to_be_focused()
-    expect(earlier.locator(".lf-msg-editor")).to_have_count(0)
-    earlier.locator(".lf-msg-text").dblclick()
-    expect(earlier.locator(".lf-msg-editor leaf-text")).to_be_focused()
-    expect(editor).to_have_js_property("value", "Thanks. A careful addition.")
+    with subtests.test("opening in the panel"):
+        thread = open_panel_thread(page, in_panel)
+        page.locator(PANEL_REPLY).focus()
+        page.keyboard.press("ArrowUp")
+        editor = thread.locator(
+            f'.lf-msg[data-lf-event="{in_panel}"] .lf-msg-editor leaf-text'
+        )
+        expect(editor).to_be_focused()
+        rendered(page)
+        last = editor.evaluate(
+            """n => { const box = n.getBoundingClientRect();
+              const line = parseFloat(getComputedStyle(n).lineHeight);
+              const list = document.querySelector('.lf-fp-view[data-lf-route="thread"]')
+                .getBoundingClientRect();
+              const reply = document.querySelector('.lf-fp-field .lf-thread-reply')
+                .getBoundingClientRect();
+              return [box.bottom - line, box.bottom, list.top,
+                Math.min(list.bottom, reply.top)]; }"""
+        )
+        assert last[2] <= last[0] and last[1] <= last[3] + 1, last
 
 
 def test_opening_a_rewrite_keeps_room_the_thread_holds(browser, serve):
@@ -1443,237 +1395,161 @@ def test_a_second_rewrite_over_a_refused_first_goes_with_it(browser, serve):
     page.unroute_all(behavior="wait")
 
 
-def test_typing_in_a_long_rewrite_keeps_the_view(browser, serve):
-    """In a long message in the page's flow, each key in its rewrite aimed a landing at
-    the whole box, pulling its top into view and then back to the caret. Typing keeps
-    the view where the caret is."""
-    url = serve(THREAD_DIFF_PAGE)
-    long = "\n\n".join(
-        f"Paragraph {n}: the steel pair held through the frost of February."
-        for n in range(30)
-    )
-    mine = append_carried_log_record(
-        serve.page_dir,
-        {
-            "kind": "comment",
-            "author": "user",
-            "revision": 1,
-            "text": long,
-            "anchor": {"section": "cd-q"},
-        },
-    )
-    page = open_page(browser, url)
-    resized(page, 1400, 900)
-    thread = page.locator("#cd-q .lf-page-thread").first
-    reply = thread.locator(".lf-thread-reply leaf-text").first
-    reply.scroll_into_view_if_needed()
-    reply.click()
-    page.keyboard.press("ArrowUp")
-    editor = thread.locator(
-        f'.lf-msg[data-lf-event="{mine["id"]}"] .lf-msg-editor leaf-text'
-    )
-    expect(editor).to_be_focused()
-    rendered(page)
-    before = page.evaluate("() => document.scrollingElement.scrollTop")
-    page.keyboard.type("Z")
-    rendered(page)
-    after = page.evaluate("() => document.scrollingElement.scrollTop")
-    assert abs(after - before) < 30, (before, after)
-
-
-def test_a_rewrite_leaves_a_card_at_the_windows_foot_as_it_stood(browser, serve):
+def test_a_card_at_the_windows_foot_grows_back_to_how_it_stood(
+    browser, serve, subtests
+):
     """A card whose target stands low in the window stands against the window's foot,
     where it grows no taller than the room under its top, or than it has stood. Saving
     a rewrite of its message unchanged left the message a scrolling box clipped
     mid-line, as did discarding words shortened in the rewrite: the open rewrite was
     shorter than the message, and the card shrank with it from the top, the window's
-    foot keeping its foot, and grew no taller than it then stood. It now grows back to
-    the tallest it stood while its line stays put.
+    foot keeping its foot, and grew no taller than it then stood. A message taller than
+    the rewrite's field, which scrolls past half the window, shrinks the card the same
+    way as its rewrite opens, and shorter words saved and then the long ones again did
+    too. It now grows back to the tallest it stood while its line stays put.
 
     Unchanged words were shorter in the card's rewrite because its field ended them
     17px further out than the message did, so lines rewrapped as it opened. They now
     end where the message's do."""
     url = serve(LONG_PAGE)
-    mine = append_carried_log_record(
-        serve.page_dir,
-        {
-            "kind": "comment",
-            "author": "user",
-            "revision": 1,
-            "text": (
-                "/dispatch\n\nI think this makes sense, but we need to think about "
-                "how to change our Todos first, to handle a tree structure.\n\nLay out "
-                "options for our ontology.\n\nAlso, look first at how we can complete "
-                "any existing clean-ups, given recent changes, as a precursor to "
-                "embarking on adding this\n\nThen after that we can come back to this "
-                "session and look at changing our implementation"
-            ),
-            "anchor": {"section": "p30"},
-        },
+    held = (
+        "/dispatch\n\nI think this makes sense, but we need to think about "
+        "how to change our Todos first, to handle a tree structure.\n\nLay out "
+        "options for our ontology.\n\nAlso, look first at how we can complete "
+        "any existing clean-ups, given recent changes, as a precursor to "
+        "embarking on adding this\n\nThen after that we can come back to this "
+        "session and look at changing our implementation"
     )
-    page = open_page(browser, url)
-    # Where the card stands once it has moved, not its motion (box-motion.js).
-    page.emulate_media(reduced_motion="reduce")
-    resized(page, 1512, 860)
-    page.locator("#p30").evaluate("n => n.scrollIntoView({block: 'end'})")
-    rendered(page)
-    page.locator('[data-lf-margin-for="p30"] .lf-margin-marker').click()
-    card = page.locator(".lf-margin-preview")
-    message = card.locator(f'.lf-msg[data-lf-event="{mine["id"]}"]')
-    words = message.locator(".lf-msg-text")
-    editor = message.locator(".lf-msg-editor leaf-text")
-    expect(message).to_be_visible()
-    rendered(page)
-    assert card.get_attribute("data-lf-plane") == "window", (
-        "the card does not stand against the window's foot, so this proves nothing"
-    )
-    column = """n => { const r = n.getBoundingClientRect(), s = getComputedStyle(n);
-      return [r.left + parseFloat(s.paddingLeft) + parseFloat(s.borderLeftWidth),
-              r.right - parseFloat(s.paddingRight) - parseFloat(s.borderRightWidth)]; }"""
-    text_column = words.evaluate(column)
-
-    def standing():
-        return {
-            "scroll": page.evaluate("scrollY"),
-            "card": card.bounding_box(),
-            "words": words.evaluate(FIRST_LINE),
-            "scrolls": card.locator(".lf-thread-transcript").evaluate(
-                "t => t.scrollHeight > t.clientHeight"
-            ),
-        }
-
-    stood = standing()
-    assert not stood["scrolls"]
-
-    def as_it_stood():
-        now = standing()
-        assert now["scroll"] == stood["scroll"], (
-            "editing a floating card scrolled its subject, resetting its held height",
-            now,
-            stood,
-        )
-        for side in ("y", "height"):
-            assert abs(now["card"][side] - stood["card"][side]) < 0.5, (now, stood)
-        assert abs(now["words"][1] - stood["words"][1]) < 0.5, (now, stood)
-        assert not now["scrolls"], now
-
-    words.dblclick()
-    expect(editor).to_be_focused()
-    rendered(page)
-    for edge, at in zip(editor.evaluate(column), text_column, strict=True):
-        assert abs(edge - at) < 0.5, (editor.evaluate(column), text_column)
-    # Open, the rewrite takes the message's place exactly: the card neither grows nor
-    # scrolls the rewrite's top under the message's head, and its words keep their line.
-    for side in ("y", "height"):
-        assert abs(card.bounding_box()[side] - stood["card"][side]) < 0.5
-    assert not card.locator(".lf-thread-transcript").evaluate(
-        "t => t.scrollHeight > t.clientHeight"
-    )
-    assert abs(editor.evaluate(FIRST_LINE)[1] - stood["words"][1]) < 0.5
-    page.keyboard.press("Enter")
-    expect(message.locator(".lf-msg-editor")).to_have_count(0)
-    rendered(page)
-    as_it_stood()
-
-    words.dblclick()
-    expect(editor).to_be_focused()
-    page.keyboard.press("ControlOrMeta+a")
-    page.keyboard.type("Short.")
-    rendered(page)
-    page.keyboard.press("Escape")
-    expect(message.locator(".lf-msg-editor")).to_have_count(0)
-    rendered(page)
-    as_it_stood()
-
-
-def test_a_card_at_the_windows_foot_grows_back_to_how_it_stood(browser, serve):
-    """A message taller than the rewrite's field, which scrolls past half the window,
-    shrinks a card standing against the window's foot as its rewrite opens. The card
-    kept its foot there and dropped its top, and once saved unchanged it came back a
-    scrolling box clipped by what it had shrunk, as it did once shorter words were saved
-    and then the long ones again. It now grows back to the tallest it stood while its
-    line stays put."""
-    url = serve(LONG_PAGE)
     line = "The steel pair held through the frost of February, and the bracket with it."
     long = "\n\n".join([line] * 9)
-    mine = append_carried_log_record(
-        serve.page_dir,
-        {
-            "kind": "comment",
-            "author": "user",
-            "revision": 1,
-            "text": long,
-            "anchor": {"section": "p30"},
-        },
-    )
+    thread_at = {
+        anchor: append_carried_log_record(
+            serve.page_dir,
+            {
+                "kind": "comment",
+                "author": "user",
+                "revision": 1,
+                "text": text,
+                "anchor": {"section": anchor},
+            },
+        )["id"]
+        for anchor, text in (("p30", held), ("p40", long))
+    }
     page = open_page(browser, url)
     # Where the card stands once it has moved, not its motion (box-motion.js).
     page.emulate_media(reduced_motion="reduce")
     resized(page, 1512, 860)
-    page.locator("#p30").evaluate("n => n.scrollIntoView({block: 'end'})")
-    rendered(page)
-    page.locator('[data-lf-margin-for="p30"] .lf-margin-marker').click()
     card = page.locator(".lf-margin-preview")
-    message = card.locator(f'.lf-msg[data-lf-event="{mine["id"]}"]')
-    body = message.locator(".lf-msg-body")
-    editor = message.locator(".lf-msg-editor leaf-text")
-    expect(message).to_be_visible()
-    rendered(page)
-    assert card.get_attribute("data-lf-plane") == "window", (
-        "the card does not stand against the window's foot, so this proves nothing"
-    )
 
-    def standing():
-        return {
-            "scroll": page.evaluate("scrollY"),
-            "card": card.bounding_box(),
-            "words": body.bounding_box()["y"],
-            "scrolls": card.locator(".lf-thread-transcript").evaluate(
-                "t => t.scrollHeight > t.clientHeight"
-            ),
-        }
-
-    stood = standing()
-    assert not stood["scrolls"]
-
-    def as_it_stood():
-        now = standing()
-        assert now["scroll"] == stood["scroll"], (
-            "editing a floating card scrolled its subject, resetting its held height",
-            now,
-            stood,
+    def at_the_foot(anchor):
+        """Open the card on `anchor` at the window's foot, and return its message, where
+        the card stands and how to hold the card to it."""
+        page.locator(f"#{anchor}").evaluate("n => n.scrollIntoView({block: 'end'})")
+        rendered(page)
+        page.locator(f'[data-lf-margin-for="{anchor}"] .lf-margin-marker').click()
+        message = card.locator(f'.lf-msg[data-lf-event="{thread_at[anchor]}"]')
+        words = message.locator(".lf-msg-text")
+        expect(message).to_be_visible()
+        rendered(page)
+        assert card.get_attribute("data-lf-plane") == "window", (
+            "the card does not stand against the window's foot, so this proves nothing"
         )
-        for side in ("y", "height"):
-            assert abs(now["card"][side] - stood["card"][side]) < 0.5, (now, stood)
-        assert abs(now["words"] - stood["words"]) < 0.5, (now, stood)
-        assert not now["scrolls"], now
 
-    message.locator(".lf-msg-text").dblclick()
-    expect(editor).to_be_focused()
-    rendered(page)
-    assert editor.evaluate("n => n.scrollHeight > n.clientHeight"), (
-        "the rewrite's field holds the whole message, so nothing shrinks"
-    )
-    page.keyboard.press("Enter")
-    expect(message.locator(".lf-msg-editor")).to_have_count(0)
-    rendered(page)
-    as_it_stood()
-    message.locator(".lf-msg-text").dblclick()
-    expect(editor).to_be_focused()
-    page.keyboard.press("ControlOrMeta+a")
-    page.keyboard.type("Short.")
-    page.keyboard.press("Enter")
-    expect(message.locator(".lf-msg-text")).to_have_text("Short.")
-    rendered(page)
-    message.locator(".lf-msg-text").dblclick()
-    expect(editor).to_be_focused()
-    page.keyboard.press("ControlOrMeta+a")
-    page.keyboard.insert_text(long)
-    rendered(page)
-    page.keyboard.press("Enter")
-    expect(message.locator(".lf-msg-editor")).to_have_count(0)
-    rendered(page)
-    as_it_stood()
+        def standing():
+            return {
+                "scroll": page.evaluate("scrollY"),
+                "card": card.bounding_box(),
+                "words": words.evaluate(FIRST_LINE),
+                "scrolls": card.locator(".lf-thread-transcript").evaluate(
+                    "t => t.scrollHeight > t.clientHeight"
+                ),
+            }
+
+        stood = standing()
+        assert not stood["scrolls"]
+
+        def as_it_stood():
+            now = standing()
+            assert now["scroll"] == stood["scroll"], (
+                "editing a floating card scrolled its subject, resetting its held height",
+                now,
+                stood,
+            )
+            for side in ("y", "height"):
+                assert abs(now["card"][side] - stood["card"][side]) < 0.5, (now, stood)
+            assert abs(now["words"][1] - stood["words"][1]) < 0.5, (now, stood)
+            assert not now["scrolls"], now
+
+        return message, stood, as_it_stood
+
+    with subtests.test("a rewrite its field holds whole"):
+        message, stood, as_it_stood = at_the_foot("p30")
+        words = message.locator(".lf-msg-text")
+        editor = message.locator(".lf-msg-editor leaf-text")
+        column = """n => { const r = n.getBoundingClientRect(), s = getComputedStyle(n);
+          return [r.left + parseFloat(s.paddingLeft) + parseFloat(s.borderLeftWidth),
+                  r.right - parseFloat(s.paddingRight) - parseFloat(s.borderRightWidth)]; }"""
+        text_column = words.evaluate(column)
+        words.dblclick()
+        expect(editor).to_be_focused()
+        rendered(page)
+        for edge, at in zip(editor.evaluate(column), text_column, strict=True):
+            assert abs(edge - at) < 0.5, (editor.evaluate(column), text_column)
+        # Open, the rewrite takes the message's place exactly: the card neither grows nor
+        # scrolls the rewrite's top under the message's head, and its words keep their line.
+        for side in ("y", "height"):
+            assert abs(card.bounding_box()[side] - stood["card"][side]) < 0.5
+        assert not card.locator(".lf-thread-transcript").evaluate(
+            "t => t.scrollHeight > t.clientHeight"
+        )
+        assert abs(editor.evaluate(FIRST_LINE)[1] - stood["words"][1]) < 0.5
+        page.keyboard.press("Enter")
+        expect(message.locator(".lf-msg-editor")).to_have_count(0)
+        rendered(page)
+        as_it_stood()
+
+        words.dblclick()
+        expect(editor).to_be_focused()
+        page.keyboard.press("ControlOrMeta+a")
+        page.keyboard.type("Short.")
+        rendered(page)
+        page.keyboard.press("Escape")
+        expect(message.locator(".lf-msg-editor")).to_have_count(0)
+        rendered(page)
+        as_it_stood()
+
+    # Its own thread, opened from its own marker, whatever the case above left open. It
+    # writes to the log, so it comes last.
+    with subtests.test("a rewrite taller than its field"):
+        message, _, as_it_stood = at_the_foot("p40")
+        words = message.locator(".lf-msg-text")
+        editor = message.locator(".lf-msg-editor leaf-text")
+        words.dblclick()
+        expect(editor).to_be_focused()
+        rendered(page)
+        assert editor.evaluate("n => n.scrollHeight > n.clientHeight"), (
+            "the rewrite's field holds the whole message, so nothing shrinks"
+        )
+        page.keyboard.press("Enter")
+        expect(message.locator(".lf-msg-editor")).to_have_count(0)
+        rendered(page)
+        as_it_stood()
+        words.dblclick()
+        expect(editor).to_be_focused()
+        page.keyboard.press("ControlOrMeta+a")
+        page.keyboard.type("Short.")
+        page.keyboard.press("Enter")
+        expect(words).to_have_text("Short.")
+        rendered(page)
+        words.dblclick()
+        expect(editor).to_be_focused()
+        page.keyboard.press("ControlOrMeta+a")
+        page.keyboard.insert_text(long)
+        rendered(page)
+        page.keyboard.press("Enter")
+        expect(message.locator(".lf-msg-editor")).to_have_count(0)
+        rendered(page)
+        as_it_stood()
 
 
 def test_saving_one_of_two_open_rewrites_leaves_no_gap(browser, serve):

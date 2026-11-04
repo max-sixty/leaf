@@ -5,7 +5,9 @@ import {
   obligationPlace,
   subjectPlace,
 } from "/runtime/obligations/place.js";
-import { obligationHolding } from "/runtime/current-target.js";
+import { obligationAt, obligationHolding } from "/runtime/current-target.js";
+import { applicationState } from "/runtime/semantic-state.js";
+import { servedState } from "../served.mjs";
 
 test("shared context keeps placement and containment specific to each obligation", () => {
   document.body.innerHTML =
@@ -60,6 +62,57 @@ test("the innermost obligation holding a node is where the user stands", () => {
       assert.equal(obligationHolding(items, at("route").firstElementChild), route);
       assert.equal(obligationHolding(items, at("text")), change);
     }
+  } finally {
+    document.body.replaceChildren();
+  }
+});
+
+test("the obligation at a node costs as much on a page of 64 obligations as of 8", () => {
+  // A keystroke asks where the user stands many times over, so once the page's
+  // inventory is published, a lookup in it reads only the places named at the node's
+  // ancestors. Its work is counted in the map entries it writes.
+  applicationState.identify(1);
+  applicationState.captureDocument({
+    ...applicationState.read().document,
+    registry: { $states: {} },
+    authored: new Map(),
+    descriptors: new Map(),
+  });
+  /** @param {number} n */
+  const writes = (n) => {
+    const ids = Array.from({ length: n }, (_, k) => `w${k}`);
+    document.body.innerHTML = ids
+      .map((id) => `<section id="${id}"><button>${id}</button></section>`)
+      .join("");
+    const obligations = ids.map((id) => ({
+      id: `widget:${id}`,
+      source: { kind: "widget", id },
+      thread: null,
+      message: null,
+      prompt: { text: `Choose ${id}.`, target: id },
+      answer: null,
+      status: "open",
+      end: null,
+      next_actor: "user",
+    }));
+    applicationState.adopt(servedState({ browser: { views: { 1: { obligations } } } }));
+    const button = document.querySelector("#w3 button");
+    assert.equal(obligationAt(button)?.id, "widget:w3");
+    const set = Map.prototype.set;
+    let count = 0;
+    Map.prototype.set = function (...entry) {
+      count++;
+      return set.apply(this, entry);
+    };
+    try {
+      assert.equal(obligationAt(button)?.id, "widget:w3");
+    } finally {
+      Map.prototype.set = set;
+    }
+    return count;
+  };
+  try {
+    assert.equal(writes(64), writes(8));
   } finally {
     document.body.replaceChildren();
   }

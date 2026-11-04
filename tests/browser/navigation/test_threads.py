@@ -116,17 +116,10 @@ def test_the_thread_panel_and_a_page_thread_carry_names(browser, serve):
     )
 
 
-# Each placement once and each direction once.
-@pytest.mark.parametrize(
-    ("width", "from_below"),
-    [
-        pytest.param(1440, False, id="beside-down"),
-        pytest.param(390, True, id="above-or-below-up"),
-    ],
-)
-def test_an_offscreen_thread_card_arrives_with_its_anchor(
-    browser, serve, from_below, width
-):
+# Each direction once. A window too narrow for the rail opens threads in the
+# floating panel, never a card.
+@pytest.mark.parametrize("from_below", [False, True], ids=["down", "up"])
+def test_an_offscreen_thread_card_arrives_with_its_anchor(browser, serve, from_below):
     """A distant card arrives with its anchor and retraces the same attachment on return."""
     context = "".join(f"<p>Reading context {i}.</p>" for i in range(40))
     page = open_page(
@@ -141,7 +134,7 @@ def test_an_offscreen_thread_card_arrives_with_its_anchor(
             anchored=[("destination", "The distant passage")],
         ),
     )
-    resized(page, width, 900)
+    resized(page, 1440, 900)
     page.evaluate(
         """below => {
           scrollTo({top: below ? document.scrollingElement.scrollHeight : 0,

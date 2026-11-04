@@ -142,6 +142,39 @@ REWRITTEN_TWICE = (
     {"kind": "edit", "message": "e1", "text": "Chart 2026."},
 )
 
+# A reaction the agent answered, and the user's own reaction on that answer.
+ANSWERED_REACTION = (
+    {"kind": "comment", "token": "change"},
+    {
+        "kind": "reply",
+        "author": "agent",
+        "agent": "Agent",
+        "parent": "e1",
+        "text": "Which part?",
+    },
+    {"kind": "reply", "parent": "e2", "token": "keep"},
+)
+
+# A reply the user sent in a thread, and the agent's answer to it.
+ANSWERED_REPLY = (
+    {"kind": "comment", "text": "Too long?"},
+    {
+        "kind": "reply",
+        "author": "agent",
+        "agent": "Agent",
+        "parent": "e1",
+        "text": "Which part?",
+    },
+    {"kind": "reply", "parent": "e2", "text": "The rollout section."},
+    {
+        "kind": "reply",
+        "author": "agent",
+        "agent": "Agent",
+        "parent": "e3",
+        "text": "Cutting it.",
+    },
+)
+
 
 def build() -> dict:
     """A thread the agent answered and the user has read, which is nobody's turn,
@@ -213,6 +246,73 @@ def build() -> dict:
                     (
                         "rewritten twice, the last taken back",
                         ({"kind": "undo", "undoes": "e3"},),
+                    ),
+                )
+            },
+            # The user took an answered reply back, which keeps its place.
+            **{
+                name: _served(ANSWERED_REPLY + tail)
+                for name, tail in (
+                    ("a reply answered", ()),
+                    (
+                        "a reply answered, taken back",
+                        ({"kind": "undo", "undoes": "e3"},),
+                    ),
+                )
+            },
+            # The user took both reactions back: the answered one keeps its place.
+            **{
+                name: _served(ANSWERED_REACTION + tail)
+                for name, tail in (
+                    ("a reaction answered", ()),
+                    (
+                        "a reaction answered, both reactions taken back",
+                        (
+                            {"kind": "undo", "undoes": "e3"},
+                            {"kind": "undo", "undoes": "e1"},
+                        ),
+                    ),
+                )
+            },
+            # A reaction the agent attached a to-do to, then taken back.
+            **{
+                name: _served(
+                    (
+                        {"kind": "comment", "token": "change"},
+                        {
+                            "kind": "todo",
+                            "author": "agent",
+                            "agent": "Agent",
+                            "session": "served-records",
+                            "subject": {"kind": "thread", "id": "e1"},
+                            "title": "Rework the passage",
+                        },
+                        *tail,
+                    )
+                )
+                for name, tail in (
+                    ("a reaction holding a to-do", ()),
+                    (
+                        "a reaction holding a to-do taken back",
+                        ({"kind": "undo", "undoes": "e1"},),
+                    ),
+                )
+            },
+            # A reaction the user marked with another, the first taken back, then both.
+            **{
+                name: _served(
+                    (
+                        {"kind": "comment", "token": "change"},
+                        {"kind": "reply", "parent": "e1", "token": "keep"},
+                        {"kind": "undo", "undoes": "e1"},
+                        *tail,
+                    )
+                )
+                for name, tail in (
+                    ("a reaction on a reaction taken back", ()),
+                    (
+                        "a reaction on a reaction, both taken back",
+                        ({"kind": "undo", "undoes": "e2"},),
                     ),
                 )
             },

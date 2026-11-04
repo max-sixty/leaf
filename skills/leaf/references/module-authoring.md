@@ -363,29 +363,6 @@ back differently; pass booleans and counts as they are, and `null` to remove it.
 `hidden`. Write a measured length into a style as `layoutPx(length)`, which rounds to
 layout's 1/64px; `atLayoutPrecision(length)` returns the rounded number.
 
-## Time axes
-
-`axisTicks(from, to, duration, pxPerMs)` returns `{time, major, label, flip, step}`
-ticks for a visible time span, clipped to the duration. Times and steps are
-milliseconds; major labels use seconds, and `flip` marks a label that reads back from
-its tick because it would run past the axis's end. Set `--lf-axis-edge` on the
-drawing to `AXIS_EDGE` pixels, the inset at each end of the axis's span; without it the
-axis has none. Whatever stands on the axis is absolutely positioned at its fraction of
-the axis, `--lf-axis-at` on the element, in a box as wide as the axis: each tick a
-`span.lf-axis-tick` inside an `.lf-axis-ruler`, with `data-lf-major` and `data-lf-flip`
-as the tick says; a `span.lf-axis-gridline` for each major tick, with its
-`data-lf-flip`, inside an `.lf-axis-grid` you place over the drawing below the ruler;
-and your own marks, labels and playhead with the class `lf-on-axis`.
-`AXIS_TICK_SPACING`, `AXIS_LABEL_CHROME` and `AXIS_LABEL_GAP` are the least room
-between major ticks, what a mark's label adds to its words, and the least room between
-two labels in one row. `seconds(ms, digits)` writes a time as seconds, with `digits`
-decimals, or rounded to the millisecond with as few as show it.
-`assignRows(items, start, end)` maps each item's `id` to a zero-based row, arranging
-the extents returned by `start(item)` and `end(item)` so overlapping extents use
-different rows. `textWidth(text, font)` measures text in pixels using a CSS font
-shorthand. These helpers support a drawing before widget upgrade as well as later
-updates.
-
 ## Contained examples and scoped appearance
 
 `mountSample(frame, {template, window})` asynchronously mounts the authored template

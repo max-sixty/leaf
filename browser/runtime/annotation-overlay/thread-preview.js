@@ -47,7 +47,7 @@ import {
   scrollToEnd,
   scrollLimit,
 } from "../scrolling.js";
-import { computed, signal } from "/runtime/framework.js";
+import { signal } from "/runtime/framework.js";
 import { tick } from "../version-signal.js";
 import { cancelRender, nextRender } from "../rendering.js";
 import { spokenSubject } from "../contribution-model.js";
@@ -61,7 +61,6 @@ import {
   onCurrentLocation,
   onUserInput,
   focused,
-  focusRevision,
   tabStops,
 } from "../focus.js";
 import { TEXT_FIELD } from "../control-selectors.js";
@@ -260,14 +259,14 @@ export function createThreadPreview({
   // there, as the floating panel's menu does.
   const opener = () =>
     previewSession?.control?.checkVisibility() ? previewSession.control : null;
-  // Every cluster declares the entry's half of these keys (`openerKeys`), so whether the
-  // user is on the entry is one computed their reflections share.
-  const onOpener = computed(() => {
-    focusRevision();
+  // Whether the user is on the entry the card hangs from, which the margin's keys ask
+  // (`openerKeys`). Reading `cardRevision` keeps their reflection current as the card
+  // opens, closes or moves while focus stays where it is.
+  const onOpener = () => {
     void cardRevision.value;
     const target = opener();
     return Boolean(target) && focused() === target;
-  });
+  };
   // The stops in `root` before (-1) or after (1) `at`, in the browser's order.
   /** @param {Element} root @param {Element} at @param {number} side */
   const stopsBeside = (root, at, side) =>
@@ -319,7 +318,7 @@ export function createThreadPreview({
       title: "into the thread card",
       repeat: true,
       runFromCommandReference: false,
-      when: () => onOpener.value && tabStops(preview).length > 0,
+      when: () => onOpener() && tabStops(preview).length > 0,
       run: () => {
         const [target] = tabStops(preview);
         if (target) focusDestination(target, "step");
@@ -333,7 +332,7 @@ export function createThreadPreview({
       repeat: true,
       runFromCommandReference: false,
       when: () => {
-        const target = onOpener.value ? opener() : null;
+        const target = onOpener() ? opener() : null;
         return (
           target !== null && under(stopsBeside(chromeRoot, target, -1).at(-1), preview)
         );
@@ -395,10 +394,12 @@ export function createThreadPreview({
           // fit with it: dropping the gutter whenever they fit brought it back the
           // next frame, and so on every frame. A transcript that stops overflowing
           // otherwise, as when the window grows taller or the reply box empties,
-          // keeps its words the gutter's width narrower until then.
+          // keeps its words the gutter's width narrower until then. A send's ride
+          // draws the turns below where they stand, which the browser counts as
+          // overflow, so the decision reads where layout stands them (`scrollLimit`).
           /** @type {NodeListOf<HTMLElement>} */
           const messages = transcript.querySelectorAll(":scope > .lf-msg");
-          const overflows = transcript.scrollHeight > transcript.clientHeight;
+          const overflows = scrollLimit(transcript) > 0;
           const shown = [...messages].filter((message) => !message.hidden).length;
           const shape = `${transcript.offsetWidth} ${shown}`;
           const room = slotTop(transcript);

@@ -90,6 +90,35 @@ def captured_source(page: Page) -> None:
     page.locator("#bg-source-captures").scroll_into_view_if_needed()
 
 
+def long_source_selected(page: Page) -> None:
+    """A long captured source scrolled to where its 128th line, which ends the first
+    run of lines the listing draws, meets the next, each coloured as it shows, with a
+    selection from the middle of one into the other."""
+    page.locator("#pr-prepared-diff-evidence > summary").click()
+    pre = page.locator("#pr-prepared-diff-source pre")
+    pre.scroll_into_view_if_needed()
+    pre.evaluate("pre => { pre.scrollTop = 2400; }")
+    scroll_settled(page, "#pr-prepared-diff-source pre")
+    start, end = pre.evaluate("""pre => {
+      const walker = document.createTreeWalker(pre, NodeFilter.SHOW_TEXT);
+      const at = (words) => {
+        for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+          const index = node.data.indexOf(words);
+          if (index < 0) continue;
+          const range = document.createRange();
+          range.setStart(node, index);
+          range.setEnd(node, index + words.length);
+          return range.getBoundingClientRect().toJSON();
+        }
+      };
+      return [at('from_slice'), at('stream')];
+    }""")
+    page.mouse.move(start["left"] + 1, start["top"] + start["height"] / 2)
+    page.mouse.down()
+    page.mouse.move(end["left"] + 1, end["top"] + end["height"] / 2, steps=6)
+    page.mouse.up()
+
+
 def captured_source_by_keyboard(page: Page) -> None:
     """The captured source's scroller focused by keyboard, its ring over the lines."""
     captured_source(page)
@@ -1737,7 +1766,7 @@ def aim_cut_by_pane(page: Page) -> None:
     page.mouse.move(box["x"] + 120, box["y"] + 20)
     page.keyboard.down("Alt")
     page.wait_for_function(
-        "() => document.getElementById('sort-source-note')?.classList.contains('lf-aimed')"
+        "() => document.getElementById('sort-source-note')?.hasAttribute('data-lf-aimed')"
     )
 
 
@@ -2205,6 +2234,12 @@ STATES = (
         "feature-gallery",
         markdown_preview_scrolled,
         region="#bg-markdown-preview",
+    ),
+    State(
+        "long-source-selected",
+        "pr-walkthrough",
+        long_source_selected,
+        region="#pr-prepared-diff-source",
     ),
     State(
         "captured-source",

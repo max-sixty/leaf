@@ -18,20 +18,18 @@
      leaves the page, and the box under the pointer, still. The first word typed
      there is an edit, which brings the card back if the window doesn't show the box.
 
-   Each asks what the browser asks of an ordinary control: whether the window shows all of
-   it, above the floating panel's row. A surface waiting hidden for room to stand says so
-   (`away`), since its hidden box measures wherever it was left. A surface half under
-   the panel is as unseen there as one scrolled off altogether. The room is the chrome's
-   (`shownWindow`) rather than the landing band a landing aims for (`landingBand`): the
-   boundary holds a surface flush at the window's head, above that band's top, where it
-   is wholly seen and needs no bringing back. What a scroller inside the surface hides
-   is the browser's to reveal, so the control is measured within the surface's own box.
+   Each asks what the browser asks of an ordinary control: whether the user sees all of
+   it (geometry.js, `seenRect`), clear of the room the floating panel takes. A surface
+   waiting hidden for room to stand says so (`away`), since its hidden box measures
+   wherever it was left. A surface half under the panel is as unseen there as one
+   scrolled off altogether. What a scroller inside the surface hides is the browser's
+   to reveal, so the control is measured within the surface's own box.
 
    A surface hears no keys of its own. A key reaches it only as what the keyboard makes
    of it, so a page key such as `g` or `j` acts around a surface the user is still
    in, and one that lands in it or edits in it brings it back by doing so. What does not
    act there, a scroll or a turn arriving, leaves the surface where the page put it. */
-import { shownWindow } from "./geometry.js";
+import { seenRect } from "./geometry.js";
 import { scrollBehavior } from "./motion.js";
 import { under } from "./shadow.js";
 import { onCurrentLocation } from "./focus.js";
@@ -50,15 +48,16 @@ export function offFlowSurfaceOf(node) {
   return null;
 }
 
-// A pixel's slack, so a card the boundary holds flush at the window's head reads as shown.
+// A pixel's slack, so a card the boundary holds flush at the room's edge reads as shown.
 /** @param {Element} node @param {Element} surface */
 const unseen = (node, surface) => {
   const box = node.getBoundingClientRect();
   const bounds = surface.getBoundingClientRect();
-  const shown = shownWindow();
+  const seen = seenRect(surface, new Map());
   return (
-    Math.max(box.top, bounds.top) < shown.top - 1 ||
-    Math.min(box.bottom, bounds.bottom) > shown.bottom + 1
+    !seen ||
+    Math.max(box.top, bounds.top) < seen.top - 1 ||
+    Math.min(box.bottom, bounds.bottom) > seen.bottom + 1
   );
 };
 

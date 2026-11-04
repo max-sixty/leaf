@@ -302,7 +302,7 @@ def _outline_and_copy_stand_on(page, hovered, outlined):
     hovered.hover()
     page.keyboard.down("Alt")
     target = page.locator(outlined)
-    expect(target).to_have_class(re.compile(r"\blf-aimed\b"))
+    expect(target).to_have_attribute("data-lf-aimed", "")
     mark = target.evaluate(MARK)
     page.keyboard.up("Alt")
     assert mark and mark["style"] == "solid", mark
@@ -1341,6 +1341,34 @@ def test_a_pane_row_withheld_at_load_stands_once_its_target_scrolls_in(browser, 
         }"""
     )
     assert stands
+
+
+def test_a_row_in_content_skipped_until_near_stands_once_the_page_scrolls_to_it(
+    browser, serve
+):
+    """A section of fixed height that the browser skips until it nears the window
+    (`content-visibility: auto`) withholds the row on a target inside it, and scrolling
+    the page alone, which resizes and rewrites nothing, brings the row back once the
+    section is drawn."""
+    source = leaf_page(
+        "a far section",
+        '<h1 id="t">Far</h1><div style="height: 3000px"></div>'
+        '<section id="far-section" style="content-visibility: auto; height: 400px; '
+        'contain-intrinsic-size: auto 400px"><p id="far">Words far down the page, '
+        "which the browser skips drawing until they near the window.</p></section>"
+        '<div style="height: 1200px"></div>',
+    )
+    page = open_page(browser, serve(source, events=[_comment_on("far")]))
+    resized(page, 1280, 720)
+    margins_laid_out(page)
+    row = page.locator('.lf-margin-cluster[data-lf-margin-for="far"]')
+    expect(row).to_have_class(re.compile(r"\blf-withheld\b"))
+    page.mouse.move(640, 360)
+    for _ in range(12):
+        page.mouse.wheel(0, 250)
+        page.wait_for_timeout(50)
+    expect(page.locator("#far")).to_be_in_viewport()
+    expect(row).not_to_have_class(re.compile(r"\blf-withheld\b"), timeout=5000)
 
 
 def test_an_authored_anchor_scope_leaves_margin_controls_reachable(browser, serve):

@@ -56,7 +56,7 @@
 import { createThreadPreview } from "./thread-preview.js";
 import { proseRect, windowHoldsRail } from "../content-layout.js";
 
-import { computed, signal } from "/runtime/framework.js";
+import { signal } from "/runtime/framework.js";
 import { tick } from "../version-signal.js";
 import { afterScript, cancelRender, nextRender } from "../rendering.js";
 import { spokenSubject } from "../contribution-model.js";
@@ -118,7 +118,6 @@ import {
   onCurrentLocation,
   pressLed,
   focused,
-  focusRevision,
   closeLayer,
   rove,
   currentLocationIn,
@@ -890,36 +889,27 @@ export function createMarginProjection({
   });
 
   let marginKeysAvailable = false;
-  // Every cluster declares the margin's keys, and what they ask of where the user is has
-  // one answer for all of them: whether focus is on an entry of a cluster with more than
-  // one, and whether it is on a marker. Each answer is one computed the clusters'
-  // reflections share, worked out once for a focus move rather than once for each
-  // cluster. Each cluster's reflection still reads its keys again on every focus move,
-  // since keyboard/scopes.js has every scope follow `focusRevision`. Which entries a
-  // cluster offers changes as the margin renders (`drawnMargin`).
+  // The margin's keys are one scope on the projection, which holds every cluster in every
+  // lane (margin-layout.js, `laneFor`), so a press on any entry or marker reaches them and
+  // nothing between the cluster and the projection declares keys of its own. Its
+  // reflection reads them again on every focus move (keyboard/scopes.js) and as the margin
+  // renders, since which entries a cluster offers changes then (`drawnMargin`).
   const drawnMargin = signal(0);
-  const onSteppableEntry = computed(() => {
-    focusRevision();
-    void drawnMargin.value;
-    const active = focused();
-    const host = closestAcross(active, "[data-lf-margin-for]");
-    return (
-      active !== null &&
-      active.matches(".lf-margin-entry") &&
-      clusterMarginEntries(host).length > 1
-    );
-  });
-  const onMarker = computed(() => {
-    focusRevision();
-    return Boolean(focused()?.matches(".lf-margin-marker"));
-  });
   const marginKeys = [
     {
       id: "margin.controls",
       keys: ["ArrowLeft", "ArrowRight"],
       title: "move through margin entries",
       repeat: true,
-      when: () => onSteppableEntry.value,
+      when: () => {
+        void drawnMargin.value;
+        const active = focused();
+        return (
+          active !== null &&
+          active.matches(".lf-margin-entry") &&
+          clusterMarginEntries(closestAcross(active, "[data-lf-margin-for]")).length > 1
+        );
+      },
       runKey: stepClusterMarginEntries,
     },
     // The walk answers from a marker, not from the entries beside it, which Left and
@@ -933,11 +923,13 @@ export function createMarginProjection({
       scroll: false,
     }).map((row) => ({
       ...row,
-      when: () => onMarker.value && visibleRows().length > 0,
+      when: () =>
+        Boolean(focused()?.matches(".lf-margin-marker")) && visibleRows().length > 0,
     })),
     // Tab from the entry a card hangs from enters the card (thread-preview.js).
     ...card.openerKeys,
   ];
+  keys(nav, "In the margin", marginKeys, () => marginKeysAvailable);
 
   /** @param {HTMLElement} marker @param {Entry} entry */
   function pressMarker(marker, entry) {
@@ -1163,7 +1155,6 @@ export function createMarginProjection({
         const optionsId = `lf-margin-options-${++optionsOrdinal}`;
         const created = clusterViews.createPage(entry, targetFor(entry), optionsId);
         host = created;
-        keys(created, "In the margin", marginKeys, () => marginKeysAvailable);
         created.lfEntry = entry;
         created.more.onclick = () => {
           const open = expandedOptionsKey !== created.lfEntry.key;
@@ -1288,10 +1279,10 @@ export function createMarginProjection({
     // `registerMarginRow`, `faces`).
     scheduleRoving();
     scheduleMarginEntryLabels();
-    // Every Page Map host contributes the same keyboard section. Its capability is the
-    // map's existence; each row already asks the narrower question of whether its press
-    // works from the current focus. Repeating live geometry in every scope's `when`
-    // forced a layout per location when paintKeys reflected them.
+    // The margin's keys have the map's existence as their capability; each row already
+    // asks the narrower question of whether its press works from the current focus.
+    // Repeating live geometry in the scope's `when` forced a layout per location when
+    // paintKeys reflected it.
     if (marginKeysAvailable !== pageInventory.length > 0) {
       marginKeysAvailable = pageInventory.length > 0;
       paintKeys();

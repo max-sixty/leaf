@@ -187,7 +187,7 @@ lf-options:has(> lf-option > strong) {
 }
 /* A card standing alone states its pick with the border it has. A row standing alone
  * says it with a wash and a live cell, joined or apart, with its fill (below), each
- * ringed in the same green inside its edge: the tint alone is about 1.1:1 against the
+ * ringed in the same green inside its edge: the tint alone is about 1.15:1 against the
  * card in the dark palette, and a recommended tag wears that green too. */
 @container style(--lf-joined: 0) {
   lf-options:has(> lf-option > strong) > lf-option[chosen] {

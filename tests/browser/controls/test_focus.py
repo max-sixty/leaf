@@ -12,7 +12,6 @@ from render_cases_layout import (
     PANEL_DIFF_MARKUP,
     WIDE_DIFF_PAGE,
     current_location_ring,
-    ring_faults,
     rings_drawn,
     serious_axe_violations,
 )
@@ -22,7 +21,6 @@ from render_harness import (
     LONG_PAGE,
     RELEASE_FOCUS,
     REPLY_HOST_PAGE,
-    ROOT,
     expect_comment_notes,
     held_frames,
     holding,
@@ -41,6 +39,7 @@ from render_harness import (
 from browser.threads import open_panel_thread
 from leaf import event_log as events_model
 from leaf.render_checks import rendered
+from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -89,13 +88,10 @@ def test_tab_from_the_pages_last_control_reaches_the_panels_leaf(
     expect(page.locator(".lf-fp-leaf")).to_be_focused()
 
 
-def test_the_keys_into_and_out_of_a_panel_thread_land_where_a_ring_shows(
-    browser, serve
-):
-    """`g T` from the page stands Threads on its first row, and Escape from a thread's
-    reply in the panel stands the user on the thread's view; each wears a ring. Both
-    once left focus on a view, which drew none, so where Enter or `r` would act was a
-    guess."""
+def test_the_keys_into_and_out_of_a_panel_thread_land_where_keys_act(browser, serve):
+    """`g T` from the page stands Threads on its first row, which wears a ring, and
+    Escape from a thread's reply in the panel stands the user on the thread's view,
+    which wears none (floating-panel.css, `.lf-fp-view:focus`)."""
     url = serve(PANEL_PAGE)
     panel_comment(
         serve.page_dir, "Where should this explanation go?", {"section": "lede"}
@@ -112,22 +108,35 @@ def test_the_keys_into_and_out_of_a_panel_thread_land_where_a_ring_shows(
     expect(reply).to_be_focused()
     page.keyboard.press("Escape")
     expect(page.locator(panel_view("thread"))).to_be_focused()
-    # The view's own top edge fades out, so the stage it fills wears its ring. The box
-    # follows the Escape's layout on the next rendering, and while it moves the ring
-    # is drawn by its moving layer, so wait for that motion to start, then finish it.
+    # The box follows the Escape's layout on the next rendering, so wait for that
+    # motion to start, then finish it.
     rendered(page)
     panel_settled(page, view="thread")
     drawn = rings_drawn(page)
+    assert not [seen for seen in drawn if seen["here"]], drawn
+
+
+def test_an_empty_threads_opened_by_key_wears_its_ring_on_the_stage(browser, serve):
+    """`g T` on a page with no threads stands the user on Threads' view itself, which
+    wears its ring on the stage it fills, as every view but a thread's does
+    (floating-panel.css, `.lf-fp-stage`)."""
+    page = open_page(browser, serve(PANEL_PAGE))
+    page.evaluate(RELEASE_FOCUS)
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+t")
+    expect(page.locator(panel_view("threads"))).to_be_focused()
+    rendered(page)
+    panel_settled(page, view="threads")
+    drawn = rings_drawn(page)
     worn = [seen["who"].split(" ")[0] for seen in drawn if seen["here"]]
     assert worn == ["div.lf-fp-stage"], drawn
-    assert not (faults := ring_faults(drawn, "on the thread's view")), "\n".join(faults)
 
 
 def test_show_from_on_me_lands_in_the_card_it_opens(browser, serve):
     """On me's Show on a question asked in a thread's words opens the thread's card on
     the page with the user in it. The arrival stood them on the message On me drew,
     and On me closing then dropped them on the page."""
-    page = open_page(browser, serve(ROOT / "examples" / "ship-review.html"))
+    page = open_page(browser, serve(named_source("ship-review")))
     page.locator(".lf-fp-on-user").click()
     card = page.locator(f"{panel_view('queue')} .lf-fp-on-item").filter(
         has_text="The vendor release is the only schedule"

@@ -422,9 +422,9 @@ function createApplication(dependencies) {
     marginCommitted: () => marginPresentation?.committed() ?? Promise.resolve(),
     read,
   });
-  /** @param {Parameters<typeof ledger.present>[0]} receipts */
-  const accountPending = (receipts) => {
-    ledger.present(receipts);
+  /** @param {Parameters<typeof ledger.present>[0]} events */
+  const accountPending = (events) => {
+    ledger.present(events);
     releasePendingSafely("receipt presentation");
   };
 

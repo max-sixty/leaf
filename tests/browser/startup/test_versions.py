@@ -53,12 +53,12 @@ def expect_resolved(page, thread_id, resolved=True):
     """Read whether the panel's Threads lists the thread `thread_id` under Resolved,
     rather than among the open threads."""
     open_threads(page)
-    row = f"{panel_view('threads')} .lf-fp-thread[data-key='{thread_id}']"
+    row = f"{panel_view('threads')} .lf-fp-thread[data-lf-key='{thread_id}']"
     if resolved:
         show_resolved(page)
-        expect(page.locator(f"{row}[data-resolved]")).to_have_count(1)
+        expect(page.locator(f"{row}[data-lf-resolved]")).to_have_count(1)
     else:
-        expect(page.locator(f"{row}:not([data-resolved])")).to_have_count(1)
+        expect(page.locator(f"{row}:not([data-lf-resolved])")).to_have_count(1)
 
 
 def test_restating_a_widget_is_how_a_version_takes_the_pen_back(browser, serve):
@@ -313,10 +313,10 @@ def test_the_diff_marks_what_the_author_changed_and_no_word_a_script_wrote(
     since delivery defers it.
 
     The author rewrote the readout's placeholder too, so it is marked. On the fresh
-    load the words it shows are the script's, so it offers no inline diff, which would
-    paint the source's words over the script's, while the rewritten closing paragraph
-    offers one, through the change it ends: the three reworded paragraphs stand
-    together, so they are one change with one margin entry. A paragraph holding a gloss
+    load the words it shows are the script's, so it compares nothing, which would set
+    the source's words against the script's, while the change it stands in offers a
+    card for the reworded paragraphs: the three reworded paragraphs stand together, so
+    they are one change with one margin entry. A paragraph holding a gloss
     is one block, so rewording the words around the gloss marks it; a paragraph the
     script swapped for a copy is found by its id."""
     source = SCRIPTED[script]
@@ -364,9 +364,7 @@ def test_the_diff_marks_what_the_author_changed_and_no_word_a_script_wrote(
 
     expect(fresh.locator("#readout")).to_have_text("42 items counted by the script.")
     expect(change("glossed")).to_have_attribute("aria-expanded", "false")
-    expect(change("glossed")).to_have_attribute(
-        "aria-controls", re.compile(r"\blf-version-inline-outro\b")
-    )
+    expect(change("glossed")).to_have_attribute("aria-controls", "lf-change-card")
     expect(change("outro")).to_have_count(0)
     expect(change("readout")).not_to_have_attribute("aria-expanded", re.compile(".*"))
 
@@ -440,7 +438,7 @@ def test_a_comparison_reads_nothing_from_a_server_running_another_runtime(
     expect(page.locator(".lf-fp-field leaf-text")).to_have_attribute(
         "placeholder", re.compile("Couldn't load v1")
     )
-    panel_menu(page).locator('.lf-fp-item[data-row="errors"]').click()
+    panel_menu(page).locator('.lf-fp-item[data-lf-row="errors"]').click()
     expect(
         page.locator(panel_view("errors"))
         .locator(".lf-fp-error-words b")
@@ -558,8 +556,8 @@ def test_the_thread_follows_the_decision_that_still_stands(browser, serve):
     expect(page.locator("#sug-fix")).to_have_attribute("data-lf-state", "reject")
     # Threads was already open: incoming news keeps its rows in place until the
     # reader asks to settle them. The row's reading changes before its section does.
-    row = page.locator(f"{panel_view('threads')} .lf-fp-thread[data-key='c1']")
-    expect(row).not_to_have_attribute("data-resolved", "")
+    row = page.locator(f"{panel_view('threads')} .lf-fp-thread[data-lf-key='c1']")
+    expect(row).not_to_have_attribute("data-lf-resolved", "")
     notice = page.locator(".lf-fp-joined .lf-thread-news")
     expect(notice).to_have_attribute("title", "1 thread reopened")
     notice.click()

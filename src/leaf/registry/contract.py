@@ -6,13 +6,29 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 
-from jsonschema._utils import equal as same_state_definition
-
 from leaf.files import read_json
 from leaf.schema import WIDGET_NAME
 
 from ..findings import Finding, Rejected, element_at
 from .kernel import verb_writers
+
+
+def same_state_definition(recorded, current) -> bool:
+    """Whether two recorded state definitions, or values in them, are one JSON value,
+    as the browser compares them (`registry-contract.js`): `true` is not `1`, which
+    Python's `==` takes it for, while `1.0` is `1`, as in JavaScript."""
+    if isinstance(recorded, dict) and isinstance(current, dict):
+        return recorded.keys() == current.keys() and all(
+            same_state_definition(value, current[key])
+            for key, value in recorded.items()
+        )
+    if isinstance(recorded, list) and isinstance(current, list):
+        return len(recorded) == len(current) and all(
+            map(same_state_definition, recorded, current)
+        )
+    return (
+        isinstance(recorded, bool) == isinstance(current, bool) and recorded == current
+    )
 
 
 def matches_when(attrs: dict, when: dict | None) -> bool:

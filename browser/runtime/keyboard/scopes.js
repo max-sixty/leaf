@@ -57,6 +57,7 @@ import {
 } from "./bindings.js";
 import { nativeActivationAt, nativeClaimAt } from "./text-entry.js";
 import { composedParentNode, renderedParent } from "../shadow.js";
+import { isElement } from "../shadow-tree.js";
 import { repaint } from "../repaint.js";
 import { installMoveKeys } from "../dom-move.js";
 import { keeps } from "../keeps.js";
@@ -1028,11 +1029,11 @@ export const paintKeysWithin = (root) => {
   repaint();
 };
 // The roots renderers painted since the frame last reflected, resolved to the scoped
-// elements inside them in one climb per scoped element however many renderers
-// painted, where a scan per paint cost every widget's update the whole page's scoped
-// elements. A placed node about to move out of a painted root takes the marks of the
-// scoped elements it holds with it (dom-move.js), so the frame finds them wherever
-// they land.
+// elements inside them by a walk of each outermost root, so a frame costs what was
+// painted however many renderers painted, where a scan per paint cost every widget's
+// update the whole page's scoped elements. A placed node about to move out of a painted
+// root takes the marks of the scoped elements it holds with it (dom-move.js), so the
+// frame finds them wherever they land.
 /** @type {Set<Node>} */
 const paintedRoots = new Set();
 installMoveKeys((node) => {
@@ -1042,28 +1043,41 @@ installMoveKeys((node) => {
 });
 /** @param {Node} node */
 function markScopedIn(node) {
-  if (node instanceof Element && scopeRefFor.has(node)) {
+  if (isElement(node) && scopeRefFor.has(node)) {
     dirtyElements.add(node);
     dirtyButtons.add(node);
   }
   for (const child of node.childNodes) markScopedIn(child);
-  if (node instanceof Element && node.shadowRoot) markScopedIn(node.shadowRoot);
+  if (isElement(node) && node.shadowRoot) markScopedIn(node.shadowRoot);
 }
 function claimPaintedRoots() {
   if (!paintedRoots.size) return;
-  for (const ref of scopeRefs) {
-    const scoped = ref.deref();
-    for (
-      let at = /** @type {Node | null} */ (scoped ?? null);
-      at;
-      at = composedParentNode(at)
-    )
-      if (paintedRoots.has(at)) {
-        dirtyElements.add(/** @type {Element} */ (scoped));
-        dirtyButtons.add(/** @type {Element} */ (scoped));
+  // Whether a node is a painted root or stands in one, remembered for every node a climb
+  // passes, so roots that share ancestors climb each of them once.
+  /** @type {Map<Node, boolean>} */
+  const covered = new Map();
+  /** @param {Node | null} node */
+  const coveredFrom = (node) => {
+    /** @type {Node[]} */
+    const passed = [];
+    let answer = false;
+    for (let at = node; at; at = composedParentNode(at)) {
+      const known = covered.get(at);
+      if (known !== undefined) {
+        answer = known;
         break;
       }
-  }
+      passed.push(at);
+      if (paintedRoots.has(at)) {
+        answer = true;
+        break;
+      }
+    }
+    for (const at of passed) covered.set(at, answer);
+    return answer;
+  };
+  for (const root of paintedRoots)
+    if (!coveredFrom(composedParentNode(root))) markScopedIn(root);
   paintedRoots.clear();
 }
 /** What a scope answers right now, as a listener hears it read out — key names rather than

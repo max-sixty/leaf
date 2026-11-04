@@ -239,7 +239,7 @@ export const watchRewrite = (id, changed) => watchDraft(rewriteContext(id), chan
 /** @param {Element | null} thread @param {string} id */
 export function openMessageEditIn(thread, id) {
   const message = [...(thread?.querySelectorAll(".lf-msg") ?? [])].find(
-    (node) => node.getAttribute("data-event") === id,
+    (node) => node.getAttribute("data-lf-event") === id,
   );
   message?.dispatchEvent(new CustomEvent(OPEN_MESSAGE_EDIT));
   return (

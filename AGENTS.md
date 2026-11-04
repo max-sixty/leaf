@@ -361,7 +361,7 @@ landing paths run them too. The website's delivery checks (the site build, the
 Worker's dry-run deploy, `leaf-dev verify-site website-worker`) run on a pull
 request and in `publish-site`, but not in `wt merge`.
 
-For a change that can alter browser startup, compare base and candidate: served
+For a change that can alter browser startup, compare base and head: served
 previews for a runtime change, `leaf-dev verify-site website-worker` for site
 delivery, Worker routing or containers. Read the comparison by phase (the
 document arriving, widgets upgrading, the page first showing the server's

@@ -5,7 +5,6 @@ extend-exclude = [
   "browser/vendor/**",
   "dist/kernel/**",
   "packages/**/vendor/**",
-  "examples/corpus.html",
   "evals/ui-review-detection/fixtures/**",
 ]
 

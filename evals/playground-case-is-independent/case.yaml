@@ -6,7 +6,7 @@
 # Extended after a Codex playground used browser-default case controls: exercise
 # the control idioms too, while preserving independent case and design state.
 # On 1ec38894f: the shared-control grade failed 2/2 baseline runs and passed the
-# candidate run that read all required references; its other run skipped the package
+# head run that read all required references; its other run skipped the package
 # instructions and measured nothing about that routing change.
 # The grade passes a face the page styles itself since Leaf stopped preferring its own
 # control classes over a page's design; the scar it keeps is the browser default.

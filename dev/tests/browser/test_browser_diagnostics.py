@@ -9,8 +9,8 @@ from render_harness import (
     watched,
 )
 
-from leaf_dev.commands.probe import console_findings
 from leaf_dev.commands.verify_site import observe_startup
+from leaf_dev.visits import console_findings
 
 
 @pytest.mark.parametrize("collector", [watched, console_findings, observe_startup])

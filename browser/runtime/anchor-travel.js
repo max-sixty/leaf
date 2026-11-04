@@ -622,7 +622,8 @@ export function createAnchorTravel({
     // paint is not, so reading the destination in this turn would find the page as the
     // press left it.
     // A route naming no part of the thread lands on the place it is about, where the
-    // page shows that place but no view of the thread (thread/destination.js, `page`).
+    // page shows that place but no view of the thread (thread/destination.js,
+    // `reader: "page"`).
     return arrive(
       () => {
         const where = threadDestination(id);

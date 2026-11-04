@@ -186,7 +186,7 @@ function placeOf(event) {
       message: event.message,
       nodes: [
         ...document.querySelectorAll(
-          `.lf-msg[data-event="${CSS.escape(event.message)}"]`,
+          `.lf-msg[data-lf-event="${CSS.escape(event.message)}"]`,
         ),
       ],
     };

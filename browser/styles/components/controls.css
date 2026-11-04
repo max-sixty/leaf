@@ -1783,8 +1783,7 @@ textarea.field {
    as a thread's held news, the activity feed's notice, the floating panel's Next
    unread or a quote's Full quote. Its words take the accent ink at weight 600 and the
    line's own size, with no chip, fill or border, and an underline under a hovering
-   pointer. One announcing news waiting (`data-lf-news`), and the count a seat's
-   Resolved summary says its threads hold (thread/inline.js), keep the accent the
+   pointer. One announcing news waiting (`data-lf-news`) keeps the accent the
    unread dot wears, as the user chose on 31 October over the danger ink, which read
    as an error. One whose words say a warning (`data-lf-tone="warn"`), as a file
    editor's conflict does, takes the warning's ink. The
@@ -1806,9 +1805,6 @@ textarea.field {
   font-weight: 600;
   text-decoration: none;
   cursor: pointer;
-}
-.lf-resolved-summary [data-lf-news] {
-  color: var(--accent);
 }
 :where(button).lf-inline-action[data-lf-tone="warn"] {
   color: var(--warn-ink);

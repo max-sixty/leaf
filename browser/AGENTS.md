@@ -48,12 +48,18 @@ own (`../SOUL.md`, "Keep the foundation small and extensible").
   panel, standing on the window's foot, holds a list's foot, and a thread's height while
   a press on its head line acts. Each box's header says how (`floating-panel.js`,
   **Opened**; `thread/card-anchor.js`).
-- **News never moves what the reader is reading.** News from the server grows above the
-  screen, where scroll anchoring absorbs it, or below it; anywhere else it waits behind a
-  fixed-size control until the reader goes to it, and an editor in use stays still. An
-  exception the user chose stays with its owner, as `fitAnswer` in `floating-panel.js`
-  does. Check: `test_news_just_after_a_press_moves_nothing`. Owners: `thread/held-news.js`,
-  and `threadsListing` in `floating-panel.js` for the rows of Threads.
+- **News moves what the reader reads only in the thread they are in.** News from the
+  server grows above the screen, where scroll anchoring absorbs it, or below it. In the
+  thread the user is in, what it adds draws at once, as in a chat: the page scrolls
+  what stands above the control they are on up by the growth, and where the page can't
+  scroll that far the control moves by the rest. Anywhere else on screen, and for a
+  settlement (resolving or reopening) in their own thread, a thread keeps what it drew
+  behind a fixed-size control until the reader goes to it. A thread not drawn yet, one
+  the agent starts or one a reply reopens out of a closed Resolved disclosure, draws at
+  once, the rare path the user chose to let move what follows it (2026-11-04). An exception the user chose stays with its owner, as `fitAnswer` in
+  `floating-panel.js` does. Check: `test_news_just_after_a_press_moves_nothing`.
+  Owners: `thread/held-news.js`, and `threadsListing` in `floating-panel.js` for the rows
+  of Threads.
 - **Nothing Leaf draws moves the page's content.** Pins, passage marks and runtime
   controls sit over the page and take no space, and no rule pads or widens a block to
   make room for them. The rail sits right of `main` when the window is wide enough and

@@ -2836,7 +2836,6 @@ export function createFloatingPanel({
     joinedNotice.set({
       text: newsCount(joined.length),
       label: facts.join(" · "),
-      reopened: false,
       open: showJoined,
     });
     return html`<span class="lf-fp-joined"

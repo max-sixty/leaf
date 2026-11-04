@@ -26,6 +26,7 @@ from pathlib import Path
 from .events import event_document
 from .passages import SourceReading, collapse, shown_words
 from .projection import frozen_thread_reading
+from .registry.contract import event_spec
 from .revision_artifact import read_revision
 
 TITLES = frozenset({"summary", "h1", "h2", "h3", "h4", "h5", "h6", "strong"})
@@ -243,6 +244,13 @@ class GestureWords:
         document = self._document(event)
         node = document.nodes.get(event["widget"]) if document else None
         return document.registry.get(node["tag"], {}) if document and node else {}
+
+    def records_unsent(self, action: dict) -> bool:
+        """Whether the action's verb records work the user hasn't sent
+        (`$state.unsent`), as the document they acted in declared it, so a later
+        version redeclaring the verb leaves earlier actions as they were."""
+        spec = event_spec(self.declaration(action), action)
+        return bool(spec and spec.get("unsent"))
 
     def name(self, event: dict, identity: str) -> str:
         """What the gesture's document calls one element it names: its title, else

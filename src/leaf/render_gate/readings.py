@@ -16,11 +16,10 @@ from leaf.findings import Finding, element_at
 from leaf.passages import SourceReading, page_passages
 from leaf.projection import (
     frozen_thread_reading,
-    generated_children,
+    logged_words,
     page_reading,
     retirement_holders,
     retirement_outcomes,
-    rewritten_bodies,
 )
 from leaf.registry.contract import is_element_name, retirement_slots
 from leaf.render_checks import (
@@ -144,12 +143,7 @@ class _SchemeContext:
 def _projected_verbatim(document, registry, projection, authored_ids, source):
     """Read preserving owners after applying exactly the projection's text changes."""
     return page_passages(
-        document,
-        registry,
-        decided=retirement_outcomes(projection.actions),
-        rewrites=rewritten_bodies(projection.actions),
-        additions=generated_children(projection.desired, authored_ids),
-        source=source,
+        document, registry, **logged_words(projection, authored_ids), source=source
     ).verbatim
 
 

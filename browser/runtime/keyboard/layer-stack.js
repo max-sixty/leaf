@@ -23,6 +23,18 @@
    module cannot hear, so it never reaches the stack; `shadowStage` is the declared route
    for a widget's shadow tree.
 
+   Where a press on a declarative control (`popovertarget`, `commandfor`) opens a layer,
+   this module also does what that press owes the control. The platform's return on
+   closing, like `closeNativeLayer`'s, hands the user back to wherever focus stood as
+   the layer opened, and Safari and Firefox on macOS leave a pressed button unfocused,
+   so the press puts the user on the control before its layer opens. Any other opening
+   that names a source, a scripted one or one a hover starts, leaves focus where it
+   was. A control that opens a popover declares `aria-expanded`, and this module keeps
+   it current on declarative and scripted openings alike, through every closing, light
+   dismissal included, so a control's face can follow it as well as a reader's. The
+   widget moves the user into the layer, where it has a control to land on, from its
+   `toggle` event.
+
    Every read prunes first, and an entry whose surface no longer stands is removed
    wherever it sits, so a dialog closed by script beneath another layer cannot linger as
    a false floor. Modal entry dismisses auto and hint popovers through the platform
@@ -65,6 +77,7 @@ import {
   releaseFocus,
   closeLayer,
   focused,
+  focusDestination,
   handBack,
   canPlaceFocus,
 } from "../focus.js";
@@ -77,6 +90,7 @@ import {
   nativeLayerKind,
 } from "../shadow-tree.js";
 import { watchOwner } from "../arrivals.js";
+import { keeps } from "../keeps.js";
 
 // A host styles its own chrome when a modal carries it into another shadow tree.
 // Layer ordering and native opening need no stylesheet from the page.
@@ -95,6 +109,17 @@ let entries = [];
 const watchedRoots = new WeakSet();
 const nativeDialogShowModal = HTMLDialogElement.prototype.showModal;
 const nativePopoverShow = HTMLElement.prototype.showPopover;
+// The popover a `showPopover` call is opening, and the source the call names, while it
+// opens: its `beforetoggle` is a scripted opening rather than a press on its control,
+// and the call names its source in an engine whose event doesn't carry it.
+/** @type {{layer: HTMLElement, source: Element | null} | null} */
+let scripted = null;
+
+/** @param {Element | null | undefined} control @param {boolean} open */
+function keepExpanded(control, open) {
+  if (control?.hasAttribute("aria-expanded"))
+    keeps(control, "aria-expanded", String(open));
+}
 
 function prune() {
   entries = entries.filter((entry) => entry.active());
@@ -150,6 +175,7 @@ function closing(event) {
   if (event.newState !== "closed") return;
   const entry = entries.find((candidate) => candidate.root === event.target);
   if (entry) entry.opening = false;
+  keepExpanded(entry?.source, false);
   if (entry?.kind === "popover")
     for (const layer of nativeLayers().toReversed())
       if (layer.kind === "modal" && renderedUnder(layer.root, entry.root))
@@ -176,9 +202,12 @@ HTMLDialogElement.prototype.showModal = function () {
 HTMLElement.prototype.showPopover = function (options) {
   const opening = nativeLayerKind(this) !== "popover";
   const entry = opening ? pushNativeLayer(this) : null;
+  const was = scripted;
+  scripted = { layer: this, source: options?.source ?? null };
   try {
     nativePopoverShow.call(this, options);
   } finally {
+    scripted = was;
     if (entry) entry.opening = false;
   }
   if (entry && options?.source) entry.source = options.source;
@@ -337,11 +366,25 @@ export function watchLayers(root) {
   /** @param {ToggleEvent} event */
   const opened = (event) => {
     if (
-      event.newState === "open" &&
-      event.target instanceof HTMLElement &&
-      event.target.matches("[popover], dialog")
+      event.newState !== "open" ||
+      !(event.target instanceof HTMLElement) ||
+      !event.target.matches("[popover], dialog")
     )
-      pushNativeLayer(event.target, event.source);
+      return;
+    const call = scripted?.layer === event.target ? scripted : null;
+    const source = event.source ?? call?.source ?? null;
+    if (event.type === "beforetoggle") {
+      if (
+        !call &&
+        source instanceof HTMLElement &&
+        source.matches("[popovertarget], [commandfor]") &&
+        canPlaceFocus() &&
+        focused() !== source
+      )
+        focusDestination(source, "press");
+      keepExpanded(source, true);
+    }
+    pushNativeLayer(event.target, source);
   };
   root.addEventListener("beforetoggle", opened, true);
   root.addEventListener("beforetoggle", closing, true);

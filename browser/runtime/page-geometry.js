@@ -25,7 +25,6 @@ import { keepsText } from "./keeps.js";
  * pointer: typeof import("./pointer.js").pointerAt,
  * designMode: Pick<DesignMode, "active" | "target" | "inspectElement" | "name">,
  * targetPaint: Pick<typeof import("./target-paint.js"), "clearAim" | "geometryChanged" | "labelAim" | "paintAim" | "shifted">,
- * visualMarkPaint: ReturnType<typeof import("./annotation-overlay/visual-mark-paint.js").createVisualMarkPaint> | null | undefined,
  * shiftDrawings: () => unknown, queueLegend: DesignMode["queueLegend"],
  * legendScrolled: DesignMode["legendScrolled"],
  * activeActionAnchor: () => import("../types/domain.js").Anchor | null,
@@ -36,7 +35,6 @@ export function createPageGeometry({
   pointer,
   designMode,
   targetPaint,
-  visualMarkPaint,
   shiftDrawings,
   queueLegend,
   legendScrolled,
@@ -100,7 +98,6 @@ export function createPageGeometry({
     refreshAnchorHover?.();
     refreshAim();
     targetPaint.shifted();
-    visualMarkPaint?.shifted();
     shiftDrawings();
     legendScrolled();
     if (activeActionAnchor()) queueActionPlacement();
@@ -114,7 +111,6 @@ export function createPageGeometry({
 
   function invalidate() {
     targetPaint.geometryChanged();
-    visualMarkPaint?.geometryChanged();
   }
 
   const onResize = () => {

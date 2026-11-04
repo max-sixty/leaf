@@ -32,6 +32,7 @@
    method. They preserve one admitted action per widget rather than recording a second
    page-wide answer. */
 
+import { capitalized } from "../words.js";
 import { landingRoom } from "../landing-scroll.js";
 import { landingBand, shownBox, shownParts } from "../geometry.js";
 import { PAGE_CONTROL_RANK, registerPageControl } from "../page-controls.js";
@@ -61,7 +62,7 @@ import { PRESENTATION } from "../presentation.js";
 import { retainUserIntent } from "../user-intent.js";
 import { bindQueuedWork } from "../queued-work.js";
 import { applicationPresenter, PRESENTATION_DOM } from "../semantic-state.js";
-import { hostIn, under, upFrom } from "../shadow.js";
+import { hostIn, renderedOrder, under, upFrom } from "../shadow.js";
 import { showHeld } from "../thread/held-news.js";
 import { obligationPlace } from "./place.js";
 import { partOver } from "../thread/placement.js";
@@ -209,7 +210,7 @@ export function createObligationView({
     for (const tag of tagsDeclaring((entry) => entry["x-awaits"]?.all)) {
       const outcome = registry[tag]["x-awaits"].all;
       if (bulkAnswers.has(outcome)) continue;
-      const label = outcome[0].toUpperCase() + outcome.slice(1);
+      const label = capitalized(outcome);
       bulkAnswers.set(outcome, label);
       const waiting = () =>
         readObligations().user.filter((item) => obligationEntry(item)?.all === outcome)
@@ -528,34 +529,20 @@ export function createObligationView({
     // entirely — a worse answer than the one this misses. The heading is read off the
     // page's outline, which composes that order (`partOver`). The crossing worth having is
     // on the two questions asked of each block: `under` for the container, and
-    // the host climb below for the order, which together let an obligation staged inside a
+    // `renderedOrder` for the order, which together let an obligation staged inside a
     // shadow tree take the heading standing over its host.
     //
     // `showsWords` goes with `inChrome`: a block behind a shut disclosure keeps its
     // boxes, so it would otherwise measure like one the user can see.
-    //
-    // Order is asked of the obligation as the block's own tree sees it, which for an
-    // obligation staged in a shadow tree is its host and not the obligation. Two nodes in
-    // different roots are DISCONNECTED, and the direction bit that comes with it is
-    // arbitrary-but-consistent rather than positional: Chrome answers PRECEDING for every
-    // block in the document, whichever side of the host it stands. Asked straight, the
-    // filter therefore kept the blocks after such an obligation too, and a block after it
-    // won — the wrong-question arrival this bound exists to remove, in the one shape the
-    // crossing above was written to serve.
-    /** @param {Element} block */
-    const seenBy = (block) => hostIn(item, block.getRootNode());
-    const before = [...document.querySelectorAll(TEXT_BLOCK)].filter((block) => {
-      const from = seenBy(block);
-      return (
-        from &&
+    const before = [...document.querySelectorAll(TEXT_BLOCK)].filter(
+      (block) =>
         !inChrome(block) &&
         showsWords(block) &&
         !under(item, block) &&
         block.parentElement &&
         under(item, block.parentElement) &&
-        from.compareDocumentPosition(block) & Node.DOCUMENT_POSITION_PRECEDING
-      );
-    });
+        renderedOrder(block, item) < 0,
+    );
     return (
       [
         declared ? context : null,

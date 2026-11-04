@@ -331,6 +331,21 @@ svg[data-lf-icon] {
 .lf-msg-controls > .lf-react-trigger {
   anchor-name: --lf-react-trigger;
 }
+/* A popover a control opens over the page, such as a menu of choices or a card of
+   details, wears one face while it is open: the raised surfaces' ground (`--card`),
+   which it names as its ground for its opaque controls (package-themes.md), a border
+   that sets it apart from the page in either scheme, and the shadow of what opens over
+   the page (`--raise-2`, tokens.css). A popover takes the face with the `lf-popover`
+   class, and its own rule sets only its place, size and padding. The rule has no
+   specificity, so the popover's own rules win. */
+:where(.lf-popover:popover-open) {
+  --lf-ground: var(--card);
+  border: 1px solid var(--border-2);
+  border-radius: var(--r);
+  background: var(--lf-ground);
+  color: var(--ink);
+  box-shadow: var(--raise-2);
+}
 /* The list is an auto popover, in the top layer: open, it stands over everything in
    the thread, the sticky title and reply row included, so its message is never raised
    among the rows to carry it, and closing it hands focus back to where the user opened
@@ -340,15 +355,18 @@ svg[data-lf-icon] {
    message as the list scrolls, and closes once the trigger is out of view
    (reactions.js). Closed, it is the strip's own row of reactions in force, in flow,
    so the popover's UA box is taken off; whether it is open is read off the popover
-   alone, so a light dismiss leaves no frame between. */
+   alone, so a light dismiss leaves no frame between. Open, it wears the popover face
+   (`.lf-popover`, above). */
 .lf-react-strip > .lf-react-palette[popover] {
   position: static;
   margin: 0;
   padding: 0;
-  border: 0;
   width: auto;
   height: auto;
   overflow: visible;
+}
+.lf-react-strip > .lf-react-palette:not(:popover-open) {
+  border: 0;
   color: inherit;
   background: none;
 }
@@ -364,10 +382,6 @@ svg[data-lf-icon] {
   width: max-content;
   max-width: calc(100vw - 16px);
   padding: 4px;
-  border: 1px solid var(--border-2);
-  border-radius: var(--r);
-  background: var(--card);
-  box-shadow: var(--raise-2);
 }
 :where(.lf-react-strip > .lf-react-palette:popover-open) > .lf-react {
   box-sizing: border-box;
@@ -616,8 +630,9 @@ summary,
  * word once also came framed on the card ground, a second look for the same press,
  * until the user chose the quiet one on 25 October. A toggle's `aria-pressed` keeps
  * its own selected face (below), so the chosen mode still shows. Authored
- * .button controls wear the word face too, and `.button.primary` the commit face, so
- * a page's own controls match Leaf's (page-layout.md). Labels wrap within their
+ * .button controls wear the word face too, and `.button.primary` the commit face
+ * (`.lf-btn.lf-commit` on Leaf's), so a page's own controls match Leaf's
+ * (page-layout.md). Labels wrap within their
  * available width; controls that require one line declare it locally. The block
  * padding stands one line of words a line tall (`--lf-line`), less the 1px border,
  * and a finger's floor is the button's reach (surfaces.css), so a rule restating the
@@ -642,9 +657,10 @@ summary,
  * a second frame or selected fill. The target owns its ring room inside its box,
  * padded by it, so a choice at a clipped toolbar edge keeps all four sides, and so
  * does every mark on it. A list that sets its marks on a heading's edge hangs each
- * face out by that padding, `--choice-pad`. Used by authored controls and packages
- * alike. */
-.choice {
+ * face out by that padding, `--choice-pad`. A page's label is `.choice`, and one
+ * Leaf or a package draws is `.lf-choice`, so the page's own CSS for `.choice` leaves
+ * Leaf's alone. */
+:is(.lf-choice, .choice) {
   --choice-pad: max(var(--sp-1), var(--focus-ring-room));
   display: inline-flex;
   align-items: center;
@@ -659,7 +675,7 @@ summary,
   --lf-ring-at: var(--focus-ring-inset);
 }
 /* The mark is Web Awesome's: the radio and checkbox region of its native styles,
- * generated into vendor/webawesome-choice.css and scoped to `.choice`, so a choice
+ * generated into vendor/webawesome-choice.css and scoped to the face, so a choice
  * looks like the library's wa-radio and wa-checkbox and follows Leaf's mapping of its
  * tokens (webawesome.css). shadow.css imports it before this sheet, in the same layer,
  * so it outranks Leaf's `:where()` defaults for inputs, such as `.lf-ui-face`'s ink. A
@@ -671,25 +687,25 @@ summary,
  * card. A disabled choice fades as a whole, as the library's own label does; the
  * generated rules reach only its mark, since inside `@scope` a selector without
  * `:scope` matches only below the root, so the region's `label:has()` rules never
- * style the `.choice` label itself. In forced colours the platform draws the control,
+ * style the label itself. In forced colours the platform draws the control,
  * whose checked state the library paints as a background those modes replace. Rejected
  * (the user's direction, 3 November 2026, after comparing marks, chosen faces and
  * arrangements live): the browser's own mark, small, filled white on the page's cream
  * and different in each browser; a mark Leaf draws itself; no mark, with the chosen
  * label tinted; framed or joined buttons. The user preferred a reasonable design from
  * a UI library to a look of Leaf's own. */
-.choice {
+:is(.lf-choice, .choice) {
   --wa-form-control-border-color: var(--wa-color-neutral-border-loud);
 }
-.choice:has(> input:disabled) {
+:is(.lf-choice, .choice):has(> input:disabled) {
   opacity: 0.5;
   cursor: not-allowed;
 }
-.choice > input {
+:is(.lf-choice, .choice) > input {
   flex: none;
   margin: 0;
 }
-.choice > input[type] {
+:is(.lf-choice, .choice) > input[type] {
   margin: 0;
   font-size: inherit;
   &:disabled {
@@ -699,18 +715,19 @@ summary,
     appearance: auto;
   }
 }
-.choice > input:is(:focus-visible, [data-lf-focus-visible]) {
+:is(.lf-choice, .choice) > input:is(:focus-visible, [data-lf-focus-visible]) {
   outline: none;
 }
-.choice:has(> input:is(:focus-visible, [data-lf-focus-visible])) {
+:is(.lf-choice, .choice):has(> input:is(:focus-visible, [data-lf-focus-visible])) {
   outline: var(--focus-ring);
   --lf-wears-ring: 1;
 }
 
 /* A label whose words change holds one room for all of them, so a count or a result
- * changing moves nothing beside it. `data-room` lists representative strings
- * that set its width, one per line, on an element whose one child holds the words. Authored markup and
- * generated controls use the same declaration, including before startup. Its ::before lays the
+ * changing moves nothing beside it. `data-room` lists representative strings that set
+ * its width, one per line, on an element whose one child holds the words; the page
+ * writes `data-room`, and Leaf and its packages write `data-lf-room`, so the page's own
+ * CSS for the one leaves the other alone. Both hold the room before startup. Its ::before lays the
  * room out as an invisible block of no height, so the element is as wide as the
  * widest line in its own face, with no script. The words take no part in that width:
  * they fill the room and are cut past it with an ellipsis, so the control never widens
@@ -720,19 +737,24 @@ summary,
  * text and accessible name; generated content is in neither. The room wraps at its
  * spaces, so it never holds the element wider than its container. The words' line is
  * the element's baseline. The element's own rules outrank this one. */
-:where([data-room]) {
+:where([data-room], [data-lf-room]) {
   display: inline-block;
   max-inline-size: 100%;
 }
 [data-room]::before {
   content: attr(data-room);
+}
+[data-lf-room]::before {
+  content: attr(data-lf-room);
+}
+:is([data-room], [data-lf-room])::before {
   display: block;
   block-size: 0;
   overflow: hidden;
   visibility: hidden;
   white-space: pre-line;
 }
-[data-room] > * {
+:is([data-room], [data-lf-room]) > * {
   display: block;
   inline-size: 0;
   min-inline-size: 100%;
@@ -805,13 +827,13 @@ wa-copy-button.lf-icon-action {
    softened accent hairline, with the tint rising on hover: the one framed word on a
    surface. The selected face (below) is its neighbour — a full accent border
    on the chip ground — so a toggle and a commitment never read as one. */
-:is(.lf-btn, .button).primary {
+:is(.lf-btn.lf-commit, .button.primary) {
   color: var(--accent);
   border-color: color-mix(in srgb, var(--accent) 45%, var(--card));
   background: var(--card);
 }
 @media (hover: hover) {
-  :is(.lf-btn, .button).primary:not(:disabled, [aria-disabled="true"]):hover {
+  :is(.lf-btn.lf-commit, .button.primary):not(:disabled, [aria-disabled="true"]):hover {
     background: var(--accent-tint);
   }
 }
@@ -822,7 +844,7 @@ wa-copy-button.lf-icon-action {
   opacity: 0.55;
   cursor: default;
 }
-:is(.lf-btn, .button).primary:is(:disabled, [aria-disabled="true"]) {
+:is(.lf-btn.lf-commit, .button.primary):is(:disabled, [aria-disabled="true"]) {
   opacity: 1;
   color: var(--muted);
   background: var(--paper);
@@ -887,7 +909,9 @@ wa-copy-button.lf-icon-action {
    `.lf-diff-line-number`); the face adds no frame or ground of its own, the hand,
    and a + in the accent's tint standing before the number once the keys stand on
    it. Its seat shows the + for the line under the pointer too, and places it over
-   the gutter's width. */
+   the gutter's width. The + stands one band in from its line's edges, clear of the
+   band a mark on the line draws just inside them (base.css, "Where it stands"), so
+   the line's brackets show beside it. */
 .lf-gutter {
   border: 0;
   border-radius: 0;
@@ -897,9 +921,11 @@ wa-copy-button.lf-icon-action {
 .lf-gutter::before {
   content: "+";
   position: absolute;
-  inset-inline-start: 1px;
-  inset-block-start: 0;
-  width: calc(2ch - 2px);
+  inset-inline-start: var(--focus-ring-w);
+  inset-block: var(--focus-ring-w);
+  width: calc(2ch - 1px - var(--focus-ring-w));
+  display: grid;
+  place-content: center;
   border-radius: var(--r-s);
   background: var(--accent-tint);
   color: var(--accent);
@@ -984,7 +1010,7 @@ wa-copy-button.lf-icon-action {
    block's corner (`.lf-mark-bar`, integration.css), as a code block's Copy and a
    draft's Edit, Save and Discard do. Every mark wears this one face at one size: the
    face the user chose on 22 October from the panel's fold, its icon in the dim ink and
-   full ink under the pointer, at the fold's 20px (`--mark-size`, base.css). On 25
+   full ink under the pointer, at the fold's 20px (`--mark-size`, tokens.css). On 25
    October the user gave it to the toolbars' marks as well, which had been 26px with a
    quiet wash under the pointer, a second look for the same kind of press. A seat gives
    its marks only a place and a ground: a corner mark a patch of its own, a toolbar's

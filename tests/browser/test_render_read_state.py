@@ -31,7 +31,6 @@ from render_cases_navigation import source_revision
 from render_cases_widgets import LONG_LINE_DIFF_PAGE, MULTI_HUNK_PATCH
 from render_harness import (
     PANEL,
-    PANEL_THREAD,
     RELEASE_FOCUS,
     CutOff,
     _traffic,
@@ -64,6 +63,7 @@ from leaf.render_checks import (
     wait_until_ready,
 )
 from leaf_dev.browser import (
+    PANEL_THREAD,
     panel_tab,
     threads_tab,
 )
@@ -406,7 +406,6 @@ def test_reading_a_thread_moves_nothing_in_it(browser, serve):
     accepted, _ = endpoint_model.accept_event(
         serve.page_dir,
         {"kind": "read", "messages": [{"message": second, "version": second}]},
-        dict,
     )
     assert accepted == 200
     third = _agent_update_reply(serve.page_dir, root, 3)
@@ -422,7 +421,6 @@ def test_reading_a_thread_moves_nothing_in_it(browser, serve):
             "kind": "read",
             "messages": [{"message": m, "version": m} for m in (root, third)],
         },
-        dict,
     )
     assert accepted == 200
     told(page)

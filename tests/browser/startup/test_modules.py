@@ -14,7 +14,6 @@ from render_cases_widgets import MANIFEST_DIFF_PAGE, MULTI_HUNK_PATCH, TYPED_PAR
 from render_harness import (
     LONG_PAGE,
     PANEL,
-    PANEL_THREAD,
     RELEASE_FOCUS,
     consume_browser_errors,
     holding,
@@ -37,6 +36,7 @@ from leaf import cli as cli_model
 from leaf import data as data_model
 from leaf.render_checks import wait_until_ready
 from leaf.runtime_selection import serving_runtime
+from leaf_dev.browser import PANEL_THREAD
 from leaf_dev.example_data import named_source, patch_manifest
 
 pytestmark = pytest.mark.shifts_unsurveyed

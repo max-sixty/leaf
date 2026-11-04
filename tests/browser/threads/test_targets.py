@@ -10,7 +10,6 @@ from playwright.sync_api import expect
 from render_cases_interaction import LIST_ORDER, PANEL_PAGE, live_url, panel_comment
 from render_harness import (
     EXAMPLE_PACKAGES,
-    PANEL_THREAD,
     any_owner_entry,
     leaf_page,
     open_page,
@@ -39,6 +38,7 @@ from leaf import data as data_model
 from leaf import event_log as events_model
 from leaf import service as service_model
 from leaf.render_checks import rendered
+from leaf_dev.browser import PANEL_THREAD
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -666,7 +666,7 @@ customElements.define('lf-quote-subject', class extends LeafElement {
                 "properties": {
                     "id": {"type": "string"},
                     "data-words": {"type": "string"},
-                    "source": {"type": "string", "pattern": "^[a-z][a-z0-9-]*$"},
+                    "source": {"type": "string"},
                 },
                 "required": ["id"],
                 "additionalProperties": False,

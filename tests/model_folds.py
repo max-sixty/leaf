@@ -30,6 +30,7 @@ reading it returns is caused by the markup and the log the test wrote and by
 nothing else on the machine.
 """
 
+from contextlib import contextmanager
 from pathlib import Path
 
 from interact_support import ModelPage, model_layer, served_state_error, served_thread
@@ -40,6 +41,8 @@ from leaf.passages import SourceReading
 from leaf.registry.storage import served_layer
 from leaf.served_state.context import PageRead
 from leaf.served_state.page import read_served_page
+from leaf.served_state.service import LivePage, PageStateService
+from leaf.served_state.tail import answer
 from leaf.structure import SourceDocument
 
 NOW = "2026-09-19T12:00:00+00:00"
@@ -108,8 +111,10 @@ def served_reading(
 
     `documents` holds the revisions available at this point, or one string for
     a single revision. The newest is active; `view_revision` also reads a historical
-    document, through the same route as the browser. `held` is the `browser.basis.key`
-    of a reading the browser holds, which the answer completes (`served_state.tail`).
+    document, through the same route as the browser. The reading is named and
+    remembered as the page server names what it serves; `held` is the
+    `browser.basis.key` of an earlier one, which makes the answer the changes since
+    it where this process remembers it (`served_state.tail`).
 
     `events` are written the way a command states them. The log's own fields —
     `id` (`e1`, `e2`, … in written order, which is what a later event names its
@@ -129,6 +134,63 @@ def served_reading(
     such a command too: a `start` naming a move or task, as `leaf task start`
     writes it.
     """
+    state = read_served_page(
+        _fold(documents, events, registry=registry, presence=presence, data=data),
+        view_revision=view_revision,
+    ).state
+    sent = answer(state, held, "model")
+    assert (error := served_state_error(sent, ("Reading", "Tail"))) is None, error
+    return sent
+
+
+def served_answer(
+    documents: dict[int, str] | str,
+    events: tuple[dict, ...] | list[dict] = (),
+    *,
+    registry: dict | None = None,
+    view_revision: int | None = None,
+    presence: dict | None = None,
+    data: dict | None = None,
+) -> dict:
+    """The whole `/api/state` answer, as the route composes it
+    (`PageStateService.page_state`) from the inputs `served_reading` folds, and names
+    it (`served_state.tail.answer`): the reading, the layer it was read under, no
+    neighbouring pages, and a news token."""
+    folded = _fold(documents, events, registry=registry, presence=presence, data=data)
+    state = PageStateService(Path(), source=_FoldedPage(folded)).page_state(
+        view_revision
+    )
+    sent = answer(state, None, "model")
+    assert (error := served_state_error(sent, "answer")) is None, error
+    return sent
+
+
+class _FoldedPage(LivePage):
+    """A live page whose transaction reads a fold's inputs rather than a directory:
+    no other page is live, and the news token names the fold's log."""
+
+    def __init__(self, context: PageRead) -> None:
+        self.context = context
+
+    def other_pages(self) -> list[dict]:
+        return []
+
+    @contextmanager
+    def state_read(self, *, with_token: bool = False):
+        token = f"fold-{len(self.context.events)}" if with_token else None
+        yield self.context, token, None
+
+
+def _fold(
+    documents: dict[int, str] | str,
+    events: tuple[dict, ...] | list[dict],
+    *,
+    registry: dict | None = None,
+    presence: dict | None = None,
+    data: dict | None = None,
+) -> PageRead:
+    """The inputs the server reads a page's state from, folded from `documents` and
+    `events` as `served_reading` says."""
     if isinstance(documents, str):
         documents = {1: documents}
     parsed = {rev: SourceDocument(html) for rev, html in documents.items()}
@@ -162,29 +224,23 @@ def served_reading(
     readings = {
         rev: SourceReading(document, registry) for rev, document in parsed.items()
     }
-    state = read_served_page(
-        PageRead(
-            active=active,
-            events=log,
-            revisions=frozenset(parsed),
-            revision=readings.__getitem__,
-            registry=registry,
-            stored_layer=lambda: registry["$layer"],
-            # The fixture selects no package, so no page directory resolves one.
-            serve_layer=lambda metadata: served_layer(metadata, Path()),
-            stored_data=lambda: data,
-            bound_files=dict,
-            versions=tuple(version_descriptors(log, parsed)),
-            presence=presence or UNCLAIMED,
-            live_stream=None,
-            now=NOW,
-            taken=float(len(log) + 1),
-        ),
-        view_revision=view_revision,
-        held=held,
-    ).state
-    assert (error := served_state_error(state)) is None, error
-    return state
+    return PageRead(
+        active=active,
+        events=log,
+        revisions=frozenset(parsed),
+        revision=readings.__getitem__,
+        registry=registry,
+        stored_layer=lambda: registry["$layer"],
+        # The fixture selects no package, so no page directory resolves one.
+        serve_layer=lambda metadata: served_layer(metadata, Path()),
+        stored_data=lambda: data,
+        bound_files=dict,
+        versions=tuple(version_descriptors(log, parsed)),
+        presence=presence or UNCLAIMED,
+        live_stream=None,
+        now=NOW,
+        taken=float(len(log) + 1),
+    )
 
 
 def reading(
@@ -197,8 +253,8 @@ def reading(
 ) -> dict:
     """The semantic browser projection beside its page-wide work readings.
 
-    Model assertions select from this view; wire consumers use `served_reading`
-    for the complete `/api/state` answer, including its envelope.
+    Model assertions select from this view; wire consumers use `served_answer`
+    for the complete `/api/state` answer.
     """
     state = served_reading(
         documents, events, registry=registry, view_revision=view_revision, data=data

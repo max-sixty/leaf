@@ -2788,6 +2788,11 @@ def test_page_state_folds_the_log_onto_the_published_page(page_dir):
             # page's two documents the decision was made in, as each task's `thread`
             # does.
             "thread": None,
+            # What the choice's delivery said about it, for a session that missed it.
+            "subject": {"kind": "widget", "id": "g1"},
+            "threads": [],
+            "says": {"o-shim": "Shim it Fastest to ship."},
+            "names": {"o-shim": "Shim it"},
         }
     ]
     assert state["pending"] == 1 and state["unacked"] == 1
@@ -3523,11 +3528,11 @@ def test_events_follow_ends_when_its_log_is_replaced(page_dir, spawn):
     assert (status, json.loads(stderr)["error"]) == (1, f"{log} is gone")
 
 
-def test_page_state_points_to_a_users_suggestion_record(page_dir):
+def test_page_state_marks_a_users_suggestion(page_dir):
     """`suggestion: true` is the user proposing exact replacement words rather
     than describing a change, and the loop owes that a different answer — taken
-    verbatim, or declined with a reason. State supplies the semantic membership and
-    `events` supplies that raw flag without maintaining a second message shape."""
+    verbatim, or declined with a reason. The delivery says so, and so does the
+    thread's reading for a session that missed it, after a rewrite too."""
     (page_dir / "index.html").write_text(PAGE)
     publish(page_dir)
     suggestion = append_carried_log_record(
@@ -3543,19 +3548,27 @@ def test_page_state_points_to_a_users_suggestion_record(page_dir):
     )
 
     [thread] = state_json(page_dir)["threads"]
-    history = CliRunner().invoke(
-        cli_model.cli, ["page", "state", str(page_dir), thread["id"]]
+
+    def read():
+        history = CliRunner().invoke(
+            cli_model.cli, ["page", "state", str(page_dir), thread["id"]]
+        )
+        assert history.exit_code == 0, history.output
+        [message] = json.loads(history.output)["content"]
+        return message
+
+    assert read()["message"] == suggestion["id"]
+    assert read()["suggestion"] is True
+    append_carried_log_record(
+        page_dir,
+        {
+            "kind": "edit",
+            "author": "user",
+            "message": suggestion["id"],
+            "text": "Ship dark behind the flag.",
+        },
     )
-    assert history.exit_code == 0, history.output
-    assert [m["message"] for m in json.loads(history.output)["content"]] == [
-        suggestion["id"]
-    ]
-    [record] = [
-        event
-        for event in events_model.read_events(page_dir)
-        if event["id"] == suggestion["id"]
-    ]
-    assert record["suggestion"] is True
+    assert read()["suggestion"] is True
 
 
 def test_page_state_holds_a_thread_obligation_open_until_its_verb(page_dir):
@@ -4607,10 +4620,7 @@ def test_projected_verbatim_includes_generated_children():
                     "detail": {
                         "type": "object",
                         "properties": {
-                            "item": {
-                                "type": "string",
-                                "pattern": f"^{schema_model.ELEMENT_ID}$",
-                            },
+                            "item": {"type": "string"},
                             "text": {"type": "string", "minLength": 1},
                         },
                         "required": ["item", "text"],

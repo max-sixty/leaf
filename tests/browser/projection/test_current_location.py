@@ -580,9 +580,10 @@ def test_a_bare_choice_hands_its_ring_to_the_row_the_user_tabs_to(browser, serve
     page.keyboard.press("m")
     expect(choice).to_have_attribute("data-lf-obligation", "1")
     assert choice.evaluate(LOCATION_RING)[0] == "solid"
-    arrived = page.evaluate(
-        "() => [document.querySelector('.lf-location').style.getPropertyValue('--lf-mark-offset'),"
-        " getComputedStyle(document.documentElement).getPropertyValue('--focus-region-gap').trim()]"
+    # An arrival rings the decision at the region's gap, outside its frame.
+    arrived = choice.evaluate(
+        "el => [getComputedStyle(el).outlineOffset, getComputedStyle("
+        "document.documentElement).getPropertyValue('--focus-region-gap').trim()]"
     )
     assert arrived[0] == arrived[1], arrived
 

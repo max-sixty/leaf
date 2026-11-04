@@ -33,7 +33,6 @@ from playwright.sync_api import expect
 from render_harness import (
     FEATURE_GALLERY,
     OPEN_THREAD_COUNT,
-    PANEL_THREAD,
     compare_with,
     consume_browser_errors,
     displayed,
@@ -74,7 +73,7 @@ from leaf.render_gate import version as render_gate_model
 from leaf.revision_artifact import read_artifact
 from leaf.service import acknowledged
 from leaf.structure import SourceDocument
-from leaf_dev.browser import panel_tab, show_resolved
+from leaf_dev.browser import PANEL_THREAD, panel_tab, show_resolved
 from leaf_dev.commands import site as site_build
 from leaf_dev.docs import DOCS, product_sources
 from leaf_dev.example_data import (

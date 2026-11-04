@@ -4,14 +4,8 @@
     "x-instructions": "Holds one `lf-playground-preview` and one `lf-playground-output`. With `actions=\"page\"`, the page's script draws the submission and Reset and hands them over with `registerActions`.",
     "type": "object",
     "properties": {
-      "id": {
-        "type": "string",
-        "pattern": "^[a-z0-9][a-z0-9-]*$"
-      },
-      "contract": {
-        "type": "string",
-        "pattern": "^[a-z0-9][a-z0-9-]*(?:/[a-z0-9][a-z0-9-]*)*$"
-      },
+      "id": { "type": "string" },
+      "contract": { "type": "string" },
       "submit-label": {
         "type": "string",
         "minLength": 1
@@ -85,10 +79,7 @@
     "x-name": "label",
     "type": "object",
     "properties": {
-      "id": {
-        "type": "string",
-        "pattern": "^[a-z0-9][a-z0-9-]*$"
-      },
+      "id": { "type": "string" },
       "name": {
         "type": "string",
         "pattern": "^[a-z0-9][a-z0-9-]*$"
@@ -197,10 +188,7 @@
     "x-name": "label",
     "type": "object",
     "properties": {
-      "id": {
-        "type": "string",
-        "pattern": "^[a-z0-9][a-z0-9-]*$"
-      },
+      "id": { "type": "string" },
       "value": {
         "type": "string",
         "minLength": 1
@@ -223,10 +211,7 @@
     "x-name": "label",
     "type": "object",
     "properties": {
-      "id": {
-        "type": "string",
-        "pattern": "^[a-z0-9][a-z0-9-]*$"
-      },
+      "id": { "type": "string" },
       "label": {
         "type": "string",
         "minLength": 1
@@ -243,10 +228,7 @@
     "x-instructions": "Set for to a control in the same playground and write value in that control's authored string form.",
     "type": "object",
     "properties": {
-      "for": {
-        "type": "string",
-        "pattern": "^[a-z0-9][a-z0-9-]*$"
-      },
+      "for": { "type": "string" },
       "value": {
         "type": "string"
       }
@@ -265,10 +247,7 @@
     "description": "The live preview the user operates in a playground, such as the candidates being compared.",
     "type": "object",
     "properties": {
-      "id": {
-        "type": "string",
-        "pattern": "^[a-z0-9][a-z0-9-]*$"
-      }
+      "id": { "type": "string" }
     },
     "additionalProperties": false,
     "x-owners": ["lf-playground"],
@@ -279,10 +258,7 @@
     "description": "The task instruction displayed by a playground and sent with the chosen configuration.",
     "type": "object",
     "properties": {
-      "id": {
-        "type": "string",
-        "pattern": "^[a-z0-9][a-z0-9-]*$"
-      }
+      "id": { "type": "string" }
     },
     "additionalProperties": false,
     "x-owners": ["lf-playground"],
@@ -294,10 +270,7 @@
     "x-instructions": "Set for to a control in the enclosing playground. Numeric values already include the control's unit.",
     "type": "object",
     "properties": {
-      "for": {
-        "type": "string",
-        "pattern": "^[a-z0-9][a-z0-9-]*$"
-      }
+      "for": { "type": "string" }
     },
     "required": ["for"],
     "additionalProperties": false,

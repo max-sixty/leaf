@@ -8044,7 +8044,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 			present({ release: true }).then(() => threadActions.open(thread.key, {
 				part: null,
 				intent,
-				page: true
+				reader: "page"
 			}));
 		}}
             ></button>` : nothing}<button
@@ -8057,6 +8057,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 				key: thread.key,
 				resolved: Boolean(thread.resolved),
 				prepareLanding: () => thread.resolved ? reopenLanding() : resolveLanding(thread),
+				reader: "primary",
 				...settlement
 			}).catch(() => {});
 		}}

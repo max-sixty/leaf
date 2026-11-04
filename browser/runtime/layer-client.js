@@ -35,6 +35,7 @@
    work. Code running inside a sample's child page reports to the child's own
    disposable log, not the page that embeds it. */
 
+import { defineOwn } from "/runtime/framework.js";
 import { exceptionText } from "./exception.js";
 import { countTraffic } from "./traffic.js";
 import { recordInteraction } from "./interaction-log.js";
@@ -224,13 +225,18 @@ function patched(reading, patch) {
   for (const change of patch) {
     const key = /** @type {string} */ (change.at.at(-1));
     let parent = root;
-    for (const step of change.at.slice(0, -1))
-      parent = /** @type {Record<string, unknown>} */ (
-        parent[step] = copy(parent[step])
-      );
+    for (const step of change.at.slice(0, -1)) {
+      const owned = /** @type {Record<string, unknown>} */ (copy(parent[step]));
+      defineOwn(parent, step, owned);
+      parent = owned;
+    }
     if ("by" in change)
-      parent[key] = changedList(/** @type {unknown[]} */ (parent[key]), change);
-    else if ("value" in change) parent[key] = change.value;
+      defineOwn(
+        parent,
+        key,
+        changedList(/** @type {unknown[]} */ (parent[key]), change),
+      );
+    else if ("value" in change) defineOwn(parent, key, change.value);
     else delete parent[key];
   }
   return /** @type {T} */ (root);

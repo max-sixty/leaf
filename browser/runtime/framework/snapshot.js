@@ -93,6 +93,18 @@ const plain = (value) => {
   return proto === Object.prototype || proto === null;
 };
 
+// Give `object` its own data property `key`, defined rather than assigned: a JSON field
+// named `__proto__` is an own property, and assigning it would set the object's
+// prototype instead.
+/** @param {Record<string, unknown>} object @param {string} key @param {unknown} value */
+export const defineOwn = (object, key, value) =>
+  Object.defineProperty(object, key, {
+    value,
+    writable: true,
+    enumerable: true,
+    configurable: true,
+  });
+
 /**
  * `next`, with every subtree deep-equal to the matching one in `prior` replaced by
  * `prior`'s. Plain objects, arrays, Maps and Sets compare by contents (a Map or Set by
@@ -197,16 +209,7 @@ export function share(prior, next) {
   /** @type {Record<string, unknown>} */
   const copy =
     Object.getPrototypeOf(next) === null ? /* @__PURE__ */ Object.create(null) : {};
-  // Defined, not assigned: a JSON field named `__proto__` is an own property, and
-  // assigning it would set the copy's prototype instead.
-  keys.forEach((key, index) =>
-    Object.defineProperty(copy, key, {
-      value: children[index],
-      writable: true,
-      enumerable: true,
-      configurable: true,
-    }),
-  );
+  keys.forEach((key, index) => defineOwn(copy, key, children[index]));
   return /** @type {T} */ (copy);
 }
 

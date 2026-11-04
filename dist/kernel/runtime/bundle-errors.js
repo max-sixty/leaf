@@ -228,6 +228,12 @@ const plain = (value) => {
 	const proto = Object.getPrototypeOf(value);
 	return proto === Object.prototype || proto === null;
 };
+const defineOwn = (object, key, value) => Object.defineProperty(object, key, {
+	value,
+	writable: true,
+	enumerable: true,
+	configurable: true
+});
 function share(prior, next) {
 	if (Object.is(prior, next)) return next;
 	if (prior === null || next === null || typeof prior !== "object" || typeof next !== "object") return next;
@@ -260,12 +266,7 @@ function share(prior, next) {
 	if (keys.length === Object.keys(before).length && keys.every((key, index) => Object.hasOwn(before, key) && children[index] === before[key])) return prior;
 	if (keys.every((key, index) => children[index] === after[key])) return next;
 	const copy = Object.getPrototypeOf(next) === null ? /* @__PURE__ */ Object.create(null) : {};
-	keys.forEach((key, index) => Object.defineProperty(copy, key, {
-		value: children[index],
-		writable: true,
-		enumerable: true,
-		configurable: true
-	}));
+	keys.forEach((key, index) => defineOwn(copy, key, children[index]));
 	return copy;
 }
 function createApplicationPublisher(initial) {
@@ -807,6 +808,7 @@ function threadRecordReader() {
 	const records = keptReadings();
 	return function readThreadRecords(threads, document, widgets, workflows, todos = [], obligations = [], markingRead = [], ready = true) {
 		const locallyRead = new Set(markingRead.map(versionKey));
+		const markingIn = grouped(markingRead, (item) => item.message);
 		const tokens = document.registry.$reactions?.tokens ?? NO_TOKENS;
 		const reacts = ready && Object.keys(tokens).length > 0;
 		const unitsByMessage = /* @__PURE__ */ new Map();
@@ -937,7 +939,7 @@ function threadRecordReader() {
 			thread,
 			ready,
 			tokens,
-			Object.keys(thread.unread).length ? markingRead : null,
+			...Object.keys(thread.unread).flatMap((id) => markingIn.get(id) ?? NONE),
 			BETWEEN,
 			...workflowsIn.get(thread.id) ?? NONE,
 			BETWEEN,
@@ -4043,4 +4045,4 @@ function dismissErrors() {
 }
 
 //#endregion
-export { COLLAPSE, DELIVERY, DRAFT_FORMAT, EVERYTHING, LINK, LIVE_ROOT, LitElement$1 as LitElement, MAC, PAGE_ROOT, PENDING, PRESENTATION_DOM, PRESSABLE, SHARE_ROOT, TEXT_BLOCK, TEXT_ENTRY, WEBSITE_DELIVERY, actionForWidget, adoptRegistry, advertisesKeys, agentName, agentSays, allBindings, anchorKey, annotationMode, announce, answers, applicationPresented, applicationPresenter, applicationRegionsPresented, applicationState, ariaShortcuts, attachApplicationPresentation, attachWidgetPresentation, authoredBody, authoredRank, bareReaction, bindingEnabled, bindingEnabledFor, bindings, buttonCommand, carriesObligation, checked, claimsEsc, clampedRow, closeControl, commandAvailable, commandBinding, commandDeclarationsWithin, commandEntries, commandPresentations, commandReady, commandRoutes, commandRun, commandScope, commandsOn, commandsWithin, contextBindings, contextScopes, controlAvailabilityOutput, createPresentationSchedule, cycledRow, decisionControls, decisionFor, declarationFor, declareCommandReadiness, declaredBindings, declaredRoot, declaresCommandHandler, deleted, descriptionOf, discussed, dismissError, dismissErrors, documentChanged, dragHeld, dragging, drawingSchema, editable, el, elementDeclarations, elementsDeclaring, errorsReading, exhibits, foldWidgetStates, fragmentId, fragmentKey, fragmentUrl, guard, hasObligationSource, hasRows, holdAuthoredBody, holdSelection, holdStatus, holdingError, hostIn, html$1 as html, isCommandScope, isElementName, isMessageEvent, isNews, isReaction, isThreadEvent, itemNoun, itemOutcome, keyed, keys, labelOf, lastMovedAt, layerFact, layerRoot, leafSays, live, live$1, liveEl, loadShadowRules, marks, matchesWhen, messageKey, motionPreview, mountRepaint, moved, nativeActivationAt, nativeClaimAt, nativePress, noChange, nothing$1 as nothing, notice, noticeReading, noticeWords, obligationValue, offlineDeferred, offlineInteractive, offlineState, pageClaimed, pageRange, pageShadowRoots, pageUrl, paintKeys, paintKeysWithin, parsed, passErrors, passErrorsAt, presentDocument, programmaticSelection, projectCommandScope, projectView, projectionOrigins, projectionRegionsPresented, pruneScopedElements, queueWidgetUpdate, quickShortcuts, raiseError, rankAt, reachedForWords, reactionsAt, readApplication, readApplicationPresentation, readPart, recordedWidgetSelector, ref, referencedCommandEntry, reflectFirstScopes, reflectKeys, refuseShadowRoot, registry, render$1 as render, renderedChildren, repaint, repaintPage, repeat, responseAction, reveal, revisionLabel, routedCommand, runLanding, runtime, runtimeModule, runtimeResource, saidBy, sameAnchor, savedReadingSettled, saying, scopeAvailable, scopeIdentity, scopeRefs, scopesAt, scopesFor, seatRoot, seeErrors, selectEnds, selectWidgets, selectionBackward, setNoticeContext, setPresentationFailureReporter, setQuickShortcuts, shadowRootsIn, shadowRules, share, shareUrl, spell, spokenBinding, stateSpecs, submitBindings, tagsDeclaring, threadCounts, threadKey, threadNames, titleOf, tokenChoices, tokenEntry, touchPresses, turns, voiceOf, voiced, watchCommandAvailability, watchCommandScopes, watchPresentation, watchSemantic, whenApplicationPresented, whenApplicationRegionsPresented, whenDocumentPresented, whenWidgetsPresented, word, wordsText, worksInside };
+export { COLLAPSE, DELIVERY, DRAFT_FORMAT, EVERYTHING, LINK, LIVE_ROOT, LitElement$1 as LitElement, MAC, PAGE_ROOT, PENDING, PRESENTATION_DOM, PRESSABLE, SHARE_ROOT, TEXT_BLOCK, TEXT_ENTRY, WEBSITE_DELIVERY, actionForWidget, adoptRegistry, advertisesKeys, agentName, agentSays, allBindings, anchorKey, annotationMode, announce, answers, applicationPresented, applicationPresenter, applicationRegionsPresented, applicationState, ariaShortcuts, attachApplicationPresentation, attachWidgetPresentation, authoredBody, authoredRank, bareReaction, bindingEnabled, bindingEnabledFor, bindings, buttonCommand, carriesObligation, checked, claimsEsc, clampedRow, closeControl, commandAvailable, commandBinding, commandDeclarationsWithin, commandEntries, commandPresentations, commandReady, commandRoutes, commandRun, commandScope, commandsOn, commandsWithin, contextBindings, contextScopes, controlAvailabilityOutput, createPresentationSchedule, cycledRow, decisionControls, decisionFor, declarationFor, declareCommandReadiness, declaredBindings, declaredRoot, declaresCommandHandler, defineOwn, deleted, descriptionOf, discussed, dismissError, dismissErrors, documentChanged, dragHeld, dragging, drawingSchema, editable, el, elementDeclarations, elementsDeclaring, errorsReading, exhibits, foldWidgetStates, fragmentId, fragmentKey, fragmentUrl, guard, hasObligationSource, hasRows, holdAuthoredBody, holdSelection, holdStatus, holdingError, hostIn, html$1 as html, isCommandScope, isElementName, isMessageEvent, isNews, isReaction, isThreadEvent, itemNoun, itemOutcome, keyed, keys, labelOf, lastMovedAt, layerFact, layerRoot, leafSays, live, live$1, liveEl, loadShadowRules, marks, matchesWhen, messageKey, motionPreview, mountRepaint, moved, nativeActivationAt, nativeClaimAt, nativePress, noChange, nothing$1 as nothing, notice, noticeReading, noticeWords, obligationValue, offlineDeferred, offlineInteractive, offlineState, pageClaimed, pageRange, pageShadowRoots, pageUrl, paintKeys, paintKeysWithin, parsed, passErrors, passErrorsAt, presentDocument, programmaticSelection, projectCommandScope, projectView, projectionOrigins, projectionRegionsPresented, pruneScopedElements, queueWidgetUpdate, quickShortcuts, raiseError, rankAt, reachedForWords, reactionsAt, readApplication, readApplicationPresentation, readPart, recordedWidgetSelector, ref, referencedCommandEntry, reflectFirstScopes, reflectKeys, refuseShadowRoot, registry, render$1 as render, renderedChildren, repaint, repaintPage, repeat, responseAction, reveal, revisionLabel, routedCommand, runLanding, runtime, runtimeModule, runtimeResource, saidBy, sameAnchor, savedReadingSettled, saying, scopeAvailable, scopeIdentity, scopeRefs, scopesAt, scopesFor, seatRoot, seeErrors, selectEnds, selectWidgets, selectionBackward, setNoticeContext, setPresentationFailureReporter, setQuickShortcuts, shadowRootsIn, shadowRules, share, shareUrl, spell, spokenBinding, stateSpecs, submitBindings, tagsDeclaring, threadCounts, threadKey, threadNames, titleOf, tokenChoices, tokenEntry, touchPresses, turns, voiceOf, voiced, watchCommandAvailability, watchCommandScopes, watchPresentation, watchSemantic, whenApplicationPresented, whenApplicationRegionsPresented, whenDocumentPresented, whenWidgetsPresented, word, wordsText, worksInside };

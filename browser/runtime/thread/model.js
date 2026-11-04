@@ -442,6 +442,7 @@ export function threadRecordReader() {
     ready = true,
   ) {
     const locallyRead = new Set(markingRead.map(versionKey));
+    const markingIn = grouped(markingRead, (item) => item.message);
     const tokens = document.registry.$reactions?.tokens ?? NO_TOKENS;
     const reacts = ready && Object.keys(tokens).length > 0;
     // The widgets frozen into each message, and into each thread, with their state.
@@ -658,8 +659,8 @@ export function threadRecordReader() {
               thread,
               ready,
               tokens,
-              // What this tab is marking read, where the thread has something unread.
-              Object.keys(thread.unread).length ? markingRead : null,
+              // What this tab is marking read of the thread's unread messages.
+              ...Object.keys(thread.unread).flatMap((id) => markingIn.get(id) ?? NONE),
               BETWEEN,
               ...(workflowsIn.get(thread.id) ?? NONE),
               BETWEEN,

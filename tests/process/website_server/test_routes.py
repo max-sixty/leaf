@@ -551,6 +551,36 @@ def test_a_website_example_uses_the_real_page_server(page_dir, tmp_path, monkeyp
         assert stopped.value.code == 404
 
 
+def test_an_answer_to_a_held_reading_addresses_a_new_revision_at_the_page_root(
+    page_dir, tmp_path
+):
+    """A page served beneath a prefix addresses its revisions there, in an answer that
+    carries only what changed since the tab's reading as in a whole one, so a tab
+    that completes it loads the new revision from its page's own route."""
+    site = tmp_path / "site"
+    published = site / "examples" / "decision"
+    published.parent.mkdir(parents=True)
+    shutil.copytree(page_dir, published)
+    write_manifest(site, {"/examples/decision": ("examples/decision", "example")})
+    httpd = LeafHTTPServer(
+        ("127.0.0.1", 0), website_server.site_endpoint(site, FakeCodexHarness())
+    )
+    state = f"http://127.0.0.1:{httpd.server_address[1]}/examples/decision/api/state"
+    with running_http_server(httpd):
+        held = json.loads(get(state)[0])["browser"]["basis"]["key"]
+        index = published / "index.html"
+        index.write_text(index.read_text().replace("</main>", "<p>More.</p></main>"))
+        request = urllib.request.Request(state, headers={"Leaf-Held-Basis": held})
+        with urllib.request.urlopen(request) as response:
+            tail = json.loads(response.read())
+    assert "since" in tail
+    revisions = re.findall(
+        r'"(/[^"]*/revisions/[^"]*|/revisions/[^"]*)"', json.dumps(tail)
+    )
+    assert revisions
+    assert all(url.startswith("/examples/decision/revisions/") for url in revisions)
+
+
 def test_a_stale_layer_is_answered_with_the_generation_the_container_holds(
     page_dir, tmp_path
 ):

@@ -695,8 +695,10 @@ def tail_cases() -> list[dict]:
         assert "since" in tail, name
         whole = served_reading(TAIL_PAGE, log[:through], presence=presence)
         cases.append({"name": name, "held": reading, "tail": tail, "whole": whole})
-    # A value that is a boolean or an integer, set to `false` and then to `0`, which
-    # Python's own equality takes for the same value.
+    # A widget's value set twice to values a careless patch confuses: `false` then
+    # `0`, which Python's own equality takes for the same value; an empty list then a
+    # list of one empty string; and an object that gains a field named `__proto__`,
+    # which assigning would make the object's prototype rather than its field.
     registry = {
         **model_layer(),
         "lf-value-ask": {
@@ -704,7 +706,10 @@ def tail_cases() -> list[dict]:
             "properties": {
                 "id": {"type": "string"},
                 "active": {"type": "boolean"},
-                "value": {"type": ["boolean", "integer"]},
+                "value": {
+                    "type": ["boolean", "integer", "array", "object"],
+                    "items": {"type": "string"},
+                },
             },
             "required": ["id"],
             "additionalProperties": False,
@@ -720,23 +725,26 @@ def tail_cases() -> list[dict]:
         },
     }
     typed = leaf_page("Typed", '<lf-value-ask id="typed" active></lf-value-ask>')
-    sets = [
-        {
-            "kind": "action",
-            "widget": "typed",
-            "action": "set",
-            "detail": {"value": value},
-        }
-        for value in (False, 0)
-    ]
-    reading = served_reading(typed, sets[:1], registry=registry)
-    key = reading["browser"]["basis"]["key"]
-    tail = served_reading(typed, sets, registry=registry, held=key)
-    assert "since" in tail
-    whole = served_reading(typed, sets, registry=registry)
-    cases.append(
-        {"name": "false, then 0", "held": reading, "tail": tail, "whole": whole}
-    )
+    for name, values in (
+        ("false, then 0", (False, 0)),
+        ('[], then [""]', ([], [""])),
+        ("{}, then __proto__", ({}, {"__proto__": {"n": 1}})),
+    ):
+        sets = [
+            {
+                "kind": "action",
+                "widget": "typed",
+                "action": "set",
+                "detail": {"value": value},
+            }
+            for value in values
+        ]
+        reading = served_reading(typed, sets[:1], registry=registry)
+        key = reading["browser"]["basis"]["key"]
+        tail = served_reading(typed, sets, registry=registry, held=key)
+        assert "since" in tail, name
+        whole = served_reading(typed, sets, registry=registry)
+        cases.append({"name": name, "held": reading, "tail": tail, "whole": whole})
     return cases
 
 

@@ -1,5 +1,5 @@
 import { PAGE_PAINT_ATTRIBUTE, TEXT_BOX, exceptionText, failureContext, failureOf, focused, isNativeLayer } from "./bundle-portable.js";
-import { DELIVERY, PAGE_ROOT, holdingError, notice, offlineInteractive, pageUrl, runtime } from "./bundle-errors.js";
+import { DELIVERY, PAGE_ROOT, defineOwn, holdingError, notice, offlineInteractive, pageUrl, runtime } from "./bundle-errors.js";
 
 //#region runtime/root-state.js
 const setRuntimeRootAttribute = (...args) => window.lfRootState.setRuntimeRootAttribute(...args);
@@ -488,9 +488,13 @@ function patched(reading, patch) {
 	for (const change of patch) {
 		const key = change.at.at(-1);
 		let parent = root;
-		for (const step of change.at.slice(0, -1)) parent = parent[step] = copy(parent[step]);
-		if ("by" in change) parent[key] = changedList(parent[key], change);
-		else if ("value" in change) parent[key] = change.value;
+		for (const step of change.at.slice(0, -1)) {
+			const owned = copy(parent[step]);
+			defineOwn(parent, step, owned);
+			parent = owned;
+		}
+		if ("by" in change) defineOwn(parent, key, changedList(parent[key], change));
+		else if ("value" in change) defineOwn(parent, key, change.value);
 		else delete parent[key];
 	}
 	return root;

@@ -163,6 +163,31 @@ test("a reply to a thread reads its own message and the reactions it moves", () 
   );
 });
 
+test("marking one thread read reads that thread's record again, and no other", () => {
+  const threads = ["a", "b", "c"].map((id) =>
+    servedThread([agent(id, { kind: "comment" })], { unread: { [id]: id } }),
+  );
+  const read = threadRecordReader();
+  const before = read(threads, NO_DOCUMENT, new Map(), [], [], [], []);
+  const after = read(
+    threads,
+    NO_DOCUMENT,
+    new Map(),
+    [],
+    [],
+    [],
+    [{ message: "a", version: "a" }],
+  );
+  assert.deepEqual(
+    after.map((record, at) => record === before[at]),
+    [false, true, true],
+  );
+  assert.deepEqual(
+    after.map((record) => record.unread.length),
+    [0, 1, 1],
+  );
+});
+
 test("a gesture copies only the thread it stands in", () => {
   const threads = ["a", "b"].map((id) =>
     servedThread([agent(id, { kind: "comment" })]),

@@ -107,7 +107,7 @@ def _token(part: tuple) -> bytes:
     if kind == "value":
         return b"v" + part[1]
     if kind == "names":
-        return b"n" + "\x00".join(part[1]).encode()
+        return b"n" + part[2]
     return part[1]
 
 
@@ -131,11 +131,11 @@ def _object(children: dict) -> tuple:
 
 def _parts(value, earlier: tuple | None) -> tuple:
     """`value` as this module remembers it: an object as its keys' parts, each with a
-    digest of what it holds; a scalar as itself; a list named by its strings as those;
-    a list of named records as their names and JSON, with a digest; and anything else
-    as its JSON. A part the same as the one at its place in `earlier`, a remembered
-    reading's, is that reading's own, so a part that didn't change is the very one the
-    held reading has, and keeps the digest it had."""
+    digest of what it holds; a scalar as itself; a list named by its strings as those
+    and their JSON; a list of named records as their names and JSON, with a digest;
+    and anything else as its JSON. A part the same as the one at its place in
+    `earlier`, a remembered reading's, is that reading's own, so a part that didn't
+    change is the very one the held reading has, and keeps the digest it had."""
     if isinstance(value, dict):
         same_kind = earlier is not None and earlier[0] == "object"
         children = earlier[2] if same_kind else {}
@@ -158,10 +158,10 @@ def _parts(value, earlier: tuple | None) -> tuple:
         return ("value", encoded)
     by, names = named
     if by == "self":
-        names = tuple(names)
-        if earlier is not None and earlier[0] == "names" and earlier[1] == names:
+        encoded = _json(names)
+        if earlier is not None and earlier[0] == "names" and earlier[2] == encoded:
             return earlier
-        return ("names", names)
+        return ("names", tuple(names), encoded)
     before = (
         dict(zip(earlier[3], earlier[4], strict=True))
         if earlier is not None and earlier[0] == "list" and earlier[2] == by

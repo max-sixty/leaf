@@ -512,19 +512,24 @@ class PageEndpoint:
         return state
 
     def sent(self, state: dict) -> dict:
-        """What a tab is sent of `state`: only what changed since the reading it names
-        by `Leaf-Held-Basis`, where this process still remembers that reading, else
-        the whole of it (`served_state.tail`). Without this every gesture's answer
-        would carry back every record and past event the tab already holds.
+        """What a tab is sent of `state`, addressed at this page's root
+        (`scope_page_urls`), so the readings this names and compares are the ones the
+        tab holds: only what changed since the reading it names by `Leaf-Held-Basis`,
+        where this process still remembers that reading, else the whole of it
+        (`served_state.tail`). Without this every gesture's answer would carry back
+        every record and past event the tab already holds. The answer goes out as
+        it stands (`_json_body`), since addressing it again would address its
+        markup twice.
 
         A capture's readings are whole and unnamed: a render check reads them, or
         leaf.page saves them as a published page's responses, one for each revision,
         and none is a reading a tab goes on to extend from this process, so
         remembering them would only push out the readings the tabs hold."""
+        scoped = scope_page_urls(state, self.page_root)
         if self.page_snapshot is not None:
-            return state
+            return scoped
         return tail_answer(
-            state, self.headers.get("Leaf-Held-Basis"), str(self.page_dir)
+            scoped, self.headers.get("Leaf-Held-Basis"), str(self.page_dir)
         )
 
     def page_browser_view(self, view_revision: int, through_seq: int) -> dict:
@@ -697,12 +702,12 @@ class PageEndpoint:
         return self._content(200, ctype, resource.content)
 
     def _json(self, obj, status: int = 200) -> Response:
+        return self._json_body(scope_page_urls(obj, self.page_root), status)
+
+    def _json_body(self, obj, status: int = 200) -> Response:
+        """`obj`, already addressed at this page's root, as a JSON answer."""
         return self._content(
-            status,
-            "application/json",
-            json.dumps(
-                scope_page_urls(obj, self.page_root), ensure_ascii=False
-            ).encode(),
+            status, "application/json", json.dumps(obj, ensure_ascii=False).encode()
         )
 
     def _select_page(self) -> Response | None:
@@ -1135,7 +1140,7 @@ class PageEndpoint:
             if revision is None and state["active"] is not None:
                 revision = state["active"]["revision"]
             self.response_layer = self._revision_layer(revision)
-            return self._json(self.sent(state))
+            return self._json_body(self.sent(state))
         if path == "/api/deferred":
             try:
                 deferred = self.deferred_value()
@@ -1406,7 +1411,8 @@ class PageEndpoint:
         view_revision = self.requested_view_revision()
         status, answer = accept_event(self.page_dir, self.posted)
         state = self.page_state(view_revision)
-        return self._json(with_state(answer, state, self.sent(state)), status)
+        envelope = scope_page_urls(answer, self.page_root)
+        return self._json_body(with_state(envelope, state, self.sent(state)), status)
 
     # Every POST a page answers, by path pattern. A route lists its gates in the
     # order they refuse; its body is already read when the first one runs. File

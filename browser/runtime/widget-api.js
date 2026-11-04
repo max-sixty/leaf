@@ -68,13 +68,7 @@ export { comparisonChanges } from "./version.js";
 export { answerWords } from "./obligations/answer.js";
 // A view's reading and writing of another widget's answer (x-shows).
 export { shownAnswer } from "./shown-answer.js";
-export {
-  readWork,
-  workRole,
-  workElements,
-  directWorkElements,
-  workAncestor,
-} from "./work.js";
+export { readWork, workAncestor } from "./work.js";
 export { obligationActions } from "./application.js";
 export { readQueues, queueItemKey } from "./queue-api.js";
 export { queueTitle } from "./queue-title.js";

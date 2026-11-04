@@ -293,8 +293,7 @@ names its recorded `state` attribute and lists the values under `done` and `stop
 attribute in `on`. `evidence` marks the element that shows observed data. The result
 lists `goals`, `workers`, `leaves`, `stopped` goals, `liveWorkers`, and `running` and
 `quiet` workers, each with its authored `element`, and `done` counts finished leaves.
-`workRole`, `workElements`, `directWorkElements` and `workAncestor` read the same
-declaration. Atlas in `examples/command-hub.page/` is the worked example.
+`workAncestor` reads the same declaration. Atlas in `examples/command-hub.page/` is the worked example.
 
 ### Page history and reports
 

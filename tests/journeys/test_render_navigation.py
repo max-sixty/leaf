@@ -30,12 +30,10 @@ from render_cases_navigation import (
 )
 from render_harness import (
     CORPUS_SOURCES,
-    DEVELOPER_PAGES,
     EXAMPLES,
     FEATURE_GALLERY,
     PANEL,
     PANEL_THREAD,
-    PUBLIC_EXAMPLES,
     RELEASE_FOCUS,
     ROOT,
     command_reference_rows,
@@ -64,6 +62,7 @@ from leaf import data as data_model
 from leaf import event_log as events_model
 from leaf.render_checks import rendered, wait_until_ready
 from leaf_dev.browser import show_resolved
+from leaf_dev.example_data import published_sources
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -1275,9 +1274,7 @@ def _stale_keys(page):
     return stale
 
 
-@pytest.mark.parametrize(
-    "example", (*PUBLIC_EXAMPLES, *DEVELOPER_PAGES), ids=lambda path: path.stem
-)
+@pytest.mark.parametrize("example", published_sources(), ids=lambda path: path.stem)
 def test_presses_and_fills_leave_no_element_naming_stale_keys(browser, serve, example):
     """Each element's `aria-keyshortcuts` and a button's `aria-disabled` reflect its
     rows, and a reflection is a tracked effect: it reads again when a signal it read

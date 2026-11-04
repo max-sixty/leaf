@@ -83,10 +83,11 @@ diagnostics (`fork_reply`):
 
 Then `quit`, by `/exit`.
 
-Between steps every comment sent so far has exactly one reply and a pickup, the
-page's claim names the session with its turn closed, no Stop hook has continued a
-turn with input, so each turn ends on its own answer, no delivery shows in the
-terminal, and Leaf put no empty wake or notice in the conversation (`leaf_rows`). A
+After each step the journey requires what every harness must hold between steps
+(`journey.Terminal.between`), with the watch as what listens for the session; and
+that no Stop hook has continued a turn with input, so each turn ends on its own
+answer, no delivery shows in the terminal, and Leaf put no empty wake or notice in
+the conversation (`ClaudeCode.between`). A
 comment a fork answered while the session was idle enters its context only at its
 next prompt, so `fork-idle`'s counts from `fork-busy` on. Escape runs no Stop hook,
 so it leaves the turn open, and the watch its prompt started, which waits while that
@@ -109,6 +110,7 @@ import time
 import uuid
 from collections.abc import Callable, Generator
 from contextlib import contextmanager
+from functools import partial
 from pathlib import Path
 
 import click
@@ -152,7 +154,6 @@ from leaf_dev.review_scenario import (
     post,
     prepare,
     require,
-    settled,
 )
 
 # How a hook context that hands a delivery over by its pointer begins.
@@ -174,6 +175,10 @@ class ClaudeCode(Terminal):
     ) -> None:
         super().__init__()
         self.session = session
+        # How many of the conversation's records the steps so far have counted, and
+        # the rows Leaf put in it during the last (`between`).
+        self.read = 0
+        self.rows: dict[str, int] = {}
         self.pane = f"leaf-journey-claude-code-{os.getpid()}"
         self.home = place.root / "home"
         self.exited, self.kept = place.root / "exited", place.evidence / "screen.txt"
@@ -301,6 +306,58 @@ class ClaudeCode(Terminal):
     def failure(self, what: str, limit: float) -> click.ClickException:
         return click.ClickException(f"{what} within {limit:.0f} s\n{self.screen()}")
 
+    def between(
+        self, page: Path, name: str, comments: dict[str, str] | None = None
+    ) -> list[str]:
+        """What holds between steps (`Terminal.between`), and on Claude Code besides:
+        no Stop hook has continued a turn with input, which would have put the reply
+        to it in place of the turn's own answer; Claude Code printed no delivery,
+        whose envelope names its format; and Leaf put no empty wake or notice in the
+        conversation since the last step (`leaf_rows`), whose rows the step's line
+        prints and its record keeps (`passed`). The step's screen joins the
+        evidence."""
+        lines = super().between(page, name, comments)
+        records = native_records(self.home, self.session)
+        require(
+            not any(
+                (attachment := record.get("attachment", {})).get("hookEvent") == "Stop"
+                and any(
+                    content.startswith((INLINE_OPENING, POINTER_OPENING))
+                    for content in attachment.get("content") or []
+                )
+                for record in records
+            ),
+            f"{name}: a Stop hook continued a turn with input",
+        )
+        require(
+            DELIVERY.format not in self.shown(),
+            f"{name}: a delivery was printed in the terminal",
+        )
+        self.rows = leaf_rows(records[self.read :])
+        self.read = len(records)
+        require(
+            not {"empty", "notice"} & self.rows.keys(),
+            f"{name}: Leaf put an empty wake or a notice in the conversation: "
+            f"{self.rows}",
+        )
+        self.keep(name)
+        shown = ", ".join(f"{count} {kind}" for kind, count in self.rows.items())
+        return [*lines, f"shown: {shown or 'none'}"]
+
+    def passed(
+        self,
+        user: User,
+        page: Path,
+        name: str,
+        started: float,
+        *comments: str,
+        detail: str | None = None,
+    ) -> None:
+        """`Terminal.passed`, the step's record keeping as `shown` the rows Leaf put
+        in the conversation during it (`between`)."""
+        super().passed(user, page, name, started, *comments, detail=detail)
+        user.steps[-1]["shown"] = self.rows
+
     def leave(self) -> None:
         """Exit with `/exit`, as the user at the pane does."""
         self.say("/exit")
@@ -351,56 +408,11 @@ def runs(pid: int, command: str) -> bool:
 def steps(cc: ClaudeCode, user: User, place: Isolation, *, forks: bool) -> None:
     """The steps after setup, as the module docstring lists them: with `forks` the
     fork steps, else the delivery steps."""
-    page, session, sent = place.page, cc.session, []
-    # The native records the steps so far have counted (`leaf_rows`).
-    read: list[dict] = []
+    page, session = place.page, cc.session
+    step = partial(cc.passed, user, page)
 
     def answered(*names: str) -> Callable[[], bool]:
         return lambda: all(user.answered(name) for name in names) and cc.idle()
-
-    def step(
-        name: str,
-        started: float,
-        *names: str,
-        detail: str | None = None,
-    ) -> None:
-        sent.extend(names)
-        settled(page, session, {name: user.ids[name] for name in sent})
-        # A watch follows every turn, so no Stop hook continued one with input,
-        # which would have put the reply to it in place of the turn's own answer,
-        # and Claude Code printed no delivery, whose envelope names its format.
-        require(
-            not any(
-                (attachment := record.get("attachment", {})).get("hookEvent") == "Stop"
-                and any(
-                    content.startswith((INLINE_OPENING, POINTER_OPENING))
-                    for content in attachment.get("content") or []
-                )
-                for record in native_records(cc.home, session)
-            ),
-            f"{name}: a Stop hook continued a turn with input",
-        )
-        require(
-            DELIVERY.format not in cc.shown(),
-            f"{name}: a delivery was printed in the terminal",
-        )
-        # The turn that answers ends with a watch running.
-        cc.until(cc.listening, f"{name}: no watch holds the session's pages", 60)
-        details = [detail] if detail else []
-        records = native_records(cc.home, session)
-        rows = leaf_rows(records[len(read) :])
-        read[:] = records
-        require(
-            not {"empty", "notice"} & rows.keys(),
-            f"{name}: Leaf put an empty wake or a notice in the conversation: {rows}",
-        )
-        details.append(
-            "shown: "
-            + (", ".join(f"{count} {kind}" for kind, count in rows.items()) or "none")
-        )
-        user.passed(name, started, *details)
-        user.steps[-1]["shown"] = rows
-        cc.keep(name)
 
     def closed(turn: str) -> bool:
         """Whether the page's claim has closed `turn`, or opened another after it."""
@@ -926,11 +938,6 @@ def answering(
         try:
             started = time.monotonic()
             cc.setup(place.page)
-            require(
-                DELIVERY.format not in cc.shown(),
-                "setup: a delivery was printed in the terminal",
-            )
-            cc.keep("setup")
             with user_at(browser, place, cc, started) as user:
                 yield user, lambda: steps(cc, user, place, forks=forks)
         finally:

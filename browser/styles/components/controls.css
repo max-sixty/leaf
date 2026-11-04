@@ -910,7 +910,8 @@ wa-copy-button.lf-icon-action {
   inset-inline-start: var(--focus-ring-w);
   inset-block: var(--focus-ring-w);
   width: calc(2ch - 1px - var(--focus-ring-w));
-  line-height: calc(1lh - 2 * var(--focus-ring-w));
+  display: grid;
+  place-content: center;
   border-radius: var(--r-s);
   background: var(--accent-tint);
   color: var(--accent);

@@ -13,8 +13,9 @@ from render_cases_interaction import (
     panel_comment,
 )
 from render_cases_layout import (
-    MARK,
+    assert_drawn_in,
     button_radius,
+    token_colour,
 )
 from render_cases_navigation import (
     pending_text,
@@ -1525,20 +1526,12 @@ def test_a_visual_proxy_resolves_a_rebuilt_part_and_reveals_it_on_focus(browser,
     expect(control).to_be_focused()
     expect(page.locator("#folded")).to_have_attribute("open", "")
     expect(part).to_be_in_viewport()
-    # It shows nothing of its own: the part wears the focus ring, whole, on its edge.
+    # It shows nothing of its own: the part wears the focus ring, whole, along the edge
+    # of what it draws.
     assert control.evaluate("control => getComputedStyle(control).opacity") == "0"
     expect(page.locator(".lf-proxied")).to_have_count(1)
     expect(part).to_have_class(re.compile(r"\blf-proxied\b"))
-    ring = part.evaluate(MARK)
-    assert ring and ring["style"] == "solid" and not ring["brackets"], ring
-    held, drawn = ring["ring"], part.bounding_box()
-    gaps = (
-        drawn["x"] - held["left"],
-        drawn["y"] - held["top"],
-        held["right"] - drawn["x"] - drawn["width"],
-        held["bottom"] - drawn["y"] - drawn["height"],
-    )
-    assert all(0 <= gap <= 4 for gap in gaps), (held, drawn)
+    assert_drawn_in(part, token_colour(page, "--accent"), 2)
 
 
 def test_a_visual_proxy_keeps_user_current_location_across_provider_updates(

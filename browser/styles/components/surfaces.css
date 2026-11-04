@@ -568,7 +568,7 @@ button.lf-inline-action,
   &::after {
     content: "";
     position: absolute;
-    inset: (100% - var(--aim-floor)) / 2;
+    inset: min(0px, (100% - var(--aim-floor)) / 2);
   }
 }
 /* A symbol or mark on a vendor control, Copy, takes its press on its button part, so
@@ -578,7 +578,7 @@ button.lf-inline-action,
 :is(.lf-icon-action, .lf-mark-action).lf-ui::part(button)::after {
   content: "";
   position: absolute;
-  inset: (100% - var(--aim-floor)) / 2;
+  inset: min(0px, (100% - var(--aim-floor)) / 2);
 }
 /* A native summary retains its list marker and centers its content within the
    target floor. Extra hit area surrounds the label rather than trailing it. */

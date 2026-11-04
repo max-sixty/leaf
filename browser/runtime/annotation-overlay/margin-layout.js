@@ -84,7 +84,7 @@ import { scrollerFor } from "../reading-regions.js";
 import { boundedBlockOf } from "../bounds.js";
 import { pageScroller } from "../scrolling.js";
 import { hearScrollsIn, watchScrollEnds } from "../arrivals.js";
-import { layoutBox, pageDocument } from "../passages.js";
+import { closestAcross, layoutBox, pageDocument } from "../passages.js";
 import {
   arrivals,
   inSeatingOrder,
@@ -182,6 +182,27 @@ function watchGeometry(geometry, layer) {
   });
 }
 const GAP = 4;
+// Leaf's own surfaces in and over the page, which no seat reads and no row stands by: the
+// chrome, and the key hints command hints lend into a widget (`.lf-binding-seat`), which
+// take no part in its flow (surfaces.css).
+const SURFACES = ".lf-chrome, .lf-binding-seat";
+/** @param {Node} node */
+const onSurface = (node) => Boolean(closestAcross(node, SURFACES));
+// Whether a restyle of a page box changed more than the anchor names it gives: a name
+// another box positions itself by moves nothing, as the margin's own carriers name their
+// anchors and heading links name a heading the pointer reaches.
+const scratchStyle = document.createElement("div").style;
+/** @param {string | null} style */
+const unnamed = (style) => {
+  scratchStyle.cssText = style ?? "";
+  scratchStyle.removeProperty("anchor-name");
+  return scratchStyle.cssText;
+};
+/** @param {MutationRecord} record */
+const restyles = (record) =>
+  record.attributeName !== "style" ||
+  !(record.target instanceof Element) ||
+  unnamed(record.oldValue) !== unnamed(record.target.getAttribute("style"));
 // The id of the thread card a margin row opens (thread-preview.js).
 export const THREAD_CARD = "lf-margin-preview";
 // A row the user holds, which packing seats before every other (`packRow`): one under
@@ -731,10 +752,11 @@ function placeCarriedRows(box) {
 
 // A row's face redrawn. The projection draws every row each time it renders, and a seat
 // reads a face only through its size and the controls it holds, so controls put in or
-// taken out bring a pass, and a changed attribute, such as a control's label or hidden
-// state, brings one only where the face no longer measures the size the last pass
-// seated it at (`seatedFaces`). The pass's own writes to its rows are taken back at its
-// end, so they bring no pass of their own.
+// taken out bring a pass, and a changed attribute or text brings one only where the face
+// no longer measures the size the last pass seated it at (`seatedFaces`). A control's
+// label stands over the row, placed by its own pass (`placeMarginEntryLabel`), so what is
+// written in it is no part of the face. The pass's own writes to its rows are taken back
+// at its end, so they bring no pass of their own.
 /** @type {WeakMap<Element, {width: number, height: number}>} */
 const seatedFaces = new WeakMap();
 /** @type {Set<HTMLElement>} */
@@ -745,7 +767,13 @@ const faces = new MutationObserver((records) => {
     let row = /** @type {Node | null} */ (record.target);
     while (row && !(row instanceof HTMLElement && rows.has(row))) row = row.parentNode;
     if (!(row instanceof HTMLElement)) continue;
-    if (record.type !== "attributes") scheduleMarginLayout();
+    const at =
+      record.target instanceof Element ? record.target : record.target.parentElement;
+    if (at?.closest(".lf-margin-entry-label")) continue;
+    const controls = [...record.addedNodes, ...record.removedNodes].some(
+      (node) => node instanceof Element,
+    );
+    if (controls) scheduleMarginLayout();
     else restyled.add(row);
   }
   if (!restyled.size || faceCheck) return;
@@ -776,16 +804,15 @@ function hearTargetChanges(root) {
   // Child-list changes in the measured layout can move a target without resizing it,
   // including when native scroll anchoring preserves its viewport position.
   // Hear those changes and target moves at their mutation checkpoint, before paint;
-  // a remove-and-reinsert in one batch is a move, not a departure.
+  // a remove-and-reinsert in one batch is a move, not a departure. A change on Leaf's
+  // own surfaces, or a restyle that only names an anchor, moves no seat (`restyles`).
   new MutationObserver((records) => {
+    const page = records.filter((record) => !onSurface(record.target));
     if (
-      records.some(
-        (record) =>
-          !inChrome(record.target) &&
-          (record.type === "attributes" ||
-            (record.type === "childList" &&
-              record.target instanceof Element &&
-              wantedGeometry.has(record.target))),
+      page.some((record) =>
+        record.type === "attributes"
+          ? restyles(record)
+          : record.target instanceof Element && wantedGeometry.has(record.target),
       )
     )
       afterScript(layoutMarginRows);
@@ -793,7 +820,7 @@ function hearTargetChanges(root) {
     // moved node whether it holds them: a first paint moves a node per widget.
     /** @type {Set<Node>} */
     const moved = new Set(
-      records
+      page
         .flatMap((record) => [...record.removedNodes, ...record.addedNodes])
         .filter((node) => node instanceof Element),
     );
@@ -816,6 +843,7 @@ function hearTargetChanges(root) {
     childList: true,
     subtree: true,
     attributes: true,
+    attributeOldValue: true,
     attributeFilter: ["style", "class", "hidden", "open"],
   });
   root.addEventListener(
@@ -998,7 +1026,7 @@ function childIndex() {
         if (box) sized.push({ node, order, box, lines });
         continue;
       }
-      if (!(node instanceof Element) || node.closest(".lf-chrome")) continue;
+      if (!(node instanceof Element) || node.closest(SURFACES)) continue;
       if (skipped(node)) continue;
       const box = node.getBoundingClientRect();
       (box.width || box.height ? sized : boxless).push({

@@ -5,9 +5,10 @@ directory, with its versions activated in turn and then its log, and `measure` r
 the CPU each of the server's `PATHS` takes on each page, least of `RUNS`:
 
 - `state`: the served state a page server answers each read with
-  (`PageStateService.page_state`), read after an append has changed the log;
-- `append`: admitting one more event like the log's last, in the transaction every
-  writer takes (`event_contracts.append_admitted`);
+  (`PageStateService.page_state`), read after an append has changed the log, or
+  with nothing changed on a page with no log;
+- `append`: admitting one more event like the log's last, where it has one, in the
+  transaction every writer takes (`event_contracts.append_admitted`);
 - `delivery`: what `leaf wait` hands the agent of everything no receipt has passed,
   captured, frozen and read (`delivery.batch_data`);
 - `agent`: `leaf page state` for the page;
@@ -222,8 +223,8 @@ def cpu_ms(run: Callable[[], object]) -> float:
 
 
 def server_paths(page: Path, events: list[dict]) -> dict[str, Callable[[], object]]:
-    """Each of `PATHS` on `page`, whose log `events` built, as a call; `thread` only
-    where the log opens one."""
+    """Each of `PATHS` on `page`, whose log `events` built, as a call; `append` only
+    where the log holds an event to send again, and `thread` only where it opens one."""
     from leaf.agent_state import cmd_page_state
     from leaf.delivery import batch_data, deliverable, delivery_reading, freeze_delivery
     from leaf.event_contracts import append_admitted
@@ -231,16 +232,9 @@ def server_paths(page: Path, events: list[dict]) -> dict[str, Callable[[], objec
     from leaf.served_state.service import PageStateService
     from leaf.service import PageTransaction
 
-    # The event is sent again without the id its writer gave it, so admission gives
-    # each time its own.
-    again = {key: value for key, value in events[-1].items() if key != "id"}
     source = page / "index.html"
     authored = source.read_text()
     saves = iter(range(1, 1_000_000))
-
-    def append():
-        with PageTransaction(page) as transaction:
-            append_admitted(transaction, again)
 
     def delivery():
         with PageTransaction(page) as transaction:
@@ -255,12 +249,21 @@ def server_paths(page: Path, events: list[dict]) -> dict[str, Callable[[], objec
         assert activation.error is None, activation.error
 
     calls = {
-        "append": append,
         "state": lambda: PageStateService(page).page_state(),
         "delivery": delivery,
         "agent": lambda: cmd_page_state(page),
         "activate": activate,
     }
+    if events:
+        # The event is sent again without the id its writer gave it, so admission
+        # gives each time its own.
+        again = {key: value for key, value in events[-1].items() if key != "id"}
+
+        def append():
+            with PageTransaction(page) as transaction:
+                append_admitted(transaction, again)
+
+        calls["append"] = append
     if thread := next((e["id"] for e in events if e["kind"] == "comment"), None):
         calls["thread"] = lambda: cmd_page_state(page, thread)
     return calls

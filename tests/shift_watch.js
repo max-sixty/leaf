@@ -256,7 +256,7 @@
   // whose targets are in shadow trees, so each connected shadow root adds its own.
   const allAnimations = () => [
     ...new Set(
-      [document, ...[...roots].filter((root) => root.host.isConnected)].flatMap(
+      [document, ...[...eachRoot()].filter((root) => root.host.isConnected)].flatMap(
         (tree) => tree.getAnimations(),
       ),
     ),
@@ -372,7 +372,7 @@
     if (target && keys.length) {
       const trees = [
         target,
-        ...[...roots].filter((root) => {
+        ...[...eachRoot()].filter((root) => {
           for (let at = root.host; at; at = up(at)) if (at === target) return true;
           return false;
         }),
@@ -740,12 +740,27 @@
       return clear.call(this);
     },
   });
-  // Every shadow root, a closed one included, so a reading reaches every element.
-  const roots = new Set();
+  // Every shadow root, a closed one included, so a reading reaches every element. Held
+  // weakly: a tree the page let go of goes with it, so the watch keeps nothing alive
+  // that a count of what the page retains (`live_counts`) would read as its leak.
+  const rootRefs = new Set();
+  const knownRoots = new WeakSet();
+  const addRoot = (root) => {
+    knownRoots.add(root);
+    rootRefs.add(new WeakRef(root));
+  };
+  // Live iteration, so a root added while it runs is visited too.
+  function* eachRoot() {
+    for (const ref of rootRefs) {
+      const root = ref.deref();
+      if (root) yield root;
+      else rootRefs.delete(ref);
+    }
+  }
   const attachShadow = Element.prototype.attachShadow;
   Element.prototype.attachShadow = function (init) {
     const root = attachShadow.call(this, init);
-    roots.add(root);
+    addRoot(root);
     watchTree(root);
     announce();
     return root;
@@ -795,13 +810,13 @@
     // The HTML parser creates declarative roots without calling attachShadow.
     // Discover them in the same traversal that records their rendered ancestors.
     const discover = (node) => {
-      if (node.shadowRoot && !roots.has(node.shadowRoot)) {
-        roots.add(node.shadowRoot);
+      if (node.shadowRoot && !knownRoots.has(node.shadowRoot)) {
+        addRoot(node.shadowRoot);
         watchTree(node.shadowRoot);
       }
     };
     nodes.forEach(discover);
-    for (const root of roots)
+    for (const root of eachRoot())
       if (root.host.isConnected) {
         const children = [...root.querySelectorAll("*")];
         children.forEach(discover);

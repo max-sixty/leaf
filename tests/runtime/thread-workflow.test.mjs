@@ -341,6 +341,20 @@ test("taking back a sent reply keeps its place where answered, as the log's answ
     ),
     ["e1", "e2", "e3", "e4"],
   );
+  // A reply still streaming to it is not in the log yet, so it keeps no place.
+  const stream = {
+    ...answered.msgs[3],
+    id: "stream:t1",
+    parent: "loose",
+    provisional: true,
+  };
+  const streaming = { ...answered, msgs: [...sent.msgs, stream] };
+  assert.deepEqual(
+    foldThreads([streaming], [{ kind: "undo", undoes: "loose" }], NONE)[0].msgs.map(
+      ({ id }) => id,
+    ),
+    ["e1", "e2", "e3", "e4", "stream:t1"],
+  );
   const alone = { ...answered, msgs: [answered.root] };
   assert.deepEqual(foldThreads([alone], [{ kind: "undo", undoes: "e1" }], NONE), []);
 });

@@ -206,13 +206,18 @@ function unedited(thread, message, withdrawn) {
 // the thread stands on, a message naming one as its parent or a to-do attached to the
 // thread its opening message, which keep their place with nothing in them
 // (`events.standing_withdrawn`). A parent is older than its message, so one pass from
-// the newest finds a chain of them.
+// the newest finds a chain of them. A reply still streaming is not in the log yet, so
+// it stands on nothing.
 /** @param {Thread} thread @param {(message: Thread["msgs"][number]) => boolean} gone
  * @param {ReadonlySet<string>} attached */
 function standingIn(thread, gone, attached) {
   const standing = new Set(attached.has(thread.id) ? [thread.root.id] : []);
   for (const message of thread.msgs.toReversed())
-    if ("parent" in message && (!gone(message) || standing.has(message.id)))
+    if (
+      "parent" in message &&
+      !message.provisional &&
+      (!gone(message) || standing.has(message.id))
+    )
       standing.add(message.parent);
   return standing;
 }

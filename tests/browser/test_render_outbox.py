@@ -2963,7 +2963,14 @@ def test_undo_waits_while_the_candidate_is_applying_then_reads_accepted_truth(
         },
     )
     holding(page, held_states, 1, "candidate read")
-    candidate = held_states[0].fetch().json()
+    # The whole reading rather than the changes since the one the tab holds, so the
+    # test can read the undo list and the reading's name from it.
+    held = held_states[0].request.headers
+    candidate = (
+        held_states[0]
+        .fetch(headers={k: v for k, v in held.items() if k != "leaf-held-basis"})
+        .json()
+    )
     head = candidate["browser"]["views"]["1"]["undo"][0]
     assert head["event"]["widget"] == "sug-thistle"
     with page.expect_request("**/preparation-content"):

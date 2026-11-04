@@ -2262,16 +2262,15 @@ def test_undo_candidates_keep_only_user_gestures_in_force():
     )
 
     # An answered reaction is the user's to take back as an unanswered one is, so the
-    # newest, rx2, heads the list for `z`, and the comment is theirs to take back too.
+    # newest, rx2, heads the list for `z`. The comment is no longer the newest gesture,
+    # and no exact control names a message with words, so it isn't listed.
     assert [candidate["event"]["id"] for candidate in candidates] == [
         "rx2",
         "rx1",
         "r2",
-        "c1",
     ]
     assert [candidate.get("newest", False) for candidate in candidates] == [
         True,
-        False,
         False,
         False,
     ]
@@ -2280,7 +2279,8 @@ def test_undo_candidates_keep_only_user_gestures_in_force():
 def test_undo_walk_ends_at_the_users_newest_gesture():
     """`z` takes the head only while it is the user's newest gesture. Bookkeeping
     and gestures already withdrawn do not end the walk, and a comment the user sent
-    is taken as any gesture is; an action this document does not paint ends it."""
+    is taken as any gesture is, while it is the newest; an action this document does
+    not paint ends the walk."""
     events = [
         {"id": "c1", "kind": "comment", "author": "user", "text": "question"},
         {"id": "r1", "kind": "resolve", "author": "user", "parent": "c1"},
@@ -2310,14 +2310,11 @@ def test_undo_walk_ends_at_the_users_newest_gesture():
         return [(item["event"]["id"], item.get("newest", False)) for item in candidates]
 
     # a1 is the newest gesture, and this document paints nothing of it.
-    assert walk(events) == [("c2", False), ("r1", False), ("c1", False)]
+    assert walk(events) == [("r1", False)]
     # Without it, the withdrawn r2 leaves c2 the newest gesture in force.
-    assert walk(events[:-1]) == [("c2", True), ("r1", False), ("c1", False)]
+    assert walk(events[:-1]) == [("c2", True), ("r1", False)]
     # Without c2, the read leaves r1 the newest gesture.
-    assert walk([e for e in events[:-1] if e["id"] != "c2"]) == [
-        ("r1", True),
-        ("c1", False),
-    ]
+    assert walk([e for e in events[:-1] if e["id"] != "c2"]) == [("r1", True)]
 
 
 def test_each_view_offers_only_the_gestures_it_paints(page_dir):

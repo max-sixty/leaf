@@ -308,6 +308,20 @@ Run `/ui-sweep` before dependency maintenance, following its **Reconcile** route
 a reproduced defect becomes a tested repair, and a design judgment stays in the
 run report.
 
+## Weekly: duplicate implementations
+
+Sweep one area for capabilities implemented more than once, taking the area by ISO
+week number (`date +%V`) modulo 4: 0, the JavaScript under `browser/`; 1, `packages/`
+and the CSS under `browser/`; 2, `src/leaf/` and `hooks/`; 3, `dev/`, `build/`,
+`tests/` and `worker/`. Load `/developing-leaf`. Copies seldom share a name or a
+directory, so list the questions the area's helpers, constants, selectors, style
+rules and inline checks answer, and search the whole tree for other answers to each,
+as its **What it repeats** says. Consolidate each set into one home with every caller
+moved, in one pull request for the area; leave a set another open pull request is
+changing to a later sweep. In the description, name each copy's introducing pull
+request (`git log -S`), so the copies added since the area's last sweep show what
+review let through.
+
 ## Weekly: vendored browser dependencies
 
 Dependency automation rebuilds committed browser bundles on Dependabot's PR.

@@ -1,12 +1,18 @@
 """Changes in place: what changed since a version, which `v` or a Compare in Versions
-marks with a bar and `h` walks, and where the agent is at work while it works
-(version.js, change-walk.js, margin-bars.js)."""
+marks with a bar and `h` walks; how much changed since the user last saw the page,
+which coming back to it says; and where the agent is at work while it works
+(version.js, since-seen.js, change-walk.js, margin-bars.js).
+
+A revision is seen when it is on the page while the user is there: the tab visible and
+the window holding focus. Headless browsers report every tab visible and focused, so
+the tests of what the user saw set both through the platform's own readings
+(`visibility`, `attention`)."""
 
 import re
 from datetime import UTC, datetime, timedelta
 
 import pytest
-from interact_support import append_command
+from interact_support import append_command, wait_for
 from model_folds import leaf_page
 from playwright.sync_api import expect
 from render_cases_interaction import live_url
@@ -48,6 +54,45 @@ def revise(page_dir, *edits):
 def marked_ids(page):
     return page.locator("main .lf-ins-block").evaluate_all(
         "blocks => blocks.map(b => b.id)"
+    )
+
+
+def visibility(page, state):
+    """Hide or show the tab (test_freshness.py does the same)."""
+    page.evaluate(
+        """state => {
+          window.__lfTestVisibility = state;
+          Object.defineProperty(document, 'visibilityState', {
+            configurable: true,
+            get: () => window.__lfTestVisibility,
+          });
+          document.dispatchEvent(new Event('visibilitychange'));
+        }""",
+        state,
+    )
+
+
+def attention(page, focused):
+    """Give the window's focus to another application, as typing in a terminal beside
+    the browser does, or take it back."""
+    page.evaluate(
+        """focused => {
+          document.hasFocus = () => focused;
+          window.dispatchEvent(new Event(focused ? 'focus' : 'blur'));
+        }""",
+        focused,
+    )
+
+
+def wait_for_seen(page_dir, revisions, failure):
+    wait_for(
+        lambda: [
+            event["revision"]
+            for event in events_model.read_events(page_dir)
+            if event["kind"] == "seen"
+        ],
+        lambda seen: seen == revisions,
+        failure=failure,
     )
 
 
@@ -130,6 +175,76 @@ def test_v_marks_what_changed_since_the_latest_version_and_takes_marks_off(
     expect(marked).to_have_count(2)
     page.keyboard.press("v")
     expect(marked).to_have_count(0)
+
+
+def test_coming_back_says_how_much_changed_and_v_marks_it(browser, serve):
+    """Leaving says which revision the user saw. Coming back after the agent revised
+    says how much changed since the version they last saw and marks nothing, and `v`
+    marks those changes, though a newer version stands between."""
+    url = live_url(serve(PAGE))
+    d = serve.page_dir
+    page = open_page(browser, url)
+    marked = page.locator("main .lf-ins-block")
+    visibility(page, "hidden")
+    wait_for_seen(d, [1], "leaving the page named no revision it showed")
+    stamp_page(d, revised(PAGE, BETA), "rewrote Beta")
+    revise(d, DELTA)
+
+    visibility(page, "visible")
+    expect(page.locator(".lf-live")).to_have_text("2 changes since v1 — v shows them")
+    expect(marked).to_have_count(0)
+    page.keyboard.press("v")
+    expect(marked).to_have_count(2)
+    assert marked_ids(page) == ["b", "d"]
+
+
+def test_what_lands_while_the_user_works_elsewhere_counts_when_they_return(
+    browser, serve
+):
+    """The browser beside the terminal: visible, but the user is typing elsewhere. What
+    lands then is news when they come back, and `v` marks it."""
+    url = live_url(serve(PAGE))
+    d = serve.page_dir
+    page = open_page(browser, url)
+    # Watched as it lands, a version is seen.
+    stamp_page(d, revised(PAGE, BETA), "rewrote Beta")
+    wait_for_revision(page, 2)
+    attention(page, False)
+    wait_for_seen(d, [2], "losing focus named no revision the user saw")
+    # A version of its own, so counting it as seen would leave nothing to say.
+    stamp_page(d, revised(PAGE, BETA, DELTA), "rewrote Delta")
+    wait_for_revision(page, 3)
+
+    attention(page, True)
+    expect(page.locator(".lf-live")).to_have_text("1 change since v2 — v shows them")
+    page.keyboard.press("v")
+    expect(page.locator("main .lf-ins-block")).to_have_count(1)
+    assert marked_ids(page) == ["d"]
+
+
+def test_a_draft_the_user_watched_land_is_no_news_when_they_return(browser, serve):
+    """A draft after the version the user last saw differs from it, but once they
+    watched it land a return counts nothing; what lands while they are away is news.
+    The count asks the server for the version's reading, so its requests say whether a
+    return counted."""
+    url = live_url(serve(PAGE))
+    d = serve.page_dir
+    page = open_page(browser, url)
+    revise(d, BETA)
+    wait_for_revision(page, 2)
+    attention(page, False)
+    wait_for_seen(d, [2], "losing focus named no revision the user saw")
+    counts = []
+    page.on("request", lambda request: "api/view" in request.url and counts.append(1))
+    attention(page, True)
+
+    # The control: a revision that lands while the user is away is counted and said.
+    attention(page, False)
+    revise(d, DELTA)
+    wait_for_revision(page, 3)
+    attention(page, True)
+    expect(page.locator(".lf-live")).to_have_text("2 changes since v1 — v shows them")
+    assert len(counts) == 1, "a return to the draft the user watched counted changes"
 
 
 SECTION = "<h2>Routes</h2>\n<p>The old rule.</p>\n<p>The old reason.</p>"

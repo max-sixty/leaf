@@ -117,7 +117,7 @@ def thread_quote(page, thread_id):
         arg=thread_id,
     )
     open_panel_thread(page, thread_id)
-    return page.locator(".lf-fp-quote")
+    return page.locator(".lf-thread-quote")
 
 
 def show_on_page(page, *, key=False):

@@ -41,6 +41,8 @@ export const RUNTIME_PAINT_ATTRIBUTE = Object.freeze({
   traffic: "data-lf-traffic",
   // A recording playing through the runtime's controls (video-controls.js).
   player: "data-lf-player",
+  // One of the page's own headers over the document (root-headers.js, `pageHeads`).
+  pageHead: "data-lf-page-head",
   // The marks the runtime draws round a box as its outline (target-paint.js,
   // surfaces.css): the aim, the trace a margin entry draws on what it concerns, the proxy
   // ring and the location ring. Attributes rather than classes, so an observer of the

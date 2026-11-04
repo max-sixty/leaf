@@ -180,7 +180,9 @@ def test_a_website_turn_posts_its_answer_when_the_move_is_settled_first(
         # moves nothing the user reads or writes and shows at once, the resolve it
         # reopens with it. The page times its notice and its own message.
         expect(news).to_be_hidden()
-        expect(page.locator(".lf-fp-settle")).to_have_accessible_name("Resolve thread")
+        expect(
+            page.locator(".lf-fp-thread-controls :is(.lf-resolve, .lf-reopen)")
+        ).to_have_accessible_name("Resolve thread")
         expect(
             thread.locator(".lf-msg[data-lf-author=agent]").filter(
                 has_text="deployment verified"

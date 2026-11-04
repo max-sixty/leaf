@@ -40,7 +40,7 @@
    reply does not grow twice. Margin location and its keyboard ladder own dismissal
    and target landing; the card keeps Send's focus on the thread that received it. */
 import {
-  atScrollEnd,
+  followsEnd,
   keepFoot,
   moveScrollerBy,
   pageScroller,
@@ -129,7 +129,7 @@ const CUT_EDGES = [
 ];
 
 /** @param {{inventory: ReturnType<typeof import("../annotation-inventory.js").createAnnotationInventory>,
- * renderMarginThread: (host: HTMLElement, thread: ThreadRecord, controls: import("../thread/thread-card.js").MarginControls) => ReturnType<typeof import("../thread/inline.js").renderMarginThread>,
+ * renderMarginThread: (host: HTMLElement, thread: ThreadRecord, outlets: import("../thread/thread-card.js").ViewOutlets) => ReturnType<typeof import("../thread/inline.js").renderMarginThread>,
  * placedAt: ReturnType<typeof import("../anchor-placement.js").createAnchorPlacement>["placedAt"],
  * scrollThreadIntoView: typeof import("../thread/reply-landing.js").scrollThreadIntoView,
  * scrollToElement: ReturnType<typeof import("../anchor-travel.js").createAnchorTravel>["scrollToElement"],
@@ -189,6 +189,14 @@ export function createThreadPreview({
     "Open in panel",
     { action: "expand" },
   );
+  // The card's head line: the thread's notice of held news, Previous and Next, Open in
+  // panel, the thread's Resolve or Reopen, and Close. It stands in the thread, over its
+  // first message's head, whose track it shares (annotation-chrome.css), and holds the
+  // boxes the thread draws its notice and its settlement in (thread-card.js,
+  // `CardOutlets`, `line`).
+  const previewHead = el("div", "lf-margin-thread-controls");
+  const previewActions = el("span", "lf-thread-meta-actions");
+  previewHead.append(previewActions);
   const previewList = el("div", "lf-margin-preview-list");
   let dismiss = () => {};
   // Carried by its grip, the card stands where the user drops it, relative to what it is
@@ -360,6 +368,9 @@ export function createThreadPreview({
     session.stopRegion?.();
     session.stopRegion = null;
     session.transcript = transcript;
+    // The card scrolls its transcript, which grows only at its end (browser/AGENTS.md,
+    // `data-lf-reflow`).
+    if (transcript) keeps(transcript, "data-lf-reflow", "append");
     // The transcript stands on its foot beside the reply box: a reader at its end keeps
     // the turn there beside the box as the box takes room from it or gives it back,
     // whatever changed the box, and one read back keeps their offset, as the card hangs
@@ -677,7 +688,7 @@ export function createThreadPreview({
             const priorReading =
               session.reading?.input === inputCount() ? session.reading : null;
             reading ??= session.transcript && {
-              end: !fresh && (priorReading?.end ?? atScrollEnd(session.transcript)),
+              end: !fresh && (priorReading?.end ?? followsEnd(session.transcript)),
               scroll: priorReading?.scroll ?? session.transcript.scrollTop,
               keepTop:
                 stationary && !fresh && anchored.edge === "top" && !anchored.writing,
@@ -924,7 +935,7 @@ export function createThreadPreview({
       lastBox.bottom >= listBox.top &&
       lastBox.bottom <= (replyBox?.top ?? listBox.bottom) + 80 &&
       followTranscript &&
-      atScrollEnd(followTranscript)
+      followsEnd(followTranscript)
         ? followTranscript
         : null;
     session.reading = session.transcript && {
@@ -1006,16 +1017,27 @@ export function createThreadPreview({
       openInPanel(shownThread.id);
     };
     const rendered = renderMarginThread(body, shownThread, {
-      nav: previewNav.hidden ? null : previewNav,
-      expand: previewOpenInPanel,
-      close: previewClose,
-      anchor: session.anchor,
+      line: (apart) => {
+        setChildren(previewActions, [
+          apart.news,
+          ...(previewNav.hidden ? [] : [previewNav]),
+          previewOpenInPanel,
+          apart.controls,
+          previewClose,
+        ]);
+        return previewHead;
+      },
       // A send from the card is the user's change joining the stream the card shows
       // (box-motion.js, "send"), read before the send draws.
-      sending: following.stream,
+      reply: { options: { sending: following.stream } },
+      anchor: session.anchor,
+      // The card stands for the thread on the page, where taking back a settlement made
+      // in it opens the thread again.
+      reader: "page",
       // A resolved thread with no draft has no margin card, so resolving closes it and
-      // hands the user to its target.
-      prepareLanding: () => {
+      // hands the user to its target. Reopen lands as the thread's own does.
+      landing: (resolved) => {
+        if (resolved) return null;
         const target = targetFor(previewSession?.entry);
         if (!target) return () => false;
         const mayLand = retainUserIntent({

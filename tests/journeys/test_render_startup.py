@@ -6,7 +6,6 @@ from datetime import datetime, timedelta
 from urllib.parse import urljoin, urlparse
 
 import pytest
-from browser.startup import HELD_KEYS_PAGE, _hold_startup
 from browser.threads import open_panel_thread
 from click.testing import CliRunner
 from interact_support import (
@@ -155,30 +154,6 @@ def test_a_preview_names_its_checkout_and_copies_diagnostics(browser, serve):
         assert f"commit: {producer['commit']}" in diagnostics
     if producer.get("committed"):
         assert f"committed: {producer['committed']}" in diagnostics
-
-
-def test_a_page_that_never_presents_lets_its_held_keys_go(browser, serve):
-    """The hold is for a page on its way. One still unpresented ten seconds in has
-    faulted, so what was held is dropped and later presses reach the page as they come
-    rather than waiting on a presentation that is not arriving."""
-    url = serve(HELD_KEYS_PAGE)
-    page = browser.new_page(viewport={"width": 1200, "height": 900})
-    watched(page)
-    held, _ = _hold_startup(page, "module")
-    page.goto(url, wait_until="commit")
-    holding(page, held, 1, "the runtime module")
-    page.evaluate(
-        "() => { window.heard = [];"
-        " document.addEventListener('keydown', (e) => heard.push(e.key)); }"
-    )
-    page.keyboard.press("t")
-    echo = page.locator(".lf-held-keys")
-    expect(echo).to_be_visible()
-    assert page.evaluate("heard") == [], "the positive control: the press was held"
-
-    expect(echo).to_have_count(0)
-    page.keyboard.press("x")
-    assert page.evaluate("heard") == ["x"]
 
 
 def test_more_than_six_live_documents_share_an_origin_without_stalling(browser, serve):

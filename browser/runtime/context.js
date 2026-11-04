@@ -166,6 +166,7 @@ const part = {
   state: readPart((root) => root.authoritative),
   phase: readPart((root) => root.phase),
   versions: readPart((root) => root.authoritative?.versions ?? []),
+  seen: readPart((root) => root.authoritative?.seen ?? null),
   workflows: readPart((root) => root.effective.workflows),
   view: readPart((root) => root.effective.view),
   undo: readPart((root) => root.effective.view?.undo ?? []),
@@ -233,6 +234,10 @@ export const runtime = {
   },
   get versions() {
     return part.versions();
+  },
+  // The newest revision any tab showed the page's user (since-seen.js), or null.
+  get seen() {
+    return part.seen();
   },
   get workflows() {
     return part.workflows();

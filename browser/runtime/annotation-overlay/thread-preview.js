@@ -394,10 +394,12 @@ export function createThreadPreview({
           // fit with it: dropping the gutter whenever they fit brought it back the
           // next frame, and so on every frame. A transcript that stops overflowing
           // otherwise, as when the window grows taller or the reply box empties,
-          // keeps its words the gutter's width narrower until then.
+          // keeps its words the gutter's width narrower until then. A send's ride
+          // draws the turns below where they stand, which the browser counts as
+          // overflow, so the decision reads where layout stands them (`scrollLimit`).
           /** @type {NodeListOf<HTMLElement>} */
           const messages = transcript.querySelectorAll(":scope > .lf-msg");
-          const overflows = transcript.scrollHeight > transcript.clientHeight;
+          const overflows = scrollLimit(transcript) > 0;
           const shown = [...messages].filter((message) => !message.hidden).length;
           const shape = `${transcript.offsetWidth} ${shown}`;
           const room = slotTop(transcript);

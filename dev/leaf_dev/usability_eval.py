@@ -37,7 +37,6 @@ from leaf_dev.arms import (
     blocks,
     completed,
     environment,
-    inputs_received,
     now,
     observed_sum,
     pages,
@@ -591,7 +590,6 @@ def execute_live(run: Run, case: Case, work: Path, page: Path) -> None:
     posted, delivered = 0, 0
     observed_tool_round = 0
     pending_events: set[str] = set()
-    attempts: set[str] = set()
     try:
         with (
             LiveSession(
@@ -617,22 +615,22 @@ def execute_live(run: Run, case: Case, work: Path, page: Path) -> None:
         ):
 
             def received(record: dict) -> None:
-                """Record a posted round's receipt ahead of the record that shows it."""
+                """Record a posted round's receipt ahead of the record that shows it:
+                an opened pickup names each of its inputs that owes the agent
+                attention. Inline context or a pointer read only presents them."""
                 nonlocal delivered
-                if delivered < posted:
-                    events = page_events(page)
-                    if inputs_received(
-                        events, attempts
-                    ) and pending_events <= opened_input_ids(events):
-                        delivered = posted
-                        live.note(
-                            {
-                                "type": "eval_received",
-                                "round": posted,
-                                "events": sorted(pending_events),
-                                "received_at": now(),
-                            }
-                        )
+                if delivered < posted and pending_events <= opened_input_ids(
+                    page_events(page)
+                ):
+                    delivered = posted
+                    live.note(
+                        {
+                            "type": "eval_received",
+                            "round": posted,
+                            "events": sorted(pending_events),
+                            "received_at": now(),
+                        }
+                    )
 
             for record in live.records(before=received):
                 if delivered > observed_tool_round and any(
@@ -675,11 +673,6 @@ def execute_live(run: Run, case: Case, work: Path, page: Path) -> None:
                     append_elided_history(run, page)
                 pending_events = post_round(
                     run, page, PageClient(url), case.rounds[posted], posted
-                )
-                attempts.update(
-                    move.get("attempt", attempt_key(posted, i))
-                    for i, move in enumerate(case.rounds[posted])
-                    if move["kind"] not in ("error", "render")
                 )
                 posted += 1
                 # A round that posted nothing, a render pass that found nothing, wakes
@@ -725,8 +718,10 @@ def post_round(
     run: Run, page: Path, client: PageClient, moves: tuple[dict, ...], n: int
 ) -> set[str]:
     """Post one round's moves as the user's tab would, resolving each placeholder
-    against the page as it is served now. Return the admitted attention-bearing
-    identities, including the page's native error rather than giving it a retry key."""
+    against the page as it is served now: every move is made on the revision one
+    reading names, and anchors and line numbers are found in that revision's file.
+    Return the admitted attention-bearing identities, including the page's native
+    error rather than giving it a retry key."""
     admitted = []
     served = page_state(run, page)
     html = (page / served["active"]["file"]).read_text()
@@ -737,15 +732,13 @@ def post_round(
             if (text := render_findings(run, page, n)) is None:
                 continue
             move = {"kind": "error", "text": text.replace("{", "{{").replace("}", "}}")}
-        event = dict(move)
+        event = {**move, "revision": served["active"]["revision"]}
         if move["kind"] != "error":
             event["attempt"] = move.get("attempt", attempt_key(n, i))
         if "anchor" in move and not isinstance(move["anchor"], dict):
-            # An anchor found in the active revision's file names that revision.
             event["anchor"] = anchor(html, *move["anchor"])
-            event["revision"] = served["active"]["revision"]
         if move.get("undoes") == "previous":
-            event["undoes"] = posted_event(page, attempt_key(n, i - 1))["id"]
+            event["undoes"] = admitted[-1]["id"]
         if move.get("parent") == "latest":
             event["parent"] = [
                 e for e in page_events(page) if e["kind"] in kinds_declaring("message")
@@ -760,12 +753,8 @@ def post_round(
 
 
 def attempt_key(n: int, i: int) -> str:
-    """The retry key of round `n`'s move `i`, which finds its event in the log."""
+    """The retry key of round `n`'s move `i`."""
     return f"usability-eval-{n}-{i}"
-
-
-def posted_event(page: Path, key: str) -> dict:
-    return next(e for e in page_events(page) if e.get("attempt") == key)
 
 
 def execute_phases(run: Run, case: Case, work: Path, page: Path) -> None:

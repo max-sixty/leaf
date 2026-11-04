@@ -54,7 +54,6 @@ from typing import IO, NamedTuple, Self, overload
 import click
 
 from leaf.codex import APP_SERVER_ENV
-from leaf.delivery import opened_input_ids
 from leaf.event_log import initialized
 from leaf.harness import IDENTITY_VARIABLES, ClaudeCodeHarness, CodexHarness
 from leaf.registry.kernel import kernel_event_kinds
@@ -1245,10 +1244,12 @@ class PageClient:
         """Post one move as the page's tab does, and return the event the log holds
         for it, as the server's answer names it. The caller names the retry key.
 
-        The move is posted keyed and on the served layer. A move whose kind's record
-        has a `revision` (`$events.kinds` in the kernel registry) is posted against
-        the active revision unless it names one, as a tab posts against the revision
-        it shows. One state read gives both.
+        The move is posted keyed and on the served layer. Any move may name the
+        revision it was made on, as a tab's is made on the revision it shows, and is
+        otherwise made on the active one. The revision goes with the move only where
+        its kind's record has one (`$events.kinds` in the kernel registry). One state
+        read gives the layer and the active revision. A kind the kernel doesn't
+        declare goes as it is, for the server to refuse.
 
         An answer naming another layer than the one posted on admitted nothing: the
         page was re-initialized between the state read and the post. A tab reloads onto
@@ -1256,8 +1257,11 @@ class PageClient:
         """
         read = self.state()
         layer = read["layer"]["generation"]
-        if "revision" in kernel_event_kinds()[event["kind"]]["record"]["properties"]:
-            event = {"revision": read["active"]["revision"], **event}
+        event = dict(event)
+        if contract := kernel_event_kinds().get(event.get("kind")):
+            made_on = event.pop("revision", None)
+            if "revision" in contract["record"]["properties"]:
+                event["revision"] = made_on or read["active"]["revision"]
         while True:
             request = urllib.request.Request(
                 f"{self.origin}/api/event?t={self.token}",
@@ -1297,19 +1301,6 @@ def commands(record: dict) -> list[str]:
         for block in (content if isinstance(content, list) else ())
         if block.get("type") == "tool_use"
     ]
-
-
-def inputs_received(events: list[dict], attempts: set[str]) -> bool:
-    """Whether a posted round is admitted and its attention inputs are received.
-
-    Inline context, pointer reads, and attempted ACK commands are presentations,
-    not acceptance. Every attempt must be admitted; only attention-marked inputs
-    require the opened pickups that name exactly what the reader received.
-    Page-authored errors carry no user attempt and do not advance user rounds.
-    """
-    posted = [e for e in events if e.get("attempt") in attempts]
-    inputs = {e["id"] for e in posted if e["attention"]}
-    return len(posted) == len(attempts) and inputs <= opened_input_ids(events)
 
 
 def read_trace(stream: Path) -> list[dict]:

@@ -504,7 +504,6 @@ def test_a_to_do_running_on_an_element_marks_it(browser, serve):
             "kind": "todo",
             "author": "agent",
             "agent": "Claude",
-            "owner": "agent",
             "subject": {"kind": "element", "id": "c"},
             "title": "Rewrite Gamma",
         },

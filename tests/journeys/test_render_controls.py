@@ -1751,7 +1751,8 @@ def test_a_newer_wheel_supersedes_a_panel_resize_landing(browser, serve):
     page.keyboard.press("Shift+t")
     panel_settled(page, view="threads")
     threads = page.locator(panel_view("threads"))
-    for _ in range(6):
+    # `g T` stands on the first row, so five steps reach the sixth.
+    for _ in range(5):
         page.keyboard.press("ArrowDown")
     title = threads.locator(".lf-fp-thread").nth(5)
     rendered(page)

@@ -354,7 +354,7 @@ def test_a_written_comment_keeps_its_originating_agent(browser, serve, monkeypat
     expect(
         thread.locator(".lf-msg[data-lf-author=agent] > .lf-msg-head b")
     ).to_have_text("Codex")
-    expect(thread.locator(".lf-fp-quote")).to_contain_text(
+    expect(thread.locator(".lf-thread-quote")).to_contain_text(
         "“Retries are capped at three”"
     )
 
@@ -363,7 +363,7 @@ def test_a_written_comment_keeps_its_originating_agent(browser, serve, monkeypat
         page.keyboard.press("ControlOrMeta+Enter")
     expect(thread.locator(".lf-msg[data-lf-author=user]")).to_have_count(1)
     with sending(page, "the resolve"):
-        page.locator(".lf-fp-settle").click()
+        page.locator(".lf-fp-thread-controls :is(.lf-resolve, .lf-reopen)").click()
 
     kinds = [(e["kind"], e.get("author")) for e in events_model.read_events(d)]
     assert ("comment", "agent") in kinds
@@ -586,7 +586,10 @@ def test_failed_resolve_candidate_restores_focused_reply(browser, serve):
     expect(draft).to_have_js_property("value", "keep this unfinished reply")
     news.click()
     expect(view).to_be_visible()
-    expect(page.locator(".lf-fp-settle")).to_have_accessible_name("Reopen")
+    # A thread the agent resolved names the agent before Reopen, as a card's does.
+    expect(
+        page.locator(".lf-fp-thread-controls :is(.lf-resolve, .lf-reopen)")
+    ).to_have_accessible_name(re.compile(r"Resolved by \w+ · Reopen$"))
     expect(draft).to_have_js_property("value", "keep this unfinished reply")
 
 

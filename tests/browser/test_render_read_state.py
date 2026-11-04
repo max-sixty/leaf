@@ -457,7 +457,7 @@ def test_an_acknowledgement_neither_waits_for_nor_holds_up_a_gesture(browser, se
 
     # Resolving from the thread's view moves the user on to Threads, so the message
     # the refused read leaves unread is no longer on screen to show it.
-    page.locator(".lf-fp-settle").click()
+    page.locator(".lf-fp-thread-controls :is(.lf-resolve, .lf-reopen)").click()
     holding(page, held, 2, "a resolve sent while the read is held")
     assert [route.request.post_data_json["kind"] for route in held] == [
         "read",

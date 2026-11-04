@@ -61,7 +61,7 @@ def thread_quote(page, page_dir):
         for event in events_model.read_events(page_dir)
         if event["kind"] == "comment"
     )
-    return open_panel_thread(page, thread).locator(".lf-fp-quote")
+    return open_panel_thread(page, thread).locator(".lf-thread-quote")
 
 
 def test_a_projected_attribute_opens_an_obligation_captured_from_authored_markup(

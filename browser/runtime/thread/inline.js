@@ -35,7 +35,7 @@ import { foldBlock } from "../motion.js";
 /** @typedef {import("./thread-card.js").ThreadRecord} ThreadRecord */
 /** @typedef {import("./thread-card.js").ThreadReading} ThreadReading */
 /** @typedef {import("./thread-card.js").ThreadViewModel} ThreadViewModel */
-/** @typedef {import("./thread-card.js").MarginControls} MarginControls */
+/** @typedef {import("./thread-card.js").ViewOutlets} ViewOutlets */
 /** @typedef {{threads: readonly ThreadReading[], response: boolean, surface?: string}} SeatReading */
 /** @typedef {{threads: readonly ThreadViewModel[], response: boolean, surface?: string}} SeatShowing */
 /** @typedef {{seats: Map<ThreadSeat, ReturnType<typeof holdFocus>>}} SeatBatch */
@@ -105,18 +105,20 @@ class ThreadSeat {
   // places it (`claim`). A seat that stood there and left is pruned at the next commit;
   // one drawn but not yet placed is kept for its owner.
   #connected = false;
-  /** @type {MarginControls | null} */
-  #marginControls = null;
+  // Where the margin's floating card stands its thread's parts (thread-card.js,
+  // `ViewOutlets`); a seat in the page's flow gives none.
+  /** @type {ViewOutlets} */
+  #outlets = {};
 
   /** @param {Element} node @param {ThreadCommands} commands */
   constructor(node, commands) {
     this.node = node;
     this.#commands = commands;
   }
-  /** @param {() => HTMLElement | null} response @param {MarginControls | null} marginControls */
-  configure(response, marginControls = null) {
+  /** @param {() => HTMLElement | null} response @param {ViewOutlets} outlets */
+  configure(response, outlets = {}) {
     this.#response = response;
-    this.#marginControls = marginControls;
+    this.#outlets = outlets;
   }
 
   /** @param {SeatReading} model @param {SeatBatch | null} [batch] */
@@ -213,7 +215,7 @@ class ThreadSeat {
           (view = new ThreadView(this.#commands, descriptor)),
         );
       const resolved = settled.includes(descriptor);
-      view.setMarginControls(this.#marginControls);
+      view.setOutlets(this.#outlets);
       view.present(descriptor);
       view.setFoldedInto(
         resolved ? (this.#resolved?.node ?? null) : null,
@@ -362,15 +364,15 @@ class ThreadSeat {
 }
 
 /** @param {Element} host @param {ThreadCommands} commands
- * @param {() => HTMLElement | null} response @param {MarginControls | null} marginControls */
-function seatFor(host, commands, response = () => null, marginControls = null) {
+ * @param {() => HTMLElement | null} response @param {ViewOutlets} outlets */
+function seatFor(host, commands, response = () => null, outlets = {}) {
   let seat = seats.get(host);
   if (!seat) {
     seat = new ThreadSeat(host, commands);
     seats.set(host, seat);
     activeSeats.add(seat);
   }
-  seat.configure(response, marginControls);
+  seat.configure(response, outlets);
   return seat;
 }
 /** @param {readonly ThreadRecord[]} threads @param {string} surface
@@ -425,9 +427,9 @@ export function renderSeats(threads, commands) {
 }
 
 /** @param {HTMLElement} host @param {ThreadRecord} thread @param {ThreadCommands} commands
- * @param {MarginControls | null} marginControls */
-export function renderMarginThread(host, thread, commands, marginControls = null) {
-  return seatFor(host, commands, () => null, marginControls)
+ * @param {ViewOutlets} outlets */
+export function renderMarginThread(host, thread, commands, outlets) {
+  return seatFor(host, commands, () => null, outlets)
     .present(seatReading([thread], "margin", commands, false))
     .filter(({ descriptor }) => descriptor.key === threadKey(thread))
     .map(({ view }) => ({ thread: view.node, transcript: view.transcript }));

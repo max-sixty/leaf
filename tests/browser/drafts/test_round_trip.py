@@ -117,7 +117,7 @@ def test_page_round_trip(browser, serve):
     comment = next(
         e["id"] for e in events_model.read_events(d) if e["kind"] == "comment"
     )
-    quote = open_panel_thread(page, comment).locator(".lf-fp-quote")
+    quote = open_panel_thread(page, comment).locator(".lf-thread-quote")
     expect(quote).not_to_have_attribute("data-lf-detached", "")
     # v2's markup carries the original draft text — Claude hasn't honored the
     # edit — so the user's words must arrive by replay, not visibly revert.
@@ -452,6 +452,6 @@ def test_a_comment_written_on_an_edited_draft_lands_on_their_words(browser, serv
     comment = next(
         e["id"] for e in events_model.read_events(d) if e["kind"] == "comment"
     )
-    quote = open_panel_thread(page, comment).locator(".lf-fp-quote")
+    quote = open_panel_thread(page, comment).locator(".lf-thread-quote")
     expect(quote).not_to_have_attribute("data-lf-detached", "")
     assert painted(page, "lf-mark") == "It takes about a minute."

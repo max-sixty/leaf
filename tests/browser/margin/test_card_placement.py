@@ -10,7 +10,6 @@ from playwright.sync_api import expect
 from render_cases_interaction import OBLIGATION_PAGE, PANEL_PAGE, panel_comment
 from render_harness import (
     PANEL,
-    ROOT,
     holding,
     leaf_page,
     margins_laid_out,
@@ -795,9 +794,7 @@ def test_a_focused_thread_covers_the_pages_choice_hints(browser, serve):
     stands over the ask's options, below its marker in the Mac's faces and in Linux
     CI's wider DejaVu alike: at 1000x838, DejaVu left the card no room below, and it
     stood above the options."""
-    page = open_page(
-        browser, serve(ROOT / "tests/fixtures/pages/thread-choice-hints.html")
-    )
+    page = open_page(browser, serve(named_source("thread-choice-hints")))
     resized(page, 1100, 900)
     page.locator(".lf-margin-marker").first.focus()
     page.keyboard.press("Enter")

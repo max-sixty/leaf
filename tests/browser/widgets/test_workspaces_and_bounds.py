@@ -7,7 +7,6 @@ import pytest
 from playwright.sync_api import expect
 from render_cases_interaction import live_url
 from render_harness import (
-    ROOT,
     displayed,
     expect_obligations_answered,
     fills_the_window,
@@ -29,6 +28,7 @@ from browser.widgets import (
 from leaf import data as data_model
 from leaf import event_log as events_model
 from leaf.render_checks import evaluate_probe, rendered, wait_until_ready
+from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -993,7 +993,7 @@ def test_a_release_page_is_wide_and_keeps_the_log_on_its_newest_line(browser, se
     checks table's box fills its panel. On a narrow
     window the track stacks under the body, and the bounded log opens on its newest
     line. Paper shows the log whole."""
-    example = ROOT / "examples" / "live-progress.html"
+    example = named_source("live-progress")
     context = browser.new_context(viewport={"width": 1600, "height": 1000})
     page = open_page(browser, live_url(serve(example)), context=context)
     body = ["lp-status", "lp-traffic", "lp-log"]
@@ -1333,7 +1333,7 @@ def test_monitoring_evidence_moves_without_stealing_position_or_the_summary(
 
     The release escape path is a question the operator answers: the page lists it
     among its obligations, and the pick reaches the agent as an action naming the option."""
-    example = ROOT / "examples" / "live-progress.html"
+    example = named_source("live-progress")
     page = open_page(browser, live_url(serve(example)))
     expect_obligations_answered(page, "0/1")
     with sending(page, "the rollback pick"):

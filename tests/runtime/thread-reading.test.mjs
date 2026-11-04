@@ -452,6 +452,6 @@ test("Copy retains the original authored HTML after the public thread reading", 
     new Map(),
     [],
   );
-  const message = messageReading(thread.root, { workflows: [], reactions: null });
+  const message = messageReading(thread.root, { workflows: [] });
   assert.equal(message.markdown, `Agent words\n\n${markup}`);
 });

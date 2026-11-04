@@ -12,12 +12,13 @@ takes away the control it was pressed on, so it leaves nothing to check."""
 import pytest
 from browser.widgets.test_pressed_controls import open_served, press_each_control
 from render_harness import (
-    CORPUS_SOURCES,
     open_threads,
     panel_settled,
     panel_view,
     show_resolved,
 )
+
+from leaf_dev.example_data import authored_sources
 
 # A view of the panel and the actions on what it shows, such as a thread's Resolve,
 # but not the way out of it, its tabs, or the panel's own row.
@@ -45,7 +46,7 @@ def open_thread(page, key):
     panel_settled(page, view="thread")
 
 
-@pytest.mark.parametrize("source", CORPUS_SOURCES, ids=lambda source: source.stem)
+@pytest.mark.parametrize("source", authored_sources(), ids=lambda source: source.stem)
 def test_a_pressed_panel_control_keeps_its_face_and_takes_the_next_press(
     browser, serve, source
 ):

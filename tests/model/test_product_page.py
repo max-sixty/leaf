@@ -20,8 +20,8 @@ from leaf.state import kernel_registry
 from leaf.structure import SourceDocument
 from leaf.validation import composition as validation_model
 from leaf_dev import declared_records, docs
-from leaf_dev.docs import DOCS, EXAMPLES, product_sources
-from leaf_dev.example_data import published_sources
+from leaf_dev.docs import EXAMPLES, product_sources
+from leaf_dev.example_data import named_source, published_sources
 from leaf_dev.page_fixtures import authored_markup
 
 ROOT = Path(__file__).parents[2]
@@ -82,7 +82,7 @@ def test_every_published_source_says_what_its_page_is():
 
 def links(name: str) -> set[tuple[str, str]]:
     """Each link one product source authors, as its target and its text."""
-    tree = SourceDocument((DOCS / name).read_text()).tree
+    tree = SourceDocument(named_source(name).read_text()).tree
     found = set()
     for link in tree.select("a[href]"):
         href = link.attrs["href"]
@@ -92,16 +92,16 @@ def links(name: str) -> set[tuple[str, str]]:
 
 
 def test_extension_references_follow_the_concepts_they_explain():
-    extending = {href for href, _ in links("extending.html")}
+    extending = {href for href, _ in links("extending")}
     assert {"/registry/", "/event-log/"} <= extending
     assert {("/registry/", "registry"), ("/event-log/", "event log")} <= links(
-        "how-it-works.html"
+        "how-it-works"
     )
-    assert "/extending/" in {href for href, _ in links("registry.html")}
+    assert "/extending/" in {href for href, _ in links("registry")}
 
 
 def test_package_catalog_routes_every_optional_package_to_inspectable_content():
-    tree = SourceDocument((DOCS / "extending.html").read_text()).tree
+    tree = SourceDocument(named_source("extending").read_text()).tree
     cards = tree.select("a.package-card")
     declared = json.loads((EXAMPLES / "layer.json").read_text())
 
@@ -119,7 +119,7 @@ def test_package_catalog_routes_every_optional_package_to_inspectable_content():
 
 
 def test_package_tutorial_registry_entry_is_valid(page_dir):
-    tree = SourceDocument((DOCS / "extending.html").read_text()).tree
+    tree = SourceDocument(named_source("extending").read_text()).tree
     select_one_result = tree.select_one("#callout-registry")
     assert select_one_result is not None
     entry = json.loads(select_one_result.text)
@@ -129,7 +129,7 @@ def test_package_tutorial_registry_entry_is_valid(page_dir):
     validation_model.validate_registry_examples(registry, "package tutorial")
 
 
-EVENT_LOG = DOCS / "event-log.html"
+EVENT_LOG = named_source("event-log")
 
 
 def code_block(page: SourceDocument, block_id: str) -> str:
@@ -145,7 +145,7 @@ def test_pr_walkthrough_excerpts_match_the_captured_patch():
     Source excerpts and the inline orchestration hunk must agree with the same
     capture the complete patch widget presents, including their source locations.
     """
-    source = (EXAMPLES / "pr-walkthrough.html").read_text()
+    source = named_source("pr-walkthrough").read_text()
     page = SourceDocument(source)
     manifest = json.loads((EXAMPLES / "pr-walkthrough.data.json").read_text())
     select_one_result_3 = page.tree.select_one("#pr-exact-patch")
@@ -405,7 +405,7 @@ def test_every_command_the_docs_show_is_one_leaf_has():
 def test_data_structures_page_lists_every_declared_schema():
     """Each served definition, event kind and record gets an entry, and every link
     between entries lands on one."""
-    source = DOCS / "data-structures.html"
+    source = named_source("data-structures")
     tree = SourceDocument(docs.compose(source, source.read_text())).tree
     entries = {entry.attrs["id"] for entry in tree.select("section.schema-entry")}
     registry = docs.read_json(docs.KERNEL_REGISTRY)["$events"]

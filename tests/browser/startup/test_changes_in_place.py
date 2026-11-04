@@ -220,6 +220,31 @@ def test_what_lands_while_the_user_works_elsewhere_counts_when_they_return(
     assert marked_ids(page) == ["d"]
 
 
+def test_a_draft_the_user_watched_land_is_no_news_when_they_return(browser, serve):
+    """A draft after the version the user last saw differs from it, but once they
+    watched it land a return counts nothing; what lands while they are away is news.
+    The count asks the server for the version's reading, so its requests say whether a
+    return counted."""
+    url = live_url(serve(PAGE))
+    d = serve.page_dir
+    page = open_page(browser, url)
+    revise(d, BETA)
+    wait_for_revision(page, 2)
+    attention(page, False)
+    wait_for_seen(d, [2], "losing focus named no revision the user saw")
+    counts = []
+    page.on("request", lambda request: "api/view" in request.url and counts.append(1))
+    attention(page, True)
+
+    # The control: a revision that lands while the user is away is counted and said.
+    attention(page, False)
+    revise(d, DELTA)
+    wait_for_revision(page, 3)
+    attention(page, True)
+    expect(page.locator(".lf-live")).to_have_text("2 changes since v1")
+    assert len(counts) == 1, "a return to the draft the user watched counted changes"
+
+
 SECTION = "<h2>Routes</h2>\n<p>The old rule.</p>\n<p>The old reason.</p>"
 REWRITTEN = (
     "<h2>Who acts</h2>\n<p>The new rule.</p>\n<table>"

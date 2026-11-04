@@ -23,10 +23,13 @@
    version at or before what the user saw has nothing to say.
 
    When the user comes back, by a load, a return to a hidden tab once its first
-   refreshed reading is in, or focus returning to the window, and the page has changed
-   since the version they last saw, a notice says how much ("3 changes since v12") and
-   offers `v`. It stands until their next input, as every notice offering a press does
-   (notifications.js). The page arrives unmarked: the user chose on 3 November to call
+   refreshed reading is in, or focus returning to the window, to a revision newer than
+   any they saw, a notice says how much changed since the version they last saw ("3
+   changes since v12") and offers `v`. A return to a draft they watched land says
+   nothing, though it differs from that version, since nothing in it is news. The notice
+   stands until their next input, as a notice offering a press does (notifications.js),
+   and no longer than its count holds: a revision landing takes it away, and one landing
+   while it is counted starts the count again. The page arrives unmarked: the user chose on 3 November to call
    the marks up with a key rather than have them waiting, and on 4 November took up
    being told on return that there is something to call up. The count waits until the
    document is presented, so the comparison it runs (version.js, `changesSince`) stays
@@ -83,6 +86,8 @@ export function createSinceSeen({ markSeen }) {
   tabStore.set(HANDOFF_KEY, null);
   // The newest revision this tab has posted, so a blur and the hide after it send once.
   let posted = 0;
+  // Which arrival a count in flight answers, so a later one's news replaces it.
+  let arrival = 0;
   // The version the user last saw, as their arrival found it.
   const lastSeen = signal(/** @type {Version | null} */ (null));
 
@@ -130,16 +135,30 @@ export function createSinceSeen({ markSeen }) {
   });
 
   // The notice of what changed since `since`, said once the count is in and while it
-  // still holds: nothing marked meanwhile, and `v` still comparing with that version.
+  // holds: no later arrival, nothing marked meanwhile, `v` still comparing with that
+  // version, and the revision counted still the one being read.
   /** @param {Version} since */
   async function tell(since) {
-    const holds = () => !selectedBase() && base()?.revision === since.revision;
+    const mine = ++arrival;
+    const holds = () =>
+      mine === arrival && !selectedBase() && base()?.revision === since.revision;
     await whenDocumentPresented();
-    const n = await changesSince(revisionBase(since)).catch(() => null);
-    if (!n || !holds()) return;
-    notice(`${counted(n, "change")} since v${since.version}`, {
-      press: { action: "show", command: CHANGES, run: toggle, stands: holds },
-    });
+    while (holds()) {
+      const revision = runtime.currentRevision;
+      const n = await changesSince(revisionBase(since)).catch(() => undefined);
+      if (n === undefined) return;
+      if (n === null || runtime.currentRevision !== revision) continue;
+      if (n && holds())
+        notice(`${counted(n, "change")} since v${since.version}`, {
+          press: {
+            action: "show",
+            command: CHANGES,
+            run: toggle,
+            stands: () => holds() && runtime.currentRevision === revision,
+          },
+        });
+      return;
+    }
   }
 
   function present() {
@@ -147,9 +166,11 @@ export function createSinceSeen({ markSeen }) {
     if (!takesPart() || current === null || !runtime.showsActive || !attended()) return;
     if (arriving) {
       arriving = false;
-      const since = versionAt(newestSeen());
+      const seen = newestSeen();
+      const since = versionAt(seen);
       lastSeen.value = since;
-      if (since && comparable(since.revision)) void tell(since);
+      if (since && seen && seen.revision < current && comparable(since.revision))
+        void tell(since);
     }
     if (runtime.active && (shown?.revision ?? 0) < current) shown = runtime.active;
   }

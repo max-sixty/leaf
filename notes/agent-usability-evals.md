@@ -460,9 +460,8 @@ import tempfile, time
 from pathlib import Path
 from leaf_dev import ROOT
 from leaf_dev.arms import build_source, run_leaf
-from leaf_dev.commands.distribution import current_kernel
 from leaf_dev.example_data import catalog_sources
-arm = current_kernel(ROOT)
+arm = ROOT
 scratch = Path(tempfile.mkdtemp(dir=ROOT / ".tmp"))
 for source in catalog_sources():
     page = scratch / source.stem

@@ -32,6 +32,7 @@ from leaf import event_log as events_model
 from leaf import files as interact_files
 from leaf import layer as layer_model
 from leaf import packages as packages_model
+from leaf.registry.contract import stamp_grammars
 from leaf.registry.storage import (
     layer_record,
     layer_widgets,
@@ -718,8 +719,8 @@ def test_package_writers_only_wait_for_contract_destinations_they_share(
 import contextlib
 import fcntl
 import sys
-from leaf import cli, packages
-real_lock = packages.flocked
+from leaf import cli, locations
+real_lock = locations.flocked
 @contextlib.contextmanager
 def observed(path):
     with open(path, "a+b") as probe:
@@ -729,7 +730,7 @@ def observed(path):
             print("waiting on shared destination", flush=True)
     with real_lock(path) as held:
         yield held
-packages.flocked = observed
+locations.flocked = observed
 cli.cli.main(args=sys.argv[1:], standalone_mode=False)
 """
     routes = [package, alias, registry_alias]
@@ -835,7 +836,11 @@ def test_package_is_the_unit_that_init_creates_checks_and_vendors(
     theme = layer.top_files["theme.css"].decode()
     assert "lf-callout {\n  display: block;" in theme
     assert theme.index("lf-callout {") < theme.index("@layer lf-overrides")
-    assert load_registry(page)["lf-callout"] == entry
+    # The package's entry, as composition completes it.
+    assert (
+        load_registry(page)["lf-callout"]
+        == stamp_grammars({"lf-callout": entry})["lf-callout"]
+    )
     assert (
         "Use them for short notices."
         in layer.vocabulary.instructions["author.md"].decode()

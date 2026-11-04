@@ -391,6 +391,33 @@ def test_a_contents_target_reply_observes_visibility_without_layout(browser, ser
     expect(reply).to_have_js_property("value", words)
 
 
+# A canvas of fixed size on a root that does not scroll: a window shortened to cut
+# through the target's pin resizes no box the margin watches.
+FIXED_CANVAS = """<!doctype html>
+<html lang="en"><head><title>Canvas</title>
+<style>html { overflow: hidden } main { position: relative; width: 600px; height: 1000px }</style>
+</head><body data-rail="none"><main>
+<p id="target" style="position: absolute; top: 700px; left: 40px; width: 300px; margin: 0">
+A label on the canvas.</p>
+</main></body></html>
+"""
+
+
+def test_a_pin_stays_inside_a_window_that_shrinks_around_a_fixed_canvas(browser, serve):
+    """Where the root does not scroll, the window bounds a pin's seat. Shortening the
+    window resizes no box the margin watches, so the margin seats its pins again for
+    the window's own resize, keeping the pin inside what the window shows."""
+    page = open_page(browser, serve(FIXED_CANVAS, events=[_comment_on("target")]))
+    resized(page, 900, 900)
+    margins_laid_out(page)
+    pin = page.locator('[data-lf-margin-for="target"]')
+    expect(pin).to_be_visible()
+    assert pin.evaluate("pin => pin.getBoundingClientRect().bottom") > 720
+    resized(page, 900, 720)
+    rendered(page)
+    assert pin.evaluate("pin => pin.getBoundingClientRect().bottom") <= 720
+
+
 def test_o_hides_what_is_drawn_over_the_page_and_moves_nothing(browser, serve):
     """`o` hides the annotation layer: every pin, the controls one holds included, and
     the durable marks, while the rail and what stands in it stay, since the rail covers

@@ -328,6 +328,10 @@
     condition instanceof CSSMediaRule
       ? matchMedia(condition.conditionText).matches
       : CSS.supports(condition.conditionText);
+  // Chrome's CSSOM reports a longhand that only an important `all` sets as
+  // normal, and keeps its importance on `all` alone.
+  const priority = (style, property) =>
+    style.getPropertyPriority(property) || style.getPropertyPriority("all");
   // An inline inset loses only to an important rule, so a box with one reads those
   // alone: the comment box's placer writes its insets on every frame it moves.
   const declaredRules = (node, property, importantOnly) => {
@@ -339,8 +343,7 @@
     ])
       for (const { rule, conditions } of rulesStating(sheet, property)) {
         const value = rule.style.getPropertyValue(property);
-        if (!value || (importantOnly && !rule.style.getPropertyPriority(property)))
-          continue;
+        if (!value || (importantOnly && !priority(rule.style, property))) continue;
         if (!conditions.every(holds)) continue;
         let matches = false;
         try {
@@ -349,9 +352,7 @@
           // A selector `matches` cannot take, such as a pseudo-element's.
         }
         if (matches)
-          found[rule.style.getPropertyPriority(property) ? "important" : "normal"].push(
-            value,
-          );
+          found[priority(rule.style, property) ? "important" : "normal"].push(value);
       }
     return found;
   };
@@ -360,7 +361,7 @@
   // every candidate in the winning tier must name the same animated variable.
   const declaredValues = (node, property) => {
     const inline = node.style.getPropertyValue(property);
-    if (inline && node.style.getPropertyPriority(property)) return [inline];
+    if (inline && priority(node.style, property)) return [inline];
     const rules = declaredRules(node, property, Boolean(inline));
     return rules.important.length ? rules.important : inline ? [inline] : rules.normal;
   };
@@ -490,8 +491,7 @@
   };
   const anchoredInset = (node, style, property, axis) => {
     const inline = node.style.getPropertyValue(property);
-    if (inline && node.style.getPropertyPriority(property))
-      return anchorInset(inline, axis);
+    if (inline && priority(node.style, property)) return anchorInset(inline, axis);
     if (!style.positionAnchor.startsWith("--"))
       return inline ? anchorInset(inline, axis) : false;
     const candidates = declaredValues(node, property);

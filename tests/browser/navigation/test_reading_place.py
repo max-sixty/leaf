@@ -34,7 +34,6 @@ from browser.threads import open_panel_thread
 from leaf import data as data_model
 from leaf import event_log as events_model
 from leaf.render_checks import rendered
-from leaf.schema import ELEMENT_ID
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -235,7 +234,7 @@ ITEMS_LAYER = {
     "lf-items": {
         "description": "Items drawn one at a time, each part addressed by item/part.",
         "type": "object",
-        "properties": {"id": {"type": "string", "pattern": f"^{ELEMENT_ID}$"}},
+        "properties": {"id": {"type": "string"}},
         "required": ["id"],
         "additionalProperties": False,
         "x-content": "empty",
@@ -246,8 +245,8 @@ ITEMS_LAYER = {
         "description": "A button that travels to one part of the items it refers to.",
         "type": "object",
         "properties": {
-            "id": {"type": "string", "pattern": f"^{ELEMENT_ID}$"},
-            "for": {"type": "string", "pattern": f"^{ELEMENT_ID}$"},
+            "id": {"type": "string"},
+            "for": {"type": "string"},
             "key": {"type": "string", "minLength": 1},
         },
         "required": ["id", "for", "key"],

@@ -3,16 +3,6 @@
  * Python owns the completion edges and assertions; these functions own DOM reads.
  */
 (() => {
-  const scrollStill = ([selector, axis, frames]) => {
-    const box = selector ? document.querySelector(selector) : document.scrollingElement;
-    if (!box) return false;
-    const at = axis === "x" ? box.scrollLeft : box.scrollTop;
-    const held = globalThis.__lfScrollStill;
-    globalThis.__lfScrollStill =
-      held && held.at === at ? { at, frames: held.frames + 1 } : { at, frames: 0 };
-    return globalThis.__lfScrollStill.frames >= frames;
-  };
-
   // Accessibility reports content and control state, but not native focus
   // affordances or every field's source/caret (including a closed-root editor).
   const browserState = () => {
@@ -190,5 +180,5 @@
       );
     return { writes, ...window.lfRest, endless };
   };
-  return { browserState, armRest, readRest, scrollStill };
+  return { browserState, armRest, readRest };
 })();

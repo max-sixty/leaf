@@ -251,7 +251,7 @@ lf-playground-control > input[type="color"] {
   padding: var(--sp-1) var(--sp-2);
   min-block-size: var(--aim-floor);
 }
-lf-playground-control > .choice {
+lf-playground-control > .lf-choice {
   grid-column: 2;
   grid-row: 1;
   justify-self: end;
@@ -276,7 +276,7 @@ lf-playground-control > input[type="range"] {
  * choices into rows of 2 and 3, and four thresholds in a 262px card into 2 and 2.
  * Rejected before it: equal grid cells, which wrapped every label longer than its
  * share. Columns the author sets replace the list (below). A focused face draws its
- * ring inside its own padding (`.choice`, controls.css), so lines of faces need no
+ * ring inside its own padding (`.lf-choice`, controls.css), so lines of faces need no
  * gap between them. */
 .lf-playground-choices {
   display: flex;
@@ -288,7 +288,7 @@ lf-playground-control > input[type="range"] {
  * and each face hangs out by its padding, so the marks stand on the label's edge. */
 lf-playground-control:not(.lf-playground-candidates):has(> .lf-playground-choices) {
   row-gap: 0;
-  > .lf-playground-choices > lf-playground-choice > .choice {
+  > .lf-playground-choices > lf-playground-choice > .lf-choice {
     margin-inline-start: calc(-1 * var(--choice-pad));
   }
 }
@@ -307,7 +307,7 @@ lf-playground-choice {
  * choices, plain or rich, in the author's grid columns. Authors set it on a row of
  * threshold choices, saw nothing change, and wrote rules against the generated class
  * instead (13 of 78 pages in 24 configuration samples). A plain face starts its cell
- * at its words' width (`.choice`, controls.css), so its label wraps only where the
+ * at its words' width (`.lf-choice`, controls.css), so its label wraps only where the
  * column is narrower. No `var()` fallback can turn the plain list's flex box into a
  * grid, so a style query asks the group's parent, the control, whether the property is
  * set; naming the rich control's class weighs as much as the rich default above, and
@@ -328,13 +328,13 @@ lf-playground-choice {
   background: var(--lf-ground);
 }
 :is(.lf-playground-candidates, .lf-playground-candidates > .lf-playground-choices)
-  > lf-playground-choice:has(> .choice > :checked) {
+  > lf-playground-choice:has(> .lf-choice > :checked) {
   border-color: var(--accent);
   box-shadow: inset 0 0 0 1px var(--accent);
 }
 :is(.lf-playground-candidates, .lf-playground-candidates > .lf-playground-choices)
   > lf-playground-choice
-  > .choice {
+  > .lf-choice {
   justify-content: start;
   justify-self: stretch;
   padding: var(--sp-3) var(--sp-3) 0;
@@ -426,9 +426,10 @@ lf-playground-value {
 /* The instruction opens from the bar as a popover (lf-playground.js), at the middle of
  * the window as a popover stands by default, so no anchor ties it to a bar that may be
  * stuck in a sticky rail, where Firefox draws an anchored box at the target's unstuck
- * place (notes/browser-support.md). It is a card in the panel's fonts: its title in
- * small capitals over the instruction, which scrolls in the room the window leaves. The
- * bar's child selector outweighs a framed box's trim of its last child's margin. */
+ * place (notes/browser-support.md). It is a card in the panel's fonts, on the popover
+ * face (controls.css, `.lf-popover`): its title in small capitals over the instruction,
+ * which scrolls in the room the window leaves. The bar's child selector outweighs a
+ * framed box's trim of its last child's margin. */
 .lf-playground-actions > .lf-playground-instruction {
   position: fixed;
   inset: 0;
@@ -437,18 +438,10 @@ lf-playground-value {
   inline-size: min(36rem, calc(100vw - 32px));
   max-block-size: min(32rem, calc(100dvh - 64px));
   padding: 0;
-  border: 1px solid var(--border-2);
-  border-radius: var(--r);
-  background: var(--card);
-  color: var(--ink);
-  box-shadow: var(--raise-2);
 }
 .lf-playground-instruction:popover-open {
   display: flex;
   flex-direction: column;
-}
-.lf-playground-instruction::backdrop {
-  background: transparent;
 }
 .lf-playground-instruction-head {
   display: flex;

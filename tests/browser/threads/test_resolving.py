@@ -19,7 +19,6 @@ from render_cases_interaction import (
 from render_harness import (
     LONG_PAGE,
     PANEL,
-    PANEL_THREAD,
     expect_open_threads,
     holding,
     leaf_page,
@@ -41,6 +40,7 @@ from browser.threads import (
 )
 from leaf import event_log as events_model
 from leaf.render_checks import rendered
+from leaf_dev.browser import PANEL_THREAD
 
 pytestmark = pytest.mark.shifts_unsurveyed
 

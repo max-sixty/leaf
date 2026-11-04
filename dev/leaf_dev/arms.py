@@ -55,6 +55,7 @@ import click
 
 from leaf.codex import APP_SERVER_ENV
 from leaf.delivery import opened_input_ids
+from leaf.event_log import initialized
 from leaf.harness import IDENTITY_VARIABLES, ClaudeCodeHarness, CodexHarness
 from leaf.render_gate import browser as browser_model
 from leaf.render_gate import command as render_command_model
@@ -87,7 +88,6 @@ PAYLOAD = (
     "src",
     "browser",
     "packages",
-    "dist",
     "package.json",
     "leaf-distribution.json",
     "pyproject.toml",
@@ -236,9 +236,8 @@ def serving(arm: Path, state: Path, page: Path):
 
 def build_source(arm: Path, state: Path, source: Path, page: Path) -> None:
     """Build the authored `source` into the page directory `page` with the arm's own
-    launcher under the state home `state`. Callers make the arm's kernel current
-    before building (`current_kernel`), then serve or check the page from that arm.
-    A generated source, such as the corpus, is generated first (`refresh_composition`).
+    launcher under the state home `state`, to serve or check from that arm. A
+    generated source, such as the corpus, is generated first (`refresh_composition`).
     """
     refresh_composition(source)
     prepare_page(
@@ -267,11 +266,7 @@ served_page: ContextVar[ServedPage] = ContextVar("served_page")
 def serving_source(arm: Path, source: Path, scratch: Path, log: Path | None = None):
     """Build `source` into a page under `scratch` (`build_source`), admit `log`'s
     events after its own history, unacknowledged as a writer's would be
-    (`admit_events`), serve it (`serving`), and yield the address, all from `arm`
-    with its kernel current (`current_kernel`)."""
-    from leaf_dev.commands.distribution import current_kernel
-
-    arm = current_kernel(arm)
+    (`admit_events`), serve it (`serving`), and yield the address, all from `arm`."""
     state, page = scratch / "state", scratch / "page"
     build_source(arm, state, source, page)
     if log is not None:
@@ -688,7 +683,7 @@ def authoring_sandbox(*owned: Path) -> str:
     uid = os.getuid()
     names = (
         rf"claude-{uid}(/|$)|claude-[0-9a-f]+-cwd$|cc-socks(/|$)|zsh[^/]+$"
-        rf"|leaf-package-locks-{uid}(/|$)|leaf-codex-[^/]+(/|$)"
+        rf"|leaf-path-locks-{uid}(/|$)|leaf-codex-[^/]+(/|$)"
         rf"|codex-daemon-{uid}(/|$)"
     )
     host_plugins = (
@@ -1098,7 +1093,7 @@ class LiveSession:
 
     def _observe(self, record: dict) -> None:
         # An agent authoring the page has not made it yet.
-        if self.watch is None or not (self.watch[2] / "events.jsonl").exists():
+        if self.watch is None or not initialized(self.watch[2]):
             return
         if not self.url and record.get("type") in ("user", "result"):
             state = read_page_state(*self.watch)

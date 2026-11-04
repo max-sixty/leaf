@@ -72,7 +72,7 @@ def test_a_projected_attribute_opens_an_obligation_captured_from_authored_markup
         "description": "A test-owned conditional Ask.",
         "type": "object",
         "properties": {
-            "id": {"type": "string", "pattern": "^[a-z][a-z0-9-]*$"},
+            "id": {"type": "string"},
             "phase": {"enum": ["closed", "open"]},
             "restated": {"type": "boolean"},
         },

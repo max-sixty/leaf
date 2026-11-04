@@ -12,7 +12,8 @@ lf-file-editor {
   margin-block: 1rem;
   border: 1px solid var(--border-2);
   border-radius: var(--r);
-  background: var(--card);
+  --lf-ground: var(--card);
+  background: var(--lf-ground);
   overflow: clip;
   --lf-file-editor-height: clamp(24rem, 60vh, 42rem);
 }

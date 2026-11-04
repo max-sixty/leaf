@@ -146,7 +146,7 @@
  * its lists, kept a second surface with its own opening, holding and fade beside the
  * views. Rejected with it: the On view's tabs at that menu's foot, a menu of rows for
  * On me and Threads, and a leaf that folds the panel or opens On <agent>. A row that
- * copies a text is one press in the menu where a clipboard is there to copy with, and
+ * copies a text is one press in the menu wherever the page can copy (`canCopy`), and
  * says which session or Leaf the page runs only in About this page (page-controls.js,
  * the `about` group). A
  * keyboard's convenience for where the reader stands, such as Resume writing, stands
@@ -211,7 +211,7 @@ import { el, offeredAction, reveal } from "./widget-elements.js";
 import { actionTemplate, iconTemplate } from "./icons.js";
 import { actionName } from "./icon-paths.js";
 import { commandSteps } from "./keyboard/control-keys.js";
-import { copyControl } from "./copy-control.js";
+import { canCopy, copyControl } from "./copy-control.js";
 import { keeps, keepsHidden, layoutPx } from "./keeps.js";
 import { keepFieldKeys } from "./field-keys.js";
 import { setRuntimeRootStyle } from "./root-state.js";
@@ -228,8 +228,8 @@ import {
 import { pageControls } from "./page-controls.js";
 import { findCommands } from "./keyboard/command-reference.js";
 import { readPlace } from "./history.js";
-import { readThreads } from "./thread/state.js";
-import { isNews, threadCounts } from "./thread/model.js";
+import { readThreads, threadNamed } from "./thread/state.js";
+import { discussed, isNews, threadCounts } from "./thread/model.js";
 import { LeafElement } from "./leaf-element.js";
 import {
   RESOLVED,
@@ -307,7 +307,8 @@ import {
   currentLocationIn,
 } from "./focus.js";
 import { rowWalk } from "./walk-position.js";
-import { excerptWords } from "./words.js";
+import { capitalized, counted, excerptWords } from "./words.js";
+import { coarsePointer } from "./pointer.js";
 import { holdRendering, nextRender, sizeObserver } from "./rendering.js";
 import { boxMotion } from "./box-motion.js";
 import { landedBox, scrollIntoView } from "./landing-scroll.js";
@@ -353,20 +354,17 @@ const HELD_ELSEWHERE = Object.freeze(["keyboard", `command:${FOLD}`]);
 // row's end.
 /** @param {ReturnType<typeof pageControls>[number]} entry */
 const listed = (entry) =>
-  !entry.exit && !HELD_ELSEWHERE.includes(entry.key) && (!entry.copies || canCopy());
-// A browser offers the clipboard only to a secure context (https or localhost), so a
-// page read over plain http from another machine has none to copy with; and one that
-// offers it may still refuse a write, after which the menu drops its copy shortcuts
-// (`copyItem`).
+  !entry.exit &&
+  !HELD_ELSEWHERE.includes(entry.key) &&
+  (!entry.copies || (!copyRefused && canCopy()));
+// The menu offers a copy shortcut only where a copy can work (copy-control.js,
+// `canCopy`). A clipboard may still refuse a write, after which the menu drops its copy
+// shortcuts (`copyItem`).
 let copyRefused = false;
-const canCopy = () => !copyRefused && Boolean(navigator.clipboard?.writeText);
 // Keyboard conveniences also stand under Navigate where a finger needs them.
 /** @param {ReturnType<typeof pageControls>[number]} entry */
 const groupOf = (entry) =>
   entry.group === "keys" && !advertisesKeys() ? "navigate" : entry.group;
-/** @param {string} word */
-const capital = (word) => word.charAt(0).toUpperCase() + word.slice(1);
-const coarse = () => matchMedia("(pointer: coarse)").matches;
 // What passes in the panel's one seat for words that pass: a notice while one shows,
 // else what the status line says between notices, the Go-to filter's word or a walk's
 // position ("1 of 3 waiting on me · Options"). The user asked on 16 October that
@@ -524,9 +522,7 @@ export function createFloatingPanel({
       : selection
         ? "Selection"
         : nothing;
-    const newsName = news
-      ? `${news} ${news === 1 ? "thread" : "threads"} with news`
-      : "";
+    const newsName = news ? `${counted(news, "thread")} with news` : "";
     const onUserName = [onUser ? `On me: ${onUser}` : "On me", newsName]
       .filter(Boolean)
       .join(", ");
@@ -1299,8 +1295,10 @@ export function createFloatingPanel({
   const threads = () => readThreads().threads;
   const inventoried = () => readThreads().phase === "ready";
   /** @param {string | null | undefined} key */
-  const threadByKey = (key) =>
-    threads().find((thread) => thread.key === key || thread.id === key) ?? null;
+  const threadByKey = (key) => {
+    const thread = key ? threadNamed(key) : null;
+    return thread && discussed(thread) ? thread : null;
+  };
   // The thread a route shows, where it shows one the reading holds.
   /** @param {PanelRoute | null | undefined} route */
   const threadOf = (route) => (route?.thread ? threadByKey(route.thread) : null);
@@ -2221,7 +2219,7 @@ export function createFloatingPanel({
       const intent = retainUserIntent();
       void Promise.resolve(drawn).then(() => {
         const at = shownView();
-        const target = at && ((!coarse() && viewParts.reply(at)) || at);
+        const target = at && ((!coarsePointer.matches && viewParts.reply(at)) || at);
         if (target && trail.value.at(-1) === route && intent())
           focusDestination(target, "move");
       });
@@ -2301,8 +2299,8 @@ export function createFloatingPanel({
     if (!copy) {
       // The trigger is the row this renders into the control below.
       copy = copyControl("lf-fp-copy-item", {
-        success: `${capital(entry.label)} copied`,
-        error: `${capital(entry.label)} not copied · select it to copy`,
+        success: `${capitalized(entry.label)} copied`,
+        error: `${capitalized(entry.label)} not copied · select it to copy`,
         trigger: true,
       });
       copy.addEventListener("wa-copy", () => putAwayThen(() => {}));
@@ -2784,18 +2782,18 @@ export function createFloatingPanel({
   /** @param {ReturnType<typeof threadsListing>["joined"]} joined */
   function joinedFacts(joined) {
     /** @param {string} kind @param {string} one @param {string} many */
-    const counted = (kind, one, many) => {
+    const fact = (kind, one, many) => {
       const count = joined.filter(
         ({ was, now }) => (was === null ? "new" : now) === kind,
       ).length;
-      return count ? `${count} ${count === 1 ? one : many}` : null;
+      return count ? counted(count, one, many) : null;
     };
     return [
-      counted("new", "new thread", "new threads"),
-      counted("open", "thread reopened", "threads reopened"),
-      counted("resolved", "thread resolved", "threads resolved"),
-      counted("found", "new match", "new matches"),
-    ].filter((fact) => fact !== null);
+      fact("new", "new thread", "new threads"),
+      fact("open", "thread reopened", "threads reopened"),
+      fact("resolved", "thread resolved", "threads resolved"),
+      fact("found", "new match", "new matches"),
+    ].filter((said) => said !== null);
   }
   const joinedNotice = newsNotice();
   // The notice's press: the list settles, and the first row it named, in the list's
@@ -3500,7 +3498,7 @@ export function createFloatingPanel({
   /** @typedef {keyof ReturnType<typeof queueLists>} PanelQueueList */
   /** @param {PanelQueueItem} item */
   const agentNoun = (item) =>
-    item.kind === "todo" ? "To-do" : capital(itemNoun(item));
+    item.kind === "todo" ? "To-do" : capitalized(itemNoun(item));
   // What the agent is doing about an item on its list: the word for the stage it
   // stands at, the line its last step wrote, each said by whoever says it, and since
   // when.
@@ -3736,7 +3734,7 @@ export function createFloatingPanel({
             aria-pressed=${String(choice.chosen)}
             @click=${press}
           >
-            ${capital(choice.label)}
+            ${capitalized(choice.label)}
           </button>`;
         const told = Boolean(choice.description || choice.recommended);
         return html`<button
@@ -3748,7 +3746,8 @@ export function createFloatingPanel({
         >
           ${
             told
-              ? html`<span class="lf-fp-choice-name">${capital(choice.label)}</span>${
+              ? html`<span class="lf-fp-choice-name">${capitalized(choice.label)}</span
+                  >${
                     choice.recommended
                       ? html` <span class="lf-fp-choice-tag">recommended</span>`
                       : nothing
@@ -3759,7 +3758,7 @@ export function createFloatingPanel({
                         >`
                       : nothing
                   }`
-              : capital(choice.label)
+              : capitalized(choice.label)
           }
         </button>`;
       })}`;
@@ -4135,7 +4134,7 @@ export function createFloatingPanel({
         : held
           ? `${held}.`
           : waiting
-            ? `${waiting.charAt(0).toUpperCase()}${waiting.slice(1)}.`
+            ? `${capitalized(waiting)}.`
             : "Nothing to do right now.";
     const now = work.find(
       (each) => each.line && each.line.text !== each.word?.text,
@@ -4360,7 +4359,7 @@ export function createFloatingPanel({
           : html`${progress ? planHead(progress) : nothing}${chooser({
               label: `Show On ${agentName()} as`,
               values: AGENT_LAYOUTS,
-              name: capital,
+              name: capitalized,
               current: layoutOf(),
               choose: agentLayout.write,
             })}`,
@@ -4755,7 +4754,7 @@ export function createFloatingPanel({
     }
     query = "";
     open({ view: "menu" });
-    if (!coarse()) focusDestination(threadSearchInput, "move");
+    if (!coarsePointer.matches) focusDestination(threadSearchInput, "move");
   }
   // Only the folded leaf needs a status peek; the row and menu already show status.
   // Folded, it also carries passing notices because there is no field to show them.

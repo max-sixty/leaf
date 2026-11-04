@@ -406,6 +406,14 @@ def test_a_thread_resolved_in_the_panel_comes_back_to_the_panel(browser, serve):
     expect(page.locator(PANEL_THREAD)).to_have_attribute("data-lf-thread", root)
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
 
+    # The refusal's error stands in the field, and the next Resolve closes the view whose
+    # reply editor stood there: the leaf's error dot stays as it was, unwritten.
+    page.unroute_all(behavior="wait")
+    with sending(page, "the resolve again"):
+        page.keyboard.press("r")
+    round_trip(page)
+    expect_open_threads(page, 0)
+
 
 def test_z_shows_a_thread_resolved_in_its_card_by_its_passage(browser, serve):
     """No card draws a resolved thread, so a route to one opens the panel's view. The

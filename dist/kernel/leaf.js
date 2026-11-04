@@ -6059,7 +6059,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 	let landing = null;
 	function sayable() {
 		const input = host.dataset.lfRest === "mark" ? null : fieldInput();
-		if (!input?.isConnected || draftOf(input) !== "") return [];
+		if (!input || draftOf(input) !== "") return [];
 		return errorsReading().filter((error) => !error.passed && error.subject === null);
 	}
 	let selectedWords = null;

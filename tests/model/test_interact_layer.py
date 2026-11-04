@@ -1876,9 +1876,11 @@ def test_a_press_wears_its_role_s_face_alone():
     controls.css, keyed by the role's face class and the attributes a press declares,
     such as a tone (`data-lf-tone`) or news (`data-lf-news`); `js_facts.mjs dressings`
     reads the classes builders write beside a role, which place a press and never
-    restyle it. A builder is the only API that writes a press's classes, so the
-    reading sees every class Leaf writes on one, as the source spells it; a module's
-    own `classList` write is its code, as an inline style is.
+    restyle it. The reading sees the classes a builder's call spells. A class a wrapper
+    hands on from its own caller, as `closeControl` does, an imported constant, and a
+    class a module's own `classList` call adds are out of its reach, as an inline style
+    is; so is a press a selector names by a tag other than `button` or a custom
+    element, such as the margin's `span.lf-margin-marker`.
 
     Before this check a sheet could restyle a press it placed: Send and Dictate drew
     a disc of their own in response.css, a margin entry's face lived in base.css, the

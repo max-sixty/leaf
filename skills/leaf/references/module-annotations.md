@@ -175,12 +175,14 @@ with its frame extending slightly beyond the message's edges, so a scroller hold
 parts keeps about 12px of padding beside them (the worked example's `.reader`).
 
 A widget that draws the conversation's head itself, as Leaf's floating panel does,
-passes `parts.thread` a third argument, `{head, reply, quote, landing, drawn}`, each
-part optional:
+passes `parts.thread` a third argument, `{head, reply, quote, scroller, landing,
+drawn}`, each part optional:
 
-- `head: {news, controls}` names two places on the widget's head line. The notice of
-  news the thread holds back stands in `news`, and Resolve, or Reopen, in `controls`.
-  Without it, both stand beside the first message's head.
+- `head: {news, controls, unread}` names places on the widget's head line. The notice
+  of news the thread holds back stands in `news`, and Resolve, or Reopen, in `controls`;
+  without them, both stand beside the first message's head. Next unread, offered where
+  the thread's opening leaves a reply unread, stands in `unread`, and without that place
+  nowhere.
 - `reply: {outlet, options}` names where the reply box stands, at the thread's end
   without `outlet`, with the options `parts.reply` takes, except that `hint` is called
   with `{resolved, attention}`: the thread as it is drawn, held news included, so the
@@ -188,17 +190,18 @@ part optional:
   on, with the `word` Threads says it in, or null where it waits on nothing, as once
   it is resolved.
 - `quote: true` quotes the words the thread is about over its messages.
+- `scroller: (transcript) => box` names the box that scrolls the thread's messages,
+  which may be the thread's own `transcript`. An answer the user waits for that arrives
+  past its foot then says New reply there.
 - `landing(resolved)` is called as the user presses Resolve or Reopen, with whether
   the thread stood resolved before the press. It returns a step Leaf runs once the
   settlement shows, which returns whether it moved the user, or `null` to leave the
   user to the thread: Reopen then puts the caret in the reply box, wherever it stands.
   With a landing, taking the settlement back opens the thread in this widget again.
-- `drawn(answer)` runs once the thread's DOM is placed, before asynchronous widget
+- `drawn()` runs once the thread's DOM is placed, before asynchronous widget
   preparation finishes, so layout and scroll can follow the words before the next
-  frame. `answer` is null except when this draw answers the user's last turn; then it
-  is the read-only `{turn, reply}` message keys, with `reply: null` while only work
-  under way has arrived. A render abandoned before drawing calls nothing. The handle's
-  `update()` still waits for the widgets' preparation.
+  frame. A render abandoned before drawing calls nothing. The handle's `update()` still
+  waits for the widgets' preparation.
 
 Each place, as an outlet, stands inside the widget, and may stand in its shadow tree.
 A whole thread, as a reply part does, takes the reply being written in it that no

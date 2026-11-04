@@ -544,10 +544,10 @@ export function glideTo(box, top) {
 // tab or a resized window. The exception is the clamp a growth makes at the box's end,
 // whose scroll can arrive before the reading that answers the growth. `atEnd` keeps the
 // foot only while it is the box's end: a card read back keeps its reader's offset
-// (thread-preview.js, `measureThreadCard`). `kept` hears each move the keeper makes.
-/** @param {HTMLElement} box @param {{atEnd?: boolean, kept?: () => void}} [options]
+// (thread-preview.js, `measureThreadCard`).
+/** @param {HTMLElement} box @param {{atEnd?: boolean}} [options]
  * @returns {() => void} */
-export function keepFoot(box, { atEnd = false, kept } = {}) {
+export function keepFoot(box, { atEnd = false } = {}) {
   /** @type {{room: number, top: number, end: boolean} | null} */
   let foot = null;
   const observer = sizeObserver((entries) => {
@@ -559,7 +559,6 @@ export function keepFoot(box, { atEnd = false, kept } = {}) {
       entries.every(({ target }) => target === box)
     ) {
       moveScrollerBy(box, foot.top + foot.room - room - box.scrollTop);
-      kept?.();
     }
     foot = { room, top: box.scrollTop, end: atScrollEnd(box) };
   });

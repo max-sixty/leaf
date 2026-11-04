@@ -1010,7 +1010,7 @@
   }
   /* The thread's own places on its head line, its notice's and its Resolve's, which
      the thread draws in (floating-panel.js, `headOutlets`), lay out as what they hold. */
-  :is(.lf-fp-news-outlet, .lf-fp-thread-controls) {
+  :is(.lf-fp-news-outlet, .lf-fp-unread-outlet, .lf-fp-thread-controls) {
     display: contents;
   }
   /* The news qualifies the thread, so it takes the size of the head line's words. It
@@ -1143,22 +1143,13 @@
   .lf-fp-chooser:has(> select[data-lf-focus-visible]) {
     outline: var(--focus-ring);
   }
-  :is(.lf-fp-on-page, .lf-fp-next-unread, .lf-fp-close)[data-lf-unoffered] {
+  :is(.lf-fp-on-page, .lf-fp-close)[data-lf-unoffered] {
     visibility: hidden;
   }
-  /* Next unread is an inline press (controls.css) after its symbol, standing in the
-     row at a panel press's height and padding. */
-  .lf-fp-next-unread {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
+  /* Next unread stands in the row at a panel press's height and padding. */
+  .lf-fp-head .lf-next-unread {
     min-height: var(--lf-fp-press);
     padding: 0 8px;
-    white-space: nowrap;
-  }
-  .lf-fp-next-unread .lf-action-icon {
-    width: 14px;
-    height: 14px;
   }
 
   /* The stage holds the view to its cap, and to what the box leaves it under a long
@@ -1242,34 +1233,24 @@
       transparent 100%
     );
   }
-  .lf-fp-view[data-lf-route="thread"]:has(> .lf-fp-foot) {
+  .lf-fp-view[data-lf-route="thread"][data-lf-awaits] {
     --lf-fp-fade-end: 0px;
   }
-  /* An answer waiting below the fold (floating-panel.js, `fitAnswer`): a press at the
-     view's foot, where the answer begins, standing on the panel's ground, which fades
-     in above it so what passes under reads as under a layer. The ground runs down to
-     the view's edge through the view's padding, which the foot's margin gives back, so
-     at the view's end the foot stands where it stuck and the room it takes is the
-     press's alone. A sticky box sticks at its scroller's content edge, inside that
-     padding, so it sticks the padding's depth lower, or what scrolls under it would
-     show through the padding below the press. */
-  .lf-fp-foot {
-    position: sticky;
-    --lf-head-inset: 0px;
+  /* New reply (thread-card.js, `#fitAnswer`) on the panel's ground, which runs down to
+     the view's edge through the view's padding, which the foot's margin gives back, as
+     it does the transcript's inset, so at the view's end the foot stands where it stuck
+     and the room it takes is the press's alone. A sticky box sticks at its scroller's
+     content edge, inside that padding, so it sticks the padding's depth lower, or what
+     scrolls under it would show through the padding below the press. */
+  .lf-fp-view .lf-awaited {
+    --lf-awaited-ground: var(--lf-fp-surface);
     bottom: calc(-1 * var(--lf-fp-view-pad-end));
-    margin: 0 -6px calc(-1 * var(--lf-fp-view-pad-end));
-    padding: 10px 0 6px;
-    background: linear-gradient(transparent, var(--lf-fp-surface) 10px);
+    margin-inline: calc(-6px - var(--lf-thread-text-inset)) calc(-14px - var(--sp-1));
+    margin-block-end: calc(-1 * var(--lf-fp-view-pad-end) - var(--sp-1));
+    padding-block: 10px 6px;
   }
-  /* New reply announces news waiting, an inline press in the accent the unread dot
-     wears (controls.css, `data-lf-news`), centred on the foot's ground a press tall. */
-  .lf-fp-new-reply {
-    display: flex;
-    align-items: center;
-    gap: 4px;
+  .lf-fp-view .lf-new-reply {
     min-height: var(--lf-fp-press);
-    margin: 0 auto;
-    font: var(--font-small);
   }
 
   /* A list's rows lay out as every list's do (controls.css, `.lf-rows`). */

@@ -430,6 +430,19 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item ~ .lf-chrome .lf-mark-el
   .lf-margin-preview-position {
     white-space: nowrap;
   }
+  .lf-margin-thread-controls .lf-next-unread {
+    min-height: max(var(--lf-line), var(--aim-floor));
+    padding-inline: 4px;
+    font: var(--font-fine);
+  }
+  /* An open rewrite's Discard and Save take the room beside the actions (below), which
+     a narrow card under a finger can't also give Next unread. */
+  .lf-margin-thread
+    .lf-page-thread:has(.lf-msg-edit-actions)
+    > .lf-margin-thread-controls
+    .lf-next-unread {
+    display: none;
+  }
   .lf-margin-preview-step:first-child > .lf-action-icon {
     inset-inline-start: 4px;
   }
@@ -568,6 +581,21 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item ~ .lf-chrome .lf-mark-el
      words narrower than the draft they were sent from. */
   .lf-margin-thread .lf-thread-transcript[data-lf-overflows] {
     scrollbar-gutter: stable;
+  }
+  /* New reply stands on the card's paper at the transcript's foot, from the card's
+     edge past the words' inset to the transcript's other edge, down over the room it
+     keeps past its foot (thread-card.js, `#fitAnswer`). Its ground fades what passes
+     under it, so the fade a scroller wears at its foot (controls.css) leaves it whole. */
+  .lf-margin-thread .lf-thread-transcript[data-lf-awaits] {
+    --lf-more-fade: 0px;
+  }
+  .lf-margin-thread .lf-awaited {
+    z-index: 1;
+    bottom: calc(-1 * var(--lf-transcript-room));
+    margin-inline: calc(-1 * (var(--lf-thread-text-inset) + var(--lf-transcript-room)))
+      calc(-1 * var(--lf-transcript-room));
+    margin-block-end: calc(-1 * var(--lf-transcript-room));
+    padding-block-end: var(--lf-transcript-room);
   }
   /* The row holds paper in the actions' track that sticks on the heads' line, so
      words pass beneath the actions only where a message's head row paints over it

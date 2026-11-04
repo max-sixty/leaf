@@ -606,8 +606,7 @@ onCurrentLocation(
 /** @typedef {ThreadReading & {visible?: boolean, folding?: boolean}} DrawableThread */
 /** @typedef {Partial<ThreadChange["news"]> & {threads?: number}} RawNews */
 /** @typedef {Omit<DrawableThread, "settlement"> & {
- * settlement: ThreadReading["settlement"] | null, news: RawNews | null,
- * change: ThreadChange | null}} RawHeldThread */
+ * settlement: ThreadReading["settlement"] | null, news: RawNews | null}} RawHeldThread */
 /** @typedef {Omit<RawHeldThread, "news"> & {news: NewsNotice | null}} HeldThread */
 /** @typedef {{threads: readonly HeldThread[], news: NewsNotice | null}} HeldCollection */
 /** @typedef {{node: Element, progressOpen?: boolean,
@@ -728,12 +727,12 @@ export class HeldNews {
           // nothing for news to move.
           const shown = thread.visible !== false && !thread.folding;
           if (!was || !shown || this.#released.has(thread.key))
-            return { ...thread, news: null, change: null };
+            return { ...thread, news: null };
           const held = threadChange(was, thread, {
             progressOpen: this.#view(thread.key)?.progressOpen ?? false,
           });
           if (!held || gestured(thread.key) || !this.#view(thread.key)?.newsMoves(held))
-            return { ...thread, news: null, change: held };
+            return { ...thread, news: null };
           this.#holds.add(thread.key);
           // What the news changes stands as drawn. A held reopening's notice stands
           // where Reopen did, since opening it is what reopening would show.
@@ -745,7 +744,6 @@ export class HeldNews {
             working: news.working ? was.working : thread.working,
             ...(news.settled === "Reopened" && { settlement: null }),
             news,
-            change: null,
           };
         },
       );

@@ -51,8 +51,8 @@ own (`../SOUL.md`, "Keep the foundation small and extensible").
 - **News never moves what the reader is reading.** News from the server grows above the
   screen, where scroll anchoring absorbs it, or below it; anywhere else it waits behind a
   fixed-size control until the reader goes to it, and an editor in use stays still. An
-  exception the user chose stays with its owner, as `fitAnswer` in `floating-panel.js`
-  does. Check: `test_news_just_after_a_press_moves_nothing`. Owners: `thread/held-news.js`,
+  exception the user chose stays with its owner, as the floating panel's growth for an
+  answer the user waits for (`floating-panel.js`) does. Check: `test_news_just_after_a_press_moves_nothing`. Owners: `thread/held-news.js`,
   and `threadsListing` in `floating-panel.js` for the rows of Threads.
 - **Nothing Leaf draws moves the page's content.** Pins, passage marks and runtime
   controls sit over the page and take no space, and no rule pads or widens a block to

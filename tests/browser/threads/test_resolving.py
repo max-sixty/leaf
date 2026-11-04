@@ -909,6 +909,8 @@ def test_r_leaves_a_thread_the_user_scrolled_away_from(browser, serve):
     page.locator('.lf-margin-marker[data-lf-kinds="comment"]').click()
     card = page.locator(".lf-margin-preview")
     thread = card.locator(".lf-page-thread")
+    expect(card.locator("leaf-text")).to_be_focused()
+    page.keyboard.press("Escape")
     expect(thread).to_be_focused()
 
     def scroll(down):
@@ -935,5 +937,3 @@ def test_r_leaves_a_thread_the_user_scrolled_away_from(browser, serve):
         page.keyboard.press("r")
     expect_open_threads(page, 0)
     expect(card).to_be_hidden()
-    expect(card.locator("leaf-text")).to_be_focused()
-    page.keyboard.press("Escape")

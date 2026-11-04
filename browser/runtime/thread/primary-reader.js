@@ -27,10 +27,10 @@ import { turns } from "./model.js";
    one (thread-card.js, `ThreadView`); its nomination may say where the thread stands
    the parts it draws apart (`ThreadOutlets`), as the floating panel's view stands its
    notice and settlement on its head line and its reply box in the row's field, and
-   whether it draws the words it is about. Its optional `drawn(answer)` runs after its
-   DOM is placed, before asynchronous widget preparation completes: null unless this
-   draw answers the user's last turn, otherwise its `{turn, reply}` keys, reply null
-   for work alone. A message part is one of its thread's turns
+   whether it draws the words it is about. Its optional `drawn()` runs after its DOM is
+   placed, before asynchronous widget preparation completes, and the thread then reads
+   the box its nomination says scrolls it (`ThreadView.settled`). A message part is one
+   of its thread's turns
    (model.js, `turns`), the messages a card draws: its root, even a reaction, and its
    spoken messages. A later reaction stands as the pressed chip on the message it
    answers, so naming one as a part of its own is refused, as naming a message the
@@ -50,7 +50,7 @@ import { turns } from "./model.js";
    the end of the first part's head, in room every such head keeps for it, so news
    arriving moves none of the head's words. */
 /** @typedef {Pick<ReturnType<typeof import("./state.js").readThreads>, "phase" | "threads">} PrimaryCollection */
-/** @typedef {import("./thread-card.js").ThreadOutlets & {drawn?: (answer: import("./held-news.js").ThreadChange["answers"] | null) => unknown}} ThreadOptions */
+/** @typedef {import("./thread-card.js").ThreadOutlets & {drawn?: () => unknown}} ThreadOptions */
 /** @typedef {{signal: AbortSignal,
  * thread: (key: string, outlet: Element, options?: ThreadOptions) => void,
  * message: (key: string, message: string, outlet: Element) => void,
@@ -78,6 +78,7 @@ const placesOf = (item) => {
     view.kind === "thread" ? view.apart[part] : view.node;
   const { head, reply } = item.options;
   if (head) places.push([head.news, apart("news")], [head.controls, apart("controls")]);
+  if (head?.unread) places.push([head.unread, apart("unread")]);
   if (reply?.outlet) places.push([reply.outlet, apart("reply")]);
   return places;
 };
@@ -316,9 +317,12 @@ export function createPrimaryReader(
             await paint(current, () => {
               if (!active || current !== generation || abort.signal.aborted) return;
               candidate.commit();
-              for (const item of nominations)
-                if (item.kind === "thread")
-                  item.options.drawn?.(shown.get(item.key)?.change?.answers ?? null);
+              for (const item of nominations) {
+                if (item.kind !== "thread") continue;
+                item.options.drawn?.();
+                const view = views.get(item.identity);
+                if (view?.kind === "thread") view.settled();
+              }
             });
           } catch (error) {
             failing ||= current === generation;
@@ -546,11 +550,18 @@ export function createPrimaryReader(
           // would move the package's element into the thread (thread-card.js,
           // `CardOutlets`). A nomination that lands the user elsewhere is where taking
           // back the settlement opens the thread again (`ViewOutlets`, `reader`).
-          const { head, reply, quote, landing } = item.options;
+          const { head, reply, quote, scroller, landing } = item.options;
           view.setOutlets({
-            ...(head && { head: { news: head.news, controls: head.controls } }),
+            ...(head && {
+              head: {
+                news: head.news,
+                controls: head.controls,
+                ...(head.unread && { unread: head.unread }),
+              },
+            }),
             ...(reply && { reply }),
             ...(quote && { quote }),
+            ...(scroller && { scroller }),
             ...(landing && { landing, reader: /** @type {const} */ ("primary") }),
           });
         }

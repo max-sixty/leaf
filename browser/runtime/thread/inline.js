@@ -469,7 +469,11 @@ export function renderMarginThread(host, thread, commands, outlets) {
   return seatFor(host, commands, () => null, outlets)
     .present(seatReading([thread], "margin", commands, false))
     .filter(({ descriptor }) => descriptor.key === threadKey(thread))
-    .map(({ view }) => ({ thread: view.node, transcript: view.transcript }));
+    .map(({ view }) => ({
+      thread: view.node,
+      transcript: view.transcript,
+      settled: () => view.settled(),
+    }));
 }
 
 export function beginThreadSeats() {

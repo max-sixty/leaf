@@ -326,16 +326,12 @@ def long_thread_in_reply(browser, serve):
     read is the runtime's own."""
     page, preview, transcript = open_long_thread(browser, serve)
     transcript.evaluate("list => list.style.overflowAnchor = 'none'")
-    thread = preview.locator(".lf-page-thread").first
-    expect(thread).to_be_focused()
-    page.keyboard.press("Enter")
     editor = preview.locator("leaf-text")
     expect(editor).to_be_focused()
     rendered(page)
     return page, preview, editor, transcript
 
 
-def test_replying_on_a_long_margin_card_keeps_the_turn_being_read(browser, serve):
 def test_news_shows_in_a_card_whose_opening_left_the_caret_in_its_box(browser, serve):
     """The caret a click's opening leaves in the empty box is no draft being written, so
     the answer the user waits for shows at once, as on the thread a key's opening stands
@@ -373,9 +369,13 @@ def test_news_shows_in_a_card_whose_opening_left_the_caret_in_its_box(browser, s
     expect(preview.locator(".lf-msg", has_text="One more thing")).to_have_count(0)
 
 
+def test_replying_on_a_long_margin_card_keeps_the_turn_being_read(browser, serve):
     """Entering the visible reply box preserves the earlier transcript reading."""
     page, preview, transcript = open_long_thread(browser, serve)
     transcript.evaluate("list => list.style.overflowAnchor = 'none'")
+    page.keyboard.press("Escape")
+    expect(preview.locator(".lf-page-thread")).to_be_focused()
+    rendered(page)
     before = [page.evaluate("scrollY"), transcript.evaluate("list => list.scrollTop")]
     page.keyboard.press("Enter")
     expect(preview.locator("leaf-text")).to_be_focused()
@@ -414,9 +414,6 @@ CARD_DRAWN = """card => {
               : card.getBoundingClientRect().top,
           card.querySelector('.lf-margin-thread-controls').getBoundingClientRect().top,
           ...[...card.querySelectorAll('.lf-thread-transcript > .lf-msg')]
-    page.keyboard.press("Escape")
-    expect(preview.locator(".lf-page-thread")).to_be_focused()
-    rendered(page)
             .map(turn => turn.getBoundingClientRect().top)];
 }"""
 
@@ -1306,6 +1303,10 @@ def test_anchored_thread_reading_keys_and_page_return(browser, serve):
     marker = page.locator('.lf-margin-marker[data-lf-kinds~="comment"]')
     marker.click()
     preview = page.locator(".lf-margin-preview")
+    expect(preview.locator("leaf-text")).to_be_focused()
+    # The click puts the caret in the reply (thread/focus.js, `openingPart`); Escape
+    # stands the user on the thread.
+    page.keyboard.press("Escape")
     expect(preview.locator(".lf-page-thread")).to_be_focused()
     transcript = preview.locator(".lf-thread-transcript")
     assert transcript.evaluate("box => box.scrollHeight > box.clientHeight")
@@ -1347,10 +1348,6 @@ def test_a_sent_comment_keeps_its_text_viewport(browser, serve, text, zoom):
     page = open_page(browser, serve(OBLIGATION_PAGE), init_script=MARGIN_EDITOR_ROOTS)
     resized(page, 1200, 900)
     page.evaluate("zoom => document.documentElement.style.zoom = zoom", zoom)
-    expect(preview.locator("leaf-text")).to_be_focused()
-    # The click puts the caret in the reply (thread/focus.js, `openingPart`); Escape
-    # stands the user on the thread.
-    page.keyboard.press("Escape")
     send_anchored_comment(page, text.rstrip())
     reading = page.locator(".lf-margin-preview")
     overflow = reading.evaluate("""card => [...card.querySelectorAll('*')]
@@ -2124,3 +2121,172 @@ def test_a_press_on_a_cards_news_leaves_the_caret_in_its_reply(browser, serve):
     expect(preview.get_by_text("Under the queue's heading.")).to_be_visible()
     expect(reply).to_be_focused()
     expect(reply).to_have_js_property("value", "Drafting while the answer arrives")
+
+
+def test_a_card_offers_next_unread_for_a_reply_its_opening_left_unread(browser, serve):
+    """A card that opens on a reply too long to show whole leaves it unread, so Next
+    unread stands on its head line, drawn by the thread as in the floating panel's view
+    (thread-card.js, `settled`). A press on it, or a key, lands on that reply; once
+    every reply reads it is no longer offered, though its seat stays."""
+    short_reply = {
+        **LONG_THREAD[1],
+        "text": "Landed: the first two now close to the page.",
+        "id": "d" * 32,
+        "ts": "2026-09-18T19:34:26-07:00",
+    }
+    page = open_page(
+        browser,
+        serve(LONG_THREAD_PAGE, events=[LONG_THREAD_ROOT, LONG_THREAD[1], short_reply]),
+    )
+    resized(page, 1440, 700)
+    page.locator('[data-lf-margin-for="open"] .lf-margin-marker').click()
+    preview = page.locator(".lf-margin-preview")
+    transcript = preview.locator(".lf-thread-transcript")
+    press = preview.locator(".lf-margin-thread-controls .lf-next-unread")
+    expect(press).to_have_text("Next unread")
+    reply = transcript.locator(".lf-msg").nth(1)
+
+    press.click()
+    expect(reply).to_be_focused()
+    expect(reply).to_be_in_viewport()
+
+    preview.locator(".lf-thread-reply leaf-text").click()
+    press.focus()
+    page.keyboard.press("Enter")
+    expect(reply).to_be_focused()
+
+    transcript.hover()
+    for _ in range(40):
+        if transcript.evaluate(
+            "list => list.scrollTop + list.clientHeight >= list.scrollHeight - 1"
+        ):
+            break
+        page.mouse.wheel(0, 120)
+        page.wait_for_timeout(20)
+    expect(transcript.locator(".lf-msg-new")).to_have_count(0)
+    expect(press).to_be_hidden()
+    expect(press).to_be_disabled()
+
+
+def test_next_unread_never_shows_in_a_card_whose_opening_reads_its_reply(
+    browser, serve
+):
+    """A short reply reads as the card lands, so Next unread never shows, not even for
+    the moment before the reply is read."""
+    short_reply = {**LONG_THREAD[1], "text": "Landed: the first two close."}
+    page = open_page(
+        browser, serve(LONG_THREAD_PAGE, events=[LONG_THREAD_ROOT, short_reply])
+    )
+    resized(page, 1440, 900)
+    page.evaluate("""() => {
+      window.nextUnreadShown = false;
+      new MutationObserver(() => {
+        window.nextUnreadShown ||= Boolean(
+          document.querySelector('.lf-next-unread:not([data-lf-unoffered])'));
+      }).observe(document, {subtree: true, childList: true, attributes: true});
+    }""")
+    preview = page.locator(".lf-margin-preview")
+    with sending(page, "the reply read"):
+        page.locator('[data-lf-margin-for="open"] .lf-margin-marker').click()
+        expect(preview.locator(".lf-msg", has_text="Landed")).to_be_visible()
+    expect(preview.locator(".lf-msg-new")).to_have_count(0)
+    round_trip(page)
+    assert not page.evaluate("() => window.nextUnreadShown")
+    expect(preview.locator(".lf-next-unread")).to_have_count(0)
+
+
+def test_a_card_says_new_reply_for_an_answer_past_its_transcript_s_foot(browser, serve):
+    """The answer the user waits for, arriving while they read back up the card's capped
+    transcript, says New reply at the transcript's foot, and their place holds, where
+    they would otherwise miss it (thread-card.js, `#fitAnswer`). A press, a key on the
+    press, or scrolling to the answer's start takes it away, and so does their next
+    turn; the press and the key show the answer's start, on the thread. A reader at the
+    transcript's end needs none, since it follows its end as words join it."""
+    page, preview, transcript = open_long_thread(browser, serve)
+    thread = preview.locator(".lf-page-thread")
+    press = preview.locator(".lf-new-reply")
+    box = preview.locator(".lf-thread-reply leaf-text")
+    limit = "list => list.scrollHeight - list.clientHeight"
+    long_answer = "Someone stays on call through Sunday, and Monday too. " * 40
+
+    def turn(words):
+        box.click()
+        page.keyboard.insert_text(words)
+        with sending(page, "the turn"):
+            page.keyboard.press("ControlOrMeta+Enter")
+        rendered(page)
+
+    def read_back():
+        transcript.hover()
+        page.mouse.wheel(0, -500)
+        page.wait_for_function(
+            "list => list.scrollTop < list.scrollHeight - list.clientHeight - 200",
+            arg=transcript.element_handle(),
+        )
+        scroll_settled(page, ".lf-margin-preview .lf-thread-transcript")
+
+    def answer(words):
+        append_carried_log_record(
+            serve.page_dir,
+            {
+                "kind": "reply",
+                "author": "agent",
+                "agent": "Claude",
+                "parent": LONG_THREAD_ROOT["id"],
+                "revision": 1,
+                "text": words,
+            },
+        )
+        told(page)
+        message = transcript.locator(".lf-msg", has_text=words[:30]).last
+        expect(message).to_be_attached()
+        rendered(page)
+        return message
+
+    turn("And the mobile cohort?")
+    answer("At the end: " + long_answer)
+    expect(press).to_have_count(0)
+    assert transcript.evaluate(limit) - transcript.evaluate("l => l.scrollTop") <= 2
+
+    turn("And the weekend?")
+    read_back()
+    place = transcript.evaluate("l => l.scrollTop")
+    shown = answer("By a press: " + long_answer)
+    expect(press).to_have_text("New reply")
+    assert transcript.evaluate("l => l.scrollTop") == place
+    foot = transcript.bounding_box()
+    at = press.bounding_box()
+    assert foot["y"] < at["y"] and at["y"] + at["height"] <= foot["y"] + foot["height"]
+    press.click()
+    expect(press).to_have_count(0)
+    expect(thread).to_be_focused()
+    expect(shown.locator(".lf-msg-head")).to_be_in_viewport()
+
+    turn("And the holiday?")
+    read_back()
+    shown = answer("By a key: " + long_answer)
+    expect(press).to_have_text("New reply")
+    press.focus()
+    page.keyboard.press("Enter")
+    expect(press).to_have_count(0)
+    expect(thread).to_be_focused()
+    expect(shown.locator(".lf-msg-head")).to_be_in_viewport()
+
+    turn("And the night shift?")
+    read_back()
+    shown = answer("By scrolling: " + long_answer)
+    expect(press).to_have_text("New reply")
+    transcript.hover()
+    for _ in range(20):
+        if not press.count():
+            break
+        page.mouse.wheel(0, 120)
+        page.wait_for_timeout(30)
+    expect(press).to_have_count(0)
+
+    turn("And the next one?")
+    read_back()
+    answer("By a turn: " + long_answer)
+    expect(press).to_have_text("New reply")
+    turn("Thanks.")
+    expect(press).to_have_count(0)

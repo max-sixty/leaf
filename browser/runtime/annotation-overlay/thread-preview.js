@@ -34,7 +34,12 @@
    reader's message and scroll position; another thread opens at its first unread
    message, else its latest, and the thread a comment's Send opened where the box's
    words stood (`showArrival`).
-   A new/growing agent turn follows only at the tail. Landing, Send and stepping may
+   A new/growing agent turn follows only at the tail. An answer the user waits for that
+   arrives while they read back says New reply at the transcript's foot, and an opening
+   that leaves a reply unread offers Next unread on the head line. The thread draws both
+   (thread-card.js): the card names its transcript as the box scrolling the thread, and
+   tells the thread it stands each time a placement lands (`settled`). Landing, Send and
+   stepping may
    move the reading; keepThreadLanding retains their destination through fitting until
    a newer reading gesture ends that authority. Size is fitted before paint, so a sent
    reply does not grow twice. Margin location and its keyboard ladder own dismissal
@@ -122,7 +127,7 @@ import { CardAnchor } from "../thread/card-anchor.js";
  * arriving: boolean, sent: Pick<Origin, "fromEnd" | "field"> | null, away: boolean,
  * positionFrame: number, positionResult: PromiseWithResolvers<boolean> | null,
  * focusPending: {holding: Element | null} | null, withheldFocus: ReturnType<typeof holdFocus>,
- * transcript: HTMLElement | null, place: ReturnType<typeof placeKeeper> | null,
+ * transcript: HTMLElement | null, settled: (() => void) | null, place: ReturnType<typeof placeKeeper> | null,
  * stopRegion: (() => void) | null, stopFoot: (() => void) | null, side: ReturnType<typeof commentPlacement>, anchor: CardAnchor,
  * opened: number, reading: {input: number, scroll: number, end: boolean} | null, itemView: {node: HTMLElement, body: HTMLElement} | null, width: number | null, scroller: Element, followed: boolean}} Session
  * @typedef {{latest: boolean, end: boolean, scroll: number, keepTop: boolean, transcript: HTMLElement}} Reading
@@ -199,11 +204,11 @@ export function createThreadPreview({
     "Open in panel",
     { action: "expand" },
   );
-  // The card's head line: the thread's notice of held news, Previous and Next, Open in
-  // panel, the thread's Resolve or Reopen, and Close. It stands in the thread, over its
-  // first message's head, whose track it shares (annotation-chrome.css), and holds the
-  // boxes the thread draws its notice and its settlement in (thread-card.js,
-  // `CardOutlets`, `line`).
+  // The card's head line: the thread's notice of held news and Next unread, Previous and
+  // Next, Open in panel, the thread's Resolve or Reopen, and Close. It stands in the
+  // thread, over its first message's head, whose track it shares (annotation-chrome.css),
+  // and holds the boxes the thread draws its notice, Next unread and its settlement in
+  // (thread-card.js, `CardOutlets`, `line`).
   const previewHead = el("div", "lf-margin-thread-controls");
   const previewActions = el("span", "lf-thread-meta-actions");
   previewHead.append(previewActions);
@@ -373,7 +378,8 @@ export function createThreadPreview({
   // The card's transcript is re-rendered on every reading of its thread; a message holds
   // the user's place in it under the event id it is rendered with (user-place.js).
   /** @param {Session} session @param {ReturnType<typeof import("../thread/inline.js").renderMarginThread>[number]} reading */
-  function syncPreviewTranscript(session, { thread: card, transcript }) {
+  function syncPreviewTranscript(session, { thread: card, transcript, settled }) {
+    session.settled = settled;
     if (transcript === session.transcript) return;
     session.stopRegion?.();
     session.stopRegion = null;
@@ -811,6 +817,7 @@ export function createThreadPreview({
             );
         } else for (const edge of CUT_EDGES) preview.style.removeProperty(edge);
         keepThreadLanding(previewList.querySelector(".lf-page-thread"));
+        session.settled?.();
         session.positionResult?.resolve(true);
         session.positionResult = null;
       })
@@ -878,12 +885,16 @@ export function createThreadPreview({
       focusPending: null,
       withheldFocus: null,
       transcript: null,
+      settled: null,
       place: null,
       reading: null,
       stopRegion: null,
       stopFoot: null,
       side: commentPlacement(),
       anchor: new CardAnchor(preview),
+      // The user's inputs as this selection opened, which a caret landing in its reply
+      // before any more of them is the opening's (`mount`).
+      opened: inputCount(),
       // The width the card stands at for this selection, in client pixels: the box's
       // Send replaced, so the two are one rectangle, else the one it first stood at, or
       // was carried at (`placeThreadPreview`). Sized by itself, Firefox stood a one-line
@@ -902,9 +913,6 @@ export function createThreadPreview({
     // field, rather than fade in (annotation-chrome.css).
     keeps(preview, "data-lf-grows", origin ? "" : null);
     return session;
-      // The user's inputs as this selection opened, which a caret landing in its reply
-      // before any more of them is the opening's (`mount`).
-      opened: inputCount(),
   }
 
   /** @param {Entry} entry @param {Choice} choice @param {Session} current @param {string | null} [requestedItem] */
@@ -1045,6 +1053,7 @@ export function createThreadPreview({
       line: (apart) => {
         setChildren(previewActions, [
           apart.news,
+          apart.unread,
           ...(previewNav.hidden ? [] : [previewNav]),
           previewOpenInPanel,
           apart.controls,
@@ -1055,6 +1064,8 @@ export function createThreadPreview({
       // A send from the card is the user's change joining the stream the card shows
       // (box-motion.js, "send"), read before the send draws.
       reply: { options: { sending: following.stream } },
+      // The card caps its transcript, which scrolls the thread's messages.
+      scroller: (transcript) => transcript,
       anchor: session.anchor,
       // The card stands for the thread on the page, where taking back a settlement made
       // in it opens the thread again.
@@ -1066,14 +1077,19 @@ export function createThreadPreview({
       landing: (resolved) => {
         if (resolved) return null;
         const target = targetFor(previewSession?.entry);
-        if (!target) return () => false;
         const mayLand = retainUserIntent({
           source: focused(),
-          available: () => Boolean(target?.isConnected),
+          available: () => previewOpen() || Boolean(target?.isConnected),
         });
         return () => {
-          if (previewOpen()) return false;
-          return mayLand.handoff(() => focusDestination(target, "return"));
+          const next = previewOpen()
+            ? previewList.querySelector(".lf-page-thread")
+            : null;
+          const place = next ?? target;
+          if (!place) return false;
+          return mayLand.handoff(() =>
+            focusDestination(place, next ? "move" : "return"),
+          );
         };
       },
     });
@@ -1206,6 +1222,10 @@ export function createThreadPreview({
     onClose(closed);
   }
 
+  // The card a press on its marker opened takes the user where every opening does
+  // (thread/focus.js, `openingPart`): into its reply, or onto its thread. Either way the
+  // thread lands whole: landing on its reply box would take its transcript to its end,
+  // past the turn the card opened on (`showArrival`).
   /** @param {Promise<boolean> | null} positioned @param {{closeControl?: boolean, cause?: import("../focus.js").PlacementCause}} [options] */
   function focusThread(positioned, { closeControl = false, cause = "move" } = {}) {
     if (!positioned) return;
@@ -1223,7 +1243,7 @@ export function createThreadPreview({
         const target =
           threadFocusDestination(thread, { part: openingPart() }) ?? thread;
         focusDestination(target, cause);
-        if (!closeControl) scrollThreadIntoView(target, target);
+        scrollThreadIntoView(thread, thread);
       },
       session,
     );
@@ -1249,10 +1269,6 @@ export function createThreadPreview({
         node &&
         under(node, preview) &&
         closestAcross(node, ".lf-thread-reply") &&
-  // The card a press on its marker opened takes the user where every opening does
-  // (thread/focus.js, `openingPart`): into its reply, or onto its thread. Either way the
-  // thread lands whole: landing on its reply box would take its transcript to its end,
-  // past the turn the card opened on (`showArrival`).
         cause !== "return" &&
         cause !== "drop"
       ) {

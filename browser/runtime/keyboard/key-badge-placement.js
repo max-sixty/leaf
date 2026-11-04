@@ -259,10 +259,22 @@ export function keyBadgePlacement() {
       const box =
         places.find((place) => free(place) && !coversAnotherControl(place, owner)) ??
         placeAt([corner.left, corner.top]);
-      if (!reserve(box)) chip.style.visibility = "hidden";
-      else chip.style.removeProperty("visibility");
-      seated.push({ seat, target: owner, at: corner, start, box, held: box.held });
+      seated.push({
+        seat,
+        chip,
+        shows: reserve(box),
+        target: owner,
+        at: corner,
+        start,
+        box,
+        held: box.held,
+      });
     }
+    // Written once every chip is placed: a chip takes no presses (chrome.css,
+    // `.lf-chip-seat`), so none is in the stack another chip's place reads.
+    for (const { chip, shows } of seated)
+      if (shows) chip.style.removeProperty("visibility");
+      else chip.style.visibility = "hidden";
     seats.place(seated);
   }
 

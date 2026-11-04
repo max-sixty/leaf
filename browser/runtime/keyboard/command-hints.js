@@ -26,7 +26,7 @@ import { availableCommandRoutes } from "./dispatch.js";
 import { buttonCommand, commandScope, projectCommandScope } from "./scopes.js";
 import { keyBadgePlacement } from "./key-badge-placement.js";
 import { chipSeats } from "./chip-seats.js";
-import { renderedUnder } from "../shadow.js";
+import { renderedUnder, under } from "../shadow.js";
 import { html, render } from "/runtime/framework.js";
 import { inlineStyle, keepsText } from "../keeps.js";
 import { repaint } from "../repaint.js";
@@ -137,8 +137,8 @@ export function createCommandHints({ presentedControl }) {
   const CONTROL_ROUTES = Symbol("Control binding routes");
   /** @type {Set<Element>} */
   const routedControls = new Set();
-  /** @param {Element} bindingBadge @param {Element} control @param {import("../rect.js").Box} visible */
-  function exposedBindingBadge(bindingBadge, control, visible) {
+  /** @param {Element} bindingBadge @param {Element} control @param {import("../rect.js").Box} visible @param {ReadonlySet<Element>} lent */
+  function exposedBindingBadge(bindingBadge, control, visible, lent) {
     const whole = bindingBadge.getBoundingClientRect();
     /** @type {readonly ("left" | "right" | "top" | "bottom")[]} */
     const edges = ["left", "right", "top", "bottom"];
@@ -153,7 +153,9 @@ export function createCommandHints({ presentedControl }) {
     // The whole stack at each point, read the same whether the face is worn or withheld
     // (transparent, and still in the hit test): nothing may stand over the face but the
     // control it labels, whose state mark shares the slot and yields it to a worn face
-    // (an option's pick turns transparent).
+    // (an option's pick turns transparent), or another face lent in the same pass, since
+    // every face is lent before any is read; `reserve` gives two that overlap to the
+    // earlier route.
     const root = bindingBadge.getRootNode();
     if (!(root instanceof Document || root instanceof ShadowRoot)) return false;
     /** @type {[number, number][]} */
@@ -164,11 +166,40 @@ export function createCommandHints({ presentedControl }) {
       [visible.left + inset, y],
       [visible.right - inset, y],
     ];
+    // A hit test names a shadow tree's host for whatever that tree holds at the point, so
+    // a host over the face is read again inside its tree, and covers the face unless all
+    // it holds there over the face is faces lent in this pass. Its own box covers it.
+    /** @param {Element} host @param {number} atX @param {number} atY @returns {boolean} */
+    const holdsOnlyLent = (host, atX, atY) => {
+      const tree = host.shadowRoot;
+      if (!tree) return false;
+      const stack = tree.elementsFromPoint(atX, atY);
+      const at = stack.findIndex((each) => under(bindingBadge, each));
+      return (
+        at >= 0 &&
+        stack.slice(0, at).every(
+          (over) =>
+            over !== host &&
+            // What stands outside the tree, the reading in the face's own tree answers.
+            (over.getRootNode() !== tree ||
+              lent.has(over) ||
+              holdsOnlyLent(over, atX, atY)),
+        )
+      );
+    };
     return points.every(([atX, atY]) => {
       const stack = root.elementsFromPoint(atX, atY);
       const at = stack.indexOf(bindingBadge);
       return (
-        at >= 0 && stack.slice(0, at).every((over) => renderedUnder(over, control))
+        at >= 0 &&
+        stack
+          .slice(0, at)
+          .every(
+            (over) =>
+              lent.has(over) ||
+              renderedUnder(over, control) ||
+              holdsOnlyLent(over, atX, atY),
+          )
       );
     });
   }
@@ -273,21 +304,27 @@ export function createCommandHints({ presentedControl }) {
     // hung off the control's corner instead, a field's chip covered its first words.
     // Where what hides the face covers that place too, as an open thread card does, the
     // chip yields to it as the face did.
+    //
+    // The faces go in passes over every route: which controls the window shows, then
+    // each of their faces lent, then each face read as it stands, then each worn or
+    // withheld. A paint so forces one style and layout pass for its faces however many
+    // it lends, where reading each face right after writing it forced two per face
+    // (root AGENTS.md, "Responsiveness"). The chips below go the same way. A control the
+    // window does not show cannot show its face either, and wearing the face only to
+    // measure it away would write it twice on every scroll.
+    /** @type {{binding: string, control: Element, bindingBadge: BindingBadge}[]} */
+    const shown = [];
+    for (const { binding, control, bindingBadge } of visualRoutes)
+      if (
+        bindingBadge?.isConnected &&
+        bindingBadgeClaims.get(bindingBadge) === 1 &&
+        placement.visibleBounds(control)
+      )
+        shown.push({ binding, control, bindingBadge });
     /** @type {Set<BindingBadge>} */
     const lent = new Set();
-    /** @type {Set<BindingBadge>} */
-    const worn = new Set();
-    /** @type {Map<BindingBadge, DOMRect>} */
-    const faceBoxes = new Map();
-    for (const { binding, control, bindingBadge } of visualRoutes) {
-      // A control the window does not show cannot show its face either, and wearing
-      // the face only to measure it away would write it twice on every scroll.
-      if (
-        !bindingBadge?.isConnected ||
-        bindingBadgeClaims.get(bindingBadge) !== 1 ||
-        !placement.visibleBounds(control)
-      )
-        continue;
+    const lending = shown.map((route) => {
+      const { binding, bindingBadge } = route;
       let said = wornBindingBadges.get(bindingBadge);
       if (!said) {
         /** @param {"display" | "opacity"} name @returns {[string, string]} */
@@ -305,31 +342,44 @@ export function createCommandHints({ presentedControl }) {
       keepsText(bindingBadge, spell(binding));
       inlineStyle(bindingBadge).display = "block";
       lent.add(bindingBadge);
+      return { ...route, said };
+    });
+    const faces = lending.map((route) => {
+      const { control, bindingBadge } = route;
       const box = bindingBadge.checkVisibility() && placement.badgeBox(bindingBadge);
       const exposed = Boolean(
         box &&
-        exposedBindingBadge(bindingBadge, control, box) &&
+        exposedBindingBadge(bindingBadge, control, box, lent) &&
         placement.reserve(box),
       );
+      const face = box && !exposed ? bindingBadge.getBoundingClientRect() : null;
+      return { ...route, exposed, face };
+    });
+    /** @type {Set<BindingBadge>} */
+    const worn = new Set();
+    /** @type {Map<BindingBadge, DOMRect>} */
+    const faceBoxes = new Map();
+    for (const { bindingBadge, said, exposed, face } of faces) {
       bindingBadge.toggleAttribute("data-lf-binding-badge", exposed);
       if (exposed) {
         restoreStyle(bindingBadge, said, "opacity");
         worn.add(bindingBadge);
       } else {
         inlineStyle(bindingBadge).opacity = "0";
-        if (box) faceBoxes.set(bindingBadge, bindingBadge.getBoundingClientRect());
+        if (face) faceBoxes.set(bindingBadge, face);
       }
     }
     restoreBindingBadges(lent);
 
-    const chips = [];
-    const moving = scrolling();
+    // The chips read where each goes, then write their digits.
+    /** @type {{binding: string, presented: Element, corner: import("../rect.js").Box}[]} */
+    const placed = [];
     for (const { binding, control, bindingBadge } of visualRoutes) {
       if (bindingBadge && worn.has(bindingBadge)) continue;
       const presented = presentedControl(control) ?? control;
       if (!presented.checkVisibility()) continue;
       const face = bindingBadge && faceBoxes.get(bindingBadge);
-      const box = face
+      const corner = face
         ? {
             left: (face.left + face.right) / 2,
             top: (face.top + face.bottom) / 2,
@@ -337,7 +387,11 @@ export function createCommandHints({ presentedControl }) {
             bottom: (face.top + face.bottom) / 2,
           }
         : placement.badgeBox(presented);
-      if (!box) continue;
+      if (corner) placed.push({ binding, presented, corner });
+    }
+    const chips = [];
+    const moving = scrolling();
+    for (const { binding, presented, corner } of placed) {
       // During a scroll only existing seats update; new chips wait for placement
       // so they cannot flash at an unmeasured position.
       const seat = moving ? seats.seated(presented) : seats.seat(presented);
@@ -348,7 +402,7 @@ export function createCommandHints({ presentedControl }) {
         >`,
         seat,
       );
-      chips.push({ seat, owner: presented, corner: box });
+      chips.push({ seat, owner: presented, corner });
     }
     // A scroll holds the seats; each chip's digit is current in its own, and a chip whose
     // command left reach is hidden.

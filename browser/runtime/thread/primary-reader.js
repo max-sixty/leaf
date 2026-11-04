@@ -57,13 +57,34 @@ import { turns } from "./model.js";
  * reply: (key: string, outlet: Element, options?: import("./replies.js").ReplyOptions) => void}} NominationParts */
 /** @typedef {(collection: PrimaryCollection, parts: NominationParts) => unknown} PrimaryRender */
 /** @typedef {ReturnType<typeof newsNotice>} PartNotice */
-/** @typedef {{node: HTMLDivElement, notice: PartNotice, slots?: HTMLSlotElement[], dispose: () => void}} PartBase */
+/** @typedef {{node: HTMLDivElement, notice: PartNotice, dispose: () => void}} PartBase */
 /** @typedef {PartBase & {kind: "message", message: MessageView, messageKey: string, reading: ReturnType<typeof messageReading>, draw: () => void}} MessagePart */
 /** @typedef {PartBase & {kind: "reply", reply: ReturnType<typeof createReplyView>}} ReplyPart */
-/** @typedef {ThreadView & {kind: "thread", slots?: HTMLSlotElement[]}} WholePart */
+/** @typedef {ThreadView & {kind: "thread"}} WholePart */
 /** @typedef {WholePart | MessagePart | ReplyPart} RetainedPart */
 /** @typedef {{key: string, outlet: Element} & ({kind: "thread", message: null, options: ThreadOptions} | {kind: "reply", message: null, options: import("./replies.js").ReplyOptions} | {kind: "message", message: string, options: {}})} PartRequest */
 /** @typedef {PartRequest & {identity: string, thread: import("./thread-card.js").ThreadRecord}} Nomination */
+// The places a nomination names, with what stands in each: the part in its outlet, and
+// a whole thread's parts it draws apart in the places its options name
+// (thread-card.js, `ThreadOutlets`). Every place is held to what an outlet is: inside the
+// owner, connected, and reached through slots where it stands in a shadow tree.
+/** @param {PartRequest} item @returns {[Element, (view: RetainedPart) => Element][]} */
+const placesOf = (item) => {
+  /** @type {[Element, (view: RetainedPart) => Element][]} */
+  const places = [[item.outlet, (view) => view.node]];
+  if (item.kind !== "thread") return places;
+  /** @param {keyof ThreadView["apart"]} part @returns {(view: RetainedPart) => Element} */
+  const apart = (part) => (view) =>
+    view.kind === "thread" ? view.apart[part] : view.node;
+  const { head, reply } = item.options;
+  if (head) places.push([head.news, apart("news")], [head.controls, apart("controls")]);
+  if (reply) places.push([reply.outlet, apart("reply")]);
+  return places;
+};
+// What a part stands in its places: its own box, and a whole thread's boxes apart.
+/** @param {RetainedPart} view @returns {Element[]} */
+const boxesOf = (view) =>
+  view.kind === "thread" ? [view.node, ...Object.values(view.apart)] : [view.node];
 /** @param {Element} owner @param {PrimaryRender} render
  * @param {import("./thread-card.js").ThreadCommands} commands @param {() => Promise<unknown>} update
  * @param {{answersAtOnce?: boolean, onFailure?: () => void}} [options] */
@@ -199,11 +220,30 @@ export function createPrimaryReader(
     }
     return rewrite;
   };
+  // The slots each box a part stands reaches its place through, by the box.
+  /** @type {Map<Element, HTMLSlotElement[]>} */
+  const slotsOf = new Map();
+  // Takes a box out of its place, with the slots it stood in.
+  /** @param {Element} box */
+  const unplace = (box) => {
+    box.remove();
+    for (const slot of slotsOf.get(box) ?? []) slot.remove();
+    slotsOf.delete(box);
+  };
+  // Every place the nominations name stands inside the connected owner.
+  /** @param {readonly PartRequest[]} items */
+  const checkPlaces = (items) => {
+    for (const item of items)
+      for (const [place] of placesOf(item))
+        if (!owner.isConnected || !place.isConnected || !under(place, owner))
+          throw new Error(
+            "A primary Thread outlet must remain inside its connected owner",
+          );
+  };
   const clear = () => {
     for (const view of views.values()) {
       view.dispose();
-      view.node.remove();
-      for (const slot of view.slots ?? []) slot.remove();
+      for (const box of boxesOf(view)) unplace(box);
     }
     views.clear();
     destinations.clear();
@@ -262,12 +302,7 @@ export function createPrimaryReader(
     const finish = () => {
       accepting = false;
       if (!active || current !== generation || abort.signal.aborted) return null;
-      for (const item of nominations) {
-        if (!item.outlet.isConnected || !under(item.outlet, owner))
-          throw new Error(
-            "A primary Thread outlet must remain inside its connected owner",
-          );
-      }
+      checkPlaces(nominations);
       selected = nominations;
       shown = new Map(candidate.reading.threads.map((thread) => [thread.key, thread]));
       nativeMessages.clear();
@@ -358,19 +393,14 @@ export function createPrimaryReader(
   /** @param {number} current @param {() => void} drawn */
   async function paint(current, drawn) {
     if (!active || generation !== current) return;
-    for (const item of selected)
-      if (!owner.isConnected || !item.outlet.isConnected || !under(item.outlet, owner))
-        throw new Error(
-          "A primary Thread outlet must remain inside its connected owner",
-        );
+    checkPlaces(selected);
     const wanted = new Set(selected.map((item) => item.identity));
     const keys = new Set(selected.map((item) => item.key));
     for (const key of rewrites.keys()) if (!keys.has(key)) rewrites.delete(key);
     for (const [key, view] of views)
       if (!wanted.has(key)) {
         view.dispose();
-        view.node.remove();
-        for (const slot of view.slots ?? []) slot.remove();
+        for (const box of boxesOf(view)) unplace(box);
         views.delete(key);
       }
     destinations.clear();
@@ -384,6 +414,9 @@ export function createPrimaryReader(
     };
     /** @type {{item: Nomination, view: RetainedPart, reading: import("./held-news.js").HeldThread}[]} */
     const drawing = [];
+    // The boxes this pass places.
+    /** @type {Set<Element>} */
+    const placed = new Set();
     for (const item of selected) {
       const reading = shown.get(item.key);
       if (!reading) throw new Error(`No prepared Thread has key ${item.key}`);
@@ -465,32 +498,41 @@ export function createPrimaryReader(
       // the document's stylesheet scope, including html/body state conditions.
       // The package's shadow tree owns only their physical layout. No copied style
       // sheet or second renderer is needed for arbitrary nested package widgets.
-      const slots = (view.slots ??= []);
-      let destination = item.outlet;
-      let previous = null;
-      let depth = 0;
-      for (let host; (host = shadowHost(destination.getRootNode()));) {
-        let slot = slots[depth];
-        if (!slot) {
-          slot = document.createElement("slot");
-          slot.name = "lf-thread-part-" + randomId();
-          slots.push(slot);
+      for (const [outlet, boxOf] of placesOf(item)) {
+        const box = boxOf(view);
+        placed.add(box);
+        const slots = slotsOf.get(box) ?? [];
+        slotsOf.set(box, slots);
+        let destination = outlet;
+        let previous = null;
+        let depth = 0;
+        for (let host; (host = shadowHost(destination.getRootNode()));) {
+          let slot = slots[depth];
+          if (!slot) {
+            slot = document.createElement("slot");
+            slot.name = "lf-thread-part-" + randomId();
+            slots.push(slot);
+          }
+          keeps(slot, "slot", previous?.name ?? null);
+          place(destination, slot);
+          previous = slot;
+          destination = host;
+          depth++;
         }
-        keeps(slot, "slot", previous?.name ?? null);
-        place(destination, slot);
-        previous = slot;
-        destination = host;
-        depth++;
+        for (const slot of slots.splice(depth)) slot.remove();
+        keeps(box, "slot", previous?.name ?? null);
+        place(destination, box);
       }
-      for (const slot of slots.splice(depth)) slot.remove();
-      keeps(view.node, "slot", previous?.name ?? null);
-      place(destination, view.node);
       const parts = destinations.get(item.key) ?? [];
       parts.push(view);
       destinations.set(item.key, parts);
       drawing.push({ item, view, reading });
     }
     for (const [parent, nodes] of children) orderChildren(parent, nodes);
+    // A box its part stands in no place now, as a thread's notice where its reader no
+    // longer names a head, leaves.
+    for (const view of views.values())
+      for (const box of boxesOf(view)) if (!placed.has(box)) unplace(box);
     // Each part draws where it now stands, so what it reads of its own layout is read
     // in place: a package may hand a new outlet on each render, and a thread drawn out
     // of the document read no room for its held news beside its first head, its notice
@@ -573,7 +615,9 @@ export function createPrimaryReader(
     ownsMessage: /** @param {{id: string}} message */ (message) =>
       owner.isConnected && nativeMessages.has(message.id),
     ownsDestination: /** @param {Element} node */ (node) =>
-      [...views.values()].some((view) => under(node, view.node)) ||
+      [...views.values()].some((view) =>
+        boxesOf(view).some((box) => under(node, box)),
+      ) ||
       [...destinations.keys()].some((key) => replyOf(key) === node) ||
       [...destinations.values()].some((parts) => drawingOf(parts) === node),
     cancel() {

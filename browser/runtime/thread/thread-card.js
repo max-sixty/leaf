@@ -78,7 +78,7 @@ import {
 import { atScrollEnd } from "../scrolling.js";
 import { settleThread } from "./folding.js";
 import { answeredInWords } from "../obligations/model.js";
-import { SAY_BOX, threadPart } from "./selectors.js";
+import { SAY_BOX } from "./selectors.js";
 import {
   threadAttention,
   todoWord,
@@ -428,11 +428,16 @@ function wordsWidth(node) {
    message's head; `reply`, the place for the reply box, which otherwise closes the
    thread, with what its empty box reads and how a send lands there
    (replies.js, `createReplyView`); `quote`, whether the thread draws the words it is
-   about over its messages; and `settles`, where a settlement takes the user and the
-   reader the way back reopens the thread in (folding.js, `settleThread`). The reply's
-   options are read as the box is made, once for the view. What the box's empty words
-   say reads the thread as the thread draws it (`drawn`), held news included, so they
-   agree with its settlement and notice, as a card's own words do (`#createReply`). */
+   about over its messages; and `landing(resolved)`, given whether the thread stood
+   resolved as the press came, the step that takes the user where Resolve or Reopen
+   leaves them, or null for the thread's own: Reopen in its reply box, Resolve where
+   the user stands (folding.js, `settleThread`). A container with a landing is the
+   reader the way back reopens the thread in. The thread draws each part apart in a box
+   of its own (`apart`), which the container places in the place it names, as it
+   places the thread's box in its outlet. The reply's options are read as the box is
+   made, once for the view. What the box's empty words say reads the thread as the
+   thread draws it (`drawn`), held news included, so they agree with its settlement
+   and notice, as a card's own words do (`#createReply`). */
 /** @typedef {Omit<import("./replies.js").ReplyOptions, "hint" | "hintParts" | "hintLead"> & {
  * hint?: (drawn: ThreadViewModel) => string,
  * hintParts?: (drawn: ThreadViewModel) => unknown,
@@ -441,9 +446,18 @@ function wordsWidth(node) {
  * head?: {news: HTMLElement, controls: HTMLElement},
  * reply?: {outlet: HTMLElement, options?: ThreadReplyOptions},
  * quote?: boolean,
- * settles?: {landing: (resolved: boolean) => import("./folding.js").Landing | null,
- *   reader: import("../undo.js").Reader},
+ * landing?: (resolved: boolean) => import("./folding.js").Landing | null,
  * }} ThreadOutlets */
+
+// A box a thread draws a part in where its container stands the part apart: it lays
+// out as what it holds (surfaces.css) and, as the thread's own box is, is Leaf's.
+const apartBox = () => {
+  const box = document.createElement("div");
+  box.className = "lf-thread-apart lf-ui";
+  box.dataset.lfRuntime = ""; // passages.js, leafSurface
+  generatedElement(box, { says: false });
+  return box;
+};
 
 export class ThreadView {
   #commands;
@@ -479,6 +493,11 @@ export class ThreadView {
   #marginNews = sizeObserver(() => nextRender(() => this.#fitMarginNews()));
   /** @type {ThreadOutlets} */
   #outlets = {};
+  // The boxes of the parts it draws where its container stands them (`ThreadOutlets`).
+  #apart = Object.freeze({ news: apartBox(), controls: apartBox(), reply: apartBox() });
+  get apart() {
+    return this.#apart;
+  }
   // The words the thread is about, where its container asks for them (`#drawQuote`).
   #quoteHead = Object.assign(document.createElement("header"), {
     className: "lf-thread-quote-head",
@@ -502,7 +521,7 @@ export class ThreadView {
       views: () => this.#transcript.views,
       paint: () => this.repaint(),
       // Its reply box where it stands, in the thread or where its container stands it.
-      box: () => threadPart(this.node, "reply"),
+      box: () => this.#reply?.input ?? null,
       home: () => this.node,
       // Opening a rewrite shows what the thread holds (held-news.js), and unfolds a
       // summary holding the message, since it opens to be seen.
@@ -540,21 +559,10 @@ export class ThreadView {
     this.#marginControls = controls;
   }
 
-  // Where the container stands the parts it draws apart (`ThreadOutlets`), given before
-  // each presentation. A place the container no longer gives is emptied.
+  // What the container asks of the thread and which parts it stands apart
+  // (`ThreadOutlets`), given before each presentation.
   /** @param {ThreadOutlets} outlets */
   setOutlets(outlets) {
-    const was = [
-      this.#outlets.head?.news,
-      this.#outlets.head?.controls,
-      this.#outlets.reply?.outlet,
-    ];
-    const now = new Set([
-      outlets.head?.news,
-      outlets.head?.controls,
-      outlets.reply?.outlet,
-    ]);
-    for (const outlet of was) if (outlet && !now.has(outlet)) render(nothing, outlet);
     this.#outlets = outlets;
   }
 
@@ -730,8 +738,8 @@ export class ThreadView {
     this.#drawnWith = this.#outside(model);
     const marginControls = model.surface === "margin" ? this.#marginControls : null;
     // The places the container gives the thread's head and its reply (`ThreadOutlets`).
-    const head = marginControls ? null : (this.#outlets.head ?? null);
-    const replyOutlet = this.#outlets.reply?.outlet ?? null;
+    const head = !marginControls && Boolean(this.#outlets.head);
+    const replyApart = Boolean(this.#outlets.reply);
     // The notice beside the first message's head, where it stands in neither a margin
     // card's controls row nor the container's head line.
     const beside = !marginControls && !head;
@@ -778,7 +786,7 @@ export class ThreadView {
     // A thread whose reply stands elsewhere ends with its messages, so it grows only at
     // its foot, the growing tail of the region holding it, as the panel's view is
     // (tests/shift_watch.js).
-    keeps(this.node, "data-lf-append-tail", replyOutlet ? "" : null);
+    keeps(this.node, "data-lf-append-tail", replyApart ? "" : null);
     const settlement = model.settlement
       ? this.#settlement(model, model.settlement)
       : nothing;
@@ -822,15 +830,13 @@ export class ThreadView {
             ? body
             : html`<div class="lf-thread-content">${body}</div>`
         }
-        ${this.#continuity?.gap ?? nothing} ${replyOutlet ? nothing : this.#reply.node}
+        ${this.#continuity?.gap ?? nothing} ${replyApart ? nothing : this.#reply.node}
       `,
       this.node,
     );
-    if (head) {
-      render(news, head.news);
-      render(settlement, head.controls);
-    }
-    if (replyOutlet) render(this.#reply.node, replyOutlet);
+    render(head ? news : nothing, this.#apart.news);
+    render(head ? settlement : nothing, this.#apart.controls);
+    render(replyApart ? this.#reply.node : nothing, this.#apart.reply);
     if (beside && model.news) measure(this.node, () => this.#retainHeaderSlot());
     else this.#releaseHeaderSlot();
     if (marginControls && model.news) measure(this.node, () => this.#watchMarginNews());
@@ -847,7 +853,7 @@ export class ThreadView {
     restoreFocus?.(
       ...(handedOn
         ? [() => (focusDestination(handedOn, "return"), true)]
-        : replyOutlet
+        : replyApart
           ? []
           : [
               () =>
@@ -1191,7 +1197,11 @@ export class ThreadView {
   // waits, it sends nothing (actions.js, `settle`).
   #settle = () => {
     const model = this.#model;
-    const settles = this.#outlets.settles;
+    const { landing } = this.#outlets;
+    const own =
+      model.surface === "margin" && !model.resolved
+        ? (this.#marginControls?.prepareLanding ?? null)
+        : this.#prepareThreadLanding;
     this.#showNews();
     if (!model.resolved) dismissReply(model.key);
     void settleThread({
@@ -1199,27 +1209,28 @@ export class ThreadView {
       key: model.key,
       resolved: model.resolved,
       // Where the container says a settlement takes the user, as the floating panel
-      // moves on to the next thread (`ThreadOutlets`, `settles`).
-      prepareLanding: settles
-        ? () => settles.landing(model.resolved)
-        : model.surface === "margin" && !model.resolved
-          ? (this.#marginControls?.prepareLanding ?? null)
-          : this.#prepareThreadLanding,
+      // moves on to the next thread (`ThreadOutlets`, `landing`), else the thread's own.
+      prepareLanding: () => landing?.(model.resolved) ?? own?.() ?? null,
       // A margin card stands for the thread on the page, which a way back returns to,
-      // and a container names its own reader; a seat or a package's whole thread
-      // leaves the route to choose (folding.js).
-      reader: settles?.reader ?? (model.surface === "margin" ? "page" : null),
+      // and a container that lands the user elsewhere is the reader it returns to; a
+      // seat or a package's whole thread leaves the route to choose (folding.js).
+      reader: model.surface === "margin" ? "page" : landing ? "primary" : null,
       ...this.#commands.settlement,
     }).catch(() => {});
   };
 
   // Reopening lands in the reply on every card, even when Lit retains the pressed
-  // button. A page thread also moves into or out of its seat's Resolved disclosure
-  // (inline.js), so keep its destination in view once the departing pixels finish.
+  // button, wherever the thread stands its reply box and its settlement, as the
+  // floating panel stands them apart. A page thread also moves into or out of its
+  // seat's Resolved disclosure (inline.js), so keep its destination in view once the
+  // departing pixels finish.
   #prepareThreadLanding = () => {
     const reopening = this.#model.resolved;
     const mayLand = retainUserIntent({
-      source: this.node,
+      source:
+        [this.node, ...Object.values(this.#apart)].find((at) =>
+          currentLocationIn(at),
+        ) ?? this.node,
       available: () => this.node.isConnected,
     });
     return async () => {
@@ -1228,9 +1239,9 @@ export class ThreadView {
       // while its pixels leave; a later user move still vetoes the landing.
       await this.#retirement?.catch(() => {});
       const place = this.#fold?.querySelector(":scope > summary") ?? this.node;
-      if (!mayLand() || !currentLocationIn(place)) return false;
-      if (reopening)
-        this.#commands.landInThread(this.node.querySelector(SAY_BOX) ?? this.node);
+      const places = [place, ...Object.values(this.#apart)];
+      if (!mayLand() || !places.some((at) => currentLocationIn(at))) return false;
+      if (reopening) this.#commands.landInThread(this.#reply?.input ?? this.node);
       const control = focused();
       if (this.#model.surface !== "margin" && control)
         scrollThreadIntoView(place, control);
@@ -1310,6 +1321,5 @@ export class ThreadView {
     this.retire();
     this.#reply?.dispose();
     this.#reply = null;
-    this.setOutlets({});
   }
 }

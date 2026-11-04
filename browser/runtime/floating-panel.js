@@ -1650,18 +1650,6 @@ export function createFloatingPanel({
       return true;
     };
   }
-  // Reopening a thread puts the caret in its reply, which the reopening draws in the
-  // field, so what the user types next is their reply.
-  function reopenLanding() {
-    const route = trail.value.at(-1);
-    const mayLand = retainUserIntent();
-    return () => {
-      const input = fieldInput();
-      if (!mayLand() || trail.value.at(-1) !== route || !input) return false;
-      focusDestination(input, "move");
-      return true;
-    };
-  }
   function back() {
     const before = trail.value.at(-1);
     trail.value = trail.value.slice(0, -1);
@@ -3044,16 +3032,14 @@ export function createFloatingPanel({
       // The view stands over the row, away from the words the thread is about, so it
       // quotes them over its messages.
       quote: true,
-      // Resolving moves on to the next thread, and reopening puts the caret in the
-      // field; the way back reopens the thread here (thread/folding.js).
-      settles: {
-        landing: (resolved) => {
-          // Enter on Resolve runs the thread's command before any click, so the press
-          // holds the view here as a pointer's does on the head line (`head`).
-          if (holdThread(openView()?.getBoundingClientRect().height ?? null)) paint();
-          return resolved ? reopenLanding() : resolveLanding(thread.key);
-        },
-        reader: "primary",
+      // Resolving moves on to the next thread, and the way back reopens the thread
+      // here (thread/folding.js); reopening lands in the reply in the field, as the
+      // thread's own landing does.
+      landing: (resolved) => {
+        // Enter on Resolve runs the thread's command before any click, so the press
+        // holds the view here as a pointer's does on the head line (`head`).
+        if (holdThread(openView()?.getBoundingClientRect().height ?? null)) paint();
+        return resolved ? null : resolveLanding(thread.key);
       },
       drawn: threadDrawn(thread, view, outlet),
     });
@@ -3096,7 +3082,7 @@ export function createFloatingPanel({
     },
     settlement: (view) =>
       openIn(view)
-        ? head.querySelector(".lf-fp-thread-controls > :is(.lf-resolve, .lf-reopen)")
+        ? head.querySelector(".lf-fp-thread-controls :is(.lf-resolve, .lf-reopen)")
         : null,
     whole: (view) => (openIn(view) ? openView() : null),
   });

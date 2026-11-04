@@ -1014,7 +1014,7 @@
   /* The news qualifies the thread, so it takes the size of the head line's words. It
      stands at the height of its words, a line an em tall, so its arrival grows no line.
      The room a pointer aims at reaches above and below them, as tall as a control's. */
-  .lf-fp-news-outlet > .lf-thread-news {
+  .lf-fp-news-outlet .lf-thread-news {
     --lf-fp-news-reach: calc((max(var(--lf-fp-press), var(--aim-floor)) - 1lh) / 2);
     flex: 0 1 auto;
     min-width: 0;
@@ -1351,43 +1351,6 @@
      its passage's hover wash, so the row and the lit words read as one thread. */
   .lf-fp-thread.lf-mark-hover {
     background: var(--mark-hover);
-  }
-  /* The words a thread in the panel is about, over its messages, in a quote's face
-     (chrome.css, `.lf-quote`): three lines, the whole on Full quote, its press above the
-     words it grows (thread/thread-card.js, `#drawQuote`). */
-  .lf-fp-messages .lf-thread-quote-head:not([hidden]) {
-    display: grid;
-    justify-items: start;
-    gap: 4px;
-    margin: 0 0 12px;
-  }
-  /* The quote here only says what the thread is about: "Show on page" at the foot is the
-     way to the words, so it takes no press, no aim's room and no title naming a jump; a
-     detached quote's title still says where its words went. The head names it, so the
-     rule outranks a card's `.lf-quote` (chrome.css), which this file comes ahead of.
-     Its words start on the thread's edge, the 1px rule before them included. */
-  .lf-fp-messages .lf-thread-quote-head > .lf-thread-quote {
-    margin: 0;
-    padding-inline-start: calc(var(--lf-fp-inset) - 1px);
-    min-width: 0;
-    min-height: 0;
-    cursor: default;
-    display: -webkit-box;
-    -webkit-box-orient: vertical;
-    -webkit-line-clamp: 3;
-    overflow: hidden;
-  }
-  .lf-fp-messages .lf-thread-quote[data-lf-expanded="true"] {
-    display: block;
-    overflow: visible;
-  }
-  /* Full quote, an inline press (controls.css) at the quote's size. Its reach
-     (surfaces.css) lies inside the thread's view, which clips what passes its 8px top
-     padding, so under a finger it stands low enough for the reach above it. */
-  .lf-fp-messages .lf-thread-quote-head > .lf-quote-expand {
-    margin-block-start: max(0px, (var(--aim-floor) - 1lh) / 2 - 8px);
-    min-height: 0;
-    padding: 0;
   }
   /* A page in All pages: its leaf in its agent's tone, its title, and what its agent is
      doing, which gives way to the title and is cut where the row ends; then the mark

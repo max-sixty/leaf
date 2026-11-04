@@ -174,23 +174,33 @@ scroll and disclosure. The user's message editor opens in place of the message,
 with its frame extending slightly beyond the message's edges, so a scroller holding message
 parts keeps about 12px of padding beside them (the worked example's `.reader`).
 
-`parts.thread` also takes `{head, reply, quote, settles, drawn}`, each optional, for
-a widget that draws the conversation's head itself, as Leaf's floating panel does:
-`head: {news, controls}` stands the notice of held news and Resolve on its head line,
-`reply: {outlet, options}` stands the reply box where it names, with the options
-`parts.reply` takes, its `hint`, `hintParts` and `hintLead` called with the thread as
-it is drawn, held news included, so the box's words agree with its Resolve and
-notice, `quote: true` quotes the words the thread is about over its
-messages, and `settles: {landing, reader: "primary"}` says where Resolve or Reopen
-takes the user: `landing(resolved)`, called as the press comes, returns `null` or a
-step Leaf runs once the settlement shows, which returns whether it moved the user, and
-taking the settlement back opens the thread in this widget again. `drawn(answer)` runs
-once the thread's DOM is placed, before asynchronous widget preparation finishes, so
-layout and scroll can follow the words before the next frame. `answer` is null except
-when this draw answers the user's last turn; then it is the read-only `{turn, reply}`
-message keys, with `reply: null` while only work under way has arrived. A render
-abandoned before drawing calls nothing. The handle's `update()` still waits for the
-widgets' preparation.
+A widget that draws the conversation's head itself, as Leaf's floating panel does,
+passes `parts.thread` a third argument, `{head, reply, quote, landing, drawn}`, each
+part optional:
+
+- `head: {news, controls}` names two places on the widget's head line. The notice of
+  news the thread holds back stands in `news`, and Resolve, or Reopen, in `controls`.
+  Without it, both stand beside the first message's head.
+- `reply: {outlet, options}` names where the reply box stands, with the options
+  `parts.reply` takes. Its `hint`, `hintParts` and `hintLead` are called with the
+  thread as it is drawn, held news included, so the box's words agree with Resolve and
+  the notice.
+- `quote: true` quotes the words the thread is about over its messages.
+- `landing(resolved)` is called as the user presses Resolve or Reopen, with whether
+  the thread stood resolved before the press. It returns a step Leaf runs once the
+  settlement shows, which returns whether it moved the user, or `null` to leave the
+  user to the thread: Reopen then puts the caret in the reply box, wherever it stands.
+  With a landing, taking the settlement back opens the thread in this widget again.
+- `drawn(answer)` runs once the thread's DOM is placed, before asynchronous widget
+  preparation finishes, so layout and scroll can follow the words before the next
+  frame. `answer` is null except when this draw answers the user's last turn; then it
+  is the read-only `{turn, reply}` message keys, with `reply: null` while only work
+  under way has arrived. A render abandoned before drawing calls nothing. The handle's
+  `update()` still waits for the widgets' preparation.
+
+Each place, as an outlet, stands inside the widget, and may stand in its shadow tree.
+A whole thread, as a reply part does, takes the reply being written in it that no
+other view holds, so the user goes on writing there.
 
 `parts.reply` takes `{hint, accessibleName, sent}`, where
 `sent()` runs after a send instead of moving the user to the thread. The reply box
@@ -202,7 +212,7 @@ feed of single turns supplies Resolve and Reopen through `threadActions`.
 
 Await the handle's `update()` after a local layout change, or `update({release: true})`
 to show held news for a deliberate change of view. If `render` throws or names an outlet
-outside the widget, that update rejects, the threads go back to Leaf's floating panel,
+or a place outside the widget, that update rejects, the threads go back to Leaf's floating panel,
 and `primary` reads false until the next `update()` takes them back.
 
 `reveal(key, request)` shows the requested part in the package's layout, or returns

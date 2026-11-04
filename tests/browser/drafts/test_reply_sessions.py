@@ -1,6 +1,8 @@
 """A reply editor's native session: what typing, clicks, sends, resolution and a
 replaced outlet leave of its caret, focus, reading position and Send."""
 
+import re
+
 import pytest
 from interact_support import append_carried_log_record
 from playwright.sync_api import expect
@@ -218,11 +220,14 @@ def open_reply(page, surface, root):
 
 def expect_resolved(page, surface, thread, resolved):
     """The thread reads resolved, or not: the panel's by its head's Resolve or Reopen,
-    a margin card by its own state."""
+    which names the agent that resolved it before Reopen, a margin card by its own
+    state."""
     if surface == "panel":
         expect(
             page.locator(".lf-fp-thread-controls :is(.lf-resolve, .lf-reopen)")
-        ).to_have_accessible_name("Reopen" if resolved else "Resolve thread")
+        ).to_have_accessible_name(
+            re.compile(r"Reopen$") if resolved else "Resolve thread"
+        )
     else:
         expect(thread).to_have_attribute("data-lf-resolved", str(resolved).lower())
 

@@ -606,6 +606,12 @@ summary {
   margin-top: var(--sp-2);
   overflow-wrap: anywhere;
 }
+/* A box a thread draws one of its parts in where its container stands the part
+   apart, as the floating panel stands Resolve on its head line (thread-card.js,
+   `apart`), lays out as what it holds, in the container's place. */
+.lf-thread-apart {
+  display: contents;
+}
 .lf-page-thread {
   box-sizing: border-box;
   min-width: 0;

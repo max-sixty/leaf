@@ -604,22 +604,29 @@ def test_resolve_opens_the_next_thread_as_tall_as_it_holds(browser, serve):
     a press on ✓ and by `r` alike: a longer one grows the view to show it whole and a
     shorter one shrinks it, its ✓ standing where that height puts it. It once opened at
     the height the resolved one stood at, so ✓ stayed under the pointer, which showed a
-    longer thread cut off behind a scroll until the user's next turn."""
+    longer thread cut off behind a scroll until the user's next turn. Each thread holds
+    a reply the user reads as it opens, which gives the reading a new record of the
+    thread: Resolve once went back to Threads there, its thread no longer found among
+    the open ones."""
     url = serve(LONG_PAGE)
-    panel_comment(serve.page_dir, "Is the window long enough?")
-    panel_comment(
-        serve.page_dir,
-        "Should the mobile cohort wait? " * 12
-        + "\n\nThe last release took a week to reach it, and the one before took two.",
-    )
-    panel_comment(serve.page_dir, "Who watches the weekend?")
+    roots = [
+        panel_comment(serve.page_dir, "Is the window long enough?"),
+        panel_comment(
+            serve.page_dir,
+            "Should the mobile cohort wait? " * 12
+            + "\n\nThe last release took a week to reach it, and the one before took two.",
+        ),
+        panel_comment(serve.page_dir, "Who watches the weekend?"),
+    ]
+    for root in roots:
+        agent_said(serve.page_dir, root, "Noted.")
     page = floating(browser, url)
     open_threads(page)
     page.locator(".lf-fp-thread", has_text="Is the window long enough?").click()
     title = page.locator(".lf-fp-head .lf-fp-title")
     expect(title).to_have_text("Is the window long enough?")
     thread = page.locator(panel_view("thread"))
-    settle = page.locator(".lf-fp-thread-controls :is(.lf-resolve, .lf-reopen)")
+    settle = page.locator(".lf-fp-head .lf-resolve")
     fits = "(view) => view.scrollHeight - view.clientHeight < 1"
     settled(page)
     short = thread.bounding_box()["height"]
@@ -2639,6 +2646,79 @@ def test_a_package_s_whole_thread_takes_its_notice_where_a_card_does(browser, se
     expect(reader.locator(".lf-thread-content > .lf-thread-news")).to_have_text("1 new")
     expect(reader.locator(".lf-msg")).to_have_count(1)
     assert page.evaluate("() => window.reader.primary")
+
+
+# A package's reader that stands a thread's head controls and reply box apart, in its
+# own shadow tree, beside the outlet that holds the thread (`parts.thread`'s `head` and
+# `reply`).
+APART_READER = """async (outside) => {
+  const api = await window.__lfWidgetApi();
+  const host = document.createElement('div');
+  host.id = 'reader';
+  host.style = 'position: fixed; inset: 0 0 auto auto; width: 320px';
+  document.querySelector('main').append(host);
+  const root = host.attachShadow({ mode: 'open' });
+  const stray = document.createElement('span');
+  document.body.append(stray);
+  window.reader = api.registerThreadPresentation(host, {
+    render: (collection, parts) => {
+      for (const thread of collection.threads) {
+        const news = document.createElement('span');
+        const controls = document.createElement('span');
+        const outlet = document.createElement('div');
+        const reply = document.createElement('div');
+        root.replaceChildren(news, controls, outlet, reply);
+        parts.thread(thread.key, outlet, {
+          head: { news: outside ? stray : news, controls },
+          reply: { outlet: reply },
+        });
+      }
+    },
+    reveal: () => {},
+  });
+  try {
+    await window.reader.update();
+    return 'drawn';
+  } catch {
+    return 'refused';
+  }
+}"""
+
+
+def test_a_package_s_places_for_a_thread_s_parts_take_them_as_its_outlet_does(
+    browser, serve
+):
+    """Every place a package names for a thread's parts is held to what its outlet is:
+    one outside the widget refuses the update, and one in the widget's shadow tree takes
+    the part through a slot, so the document's styles reach Resolve, the notice and the
+    reply box as they reach the messages. Reopen there lands in the reply box, wherever
+    the package stands it, as a card's does."""
+    url = serve(LONG_PAGE)
+    panel_comment(serve.page_dir, "Is the window long enough?")
+    page = floating(browser, url)
+    assert page.evaluate(APART_READER, True) == "refused"
+    # The refused reader gives its place back to Leaf's own.
+    page.wait_for_function("() => !window.reader.primary")
+    consume_browser_errors(
+        page,
+        "leaf: Presentation failed: A primary Thread outlet must remain inside its "
+        "connected owner",
+    )
+    page.reload()
+    wait_until_ready(page)
+    assert page.evaluate(APART_READER, False) == "drawn"
+    reader = page.locator("#reader")
+    expect(reader.locator(".lf-msg")).to_have_count(1)
+    # The parts stand in the widget's light tree, each slotted into its place.
+    assert page.evaluate(
+        """() => ['.lf-resolve', 'leaf-text', '.lf-msg'].map(
+          (part) => Boolean(document.querySelector('#reader').querySelector(part)))"""
+    ) == [True, True, True]
+    with sending(page, "the resolve"):
+        reader.locator(".lf-resolve").click()
+    with sending(page, "the reopen"):
+        reader.locator(".lf-reopen").click()
+    expect(reader.locator("leaf-text")).to_be_focused()
 
 
 def test_a_reader_arriving_later_leaves_focus_the_user_moved_elsewhere(browser, serve):

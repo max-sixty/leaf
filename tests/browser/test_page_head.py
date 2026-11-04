@@ -207,3 +207,32 @@ def test_the_pages_own_head_stands_over_what_leaf_draws_and_lands(
         assert landed["scrolled"] > 0, landed
         assert landed["risks"] >= landed["head"], landed
         assert landed["risks"] < landed["head"] + room, landed
+
+    if page.locator(".site").count():
+        with subtests.test("a header fixed after main, floating below the top, is one"):
+            # A framework renders its header at the end of `body`, here in place of the
+            # page's own, and lets it float a gap below the window's top, where a test
+            # of the top edge finds nothing. The next scroll's end reads it.
+            page.evaluate("""() => {
+              document.querySelector('.site').hidden = true;
+              const pill = document.createElement('header');
+              pill.id = 'pill';
+              pill.textContent = 'Quarterly brief';
+              pill.style.cssText = 'position: fixed; top: 12px; left: 20%; right: 20%;'
+                + ' height: 40px; z-index: 5; background: var(--paper)';
+              document.body.append(pill);
+            }""")
+            page.evaluate(
+                "() => scrollBy({top: document.getElementById('deploy')"
+                ".getBoundingClientRect().top - 30, behavior: 'instant'})"
+            )
+            scroll_settled(page)
+            read = page.evaluate("""async () => {
+              const geometry = await window.__lfCheckApi();
+              const deploy = document.getElementById('deploy');
+              return {pill: document.getElementById('pill').getBoundingClientRect().bottom,
+                      deploy: deploy.getBoundingClientRect().top,
+                      shown: geometry.shownRect(deploy, new Map())?.top};
+            }""")
+            assert read["deploy"] < read["pill"] - 10, read
+            assert read["shown"] == pytest.approx(read["pill"], abs=0.5), read

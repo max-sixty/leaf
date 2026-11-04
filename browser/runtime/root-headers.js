@@ -21,11 +21,11 @@
  *
  * A head stands, or sticks, at the window's top across the middle of the page's column,
  * and reaches less than halfway down the window, which an overlay or a sidebar fixed
- * there does not. The browser's hit test at the window's top finds every fixed one,
- * wherever the markup nests it. A sticky head stands there only once stuck, and a
- * landing made before then still arrives under it, so it is found by its place
- * instead, as a fixed head floating below the top is: ahead of the page's content
- * (`leadingBoxes`). What stands above a sticky head, such as a banner over a sticky
+ * there does not. The browser's hit test at the window's top finds every fixed one
+ * touching it, wherever the markup nests it. A sticky head stands there only once
+ * stuck, and a landing made before then still arrives under it, so it is found by its
+ * place instead, as a fixed head floating below the top is: in the page's frame
+ * rather than its content (`leadingBoxes`). What stands above a sticky head, such as a banner over a sticky
  * nav, keeps the root's slot, since by the time the nav sticks it has scrolled away. A
  * header over one section or a widget's stands in no such place.
  *
@@ -112,13 +112,15 @@ function standing(box, style = getComputedStyle(box)) {
     ? { stance: "sticky", down: Number.parseFloat(style.top) + height }
     : null;
 }
-// The fixed and sticky boxes ahead of the page's content, where a sticky head is found,
-// in document order through each box from `body` in to the one the page's Layout
-// arranges (`boxes`), and what stands above them (`above`). In the boxes around the
-// Layout's, what comes before it is the site's own frame, so a banner there stands
-// above a sticky nav after it; in the Layout's box the content starts at the first child
-// that takes room in its flow, standing neither fixed nor sticky. A skip link moved off
-// screen, an empty anchor or a hidden sprite takes no room.
+// The fixed and sticky boxes that stand in the page's frame rather than its content,
+// where a head is found by its place, in document order through each box from `body` in
+// to the one the page's Layout arranges (`boxes`), and what stands above them (`above`).
+// In the boxes around the Layout's, what comes before it is the site's own frame, so a
+// banner there stands above a sticky nav after it, and a box fixed in the window after
+// it stands over it all the same, as a header a framework renders at the end of `body`
+// does; in the Layout's box the content starts at the first child that takes room in its
+// flow, standing neither fixed nor sticky. A skip link moved off screen, an empty anchor
+// or a hidden sprite takes no room.
 /** @param {Element} arranged */
 function leadingBoxes(arranged) {
   /** @type {Element[]} */
@@ -133,10 +135,18 @@ function leadingBoxes(arranged) {
   const above = [];
   for (const [depth, holder] of holders.entries()) {
     const inner = holders[depth + 1];
+    let after = false;
     for (const child of holder.children) {
-      if (child === inner) break;
+      if (child === inner) {
+        after = true;
+        continue;
+      }
       if (!inPage(child)) continue;
       const style = getComputedStyle(child);
+      if (after) {
+        if (style.position === "fixed") boxes.push(child);
+        continue;
+      }
       if (/^(fixed|sticky)$/.test(style.position)) boxes.push(child);
       else if (
         !/^(none|contents)$/.test(style.display) &&

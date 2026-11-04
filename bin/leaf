@@ -2,6 +2,17 @@
 # The one launcher. Claude Code appends plugin bin/ directories to its Bash tool's
 # PATH; hooks and Codex resolve this launcher from the plugin or skill directory.
 #
+# That PATH entry gives agents a bare `leaf`, which the skill's `Bash(leaf:*)`
+# pre-approves, and only a top-level bin/ gets one: the plugin manifest has no
+# field naming another directory. claude.ai and Cowork, including distribution
+# through claude.ai organization settings, refuse to install a plugin with a
+# top-level bin/ (https://code.claude.com/docs/en/plugins/components#executables).
+# Leaf keeps bin/ because it ships to Claude Code through its own marketplace. To
+# reach those surfaces, first check that Leaf runs there at all, since it serves
+# pages from a local process. Then move this launcher out of bin/ and have the
+# skill name it as `${CLAUDE_PLUGIN_ROOT}/...`, which Claude Code expands as it
+# loads the skill. That costs the bare command and its pre-approval.
+#
 # A host selects its executable with an absolute LEAF_HOST_LAUNCHER path for
 # commands and native hooks, while SessionEnd keeps standalone cleanup below.
 # A redirected call consumes the selection so a host wrapper can invoke Leaf.

@@ -1058,6 +1058,10 @@ html[data-lf-region-capture]
     box-sizing: border-box;
     border-radius: var(--r);
     outline: var(--focus-ring-w) solid var(--target-trace-ink);
+    /* The gap whose stand-in holds focus, ringed as a focused block is. */
+    &.lf-change-ring {
+      outline: var(--focus-ring);
+    }
   }
   /* What a change replaced, over the change (margin-bars.js): a card lifted over the
      page, its words in a widget's font, the old struck as an edit's deletion and the

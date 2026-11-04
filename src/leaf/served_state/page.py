@@ -1,4 +1,5 @@
-"""The complete state response for one served page.
+"""The state response for one served page: whole, or the tail that completes a
+reading the browser holds (`tail.py`).
 
 `state.schema.json` beside this module declares its shape and is each field's home: a
 field's meaning is its description there. The tests hold real readings to it
@@ -15,6 +16,7 @@ from ..files import revision_label
 from ..read_state import seen_revision
 from .browser import BrowserReading, project_browser_state
 from .context import PageRead, read_page
+from .tail import since
 
 
 class ServedPage(NamedTuple):
@@ -50,7 +52,10 @@ def read_served_page(
     publication: dict | None = None,
     source_error: str | None = None,
     view_revision: int | None = None,
+    held: str | None = None,
 ) -> ServedPage:
+    """The whole answer, or with `held`, the `browser.basis.key` of a reading the
+    browser holds, the tail that completes it (`tail.since`)."""
     active = context.active
     projected = project_browser_state(context, view_revision)
     browser, reading = projected if projected is not None else (None, None)
@@ -107,6 +112,14 @@ def read_served_page(
             else {}
         ),
     }
+    if held is not None:
+
+        def earlier(seq: int) -> dict:
+            projected = project_browser_state(context.through(seq), view_revision)
+            assert projected is not None
+            return projected[0]
+
+        since(state, held, earlier)
     return ServedPage(state, reading, context.data)
 
 

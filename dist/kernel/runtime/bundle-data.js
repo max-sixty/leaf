@@ -1,4 +1,4 @@
-import { CARET_KEYS, HOLDS_WORD, J, OUTPUT, PAGE_PAINT_ATTRIBUTE, PRESS, RUNTIME_PAINT_ATTRIBUTE, SourcePairs, TEXT_BOX, TEXT_FIELD, W, WALK, Z, actionElement, actionTemplate, afterScript, aimedTop, alreadyShown, atScrollEnd, attachDeferredLoader, backgroundFlash, beginWalk, bindQueuedWork, blurFocused, byRenderedOrder, cancelRender, caretAtKey, chosenSince, clippedContents, clippedPlace, closestAcross, currentLocationIn, currentLocationNodes, currentLocationTouches, d, dataBody, deepFocus, describeFailure, drawn as drawn$2, eventSource, fitsWhole, flashDuration, focusDestination, focused, foldBlock, frameFor, generatedElement, growthAfterIsSeen, growthIsSeen, headerInset, holdCurrentLocation, holdFocus, iconElement, inChrome, inUi, inWindowChrome, inlineStyle, inputCount, isElement, isHTML, keeps, keepsHidden, keepsText, landedBox, landingBand, layoutPx, listWalkPosition, measure, motion, motionPlays, move, moveScrollerBy, nativeLayerHolding, nextAnimation, nextFrame, nextRender, offer, offerAction, offerContentElement, offered, offeredAction, offeredActionElement, onCurrentLocation, onLetGo, onPress, onPressAway, onUserInput, outputProducer, pagePresented, pageScroller, passOn, patchRetains, patchTree, placeBox, placeHolder, placeKept, plainPress, pointerAt, presented, readCaret, recentPlaceInput, refuseOutput, registrations, renderedOrder, renderedParent, renderedUnder, renderingState, restorePointer, restrictUserIntent, retainUserIntent, roomPx, scrollBehavior, scrollChoices, scrollGoal, scrollIntoReadingBand, scrollIntoView, scrollLimit, scrollToEnd, scrollersOf, seenRect, selectsAll, setChildren, setRegistration, setScroll, shownBox, shownRect, shownWindow, showsContents, sizeObserver, skipped, skipper, slotTop, stopScroll, stuckBox, synNodes, syntax, syntaxLanguageNames, tabStore, takesLetters, tick, under, union, upFrom, updateSurface, userScrollport, visibleBand, watchArrivals, watchOwner, watchScrollEnds, whenNone, x } from "./bundle-portable.js";
+import { CARET_KEYS, HOLDS_WORD, J, OUTPUT, PAGE_PAINT_ATTRIBUTE, PRESS, RUNTIME_PAINT_ATTRIBUTE, SourcePairs, TEXT_BOX, TEXT_FIELD, W, WALK, Z, actionElement, actionTemplate, afterScript, aimedTop, alreadyShown, atScrollEnd, attachDeferredLoader, backgroundFlash, beginWalk, bindQueuedWork, blurFocused, byRenderedOrder, cancelRender, caretAtKey, chosenSince, clippedContents, clippedPlace, closestAcross, composedParentNode, currentLocationIn, currentLocationNodes, currentLocationTouches, d, dataBody, deepFocus, describeFailure, drawn as drawn$2, eventSource, fitsWhole, flashDuration, focusDestination, focused, foldBlock, frameFor, generatedElement, growthAfterIsSeen, growthIsSeen, headerInset, holdCurrentLocation, holdFocus, iconElement, inChrome, inUi, inWindowChrome, inlineStyle, inputCount, isElement, isHTML, keeps, keepsHidden, keepsText, landedBox, landingBand, layoutPx, listWalkPosition, measure, motion, motionPlays, move, moveScrollerBy, nativeLayerHolding, nextAnimation, nextFrame, nextRender, offer, offerAction, offerContentElement, offered, offeredAction, offeredActionElement, onCurrentLocation, onLetGo, onPress, onPressAway, onUserInput, outputProducer, pagePresented, pageScroller, passOn, patchRetains, patchTree, placeBox, placeHolder, placeKept, plainPress, pointerAt, presented, readCaret, recentPlaceInput, refuseOutput, registrations, renderedOrder, renderedParent, renderedUnder, renderingState, restorePointer, restrictUserIntent, retainUserIntent, roomPx, scrollBehavior, scrollChoices, scrollGoal, scrollIntoReadingBand, scrollIntoView, scrollLimit, scrollToEnd, scrollersOf, seenRect, selectsAll, setChildren, setRegistration, setScroll, shownBox, shownRect, shownWindow, showsContents, sizeObserver, skipped, skipper, slotTop, stopScroll, stuckBox, synNodes, syntax, syntaxLanguageNames, tabStore, takesLetters, tick, under, union, upFrom, updateSurface, userScrollport, visibleBand, watchArrivals, watchOwner, watchScrollEnds, whenNone, x } from "./bundle-portable.js";
 import { COLLAPSE, LIVE_ROOT, PENDING, PRESENTATION_DOM, TEXT_BLOCK, adoptRegistry, agentName, agentSays, announce, applicationPresenter, applicationState, ariaShortcuts, attachApplicationPresentation, authoredBody, bindings, buttonCommand, checked, clampedRow, commandAvailable, commandRoutes, commandScope, commandsOn, cycledRow, decisionFor, declarationFor, declareCommandReadiness, declaresCommandHandler, deleted, descriptionOf, editable, el, elementDeclarations, elementsDeclaring, exhibits, foldWidgetStates, fragmentUrl, hasObligationSource, holdStatus, holdingError, html, isElementName, isReaction, keyed, keys, labelOf, lastMovedAt, layerRoot, leafSays, live as live$1, live$1 as live, loadShadowRules, marks, messageKey, nothing, notice, obligationValue, offlineDeferred, offlineInteractive, pageClaimed, pageRange, pageUrl, paintKeys, passErrorsAt, projectCommandScope, projectView, projectionOrigins, projectionRegionsPresented, pruneScopedElements, raiseError, readApplication, readPart, ref, registry, render as render$1, repaint, repeat, reveal, revisionLabel, runtime, runtimeModule, runtimeResource, sameAnchor, savedReadingSettled, seatRoot, selectEnds, selectionBackward, share, spell, tagsDeclaring, threadKey, threadNames, titleOf, tokenEntry, touchPresses as touchPresses$1, turns, voiced, watchCommandScopes, watchPresentation, whenApplicationPresented, whenApplicationRegionsPresented, whenDocumentPresented, whenWidgetsPresented, word } from "./bundle-errors.js";
 import { LayerRefused, admitReading, admitResponse, randomId, reportPageError, requestJson, revealLayer, runtimeRootState, sameLayer, setRuntimeRootAttribute } from "./bundle-layer-client.js";
 import { ADDRESSABLE, PAGE_CONTROL_RANK, addressableWord, addressedElements, ago, aimControl, aimTargetAt, anchorControl, anchorForPassage, anchorForRange, anchoringIsReady, chromeForeground, chromeRoot, claimReachStop, containingReadingRegionFor, datumAimTarget, datumLabel, deferredArrival, effectiveScroller, followingItsEnd, fragmentAddress, fragmentTarget, headerLevels, isAddressable, leadingTitle, livePoint, nameable, onReadingInput, pageReadingRegion, pressedElsewhere, projectedDatum, reachScrollers, readInsets, readingRegionFor, readingRegions, recentReadingRegion, regionScrollBehavior, regionsSettled, registerPageControl, releaseControl, releaseReachStop, resolveAnchor, revealAddressed, revealControl, scrollChainOf, scrollerFor, sectionLabel, sectionOf, settleDocumentLayout, shortAgo, shownRegionBounds, standInChrome, tabFromBlock, targetElement, targetPlace, targetSegments, unconcealedReadingRegions, visualPartLabel, watchReadingRegionTransitions, writeInsets } from "./bundle-content-layout.js";
@@ -614,7 +614,7 @@ const storedDraft = (ctx) => {
 	const read = draftStore.read(DRAFT + ctx);
 	return read.available ? parseDraftRecord(read.value) : null;
 };
-const attemptAccepted = (attempt) => runtime.receipts.some((event) => event.attempt === attempt);
+const attemptAccepted = (attempt) => runtime.events.some((event) => event.attempt === attempt);
 const writeDraftRecord = (ctx, record) => draftStore.set(DRAFT + ctx, JSON.stringify(record));
 const rawDraftRecord = (ctx) => {
 	const cached = draftCache.get(ctx);
@@ -3712,7 +3712,7 @@ function createProjectionPresentation() {
 		const root = applicationState.read();
 		if (root.phase === "waiting" || root.authoritative === null || !projectionRegionsPresented([])) return;
 		const projection = root.effective.projection;
-		const records = root.effective.view?.coverage ?? [];
+		const records = root.effective.coverage;
 		if (records.every((record) => {
 			if (record.coordinate === null) return true;
 			const e = record.event;
@@ -6945,9 +6945,17 @@ function declareSide(bridge, { beside = false } = {}) {
 }
 function obligationHolding(items, node, inventory = items) {
 	if (!node) return null;
+	const names = namedPlaces(items);
+	const near = /* @__PURE__ */ new Map();
+	for (let at = node; at; at = composedParentNode(at)) {
+		if (!isElement(at)) continue;
+		const datum = at.getAttribute("data-lf-datum");
+		const owner = at.getAttribute("data-lf-projection");
+		for (const name of [at.id && `#${at.id}`, datum !== null && `@${owner} ${datum}`]) for (const [order, item] of name && names.get(name) || []) near.set(item, order);
+	}
 	const holds = (element) => element && under(node, element);
 	let held = null;
-	for (const item of items) {
+	for (const [item] of [...near].sort((a, b) => a[1] - b[1])) {
 		const { source, node: target } = obligationPlace(item, inventory);
 		const at = holds(source) ? source : holds(target) ? target : null;
 		if (at && (!held || at !== held.at && under(at, held.at))) held = {
@@ -6956,6 +6964,30 @@ function obligationHolding(items, node, inventory = items) {
 		};
 	}
 	return held?.item ?? null;
+}
+const placeNames = /* @__PURE__ */ new WeakMap();
+function namedPlaces(items) {
+	const held = placeNames.get(items);
+	if (held) return held;
+	const names = /* @__PURE__ */ new Map();
+	const add = (name, order, item) => {
+		const listed = names.get(name);
+		if (!listed) names.set(name, [[order, item]]);
+		else if (listed.at(-1)?.[1] !== item) listed.push([order, item]);
+	};
+	items.forEach((item, order) => {
+		const { source } = item;
+		if (source.kind === "todo") {
+			const place = source.subject;
+			if (place.kind !== "page" && place.kind !== "thread") add(`#${place.id}`, order, item);
+		} else if (source.kind === "widget" && source.unit) add(`@${source.id} ${source.unit}`, order, item);
+		else if (source.kind === "widget") {
+			add(`#${source.id}`, order, item);
+			if (item.prompt.target) add(`#${item.prompt.target}`, order, item);
+		}
+	});
+	placeNames.set(items, names);
+	return names;
 }
 const placeOf = (node) => placeFrom(node, /* @__PURE__ */ new Set(), true);
 const arrivalOf = (node) => placeFrom(node, /* @__PURE__ */ new Set(), false);

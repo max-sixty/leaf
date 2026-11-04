@@ -31,7 +31,7 @@ from leaf.delivery import freeze_delivery, receive_held
 from leaf.harness import detached_environment, session_harness
 from leaf.hook_transport import read_plans
 from leaf.hosting import claim_and_start, cmd_stop
-from leaf.projection import folded_positions
+from leaf.projection import AuthoredOrders, folded_positions
 from leaf.publishing import cmd_stamp
 from leaf.render_checks import wait_until_ready
 from leaf.render_gate.scheme import rendered_revision
@@ -107,8 +107,7 @@ def folded_board(page_dir: Path) -> dict[str, list[str]]:
             "punch-list",
             "move",
             registry["lf-board"]["x-state"]["move"]["record"],
-            document.document.by_id,
-            registry,
+            AuthoredOrders(document.document.by_id, registry),
             document.projection,
         )
         return {column: order[column] for column, _label in COLUMNS}

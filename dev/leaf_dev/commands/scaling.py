@@ -10,9 +10,13 @@ for each transition: the load until the page settles, a click on an option, a
 keystroke in the page's comment field, and a wheel step down the page. An input's
 cost is the mean over several, less the page's idle CPU over the same time. Beside
 them stand the server's time to start answering each event the clicks posted, whose
-answer carries the server's reading of the page, and that answer's size. It prints each by size with the exponent fitted to the
-largest sizes (least squares of log cost on log size), and marks an exponent above
-SUPERLINEAR, which is a step nesting one walk of the page inside another.
+answer carries the server's reading of the page, and that answer's size. Every run
+also measures a page of BASE, whose costs are mostly the runtime's fixed work. It
+prints each cost by size with the exponent of its growth above the BASE page, fitted
+over the largest sizes (least squares of log growth on log size), and marks an
+exponent above SUPERLINEAR, which is a step nesting one walk of the page inside
+another. Fitting the cost itself would let fixed work hide that: 30 ms per click plus
+20/80/320 ms of quadratic work fits 1.4 over 64-256, and its growth fits 2.0.
 
 --base also measures the merge base with main (or REF), chosen as every A/B command
 chooses its arms (`arms.choose_arms`), so a change shows its exponents beside the
@@ -23,7 +27,9 @@ nested walk; the kernel's bundles keep function names, so grep the source for th
 
 CPU time rather than wall time, so a loaded host spreads the readings less than it
 spreads elapsed time; each exponent still compares sizes within one run. Pages, the
-profiles and `results.json` land in a run directory under `.tmp/scaling/`.
+profiles and `results.json` land in a run directory under `.tmp/scaling/`. The daily
+suite fails growth well past linear on every axis with the same measurement
+(`tests/journeys/test_scaling.py`).
 """
 
 import json
@@ -48,11 +54,19 @@ from leaf_dev.commands.bench_latency import Profile
 
 OUT = ROOT / ".tmp" / "scaling"
 SIZES = (32, 64, 128, 256)
-# An exponent above this, fitted over the largest sizes, is superlinear growth.
-SUPERLINEAR = 1.3
-# How many of the largest sizes the exponent is fitted over: the smallest pages'
-# costs are mostly the runtime's fixed work.
+# The page size whose costs stand for the runtime's fixed work. Each exponent fits a
+# cost's growth above it, so it is a small fraction of the sizes fitted.
+BASE = 8
+# An exponent above this is superlinear growth. It stands halfway between linear and
+# quadratic: above BASE, linear growth fits about 1.07 over 64-256, and n log n 1.25.
+SUPERLINEAR = 1.5
+# How many of the largest sizes the exponent is fitted over.
 FITTED = 3
+# A cost that grows by less than this above BASE has no exponent: what little it grew
+# is the host's noise. Milliseconds of CPU, kilobytes for the event answer's size, and
+# for the server's time to answer, which is elapsed time, milliseconds.
+FLOORS = {"event": 50}
+FLOOR = 10
 KEYS = 20
 CLICKS = 4
 WHEEL_STEPS = 30
@@ -247,12 +261,17 @@ def measure(browser, address: str, profiles: Path | None) -> dict:
         return {"elements": elements, **costs}
 
 
-def exponent(sizes: list[int], costs: list[float]) -> float | None:
-    """The least-squares slope of log cost on log size over the largest sizes."""
+def exponent(cost: str, sizes: list[int], costs: list[float]) -> float | None:
+    """The least-squares slope of log growth on log size over the largest sizes,
+    where a cost's growth is what it adds to its cost at the first size, BASE; None
+    for growth under the cost's floor."""
+    fixed = costs[0]
+    if costs[-1] - fixed < FLOORS.get(cost, FLOOR):
+        return None
     pairs = [
-        (math.log(n), math.log(c))
+        (math.log(n), math.log(c - fixed))
         for n, c in list(zip(sizes, costs, strict=True))[-FITTED:]
-        if c > 0
+        if c > fixed
     ]
     if len(pairs) < 2:
         return None
@@ -278,7 +297,7 @@ def table(axis: str, arm: str, rows: list[dict]) -> str:
         )
     cells = []
     for transition in (*TRANSITIONS, *SERVER):
-        slope = exponent(sizes, [row[transition] for row in rows])
+        slope = exponent(transition, sizes, [row[transition] for row in rows])
         mark = "!" if slope is not None and slope > SUPERLINEAR else " "
         cells.append(f" {'-' if slope is None else f'{slope:.2f}':>9}{mark}")
     lines.append(f"{'exponent':>16}" + "".join(cells))
@@ -318,12 +337,12 @@ def growth(small: Path, large: Path, ratio: float) -> list[str]:
     "--sizes",
     default=",".join(map(str, SIZES)),
     show_default=True,
-    help="Comma-separated page sizes, smallest first.",
+    help="Comma-separated page sizes, measured beside the page of BASE.",
 )
 @base_option()
 @click.option("--profile", is_flag=True, help="Profile the smallest and largest size.")
 def scaling(axes: tuple[str, ...], sizes: str, base: str | None, profile: bool) -> None:
-    sized = [int(size) for size in sizes.split(",")]
+    sized = sorted({BASE, *(int(size) for size in sizes.split(","))})
     run = run_directory(OUT)
     arms = choose_arms(base, run)
     click.echo(describe(arms) + "\n")

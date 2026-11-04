@@ -1512,7 +1512,7 @@ def test_a_published_example_has_no_agent_claim(served_example, browser):
             }"""
     )
     assert answer["status"] == 200
-    assert answer["body"]["browser"]["basis"] == {"through_seq": answer["through"]}
+    assert answer["body"]["browser"]["basis"]["through_seq"] == answer["through"]
     assert set(answer["body"]["browser"]["views"]) == {"1"}
 
 

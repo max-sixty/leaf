@@ -15,7 +15,7 @@ from functools import cached_property
 
 from .document_reading import read_document
 from .events import build_threads
-from .obligations import collection, thread_obligation_readings, user_task_obligations
+from .obligations import collection, thread_obligation_readings
 from .plans import plan_reading
 from .projection import frozen_thread_reading
 from .todos import TodoReading
@@ -94,7 +94,6 @@ class WorkReading:
             [
                 *(self.document.items["all"] if self.document is not None else []),
                 *self.thread_obligations["all"],
-                *user_task_obligations(self.log, self.thread),
             ]
         )
 

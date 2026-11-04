@@ -5539,7 +5539,7 @@ def test_a_send_s_reply_field_takes_the_row_s_seat_where_it_stands(browser, serv
     page.keyboard.press("Enter")
     # The box's tween as the thread's view opens over the row.
     held_motion(page, ".lf-fp-opened")
-    reply = page.locator(".lf-fp-reply")
+    reply = page.locator(".lf-fp-reply-outlet")
     drawn = (
         "reply => [reply.getBoundingClientRect().top, getComputedStyle(reply).clipPath]"
     )

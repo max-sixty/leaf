@@ -363,7 +363,6 @@ def test_a_turn_end_forks_the_conversation_for_the_clerk(
             "asks": [
                 {
                     "page": str(page),
-                    "kind": "question",
                     "title": "The retry limit",
                     "text": "Should the retry limit be 3 or 5?",
                     "passage": "",

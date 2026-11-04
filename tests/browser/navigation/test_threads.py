@@ -652,17 +652,21 @@ def test_go_to_threads_lands_on_threads_from_a_page_thread(browser, serve, width
         if from_thread:
             page.keyboard.press("t")
             page.keyboard.press("t")
-            current_location = page.locator(".lf-margin-preview .lf-page-thread")
+            # A margin card on a wide window; the panel's thread on a phone.
+            current_location = page.locator(
+                f"{PANEL_THREAD}, .lf-margin-preview .lf-page-thread"
+            )
             expect(current_location).to_be_focused()
             # The second of the two threads, so the first row is not the answer.
             stood_in = current_location.get_attribute("data-lf-thread")
         page.keyboard.press("g")
         page.keyboard.press("Shift+t")
-        # From the page the view takes focus; from a page thread, that thread's row.
+        # From the page the view stands on its first row; from a page thread, on that
+        # thread's row.
         expect(
             threads.locator(f'.lf-fp-thread[data-lf-key="{stood_in}"]')
             if from_thread
-            else threads
+            else threads.locator(".lf-fp-thread").first
         ).to_be_focused()
         page.keyboard.press("Escape")
         panel_settled(page, open=False)

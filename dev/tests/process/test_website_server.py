@@ -1095,18 +1095,14 @@ def test_a_title_written_after_the_reply_is_still_timed(tmp_path):
     prepare(ROOT, state, page_dir)
     with serving(ROOT, state, page_dir) as url:
         client = PageClient(url)
-        client.post(
+        comment = client.post(
             {
                 "kind": "comment",
-                "revision": client.state()["active"]["revision"],
                 "attempt": "journey-title-wait",
                 "text": "Is the release recorded?",
             }
         )
         untitled = client.state()
-        [comment] = [
-            e for e in untitled["events"] if e.get("attempt") == "journey-title-wait"
-        ]
         assert journey.title(untitled["events"], comment["id"]) is None
         paused = []
 

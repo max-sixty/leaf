@@ -461,28 +461,14 @@ async function recordInteractions(
   return new Response(null, { status: 204, headers: { "Cache-Control": "no-store" } });
 }
 
-async function acceptedEvent(
-  postedRequest: Request,
-  response: Response,
-): Promise<AcceptedEvent | null> {
+// The event an accepted POST's answer names, and whether it owes the agent an
+// answer, as the event door says (`event_endpoint.with_state`).
+async function acceptedEvent(response: Response): Promise<AcceptedEvent | null> {
   if (!response.ok) return null;
   try {
-    const posted = (await postedRequest.json()) as { attempt?: unknown };
-    if (typeof posted.attempt !== "string") return null;
-    // An accepted event's answer carries the page's state (`event_endpoint.accept_event`).
     const answer = (await response.clone().json()) as ServedEventAnswer;
     if (answer.ok !== true) return null;
-    const { state } = answer;
-    const event = state.events.find(
-      (candidate) => candidate.attempt === posted.attempt,
-    );
-    if (!event) return null;
-    // An update the agent owes an answer publishes its own obligation, on the agent
-    // until it answers (`obligations.update_obligation`).
-    return {
-      event,
-      needsReply: state.activity.obligations.includes(`update:${event.id}`),
-    };
+    return { event: answer.event, needsReply: answer.needs_reply };
   } catch {
     return null;
   }
@@ -766,10 +752,7 @@ export default {
         return response;
       }
     }
-    const postedRequest =
-      request.method === "POST" && route.inside === "api/event"
-        ? request.clone()
-        : null;
+    const posted = request.method === "POST" && route.inside === "api/event";
     const response = await getContainer(env.PAGES, privateContainer).fetch(request);
     const containerRelease = response.headers.get("Leaf-Release");
     if (containerRelease !== null && containerRelease !== manifest.release) {
@@ -777,8 +760,8 @@ export default {
       if (existing === null) cookies.push(sessionCookie(sessionId, secure));
       return rollingOut(request, env, manifest, route, reference, cookies);
     }
-    if (postedRequest) {
-      const accepted = await acceptedEvent(postedRequest, response);
+    if (posted) {
+      const accepted = await acceptedEvent(response);
       if (accepted) {
         recordAcceptedEvent(env, route, manifest.release, reference, accepted);
       }

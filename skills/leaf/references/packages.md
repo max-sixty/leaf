@@ -234,6 +234,12 @@ them: an author revising a page re-reads those instructions, not the entry.
 A `boolean` attribute works as in HTML. Name it for what its presence means and make
 absence the default, as in `lf-diff collapsed`.
 
+Leaf owns the grammar of each name it looks up: an element's `id`, an `x-data`
+input's source attribute and a verb's `contract` attribute. Declare each as
+`{"type": "string"}`; composition writes its `pattern` into the merged registry,
+replacing any the declaration gives. An `x-refers` attribute needs no pattern either,
+since `page check` requires its value to name an element the page holds.
+
 The shipped declarations are the worked examples. For the keys that change a widget's
 role on the page:
 

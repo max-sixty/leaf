@@ -27,7 +27,7 @@ from playwright.sync_api import Page
 import leaf_website
 from leaf.hosting import LeafHTTPServer
 from leaf.render_gate.scheme import collect_page_exceptions
-from leaf_dev.browser import Window, headless_shell, load, tab
+from leaf_dev.browser import Window, headless_shell, load, screenshot, tab
 from leaf_dev.commands import site as site_build
 from leaf_dev.example_data import catalog_sources
 from leaf_dev.leaf_assets import pinned_assets, publish, stage
@@ -133,7 +133,7 @@ def refresh_previews() -> None:
                 load(page, f"{origin}/examples/{source.stem}/")
                 if not captures:
                     require_capture_fonts(page)
-                png = page.screenshot(animations="disabled", caret="hide")
+                png = screenshot(page)
                 image = Image.open(io.BytesIO(png)).convert("RGB")
                 image = image.resize(OUTPUT_SIZE, Image.Resampling.LANCZOS)
                 target = f"example-{source.stem}.jpg"

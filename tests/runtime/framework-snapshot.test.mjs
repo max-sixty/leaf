@@ -159,6 +159,21 @@ test("publisher shares unchanged subtrees, so a selection hears only its own par
   );
 });
 
+test("sharing a list keeps each item the prior list holds, wherever it moved", () => {
+  const items = [{ id: "a" }, { id: "b" }, { id: "c" }];
+  const added = { id: "new" };
+  const shared = share(items, [added, ...items.toReversed()]);
+  assert.deepEqual(
+    shared.map((item) => items.includes(item)),
+    [false, true, true, true],
+  );
+  assert.equal(shared[0], added);
+  // An item equal to the one that stood at its place, but a new object, is the
+  // prior's.
+  const [first] = share(items, [{ id: "a" }]);
+  assert.equal(first, items[0]);
+});
+
 test("sharing keeps a JSON field named __proto__ an own field", () => {
   const prior = JSON.parse('{"kept": {"a": 1}, "__proto__": {"x": 1}}');
   const next = JSON.parse('{"kept": {"a": 1}, "__proto__": {"x": 2}}');

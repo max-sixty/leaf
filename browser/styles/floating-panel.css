@@ -4,12 +4,12 @@
 
    The panel stands on the page's own ground, set off by a hairline and the faintest
    shadow, with 12px corners: part of the page rather than a widget laid on it. Its
-   controls are set in the interface's compact font (`--font-compact`, base.css), with
+   controls are set in the interface's compact font (`--font-compact`, tokens.css), with
    the small font for what qualifies them, as every other list's ends and headings do,
    and what anyone wrote (questions, messages, a plan) in a thread's,
    `--font-message`; none of it takes the page's prose face. It once set its own 13px and
    12px, which put its qualifiers half a pixel larger than the headings and statuses
-   it shares with the other lists. Three inks: the ink, the muted (`--muted`, base.css)
+   it shares with the other lists. Three inks: the ink, the muted (`--muted`, tokens.css)
    for what qualifies a line, as every list's does, and the
    accent for what is on the user, with the empty field's status a step dimmer at 62%
    (`--lf-fp-quiet`). The status is as dim as WCAG AA's 4.5:1 for text lets it be on the

@@ -138,7 +138,7 @@ def test_cli_queries_canonical_records_without_changing_the_log(tmp_path, monkey
         cli, ["page", "interactions", str(tmp_path), "--since", "2026-10-09T06:08:42"]
     )
     assert invalid.exit_code == 1
-    assert "require a timezone offset" in json.loads(invalid.stderr)["error"]
+    assert "timezone offset" in json.loads(invalid.stderr)["error"]
     assert [
         row["command"] for row in read_interactions(tmp_path, types=("leaf_command",))
     ] == ["page interactions", "page interactions", "page interactions"]

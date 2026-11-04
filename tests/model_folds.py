@@ -40,6 +40,7 @@ from leaf.passages import SourceReading
 from leaf.registry.storage import served_layer
 from leaf.served_state.context import PageRead
 from leaf.served_state.page import read_served_page
+from leaf.served_state.tail import answer
 from leaf.structure import SourceDocument
 
 NOW = "2026-09-19T12:00:00+00:00"
@@ -108,8 +109,10 @@ def served_reading(
 
     `documents` holds the revisions available at this point, or one string for
     a single revision. The newest is active; `view_revision` also reads a historical
-    document, through the same route as the browser. `held` is the `browser.basis.key`
-    of a reading the browser holds, which the answer completes (`served_state.tail`).
+    document, through the same route as the browser. The reading is named and
+    remembered as the page server names what it serves; `held` is the
+    `browser.basis.key` of an earlier one, which makes the answer the changes since
+    it where this process remembers it (`served_state.tail`).
 
     `events` are written the way a command states them. The log's own fields —
     `id` (`e1`, `e2`, … in written order, which is what a later event names its
@@ -181,10 +184,10 @@ def served_reading(
             taken=float(len(log) + 1),
         ),
         view_revision=view_revision,
-        held=held,
     ).state
-    assert (error := served_state_error(state)) is None, error
-    return state
+    sent = answer(state, held, "model")
+    assert (error := served_state_error(sent, ("Reading", "Tail"))) is None, error
+    return sent
 
 
 def reading(

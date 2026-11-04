@@ -90,6 +90,21 @@ def test_check_rejects_an_invalid_bound_and_loose_pane_text(page_dir):
     assert found(findings, "pane-body", "<lf-pane>", body=["#text", "p"])
 
 
+@pytest.mark.parametrize("target", ["Plan_Notes", "missing-notes"])
+def test_a_reference_names_any_element_the_page_holds(page_dir, target):
+    """An `x-refers` attribute takes the id of whatever element it names, a section
+    whose id a widget couldn't carry included, and `page check` refuses only a value
+    naming no element."""
+    (page_dir / "index.html").write_text(
+        PAGE.replace('<section id="plan">', '<section id="Plan_Notes">').replace(
+            '<lf-option id="flag-first">', f'<lf-option id="flag-first" for="{target}">'
+        )
+    )
+    _status, findings = check_findings(page_dir)
+    assert not found(findings, "attribute-schema", "<lf-option>")
+    assert bool(found(findings, "unknown-reference")) == (target == "missing-notes")
+
+
 def test_check_rejects_an_unknown_authored_width(page_dir):
     (page_dir / "index.html").write_text(
         PAGE.replace(

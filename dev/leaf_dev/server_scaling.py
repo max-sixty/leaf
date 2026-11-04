@@ -288,7 +288,7 @@ def measure(
     """Each path's least CPU over `RUNS` on `collection`'s page at each of `sizes`,
     built under `directory`, in ms, beside the events its log holds; with
     `profile`, the function times of one more run of each path on the smallest
-    page and the largest.
+    page and the largest, in the order the rounds take them.
 
     Each round runs every page once, so a burst of load on the host lands on one
     reading of each size rather than on every reading of one. In each round a page
@@ -301,10 +301,8 @@ def measure(
         held = {n: len(read_events(pages[n])) for n in sizes}
         calls = {n: server_paths(pages[n], collection.log(n)) for n in sizes}
         readings: dict[int, dict[str, list[float]]] = {n: {} for n in sizes}
-        for paths in (
-            ("append", "state", "delivery", "agent", "thread"),
-            ("activate",),
-        ):
+        order = (("append", "state", "delivery", "agent", "thread"), ("activate",))
+        for paths in order:
             for _ in range(RUNS):
                 for n in sizes:
                     for path in paths:
@@ -315,8 +313,12 @@ def measure(
         profiled: dict[str, list[dict]] = {}
         if profile:
             for n in (sizes[0], sizes[-1]):
-                for path, call in calls[n].items():
-                    profiled.setdefault(path, []).append(function_times(call))
+                for paths in order:
+                    for path in paths:
+                        if path in calls[n]:
+                            profiled.setdefault(path, []).append(
+                                function_times(calls[n][path])
+                            )
         rows = [
             {
                 "n": n,

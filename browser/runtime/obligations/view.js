@@ -55,7 +55,7 @@ import { paintLocation } from "../target-paint.js";
 import { scrollBehavior } from "../motion.js";
 import { OBLIGATION_CONTROL } from "./view-elements.js";
 import { obligationWord, ownedObligationControl } from "./answer.js";
-import { obligationHolding, placeOf } from "../current-target.js";
+import { obligationAt, placeOf } from "../current-target.js";
 import { PRESENTATION } from "../presentation.js";
 import { retainUserIntent } from "../user-intent.js";
 import { bindQueuedWork } from "../queued-work.js";
@@ -244,12 +244,6 @@ export function createObligationView({
     reviewedThrough = null;
     return false;
   }
-  // Resolve a current location back to one record from the publisher-owned
-  // inventory: the source or unambiguous context holding where `node` stands
-  // (current-target.js). DOM containment says where focus is; it never decides whether
-  // the obligation belongs to that inventory.
-  /** @param {readonly Obligation[]} items @param {Element} node */
-  const obligationAt = (items, node) => obligationHolding(items, placeOf(node));
   // The obligation the user is in: the one holding the focus, or the one a control
   // hoisted into the margin decides, or the one a thread about it holds the focus for.
   //
@@ -265,7 +259,7 @@ export function createObligationView({
   // the same numeric action route so they can revise the recorded answer.
   function currentLocationObligation(held = focused()) {
     if (!held || held === document.body) return null;
-    const record = obligationAt(readObligations().all, held);
+    const record = obligationAt(held);
     if (!record) return null;
     if (readObligations().unanswered.some((item) => item.id === record.id))
       return record;
@@ -326,22 +320,19 @@ export function createObligationView({
         }),
     );
   }
-  // The widget obligation whose commands answer where `node` stands, which is the
-  // obligation holding it: only a widget's obligation has a place (`obligationPlace`).
-  /** @param {Element | null} node */
-  const answerableAt = (node) =>
-    obligationHolding(readObligations().all, placeOf(node));
+  // The commands that answer where `origin` stands: the obligation there, which is a
+  // widget's, since only a widget's obligation has a place (`obligationPlace`).
   /** @param {Element | null} origin */
   function obligationContext(origin) {
     if (!origin) return null;
-    const record = answerableAt(placeOf(hostIn(origin, document)));
+    const record = obligationAt(placeOf(hostIn(origin, document)));
     let root = null;
     // Keep the projection outside any nearer widget scope, but inside the
     // keyboard boundary of a thread. Native input claims precede context scopes.
     /** @type {Element | null} */
     let node = origin;
     for (; record && node; node = upFrom(node)) {
-      if (answerableAt(node)?.id !== record.id) break;
+      if (obligationAt(node)?.id !== record.id) break;
       root = node;
       if (node.hasAttribute("data-lf-thread-surface")) break;
     }

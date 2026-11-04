@@ -60,8 +60,9 @@
   );
   /* What a page reads of the chrome, and only where it needs a number: a box that fills
      the window takes --lf-view-height, and a box that sticks stops at --lf-top, below
-     the head room and any sticky header under it. Ordinary content never sees either
-     band; the document already keeps clear of both (html[data-lf-live], base.css). */
+     the head room, the page's own heads (base.css, at `--lf-top`) and any sticky header
+     under them. Ordinary content never sees either band; the document already keeps
+     clear of both (html[data-lf-live], base.css). */
   --lf-view-height: calc(100dvh - var(--lf-head-room) - var(--lf-foot-room));
   --lf-top: var(--lf-head-room);
   /* A scroller's landing band, which its `scroll-padding-top` states (the root's, base.css),
@@ -75,7 +76,7 @@
   /* The page tab strip's stated height: its 8px head, a name's 38px face or the aim
      floor where that is taller, and its 1px rule. The default package draws the strip
      at it, and the root's `scroll-padding` adds it where a page tab strip stands over
-     the root (`--lf-root-headers`, page-layout.js). */
+     the root (`--lf-root-headers`, root-headers.js). */
   --lf-tabstrip-h: calc(9px + max(38px, var(--aim-floor)));
   /* Stacking: one ascending ladder for everything the runtime lifts over the page.
      A number local to a component's own stacking context stays where it is written.

@@ -469,11 +469,13 @@ a[data-lf-external]::after,
 /* A landing clears the sticky headers stacked over what it lands on. Its scroller's
    `scroll-padding` clears those over the whole scroller (the head room, a page tab
    strip); this margin clears the rest, those over part of it, such as a framed tab
-   set's strip or a diff's file header: the slot (`--lf-top`, base.css) less what the
-   band covers whole (`--lf-top-covered`). Content the band covers past, beside a page
-   tab strip rather than under it, keeps no margin. The browser's own scroll to a
-   target reads it, and so does the runtime's landing (landing-scroll.js), as one
-   reading of the same clearance. */
+   set's strip or a diff's file header, and the page's own heads: the slot (`--lf-top`,
+   base.css) less what the band covers whole (`--lf-top-covered`). A margin the page
+   gives a box itself replaces this one, so a page that states its own room for its
+   header lands a target there once. Content the band covers past, beside a page tab
+   strip rather than under it, keeps no margin. The browser's own scroll to a target
+   reads it, and so does the runtime's landing (landing-scroll.js), as one reading of
+   the same clearance. */
 :where(*) {
   scroll-margin-top: max(0px, var(--lf-top) - var(--lf-top-covered, var(--lf-top)));
 }

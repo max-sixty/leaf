@@ -444,7 +444,7 @@ export class MessageView {
       this.node.classList.add("lf-msg");
       // Which message a node draws, for a presentation handing the user's place in a
       // thread to another, as the floating panel does to a page's own reader.
-      this.node.dataset.message = model.key;
+      this.node.dataset.lfMessage = model.key;
       this.node.classList.add("lf-ui");
       generatedElement(this.node, { says: false });
       this.node.dataset.lfOffer = "";
@@ -499,11 +499,11 @@ export class MessageView {
           this.#commands.edit.paint(this.node);
       });
     keeps(this.node, "data-lf-author", model.author);
-    keeps(this.node, "data-event", model.id);
+    keeps(this.node, "data-lf-event", model.id);
     this.node.classList.toggle("lf-unread", Boolean(model.unread));
-    keeps(this.node, "data-attempt", model.attempt || null);
+    keeps(this.node, "data-lf-attempt", model.attempt || null);
     keeps(this.node, "aria-busy", model.pending ? "true" : null);
-    keeps(this.node, "data-failure", model.failure || null);
+    keeps(this.node, "data-lf-failure", model.failure || null);
     const authoredKey = model.attempt ?? model.id;
     const authored = model.body.authored ? authoredMessage(model).nodes : [];
     let displaced = null;

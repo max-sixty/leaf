@@ -55,7 +55,6 @@ from render_cases_navigation import (
     wait_for_pending_mark,
 )
 from render_harness import (
-    EXAMPLES,
     INLINE_PAGE,
     LONG_PAGE,
     PANEL,
@@ -95,7 +94,7 @@ from leaf import structure as structure_model
 from leaf.registry import storage as registry_storage
 from leaf.render_checks import rendered
 from leaf.schema import ELEMENT_ID
-from leaf_dev.example_data import patch_manifest
+from leaf_dev.example_data import named_source, patch_manifest
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -173,7 +172,7 @@ def test_a_comment_box_follows_its_passage_and_resume_returns_the_writer(
     browser, serve
 ):
     """Resume writing recovers the same native field and words with its passage."""
-    source = next(source for source in EXAMPLES if source.stem == "triage-board")
+    source = named_source("triage-board")
     page = open_page(browser, serve(source))
     resized(page, 1280, 500)
     box = page.locator("#triage-lede").bounding_box()
@@ -563,7 +562,7 @@ def test_monitoring_regions_share_one_collaboration_layer(browser, serve):
     The shipped example gives moving evidence its own scroll and keeps current release
     state ahead of it. A check comment still returns to its region without creating an
     event merely because the user navigated there."""
-    example = next(p for p in EXAMPLES if p.stem == "live-progress")
+    example = named_source("live-progress")
     quote = "1,998 / 1,999 rows"
     url = serve(example, anchored=[("lp-check-finance", quote)])
     page = open_page(browser, live_url(url))
@@ -1121,7 +1120,7 @@ def test_an_open_composer_does_not_eat_the_next_click(browser, serve):
     page.locator("#p").scroll_into_view_if_needed()
     page.mouse.click(*mark_point(page, "lf-mark"))
     expect(page.locator(".lf-margin-preview")).to_be_visible()
-    expect(page.locator(PANEL)).not_to_have_attribute("data-open", re.compile("."))
+    expect(page.locator(PANEL)).not_to_have_attribute("data-lf-open", re.compile("."))
 
     # And the composer's own mark belongs to no thread, so it opens nothing. Its first
     # range runs up to the posted one, so this lands on the draft and nothing else.
@@ -1133,7 +1132,7 @@ def test_an_open_composer_does_not_eat_the_next_click(browser, serve):
     )
     page.mouse.click(*mark_point(page, "lf-pending"))
     rendered(page)
-    assert page.locator(PANEL).get_attribute("data-open") is None, (
+    assert page.locator(PANEL).get_attribute("data-lf-open") is None, (
         "clicking the composer's own highlight opened the panel, but it belongs to no thread"
     )
 
@@ -1168,7 +1167,7 @@ def test_a_click_on_a_mark_decides_once(browser, serve):
                                     return {x: r.left + r.width / 2, y: r.top + r.height / 2}; }""")
     page.mouse.click(spot["x"], spot["y"])
     expect(page.locator(".lf-margin-preview")).to_be_visible()
-    expect(page.locator(PANEL)).not_to_have_attribute("data-open", re.compile("."))
+    expect(page.locator(PANEL)).not_to_have_attribute("data-lf-open", re.compile("."))
     expect(
         page.locator(".lf-fab-input"),
         "the click opened the thread and then offered to comment on it as well",
@@ -2778,7 +2777,7 @@ def test_two_comments_on_one_element_both_stay_anchored(browser, serve):
     figure.scroll_into_view_if_needed()
     figure.click()
     expect(figure).to_have_class(re.compile(r"\blf-projected-mark\b"))
-    mark = page.locator('.lf-visual-mark[data-for="fig"]')
+    mark = page.locator('.lf-visual-mark[data-lf-for="fig"]')
     expect(mark).to_be_visible()
     look = mark.evaluate(
         """node => { const style = getComputedStyle(node, '::after'); return {
@@ -3043,7 +3042,7 @@ def test_pressing_the_current_element_mark_keeps_its_contour(browser, serve):
     page = open_page(browser, url)
     figure = page.locator("#fig")
     figure.scroll_into_view_if_needed()
-    mark = page.locator('.lf-visual-mark[data-for="fig"]')
+    mark = page.locator('.lf-visual-mark[data-lf-for="fig"]')
     expect(mark).to_have_count(0)
 
     look = """node => { const style = getComputedStyle(node, '::after'); return {
@@ -3070,7 +3069,7 @@ def test_pressing_the_current_element_mark_keeps_its_contour(browser, serve):
           const sample = () => {
             window.lfFrames.push({
               contour: Boolean(document.querySelector(
-                '.lf-visual-mark-here[data-for="fig"]')),
+                '.lf-visual-mark-here[data-lf-for="fig"]')),
               entry: document.querySelectorAll('[data-lf-target-selected]').length,
             });
             if (window.lfFrames.length < 400) requestAnimationFrame(sample);
@@ -3666,7 +3665,7 @@ def test_a_change_opens_what_it_replaced_in_a_card_over_it(browser, serve):
     The authored pair supplies the contrasts: one rewritten paragraph with a surviving
     and a replaced sentence, and the new paragraph after it, which make one change; a
     rewritten heading and lede, another; and one new list item, the third."""
-    example = next(p for p in EXAMPLES if p.stem == "log-retention")
+    example = named_source("log-retention")
     page = open_page(browser, serve(example))
     compare_with(page, 1)
     expect(page.locator("main .lf-ins-block")).to_have_count(5)
@@ -4456,11 +4455,11 @@ def test_back_returns_from_a_thread_a_widget_surface_holds(browser, serve, arriv
 
     page.keyboard.press("t")
     expect(
-        page.locator(f'lf-diff .lf-page-thread[data-thread="{root}"]')
+        page.locator(f'lf-diff .lf-page-thread[data-lf-thread="{root}"]')
     ).to_be_focused()
     # Card focus precedes the smooth scroll; observe arrival before settling it.
     expect(
-        page.locator(f'lf-diff .lf-page-thread[data-thread="{root}"]')
+        page.locator(f'lf-diff .lf-page-thread[data-lf-thread="{root}"]')
     ).to_be_in_viewport()
     scroll_settled(page)
     assert page.evaluate("document.scrollingElement.scrollTop") < reading - 1000
@@ -5404,7 +5403,7 @@ new file mode 120000
 
 def test_a_block_leaving_the_viewport_keeps_its_focused_comment(browser, serve):
     """A block scrolling out of view gives the viewport its draft before it loses focus."""
-    source = next(source for source in EXAMPLES if source.stem == "live-progress")
+    source = named_source("live-progress")
     page = open_page(browser, serve(source))
     resized(page, 700, 850)
     page.evaluate("""() => {
@@ -5460,13 +5459,13 @@ def test_a_revised_example_travels_between_its_own_versions(browser, serve):
     That is also this file's floor for the corpus. The example sweeps serve the newest
     version and never press anything, so with no reading here the picker could offer
     a list nobody walks and a Compare control nobody presses on every page in examples/."""
-    example = next(p for p in EXAMPLES if p.stem == "log-retention")
+    example = named_source("log-retention")
     page = open_page(browser, serve(example))
 
     # Served at the newest version, with the earlier one under Versions.
     versions = panel_menu(page, "versions")
     expect(
-        versions.locator(".lf-fp-version[data-current] .lf-fp-item")
+        versions.locator(".lf-fp-version[data-lf-current] .lf-fp-item")
     ).to_contain_text("v2")
     expect(versions.locator(".lf-fp-version")).to_have_count(2)
     page.locator(".lf-fp-leaf").click()
@@ -5516,11 +5515,13 @@ def test_a_revised_example_travels_between_its_own_versions(browser, serve):
     # And the older document is a real destination, not just a row: choosing it pins
     # the user to the virtual version address the picker named.
     panel_menu(page, "versions").locator(
-        ".lf-fp-version:not([data-current]) > .lf-fp-item"
+        ".lf-fp-version:not([data-lf-current]) > .lf-fp-item"
     ).click()
     page.wait_for_url(re.compile(r"/versions/v1\.html"))
     expect(
-        panel_menu(page, "versions").locator(".lf-fp-version[data-current] .lf-fp-item")
+        panel_menu(page, "versions").locator(
+            ".lf-fp-version[data-lf-current] .lf-fp-item"
+        )
     ).to_contain_text("v1")
     page.locator(".lf-fp-leaf").click()
     expect(page.locator("#ret-cost-keep")).to_have_count(0)

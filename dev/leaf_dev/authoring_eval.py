@@ -405,8 +405,8 @@ def execute(
                             "phases": {"": "1"},
                             "author_phases": [1],
                             "widths": {
-                                name: list(viewport)
-                                for name, (viewport, _) in run.widths.items()
+                                name: list(window.size)
+                                for name, window in run.windows.items()
                             },
                         },
                         "phases": {

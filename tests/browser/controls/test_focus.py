@@ -21,7 +21,6 @@ from render_harness import (
     LONG_PAGE,
     RELEASE_FOCUS,
     REPLY_HOST_PAGE,
-    ROOT,
     expect_comment_notes,
     held_frames,
     holding,
@@ -40,6 +39,7 @@ from render_harness import (
 from browser.threads import open_panel_thread
 from leaf import event_log as events_model
 from leaf.render_checks import rendered
+from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -136,7 +136,7 @@ def test_show_from_on_me_lands_in_the_card_it_opens(browser, serve):
     """On me's Show on a question asked in a thread's words opens the thread's card on
     the page with the user in it. The arrival stood them on the message On me drew,
     and On me closing then dropped them on the page."""
-    page = open_page(browser, serve(ROOT / "examples" / "ship-review.html"))
+    page = open_page(browser, serve(named_source("ship-review")))
     page.locator(".lf-fp-on-user").click()
     card = page.locator(f"{panel_view('queue')} .lf-fp-on-item").filter(
         has_text="The vendor release is the only schedule"

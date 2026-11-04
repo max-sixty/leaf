@@ -37,39 +37,59 @@ _DATA_COMPANION = Draft202012Validator(
 )
 
 
-# Where authored pages live in a checkout: the examples, the developer galleries and
-# the full-page regression fixtures. A command line names a page by its file's stem.
-SOURCE_DIRS = ("examples", "examples/developer", "tests/fixtures/pages")
+# Where authored pages live in a checkout: the worked examples and the developer
+# galleries, which the public site publishes, and the full-page regression fixtures.
+# A command line or a test names a page by its file's stem.
+WORKED_EXAMPLES = Path("examples")
+DEVELOPER_GALLERIES = WORKED_EXAMPLES / "developer"
+PUBLISHED_DIRS = (WORKED_EXAMPLES, DEVELOPER_GALLERIES)
+SOURCE_DIRS = (*PUBLISHED_DIRS, Path("tests/fixtures/pages"))
+# The product documents (`leaf_dev.docs`): a name picks one as it picks an authored
+# page, but the corpus and the sweeps over authored pages leave them out.
+PRODUCT_DOCS = Path("docs")
+
+# `leaf-dev corpus` composes every authored page into this ignored path among the
+# worked examples, so it is a source a name picks but never an authored page.
+CORPUS = WORKED_EXAMPLES / "corpus.html"
 
 
 def source_directories(root: Path = ROOT) -> list[Path]:
     return [root / directory for directory in SOURCE_DIRS]
 
 
-def authored_sources(root: Path = ROOT) -> list[Path]:
-    """Every authored page, by directory and then name; the corpus is generated."""
+def authored_sources(
+    root: Path = ROOT, directories: tuple[Path, ...] = SOURCE_DIRS
+) -> list[Path]:
+    """Every authored page in `directories`, by directory and then name."""
     return [
         path
-        for directory in source_directories(root)
-        for path in sorted(directory.glob("*.html"))
-        if path != root / "examples" / "corpus.html"
+        for directory in directories
+        for path in sorted((root / directory).glob("*.html"))
+        if path != root / CORPUS
     ]
 
 
-def named_source(name: str, *, root: Path = ROOT) -> Path:
-    """The one authored source a name picks out of `SOURCE_DIRS`; a ValueError
-    says why a name picks none, or several. The generated corpus is built on demand."""
-    name = name.removesuffix(".html")
-    if name == "corpus":
-        from leaf_dev.commands.corpus import generate
+def published_sources(root: Path = ROOT) -> list[Path]:
+    """The authored pages the public site publishes."""
+    return authored_sources(root, PUBLISHED_DIRS)
 
-        return generate(root)
-    found = [path for path in authored_sources(root) if path.stem == name]
+
+def named_source(name: str, *, root: Path = ROOT) -> Path:
+    """The one source a name picks out of the authored pages, the product documents
+    and the corpus; a ValueError says why a name picks none, or several. The corpus
+    is generated on demand."""
+    name = name.removesuffix(".html")
+    sources = [root / CORPUS, *authored_sources(root, (*SOURCE_DIRS, PRODUCT_DOCS))]
+    found = [path for path in sources if path.stem == name]
     if len(found) > 1:
         raise ValueError(f"{name} names more than one source: {found}")
     if not found:
-        available = sorted({"corpus"} | {path.stem for path in authored_sources(root)})
-        raise ValueError(f"no source named {name}; available: {', '.join(available)}")
+        names = sorted({path.stem for path in sources})
+        raise ValueError(f"no source named {name}; available: {', '.join(names)}")
+    if found[0] == root / CORPUS:
+        from leaf_dev.commands.corpus import generate
+
+        return generate(root)
     return found[0]
 
 
@@ -82,15 +102,14 @@ def catalog_sources(root: Path = ROOT) -> list[Path]:
     """
 
     document = SourceDocument(
-        (root / "docs" / "examples.html").read_text(encoding="utf-8")
+        (root / PRODUCT_DOCS / "examples.html").read_text(encoding="utf-8")
     )
     sources = []
     for link in document.tree.select("a.example-link"):
         href = link.attrs["href"]
         assert isinstance(href, str)
-        sources.append(
-            root / "examples" / f"{href.removeprefix('/examples/').strip('/')}.html"
-        )
+        stem = href.removeprefix("/examples/").strip("/")
+        sources.append(root / WORKED_EXAMPLES / f"{stem}.html")
     return sources
 
 

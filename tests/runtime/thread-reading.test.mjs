@@ -15,21 +15,21 @@ test("Thread destinations without a page preview retain canonical targets and sh
   const shadow = owner.attachShadow({ mode: "open" });
   const thread = document.createElement("section");
   thread.className = "lf-page-thread";
-  thread.dataset.thread = "thread-without-preview";
+  thread.dataset.lfThread = "thread-without-preview";
   const control = document.createElement("button");
   thread.append(control);
   shadow.append(thread);
   document.body.append(owner);
   const destinations = createThreadDestinations({
     threadIdsAt: () => [],
-    placedAt: (id) => (id === thread.dataset.thread ? { place: owner } : null),
+    placedAt: (id) => (id === thread.dataset.lfThread ? { place: owner } : null),
   });
   control.focus();
   assert.equal(destinations.threadHere(), thread);
-  assert.equal(destinations.threadAtCurrentLocation(), thread.dataset.thread);
-  assert.equal(destinations.threadTarget(thread.dataset.thread), owner);
+  assert.equal(destinations.threadAtCurrentLocation(), thread.dataset.lfThread);
+  assert.equal(destinations.threadTarget(thread.dataset.lfThread), owner);
   assert.equal(destinations.threadTarget("detached"), null);
-  assert.equal(destinations.threadFocusTarget(thread.dataset.thread), null);
+  assert.equal(destinations.threadFocusTarget(thread.dataset.lfThread), null);
   owner.remove();
 });
 

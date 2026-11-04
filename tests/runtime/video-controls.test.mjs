@@ -27,7 +27,7 @@ test("a recording redraw retains native media and controls, including a range th
   const fullScreen = bar.querySelector(".lf-video-full-screen");
   assert.equal(bar.getAttribute("aria-label"), "Test recording");
   assert.equal(play.getAttribute("aria-label"), "Play recording");
-  assert.equal(bar.hasAttribute("data-playing"), false);
+  assert.equal(bar.hasAttribute("data-lf-playing"), false);
   assert.equal(timeline.value, "12");
   assert.equal(timeline.getAttribute("aria-valuetext"), "0:12 of 2:05");
   timeline.value = "90";
@@ -39,7 +39,7 @@ test("a recording redraw retains native media and controls, including a range th
   assert.equal(video.currentTime, 55);
   video.paused = false;
   paint();
-  assert.equal(bar.hasAttribute("data-playing"), true);
+  assert.equal(bar.hasAttribute("data-lf-playing"), true);
   assert.equal(play.getAttribute("aria-label"), "Pause recording");
   assert.equal(timeline.getAttribute("aria-valuetext"), "0:55 of 2:05");
   assert.equal(bar.querySelector(".lf-video-play"), play);

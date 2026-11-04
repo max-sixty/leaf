@@ -208,7 +208,7 @@ def open_reply(page, surface, root):
     else:
         page.keyboard.press("t")
         thread = page.locator(
-            f'.lf-margin-preview .lf-page-thread[data-thread="{root}"]'
+            f'.lf-margin-preview .lf-page-thread[data-lf-thread="{root}"]'
         )
         page.keyboard.press("c")
         field = thread.locator("leaf-text")
@@ -224,7 +224,7 @@ def expect_resolved(page, surface, thread, resolved):
             "Reopen" if resolved else "Resolve thread"
         )
     else:
-        expect(thread).to_have_attribute("data-resolved", str(resolved).lower())
+        expect(thread).to_have_attribute("data-lf-resolved", str(resolved).lower())
 
 
 def send_button(page, surface, thread):
@@ -356,7 +356,9 @@ def test_reply_editing_and_saved_words_have_separate_resolution_lifetimes(
     if resolution == "user":
         # Resolving from the panel moves the user on, so the field is the next
         # thread's.
-        expect(page.locator(f'{PANEL_THREAD}[data-thread="{root}"]')).to_have_count(0)
+        expect(page.locator(f'{PANEL_THREAD}[data-lf-thread="{root}"]')).to_have_count(
+            0
+        )
     elif surface == "panel":
         # The panel's reply box stands in a resolved thread, its words with it.
         expect(field).to_have_js_property("value", words)
@@ -464,7 +466,7 @@ def test_send_follows_a_reply_composition_whose_diff_outlet_disappears(browser, 
         },
     )["id"]
     page = open_page(browser, url)
-    inline = page.locator(f'lf-diff .lf-page-thread[data-thread="{root}"]')
+    inline = page.locator(f'lf-diff .lf-page-thread[data-lf-thread="{root}"]')
     words = "I still need to send my answer about that line."
     write(inline.locator("leaf-text"), words)
     events_model.append_event(
@@ -480,7 +482,7 @@ def test_send_follows_a_reply_composition_whose_diff_outlet_disappears(browser, 
     )
     told(page)
     expect(inline).to_have_count(0)
-    card = page.locator(f'.lf-margin-preview .lf-page-thread[data-thread="{root}"]')
+    card = page.locator(f'.lf-margin-preview .lf-page-thread[data-lf-thread="{root}"]')
     expect(card.get_by_role("button", name="Send", exact=True)).to_be_focused()
     expect(card.locator("leaf-text")).to_have_js_property("value", words)
     with sending(page, "the reply after its Send moved"):
@@ -520,7 +522,7 @@ def test_tab_browsing_keeps_a_reply_when_its_diff_outlet_is_replaced(
         },
     )["id"]
     page = open_page(browser, url)
-    inline = page.locator(f'lf-diff .lf-page-thread[data-thread="{root}"]')
+    inline = page.locator(f'lf-diff .lf-page-thread[data-lf-thread="{root}"]')
     words = "I still need to send my answer about that line."
     write(inline.locator("leaf-text"), words)
     if cleared:
@@ -552,7 +554,7 @@ def test_tab_browsing_keeps_a_reply_when_its_diff_outlet_is_replaced(
     expect(page.locator("lf-diff").get_by_text("new = 1", exact=True)).to_be_visible()
     expect(inline).to_have_count(0)
     expect(after).to_be_focused()
-    card = page.locator(f'.lf-margin-preview .lf-page-thread[data-thread="{root}"]')
+    card = page.locator(f'.lf-margin-preview .lf-page-thread[data-lf-thread="{root}"]')
     expect(card.locator("leaf-text")).to_be_visible()
     expect(card.locator("leaf-text")).to_have_js_property("value", words)
 
@@ -593,7 +595,7 @@ def test_keyboard_file_navigation_keeps_its_destination_beside_a_retained_reply(
         },
     )["id"]
     page = open_page(browser, url)
-    reply = page.locator(f'lf-diff .lf-page-thread[data-thread="{root}"] leaf-text')
+    reply = page.locator(f'lf-diff .lf-page-thread[data-lf-thread="{root}"] leaf-text')
     words = "Keep this draft while I inspect the test."
     write(reply, words)
     page.keyboard.press("Home")
@@ -658,7 +660,7 @@ def test_tab_browsing_continues_a_displaced_reply_without_an_annotation_overlay(
         },
     )["id"]
     page = open_page(browser, url)
-    inline = page.locator(f'lf-diff .lf-page-thread[data-thread="{root}"]')
+    inline = page.locator(f'lf-diff .lf-page-thread[data-lf-thread="{root}"]')
     page.keyboard.press("t")
     page.keyboard.press("c")
     words = "I still need to send my answer about that line."
@@ -697,7 +699,7 @@ def test_tab_browsing_continues_a_displaced_reply_without_an_annotation_overlay(
     expect(second).to_be_focused()
     expect(page.locator(".lf-margin-preview")).to_have_count(0)
     # A page drawing no margin continues the reply in the panel's thread.
-    expect(page.locator(f'{PANEL_THREAD}[data-thread="{root}"]')).to_be_visible()
+    expect(page.locator(f'{PANEL_THREAD}[data-lf-thread="{root}"]')).to_be_visible()
     reply = page.locator(PANEL_REPLY)
     expect(reply).to_be_visible()
     expect(reply).to_have_js_property("value", words)

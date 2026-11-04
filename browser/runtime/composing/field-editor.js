@@ -639,7 +639,7 @@ function fieldEditor(
   const box = (from, to, level, attributes) =>
     BlockWrapper.create({
       tagName: "div",
-      attributes: { ...attributes, "data-level": String(level) },
+      attributes: { ...attributes, "data-lf-level": String(level) },
       rank: 100 - level,
     }).range(from, Math.max(from, to - 1));
 

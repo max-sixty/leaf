@@ -2526,6 +2526,48 @@ describe("website page agent", () => {
     },
   );
 
+  it.each([
+    ["adds the update the agent owes", [`update:${"08".repeat(16)}`], 1],
+    ["adds nothing the agent owes", [], 0],
+  ])(
+    "reads an answer carrying only the changes since the tab's reading, which %s",
+    async (_case, owed, needsReply) => {
+      const sessionId = "09".repeat(16);
+      const eventId = "08".repeat(16);
+      const attempt = "tail-attempt-0001";
+      vi.mocked(getContainer).mockReturnValue({
+        fetch: async () =>
+          Response.json({
+            ok: true,
+            state: {
+              since: { key: "held" },
+              patch: [{ at: ["activity", "obligations"], by: "self", items: owed }],
+              events: [{ id: eventId, attempt, kind: "comment", revision: 1 }],
+              data: { version: "0" },
+            },
+          }),
+      } as never);
+      const env = environment();
+
+      await worker.fetch(
+        new Request("https://leaf.page/examples/triage-board/api/event", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Cookie: `__Host-leaf-page=${sessionId}`,
+          },
+          body: JSON.stringify({ kind: "comment", attempt }),
+        }),
+        env,
+        executionContext(),
+      );
+
+      expect(env.WEBSITE_EVENTS.writeDataPoint).toHaveBeenCalledWith(
+        expect.objectContaining({ doubles: [1, needsReply] }),
+      );
+    },
+  );
+
   it("does not dispatch work after Leaf says the accepted event is settled", async () => {
     const sessionId = "06".repeat(16);
     const attempt = "settled-attempt-1";

@@ -35,6 +35,7 @@ import { type DurableObject } from "cloudflare:workers";
 import * as z from "zod/mini";
 import type {
   Event,
+  ServedChange,
   ServedEventAnswer,
   ServedSampleAnswer,
   ServedState,
@@ -461,6 +462,30 @@ async function recordInteractions(
   return new Response(null, { status: 204, headers: { "Cache-Control": "no-store" } });
 }
 
+// Whether `patch`, the changes an answer carries since the reading its request named
+// (`served_state/tail.py`), puts `item` in the list at `path`: an item new since then
+// arrives as one of the list's changed items, or in a value set at or above `path`.
+function patchAdds(
+  patch: ReadonlyArray<ServedChange>,
+  path: readonly string[],
+  item: string,
+): boolean {
+  return patch.some((change) => {
+    if (change.at.length > path.length || change.at.some((key, at) => key !== path[at]))
+      return false;
+    if ("by" in change)
+      return change.at.length === path.length && (change.items ?? []).includes(item);
+    if (!("value" in change)) return false;
+    const value = path
+      .slice(change.at.length)
+      .reduce<unknown>(
+        (part, key) => (part as Record<string, unknown> | null | undefined)?.[key],
+        change.value,
+      );
+    return Array.isArray(value) && value.includes(item);
+  });
+}
+
 async function acceptedEvent(
   postedRequest: Request,
   response: Response,
@@ -479,9 +504,13 @@ async function acceptedEvent(
     if (!event) return null;
     // An update the agent owes an answer publishes its own obligation, on the agent
     // until it answers (`obligations.update_obligation`).
+    const owed = `update:${event.id}`;
     return {
       event,
-      needsReply: state.activity.obligations.includes(`update:${event.id}`),
+      needsReply:
+        "since" in state
+          ? patchAdds(state.patch, ["activity", "obligations"], owed)
+          : state.activity.obligations.includes(owed),
     };
   } catch {
     return null;

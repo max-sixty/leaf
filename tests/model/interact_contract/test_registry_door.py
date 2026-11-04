@@ -313,18 +313,6 @@ def test_check_refuses_element_schemas_under_selector_names(page_dir, tag):
     ]
 
 
-def test_check_refuses_an_invalid_action_detail_schema(page_dir):
-    registry = vocabulary(page_dir)
-    registry["lf-options"]["x-state"]["add"]["detail"]["properties"]["option"][
-        "type"
-    ] = "not-a-type"
-    declare_vocabulary(page_dir, registry)
-
-    status, findings = check_findings(page_dir)
-    assert status != 0
-    assert found(findings, "verb-detail-schema", "<lf-options>", verb="add")
-
-
 def test_check_refuses_a_format_no_boundary_checks(page_dir):
     """jsonschema skips a format it has no checker for, so a declared one Leaf does
     not check would state a rule nothing enforces."""

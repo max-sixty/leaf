@@ -862,10 +862,15 @@ def test_a_thread_resolved_while_its_reply_is_written_keeps_the_user_on_it(
         expect(box).to_be_focused()
         expect(box).to_have_js_property("value", "")
         assert box.evaluate("box => [box.selectionStart, box.selectionEnd]") == [0, 0]
-        # The user writes in the thread, so its resolution shows at once, and the card
-        # stays among the open ones while they are in it (inline.js).
-        expect(thread).to_have_attribute("data-lf-resolved", "true")
-        expect(thread.locator(".lf-thread-news")).to_have_count(0)
+        if kind == "margin":
+            expect(thread).to_have_attribute("data-lf-resolved", "true")
+        else:
+            # A seat in the flow holds the resolution behind its notice while the
+            # thread is on screen.
+            notice = thread.locator(".lf-thread-news")
+            expect(notice).to_have_text("1 new")
+            expect(notice).to_have_attribute("title", "Resolved")
+            expect(thread).to_have_attribute("data-lf-resolved", "false")
         return
     page.keyboard.type(" tr")
     expect(box).to_have_js_property("value", "Half tr a thought")
@@ -877,14 +882,14 @@ def test_a_thread_resolved_while_its_reply_is_written_keeps_the_user_on_it(
     expect(thread.locator(".lf-msg", has_text="Half tr a thought")).to_be_visible()
 
 
-def test_an_agent_resolving_the_thread_the_user_is_on_waits_until_they_leave(
+def test_an_agent_resolving_the_thread_the_user_is_on_waits_behind_its_notice(
     browser, serve
 ):
-    """The agent resolving the seat thread the user stood on, with nothing written in
-    its box, folded the thread into the seat's closed Resolved disclosure and moved them
-    to its summary, which hid an answer the agent settled the thread with. The
-    resolution shows at once, the thread stays among the open ones with the user on it,
-    and it folds into Resolved once they leave it."""
+    """News in the thread the user stands on shows at once, but its resolution would
+    fold the thread into the seat's closed Resolved disclosure and take them to its
+    summary, out of the thread they were in. With nothing written in its box, the
+    thread stays open with the user on it and "1 new" saying the resolution waits, and
+    pressing the notice shows it, folding the thread into Resolved."""
     url, root = seated_thread(serve, "task", 2)
     page = open_page(browser, url)
     thread = page.locator(f'.lf-page-thread[data-lf-thread="{root}"]')
@@ -896,15 +901,16 @@ def test_an_agent_resolving_the_thread_the_user_is_on_waits_until_they_leave(
         {"kind": "resolve", "author": "agent", "agent": "Codex", "parent": root},
     )
     told(page)
-    expect(thread).to_have_attribute("data-lf-resolved", "true")
+    notice = thread.get_by_role("button", name="1 new", exact=True)
+    expect(notice).to_have_attribute("title", "Resolved")
     rendered(page)
+    expect(thread).to_have_attribute("data-lf-resolved", "false")
     expect(thread).to_be_visible()
     expect(thread).to_be_focused()
-    expect(thread.locator(".lf-thread-news")).to_have_count(0)
-    expect(page.locator(".lf-resolved-summary")).to_have_count(0)
 
-    page.evaluate(RELEASE_FOCUS)
+    notice.click()
     expect(page.locator(".lf-resolved-summary")).to_have_text("Resolved · 1")
+    expect(thread).to_have_attribute("data-lf-resolved", "true")
     expect(thread).to_be_hidden()
 
 

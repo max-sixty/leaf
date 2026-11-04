@@ -17,13 +17,15 @@
    is). Where it starts on screen:
 
    - the thread the user is in, by focus or by a gesture of theirs still in flight
-     (`gesturedOn`), draws its news at once, as a chat does, and the seat keeps the
-     control they are on still by scrolling what stands above it up by the growth
-     (inline.js; reply-landing.js, `holdBox`). That control is where the user is: a
-     message they stand on stays and the reply box below it moves down by the turn; on
-     the thread itself, as a send leaves them, its reply box stays. Where the page
-     can't scroll by all of the growth, as when it is shorter than its window, the
-     control moves by the rest;
+     (`gesturedOn`), draws what its news adds at once, as a chat does, and the seat
+     keeps the control they are on still by scrolling what stands above it up by the
+     growth (inline.js; reply-landing.js, `holdBox`). That control is where the user
+     is: a message they stand on stays and the reply box below it moves down by the
+     turn; on the thread itself, as a send leaves them, its reply box stays. Where the
+     page can't scroll by all of the growth, as when it is shorter than its window, the
+     control moves by the rest. Its resolving or reopening waits as in the next case,
+     with whatever arrives with it, since a settlement moves the thread between the
+     seat's open threads and its Resolved disclosure, out from under the user;
    - any other thread drawn there keeps drawing what it drew, and says that news waits
      in its control row, the head row beside Resolve or Reopen, at a fixed size: its new
      turns, a reaction put on a reply or taken off it, a summary that comes or goes, and
@@ -82,8 +84,9 @@
    - arriving at it: coming to stand in it from outside it, by a move of theirs, a t/T
      walk, an obligation, a link, Tab, whatever route took them (focus.js,
      `onCurrentLocation`). A press into it, such as into its reply box, puts the user in
-     it, so its news draws as in any thread they are in, the pressed control held still,
-     though the margin's card keeps its own rule for that (inline.js). Coming back
+     it, so what its news adds draws as in any thread they are in, the pressed control
+     held still, though the margin's card keeps its own rule for that (inline.js), and a
+     settlement still waits for its notice. Coming back
      to the thread they were in is a stay, whatever puts them there, as when the runtime
      puts back a reply box a surface stopped drawing, and so is a move within it;
    - acting in it (`gesturedOn`): a reply, a reaction on one of its messages, settling

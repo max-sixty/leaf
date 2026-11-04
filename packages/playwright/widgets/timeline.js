@@ -138,8 +138,7 @@ export class RecordingTimeline {
   /** @param {TimelineView | null} view */
   set view(view) {
     this.#zoom = view?.zoom ?? 1;
-    this.#applyZoom();
-    if (view) this.#scrollTo(this.#timeToPx(view.start));
+    this.#applyZoom(view ? this.#timeToPx(view.start) : null);
   }
 
   /** @param {TimelineModel} model */
@@ -202,8 +201,7 @@ export class RecordingTimeline {
         1,
         Math.min(this.#maxZoom(), (this.#recording.duration * 0.6) / range),
       );
-      this.#applyZoom();
-      this.#scrollTo(this.#timeToPx((from + to) / 2) - scroller.clientWidth / 2);
+      this.#applyZoom(this.#timeToPx((from + to) / 2) - scroller.clientWidth / 2);
       return;
     }
     const time =
@@ -213,14 +211,12 @@ export class RecordingTimeline {
         : this.#pxToTime(scroller.scrollLeft + scroller.clientWidth / 2));
     const offset = this.#timeToPx(time) - scroller.scrollLeft;
     this.#zoom = Math.max(1, Math.min(this.#maxZoom(), this.#zoom * factor));
-    this.#applyZoom();
-    this.#scrollTo(this.#timeToPx(time) - offset);
+    this.#applyZoom(this.#timeToPx(time) - offset);
   }
 
   fit() {
     this.#zoom = 1;
-    this.#applyZoom();
-    this.#scrollTo(0);
+    this.#applyZoom(0);
   }
 
   get canZoomIn() {
@@ -286,12 +282,19 @@ export class RecordingTimeline {
     this.#expectedScroll = target;
     setScroll(scroller, { left: target });
   }
-  #applyZoom() {
+  // A new zoom or width moves the window, so the scroll goes to `left`, a pixel offset
+  // on the new track, before anything is drawn: the marks, the ruler and its grid are
+  // then drawn once (`#draw`), for the window they show. Drawn before the scroll as
+  // well, the ruler and grid were first drawn for a window the scroll then left, and
+  // drawn again in the same task, where a window that returned to the one before put
+  // back lines equal to those the first drawing took out.
+  /** @param {number | null} [left] */
+  #applyZoom(left = null) {
     const track = this.#part(".lf-trace-track");
     if (!track) return;
     track.style.setProperty("--lf-trace-zoom", String(this.#zoom));
+    if (left !== null) this.#scrollTo(left);
     this.#layoutLabels();
-    this.#drawRuler();
   }
   #resized() {
     const width = this.scroller?.clientWidth ?? 0;
@@ -303,9 +306,7 @@ export class RecordingTimeline {
       this.#zoom = this.#maxZoom();
       this.#options.onZoom?.();
     }
-    this.#applyZoom();
-    if (resized) this.#scrollTo(this.#timeToPx(this.#start));
-    this.#drawRuler();
+    this.#applyZoom(resized ? this.#timeToPx(this.#start) : null);
   }
 
   // Labels -----------------------------------------------------------------------
@@ -802,9 +803,8 @@ export class RecordingTimeline {
         whole > this.#zoom * 1.05 ? Math.min(apart, whole) : apart,
       ),
     );
-    this.#applyZoom();
     const middle = (from + to) / 2;
-    this.#scrollTo(this.#timeToPx(middle) - scroller.clientWidth / 2);
+    this.#applyZoom(this.#timeToPx(middle) - scroller.clientWidth / 2);
   }
 
   // Chrome adjusts a tap's target, and its pointer and click events, toward a

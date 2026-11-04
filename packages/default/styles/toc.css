@@ -156,8 +156,13 @@ lf-toc a[data-lf-focus] {
      * reaches the words rather than opening the map. Revealed, the labels still cover
      * them. The rule is a scope rather than `:has(> lf-toc) > *`, which Chromium
      * matches by reading the parent's children again for each child, a cost that grows
-     * with the square of a long column; it finds a scope's root once per element. */
-    @scope (:has(> lf-toc)) {
+     * with the square of a long column; `lf-toc ~ *` grows the same way. The scope's
+     * root names the track's element, a `div` (page-layout.md, "A sidebar page"). With
+     * `:has()` alone there, Chromium restyled the whole document after any write to an
+     * element's text, or to an attribute another `:has()` reads, anywhere on the page
+     * (`test_an_untyped_has_leads_only_to_a_typed_subject`). A track written as another
+     * element leaves its blocks on the spine. */
+    @scope (div:has(> lf-toc)) {
       :scope > :not(lf-toc) {
         margin-inline-start: var(--sp-4);
       }

@@ -553,6 +553,21 @@ def test_find_reaches_the_text_of_a_document_in_a_tab_nobody_opened(
         "top": "0px",
         "beside": True,
     }, beside
+    # The opened document's lines in view take their syntax colour; the tab nobody
+    # opened takes none.
+    page.wait_for_function(TOKENS_IN, arg="#doc-2 code")
+    assert not page.evaluate(TOKENS_IN, "#doc-1 code")
+
+
+# How many syntax-colour ranges stand in the element `selector` names.
+TOKENS_IN = """selector => {
+  const box = document.querySelector(selector);
+  let count = 0;
+  for (const [name, highlight] of CSS.highlights)
+    if (name.startsWith('lf-token-'))
+      for (const range of highlight) if (box.contains(range.startContainer)) count++;
+  return count;
+}"""
 
 
 def test_document_views_remember_independently_and_follow_live_source_updates(

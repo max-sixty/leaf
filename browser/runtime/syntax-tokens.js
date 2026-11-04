@@ -34,23 +34,21 @@ export function ensureSyntaxLanguage(lang) {
   return ready;
 }
 
-// Code as [{text, style}] — a flat run in source order, carrying Shiki's
-// themed CSS declarations directly. CSS variables inherit the page's palette.
-// A list rather than markup because callers build different DOM from it: plain code
-// emits one span per token, while lf-code interleaves the line spans it numbers.
-// A declared language is validated by page check
-// against the registry's $languages.names.
+// Code as `{tokens, state}`: `tokens` is [{text, style}], a flat run in source order
+// carrying Shiki's themed CSS declarations directly, whose CSS variables inherit the
+// page's palette. A list rather than markup because callers build different DOM from
+// it: plain code emits one span per token, while lf-code interleaves the line spans it
+// numbers. A declared language is validated by page check against the registry's
+// $languages.names.
 //
-// A long text can be coloured a part at a time: `syntaxState(tokens)` is the grammar
-// state the tokens' last line ends in, and `state` continues the source from one, so
-// each part takes the state the part before it ended in and is coloured as it would be
-// in the whole text. Begun afresh, a part starting inside a docstring read its rest as
-// code.
+// `state` is the grammar state the source's last line ends in, and passed back as
+// `state` it continues another source from there, so a long text coloured a part at a
+// time, each part from the state the part before it ended in, is coloured as the whole
+// text would be. Begun afresh, a part starting inside a docstring read its rest as code.
 /** @param {string} source @param {string} lang @param {SyntaxState} [state] */
 export async function syntax(source, lang, state) {
   const shared = await ensureSyntaxLanguage(lang);
-  const { tokens, state: end } = await shared.tokenize(source, lang, state);
-  if (end) states.set(tokens, end);
+  const tokenized = await shared.tokenize(source, lang, state);
   // The vendored tokenizer's output is data entering, so it is checked once, here, and
   // indexed everywhere after: that the tokens partition the source exactly. Three things
   // rest on it — lf-code numbers its lines by counting newlines in them, `hi` and each
@@ -59,18 +57,14 @@ export async function syntax(source, lang, state) {
   // saying so. Failing here fails the block soft to its plain source, and the console
   // error fails the render gate, which is what puts it in front of whoever can drop the
   // language declaration.
-  if (tokens.map((t) => t.text).join("") !== source)
+  if (tokenized.tokens.map((t) => t.text).join("") !== source)
     throw new Error(`the ${lang} tokenizer did not return the source unchanged`);
-  return tokens;
+  return tokenized;
 }
 
 /** @typedef {Awaited<ReturnType<typeof import("/vendor/syntax.esm.js").tokenize>>} Tokenized */
 /** @typedef {NonNullable<Tokenized["state"]>} SyntaxState */
 /** @typedef {Tokenized["tokens"][number]} SyntaxToken */
-/** @type {WeakMap<readonly SyntaxToken[], SyntaxState>} */
-const states = new WeakMap();
-/** @param {readonly SyntaxToken[]} tokens */
-export const syntaxState = (tokens) => states.get(tokens);
 
 // Tokens as nodes: one span per style, and the bare text where none applies, so nothing
 // lands in the DOM that says nothing. Callers build from here — plain code replacing its

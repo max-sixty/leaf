@@ -50,7 +50,6 @@ import {
   sizeObserver,
   layoutPx,
   syntax,
-  syntaxState,
   textWidth,
   nextFrame,
   MAX_EDIT_LENGTH,
@@ -339,21 +338,25 @@ function tokenHighlight(style) {
 
 // Syntax colour for the runs the browser draws and their neighbours (`follow`), painted
 // over their rows' text as highlights rather than spans, so the rows stay one text each
-// and colour costs nothing where the reader isn't looking. A run is tokenized from the grammar state the
-// run before it ended in (`syntaxState`), so a run starting inside a block comment or a
-// fenced code block is coloured as the whole text would be. Those states are kept,
-// and found for a run far down by tokenizing the runs before it in turn, a slice of
-// the main thread at a time. A new text keeps the states and the paint of the runs
-// before its first changed line.
+// and colour costs nothing where the reader isn't looking. A run is tokenized from the
+// grammar state the run before it ended in (`syntax`), so a run starting inside a block
+// comment or a fenced code block is coloured as the whole text would be. Those states
+// are kept, and a run far down whose state isn't known yet is painted at once from a
+// fresh state, then again once `walk` has tokenized the runs before it, a slice of the
+// main thread at a time: waiting for its state, End on 4 MB of Python stood uncoloured
+// for 2.1 s in Chromium and 18.5 s in Firefox. Until then only a construct open across
+// the run's first line, such as a docstring, reads wrong. A new text keeps the states
+// and the paint of the runs before its first changed line.
+/** @typedef {{exact: boolean, ranges: [Highlight, StaticRange][]}} Paint */
 class RunColours {
   /** @param {string} lang @param {(error: unknown) => void} failed */
   constructor(lang, failed) {
     this.lang = lang;
     this.failed = failed;
     /** The state each run starts in, as far down as it is known.
-     * @type {ReturnType<typeof syntaxState>[]} */
+     * @type {Awaited<ReturnType<typeof syntax>>["state"][]} */
     this.states = [undefined];
-    /** @type {Map<Element, [Highlight, StaticRange][]>} */
+    /** @type {Map<Element, Paint>} */
     this.painted = new Map();
     /** The runs to paint (`follow`). @type {Set<Element>} */
     this.near = new Set();
@@ -362,6 +365,7 @@ class RunColours {
     this.version = 0;
     /** @type {Promise<void>} */
     this.queue = Promise.resolve();
+    this.walking = false;
   }
 
   // The text's lines from `from` on are new: the paint and states past that run go.
@@ -393,38 +397,36 @@ class RunColours {
     }
     for (const run of [...this.painted.keys()])
       if (!this.near.has(run)) this.unpaint(run);
-    const { version } = this;
-    for (const run of this.near)
-      if (!this.painted.has(run))
-        this.queue = this.queue
-          .then(() => this.#paint(code, run, version))
-          .catch(this.failed);
+    for (const run of this.near) if (!this.painted.has(run)) this.paint(code, run);
+    this.walk(code).catch(this.failed);
   }
 
+  /** @param {Element} code @param {Element} run */
+  paint(code, run) {
+    const { version } = this;
+    this.queue = this.queue
+      .then(() => this.#paint(code, run, version))
+      .catch(this.failed);
+  }
+
+  // Paints `run` from its state where that is known, else from a fresh one, replacing
+  // its paint in the same task, so it never stands uncoloured between the two.
   /** @param {Element} code @param {Element} run @param {number} version */
   async #paint(code, run, version) {
     const current = () => version === this.version && this.near.has(run);
-    if (!current() || this.painted.has(run)) return;
+    if (!current() || this.painted.get(run)?.exact) return;
     const at = [...code.children].indexOf(run);
     if (at < 0) return;
-    let slice = performance.now();
-    while (this.states.length <= at) {
-      const before = this.states.length - 1;
-      const tokens = await syntax(this.lines(before), this.lang, this.states[before]);
-      if (version !== this.version) return;
-      this.states.push(syntaxState(tokens));
-      // A far run waits on every run before it: give input its turn between them.
-      if (performance.now() - slice > 8) {
-        await new Promise((resolve) => setTimeout(resolve));
-        slice = performance.now();
-        if (!current()) return;
-      }
-    }
-    const tokens = await syntax(this.lines(at), this.lang, this.states[at]);
-    if (!current() || this.painted.has(run)) return;
-    if (this.states.length === at + 1) this.states.push(syntaxState(tokens));
+    const exact = at < this.states.length;
+    const { tokens, state } = await syntax(
+      this.lines(at),
+      this.lang,
+      exact ? this.states[at] : undefined,
+    );
+    if (!current() || this.painted.get(run)?.exact) return;
+    if (exact && this.states.length === at + 1) this.states.push(state);
     /** @type {[Highlight, StaticRange][]} */
-    const painted = [];
+    const ranges = [];
     const rows = [...run.children];
     // Where each row's text starts in the run's, a newline between rows. An offset at
     // a line's end, its newline's place, stays on its line.
@@ -459,12 +461,51 @@ class RunColours {
             endOffset: to.offset,
           });
           highlight.add(range);
-          painted.push([highlight, range]);
+          ranges.push([highlight, range]);
         }
       }
       offset += text.length;
     }
-    this.painted.set(run, painted);
+    this.unpaint(run);
+    this.painted.set(run, { exact, ranges });
+  }
+
+  // Tokenizes the runs before the farthest run near the view whose state isn't known,
+  // in order, yielding to input between slices, and paints each near run again once its
+  // state is known. One walk at a time; a new text or view steers the walk under way.
+  /** @param {Element} code */
+  async walk(code) {
+    if (this.walking) return;
+    this.walking = true;
+    try {
+      let slice = performance.now();
+      for (;;) {
+        const runs = [...code.children];
+        const known = this.states.length;
+        for (const run of this.near) {
+          const at = runs.indexOf(run);
+          if (at >= 0 && at < known && this.painted.get(run)?.exact === false)
+            this.paint(code, run);
+        }
+        const far = Math.max(-1, ...[...this.near].map((run) => runs.indexOf(run)));
+        if (far < known) return;
+        const { version } = this;
+        const before = known - 1;
+        const { state } = await syntax(
+          this.lines(before),
+          this.lang,
+          this.states[before],
+        );
+        if (version === this.version && this.states.length === known)
+          this.states.push(state);
+        if (performance.now() - slice > 8) {
+          await new Promise((resolve) => setTimeout(resolve));
+          slice = performance.now();
+        }
+      }
+    } finally {
+      this.walking = false;
+    }
   }
 
   /** The lines of the run at `at`, as the tokenizer reads them. @param {number} at */
@@ -474,7 +515,7 @@ class RunColours {
 
   /** @param {Element} run */
   unpaint(run) {
-    for (const [highlight, range] of this.painted.get(run) ?? [])
+    for (const [highlight, range] of this.painted.get(run)?.ranges ?? [])
       highlight.delete(range);
     this.painted.delete(run);
   }
@@ -508,13 +549,15 @@ class TextDocument extends LeafElement {
   // once the listing has a box: measured as each document drew, every closed tab's
   // listing was a read of the page's layout, and Chromium's answer took longer for each
   // document drawn before it, 0.8 s over 30 documents of 4 MB.
-  sizes = sizeObserver(() =>
+  sizes = sizeObserver((entries) => {
+    for (const { target, contentRect } of entries)
+      if (target === this.view?.listing) this.list(contentRect.width > 0);
     nextFrame(() => {
       this.refit();
       this.holdSource();
       this.measureCut();
-    }),
-  );
+    });
+  });
   // A written preview's Source tab, which shows what the preview's height holds, and
   // the press that shows the rest where that height cuts the source.
   /** @type {{panel: HTMLElement, box: HTMLElement, press: HTMLButtonElement} | null} */
@@ -554,11 +597,24 @@ class TextDocument extends LeafElement {
   }
   // The runs the browser has drawn since they last forgot a height (`sizeRuns`).
   drawn = new WeakSet();
-  // The runs the browser draws now, which syntax colour paints (`RunColours`).
+  // The runs the browser draws now, which syntax colour paints (`RunColours`), while
+  // the listing has a box (`listed`). Firefox reports the runs of a closed tab's
+  // listing drawn, and every document in a closed tab was coloured as the page loaded.
   /** @type {Set<Element>} */
   shown = new Set();
+  listed = false;
   /** @type {RunColours | null} */
   colours = null;
+  /** @param {boolean} listed */
+  list(listed) {
+    if (listed === this.listed) return;
+    this.listed = listed;
+    this.colourShown();
+  }
+  colourShown() {
+    const code = this.sourceView?.code;
+    if (code) this.colours?.follow(code, this.listed ? this.shown : new Set());
+  }
   // Size the drawn runs again where the listing's line length changed.
   refit() {
     const code = this.sourceView?.code;
@@ -602,7 +658,7 @@ class TextDocument extends LeafElement {
         if (target.parentElement !== code || !code) return;
         if (skipped) this.shown.delete(target);
         else this.shown.add(target);
-        this.colours?.follow(code, this.shown);
+        this.colourShown();
       },
       { capture: true },
     );
@@ -616,7 +672,7 @@ class TextDocument extends LeafElement {
     const run = code?.childElementCount === 1 ? code.firstElementChild : null;
     if (!code || !run) return;
     this.shown.add(run);
-    this.colours?.follow(code, this.shown);
+    this.colourShown();
   }
 
   render() {
@@ -654,9 +710,14 @@ class TextDocument extends LeafElement {
         let failure;
         if (!(await loadMarkdown((error) => (failure = error)))) throw failure;
       }
-      // Each document's first draw takes a task of its own, so the page can paint what
-      // has drawn between documents.
-      if (!this.sourceView) await new Promise((resolve) => setTimeout(resolve));
+      // A document the page shows draws at once; one it doesn't, as in a closed tab,
+      // first draws in a task of its own, so the page paints between them. Drawn in
+      // page order, a reload on the 30th of 30 tabs of 4 MB showed its document only
+      // after the 29 before it: 2.8 s in Chromium, 33 s in Firefox.
+      if (!this.sourceView) {
+        this.listed = this.checkVisibility();
+        if (!this.listed) await new Promise((resolve) => setTimeout(resolve));
+      }
       if (rendering !== this.rendering || !this.isConnected) return;
       const { pre: drawnPre, code: drawnCode, text } = listing(source);
       if (language) {
@@ -713,7 +774,7 @@ class TextDocument extends LeafElement {
         if (run.parentElement !== code) this.shown.delete(run);
       if (this.colours) {
         this.colours.changed(text, code, from);
-        this.colours.follow(code, this.shown);
+        this.colourShown();
       }
       let loaded = this.frameLoaded;
       const previewNode = view.preview;

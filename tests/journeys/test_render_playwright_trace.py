@@ -30,6 +30,7 @@ from leaf import data as data_model
 from leaf import event_log as events_model
 from leaf import exporting as exporting_model
 from leaf.render_checks import rendered, wait_until_ready
+from leaf_dev.example_data import named_source
 from leaf_dev.page_fixtures import example_media
 
 
@@ -771,7 +772,7 @@ def test_trace_initial_selection_opens_evidence_and_keeps_earlier_empty_stops(
 
 def test_trace_bookmarks_jump_to_exact_evidence_in_page_flow(browser, serve):
     """Authored destinations reach phases and filmstrip frames by mouse, key and touch."""
-    source = ROOT / "examples/developer/playwright-trace-gallery.html"
+    source = named_source("playwright-trace-gallery")
     record = json.loads(source.with_suffix(".data.json").read_text())["release-journey"]
     url = serve(source)
     user = open_page(browser, url)
@@ -930,7 +931,7 @@ def test_trace_bookmarks_jump_to_exact_evidence_in_page_flow(browser, serve):
 
 def test_trace_transport_scrubs_plays_and_freezes_review_evidence(browser, serve):
     """Mouse and touch transport browse captures; a review gesture freezes its pixels."""
-    source = ROOT / "examples/developer/playwright-trace-gallery.html"
+    source = named_source("playwright-trace-gallery")
     record = json.loads(source.with_suffix(".data.json").read_text())["release-journey"]
     checkpoints = [
         phase["timestamp"]
@@ -1126,7 +1127,7 @@ def test_trace_transport_scrubs_plays_and_freezes_review_evidence(browser, serve
 
 def test_trace_page_scrolling_preserves_playback(browser, serve):
     """Wheel and touch page navigation never freeze or rewind the recording."""
-    source = ROOT / "examples/developer/playwright-trace-gallery.html"
+    source = named_source("playwright-trace-gallery")
     record = json.loads(source.with_suffix(".data.json").read_text())["release-journey"]
     duration = max(image["timestamp"] for image in record["images"]) - min(
         action["startTime"] for action in record["actions"]
@@ -1281,7 +1282,7 @@ def test_trace_inspection_survives_playback_gaps_and_scope_changes(browser, serv
     """Playback, empty points and renderer replacement retain the user's inspection."""
     from render_harness import scroll_settled
 
-    source = ROOT / "examples/developer/playwright-trace-gallery.html"
+    source = named_source("playwright-trace-gallery")
     record = json.loads(source.with_suffix(".data.json").read_text())["release-journey"]
     # A second recorded tab has no captured calls yet. It still distinguishes
     # the overview from the first page for the inspection restoration journey.
@@ -1638,7 +1639,7 @@ def test_trace_inspection_survives_playback_gaps_and_scope_changes(browser, serv
 
 def test_trace_zoom_and_pan_stay_within_the_fitted_recording(browser, serve):
     """Zoom and native panning change only the visible window, never the capture."""
-    url = serve(ROOT / "examples/developer/playwright-trace-gallery.html")
+    url = serve(named_source("playwright-trace-gallery"))
     context = browser.new_context(viewport={"width": 480, "height": 900})
     user = open_page(browser, url, context=context)
     widget = user.locator("lf-trace")
@@ -1757,7 +1758,7 @@ def test_trace_zoom_and_pan_stay_within_the_fitted_recording(browser, serve):
 
 def test_trace_dense_moments_keep_the_axis_usable_and_page_scoped(browser, serve):
     """Dense moments stay on their exact times in one row of the page flow."""
-    source = ROOT / "examples/developer/playwright-trace-gallery.html"
+    source = named_source("playwright-trace-gallery")
     record = json.loads(source.with_suffix(".data.json").read_text())["release-journey"]
     first_page = record["pages"][0]
     record["pages"].append(
@@ -1967,7 +1968,7 @@ def test_trace_numbered_moments_share_a_recording_zero_without_a_zero_stop(
     browser, serve
 ):
     """Equal-time and zero-boundary moments stay on their times and reachable."""
-    source = ROOT / "examples/developer/playwright-trace-gallery.html"
+    source = named_source("playwright-trace-gallery")
     native = json.loads(source.with_suffix(".data.json").read_text())["release-journey"]
     archive = native["archive"]["sha256"]
     page = native["pages"][0]
@@ -2193,7 +2194,7 @@ def test_trace_frames_retain_saved_elements_and_disclosure_stays_closable(
     browser, serve
 ):
     """A filmstrip capture changes pixels without clearing the last saved tree."""
-    source = ROOT / "examples/developer/playwright-trace-gallery.html"
+    source = named_source("playwright-trace-gallery")
     record = json.loads(source.with_suffix(".data.json").read_text())["release-journey"]
     user = open_page(browser, serve(source))
     widget = user.locator("lf-trace")
@@ -2391,7 +2392,7 @@ def test_trace_frames_retain_saved_elements_and_disclosure_stays_closable(
 
 def test_trace_play_press_belongs_to_its_pointer_click(browser, serve):
     """A held Pause keeps its meaning; a canceled press leaves keyboard Play free."""
-    source = ROOT / "examples/developer/playwright-trace-gallery.html"
+    source = named_source("playwright-trace-gallery")
     user = browser.new_page()
     user.goto(serve(source))
     wait_until_ready(user)
@@ -2443,9 +2444,7 @@ def test_trace_results_can_be_read_and_compared_on_a_phone(browser, serve):
     context = browser.new_context(
         viewport={"width": 390, "height": 844}, has_touch=True
     )
-    page = open_page(
-        browser, serve(ROOT / "examples/review-a-fix.html"), context=context
-    )
+    page = open_page(browser, serve(named_source("review-a-fix")), context=context)
     for recording, label in [("before", "Before the fix"), ("after", "After the fix")]:
         page.get_by_role("radio", name=label, exact=True).tap()
         image = page.locator(f"#fix-{recording} .lf-trace-image-viewport")
@@ -2518,7 +2517,7 @@ def test_trace_replaces_captures_without_blank_pixels_or_layout_displacement(
     browser, serve
 ):
     """Delayed native media keeps the old pixels and exact identity until an atomic swap."""
-    source = ROOT / "examples/developer/playwright-trace-gallery.html"
+    source = named_source("playwright-trace-gallery")
     record = json.loads(source.with_suffix(".data.json").read_text())["release-journey"]
     last = [image for image in record["images"] if image["kind"] == "frame"][-1]
     url = serve(source)

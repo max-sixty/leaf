@@ -8,7 +8,6 @@ from playwright.sync_api import expect
 from render_cases_interaction import live_url
 from render_cases_layout import SHOT_SRC, SHOTS
 from render_harness import (
-    ROOT,
     displayed,
     holding,
     leaf_page,
@@ -26,9 +25,10 @@ from render_harness import (
 
 from leaf import render_checks as render_checks_model
 from leaf.render_checks import rendered, wait_until_ready
+from leaf_dev.example_data import named_source
 
-ROOT_TABS_PAGE = ROOT / "tests/fixtures/pages/root-tabs.html"
-ROOT_PARTS_PAGE = ROOT / "tests/fixtures/pages/root-parts.html"
+ROOT_TABS_PAGE = named_source("root-tabs")
+ROOT_PARTS_PAGE = named_source("root-parts")
 
 
 def test_root_tabs_switch_views_without_moving_the_strip_and_follow_history(

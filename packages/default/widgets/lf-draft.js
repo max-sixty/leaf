@@ -231,7 +231,8 @@ customElements.define(
           ev
             .composedPath()
             .some(
-              (node) => node instanceof Element && node.matches(`${PRESSABLE}, a, button`),
+              (node) =>
+                node instanceof Element && node.matches(`${PRESSABLE}, a, button`),
             )
         )
           return;

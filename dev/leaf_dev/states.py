@@ -837,12 +837,13 @@ def as_agent(command: str, verb: str, *args: str) -> None:
     served.leaf(command, verb, str(served.directory), *args)
 
 
-def held_news(page: Page, thread: Locator) -> None:
-    """News arriving in `thread` while the user drafts a reply there: the agent's reply
-    and the user's own message from another tab, which the thread holds behind its
-    notice (held-news.js)."""
-    thread.get_by_role("textbox", name="Reply", exact=True).click()
-    page.keyboard.insert_text("Drafting a reply while the news arrives")
+def held_news(page: Page, thread: Locator, *, drafting: bool = True) -> None:
+    """News arriving in `thread`, while the user drafts a reply there or reads beside it:
+    the agent's reply and the user's own message from another tab, which the thread
+    holds behind its notice (held-news.js)."""
+    if drafting:
+        thread.get_by_role("textbox", name="Reply", exact=True).click()
+        page.keyboard.insert_text("Drafting a reply while the news arrives")
     root = thread.get_attribute("data-lf-thread")
     assert root
     as_agent("thread", "reply", root, "--text", "That one goes first.")
@@ -917,15 +918,15 @@ def card_after_interjection(page: Page) -> None:
 
 def seat_held_news(page: Page) -> None:
     """A seat's thread holding a reply and a message from another tab while the user
-    drafts a reply in it: the agent's question on a goal, which a reload draws in
-    place."""
+    reads beside it: the agent's question on a goal, which a reload draws in place. A
+    thread the user drafts in draws its news at once (held-news.js)."""
     as_agent(
         "thread", "create", "--section", "goal-parser", "--text", "Which worker first?"
     )
     load(page, served_page.get().address)
     thread = page.locator("#goal-parser .lf-page-thread")
     thread.scroll_into_view_if_needed()
-    held_news(page, thread)
+    held_news(page, thread, drafting=False)
 
 
 def option_picked(page: Page) -> None:

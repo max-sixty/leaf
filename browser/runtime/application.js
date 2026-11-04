@@ -337,7 +337,7 @@ function createApplication(dependencies) {
   // The inventory lists the marks the projection's chrome paints, reading their nodes,
   // which signals cannot track, so it reads the parts that move them itself, and
   // reads them once that region has committed. What the thread pass decides about
-  // each thread, where it is placed and whether a widget seats or holds it, and the
+  // each thread, where it is placed and whether a widget seats it, and the
   // ages the margin shows are followed with the rest of what this paint reads, so a
   // commit that moves one and the clock repaint them by the same proof.
   const annotationInputs = readPart(annotationSelection);

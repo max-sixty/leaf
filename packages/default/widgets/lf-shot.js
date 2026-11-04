@@ -244,10 +244,6 @@ export class Shot extends HTMLElement {
     /** @type {Capture} */
     const capture = { images, loaded, metadata, difference: Promise.resolve(null) };
     this.#capture = capture;
-    const present =
-      this._lfPresentGenerated ??
-      ((/** @type {Promise<unknown>} */ promise) =>
-        widgetController(this).present(promise));
     const registered = loaded.then((loaded) => {
       if (capture !== this.#capture) return false;
       if (!loaded) {
@@ -267,7 +263,7 @@ export class Shot extends HTMLElement {
       if (!this.#drawing.reading) this.#commitImages(capture);
       return true;
     });
-    present(registered);
+    this.#present(registered);
     capture.difference = registered
       .then((aligned) =>
         aligned
@@ -278,6 +274,14 @@ export class Shot extends HTMLElement {
         if (capture === this.#capture) failSoft(this, reason);
         return null;
       });
+  }
+
+  /** Hold the page's readiness until `promise` settles: work this shot draws once
+   * it lands, which a reader outside the page waits for.
+   * @param {Promise<unknown>} promise */
+  #present(promise) {
+    if (this._lfPresentGenerated) this._lfPresentGenerated(promise);
+    else widgetController(this).present(promise);
   }
 
   /** @param {Capture} capture @param {string | null} [pixels] */
@@ -458,9 +462,11 @@ export class Shot extends HTMLElement {
         this.#setPixelUrl(url);
         this.#paint();
       }));
-      void pending.catch((reason) => {
-        if (images === this.#drawing.images) failSoft(this, reason);
-      });
+      this.#present(
+        pending.catch((reason) => {
+          if (images === this.#drawing.images) failSoft(this, reason);
+        }),
+      );
     }
     this.#fit();
     return this.#pixelsPainted;

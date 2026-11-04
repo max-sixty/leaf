@@ -227,7 +227,7 @@ def test_a_drawing_uses_its_anonymous_svg_inside_its_semantic_figure(browser, se
     )
     page.reload(wait_until="load")
     wait_until_ready(page)
-    posted = f'.lf-drawing-posted[data-thread="{event["id"]}"]'
+    posted = f'.lf-drawing-posted[data-lf-thread="{event["id"]}"]'
     assert native_ink_start(
         page, "#visuals svg:nth-of-type(2)", posted
     ) == pytest.approx(start, abs=0.03)
@@ -701,7 +701,7 @@ def test_a_margin_start_uses_the_addressable_element_alongside_it_as_context(
     assert event["anchor"] == {"section": "prose"}
     assert "text" not in event
     expect(
-        page.locator(f'.lf-drawing-posted[data-thread="{event["id"]}"]')
+        page.locator(f'.lf-drawing-posted[data-lf-thread="{event["id"]}"]')
     ).to_have_count(1)
 
 
@@ -1487,7 +1487,7 @@ def test_drawing_strokes_keep_their_pixels_across_resize_addition_send_and_repla
     assert second[0] == pytest.approx(
         [narrow["width"] * 0.3, narrow["height"] * 0.3], abs=0.02
     )
-    posted = f'.lf-drawing-posted[data-thread="{event["id"]}"]'
+    posted = f'.lf-drawing-posted[data-lf-thread="{event["id"]}"]'
     expect(page.locator(posted)).to_have_count(1)
     relation = mark_relation(page, posted, "#prose")
     page.set_viewport_size(wide)
@@ -1540,7 +1540,7 @@ def test_a_stroke_in_empty_space_belongs_to_the_nearest_element(browser, serve):
     expect(pending).to_have_count(1)
     field = page.locator(".lf-fab-input")
     expect(field).to_be_focused()
-    expect(page.locator(PANEL)).not_to_have_attribute("data-open", re.compile("."))
+    expect(page.locator(PANEL)).not_to_have_attribute("data-lf-open", re.compile("."))
 
     page.reload(wait_until="load")
     wait_until_ready(page)
@@ -1575,7 +1575,7 @@ def test_a_stroke_in_empty_space_belongs_to_the_nearest_element(browser, serve):
     assert "text" not in event and "at" not in event["drawing"]
     assert len(event["drawing"]["strokes"]) == 2
     expect(
-        page.locator(f'.lf-drawing-posted[data-thread="{event["id"]}"]')
+        page.locator(f'.lf-drawing-posted[data-lf-thread="{event["id"]}"]')
     ).to_have_count(1)
     assert page.evaluate("document.documentElement.scrollWidth") == scroll_width
 
@@ -1596,7 +1596,7 @@ def test_a_drawing_is_pictured_in_the_window_it_was_drawn_in(browser, serve):
         page.keyboard.press("ControlOrMeta+Enter")
     event = events_model.read_events(serve.page_dir)[-1]
     assert event["anchor"] == {"section": "swatch"}
-    ink = page.locator(f'.lf-drawing-posted[data-thread="{event["id"]}"] path')
+    ink = page.locator(f'.lf-drawing-posted[data-lf-thread="{event["id"]}"] path')
     ink_color = ink.evaluate("path => getComputedStyle(path).stroke")
     page.set_viewport_size({"width": 1200, "height": 900})
     stamp_page(serve.page_dir, SWATCH_PAGE.replace("50vw", "25vw"), "Narrow the swatch")

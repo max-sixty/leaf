@@ -456,6 +456,11 @@ const newsParts = ({
 /** @param {number} total */
 export const newsCount = (total) => `${total} new`;
 
+// The room a card holds for its notice's count: the widest count it says, in two
+// figures of one width (`button.lf-thread-news`, surfaces.css), so a count past 99
+// is cut.
+export const NEWS_ROOM = newsCount(99);
+
 // What a notice says: the count (`text`), and each fact of the news, most telling
 // first, as the line its title, and so its accessible description, reads (`label`).
 /** @param {Parameters<typeof newsParts>[0]} news */
@@ -488,8 +493,8 @@ const said = (news) => {
  *  of facts that dropped those past its room and counted them at its end ("1 new reply
  *  +1"), and said "2 new" only where even the first fact didn't fit, so one piece of
  *  news read three ways, in the danger ink an error wears. The words have a span of
- *  their own, so a card that holds the notice's room (`data-room`, controls.css) keeps
- *  it at the width of the count it first said. */
+ *  their own, so a card that holds the notice's room (`data-lf-room`, controls.css)
+ *  keeps it at the width of the widest count it says (`NEWS_ROOM`). */
 export function newsNotice(header = false) {
   const node = offerAction(
     "inline",
@@ -499,7 +504,7 @@ export function newsNotice(header = false) {
   const words = document.createElement("span");
   // The news is Leaf's, so the words wear Leaf's voice, as the panel's field does a
   // reading all Leaf says (voice.js).
-  words.dataset.voice = "leaf";
+  words.dataset.lfVoice = "leaf";
   node.append(words);
   /** @type {() => Element | null} */
   let open = () => null;
@@ -1073,7 +1078,7 @@ export class HeldArrivals {
   #lapse(which) {
     const currentLocation = new Set(
       currentLocationNodes().map((node) =>
-        closestAcross(node, THREAD)?.getAttribute("data-thread"),
+        closestAcross(node, THREAD)?.getAttribute("data-lf-thread"),
       ),
     );
     return this.#release((held) => which(held) && !currentLocation.has(held.id));

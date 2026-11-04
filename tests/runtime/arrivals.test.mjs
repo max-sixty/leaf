@@ -12,7 +12,15 @@ globalThis.requestAnimationFrame = (callback) => {
 };
 globalThis.cancelAnimationFrame = (id) => frames.delete(id);
 
-const { whileConnected, frameFor } = await import("/runtime/arrivals.js");
+const {
+  whileConnected,
+  frameFor,
+  browserScrolls,
+  holdScroll,
+  scrolling,
+  setScroll,
+  watchScrollEnds,
+} = await import("/runtime/arrivals.js");
 const { clockValue, tickClock } = await import("/runtime/presence.js");
 const { observeQueuedWork } = await import("/runtime/queued-work.js");
 
@@ -292,5 +300,49 @@ test("a clock render reports its failure once and recovers on the next reading",
   } finally {
     console.error = consoleError;
     owner.remove();
+  }
+});
+
+test("a scroll a script holds ends once, after its release, and stays the script's until the box moves on", async () => {
+  const box = document.createElement("div");
+  document.body.append(box);
+  /** @type {Element[]} */
+  const ended = [];
+  const stop = watchScrollEnds((end) => ended.push(end));
+  const send = () => {
+    box.dispatchEvent(new window.Event("scroll"));
+    box.dispatchEvent(new window.Event("scrollend"));
+  };
+  /** @param {number} top */
+  const frame = (top) => {
+    setScroll(box, { top });
+    send();
+  };
+  try {
+    const release = holdScroll(box);
+    frame(10);
+    await renderFrame();
+    frame(20);
+    await renderFrame();
+    assert.deepEqual(ended, []);
+    assert.equal(scrolling(), true);
+    release();
+    assert.equal(
+      browserScrolls(box),
+      false,
+      "the released scroll's last frame read as the browser moving the box",
+    );
+    send();
+    await renderFrame();
+    assert.deepEqual(ended, [box]);
+    assert.equal(scrolling(), false);
+    // A scroll that takes the box from where the script left it is the browser's.
+    box.scrollTop = 30;
+    box.dispatchEvent(new window.Event("scroll"));
+    assert.equal(browserScrolls(box), true);
+    box.dispatchEvent(new window.Event("scrollend"));
+  } finally {
+    stop();
+    box.remove();
   }
 });

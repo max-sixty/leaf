@@ -287,7 +287,7 @@ customElements.define('lf-test-surface', class extends LeafElement {
     ]
     page.keyboard.press("Escape")  # out of the panel's field
     expect(panel_field(page)).not_to_be_focused()
-    no_view = page.locator(f"{PANEL}[data-open]")
+    no_view = page.locator(f"{PANEL}[data-lf-open]")
     expect(no_view).to_have_count(0)
     # A retired thread lands on the surface the user's own gesture reaches. With the
     # widget still on the page its passages keep a page-local destination, so each datum
@@ -302,7 +302,7 @@ customElements.define('lf-test-surface', class extends LeafElement {
         expect(markers).to_have_count(2)
         comment_note(page, "#broken").press("Enter")
         fallback = page.locator(
-            f'.lf-margin-preview .lf-page-thread[data-thread="{roots[0]}"]'
+            f'.lf-margin-preview .lf-page-thread[data-lf-thread="{roots[0]}"]'
         )
         reply = fallback.locator("leaf-text")
         expect(no_view).to_have_count(0)
@@ -455,7 +455,7 @@ def test_page_thread_surface_owns_exact_source_elsewhere_in_main(browser, serve)
     expect(thread).to_contain_text("About this bit.")
     assert page.evaluate("""async () => {
       const {claimed} = await __lfCheckApi();
-      return claimed(document.querySelector('#review .lf-page-thread').dataset.thread);
+      return claimed(document.querySelector('#review .lf-page-thread').dataset.lfThread);
     }""")
     reply = thread.get_by_role("textbox", name="Reply", exact=True)
     write(reply, "Can the archive keep that naming?")

@@ -962,7 +962,7 @@ PAGE_MARKUP = r"""() => [...document.body.children]
 # shownRect's fallback: its host rect is 0×0 at the origin, which would otherwise count
 # as "wholly on screen" and fail every off-screen one for its rightly hidden box.
 LEGEND_TRUE = """() => [...document.querySelectorAll('.lf-legend-box')].every(b => {
-  const it = document.getElementById(b.dataset.for);
+  const it = document.getElementById(b.dataset.lfFor);
   let r = it.getBoundingClientRect();
   if (!r.width && !r.height) {
     const contents = document.createRange();

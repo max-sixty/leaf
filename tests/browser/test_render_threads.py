@@ -112,7 +112,7 @@ def test_an_idle_open_panel_thread_shows_appended_replies(browser, serve, reply_
         words = "\n\n".join([words] * 30)
     reply = append_agent_reply(serve.page_dir, root, words)
     told(page)
-    expect(thread.locator(f'.lf-msg[data-event="{reply["id"]}"]')).to_be_visible()
+    expect(thread.locator(f'.lf-msg[data-lf-event="{reply["id"]}"]')).to_be_visible()
     expect(page.locator(".lf-fp-head .lf-thread-news:visible")).to_have_count(0)
     rendered(page)
     # The view grows to hold the answer, the message keeping its place within it.
@@ -135,7 +135,7 @@ def test_walking_the_threads_lands_each_on_its_latest_message(browser, serve):
 
     def walk(key, root):
         page.keyboard.press(key)
-        view = page.locator(f'{PANEL_THREAD}[data-thread="{root}"]')
+        view = page.locator(f'{PANEL_THREAD}[data-lf-thread="{root}"]')
         expect(view).to_be_focused()
         panel_settled(page, view="thread")
         rendered(page)
@@ -146,7 +146,7 @@ def test_walking_the_threads_lands_each_on_its_latest_message(browser, serve):
 
     assert all(landed["inside"] for landed in forward.values()), forward
     assert back["inside"], back
-    assert page.locator(f'{PANEL_THREAD}[data-thread="{roots[3]}"]').evaluate(
+    assert page.locator(f'{PANEL_THREAD}[data-lf-thread="{roots[3]}"]').evaluate(
         "view => view.scrollHeight > view.clientHeight"
     ), "the long thread fits its view, so landing its latest message proves nothing"
 
@@ -261,10 +261,10 @@ def test_agent_titles_update_without_losing_the_users_draft(browser, serve):
     panel_settled(page, view="threads")
     page.get_by_role("button", name="Find a thread or message").click()
     page.locator("input.lf-fp-search").fill("Terrace accessibility")
-    expect(page.locator(f'.lf-fp-thread[data-key="{other}"]')).to_have_count(0)
-    expect(page.locator(f'.lf-fp-thread[data-key="{root}"]')).to_be_visible()
+    expect(page.locator(f'.lf-fp-thread[data-lf-key="{other}"]')).to_have_count(0)
+    expect(page.locator(f'.lf-fp-thread[data-lf-key="{root}"]')).to_be_visible()
     page.locator("input.lf-fp-search").fill("")
-    expect(page.locator(f'.lf-fp-thread[data-key="{other}"]')).to_be_visible()
+    expect(page.locator(f'.lf-fp-thread[data-lf-key="{other}"]')).to_be_visible()
     page.reload()
     wait_until_ready(page)
     open_panel_thread(page, root)
@@ -312,7 +312,7 @@ def test_the_user_rewrites_their_own_message_where_it_stands(browser, serve):
     page = open_page(browser, url)
     resized(page, 1200, 900)
     thread = open_panel_thread(page, mine["id"])
-    message = thread.locator(f'.lf-msg[data-message="{mine["id"]}"]')
+    message = thread.locator(f'.lf-msg[data-lf-message="{mine["id"]}"]')
     expect(message.locator(".lf-msg-text")).to_have_text("Fit the north bracket.")
     expect(thread.locator(".lf-msg[data-lf-author=agent] .lf-msg-edit")).to_have_count(
         0
@@ -321,7 +321,7 @@ def test_the_user_rewrites_their_own_message_where_it_stands(browser, serve):
     message.locator(".lf-msg-text").dblclick()
     editor = message.locator(".lf-msg-editor leaf-text")
     expect(editor).to_be_focused()
-    seat = page.locator(f'#cd-q .lf-msg[data-event="{mine["id"]}"]')
+    seat = page.locator(f'#cd-q .lf-msg[data-lf-event="{mine["id"]}"]')
     expect(seat.locator(".lf-msg-text")).to_have_text("Fit the north bracket.")
     expect(seat.locator(".lf-msg-editor")).to_have_count(0)
     page.keyboard.press("ControlOrMeta+a")

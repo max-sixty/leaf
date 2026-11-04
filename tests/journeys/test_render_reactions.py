@@ -32,7 +32,7 @@ def test_a_target_hint_opens_comment_and_a_token_seats_only_its_glyph(browser, s
     expect(page.locator(".lf-composer")).to_be_visible()
     expect(bar.locator(".lf-fab-input")).to_be_focused()
     page.keyboard.press("Tab")
-    reaction = bar.locator('.lf-react[data-token="prioritize"]')
+    reaction = bar.locator('.lf-react[data-lf-token="prioritize"]')
     reaction.focus()
     expect(reaction).to_be_focused()
     with sending(page, "the prioritize reaction"):

@@ -69,7 +69,8 @@ export function drawToc(host, headingReading) {
       const { start, items } = outline;
       return html`
         <nav
-          class="lf-toc-nav lf-ui scroll"
+          class="lf-toc-nav lf-ui"
+          data-lf-scroll
           aria-label="On this page"
           ${generated(false)}
         >

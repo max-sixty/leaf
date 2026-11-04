@@ -914,7 +914,7 @@ def test_a_file_row_a_revision_brings_reads_its_cut_path(browser, serve):
     told(page)
     rendered(page)
     head = page.locator("lf-diff .lf-diff-head").first
-    expect(head).to_have_attribute("data-path-cut", "")
+    expect(head).to_have_attribute("data-lf-path-cut", "")
     expect(head.locator(".lf-diff-path")).to_have_attribute("title", path)
 
     # A changed source path can retain exactly the old clipped width. Its title

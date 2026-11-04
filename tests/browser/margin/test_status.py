@@ -790,7 +790,7 @@ def test_a_thread_an_open_to_do_holds_says_so_beside_the_page(browser, serve):
     panel_settled(page, view="queue")
     page.locator(".lf-floating-panel .lf-fp-filters button").nth(2).click()
     queue = page.locator(panel_view("queue"))
-    owed = queue.locator('.lf-fp-on-item[data-list="agent"]')
+    owed = queue.locator('.lf-fp-on-item[data-lf-list="agent"]')
     expect(owed).to_have_count(1)
     expect(owed.get_by_role("button").locator(".lf-fp-label")).to_have_text(named)
     page.keyboard.press("Escape")
@@ -827,7 +827,7 @@ def test_a_thread_an_open_to_do_holds_says_so_beside_the_page(browser, serve):
     page.keyboard.press("g")
     page.keyboard.press("Shift+T")
     panel_settled(page, view="threads")
-    listed = page.locator(f'.lf-fp-thread[data-key="{root["id"]}"]')
+    listed = page.locator(f'.lf-fp-thread[data-lf-key="{root["id"]}"]')
     expect(listed.locator(".lf-fp-label")).to_have_text(named)
     expect(listed.locator(".lf-row-end")).to_contain_text("Still to do")
 
@@ -1306,7 +1306,7 @@ def test_a_reaction_receipt_keeps_an_unided_selected_blocks_visual_coordinate(
     expect(reactions).to_be_visible()
 
     with sending(page, "the keep reaction"):
-        reactions.locator('.lf-react[data-token="keep"]').click()
+        reactions.locator('.lf-react[data-lf-token="keep"]').click()
     expect(bar).to_be_hidden()
     sent = events_model.read_events(serve.page_dir)[-1]
     assert sent["anchor"]["section"] == "s-how" and sent["anchor"]["quote"]

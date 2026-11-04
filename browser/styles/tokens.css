@@ -557,7 +557,7 @@
    fold opening over several lines moves nothing by a fraction. It keeps the entry
    floor, since a message turns into the editor that rewrites it. Its size is a token
    of its own, so a measure set in it, such as the floating panel's widened field
-   (floating-panel.css, `data-expanded`), follows the face. */
+   (floating-panel.css, `data-lf-expanded`), follows the face. */
 :root,
 .lf-chrome [part] {
   --msg-size: max(var(--entry-floor), var(--t-5));

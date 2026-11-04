@@ -1,6 +1,10 @@
 /* Where paint Leaf stands beside the page's targets stands: the design legend and its
- * label, key chips, margin bars, the search's mark and drawing ink. Marks round a box
- * are drawn by the box itself (surfaces.css).
+ * label, key chips, margin bars, the search's mark, drawing ink, and the comparison's
+ * bars and change card. Marks round a box are drawn by the box itself (surfaces.css).
+ *
+ * A stand says nothing to assistive technology of its own: each painter hides what
+ * only the eye reads, as the key chips' layers do beside the live region that speaks
+ * them, and leaves readable what is read, as a change's card is.
  *
  * Stand each box in the planes of what carries its target (`paintStand`), alone or in a
  * set (`paintSet`); a set keeps which of its targets stand near enough to be shown. */
@@ -71,7 +75,6 @@ import { keeps, layoutPx } from "./keeps.js";
 export function paintStand(box = null) {
   const root = document.createElement("div");
   root.className = "lf-ui lf-target-paint lf-paint-stand";
-  root.setAttribute("aria-hidden", "true");
   root.style.position = "fixed";
   const carrier = document.createElement("div");
   carrier.className = "lf-paint-carrier";

@@ -146,10 +146,12 @@ def test_an_early_anchored_send_merges_history_and_keeps_its_seen_revision(
 
     # The anchored comment stands at its passage, in the margin's card, before the
     # page has its saved history.
-    pending = page.locator('.lf-margin-thread .lf-page-thread[data-thread^="pending:"]')
+    pending = page.locator(
+        '.lf-margin-thread .lf-page-thread[data-lf-thread^="pending:"]'
+    )
     expect(pending.locator(".lf-msg-body")).to_have_text(words)
     expect(pending).to_be_visible()
-    expect(page.locator('[data-thread="saved-comment"]')).to_have_count(0)
+    expect(page.locator('[data-lf-thread="saved-comment"]')).to_have_count(0)
     _history_outstanding(page)
 
     draw_over(page, page.locator("#passage"))
@@ -159,7 +161,9 @@ def test_an_early_anchored_send_merges_history_and_keeps_its_seen_revision(
     page.keyboard.press("ControlOrMeta+Enter")
     # The margin's card stands the drawing's thread at the passage now.
     expect(pending.locator(".lf-msg-body", has_text=drawing_words)).to_have_count(1)
-    expect(page.locator('.lf-drawing-posted[data-thread^="pending:"]')).to_have_count(1)
+    expect(
+        page.locator('.lf-drawing-posted[data-lf-thread^="pending:"]')
+    ).to_have_count(1)
 
     _publish(
         serve.page_dir,
@@ -194,7 +198,7 @@ def test_an_early_anchored_send_merges_history_and_keeps_its_seen_revision(
     ]
     assert len(drawings) == 1
     assert drawings[0]["revision"] == 1
-    expect(page.locator('[data-thread^="pending:"]')).to_have_count(0)
+    expect(page.locator('[data-lf-thread^="pending:"]')).to_have_count(0)
     # Threads lists the saved conversation beside the two the tab sent early.
     # Draw mode's steps stand in the marks' place until the user leaves it.
     page.locator('.lf-fp-exit[aria-label="Exit Draw mode"]').click()
@@ -258,7 +262,7 @@ def test_an_early_touch_comment_returns_its_words_when_delivery_is_refused(
     words = "A comment sent from the cold touch page."
     write(editor, words)
     page.locator(".lf-fp-field").get_by_role("button", name="Send", exact=True).tap()
-    expect(page.locator(PANEL)).to_have_attribute("data-open", "thread")
+    expect(page.locator(PANEL)).to_have_attribute("data-lf-open", "thread")
     _history_outstanding(page)
 
     release_state()

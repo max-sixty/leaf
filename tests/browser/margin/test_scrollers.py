@@ -76,6 +76,51 @@ def test_the_margin_keeps_its_page_coordinate_while_the_user_scrolls(browser, se
     assert offset() == pytest.approx(before, abs=1)
 
 
+# Scroll the page to put the quoted words a third of the way down the window, and read,
+# in the task that scrolled, how far the row's marker stands from the words and whether
+# hit testing where it stands finds it.
+SCROLL_TO_PASSAGE = """() => {
+  const marker = document.querySelector('[data-lf-margin-for="long"] .lf-margin-marker');
+  const node = document.getElementById('long').firstChild;
+  const words = document.createRange();
+  words.setStart(node, node.data.indexOf('the last words land'));
+  words.setEnd(node, node.data.length);
+  const line = () => words.getClientRects()[0].top;
+  const before = marker.getBoundingClientRect().top - line();
+  scrollBy({top: line() - innerHeight / 3, behavior: 'instant'});
+  const box = marker.getBoundingClientRect();
+  const hit = document.elementFromPoint(
+    (box.left + box.right) / 2, line() + before + box.height / 2);
+  return {before, after: box.top - line(), reached: marker.contains(hit)};
+}"""
+
+
+def test_a_passage_s_row_moves_with_the_page_s_scroll_in_the_task_that_scrolls(
+    browser, serve, subtests
+):
+    """A row quoting words only the page's scroll moves stands where that scroll leaves
+    it in the task that scrolls, as the words do, so a script reading its box or hit
+    testing where it is drawn finds it there, as a pin on a phone and in the rail. In an
+    anchored carrier it read at its old place until the next frame rendered, so a tap
+    Playwright aimed meanwhile scrolled away from it."""
+    text = " ".join(
+        f"Sentence number {i} says something about the release." for i in range(120)
+    )
+    body = f'<h1>Passage rows</h1><p id="long">{text} Finally the last words land.</p>'
+    events = [_comment_on("long", quote="the last words land")]
+    page = open_page(browser, serve(leaf_page("Passage rows", body), events=events))
+    row = page.locator('[data-lf-margin-for="long"]')
+    for width, height, place in ((390, 844, "pin"), (1440, 900, "rail")):
+        with subtests.test(width=width):
+            resized(page, width, height)
+            page.evaluate("() => scrollTo({top: 0, behavior: 'instant'})")
+            margins_laid_out(page)
+            expect(row).to_have_attribute("data-lf-place", place)
+            read = page.evaluate(SCROLL_TO_PASSAGE)
+            assert read["after"] == pytest.approx(read["before"], abs=1), read
+            assert read["reached"], read
+
+
 def test_a_keyboard_arrival_brings_its_card_once_its_row_is_shown(browser, serve):
     """`m` to an obligation below a pane's fold scrolls it into view while its row is still
     withheld, so there is nothing yet to hang its card from. The card of the thread the
@@ -96,14 +141,16 @@ def test_a_keyboard_arrival_brings_its_card_once_its_row_is_shown(browser, serve
     row = page.locator('[data-lf-margin-for="work"]')
     expect(row).to_be_hidden()
     page.keyboard.press("t")
-    leaving = page.locator(f'.lf-margin-preview .lf-page-thread[data-thread="{left}"]')
+    leaving = page.locator(
+        f'.lf-margin-preview .lf-page-thread[data-lf-thread="{left}"]'
+    )
     expect(leaving).to_be_focused()
     page.keyboard.press("m")
     expect(page.locator("#work")).to_be_focused()
     expect(leaving).to_have_count(0)
     expect(row).to_be_visible()
     expect(
-        page.locator(f'.lf-margin-preview .lf-page-thread[data-thread="{root}"]')
+        page.locator(f'.lf-margin-preview .lf-page-thread[data-lf-thread="{root}"]')
     ).to_be_visible()
     expect(page.locator("#work")).to_be_focused()
 
@@ -1153,6 +1200,54 @@ def test_rows_follow_slides_a_transition_shows_and_hides(browser, serve):
     page.get_by_text("Notes", exact=True).click()
     expect(row["note"]).not_to_have_class(withheld)
     expect(row["note"]).to_be_visible()
+
+
+def test_rows_stand_by_words_a_transition_moved_once_it_ends(browser, serve):
+    """A transform moves words without layout, so nothing resizes or mutates after the
+    class change that starts it. Once the transition ends, the rows by those words stand
+    by them again, a quoted row and a row on the moved box alike, without waiting for an
+    unrelated pass."""
+    filler = "".join(
+        f"<p>Filler paragraph {n}, a line of reading.</p>" for n in range(8)
+    )
+    body = (
+        f'<h1>Moved words</h1>{filler}<div id="mover"><p id="moving">Moving words to'
+        f" quote, which a transition carries down.</p></div>{filler}{filler}"
+    )
+    head = (
+        "<style>#mover { transition: transform 0.2s; }"
+        " #mover.moved { transform: translateY(160px); }</style>"
+    )
+    events = [_comment_on("moving", quote="Moving words"), _comment_on("mover")]
+    page = open_page(
+        browser, serve(leaf_page("Moved words", body, head=head), events=events)
+    )
+    resized(page, 1440, 900)
+    margins_laid_out(page)
+    # Each row's marker, from the words it stands by.
+    offsets = """() => {
+      const words = document.getElementById('moving').getBoundingClientRect().top;
+      const marker = (row) => document.querySelector(row + ' .lf-margin-marker')
+        .getBoundingClientRect().top - words;
+      return {
+        quoted: marker('[data-lf-margin-for="moving"]'),
+        box: marker('[data-lf-margin-for="mover"]'),
+      };
+    }"""
+    before = page.evaluate(offsets)
+    # Read two frames after the transition ends, not polled: some unrelated pass would
+    # place the rows eventually, which is the bug.
+    moved = """async () => {
+      const mover = document.getElementById('mover');
+      const ended = new Promise((resolve) => mover.addEventListener('transitionend',
+        (event) => event.target === mover && resolve()));
+      mover.classList.add('moved');
+      await ended;
+      for (const _ of [1, 2]) await new Promise(requestAnimationFrame);
+      return (OFFSETS)();
+    }"""
+    after = page.evaluate(moved.replace("OFFSETS", offsets))
+    assert after == pytest.approx(before, abs=1), (before, after)
 
 
 STRIP_FILL = "".join(

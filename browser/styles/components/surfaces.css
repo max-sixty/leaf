@@ -62,8 +62,8 @@
    escape the box it sits in, which it did — an out-of-flow box with no positioned
    ancestor is positioned against the page, so a word on a cell of a table scrolling
    inside itself stood three hundred pixels past the window with the page scrolling
-   sideways to reach it. The scroll surface contains it: the shared `scroll` primitive positions
-   the surface without moving it.
+   sideways to reach it. The scroll surface contains it: the shared scroll-surface
+   primitive positions the surface without moving it.
 
    Here and not in runtime/chrome.css, because content widgets write it into the page
    and into declared trees, and the chrome's sheet is the one an exported page never
@@ -889,7 +889,7 @@ summary {
   margin-block: 16px;
   anchor-name: var(--lf-fold-head);
 }
-.lf-thread-checkpoint[data-expanded="true"] {
+.lf-thread-checkpoint[data-lf-expanded="true"] {
   margin-block-end: 8px;
 }
 .lf-thread-transcript > .lf-msg[data-lf-summary] {
@@ -907,7 +907,7 @@ summary {
    reader is on keeps it open in place (held-news.js). It spans siblings, from the
    checkpoint's head to the foot of its last message, so it is anchored to both, in the
    thread content outside the scrolling transcript. Collapsed disclosures stay inline. */
-.lf-thread-checkpoint[data-expanded="true"]::before {
+.lf-thread-checkpoint[data-lf-expanded="true"]::before {
   content: "";
   position: absolute;
   inset-block-start: calc(anchor(var(--lf-fold-head) start) - 7px);
@@ -1173,9 +1173,9 @@ summary {
   white-space: nowrap;
 }
 /* The notice says one count, "2 new" (held-news.js, `newsNotice`), in figures of one
-   width, both in its words and in the room a card holds for the count it first said
-   (`data-room`, controls.css), so a count that grows keeps to that room; a room too
-   narrow for it cuts it. */
+   width, both in its words and in the room a card holds for the widest count it says
+   (`NEWS_ROOM`, held-news.js; `data-lf-room`, controls.css), so a count that grows
+   keeps to that room. */
 button.lf-thread-news {
   font: var(--font-heading);
   font-variant-numeric: tabular-nums;

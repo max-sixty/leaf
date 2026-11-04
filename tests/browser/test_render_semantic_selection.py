@@ -14,7 +14,6 @@ from render_cases_widgets import (
     PART_DIAGRAM_PAGE,
 )
 from render_harness import (
-    EXAMPLES,
     ROOT,
     available_commands,
     expect_panel_says,
@@ -31,6 +30,7 @@ from render_harness import (
 
 from leaf import event_log as events_model
 from leaf.render_checks import rendered
+from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -138,9 +138,7 @@ def test_desktop_target_picker_arms_the_page_as_alt_does(browser, serve):
 
 def test_target_picker_takes_a_margin_press_as_the_target_it_stands_by(browser, serve):
     """Over a suggestion's ✓ Accept, the picker comments on the change, as Alt does."""
-    page = open_page(
-        browser, serve(next(p for p in EXAMPLES if p.stem == "release-notes"))
-    )
+    page = open_page(browser, serve(named_source("release-notes")))
     before = len(events_model.read_events(serve.page_dir))
     accept = page.locator(".lf-margin-cluster .lf-sug-accept").first
     accept.scroll_into_view_if_needed()
@@ -242,7 +240,7 @@ def test_s_aims_at_the_addressable_element_named_by_its_hint(browser, serve):
     expect(field).to_have_js_property("value", "s")
     write(field, "Keep this draft")
     page.keyboard.press("Tab")
-    expect(bar.locator('[data-token="keep"]')).to_be_focused()
+    expect(bar.locator('[data-lf-token="keep"]')).to_be_focused()
     expect(field).to_be_visible()
     page.keyboard.press("Escape")
     expect(field).to_be_focused()

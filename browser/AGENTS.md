@@ -86,8 +86,8 @@ own (`../SOUL.md`, "Keep the foundation small and extensible").
   generated interface appears in its final position. A state that may never come, such
   as a failed save, shows in a slot already on screen, as a message's head carries its
   delivery status, and the user's gesture makes the room it needs. Feedback may repaint
-  a control or change its label, but never its size: `data-room` (`controls.css`) sizes
-  a label to the widest of the words it can show. Adjacent actions keep their hit areas
+  a control or change its label, but never its size: `data-lf-room` (`controls.css`)
+  sizes a label to the widest of the words it can show. Adjacent actions keep their hit areas
   apart.
 - **Shared containers determine control dimensions.** When several modes share a
   container, as the comment field, page search, Threads' search and a thread's reply
@@ -296,7 +296,8 @@ Entry points per concern (paths under `runtime/`; each header owns the details):
 `runtime/rendering.js` runs every rendering callback in one pass per frame. Schedule
 through its `nextRender`, `nextFrame`, `cancelRender` and `sizeObserver`; lint refuses
 the browser's own. A rendering callback does its layout reads before its writes, since
-a read after a write forces a synchronous layout.
+a read after a write forces a synchronous layout. `getComputedStyle` forces style, and
+in Chromium so can a read of the page's selection, such as `rangeCount`.
 
 A box that follows page content is positioned by CSS, with an anchor, a sticky offset
 or a scroll timeline, because a scroll handler trails the scroll by a frame. Paint over
@@ -331,7 +332,7 @@ A `:has()` rule can turn a local write into a restyle of the whole page or chrom
 unkeyed rightmost compound widens what it invalidates, and a condition on the chrome
 root, `body` or `html` is re-evaluated on writes below it. Prefer a class that names the
 targets, or a condition its owner sets on the styled element, and measure with
-`leaf-dev profile SOURCE TRANSITION`.
+`leaf-dev bench-latency --profile`.
 
 ### Layouts, styles and controls
 
@@ -355,6 +356,15 @@ targets, or a condition its owner sets on the styled element, and measure with
   roles). A new role needs a difference in the user's task, not only in a widget's
   taste. Checks: `test_controls_are_built_by_role_and_never_by_face`,
   `test_every_press_is_built_by_role`.
+- **Leaf's elements wear only Leaf's names.** A class or data attribute the runtime
+  or a package module writes starts with `lf-` or `data-lf-`, the names `page check`
+  refuses an author (`../src/leaf/validation.md`), so a page's CSS for its own names
+  never reaches Leaf's elements; a page restyles Leaf on purpose through the theme's
+  tokens. Where a Leaf control looks like an idiom an author writes, such as `.button`
+  or `data-room`, it wears the idiom's `lf-` twin (`.lf-btn`, `data-lf-room`), and one
+  theme rule selects both. A library's names on an element Leaf draws for that library,
+  such as Pierre's row attributes, stay the library's. Check:
+  `test_leaf_writes_its_own_marks_under_its_prefix`.
 - **A face used twice is a token or a shared rule.** A lift names one of the theme's
   heights, `--raise-1` to `--raise-3` (`base.css`). Check:
   `test_every_lift_names_one_of_the_theme_s_heights_cast_in_the_scheme_s_ink`.
@@ -369,7 +379,7 @@ use it:
 
 | Question                                                                   | The browser feature that answers it                                                                                               |
 | -------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| How large a box is, including the widest of several labels                 | grid and flex tracks, `min-content` and `max-content`, labels stacked in one grid cell, `data-room`                               |
+| How large a box is, including the widest of several labels                 | grid and flex tracks, `min-content` and `max-content`, labels stacked in one grid cell, `data-lf-room`                            |
 | Where a box sits relative to another box or its scroller                   | the containing block, sticky positioning, anchor positioning, scroll timelines                                                    |
 | Which of Leaf's surfaces paints over which, with the page beneath them all | the top layer, and stacking contexts: the theme's `--lf-z-*` ladder, inside the chrome's root after `body` at the largest z-index |
 | Whether a box is rendered at all                                           | `checkVisibility`                                                                                                                 |
@@ -402,22 +412,22 @@ publisher, `applicationState` in `semantic-state.js`, combines authored state, t
 server's latest state and this tab's unresolved work into the one state every component
 reads (root `AGENTS.md`, "The document starts state; the log changes it"):
 
-| Fact                                                                                                          | Authority                                                                                                                                                                                          |
-| ------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| authored widget state                                                                                         | the validated source markup, captured before upgrade                                                                                                                                               |
-| external data                                                                                                 | the latest page data; Leaf sets each bound source on the widget property x-data names (data.js)                                                                                                    |
-| version shown                                                                                                 | the revision the delivery prelude names; a newer revision with the same executable identity patches in place, and a different one loads a fresh document                                           |
-| accepted history                                                                                              | the server's event log and its `/api/state` answer, which the publisher adopts whole; each answer has one `through_seq`, and a version comparison asks `/api/view` at the sequence already applied |
-| unresolved browser work, refusals included                                                                    | the publisher's one ordered list; the server records no refusal, since the condition behind one can change while the user's words stay the same                                                    |
-| threads, workflow, attention, obligations, to-dos, activity, unread                                           | the server's state, which the browser selects without folding again (obligations: `obligations/model.js`); the browser adds only its own unresolved sends and the versions it is marking read      |
-| what waits on the user and on the agent                                                                       | the server's `served_state.queues`, which `page state` prints; the publisher adds this tab's sends (`localQueues`)                                                                                 |
-| what the DOM shows                                                                                            | the presentation coordinator's renderer tickets and preparation regions                                                                                                                            |
-| when a document-wide renderer paints                                                                          | the DOM dependencies `PRESENTATION_DOM` in `runtime/semantic-state.js` declares                                                                                                                    |
-| where each thread's passage is                                                                                | `anchor-placement.js`, resolving its anchor in this version                                                                                                                                        |
-| the line inside a target that a comment sits by                                                               | `pointed-place.js` (`placePoints`); presentation only                                                                                                                                              |
-| the side and line a comment box and its thread card sit by                                                    | `annotation-overlay/comment-placement.js` (`commentSide`)                                                                                                                                          |
-| whether a margin row sits in the rail or as a pin, and where                                                  | `annotation-overlay/margin-layout.js`                                                                                                                                                              |
-| what a scroller shows, what a surface hides, what sticky headers cover, how much of the window the page shows | `geometry.js` (`visibleBand`, `declareOccluder`, `headerInset`, `shownWindow`, `seenRect`, `motionBand`)                                                                                           |
+| Fact                                                                                                          | Authority                                                                                                                                                                                                                                                                                                                                                                               |
+| ------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| authored widget state                                                                                         | the validated source markup, captured before upgrade                                                                                                                                                                                                                                                                                                                                    |
+| external data                                                                                                 | the latest page data; Leaf sets each bound source on the widget property x-data names (data.js)                                                                                                                                                                                                                                                                                         |
+| version shown                                                                                                 | the revision the delivery prelude names; a newer revision with the same executable identity patches in place, and a different one loads a fresh document                                                                                                                                                                                                                                |
+| accepted history                                                                                              | the server's event log and its `/api/state` answer, which the publisher adopts whole; an answer naming its request's held reading in `since` carries only the history after it, which the reader completes from that reading first (`completeState` in `layer-client.js`); each answer has one `through_seq`, and a version comparison asks `/api/view` at the sequence already applied |
+| unresolved browser work, refusals included                                                                    | the publisher's one ordered list; the server records no refusal, since the condition behind one can change while the user's words stay the same                                                                                                                                                                                                                                         |
+| threads, workflow, attention, obligations, to-dos, activity, unread                                           | the server's state, which the browser selects without folding again (obligations: `obligations/model.js`); the browser adds only its own unresolved sends and the versions it is marking read                                                                                                                                                                                           |
+| what waits on the user and on the agent                                                                       | the server's `served_state.queues`, which `page state` prints; the publisher adds this tab's sends (`localQueues`)                                                                                                                                                                                                                                                                      |
+| what the DOM shows                                                                                            | the presentation coordinator's renderer tickets and preparation regions                                                                                                                                                                                                                                                                                                                 |
+| when a document-wide renderer paints                                                                          | the DOM dependencies `PRESENTATION_DOM` in `runtime/semantic-state.js` declares                                                                                                                                                                                                                                                                                                         |
+| where each thread's passage is                                                                                | `anchor-placement.js`, resolving its anchor in this version                                                                                                                                                                                                                                                                                                                             |
+| the line inside a target that a comment sits by                                                               | `pointed-place.js` (`placePoints`); presentation only                                                                                                                                                                                                                                                                                                                                   |
+| the side and line a comment box and its thread card sit by                                                    | `annotation-overlay/comment-placement.js` (`commentSide`)                                                                                                                                                                                                                                                                                                                               |
+| whether a margin row sits in the rail or as a pin, and where                                                  | `annotation-overlay/margin-layout.js`                                                                                                                                                                                                                                                                                                                                                   |
+| what a scroller shows, what a surface hides, what sticky headers cover, how much of the window the page shows | `geometry.js` (`visibleBand`, `declareOccluder`, `headerInset`, `shownWindow`, `seenRect`, `motionBand`)                                                                                                                                                                                                                                                                                |
 
 Add no second cache, pending map, replay list or DOM attribute as another source for
 one of these facts. A rendering may expose state, such as `data-lf-state` for CSS and
@@ -476,6 +486,7 @@ adds its row. Rows marked _lint_ are enforced in `eslint.config.mjs`.
 | Whether a box scrolls, for a script or for the user                                                   | `geometry.js` `scrollContainer`, `userScrollport`                                  |
 | Which axes a box clips                                                                                | `rect.js` `clippingAxes`                                                           |
 | Whether a box is at its scroll end                                                                    | `scrolling.js` `atScrollEnd`, `SCROLL_SLACK`                                       |
+| When a box's scroll ends, a glide's counted once, and whether the browser or a script moves it        | `arrivals.js` `watchScrollEnds`, `holdScroll`, `browserScrolls` (_lint_)           |
 | Whether the reader or layout chose a box's scroll position                                            | `scrolling.js` `chosenSince`, `placeKept`                                          |
 | The authored body, excluding Leaf's runtime surfaces                                                  | `passages.js` `pageDocument`, `inPage`                                             |
 | The box the page's Layout arranges, and the shell it stands in (its parent)                           | `passages.js` `layoutBox`                                                          |

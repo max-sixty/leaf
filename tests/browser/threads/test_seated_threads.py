@@ -92,7 +92,7 @@ def test_a_resolution_from_elsewhere_moves_nothing_after_a_diff_thread(browser, 
     )
     page = open_page(browser, url)
     resized(page, 1920, 900)
-    thread = page.locator(f'lf-diff .lf-page-thread[data-thread="{root}"]')
+    thread = page.locator(f'lf-diff .lf-page-thread[data-lf-thread="{root}"]')
     after = page.locator("#after")
     expect(thread).to_be_visible()
     rendered(page)
@@ -110,7 +110,7 @@ def test_a_resolution_from_elsewhere_moves_nothing_after_a_diff_thread(browser, 
     rendered(page)
     assert after.bounding_box() == before
     notice.click()
-    expect(thread).to_have_attribute("data-resolved", "true")
+    expect(thread).to_have_attribute("data-lf-resolved", "true")
     expect(thread).to_be_hidden()
     expect(page.locator("lf-diff .lf-resolved-summary")).to_have_text("Resolved · 1")
 
@@ -128,7 +128,7 @@ def test_diff_news_waits_only_where_its_growth_would_be_seen(browser, serve, foo
     url, root = long_diff_thread(serve)
     page = open_page(browser, url)
     resized(page, 1280, 800)
-    thread = page.locator(f'lf-diff .lf-page-thread[data-thread="{root}"]')
+    thread = page.locator(f'lf-diff .lf-page-thread[data-lf-thread="{root}"]')
     expect(thread).to_be_visible()
     header = page.locator("lf-diff .lf-diff-file > details > summary")
     read = page.locator("lf-diff [data-line]").filter(has_text="line 30")
@@ -241,7 +241,7 @@ def test_an_agent_settling_a_diff_thread_above_the_screen_moves_nothing_below(
     url, root = long_diff_thread(serve)
     page = open_page(browser, url)
     resized(page, 1280, 800)
-    thread = page.locator(f'lf-diff .lf-page-thread[data-thread="{root}"]')
+    thread = page.locator(f'lf-diff .lf-page-thread[data-lf-thread="{root}"]')
     expect(thread).to_be_visible()
     read = page.locator("lf-diff [data-line]").filter(has_text="line 30")
     thread.evaluate(
@@ -297,13 +297,13 @@ def test_a_reopening_waits_where_the_reopened_thread_would_stand(
         )
     page = open_page(browser, url)
     resized(page, 1280, 800)
-    open_thread = page.locator(f'lf-diff .lf-page-thread[data-thread="{later}"]')
+    open_thread = page.locator(f'lf-diff .lf-page-thread[data-lf-thread="{later}"]')
     summary = page.locator("lf-diff .lf-resolved-summary")
     expect(summary).to_have_text("Resolved · 1")
     if disclosure == "open":
         summary.click()
         expect(
-            page.locator(f'lf-diff .lf-page-thread[data-thread="{first}"]')
+            page.locator(f'lf-diff .lf-page-thread[data-lf-thread="{first}"]')
         ).to_be_visible()
     open_thread.evaluate(
         "node => scrollBy({top: node.getBoundingClientRect().top - 200,"
@@ -320,7 +320,7 @@ def test_a_reopening_waits_where_the_reopened_thread_would_stand(
     rendered(page)
     expect(summary).to_have_text("Resolved · 1 · 2 new")
     # The news is Leaf's, in its face, as the thread's own held news is.
-    expect(summary.locator('[data-voice="leaf"]')).to_have_text("2 new")
+    expect(summary.locator('[data-lf-voice="leaf"]')).to_have_text("2 new")
     assert open_thread.bounding_box()["y"] == pytest.approx(before, abs=0.5)
 
 
@@ -334,7 +334,7 @@ def test_a_reaction_list_closes_once_its_trigger_is_out_of_sight(browser, serve)
     page = open_page(browser, url)
     resized(page, 1280, 800)
     message = page.locator(
-        f'lf-diff .lf-page-thread[data-thread="{root}"] .lf-msg[data-lf-author=agent]'
+        f'lf-diff .lf-page-thread[data-lf-thread="{root}"] .lf-msg[data-lf-author=agent]'
     )
     message.hover()
     trigger = message.locator(".lf-react-trigger")
@@ -436,7 +436,7 @@ def test_a_diff_thread_reply_grown_by_a_paste_keeps_its_send_above_the_panel(
     as one that fits, so the growth reveal moved nothing."""
     url, root = seated_thread(serve, "diff", 12)
     page = open_page(browser, url)
-    thread = page.locator(f'.lf-page-thread[data-thread="{root}"]')
+    thread = page.locator(f'.lf-page-thread[data-lf-thread="{root}"]')
     box = thread.locator(":scope > .lf-thread-reply leaf-text")
     box.scroll_into_view_if_needed()
     write(box, "First line")
@@ -458,7 +458,7 @@ def test_an_agent_turn_arriving_holds_still_the_page_box_being_typed_in(
     messages = 1 if kind == "bounded-short" else 3
     url, root = seated_thread(serve, kind, messages)
     page = open_page(browser, url)
-    thread = page.locator(f'.lf-page-thread[data-thread="{root}"]')
+    thread = page.locator(f'.lf-page-thread[data-lf-thread="{root}"]')
     box = thread.locator(":scope > .lf-thread-reply leaf-text")
     box.scroll_into_view_if_needed()
     write(box, "Half a thought")
@@ -499,7 +499,7 @@ def test_resolving_a_long_page_thread_by_its_button_leaves_the_page_still(
     kind = "verdict"
     url, root = seated_thread(serve, kind, 12)
     page = open_page(browser, url)
-    thread = page.locator(f'.lf-page-thread[data-thread="{root}"]')
+    thread = page.locator(f'.lf-page-thread[data-lf-thread="{root}"]')
     resolve = thread.locator(".lf-resolve")
     resolve.scroll_into_view_if_needed()
     to_window_foot(page, resolve, 120)
@@ -520,7 +520,7 @@ def test_settling_a_long_diff_thread_by_key_keeps_it_in_view(browser, serve):
     user was located on went above the window, and the reopened thread with it."""
     url, root = seated_thread(serve, "diff", 12)
     page = open_page(browser, url)
-    thread = page.locator(f'.lf-page-thread[data-thread="{root}"]')
+    thread = page.locator(f'.lf-page-thread[data-lf-thread="{root}"]')
     box = thread.locator(":scope > .lf-thread-reply leaf-text")
     box.scroll_into_view_if_needed()
     to_window_foot(page, box, 60)
@@ -550,7 +550,7 @@ def test_r_settles_the_thread_seated_under_the_diff_line_the_user_stands_on(
     thread. The user stays on the line."""
     url, root = seated_thread(serve, "diff", 1, line='["app.py","old",1]')
     page = open_page(browser, url)
-    thread = page.locator(f'.lf-page-thread[data-thread="{root}"]')
+    thread = page.locator(f'.lf-page-thread[data-lf-thread="{root}"]')
     expect(thread).to_be_visible()
     page.evaluate(RELEASE_FOCUS)
     page.keyboard.press("Tab")  # The file's comment control.
@@ -578,7 +578,7 @@ def test_a_turn_arriving_leaves_a_user_who_scrolled_away_from_their_box_reading(
     messages = 1 if kind == "bounded-short" else 3
     url, root = seated_thread(serve, kind, messages)
     page = open_page(browser, url)
-    thread = page.locator(f'.lf-page-thread[data-thread="{root}"]')
+    thread = page.locator(f'.lf-page-thread[data-lf-thread="{root}"]')
     box = thread.locator(":scope > .lf-thread-reply leaf-text")
     box.scroll_into_view_if_needed()
     write(box, "Half a thought")
@@ -630,7 +630,7 @@ def test_a_reply_box_whose_thread_leaves_the_diff_takes_the_user_to_its_card(
     url, root = seated_thread(serve, "diff", 2, annotations)
     page = open_page(browser, url)
     resized(page, 1440, 900)
-    inline = page.locator(f'lf-diff .lf-page-thread[data-thread="{root}"]')
+    inline = page.locator(f'lf-diff .lf-page-thread[data-lf-thread="{root}"]')
     box = inline.locator(":scope > .lf-thread-reply leaf-text")
     box.scroll_into_view_if_needed()
     write(box, "Half a thought")
@@ -662,10 +662,12 @@ def test_a_reply_box_whose_thread_leaves_the_diff_takes_the_user_to_its_card(
     # A page drawing no margin puts the thread up in the panel, its reply in the
     # panel's field; an overlay margin in its card.
     if annotations == "page":
-        expect(page.locator(f'{PANEL_THREAD}[data-thread="{root}"]')).to_be_visible()
+        expect(page.locator(f'{PANEL_THREAD}[data-lf-thread="{root}"]')).to_be_visible()
         reply = page.locator(PANEL_REPLY)
     else:
-        card = page.locator(f'.lf-margin-preview .lf-page-thread[data-thread="{root}"]')
+        card = page.locator(
+            f'.lf-margin-preview .lf-page-thread[data-lf-thread="{root}"]'
+        )
         reply = card.locator(":scope > .lf-thread-reply leaf-text")
     expect(reply).to_be_focused()
     expect(reply).to_have_js_property("value", "Half a thought")
@@ -695,7 +697,7 @@ def test_a_reply_box_whose_thread_returns_to_the_diff_takes_the_user_back(
     url, root = seated_thread(serve, "diff", 2)
     page = open_page(browser, url)
     resized(page, 1440, 900)
-    inline = page.locator(f'lf-diff .lf-page-thread[data-thread="{root}"]')
+    inline = page.locator(f'lf-diff .lf-page-thread[data-lf-thread="{root}"]')
     box = inline.locator(":scope > .lf-thread-reply leaf-text")
     box.scroll_into_view_if_needed()
     write(box, "Half a thought")
@@ -703,7 +705,7 @@ def test_a_reply_box_whose_thread_returns_to_the_diff_takes_the_user_back(
         serve.page_dir, "review-patch", SEAT_DIFF + "@@ -9 +9 @@\n-old = 1\n+new = 1\n"
     )
     told(page)
-    card = page.locator(f'.lf-margin-preview .lf-page-thread[data-thread="{root}"]')
+    card = page.locator(f'.lf-margin-preview .lf-page-thread[data-lf-thread="{root}"]')
     reply = card.locator(":scope > .lf-thread-reply leaf-text")
     expect(reply).to_be_focused()
     page.keyboard.type(" more")
@@ -751,7 +753,7 @@ def test_a_reply_dictated_on_the_diff_keeps_listening_as_its_thread_moves(
     url, root = seated_thread(serve, "diff", 2)
     page = open_page(browser, url, init_script=FAKE_RECOGNITION)
     resized(page, 1440, 900)
-    inline = page.locator(f'lf-diff .lf-page-thread[data-thread="{root}"]')
+    inline = page.locator(f'lf-diff .lf-page-thread[data-lf-thread="{root}"]')
     row = inline.locator(":scope > .lf-thread-reply")
     row.scroll_into_view_if_needed()
     row.locator("leaf-text").focus()
@@ -765,7 +767,7 @@ def test_a_reply_dictated_on_the_diff_keeps_listening_as_its_thread_moves(
         serve.page_dir, "review-patch", SEAT_DIFF + "@@ -9 +9 @@\n-old = 1\n+new = 1\n"
     )
     told(page)
-    card = page.locator(f'.lf-margin-preview .lf-page-thread[data-thread="{root}"]')
+    card = page.locator(f'.lf-margin-preview .lf-page-thread[data-lf-thread="{root}"]')
     reply = card.locator(":scope > .lf-thread-reply leaf-text")
     expect(reply).to_be_focused()
     page.evaluate(heard, "Half a thought")
@@ -791,7 +793,7 @@ def test_a_reply_box_left_by_tab_returns_to_the_diff_with_its_history(
     url, root = seated_thread(serve, "diff", 2)
     page = open_page(browser, url)
     resized(page, 1440, 900)
-    inline = page.locator(f'lf-diff .lf-page-thread[data-thread="{root}"]')
+    inline = page.locator(f'lf-diff .lf-page-thread[data-lf-thread="{root}"]')
     box = inline.locator(":scope > .lf-thread-reply leaf-text")
     box.scroll_into_view_if_needed()
     write(box, "Half a thought")
@@ -799,7 +801,7 @@ def test_a_reply_box_left_by_tab_returns_to_the_diff_with_its_history(
         serve.page_dir, "review-patch", SEAT_DIFF + "@@ -9 +9 @@\n-old = 1\n+new = 1\n"
     )
     told(page)
-    shown = page.locator(f'.lf-margin-preview .lf-page-thread[data-thread="{root}"]')
+    shown = page.locator(f'.lf-margin-preview .lf-page-thread[data-lf-thread="{root}"]')
     reply = shown.locator(":scope > .lf-thread-reply leaf-text")
     expect(reply).to_be_focused()
     page.keyboard.type(" more")
@@ -838,7 +840,7 @@ def test_a_user_on_a_thread_returning_to_the_diff_goes_with_it(
     url, root = seated_thread(serve, "diff", 2)
     page = open_page(browser, url)
     resized(page, 1440, 900)
-    inline = page.locator(f'lf-diff .lf-page-thread[data-thread="{root}"]')
+    inline = page.locator(f'lf-diff .lf-page-thread[data-lf-thread="{root}"]')
     data_model.cmd_data_set(
         serve.page_dir, "review-patch", SEAT_DIFF + "@@ -9 +9 @@\n-old = 1\n+new = 1\n"
     )
@@ -884,7 +886,7 @@ def test_a_thread_resolved_while_its_reply_is_written_keeps_the_user_on_it(
     if kind == "margin":
         resized(page, 1440, 900)
         page.locator('.lf-margin-marker[data-lf-kinds="comment"]').click()
-    thread = page.locator(f'.lf-page-thread[data-thread="{root}"]')
+    thread = page.locator(f'.lf-page-thread[data-lf-thread="{root}"]')
     box = thread.locator(":scope > .lf-thread-reply leaf-text")
     box.scroll_into_view_if_needed()
     write(box, "Half a thought")
@@ -920,20 +922,20 @@ def test_a_thread_resolved_while_its_reply_is_written_keeps_the_user_on_it(
         expect(box).to_have_js_property("value", "")
         assert box.evaluate("box => [box.selectionStart, box.selectionEnd]") == [0, 0]
         if kind == "margin":
-            expect(thread).to_have_attribute("data-resolved", "true")
+            expect(thread).to_have_attribute("data-lf-resolved", "true")
         else:
             # A seat in the flow holds the resolution behind its notice while the
             # thread is on screen.
             expect(thread.locator(".lf-thread-news")).to_contain_text("Resolved")
-            expect(thread).to_have_attribute("data-resolved", "false")
+            expect(thread).to_have_attribute("data-lf-resolved", "false")
         return
     page.keyboard.type(" tr")
     expect(box).to_have_js_property("value", "Half tr a thought")
-    expect(page.locator(PANEL)).not_to_have_attribute("data-open", re.compile("."))
+    expect(page.locator(PANEL)).not_to_have_attribute("data-lf-open", re.compile("."))
     with sending(page, "the reply"):
         thread.get_by_role("button", name="Send", exact=True).click()
     told(page)
-    expect(thread).to_have_attribute("data-resolved", "false")
+    expect(thread).to_have_attribute("data-lf-resolved", "false")
     expect(thread.locator(".lf-msg", has_text="Half tr a thought")).to_be_visible()
 
 

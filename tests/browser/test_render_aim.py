@@ -55,7 +55,6 @@ from render_cases_widgets import (
 )
 from render_harness import (
     EDITOR_ROOTS,
-    EXAMPLES,
     FOLLOWER_MARK,
     LONG_PAGE,
     PANEL,
@@ -102,6 +101,7 @@ from leaf.render_checks import rendered, wait_until_ready
 from leaf.render_gate.scheme import collect_page_exceptions
 from leaf.served_state import context as served_context
 from leaf.validation import composition as validation_model
+from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -130,12 +130,12 @@ AIM_PRESS_CASES = (
     ),
     (
         "release-notes",
-        next(p for p in EXAMPLES if p.stem == "release-notes"),
+        named_source("release-notes"),
         frozenset({"draft mousedown", "suggestion margin control"}),
     ),
     (
         "ship-review",
-        next(p for p in EXAMPLES if p.stem == "ship-review"),
+        named_source("ship-review"),
         frozenset({"option click", "existing mark"}),
     ),
 )
@@ -252,7 +252,7 @@ def test_a_compact_comment_carries_its_box_into_the_inline_thread(browser, serve
     expect(preview.locator(".lf-page-thread")).to_be_focused()
     message = preview.locator(".lf-msg-body").first
     expect(preview.locator(".lf-page-thread")).to_have_attribute(
-        "data-thread", admitted["id"]
+        "data-lf-thread", admitted["id"]
     )
     expect(message).to_have_text("Carry this comment into its thread.")
     full = message.evaluate(
@@ -559,7 +559,7 @@ def test_a_growing_comment_is_independent_of_page_controls(browser, serve):
     """
     page = open_page(
         browser,
-        serve(next(example for example in EXAMPLES if example.stem == "release-notes")),
+        serve(named_source("release-notes")),
     )
     resized(page, 1337, 386)
     page.evaluate("() => { location.hash = '#rn-console-why' }")
@@ -1230,9 +1230,9 @@ def test_a_pointed_comment_keeps_the_rows_still_owed(browser, serve, case):
         page.keyboard.press("t")
         shown = page.locator(".lf-margin-preview .lf-page-thread")
         expect(shown).to_have_count(1)
-        if shown.get_attribute("data-thread") != first:
+        if shown.get_attribute("data-lf-thread") != first:
             page.keyboard.press("Shift+t")
-        expect(shown).to_have_attribute("data-thread", first)
+        expect(shown).to_have_attribute("data-lf-thread", first)
         scroll_settled(page)
         rendered(page)
         card = page.locator(".lf-margin-preview").bounding_box()
@@ -1566,7 +1566,7 @@ def test_a_comment_rechooses_after_target_width_reflow(browser, serve):
     """New horizontal room invalidates the old fallback instead of detaching it."""
     page = open_page(
         browser,
-        serve(next(example for example in EXAMPLES if example.stem == "release-notes")),
+        serve(named_source("release-notes")),
     )
     resized(page, 700, 600)
     target = page.locator("#rn-console-why")
@@ -1600,7 +1600,7 @@ def test_a_draft_below_its_passage_keeps_its_lane_whatever_it_holds(browser, ser
     same draft typed into an empty field."""
     page = open_page(
         browser,
-        serve(next(example for example in EXAMPLES if example.stem == "release-notes")),
+        serve(named_source("release-notes")),
     )
     resized(page, 700, 600)
     target = page.locator("#rn-console-why")
@@ -1674,7 +1674,7 @@ def test_a_comment_rechooses_its_side_after_vertical_target_motion(browser, serv
     moves with it (comment-placement.js)."""
     page = open_page(
         browser,
-        serve(next(example for example in EXAMPLES if example.stem == "release-notes")),
+        serve(named_source("release-notes")),
     )
     resized(page, 700, 600)
     target = page.locator("#rn-console-why")
@@ -1741,13 +1741,13 @@ def test_design_legend_tracks_a_height_only_page_reflow(browser, serve):
     page.evaluate(RELEASE_FOCUS)
     page.keyboard.press("l")
     expect(page.locator("body")).to_have_attribute("data-lf-design-mode", "")
-    legend = page.locator('.lf-legend-box[data-for="p30"]')
+    legend = page.locator('.lf-legend-box[data-lf-for="p30"]')
     expect(legend).to_be_visible()
 
     before = page.evaluate(
         """() => {
           const target = document.getElementById('p30').getBoundingClientRect();
-          const legend = document.querySelector('.lf-legend-box[data-for="p30"]')
+          const legend = document.querySelector('.lf-legend-box[data-lf-for="p30"]')
             .getBoundingClientRect();
           return {targetTop: target.top, dx: legend.left - target.left,
                   dy: legend.top - target.top,
@@ -1773,7 +1773,7 @@ def test_design_legend_tracks_a_height_only_page_reflow(browser, serve):
             () => requestAnimationFrame(() => requestAnimationFrame(done))
           ));
           const targetBox = target.getBoundingClientRect();
-          const legendBox = document.querySelector('.lf-legend-box[data-for="p30"]')
+          const legendBox = document.querySelector('.lf-legend-box[data-lf-for="p30"]')
             .getBoundingClientRect();
           return {targetTop: targetBox.top, dx: legendBox.left - targetBox.left,
                   dy: legendBox.top - targetBox.top};
@@ -2078,11 +2078,13 @@ def test_design_mode_comments_on_what_a_press_lands_on_and_nothing_else(browser,
     # box on every item, and on every item but a widget's parts its name — the group
     # is named, its options wear the hairline alone and are named under the pointer.
     def box_of(element_id):
-        return page.locator(f'.lf-legend-box[data-for="{element_id}"]')
+        return page.locator(f'.lf-legend-box[data-lf-for="{element_id}"]')
 
     expect(box_of("t")).to_be_visible()
     assert set(
-        page.eval_on_selector_all(".lf-legend-box", "bs => bs.map(b => b.dataset.for)")
+        page.eval_on_selector_all(
+            ".lf-legend-box", "bs => bs.map(b => b.dataset.lfFor)"
+        )
     ) == set(page.eval_on_selector_all("main [id]", "es => es.map(e => e.id)"))
     expect(box_of("approach").locator(".lf-legend-tag")).to_have_text(
         "lf-options · approach"
@@ -2179,13 +2181,13 @@ def test_target_picker_selects_in_the_current_comment_mode(browser, serve, mode,
     expect(hints.first).to_be_visible()
     if mode == "l":
         expect(
-            page.locator('.lf-legend-box[data-for="subject"] .lf-legend-tag')
+            page.locator('.lf-legend-box[data-lf-for="subject"] .lf-legend-tag')
         ).to_be_hidden()
         page.keyboard.press("Escape")
         expect(hints).to_have_count(0)
         expect(page.locator("body")).to_have_attribute("data-lf-design-mode", "")
         expect(
-            page.locator('.lf-legend-box[data-for="subject"] .lf-legend-tag')
+            page.locator('.lf-legend-box[data-lf-for="subject"] .lf-legend-tag')
         ).to_be_visible()
         page.keyboard.press("s")
         expect(hints.first).to_be_visible()
@@ -2643,7 +2645,7 @@ def test_design_mode_leaves_leaves_surfaces_working_inside_a_widget(browser, ser
     )
     page = open_page(browser, url)
     resized(page, 1440, 900)
-    thread = page.locator(f'lf-diff .lf-page-thread[data-thread="{root["id"]}"]')
+    thread = page.locator(f'lf-diff .lf-page-thread[data-lf-thread="{root["id"]}"]')
     reply = thread.locator("leaf-text")
     expect(reply).to_be_visible()
     page.keyboard.press("l")
@@ -2702,7 +2704,7 @@ def test_design_mode_settles_on_a_page_with_marked_elements(browser, serve):
     )
     expect(page.locator("#commented.lf-mark-el")).to_have_count(1)
     page.keyboard.press("l")
-    expect(page.locator('.lf-legend-box[data-for="reacted"]')).to_be_visible()
+    expect(page.locator('.lf-legend-box[data-lf-for="reacted"]')).to_be_visible()
     rendered(page)
 
 
@@ -2756,7 +2758,7 @@ def test_the_legend_follows_the_page_it_is_a_reading_of(browser, serve):
     page.evaluate("() => { document.scrollingElement.scrollTop = 1200; }")
     p = page.locator("#p20")
     expect(p).to_be_in_viewport()
-    expect(page.locator('.lf-legend-box[data-for="p20"]')).to_be_visible()
+    expect(page.locator('.lf-legend-box[data-lf-for="p20"]')).to_be_visible()
     page.wait_for_function(LEGEND_TRUE)
     # The name floats where the box's tag stood, over the item's corner — on a scrolled
     # page as on a fresh one.
@@ -2795,10 +2797,10 @@ def test_two_names_at_one_corner_step_apart(browser, serve):
     page = open_page(browser, serve(CORNER_PAGE))
     page.keyboard.press("l")
     expect(
-        page.locator('.lf-legend-box[data-for="wrap"] .lf-legend-tag')
+        page.locator('.lf-legend-box[data-lf-for="wrap"] .lf-legend-tag')
     ).to_be_visible()
     expect(
-        page.locator('.lf-legend-box[data-for="inner"] .lf-legend-tag')
+        page.locator('.lf-legend-box[data-lf-for="inner"] .lf-legend-tag')
     ).to_be_visible()
     clash = page.evaluate(
         """() => {
@@ -2834,7 +2836,9 @@ def test_a_picture_is_one_addressable_element_however_many_ids_its_renderer_coin
     page.keyboard.up("Alt")
     page.keyboard.press("l")
     assert set(
-        page.eval_on_selector_all(".lf-legend-box", "bs => bs.map(b => b.dataset.for)")
+        page.eval_on_selector_all(
+            ".lf-legend-box", "bs => bs.map(b => b.dataset.lfFor)"
+        )
     ) == {"t", "p", "flow", "tree"}
     node.hover()
     expect(page.locator(".lf-inspect")).to_have_text("lf-diagram · flow")
@@ -3041,11 +3045,13 @@ def test_a_visual_surface_narrows_paint_without_narrowing_semantic_interaction(
     expect(page.locator("body")).to_have_class(re.compile(r"\blf-over-mark\b"))
     page.mouse.click(point["x"], point["y"])
     expect(
-        page.locator('.lf-margin-preview .lf-page-thread[data-thread="outer-comment"]')
+        page.locator(
+            '.lf-margin-preview .lf-page-thread[data-lf-thread="outer-comment"]'
+        )
     ).to_be_visible()
     expect(outer).to_have_class(re.compile(r"\blf-projected-mark\b"))
     expect(page.locator("[data-lf-mark]")).to_have_id("outer-surface")
-    expect(page.locator(PANEL)).not_to_have_attribute("data-open", re.compile("."))
+    expect(page.locator(PANEL)).not_to_have_attribute("data-lf-open", re.compile("."))
     expect(page.locator(".lf-composer")).to_be_hidden()
 
     point = midpoint(decoration)
@@ -3801,7 +3807,7 @@ def _open_attachment_draft(browser, url, target):
     page = open_page(browser, url)
     rendered(page)
     expect(page.locator(".lf-fp-field leaf-text")).not_to_have_attribute(
-        "data-says", "notice"
+        "data-lf-says", "notice"
     )
     destination = page.locator(target).first
     for _ in range(50):
@@ -3822,7 +3828,7 @@ def test_quote_attachment_can_hide_while_its_paragraph_remains(browser, serve):
     page = open_page(browser, serve(COMPOSER_ATTACHMENT_PAGE))
     rendered(page)
     expect(page.locator(".lf-fp-field leaf-text")).not_to_have_attribute(
-        "data-says", "notice"
+        "data-lf-says", "notice"
     )
     page.locator("#quote-holder").scroll_into_view_if_needed()
     points = page.locator("#quote-holder").evaluate(
@@ -4101,12 +4107,14 @@ def test_a_scroll_carries_paint_over_targets_and_writes_it_once_settled(
     _paint_mode(page, mode, "finding" if scroller == "pane" else "Paragraph 3")
     if mode == "design":
         named = ["pane-target", "pane-later"] if scroller == "pane" else ["p3", "p4"]
-        expect(page.locator(f'.lf-legend-box[data-for="{named[0]}"]')).to_be_visible()
+        expect(
+            page.locator(f'.lf-legend-box[data-lf-for="{named[0]}"]')
+        ).to_be_visible()
         # The boxes one set of frames cuts share its stand, each anchored to what it
         # names.
         stand = page.evaluate(
             """([first, next]) => {
-              const box = (id) => document.querySelector(`.lf-legend-box[data-for="${id}"]`);
+              const box = (id) => document.querySelector(`.lf-legend-box[data-lf-for="${id}"]`);
               return {shared: box(first).closest('.lf-paint-stand')
                         === box(next).closest('.lf-paint-stand'),
                       anchors: [box(first), box(next)].map(
@@ -4225,7 +4233,7 @@ def test_design_paint_in_a_pane_paints_in_the_frame_its_target_scrolls(
     follower = (
         f".lf-inspect {{ background: {FOLLOWER_MARK} !important; }}"
         if paint == "inspect"
-        else '.lf-legend-box[data-for="pane-target"]'
+        else '.lf-legend-box[data-lf-for="pane-target"]'
         f" {{ border: 6px solid {FOLLOWER_MARK} !important; }}"
     )
     page = open_page(
@@ -4274,12 +4282,12 @@ def test_legend_tags_step_apart_as_the_page_slides_under_a_sticky_bar(browser, s
     resized(page, 1280, 720)
     _design_mode(page)
     expect(
-        page.locator('.lf-legend-box[data-for="nav"] .lf-legend-tag')
+        page.locator('.lf-legend-box[data-lf-for="nav"] .lf-legend-tag')
     ).to_be_visible()
     overlaps = """() => {
       const tags = [...document.querySelectorAll('.lf-legend-tag')]
         .filter((tag) => tag.checkVisibility())
-        .map((tag) => [tag.closest('.lf-legend-box').dataset.for,
+        .map((tag) => [tag.closest('.lf-legend-box').dataset.lfFor,
                        tag.getBoundingClientRect()]);
       const found = [];
       for (const [i, [a, r]] of tags.entries())
@@ -4307,14 +4315,14 @@ def test_each_legend_box_stays_on_what_it_names_without_a_pass(browser, serve):
     page.evaluate("() => document.getElementById('pop').showPopover()")
     _design_mode(page)
     offsets = """(ids) => ids.map((id) => {
-      const box = document.querySelector(`.lf-legend-box[data-for="${id}"]`);
+      const box = document.querySelector(`.lf-legend-box[data-lf-for="${id}"]`);
       if (!box?.isConnected) return [id, null];
       const b = box.getBoundingClientRect();
       const it = document.getElementById(id).getBoundingClientRect();
       return [id, Math.round(b.left - it.left), Math.round(b.top - it.top)];
     })"""
     ids = ["nav", "p3", "fixedbar", "inpop"]
-    expect(page.locator('.lf-legend-box[data-for="inpop"]')).to_be_visible()
+    expect(page.locator('.lf-legend-box[data-lf-for="inpop"]')).to_be_visible()
     assert page.evaluate(offsets, ids) == [[id, -1, -1] for id in ids]
     page.mouse.move(2, 300)
     page.mouse.wheel(0, 600)
@@ -5522,7 +5530,7 @@ def test_design_mode_survives_the_reload_a_new_version_brings(browser, serve):
     page.reload()
     wait_until_ready(page)
     expect(page.locator("body")).to_have_attribute("data-lf-design-mode", "")
-    expect(page.locator('.lf-legend-box[data-for="approach"]')).to_be_visible()
+    expect(page.locator('.lf-legend-box[data-lf-for="approach"]')).to_be_visible()
     page.keyboard.press("Escape")
     expect(page.locator("body")).not_to_have_attribute("data-lf-design-mode", "")
     page.reload()

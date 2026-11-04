@@ -118,7 +118,8 @@ export function createActivity(host) {
         ${shown.label}
       </button>
       <ol
-        class="lf-activity-list scroll"
+        class="lf-activity-list"
+        data-lf-scroll
         ?hidden=${hidden}
         ${ref((node) => {
           if (node) drawing.list = generatedElement(node, { says: false });

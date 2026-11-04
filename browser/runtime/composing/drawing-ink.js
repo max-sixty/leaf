@@ -110,7 +110,7 @@ export function createDrawingInk({ drawings }) {
     mounting.set(described, next);
     if (existing) return { ...item, node: svg };
     svg.classList.add("lf-drawing-mark", className);
-    if (id) svg.dataset.thread = id;
+    if (id) svg.dataset.lfThread = id;
     svg.setAttribute("viewBox", `${frame.x} ${frame.y} ${frame.width} ${frame.height}`);
     svg.setAttribute("preserveAspectRatio", "none");
     svg.setAttribute("aria-hidden", "true");

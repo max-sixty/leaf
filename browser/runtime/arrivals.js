@@ -306,11 +306,9 @@ export function setScroll(box, options) {
   const { scrollTop, scrollLeft } = box;
   const { behavior = "instant" } = options;
   box.scrollTo({ ...options, behavior });
-  if (
-    behavior === "instant" &&
-    (box.scrollTop !== scrollTop || box.scrollLeft !== scrollLeft)
-  )
-    announceScroll(box);
+  if (behavior !== "instant") return;
+  placed.set(box, { top: box.scrollTop, left: box.scrollLeft });
+  if (box.scrollTop !== scrollTop || box.scrollLeft !== scrollLeft) announceScroll(box);
 }
 /** @type {WeakSet<Document | ShadowRoot>} */
 const hearing = new WeakSet();
@@ -368,6 +366,9 @@ const endListeners = new Set();
 const sequences = new Map();
 /** @type {Map<Element, number>} */
 const holds = new Map();
+// Where a script last put each box (`setScroll`), until the box's sequence ends.
+/** @type {WeakMap<Element, {top: number, left: number}>} */
+const placed = new WeakMap();
 /** @param {Element} box @returns {Sequence} */
 function sequenceIn(box) {
   let sequence = sequences.get(box);
@@ -390,6 +391,7 @@ function inSequence(box) {
 function endSequence(box) {
   if (!sequences.has(box) || holds.has(box)) return;
   sequences.delete(box);
+  placed.delete(box);
   for (const listener of endListeners) listener(box);
 }
 // Hold `box`'s sequence open from now until the returned release, after which it ends
@@ -413,10 +415,16 @@ export function holdScroll(box) {
 }
 // Whether a scroll sequence is under way anywhere in the page.
 export const scrolling = () => sequences.size > 0;
-// Whether the browser moves `box`, rather than a script holding it: a sequence under way
-// in it that no hold keeps open.
+// Whether the browser moves `box`, rather than a script: a sequence under way in it that
+// no hold keeps open, and that has taken the box from where a script last put it. A
+// script's last write keeps the sequence open while it settles (`inSequence`), and that
+// settling is still the script's.
 /** @param {Element} box */
-export const browserScrolls = (box) => sequences.has(box) && !holds.has(box);
+export const browserScrolls = (box) => {
+  if (!sequences.has(box) || holds.has(box)) return false;
+  const at = placed.get(box);
+  return !at || at.top !== box.scrollTop || at.left !== box.scrollLeft;
+};
 /** @param {(box: Element) => void} listener */
 export function watchScrollEnds(listener) {
   endListeners.add(listener);

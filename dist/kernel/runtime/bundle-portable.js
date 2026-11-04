@@ -868,14 +868,14 @@ function focusDestination(destination, cause, { caret = null, ...unknown } = {})
 		preventScroll: true,
 		...!pressLed() && { focusVisible: true }
 	};
-	placed(cause, () => {
+	placed$1(cause, () => {
 		nativeFocusTarget(destination).focus(options);
 		if (!landedOn(destination) && lendable(destination)) lendStop(destination, options);
 	});
 	if (caret && holdsCaret(destination)) destination.setSelectionRange(...caret);
 }
 let placing = null;
-const placed = (cause, move) => {
+const placed$1 = (cause, move) => {
 	const was = placing;
 	placing ??= cause;
 	try {
@@ -1968,7 +1968,12 @@ function setScroll(box, options) {
 		...options,
 		behavior
 	});
-	if (behavior === "instant" && (box.scrollTop !== scrollTop || box.scrollLeft !== scrollLeft)) announceScroll(box);
+	if (behavior !== "instant") return;
+	placed.set(box, {
+		top: box.scrollTop,
+		left: box.scrollLeft
+	});
+	if (box.scrollTop !== scrollTop || box.scrollLeft !== scrollLeft) announceScroll(box);
 }
 const hearing = /* @__PURE__ */ new WeakSet();
 function hearScrollsIn(root) {
@@ -1992,6 +1997,7 @@ const SETTLE_MS = 80;
 const endListeners = /* @__PURE__ */ new Set();
 const sequences = /* @__PURE__ */ new Map();
 const holds = /* @__PURE__ */ new Map();
+const placed = /* @__PURE__ */ new WeakMap();
 function sequenceIn(box) {
 	let sequence = sequences.get(box);
 	if (!sequence) sequences.set(box, sequence = {
@@ -2014,6 +2020,7 @@ function inSequence(box) {
 function endSequence(box) {
 	if (!sequences.has(box) || holds.has(box)) return;
 	sequences.delete(box);
+	placed.delete(box);
 	for (const listener of endListeners) listener(box);
 }
 function holdScroll(box) {
@@ -2033,7 +2040,11 @@ function holdScroll(box) {
 	};
 }
 const scrolling = () => sequences.size > 0;
-const browserScrolls = (box) => sequences.has(box) && !holds.has(box);
+const browserScrolls = (box) => {
+	if (!sequences.has(box) || holds.has(box)) return false;
+	const at = placed.get(box);
+	return !at || at.top !== box.scrollTop || at.left !== box.scrollLeft;
+};
 function watchScrollEnds(listener) {
 	endListeners.add(listener);
 	return () => endListeners.delete(listener);

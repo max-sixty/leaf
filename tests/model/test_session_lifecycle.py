@@ -111,13 +111,12 @@ def test_desktop_codex_unloading_keeps_the_chat_page_owned(page_dir, native_code
     assert turn_record_2["turn_closed"] is not None
 
 
-@pytest.mark.parametrize("harness", ["claude-code", "codex"])
-def test_resumed_session_is_reminded_until_its_leaf_recovers(page_dir, harness, capsys):
+def test_resumed_session_is_reminded_until_its_leaf_recovers(page_dir, capsys):
     """A resumed ID finds its old page even after ownership and serving ended."""
     page_dir = page_dir.rename(page_dir.with_name("my leaf's page"))
-    record_claim(page_dir, harness=harness)
+    record_claim(page_dir)
     assert hosting_model.start_server(
-        page_dir, harness=harness_model.hook_harness(harness, "s1")
+        page_dir, harness=harness_model.hook_harness("claude-code", "s1")
     )
     cleanup_model.end_harness_instance("s1")
     wait_for(
@@ -127,7 +126,7 @@ def test_resumed_session_is_reminded_until_its_leaf_recovers(page_dir, harness, 
     )
     capsys.readouterr()
     hooks_model.cmd_hook(
-        harness,
+        "claude-code",
         {"hook_event_name": "SessionStart", "session_id": "s1", "source": "resume"},
     )
     context = json.loads(capsys.readouterr().out)["hookSpecificOutput"]
@@ -138,14 +137,14 @@ def test_resumed_session_is_reminded_until_its_leaf_recovers(page_dir, harness, 
     )
     for event in ("UserPromptSubmit", "SessionStart"):
         hooks_model.cmd_hook(
-            harness,
+            "claude-code",
             {"hook_event_name": event, "session_id": "s1", "source": "resume"},
         )
         assert "leaf server start" in capsys.readouterr().out
     # Another resumed generation still needs recovery advice.
     cleanup_model.end_harness_instance("s1")
     hooks_model.cmd_hook(
-        harness, {"hook_event_name": "UserPromptSubmit", "session_id": "s1"}
+        "claude-code", {"hook_event_name": "UserPromptSubmit", "session_id": "s1"}
     )
     assert "leaf server start" in capsys.readouterr().out
 

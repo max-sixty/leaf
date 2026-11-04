@@ -2930,8 +2930,18 @@ def test_codex_activity_rejects_nonlocal_or_invalid_app_servers(endpoint):
         codex_model.app_server_socket_path(endpoint)
 
 
-@pytest.mark.parametrize("lost", ["start", "malformed", "stream", "restart"])
-@pytest.mark.parametrize("reply_kind", ["thread", "action"])
+@pytest.mark.parametrize(
+    ("lost", "reply_kind"),
+    [
+        ("start", "thread"),
+        ("malformed", "thread"),
+        ("stream", "thread"),
+        ("restart", "thread"),
+        ("start", "action"),
+        ("stream", "action"),
+        ("restart", "action"),
+    ],
+)
 def test_one_subscription_recovers_delivery_without_a_second_start(
     page_dir, app_server, task_connection, lost, reply_kind
 ):

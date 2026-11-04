@@ -18,7 +18,7 @@
 
     "runtime/anchor-resolution.js": "30d3c8c079d4d737ddcf103baccd23e68c16fd9b3409a7a1890f92405576240d",
 
-    "runtime/anchor-travel.js": "187fbe97836671099bed09b7dc26736f63d8f832ce94e13c932f02855faf8825",
+    "runtime/anchor-travel.js": "10a7dd309f476eeeb72bccbcbffa52e5e5de7e882b54904a6e4fc6cb9f3d1a4b",
 
     "runtime/annotation-inventory.js": "03318a2c81e7cf6a79a21291449aef3d8dcf9dbf761e32011c952c755b97313d",
 
@@ -54,7 +54,7 @@
 
     "runtime/annotation-view.js": "7bad452ad8ec72d6c93b9604cce3d9a771233389ce6130b5f30f59a6f028bc03",
 
-    "runtime/application.js": "0bb4bac9cb06a6a3f2f612862ac5e347d1ad83261174a4d3276eca6cde4d32be",
+    "runtime/application.js": "623dace127cf3ff9dbdccc9841e131a4420724e0cd95d2b3220520e9f6151d82",
 
     "runtime/arrivals.js": "4dbff0053400a079d4623507055a35a0f32ba484852ff0fc8af350e7e1a48bbb",
 
@@ -192,7 +192,7 @@
 
     "runtime/file-api.js": "f3b92db21e51b8e6537c73e015c63e388234e8d1be210e60ebcb48015ca46eae",
 
-    "runtime/floating-panel.js": "17a8054a0b37cee8dd38dfe86d240ddb867ba163aa35d007d9df535f76226179",
+    "runtime/floating-panel.js": "1b323f1ff0def7dcde48d121a4d0087718a26ad976773020d0e35ad4bbbf7a7d",
 
     "runtime/focus.js": "4ce1d8d253d0651bf8e3181dfc821011a5b3ee24d692cc9ab8a3a69364a96345",
 
@@ -468,11 +468,11 @@
 
     "runtime/thread/card-anchor.js": "44a7dde53753c60a866644822445acd97f360516193fce7ec06751819a8568fb",
 
-    "runtime/thread/destination.js": "67d40fa2317bfa9a18f986758a18371f89734e14b434b2d9a84342efd7b6f088",
+    "runtime/thread/destination.js": "595d03dee5cc32c29359839617473f73ed4b9e767b0fac6db3806bc73783306b",
 
     "runtime/thread/focus.js": "a4dcc7935c90421a017b97024cdce50acc2265c826adc21d72c85af53e56ef05",
 
-    "runtime/thread/folding.js": "d3ee0b9bfa919bc62fe82b33c89423841edb002f14d1366a91a083ddeee86baf",
+    "runtime/thread/folding.js": "2b861be21a522b549c84a6936834f2d30d561a0d6cd7a38b2b7109caeddae0f1",
 
     "runtime/thread/held-news.js": "b4c79d1bf850397e91af13a34603ccd91d5b663952cfd86540ff24172b01619b",
 
@@ -514,7 +514,7 @@
 
     "runtime/thread/surfaces.js": "772d724c5ee60058e03f183510b1886a3e201d029e668a3b394e180070c6e077",
 
-    "runtime/thread/thread-card.js": "ca9ef7ac69debc665e804ff24fe6b1f05e6e0114a17344bf25e84d8ece921584",
+    "runtime/thread/thread-card.js": "9f47f0ad68306dc7017da5c63dd8f4cec963a9924e2927b387d151010382291a",
 
     "runtime/thread/transcript.js": "cd2db58c6c8ce3bf82e0d97e0935d43acfdbef18d020ffdfa8e72d407c2e292b",
 
@@ -524,7 +524,7 @@
 
     "runtime/traffic.js": "fe8f837580f221f033af888c3e7870b3cdc69664a5466f825756af1722625364",
 
-    "runtime/undo.js": "84b2b0465536d2bca188cc1c31b63f75189028a3f5311e1979c60c5e9f99334e",
+    "runtime/undo.js": "8da128ed5ff859434d5335dd4f6c5247a1b6948b8f48ea5d0bf08fec33e0ff47",
 
     "runtime/user-intent.js": "91a05c1dc0c6061110958f2715488e62a68088e9d807545c5796d85f7c8cf9f7",
 

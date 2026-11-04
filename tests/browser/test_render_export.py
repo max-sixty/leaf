@@ -32,7 +32,7 @@ from leaf import files as files_model
 from leaf import media as media_model
 from leaf.render_checks import HANDOVER_DEADLINE_MS, rendered, wait_until_ready
 from leaf.structure import UTF8_BOM
-from leaf_dev.example_data import patch_manifest
+from leaf_dev.example_data import named_source, patch_manifest
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -41,7 +41,6 @@ from journeys.test_render_export import (  # noqa: F401 (fixtures)
     OFFLINE_WIDGET,
     PIXEL,
     POLICY_ATTEMPTS,
-    ROOT,
     _reachable,
     requested_documents,
 )
@@ -52,7 +51,7 @@ def test_interactive_export_with_an_obligation_reaches_application_presentation(
     browser, serve, tmp_path, draft
 ):
     """Offline mode omits page controls without leaving their ticket pending."""
-    serve(ROOT / "examples" / "notification-playground.html")
+    serve(named_source("notification-playground"))
     interactive = tmp_path / "interactive-with-ask.html"
     result = CliRunner().invoke(
         cli_model.cli,

@@ -2,7 +2,6 @@
 
 import re
 from itertools import pairwise
-from pathlib import Path
 
 import pytest
 import turbohtml
@@ -47,6 +46,7 @@ from leaf import event_log as events_model
 from leaf import service as service_model
 from leaf import thread as thread_model
 from leaf.render_checks import rendered, wait_until_ready
+from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -338,7 +338,7 @@ def test_pr_walkthrough_moves_from_semantic_call_to_exact_patch_comment(
     browser, serve, one_user
 ):
     """The specialized report's signature path reaches reviewable source evidence."""
-    example = Path(__file__).parents[2] / "examples" / "pr-walkthrough.html"
+    example = named_source("pr-walkthrough")
     page = open_page(browser, live_url(serve(example)), context=one_user)
 
     page.get_by_role("tab", name="CallDiff").click()
@@ -1012,7 +1012,7 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_user_enters_it(
 
 def test_built_code_comparison_drives_both_candidates(browser, serve):
     """Candidate measurements follow rendered readers through sizing and edits."""
-    source = Path(__file__).parents[2] / "examples" / "code-comparison.html"
+    source = named_source("code-comparison")
     context = browser.new_context(permissions=["clipboard-read", "clipboard-write"])
     page = open_page(browser, serve(source), context=context)
     playground = page.locator("#code-comparison-playground")
@@ -1284,7 +1284,7 @@ import pytest
 @pytest.mark.parametrize("destination", ["call", "patch"])
 def test_focus_reactions_keep_a_projected_data_target(browser, serve, destination):
     """Light-DOM data and its shadow-DOM destination keep exact identity."""
-    example = Path(__file__).parents[2] / "examples" / "pr-walkthrough.html"
+    example = named_source("pr-walkthrough")
     page = open_page(browser, live_url(serve(example)))
     page.get_by_role("tab", name="CallDiff").click()
     location = (
@@ -1393,9 +1393,7 @@ def test_notification_configuration_becomes_a_commentable_local_artifact(
     The page exposes that file through data, then a user comment changes the file and
     remains anchored on the revised result.
     """
-    source_path = (
-        Path(__file__).parents[2] / "examples" / "notification-playground.html"
-    )
+    source_path = named_source("notification-playground")
     source = source_path.read_text(encoding="utf-8")
     page = open_page(browser, live_url(serve(source_path)))
     playground = page.locator("#notification-playground")
@@ -1640,7 +1638,7 @@ body { font-family: system-ui, sans-serif; }
 def test_structured_data_explorer_keeps_one_aggregate_query_configuration(
     browser, serve
 ):
-    source = Path(__file__).parents[2] / "examples" / "data-explorer.html"
+    source = named_source("data-explorer")
     context = browser.new_context(permissions=["clipboard-read", "clipboard-write"])
     page = open_page(browser, serve(source), context=context)
     playground = page.locator("#release-query-playground")

@@ -71,7 +71,13 @@ from leaf.render_gate import browser as browser_model
 from leaf.render_gate.preview import preview_server
 from leaf.revisioning import activate_source
 from leaf_dev.docs import DOCS, product_sources
-from leaf_dev.example_data import authored_sources, example_versions, page_files
+from leaf_dev.example_data import (
+    authored_sources,
+    data_file,
+    example_versions,
+    named_source,
+    page_files,
+)
 
 
 def storage_contract() -> tuple[list[str], list[str]]:
@@ -4320,17 +4326,15 @@ def test_data_set_refuses_a_visual_run_the_widget_cannot_show(
     that repeats an id or names a URL that parser refuses, rather than storing a run
     the widget cannot show."""
     monkeypatch.chdir(tmp_path)
-    example = Path(__file__).parents[2] / "examples" / "developer"
+    gallery = named_source("visual-review-gallery")
     page = tmp_path / "visual-review"
     runner = CliRunner()
     initialized = runner.invoke(
         cli_model.cli, ["page", "init", "--package", "visual-review", str(page)]
     )
     assert initialized.exit_code == 0, initialized.output
-    shutil.copy(example / "visual-review-gallery.html", page / "index.html")
-    run = json.loads((example / "visual-review-gallery.data.json").read_text())[
-        "gallery-visual-run"
-    ]
+    shutil.copy(gallery, page / "index.html")
+    run = json.loads(data_file(gallery).read_text())["gallery-visual-run"]
 
     def data_set(value):
         return runner.invoke(

@@ -2298,14 +2298,19 @@ function fieldEditor({ EditorView, EditorState, EditorSelection, Prec, StateEffe
 //#region runtime/composing/text-field.js
 const sheet = new CSSStyleSheet();
 sheet.replaceSync(`
-  :host { display: block; cursor: text; }
+  /* The caret is drawn in the ink of the words it stands in, unless a rule on the
+     field gives it another colour, as one on a textarea does. A screenshot's style
+     hides it that way where the browser can't hold its blink
+     (dev/leaf_dev/browser.py, \`screenshot\`). */
+  :host { display: block; cursor: text; caret-color: currentColor; }
   /* CodeMirror's provider places its defaults in lf-base. This control owns the
-     unlayered editor face: the host supplies type and colour, and these are the
-     only internal padding declarations before Markdown's explicit insets below. */
+     unlayered editor face: the host supplies type and colour, caret colour included,
+     and these are the only internal padding declarations before Markdown's explicit
+     insets below. */
   .cm-editor { font: inherit; color: inherit; background-color: transparent; }
   .cm-editor.cm-focused { outline: none; }
   .cm-scroller { font-family: inherit; line-height: inherit; overflow: visible; }
-  .cm-content { padding: 0; caret-color: currentColor; min-height: 1lh; }
+  .cm-content { padding: 0; caret-color: inherit; min-height: 1lh; }
   /* An empty field draws no editor until the user arrives in it (#build). This box
      holds the empty line's place, as tall as the editor's line, and takes the focus
      that builds the editor; while the editor loads, it holds the words, wrapped as
@@ -5965,7 +5970,6 @@ function createPrimaryReader(owner, render, commands, update, { answersAtOnce = 
 		const message = messageSource(thread, key);
 		return messageReading(message, {
 			authoredRank: 3,
-			reactions: message.reactions,
 			workflows: message.workflows
 		});
 	};

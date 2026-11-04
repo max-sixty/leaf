@@ -350,6 +350,18 @@ def test_website_samples_serve_private_pages_without_starting_an_agent(
             {"Leaf-Layer": state["layer"]["generation"]},
         )
         assert accepted["state"]["events"][-1]["text"] == "Try this here"
+        # An image attached in the child is as private as one attached on its parent.
+        upload = urllib.request.Request(
+            url + "api/media",
+            data=(example_media() / "051bee487bfb5d13.png").read_bytes(),
+            headers={
+                "Content-Type": "image/png",
+                "Leaf-Layer": state["layer"]["generation"],
+            },
+        )
+        with urllib.request.urlopen(upload) as stored:
+            media = json.loads(stored.read())["path"]
+        assert get(url + media.lstrip("/"))[1]["Cache-Control"] == "no-store"
         assert read_events(published) == []
         assert harness.attached == []
 

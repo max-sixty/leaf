@@ -4565,7 +4565,7 @@ HOLD_SECOND_FILE = """
             const prototype = customElements.get('lf-diff').prototype;
             const prepare = prototype.prepareEntry;
             prototype.prepareEntry = async function(...args) {
-              if (args[1].path === 'second.py' && !window.__leafReleaseDeferred)
+              if (args[0].path === 'second.py' && !window.__leafReleaseDeferred)
                 await new Promise(resolve => { window.__leafReleaseDeferred = resolve; });
               return prepare.apply(this, args);
             };

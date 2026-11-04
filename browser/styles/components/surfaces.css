@@ -1031,9 +1031,9 @@ summary {
   white-space: nowrap;
 }
 /* The notice says one count, "2 new" (held-news.js, `newsNotice`), in figures of one
-   width, both in its words and in the room a card holds for the count it first said
-   (`data-room`, controls.css), so a count that grows keeps to that room; a room too
-   narrow for it cuts it. */
+   width, both in its words and in the room a card holds for the widest count it says
+   (`NEWS_ROOM`, held-news.js; `data-lf-room`, controls.css), so a count that grows
+   keeps to that room. */
 button.lf-thread-news {
   font: var(--font-heading);
   font-variant-numeric: tabular-nums;

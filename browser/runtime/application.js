@@ -273,9 +273,7 @@ function createApplication(dependencies) {
   const settlementView = {
     pendingEntries: ledger.snapshot,
     actions: threadActions,
-    landedAway: undo.landedAway,
-    offerUndo: undo.offerUndo,
-    returnToThread: undo.returnToThread,
+    undo,
   };
   const reactionView = {
     registerSurface: dependencies.registerReactSurface,

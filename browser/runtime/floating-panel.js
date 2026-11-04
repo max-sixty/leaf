@@ -4426,9 +4426,13 @@ export function createFloatingPanel({
                 // the page once the reader has drawn the view gone, and the route
                 // lands in it there; where the page draws no view of the thread, as a
                 // window with no room for the rail does, on its place
-                // (thread/destination.js, `page`).
+                // (thread/destination.js, `reader: "page"`).
                 void present({ release: true }).then(() =>
-                  threadActions.open(thread.key, { part: null, intent, page: true }),
+                  threadActions.open(thread.key, {
+                    part: null,
+                    intent,
+                    reader: "page",
+                  }),
                 );
               }}
             ></button>`
@@ -4449,6 +4453,7 @@ export function createFloatingPanel({
             resolved: Boolean(thread.resolved),
             prepareLanding: () =>
               thread.resolved ? reopenLanding() : resolveLanding(thread),
+            reader: "primary",
             ...settlement,
           }).catch(() => {});
         }}

@@ -447,7 +447,7 @@ export class ThreadView {
     });
     this.#continuity = new ReplyContinuity(this.node);
     this.node.tabIndex = -1;
-    this.node.classList.add("lf-page-thread", "lf-ui");
+    this.node.classList.add("lf-page-thread", "lf-ring-overlay", "lf-ui");
     this.node.dataset.lfRuntime = ""; // passages.js, leafSurface
     generatedElement(this.node, { says: false });
     this.node.dataset.lfOffer = "";

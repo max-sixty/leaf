@@ -191,6 +191,9 @@ lf-text-document .lf-text-document-listing > pre {
   position: relative;
   z-index: 0;
 }
+lf-text-document .lf-text-document-listing::after {
+  z-index: 1;
+}
 
 /* Source and preview share one inspection viewport. Its height doesn't follow the tab
    shown, so switching keeps the strip and following page still. */

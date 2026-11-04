@@ -273,27 +273,31 @@ a[data-lf-external]::after,
   outline: var(--focus-ring);
   outline-offset: var(--lf-ring-at, var(--focus-ring-gap));
 }
-/* A focused box whose band something would cover or cut, such as a scroller whose
-   positioned lines paint over its outline, wears the band on a ring frame: the box
-   itself when it is the frame (`.lf-ring-frame`), or the frame whose child it is, as a
-   pane is for its body (base.css). The frame draws the band one band inside its edge on
-   its ::after, over everything it holds, and declares that it wears the band
-   (`--lf-wears-ring`, base.css); a frame's header and footer are not children it
-   rings. That box is at no weight, so the frame's own rule sets where it stands when
-   that isn't the frame's edge, such as an anchor or a grid area, and how high it
-   stacks. */
+/* A focused box whose band something would cover or cut, such as positioned content
+   painting over its outline or a scrollport clipping it, wears the band on a later box
+   laid over it, its ::after, one band inside its edge. Two kinds of box draw it:
+   - a ring frame (`.lf-ring-frame`) for the child that holds focus, such as the box
+     around a scroller of positioned lines, and a pane for its body (base.css). It
+     declares that it wears the band (`--lf-wears-ring`, base.css); its header and
+     footer are not children it rings, and its own focus wears the ordinary band;
+   - a ring overlay (`.lf-ring-overlay`) for its own focus, such as a box whose
+     positioned contents would paint over its outline.
+   Either is a positioned box, so its ::after covers it. That ::after is at no weight
+   and no height of its own: the box's own rule says how high it stacks over what the
+   box holds, and where it stands when that isn't the box's edge, such as an anchor or
+   a grid area. */
 :is(.lf-ring-frame, [data-lf-reading-role="pane"]):has(
   > :not(header, footer)[data-lf-focus-visible]
 ) {
   --lf-wears-ring: 1;
 }
-.lf-ring-frame[data-lf-focus-visible],
+.lf-ring-overlay[data-lf-focus-visible],
 :is(.lf-ring-frame, [data-lf-reading-role="pane"])
   > :not(header, footer)[data-lf-focus-visible] {
   outline: none;
 }
 :where(
-  .lf-ring-frame[data-lf-focus-visible],
+  .lf-ring-overlay[data-lf-focus-visible],
   :is(.lf-ring-frame, [data-lf-reading-role="pane"]):has(
     > :not(header, footer)[data-lf-focus-visible]
   )
@@ -301,7 +305,6 @@ a[data-lf-external]::after,
   content: "";
   position: absolute;
   inset: 0;
-  z-index: 1;
   pointer-events: none;
   outline: var(--focus-ring);
   outline-offset: var(--focus-ring-inset);
@@ -658,24 +661,13 @@ summary {
   --lf-ground: var(--focus-surface);
   background: var(--lf-ground);
 }
-/* The thread itself holding focus wears the ring, inset over the quiet
-   ground its containing state paints; chrome.css says the same of the panel's card.
-   It is drawn on a pseudo-element over the thread's contents rather than as the
-   thread's own outline, which paints with the thread's in-flow content: a positioned
-   row inside the thread paints after that, over the ring's bottom run. The
-   pseudo-element is positioned too and comes after every row in tree order, so it
-   paints over them without a z-index that would also lift it over the page. */
-.lf-page-thread[data-lf-focus-visible] {
-  outline: none;
-}
-.lf-page-thread[data-lf-focus-visible]::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
+/* The thread itself holding focus wears the ring, inset over the quiet ground its
+   containing state paints; chrome.css says the same of the panel's card. A positioned
+   row inside the thread paints over the thread's own outline, so the thread is a ring
+   overlay (`.lf-ring-overlay`, above), whose ring comes after every row in tree order
+   and so paints over them without a z-index that would also lift it over the page. */
+.lf-page-thread::after {
   border-radius: inherit;
-  outline: var(--focus-ring);
-  outline-offset: var(--focus-ring-inset);
 }
 /* A forced palette paints every ground in Canvas, so the quiet ground of a thread
    holding focus would vanish; the thread wears the ring instead. */

@@ -271,6 +271,7 @@ lf-tabs[data-lf-views] > lf-tab {
     :is(lf-tabs, lf-parts)[data-lf-views]::after {
       position-anchor: --lf-tab-panel;
       inset: anchor(top) anchor(right) anchor(bottom) anchor(left);
+      z-index: 1;
     }
     /* until-found keeps the element's own box in flow; zero it so inactive panels
      * leave no stray gap below the active one. */

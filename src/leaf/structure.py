@@ -265,7 +265,10 @@ def attribute_references(tag: str, attrs: dict, name: str, value: str):
             )
         )
         or (
-            (reference := _local_resource(value)) is not None
+            # A path under `/media/` takes a separator, written or escaped, that an
+            # id or a word lacks, so only a value holding one is parsed as a URL.
+            any(separator in value for separator in "/\\%")
+            and (reference := _local_resource(value)) is not None
             and reference[0].startswith(f"/{MEDIA_DIR}/")
         )
     ):

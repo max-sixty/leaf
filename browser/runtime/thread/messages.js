@@ -13,7 +13,17 @@
    admission and later descriptor paints never replay the cue.
    The fragment is captured inertly before its first upgrade; presentation waits for
    preparation before capturing typed authored state. */
-import { html, keyed, render, nothing, ref } from "/runtime/framework.js";
+import {
+  Directive,
+  directive,
+  html,
+  keyed,
+  noChange,
+  nothing,
+  ref,
+  render,
+} from "/runtime/framework.js";
+import { setMarkup } from "../dom-children.js";
 import { generatedElement, offeredAction } from "../widget-elements.js";
 import {
   loadMarkdown,
@@ -61,6 +71,28 @@ import { showsContents } from "../geometry.js";
 import { flashDuration, motion } from "../motion.js";
 import { agentName, pageClaimed } from "../semantic-state.js";
 import { copyControl } from "../copy-control.js";
+
+// A message's words, drawn into the element the binding stands on. A rewrite of one
+// paragraph keeps the others' nodes (dom-children.js, `setMarkup`), so the browser's
+// scroll anchoring still holds the paragraph a reader is in when an edit grows one
+// above it; a property binding to `innerHTML` replaced every one.
+const keptWords = directive(
+  class extends Directive {
+    /** @type {string | null} */
+    #drawn = null;
+    /** @param {string} _markup */
+    render(_markup) {
+      return noChange;
+    }
+    /** @param {import("/vendor/lit.js").ElementPart} part @param {[string]} markup */
+    update(part, [markup]) {
+      if (markup === this.#drawn) return noChange;
+      this.#drawn = markup;
+      setMarkup(part.element, markup);
+      return noChange;
+    }
+  },
+);
 
 export const loadMessageMarkdown = () =>
   loadMarkdown((error) => reportPageError(error, `markdown renderer failed to load`));
@@ -724,7 +756,7 @@ export class MessageView {
       </div>`;
     if (body.kind === "suggestion")
       return html`<div class="lf-msg-text" .textContent=${body.text}></div>`;
-    return html`<div class="lf-msg-text" .innerHTML=${body.html}></div>
+    return html`<div class="lf-msg-text" ${keptWords(body.html)}></div>
       ${
         body.mediaHtml
           ? html`<div class="lf-msg-media" .innerHTML=${body.mediaHtml}></div>`

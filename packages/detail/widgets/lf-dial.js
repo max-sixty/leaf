@@ -23,9 +23,9 @@
  * heading or gist it ran under takes its place on the line, so the reader lands on
  * what summarizes what they were reading. The blocks still shown then glide from where
  * they stood and the ones arriving fade in, so the eye can follow the page closing up
- * around the reader or opening out from them. Leaf's place keeper holds the place,
- * given the block at the line as the reading and, as each block's identity, the kept
- * block its run follows, so a folded block hands its place to its gist.
+ * around the reader or opening out from them. Leaf's one hold keeps the place
+ * (`holdPlace`, given the line's words by `readingAt`), since the browser's scroll
+ * anchoring can't: Skim hides the block it anchors.
  *
  * The dial is three word toggles of one face, as an image pair's views are, reached by
  * Tab and the go-to key; inside the dial the arrow keys toward and away from the
@@ -36,6 +36,7 @@ import {
   authoredScope,
   focusDestination,
   foldDuration,
+  holdPlace,
   keeps,
   LeafElement,
   motion,
@@ -43,10 +44,9 @@ import {
   offer,
   offerAction,
   PAGE_INTERFACE,
-  placeKeeper,
+  readingAt,
   registerRootHeader,
   rowArrows,
-  scrollerFor,
   shownWindow,
   tabStore,
   viewDocument,
@@ -64,24 +64,8 @@ const KEPT = `${HEADING}, .lede, .gist`;
 // Never folded: what the reader steers by or what isn't the page's flow.
 const STANDS = "script, style, template, [data-lf-gen], aside";
 const FOLDED = "data-lf-dial-folded";
-// Marks the blocks that can hold the reader's place while the dial turns.
-const BLOCK = "data-lf-dial-block";
-// How far down the window the reader is taken to be reading.
-const READING_LINE = 0.25;
 // Motion past this many blocks would cost more than the eye can follow.
 const MOVING = 120;
-
-// A stable key for each node, which the place keeper matches across a turn.
-/** @type {WeakMap<Element, string>} */
-const keys = new WeakMap();
-let nextKey = 0;
-const keyOf = (/** @type {Element} */ node) => {
-  const existing = keys.get(node);
-  if (existing !== undefined) return existing;
-  const key = `lf-dial-${nextKey++}`;
-  keys.set(node, key);
-  return key;
-};
 
 /** @param {Element} node */
 const isLeafElement = (node) => node.localName.startsWith("lf-");
@@ -348,32 +332,23 @@ customElements.define(
       }
     }
 
-    // Make `change` keep the reader's place: the block at the reading line, or, where
-    // Skim folds it, the heading or gist it runs under, lands where it stood. Leaf's
-    // place keeper hands a place across to the node drawn under the same identity, so
-    // each block's identity is the kept block its run follows.
+    // Make `change` keep the reader's place: what stands at the reading line, or, where
+    // Skim folds it, the heading or gist its run follows, lands where it stood
+    // (`holdPlace`). Each run's ⋯ stands for that heading or gist too, as leaving Skim
+    // takes it away.
     /** @param {Element} scope @param {() => void} change */
     #keepingPlace(scope, change) {
       /** @type {Map<Element, Element>} */
       const owner = new Map();
       for (const run of this.#runsIn(scope))
         for (const block of run.blocks) owner.set(block, run.after ?? run.container);
-      // The dial itself, stuck over the page and under the pointer that turned it,
-      // names no place in what scrolls beneath it. The mark stays, so a later turn
-      // writes it only on blocks a revision added.
-      const blocks = [...this.#blocks(scope)].filter((block) => block !== this);
-      for (const block of blocks) keeps(block, BLOCK, "");
-      const window = shownWindow();
-      const line = window.top + (window.bottom - window.top) * READING_LINE;
-      const reading = blocks.find(
-        (block) => shown(block) && block.getBoundingClientRect().bottom > line,
-      );
-      const keeper = placeKeeper(scrollerFor(scope), {
-        items: `[${BLOCK}]`,
-        identity: (node) => keyOf(owner.get(node) ?? node),
-        preferred: () => reading ?? null,
+      for (const [marker, { after }] of this.#runs) if (after) owner.set(marker, after);
+      const hold = holdPlace(readingAt(scope), (node) => {
+        const folded = node.closest(`[${FOLDED}], .lf-dial-more`);
+        return folded && owner.get(folded);
       });
-      keeper.around(change);
+      change();
+      hold();
     }
 
     // Where each block shown near the window stands in it now.

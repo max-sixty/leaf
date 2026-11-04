@@ -39,8 +39,9 @@ export { navigateToDatum } from "./application.js";
 // user sees, as scroll anchoring and the chrome leave it.
 export { growthIsSeen, landingInsets, shownWindow } from "./geometry.js";
 export { registerRootHeader } from "./root-headers.js";
-// Holding the user's place in a scroller whose contents a widget re-renders.
-export { placeKeeper } from "./user-place.js";
+// What stands at the reading line, and holding a place across one change the
+// browser's scroll anchoring can't keep still, such as one hiding what it anchors.
+export { holdPlace, readingAt } from "./user-place.js";
 export { under } from "./shadow.js";
 // Putting the user on an element, saying what moved them there; holding their place,
 // caret included, across a move or re-render of the node they stand on, by key in a

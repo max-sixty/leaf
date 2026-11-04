@@ -91,7 +91,6 @@ import {
 import { passageGeometry } from "../resolved-target.js";
 import { floatingPlacement, floatingUi, floatingGeometry } from "./floating.js";
 import { surfaceGrip } from "./surface-grip.js";
-import { placeKeeper } from "../user-place.js";
 import { renderedOrder, renderedUnder, under } from "../shadow.js";
 import { keys } from "../keyboard/scopes.js";
 import { retainUserIntent } from "../user-intent.js";
@@ -112,7 +111,7 @@ import { CardAnchor } from "../thread/card-anchor.js";
  * arriving: boolean, sent: Pick<Origin, "fromEnd" | "field"> | null, away: boolean,
  * positionFrame: number, positionResult: PromiseWithResolvers<boolean> | null,
  * focusPending: {holding: Element | null} | null, withheldFocus: ReturnType<typeof holdFocus>,
- * transcript: HTMLElement | null, place: ReturnType<typeof placeKeeper> | null,
+ * transcript: HTMLElement | null,
  * stopRegion: (() => void) | null, stopFoot: (() => void) | null, side: ReturnType<typeof commentPlacement>, anchor: CardAnchor,
  * reading: {input: number, scroll: number, end: boolean} | null, itemView: {node: HTMLElement, body: HTMLElement} | null, width: number | null, scroller: Element, followed: boolean}} Session
  * @typedef {{latest: boolean, end: boolean, scroll: number, keepTop: boolean, transcript: HTMLElement}} Reading
@@ -360,8 +359,7 @@ export function createThreadPreview({
       previewSession?.anchor.writing();
   });
   let previewRegionMounted = false;
-  // The card's transcript is re-rendered on every reading of its thread; a message holds
-  // the user's place in it under the event id it is rendered with (user-place.js).
+  // The card's transcript is re-rendered on every reading of its thread.
   /** @param {Session} session @param {ReturnType<typeof import("../thread/inline.js").renderMarginThread>[number]} reading */
   function syncPreviewTranscript(session, { thread: card, transcript }) {
     if (transcript === session.transcript) return;
@@ -377,12 +375,6 @@ export function createThreadPreview({
     // from its passage (scrolling.js, `keepFoot`).
     session.stopFoot?.();
     session.stopFoot = transcript ? keepFoot(transcript, { atEnd: true }) : null;
-    session.place = transcript
-      ? placeKeeper(transcript, {
-          items: ".lf-msg[data-lf-event]",
-          identity: (message) => message.getAttribute("data-lf-event"),
-        })
-      : null;
     if (previewRegionMounted && transcript) {
       // The transcript's width and shown turns when its gutter was last decided.
       let decided = "";
@@ -868,7 +860,6 @@ export function createThreadPreview({
       focusPending: null,
       withheldFocus: null,
       transcript: null,
-      place: null,
       reading: null,
       stopRegion: null,
       stopFoot: null,
@@ -976,7 +967,7 @@ export function createThreadPreview({
         previewClose,
       );
     };
-    if (!arriving && session.place) session.place.around(present);
+    if (!arriving && session.transcript) present();
     else {
       present();
       const transcript = session.transcript;

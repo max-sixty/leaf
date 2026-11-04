@@ -63,8 +63,14 @@
  * different revision. Ordinary reloads and full-document history travel keep the browser's
  * restored offset; history.js owns same-document working-place checkpoints.
  * Comparison is restored after activation because its base must be
- * fetched again. Reading position is restored even after a patch because content above
- * it may have changed height.
+ * fetched again. A patch restores no landmark: it keeps the nodes the reader sees, so
+ * the browser's scroll anchoring holds the one it chose while content above it changes
+ * height, and Leaf's one hold keeps what stands at the reading line where content
+ * arrives below that node (user-place.js, `holdPlace`). A patch that rewrites what the
+ * reader reads, moves it between scrollers, as a workspace reflowing into the page
+ * does, or folds it into a closed disclosure keeps no place. The user chose on
+ * 2026-11-04 to leave the place to anchoring over restoring the landmark after every
+ * patch; a revision followed into a fresh document still restores it.
  *
  * `versionsOffered` controls the destination and the Versions row.
  */
@@ -96,7 +102,7 @@ import {
   inputCount,
 } from "./focus.js";
 import { restrictUserIntent, retainUserIntent } from "./user-intent.js";
-import { focusedInView } from "./user-place.js";
+import { focusedInView, holdPlace, readingAt } from "./user-place.js";
 import { SourcePairs, patchTree, patchRetains } from "./dom-children.js";
 import { savedReadingSettled } from "./keyboard/bindings.js";
 import { commandSteps } from "./keyboard/control-keys.js";
@@ -1976,7 +1982,10 @@ export function createVersionController({
   /** @param {Document} doc @param {import("../types/contract.js").ServedRevision} target */
   async function activateRevision(doc, target) {
     const currentIntent = retainUserIntent();
-    const view = captureView();
+    // The words at the reading line stay where they stood: the browser's anchoring
+    // holds the first box on screen, which may stand above what the patch adds, as a
+    // figure or a spacer at the window's top does (user-place.js).
+    const holdReading = holdPlace(readingAt(pageDocument() ?? document.body));
     const retainedCurrentLocation = captureRetainedCurrentLocation();
     const editingContinuity = captureEditingContinuity();
     // A pending selection counts too: cancel its old-document request before the
@@ -2149,7 +2158,7 @@ export function createVersionController({
           settleDocumentLayout();
           syncLayout();
           if (currentIntent()) {
-            restoreView(view, currentIntent);
+            holdReading();
             restoreRetainedCurrentLocation(retainedCurrentLocation);
             restoreCarryScroll();
             await restoreEditingContinuity(editingContinuity, currentIntent);

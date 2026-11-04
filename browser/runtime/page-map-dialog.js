@@ -44,7 +44,6 @@ import { coarsePointer, pressIsKeyboardActivation } from "./pointer.js";
 import { rowWalk } from "./walk-position.js";
 import { closeControl, el, offeredAction, searchField } from "./widget-elements.js";
 import { keepsHidden, keepsText } from "./keeps.js";
-import { placeKeeper } from "./user-place.js";
 import { retainUserIntent } from "./user-intent.js";
 import {
   PAGE_CONTROL_RANK,
@@ -92,13 +91,6 @@ const dialogSearch = searchField("lf-page-map-search", {
 });
 const dialogList = el("div", "lf-page-map-list");
 dialogList.toggleAttribute("data-lf-scroll", true);
-// A state update or a search re-renders the open sheet; the row the user was on holds
-// their place in it (user-place.js), under the map key each row is rendered with.
-const place = placeKeeper(dialogList, {
-  items: ".lf-page-map-action",
-  identity: (row) => row.getAttribute("data-lf-map-key"),
-  active: () => dialog.open,
-});
 const dialogEmpty = el(
   "p",
   "lf-rows-empty",
@@ -327,7 +319,7 @@ export function createPageMapDialog({
 
   function renderSheet() {
     const restoreFocus = holdFocus(dialog);
-    place.around(() => presentSheet());
+    presentSheet();
     // A control the filter hid or the render removed hands the user to the search.
     restoreFocus?.(dialogSearch);
     // Search bindings read the rendered rows, including those the query hid.

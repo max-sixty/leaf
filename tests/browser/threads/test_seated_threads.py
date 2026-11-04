@@ -430,6 +430,82 @@ def test_an_agent_turn_arriving_holds_still_the_page_box_being_typed_in(
     )
 
 
+@pytest.mark.parametrize(
+    ("first", "engine"),
+    [("on screen", "browser"), ("above", "browser"), ("on screen", "firefox_browser")],
+)
+def test_an_edit_above_the_paragraph_read_holds_it_with_the_reply_box_scrolled_away(
+    request, serve, first, engine
+):
+    """The user wrote in a thread's reply box, scrolled up out of it to read an earlier
+    message's second paragraph, and an edit from another tab grew that message's first
+    paragraph: the paragraph they read moved down by the 126px it grew. The redraw
+    replaced every paragraph of the message, the node the browser's scroll anchoring
+    held among them, and where the first paragraph stood on screen anchoring held that
+    paragraph, the growth inside it; the seat held nothing, its focus out of view. The
+    paragraph read stays where it was, whether the first stands on screen or above the
+    window, and in Firefox."""
+    url, host = seated_page(serve, "task")
+    second = "The second paragraph, being read. " + SEAT_WORDS * 3
+    root = append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "Opening remark.\n\n" + second,
+            "anchor": {"section": host[1:]},
+        },
+    )["id"]
+    for n in range(8):
+        append_carried_log_record(
+            serve.page_dir,
+            {
+                "kind": "reply",
+                "author": "agent",
+                "agent": "Codex",
+                "parent": root,
+                "revision": 1,
+                "text": f"Message {n + 2}. " + SEAT_WORDS * 2,
+            },
+        )
+    page = open_page(request.getfixturevalue(engine), url)
+    resized(page, 1440, 900)
+    thread = page.locator(f'.lf-page-thread[data-lf-thread="{root}"]')
+    box = thread.locator(":scope > .lf-thread-reply leaf-text")
+    box.scroll_into_view_if_needed()
+    write(box, "Half a thought")
+    read = thread.locator(".lf-msg p", has_text="The second paragraph")
+    page.evaluate(
+        """([node, at]) => document.scrollingElement.scrollBy({
+          top: node.getBoundingClientRect().top - at, behavior: 'instant'})""",
+        [read.element_handle(), 150 if first == "on screen" else -60],
+    )
+    scroll_settled(page)
+    expect(box).to_be_focused()
+    expect(box).not_to_be_in_viewport()
+    before = read.evaluate("p => p.getBoundingClientRect().top")
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "edit",
+            "author": "user",
+            "message": root,
+            "text": "Opening remark, grown by an edit in another tab. "
+            + SEAT_WORDS * 3
+            + "\n\n"
+            + second,
+        },
+    )
+    told(page)
+    expect(thread.locator(".lf-msg").first).to_contain_text("grown by an edit")
+    rendered(page)
+    expect(box).to_be_focused()
+    assert read.evaluate("p => p.getBoundingClientRect().top") == pytest.approx(
+        before, abs=1
+    )
+
+
 def test_resolving_a_long_page_thread_by_its_button_leaves_the_page_still(
     browser, serve
 ):

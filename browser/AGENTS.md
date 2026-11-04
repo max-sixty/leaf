@@ -60,6 +60,15 @@ own (`../SOUL.md`, "Keep the foundation small and extensible").
   `floating-panel.js` does. Check: `test_news_just_after_a_press_moves_nothing`.
   Owners: `thread/held-news.js`, and `threadsListing` in `floating-panel.js` for the rows
   of Threads.
+- **What the reader reads stays put through re-renders and revisions.** The browser's
+  scroll anchoring holds it while content above changes height, so a render keeps the
+  nodes it doesn't change, as a revision's patch, a widget declaring `x-patch: members`
+  and a message's words (`setMarkup` in `dom-children.js`) do, and Leaf turns anchoring
+  off on no box the reader reads in. One Leaf hold, acting once as the change draws,
+  keeps what anchoring can't: the control under the user's hands, the reading line
+  where growth starts between anchoring's box and it, and a place the change hides.
+  Owner: `user-place.js`, whose header records the costs the user accepted. Check:
+  `test_an_edit_above_the_paragraph_read_holds_it_with_the_reply_box_scrolled_away`.
 - **Nothing Leaf draws moves the page's content.** Pins, passage marks and runtime
   controls sit over the page and take no space, and no rule pads or widens a block to
   make room for them. The rail sits right of `main` when the window is wide enough and
@@ -392,6 +401,7 @@ use it:
 | Where a box sits relative to another box or its scroller                   | the containing block, sticky positioning, anchor positioning, scroll timelines                                                    |
 | Which of Leaf's surfaces paints over which, with the page beneath them all | the top layer, and stacking contexts: the theme's `--lf-z-*` ladder, inside the chrome's root after `body` at the largest z-index |
 | Whether a box is rendered at all                                           | `checkVisibility`                                                                                                                 |
+| Where the reader's place stays as content above it changes height          | scroll anchoring, over renders that keep the nodes they don't change                                                              |
 | Which rules reach an element                                               | cascade layers, `@scope`, and a shadow root as the boundary                                                                       |
 
 Where a feature nearly fits, change what the runtime asks of it, such as where a box
@@ -406,7 +416,7 @@ it. Call an API every engine ships directly, with no fallback, and record remain
 browser gaps in `notes/browser-support.md`, whose "Recording and assessing a gap" says
 which ones Leaf's code corrects.
 
-Two script answers already exist. `focus.js` sets `data-lf-focus` and
+Three script answers already exist. `focus.js` sets `data-lf-focus` and
 `data-lf-focus-within`, because native `:focus` also matches retargeted shadow hosts
 and a held label press; those attributes mark the user's current location, and rings are
 styled with `data-lf-focus-visible` and `data-lf-focus-visible-within`, which also
@@ -414,6 +424,9 @@ follow the browser's focus visibility. `geometry.js` decides whether the user ca
 box (`seenRect`), because Leaf's chrome covers the page without clipping it: each
 surface fixed over the page declares the one box it covers (`declareCover`), and a box
 is in front of the user where no scroller clips it and no such box covers it.
+`user-place.js` holds the user's place across one change (`holdPlace`), because scroll
+anchoring holds the first box on screen: it can't keep still a control below growth
+on screen, the reading line below growth inside that box, or a place the change hides.
 
 ### One writer for each fact
 
@@ -437,7 +450,7 @@ reads (root `AGENTS.md`, "The document starts state; the log changes it"):
 | the line inside a target that a comment sits by                                                                | `pointed-place.js` (`placePoints`); presentation only                                                                                                                                                                                                                                                                                                                               |
 | the side and line a comment box and its thread card sit by                                                     | `annotation-overlay/comment-placement.js` (`commentSide`)                                                                                                                                                                                                                                                                                                                           |
 | whether a margin row sits in the rail or as a pin, and where                                                   | `annotation-overlay/margin-layout.js`                                                                                                                                                                                                                                                                                                                                               |
-| what a scroller shows, what a surface covers, what sticky headers cover, how much of the window the page shows | `geometry.js` (`visibleBand`, `declareCover`, `headerInset`, `shownWindow`, `seenRect`, `motionBand`)                                                                                                                                                                                                                                                                               |
+| what a scroller shows, what a surface covers, what sticky headers cover, how much of the window the page shows | `geometry.js` (`visibleBand`, `declareCover`, `shownWindow`, `seenRect`, `motionBand`)                                                                                                                                                                                                                                                                                              |
 
 Add no second cache, pending map, replay list or DOM attribute as another source for
 one of these facts. A rendering may expose state, such as `data-lf-state` for CSS and
@@ -475,12 +488,13 @@ adds its row. Rows marked _lint_ are enforced in `eslint.config.mjs`.
 | Whether a node is inside another across shadow trees                                                  | `shadow-tree.js` `under`, `renderedUnder`, `composedParentNode`                    |
 | Put the user on an element, saying what moved them                                                    | `focus.js` `focusDestination(node, cause)` (_lint_)                                |
 | Move a node, keeping the user's place in it                                                           | `dom-move.js` `move(parent, node, before)` (_lint_)                                |
-| Make a list of nodes, some already placed, a parent's children                                        | `dom-children.js` `setChildren`                                                    |
+| Make a list of nodes, some already placed, a parent's children, or what markup parses to              | `dom-children.js` `setChildren`, `setMarkup`                                       |
 | Whether a control takes typed letters                                                                 | `focus.js` `typesText`, `takesLetters`                                             |
 | Which keys move a caret, and whether a key is Select All                                              | `control-selectors.js` `CARET_KEYS`, `selectsAll`                                  |
 | A hint map's walk and choose rows                                                                     | `keyboard/hints.js` `createHintSession`                                            |
 | Which focused control counts as the user's place: shown, and not under a stuck box                    | `user-place.js` `focusedInView`                                                    |
 | Whether the user scrolled away from the control focus stands on, which keys then leave alone          | `user-place.js` `focusScrolledAway`                                                |
+| What stands at the reading line, and holding a place across a change anchoring can't keep still       | `user-place.js` `readingAt`, `holdPlace`                                           |
 | Whether a click came from the keyboard                                                                | `pointer.js` `pressIsKeyboardActivation`                                           |
 | Whether a press is a plain primary-button press with no modifier                                      | `pointer.js` `plainPress`                                                          |
 | Which arrow means back along a row, in its text direction                                             | `keyboard/bindings.js` `rowArrows`                                                 |
@@ -493,7 +507,7 @@ adds its row. Rows marked _lint_ are enforced in `eslint.config.mjs`.
 | Whether the page shows a node at all, and what it shows of a sample it holds                          | `geometry.js` `presented`, `frameView`, `watchRoom`                                |
 | Whether a box placed against a target belongs in layout yet                                           | `geometry.js` `nearWindow`, `nearObserver`                                         |
 | Where an element or Range destination is, and how much of it survives clipping                        | `geometry.js` `placeBox`, `clippedPlace`                                           |
-| Whether a box is stuck, and the band sticky headers cover                                             | `geometry.js` `stuckBox`, `headerInset`                                            |
+| Whether a box is stuck, and the band sticky headers cover                                             | `geometry.js` `stuckBox`, `visibleBand`                                            |
 | Which headers the page itself holds over the document, at the window's top                            | `root-headers.js` `pageHeads`                                                      |
 | Whether a box scrolls, for a script or for the user                                                   | `geometry.js` `scrollContainer`, `userScrollport`                                  |
 | Which axes a box clips                                                                                | `rect.js` `clippingAxes`                                                           |

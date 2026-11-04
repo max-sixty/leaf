@@ -42,18 +42,19 @@ import {
 import { focused } from "../focus.js";
 import { scrollBehavior } from "../motion.js";
 import { whenDocumentPresented } from "../semantic-state.js";
-import { scrollerFor, scrollersOf } from "../reading-regions.js";
+import { scrollerFor } from "../reading-regions.js";
+import { edgeAt, returnTo } from "../scroll-containers.js";
 import { under } from "../shadow.js";
 import { bringBackSurfaceOf } from "../off-flow.js";
 import { retainUserIntent } from "../user-intent.js";
-import { focusedInView } from "../user-place.js";
+import { focusedInView, holdPlace, readingAt } from "../user-place.js";
 import {
   alreadyShown,
   fitsWhole,
   keepInBand,
   scrollIntoView,
 } from "../landing-scroll.js";
-import { aimedTop, moveScrollerBy, scrollToEnd } from "../scrolling.js";
+import { moveScrollerBy, scrollToEnd } from "../scrolling.js";
 import { SAYS_IN, SAY_BOX, SAY_ROW, THREAD } from "./selectors.js";
 
 /** @param {Element} held @param {Element} control */
@@ -237,7 +238,7 @@ export function sendLanding(input) {
   // The row's foot on screen, and below the top of the thread it grows in.
   /** @param {Element} row */
   const read = (row) => ({
-    foot: currentLocationAt(row, "bottom"),
+    foot: edgeAt(row, "bottom"),
     within: row.getBoundingClientRect().bottom - held.getBoundingClientRect().top,
   });
   const stood =
@@ -258,8 +259,7 @@ export function sendLanding(input) {
         // Where the send's own growth takes the foot, whatever scrolled meanwhile.
         returnTo(reply, "bottom", stood.foot + read(reply).within - stood.within);
         revealWritingArea(held, input, reply);
-        if (currentLocationAt(reply, "bottom") < stood.foot)
-          returnTo(reply, "bottom", stood.foot);
+        if (edgeAt(reply, "bottom") < stood.foot) returnTo(reply, "bottom", stood.foot);
       })
       .catch(() => {});
   };
@@ -348,51 +348,33 @@ export function readBoxPlace(input) {
   rowHeights.set(input, reply.getBoundingClientRect().height);
 }
 
-// Where `node`'s `edge` stands on screen, read as though each box scrolling it stood
-// where Leaf last aimed it (scrolling.js, `aimedTop`): a hold read after a hold then
-// carries no rounding of the first.
-/** @param {Element} node @param {"top" | "bottom"} edge */
-const currentLocationAt = (node, edge) => {
-  let at = node.getBoundingClientRect()[edge];
-  for (const box of scrollersOf(node)) at += box.scrollTop - aimedTop(box);
-  return at;
-};
-// Put `node`'s `edge` at `at` (`currentLocationAt`). The box scrolling it takes the move first
-// and the boxes around it whatever it cannot: a bounded block not yet full grows in the
-// page instead.
-/** @param {Element} node @param {"top" | "bottom"} edge @param {number} at */
-function returnTo(node, edge, at) {
-  for (const box of scrollersOf(node)) {
-    const moved = currentLocationAt(node, edge) - at;
-    if (Math.abs(moved) < 0.5) return;
-    moveScrollerBy(box, moved);
-  }
-}
-
 // A render that inserts above the control the user is on, such as an agent's turn
 // arriving in the thread they are writing in (held-news.js) or an edit growing a turn
-// above their box, moves it by what it inserted. `holdBox`
-// reads where the focused control stands and returns the step that puts it back, so
-// news moves no control under the user's hands. Only one in view is under their hands
-// (user-place.js, `focusedInView`). The control is where the user is, so a message they
-// stand on inside the thread is what stays still, and the reply box below it moves down
-// by the turn. A user on the thread itself, where a send leaves them, waits at its reply
-// box, so the box is what stays still while it is in view, as a chat's composer does. A
-// control the render replaced, or one that left the thread view it stood in, as a reply
-// going on where its thread now stands does (replies.js, `releaseReplies`), has nothing
-// to hold. The hold scrolls what the boxes scrolling the control can take; where they
-// can't take it all, as on a page shorter than its window or a short panel at the
-// page's foot, whose room the growth fills first, the control moves by the rest.
+// above their box, moves it by what it inserted. `holdBox` holds where the user is
+// across the render (user-place.js, `holdPlace`), so news moves no control under the
+// user's hands. Only one in view is under their hands (user-place.js,
+// `focusedInView`). The control is where the user is, so a message they stand on
+// inside the thread is what stays still, and the reply box below it moves down by the
+// turn. A user on the thread itself, where a send leaves them, waits at its reply box,
+// so the box is what stays still while it is in view, as a chat's composer does. A user
+// who scrolled away from the control reads something else, so what stands at the
+// reading line in the thread's column stays still instead (`readingAt`): the browser's
+// anchoring holds the first box on screen, and an edit growing the first paragraph of
+// the message whose second they read grows inside that box. A control the render
+// replaced, or one that left the thread view it stood in, as a reply going on where its
+// thread now stands does (replies.js, `releaseReplies`), has nothing to hold. The hold
+// scrolls what the boxes scrolling the control can take; where they can't take it all,
+// as on a page shorter than its window or a short panel at the page's foot, whose room
+// the growth fills first, the control moves by the rest.
 /** @param {Element | null | undefined} control */
 export function holdBox(control) {
-  if (control == null || control !== focusedInView()) return () => {};
-  const held = control.closest(SAYS_IN);
-  if (!held) return () => {};
+  const held = control?.closest(SAYS_IN);
+  if (!control || !held) return () => {};
+  if (control !== focusedInView()) return holdPlace(readingAt(held));
   const box = control.matches(THREAD) ? control.querySelector(SAY_BOX) : null;
   const still = box && seenRect(box, new Map()) ? box : control;
-  const top = currentLocationAt(still, "top");
+  const restore = holdPlace(still);
   return () => {
-    if (focused() !== control || !still.isConnected || !held.contains(still)) return;
-    returnTo(still, "top", top);
+    if (focused() === control && held.contains(still)) restore();
   };
 }

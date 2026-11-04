@@ -14,6 +14,7 @@ from render_cases_interaction import (
     LIVE_V1,
     LIVE_V2,
     WRAP_TOP,
+    executable_revision,
     live_url,
 )
 from render_harness import (
@@ -42,36 +43,19 @@ pytestmark = pytest.mark.shifts_unsurveyed
     "where",
     [
         pytest.param("above", marks=pytest.mark.watch_shifts),
-        # Unwatched: the revision rewrites the words of the text node the reader reads,
-        # and the watch compares that node's lines by their order, so every line below
-        # the rewrite reads as moved, though each holds other words than it did.
-        "inside",
         pytest.param("figure", marks=pytest.mark.watch_shifts),
     ],
 )
 def test_live_revision_keeps_the_visible_semantic_reading(browser, serve, where):
-    """A content revision keeps the reader on the same passage.
+    """A content revision patched in place keeps the reader on the same passage.
 
-    Native scroll anchoring is disabled by this page's layout, so it cannot conceal
-    a broken semantic carry when five paragraphs arrive above the reader. Where the
-    reader stands partway into a long paragraph, its start above the window, and the
-    revision also lengthens words of it above their line, the line they read stays
-    where it was, not the paragraph's opening line. Where a figure taller than the
-    window fills it, with no words on screen, the part of the figure at the edge stays
-    there, not the old scroll offset, which now names the arriving paragraphs.
+    The patch keeps the nodes the reader sees, so the browser's scroll anchoring holds
+    the one it chose while five paragraphs arrive above the reader. Where a figure
+    taller than the window fills it, with no words on screen, the part of the figure
+    at the edge stays there, not the old scroll offset, which now names the arriving
+    paragraphs.
     """
-    anchoring = "<style>html { overflow-anchor: none; }</style>"
-    first = LIVE_V1.replace(
-        "</head>",
-        anchoring + "</head>",
-    )
-    second = LIVE_V2.replace("</head>", anchoring + "</head>")
-    if where == "inside":
-        words = " ".join(f"w{n:04d}" for n in range(1, 500))
-        first = first.replace(LIVE_READING, words)
-        second = second.replace(LIVE_READING, words).replace(
-            " w0005 ", " " + "a longer phrase standing where one word stood " * 6
-        )
+    first, second = LIVE_V1, LIVE_V2
     if where == "figure":
         figure = (
             '<svg id="live-reading" viewBox="0 0 100 300"'
@@ -94,7 +78,7 @@ def test_live_revision_keeps_the_visible_semantic_reading(browser, serve, where)
         """(where) => {
           const box = document.getElementById('live-reading').getBoundingClientRect();
           document.scrollingElement.scrollBy({
-            top: box.top - {above: 140, inside: -300, figure: -0.4 * box.height}[where],
+            top: box.top - {above: 140, figure: -0.4 * box.height}[where],
             behavior: 'instant'
           });
         }""",
@@ -152,7 +136,6 @@ def test_a_revision_keeps_the_paragraph_under_a_focused_stuck_tab(browser, serve
         )
         return leaf_page(
             f"Stuck tab {added}",
-            "<style>html { overflow-anchor: none; }</style>"
             f'<lf-tabs id="views" class="layout-flow"><lf-tab id="first" label="First view">{paragraphs}'
             '</lf-tab><lf-tab id="second" label="Second view"><p>Other.</p></lf-tab>'
             "</lf-tabs>",
@@ -227,10 +210,10 @@ def test_revision_after_revision_keeps_the_reader_on_the_same_line(
 ):
     """An agent adds a paragraph above the reader in each of several revisions.
 
-    Each restore lands the reader's line within the pixel the engine rounds a scroll
-    offset to, and the next revision's reading starts from where the restore aimed
-    rather than where it landed: read from where it landed, each rounding would add
-    to the last, and the line would creep down the screen revision by revision.
+    Paragraphs standing a fraction of a pixel apart, which no scroll offset matches,
+    keep the reader's line within a pixel across every revision: the patch keeps the
+    nodes the browser's scroll anchoring holds, and nothing Leaf writes after a patch
+    rounds the line down the screen revision by revision.
     """
     browser = request.getfixturevalue(engine)
 
@@ -244,8 +227,7 @@ def test_revision_after_revision_keeps_the_reader_on_the_same_line(
         # scroll offset can match.
         return leaf_page(
             f"Arrivals {added}",
-            "<style>html { overflow-anchor: none; } p { line-height: 1.37; }</style>"
-            + paragraphs,
+            "<style>p { line-height: 1.37; }</style>" + paragraphs,
         )
 
     page = open_page(browser, live_url(serve(source(0))))
@@ -267,11 +249,13 @@ def test_revision_after_revision_keeps_the_reader_on_the_same_line(
 def test_a_revision_keeps_the_pane_read_over_a_pane_holding_offscreen_focus(
     browser, serve
 ):
-    """Focus left in a pane the reader scrolled away from does not name their region.
+    """Focus left in a pane the reader scrolled away from does not take their place.
 
     Two panes share the page scroller at a narrow width. The reader typed in the
     first, then scrolled on into the second; a revision adding paragraphs above keeps
-    the paragraph they read in the second where it stood."""
+    the paragraph they read in the second where it stood. The revision edits inside
+    the pane: replacing it whole took away the node the browser's scroll anchoring
+    held, and moved the reader by the 337px it added."""
 
     def source(added):
         notes = "".join(f"<p>Note {n}, kept with the draft.</p>" for n in range(12))
@@ -282,7 +266,6 @@ def test_a_revision_keeps_the_pane_read_over_a_pane_holding_offscreen_focus(
         )
         return leaf_page(
             f"Two panes {added}",
-            "<style>html { overflow-anchor: none; }</style>"
             '<lf-pane id="notes" label="Notes"><div>'
             '<textarea aria-label="Working draft"></textarea>'
             f'{notes}</div></lf-pane><lf-pane id="log" label="Log"><div>{log}</div></lf-pane>',
@@ -321,8 +304,9 @@ def test_a_revision_keeps_the_pane_read_over_a_pane_holding_offscreen_focus(
 def test_revision_changes_keep_the_complete_heading_below_user_chrome(browser, serve):
     """A partly cut title is the page opening, not a reading place to preserve.
 
-    A revision change used the heading as its semantic landmark and restored its exact
-    viewport coordinate. When the user had moved just far enough for the first title
+    A revision followed into a fresh document, and travel to a version, restore the
+    view; a patch in place restores none (version.js). A restore used the heading as
+    its semantic landmark and restored its exact viewport coordinate. When the user had moved just far enough for the first title
     line to sit above the scroller's landable top (then under the fixed banner), both
     an arriving current revision and a chosen historical version faithfully restored
     that broken view: the later line looked like the whole heading. The scroller
@@ -397,7 +381,9 @@ def test_revision_changes_keep_the_complete_heading_below_user_chrome(browser, s
 
     stamp_page(
         serve.page_dir,
-        first.replace(title, revised_title).replace("1200px", "1201px"),
+        executable_revision(
+            first.replace(title, revised_title).replace("1200px", "1201px"), "heading"
+        ),
         "Changed evidence below the page heading",
     )
     wait_for_revision(page, 2)
@@ -501,7 +487,10 @@ def test_revision_remembers_the_active_region_when_a_workspace_reflows(browser, 
     """One active semantic reading wins when several regions begin sharing the page.
 
     The revision puts prose before the workspace, so it stops being the page and flows,
-    and every pane's reading moves onto the one page scroll."""
+    and every pane's reading moves onto the one page scroll. It is one followed into a
+    fresh document, whose handoff restores the view; a patch in place restores none,
+    and neither the browser's anchoring nor Leaf's hold carries a place from a pane's
+    scroll to the page's."""
 
     def pane(side):
         return f"""
@@ -540,10 +529,13 @@ def test_revision_remembers_the_active_region_when_a_workspace_reflows(browser, 
           el.closest('lf-pane > div').getBoundingClientRect().top"""
     )
 
-    revised = leaf_page(
-        "Active region continuity",
-        "<p>The revision adds context before the workspace.</p>" + workspace_markup,
-        head=split,
+    revised = executable_revision(
+        leaf_page(
+            "Active region continuity",
+            "<p>The revision adds context before the workspace.</p>" + workspace_markup,
+            head=split,
+        ),
+        "reflow",
     )
     stamp_page(serve.page_dir, revised, "put the workspace in the document")
     wait_for_revision(page, 2)
@@ -557,55 +549,14 @@ def test_revision_remembers_the_active_region_when_a_workspace_reflows(browser, 
     assert abs(after - before) <= 4, (before, after)
 
 
-def test_revision_keeps_a_focused_control_visible_without_a_text_landmark(
-    browser, serve
-):
-    """A focused control remains the place when its pane has no quotable text."""
-    content = """
-<header><h1>Control workspace</h1></header>
-<div id="reading-split">
-  <lf-pane id="left-reading" label="Left reading"><div>
-    <p>Another pane's reading does not name the active control.</p>
-  </div></lf-pane>
-  <lf-pane id="right-reading" label="Right reading"><div>
-    <div style="height: 1100px"></div>
-    <button id="right-subject">Right subject</button>
-    <div style="height: 500px"></div>
-  </div></lf-pane>
-</div>
-"""
-    split = regions_side_by_side("reading-split")
-    first = leaf_page(
-        "Focused control continuity", content, head=split, layout="workspace"
-    )
-    page = open_page(browser, live_url(serve(first)))
-    resized(page, 900, 760)
-    pane_scroll_behavior(page, page.locator("#right-reading"), "bounded")
-    page.locator("#right-subject").click()
-
-    revised = leaf_page(
-        "Focused control continuity",
-        '<div style="height: 1000px"></div>' + content,
-        head=split,
-    )
-    stamp_page(serve.page_dir, revised, "put the workspace in the document")
-    wait_for_revision(page, 2)
-    pane_scroll_behavior(page, page.locator("#right-reading"), "flow")
-    visible = page.locator("#right-subject").evaluate(
-        """el => {
-          const rect = el.getBoundingClientRect();
-          return rect.top >= 0 && rect.bottom <= innerHeight;
-        }"""
-    )
-    assert visible
-
-
 def test_revision_reveals_a_page_landmark_around_an_empty_active_region(browser, serve):
     """An empty flow region does not displace the page reading that contains it.
 
     The page is read a little past its top, so the title is its reading place; a page
     at its very top would stay there, and the result the revision adds above the title
-    would push the title down."""
+    would push the title down. The revision is one followed into a fresh document,
+    whose handoff restores the view; a patch in place restores none, and leaves the
+    disclosure it wrapped around the reader closed."""
     content = """
 <h1 id="reading-title">The page landmark surrounding these controls remains stable.</h1>
 <lf-pane id="controls-pane" label="Controls">
@@ -621,15 +572,18 @@ def test_revision_reveals_a_page_landmark_around_an_empty_active_region(browser,
         "heading => heading.getBoundingClientRect().top"
     )
 
-    revised = leaf_page(
-        "Empty active region continuity",
-        f"""
+    revised = executable_revision(
+        leaf_page(
+            "Empty active region continuity",
+            f"""
 <p>The arriving revision adds a result above the prior content.</p>
 <details id="prior-controls">
   <summary>Prior controls</summary>
   {content}
 </details>
 """,
+        ),
+        "wrapped",
     )
     stamp_page(serve.page_dir, revised, "wrap the prior controls")
     wait_for_revision(page, 2)
@@ -646,7 +600,8 @@ def test_revision_reveals_a_page_landmark_around_an_empty_active_region(browser,
 
 
 def test_revision_reveals_an_active_region_without_any_reading_landmark(browser, serve):
-    """A surviving active region remains reachable even when no passage names it."""
+    """A surviving active region remains reachable even when no passage names it,
+    across a revision followed into a fresh document."""
     content = """
 <lf-pane id="controls-pane" label="Controls">
   <button id="focused-control">Change setting</button>
@@ -657,14 +612,17 @@ def test_revision_reveals_an_active_region_without_any_reading_landmark(browser,
     page = open_page(browser, live_url(serve(first)))
     page.locator("#focused-control").focus()
 
-    revised = leaf_page(
-        "Textless active region continuity",
-        f"""
+    revised = executable_revision(
+        leaf_page(
+            "Textless active region continuity",
+            f"""
 <details id="prior-controls">
   <summary>Prior controls</summary>
   {content}
 </details>
 """,
+        ),
+        "wrapped",
     )
     stamp_page(serve.page_dir, revised, "wrap the textless active region")
     wait_for_revision(page, 2)

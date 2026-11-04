@@ -56,6 +56,27 @@ export function setChildren(parent, nodes) {
   setChildLists([[parent, nodes]]);
 }
 
+// Make `parent`'s children what `markup` parses to, keeping each child already there
+// that equals the one it would become, in order. A redraw that rewrites one paragraph
+// then leaves the others standing, and with them the node the browser's scroll
+// anchoring holds and any selection in them: neither engine anchors again on a node
+// that replaces its anchor (user-place.js).
+/** @param {Element} parent @param {string} markup */
+export function setMarkup(parent, markup) {
+  const parsed = document.createElement("template");
+  parsed.innerHTML = markup;
+  const old = [...parent.childNodes];
+  let from = 0;
+  const nodes = [...parsed.content.childNodes].map((node) => {
+    const at = old.findIndex((child, i) => i >= from && child.isEqualNode(node));
+    const kept = old[at];
+    if (!kept) return node;
+    from = at + 1;
+    return kept;
+  });
+  setChildren(parent, nodes);
+}
+
 // `setChildren` for several `[parent, nodes]` lists at once, where a node can change
 // lists: it moves straight from the parent it leaves to the one it joins, keeping the
 // user in it, where one list at a time would remove it before the next placed

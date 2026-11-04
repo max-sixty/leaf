@@ -238,7 +238,7 @@ def _read_by_the_sample(page, child):
     state = page.request.get(f"{child.url}api/state").json()
     (thread,) = served_thread(state["browser"])["threads"]
     assert thread["id"] == SAMPLE_READER
-    assert thread["unread"] == []
+    assert thread["unread"] == {}
 
 
 def test_clipped_sample_cannot_acknowledge_child_viewport(browser, serve):

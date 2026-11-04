@@ -739,7 +739,7 @@ to 330 ms; 25 to 45 in Chromium), and 2.1 million when a page of 30 documents of
 
 Leaf keeps its own writes off the rows while a page loads: a listing states its slot
 restart from the first paint (`text-document.css`), and a closed tab's document draws
-after the page presents (`lf-text-document.js`, `show`). Two restyles still reach
+after the page presents (`lf-text-document.js`, `drawLater`). Two restyles still reach
 every row in Firefox. A newly started Firefox restyles every page on each
 `font-info-updated` in its first seconds, 1.4 s each on the page of 30 documents. And
 Gecko answers an insertion into an element whose children a `+`, `~` or

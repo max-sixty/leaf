@@ -13,6 +13,7 @@ import {
   reflectFirstScopes,
   reflectKeys,
   saying,
+  watchCommandScopes,
 } from "../../browser/runtime/keyboard/scopes.js";
 import {
   activeRows,
@@ -30,6 +31,7 @@ import { applicationState } from "../../browser/runtime/semantic-state.js";
 import { commandsChanged } from "../../browser/runtime/widget-upgrade.js";
 import { focused } from "../../browser/runtime/focus.js";
 import { adoptShadowStage } from "../../browser/runtime/shadow-stage.js";
+import { watchOwner } from "../../browser/runtime/arrivals.js";
 import { signal } from "/runtime/framework.js";
 import { setFlagsFromString } from "node:v8";
 import { runInNewContext } from "node:vm";
@@ -1009,6 +1011,98 @@ test("an owner that has left the page is not held by its keys", async () => {
     collect();
   }
   assert.equal(ref.deref(), undefined);
+});
+test("a press from an arrival's callback finds an owner put back in the same batch", async () => {
+  const owner = document.createElement("section");
+  const control = document.createElement("button");
+  document.body.append(owner, control);
+  let count = 0;
+  keys(owner, "Returning", [
+    { id: "probe.batch", title: "Act", keys: ["x"], control, run: () => count++ },
+  ]);
+  reflectFirstScopes();
+  reflectKeys();
+  const presser = document.createElement("div");
+  watchOwner(presser, { connect: () => control.click() });
+  try {
+    owner.remove();
+    await new Promise((resolve) => setTimeout(resolve));
+    reflectKeys();
+    // One batch puts both back, and the presser's arrival is delivered first.
+    document.body.append(presser, owner);
+    await new Promise((resolve) => setTimeout(resolve));
+    assert.equal(count, 1);
+  } finally {
+    presser.remove();
+    owner.remove();
+    control.remove();
+  }
+});
+test("a press costs the same after an insertion however many stages stand", () => {
+  /** @param {number} size */
+  const derefsFor = (size) => {
+    const hosts = Array.from({ length: size }, () => {
+      const host = document.createElement("div");
+      adoptShadowStage(host.attachShadow({ mode: "open" }));
+      return host;
+    });
+    const owner = document.createElement("section");
+    const control = document.createElement("button");
+    document.body.append(...hosts, owner, control);
+    keys(owner, "Stable", [
+      { id: "probe.stable", title: "Act", keys: ["x"], control, run: () => {} },
+    ]);
+    reflectFirstScopes();
+    reflectKeys();
+    const { deref } = WeakRef.prototype;
+    let derefs = 0;
+    WeakRef.prototype.deref = function () {
+      derefs++;
+      return deref.call(this);
+    };
+    try {
+      document.body.append(document.createElement("p"));
+      control.click();
+      return derefs;
+    } finally {
+      WeakRef.prototype.deref = deref;
+      for (const host of hosts) host.remove();
+      owner.remove();
+      control.remove();
+    }
+  };
+  const small = derefsFor(8);
+  const large = derefsFor(64);
+  assert.ok(large <= small, `${small} derefs beside 8 stages, ${large} beside 64`);
+});
+test("a paint reaches a page command whose control moved", () => {
+  const first = document.createElement("button");
+  const second = document.createElement("button");
+  const around = document.createElement("div");
+  around.append(first, second);
+  document.body.append(around);
+  let target = first;
+  let count = 0;
+  const { scope } = commandScope("Page", [
+    { id: "probe.page-moved", title: "Act", control: () => target, run: () => count++ },
+  ]);
+  const stop = watchCommandScopes(() => [scope]);
+  paintKeys();
+  reflectFirstScopes();
+  reflectKeys();
+  try {
+    target = second;
+    paintKeysWithin(around);
+    reflectFirstScopes();
+    reflectKeys();
+    second.click();
+    assert.equal(count, 1);
+  } finally {
+    stop();
+    paintKeys();
+    reflectKeys();
+    around.remove();
+  }
 });
 test("a button a widget declared before it was placed answers once it is", async () => {
   const owner = document.createElement("section");

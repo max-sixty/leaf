@@ -31,7 +31,13 @@
    but `commandsWithin` doesn't find it, and once the tree's host leaves the page a
    button outside it that the scope names keeps showing that command's availability
    until a paint or `paintKeys()` reaches it; a press no longer runs it. Nothing in
-   Leaf declares scopes in such a tree. */
+   Leaf declares scopes in such a tree.
+
+   A press finds a button's commands from what each source named when it was last read,
+   whether or not it stood then, and counts those standing now. A source that comes to
+   name another button while out of the page, with no write reported, and is put back
+   and pressed in one task, is found by the frame after its arrival, not by that press:
+   the gap a getter that queries the document has wherever its writer reports nothing. */
 import { focusDestination, focusRevision, followingFocus } from "../focus.js";
 import {
   AsyncDirective,
@@ -72,7 +78,7 @@ import { repaint } from "../repaint.js";
 import { installMoveKeys } from "../dom-move.js";
 import { keeps } from "../keeps.js";
 import { tick } from "../version-signal.js";
-import { settleArrivals, stageOf, watchOwner } from "../arrivals.js";
+import { stageOf, watchOwner } from "../arrivals.js";
 import { COMMANDS, commandsChangedOn, refuseCommands } from "../widget-upgrade.js";
 
 /** @typedef {import("./bindings.js").Command} Command
@@ -129,19 +135,29 @@ export function watchCommandScopes(read) {
 // departure, and `paintKeys()` for every source. Marks gather as a set, and each marked
 // source's version advances once when the frame or a press takes them
 // (`takeChanges`). The element's reflection keeps membership both ways
-// (`nameButtons`), and each button reads only its slice (`commandsAt`). A marked
-// element is tied to its lifetime (`watchOwner`): it holds a reading only while it
-// stands in the page, so its departure ends what subscribed through it, and its
+// (`nameButtons`), and each button reads only its slice (`commandsAt`). Membership is a
+// record of what each source last named, whether or not it stood, held weakly; a
+// source counts only while it stands, which is read when it is asked, so a press reads
+// established state and runs no lifecycle callback. A marked element is tied to its
+// lifetime (`watchOwner`): its departure ends what subscribed through it, and its
 // placement, the first or a return, marks it. The page's own scopes stand under
-// `PAGE_SOURCE`.
+// `PAGE_SOURCE`, which every paint marks, since their getters may read anywhere.
 const PAGE_SOURCE = Object.freeze({ page: true });
 /** @typedef {Element | typeof PAGE_SOURCE} ButtonSource */
 /** @type {WeakMap<ButtonSource, {version: {peek(): number, value: number}, reading: {readonly value: Map<HTMLButtonElement, ButtonCommand[]>}}>} */
 const readings = new WeakMap();
 /** @type {WeakMap<ButtonSource, Map<HTMLButtonElement, ButtonCommand[]>>} */
 const named = new WeakMap();
-/** @type {WeakMap<HTMLButtonElement, Set<ButtonSource>>} */
+/** @type {WeakMap<HTMLButtonElement, Set<WeakRef<ButtonSource>>>} */
 const namers = new WeakMap();
+/** @type {WeakMap<ButtonSource, WeakRef<ButtonSource>>} */
+const sourceRefs = new WeakMap();
+/** @param {ButtonSource} source */
+const refOf = (source) => {
+  let ref = sourceRefs.get(source);
+  if (!ref) sourceRefs.set(source, (ref = new WeakRef(source)));
+  return ref;
+};
 /** @type {WeakSet<Element>} */
 const lifetimes = new WeakSet();
 /** @type {Set<ButtonSource>} */
@@ -262,7 +278,7 @@ function reread(source) {
   repaint();
 }
 // Take the marks made since the last take, a full paint's and a paint's included, and
-// advance each marked source's version once; one out of the page is forgotten.
+// advance each marked source's version once.
 function takeChanges() {
   claimPaintedRoots();
   if (keysDirty) {
@@ -278,23 +294,9 @@ function takeChanges() {
   }
   for (const source of marked) {
     const held = readings.get(source);
-    if (source instanceof Element && !source.isConnected) forget(source);
-    else if (held) tick(held.version);
+    if (held) tick(held.version);
   }
   marked.clear();
-}
-// A source out of the page names nothing and keeps no reading, so nothing that
-// subscribed through it holds it.
-/** @param {Element} source */
-function forget(source) {
-  for (const control of named.get(source)?.keys() ?? []) {
-    namers.get(control)?.delete(source);
-    dirtyButtons.add(control);
-  }
-  named.delete(source);
-  readings.delete(source);
-  tracked.get(source)?.();
-  tracked.delete(source);
 }
 // Keep membership to the source's reading, and mark the buttons it names or stops naming.
 /** @param {ButtonSource} source */
@@ -303,24 +305,28 @@ function nameButtons(source) {
   const before = named.get(source);
   if (now === before) return;
   named.set(source, now);
+  const ref = refOf(source);
   for (const control of before?.keys() ?? [])
     if (!now.has(control)) {
-      namers.get(control)?.delete(source);
+      namers.get(control)?.delete(ref);
       dirtyButtons.add(control);
     }
   for (const control of now.keys()) {
-    namers.set(control, (namers.get(control) ?? new Set()).add(source));
+    namers.set(control, (namers.get(control) ?? new Set()).add(ref));
     dirtyButtons.add(control);
   }
 }
-// The commands `control` can run now: its slice of each naming source's reading, in the
-// order the sources came to name it.
+// The commands `control` can run now: its slice of the reading of each naming source
+// that stands, in the order the sources came to name it.
 /** @param {HTMLButtonElement} control @returns {RunnableCommand[]} */
 function commandsAt(control) {
   /** @type {RunnableCommand[]} */
   const found = [];
-  for (const source of namers.get(control) ?? []) {
-    if (source instanceof Element && !source.isConnected) continue;
+  const refs = namers.get(control);
+  for (const ref of refs ?? []) {
+    const source = ref.deref();
+    if (!source) refs?.delete(ref);
+    if (!source || (source instanceof Element && !source.isConnected)) continue;
     for (const candidate of readingOf(source).get(control) ?? []) {
       const { scope, row, entry } = candidate;
       if (
@@ -443,12 +449,10 @@ function wireButton(control) {
   wiredButtons.add(control);
   control.addEventListener("click", (event) => {
     if (event.defaultPrevented || event.button !== 0 || !control.isConnected) return;
-    // What this task changed is settled first: arrivals and departures, the marks, and
-    // the membership of every source owed a reading.
-    settleArrivals();
+    // The membership this task changed is read first: the marks, and every source owed
+    // a reading, in the page or not.
     takeChanges();
-    for (const source of [...dirtyElements, PAGE_SOURCE])
-      if (!(source instanceof Element) || source.isConnected) nameButtons(source);
+    for (const source of [...dirtyElements, PAGE_SOURCE]) nameButtons(source);
     const [first, ...rest] = commandsAt(control);
     if (!first) return;
     const { scope, row, entry, run } = chosenCommand([first, ...rest]);
@@ -1129,6 +1133,17 @@ function reflectTracked(element) {
   // This reading answers whatever owed the element one.
   dirtyElements.delete(element);
   tracked.get(element)?.();
+  tracked.delete(element);
+  if (!element.isConnected) {
+    // One out of the page keeps the record of what it names, and nothing subscribes
+    // through it, so it can be collected.
+    untracked(() => {
+      nameButtons(element);
+      reflectElementShortcuts(element);
+    });
+    readings.delete(element);
+    return;
+  }
   const ref = new WeakRef(element);
   /** @type {Element | null} */
   let initial = element;
@@ -1139,7 +1154,7 @@ function reflectTracked(element) {
       initial = null;
       try {
         followingFocus(() => {
-          if (current.isConnected) nameButtons(current);
+          nameButtons(current);
           reflectElementShortcuts(current);
         });
       } catch (error) {
@@ -1163,9 +1178,7 @@ export function reflectKeys() {
   dirtyElements.clear();
   for (const scoped of elements) {
     try {
-      // One that has left the page only lets its buttons go.
-      if (scoped.isConnected) reflectTracked(scoped);
-      else forget(scoped);
+      reflectTracked(scoped);
     } catch (error) {
       reportError(error);
     }
@@ -1264,6 +1277,7 @@ function claimPaintedRoots() {
     }
   }
   paintedRoots.clear();
+  mark(PAGE_SOURCE);
 }
 /** What a scope answers right now, as a listener hears it read out — key names rather than
  * the chips the eye reads, since a screen reader renders "esc" literally. Off the register,

@@ -79,7 +79,14 @@ import {
 } from "./geometry.js";
 import { scrollersOf } from "./scroll-containers.js";
 import { PAGE_PAINT_ATTRIBUTE, locationStandsDown } from "./page-paint.js";
-import { startScroll, reachable, pageScroller } from "./scrolling.js";
+import {
+  glideTo,
+  glides,
+  pageScroller,
+  reachable,
+  startScroll,
+  stopGlide,
+} from "./scrolling.js";
 import { clippingAxes, nearestScrollBy } from "./rect.js";
 import { nextRender } from "./rendering.js";
 import { renderedParent, renderedUnder } from "./shadow-tree.js";
@@ -90,11 +97,16 @@ import { setScroll } from "./arrivals.js";
  * @typedef {"Top" | "Right" | "Bottom" | "Left"} MarginSide
  * @typedef {{box: Element, local: number, moved: number}} ScrollMove
  */
+// A smooth landing glides (scrolling.js, `glides`); only the reading band's vertical
+// moves are smooth, so it moves only scrollTop.
 /** @param {Element} box @param {{top?: number, left?: number}} by @param {ScrollBehavior} behavior */
 const land = (box, by, behavior) => {
   const top = box.scrollTop + (by.top ?? 0);
-  startScroll(box, top);
-  setScroll(box, { top, left: box.scrollLeft + (by.left ?? 0), behavior });
+  if (glides(box, behavior)) return glideTo(box, top);
+  stopGlide(box);
+  const { scrollTop, scrollLeft } = box;
+  setScroll(box, { top, left: scrollLeft + (by.left ?? 0), behavior: "instant" });
+  if (box.scrollTop !== scrollTop || box.scrollLeft !== scrollLeft) startScroll(box);
 };
 
 // A destination's landing margin on one side. A range has none of its own and takes the

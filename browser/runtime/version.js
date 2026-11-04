@@ -73,7 +73,7 @@ import {
   renderingState,
   sizeObserver,
 } from "./rendering.js";
-import { frameFor } from "./arrivals.js";
+import { frameFor, watchScrollEnds } from "./arrivals.js";
 import { LIVE_ROOT, layerRoot, pageUrl, revisionLabel, runtime } from "./context.js";
 import { servedExecutable } from "./document-identity.js";
 
@@ -2791,21 +2791,17 @@ export function createVersionController({
     document.addEventListener("scroll", scrolled, { capture: true, passive: true });
     // A scroll's end is the reader's choice (scrolling.js), and a place taken before it
     // would read as older than that choice. WebKit, and Chromium for touch, end a scroll
-    // frames after its last scroll event, so the end takes a place of its own.
-    document.addEventListener(
-      "scrollend",
-      (event) => {
-        const box = scrollEventBox(event);
-        if (!box) return;
-        const written = writing.get(box);
-        if (written !== undefined) {
-          if (!inputSince(box, written)) ownEnd.set(box, scrollChoices());
-          writing.delete(box);
-        }
-        nextRender(() => recordPlaces([box]));
-      },
-      { capture: true, passive: true },
-    );
+    // frames after its last scroll event, so the end takes a place of its own. Like the
+    // scroll listener above, it reads the document's own scrollers.
+    watchScrollEnds((box) => {
+      if (box.getRootNode() !== document) return;
+      const written = writing.get(box);
+      if (written !== undefined) {
+        if (!inputSince(box, written)) ownEnd.set(box, scrollChoices());
+        writing.delete(box);
+      }
+      nextRender(() => recordPlaces([box]));
+    });
     for (const type of ["popstate", "hashchange"]) addEventListener(type, releaseHolds);
     // Arriving or editing changes the place even when no scroller moves. Keep the intact
     // place now: an immediate resize can invalidate geometry before a later record runs.

@@ -1137,6 +1137,98 @@ test("a lent hint inside a button keeps its out-of-flow seat after withdrawal", 
   }
 });
 
+// A paint lends every face before reading any, so a face lent in the same pass doesn't
+// cover another, and the earlier route keeps a place two faces share. A face in another
+// shadow tree reaches a hit test outside that tree as the tree's host, which must not
+// cover the earlier face either. (happy-dom's document is no `Document`, so each face
+// here stands in a shadow tree of its own.)
+test("an earlier route keeps its face under a later route's face in another shadow tree", async () => {
+  const { createCommandHints } =
+    await import("../../browser/runtime/keyboard/command-hints.js");
+  const owner = document.createElement("section");
+  /** @returns {[Element, Element, Element]} */
+  const faced = () => {
+    const host = document.createElement("div");
+    const control = document.createElement("button");
+    const face = document.createElement("kbd");
+    control.append(face);
+    host.attachShadow({ mode: "open" }).append(control);
+    owner.append(host);
+    return [host, control, face];
+  };
+  const [firstHost, first, firstFace] = faced();
+  const [secondHost, second, secondFace] = faced();
+  document.body.append(owner);
+  // The second control stands below the first, and its face hangs out of it over the
+  // first face.
+  const boxes = new Map([
+    [firstHost, new DOMRect(0, 0, 100, 20)],
+    [first, new DOMRect(0, 0, 100, 20)],
+    [firstFace, new DOMRect(4, 4, 12, 12)],
+    [secondHost, new DOMRect(0, 200, 100, 20)],
+    [second, new DOMRect(0, 200, 100, 20)],
+    [secondFace, new DOMRect(8, 6, 12, 12)],
+  ]);
+  for (const [element, box] of boxes) {
+    element.getBoundingClientRect = () => box;
+    element.getClientRects = () => [box];
+    element.checkVisibility = () => true;
+  }
+  // No chrome stands here to seat the chip a withheld face's route takes instead, so
+  // neither control takes one.
+  for (const control of [first, second]) control.checkVisibility = () => false;
+  // Each tree's hit test, topmost first, reads another tree's contents as its host.
+  const painted = [secondFace, second, firstFace, first, secondHost, firstHost];
+  for (const root of [document, firstHost.shadowRoot, secondHost.shadowRoot])
+    root.elementsFromPoint = (x, y) => [
+      ...new Set(
+        painted
+          .filter((element) => {
+            const { left, top, right, bottom } = boxes.get(element);
+            return x >= left && x <= right && y >= top && y <= bottom;
+          })
+          .map((element) =>
+            [root, document].includes(element.getRootNode())
+              ? element
+              : element.getRootNode().host,
+          ),
+      ),
+    ];
+  keys(owner, "Overlapping faces", [
+    {
+      id: "probe.first-face",
+      title: "First",
+      keys: ["1"],
+      control: first,
+      bindingBadge: firstFace,
+      run: () => {},
+    },
+    {
+      id: "probe.second-face",
+      title: "Second",
+      keys: ["2"],
+      control: second,
+      bindingBadge: secondFace,
+      run: () => {},
+    },
+  ]);
+  reflectFirstScopes();
+  first.focus();
+  const hints = createCommandHints({ presentedControl: () => null });
+  try {
+    hints.paint();
+    assert.deepEqual(
+      [firstFace, secondFace].map((face) => face.hasAttribute("data-lf-binding-badge")),
+      [true, false],
+    );
+    assert.equal(secondFace.style.opacity, "0");
+  } finally {
+    hints.destroy();
+    delete document.elementsFromPoint;
+    owner.remove();
+  }
+});
+
 test("a scope's attachment and re-render run its latest callbacks and read only its own element", async () => {
   const { html, render } = await import("/runtime/framework.js");
   const other = document.createElement("button");

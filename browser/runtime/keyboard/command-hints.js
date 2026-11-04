@@ -26,7 +26,7 @@ import { availableCommandRoutes } from "./dispatch.js";
 import { buttonCommand, commandScope, projectCommandScope } from "./scopes.js";
 import { keyBadgePlacement } from "./key-badge-placement.js";
 import { chipSeats } from "./chip-seats.js";
-import { renderedUnder } from "../shadow.js";
+import { renderedUnder, under } from "../shadow.js";
 import { html, render } from "/runtime/framework.js";
 import { inlineStyle, keepsText } from "../keeps.js";
 import { repaint } from "../repaint.js";
@@ -166,6 +166,27 @@ export function createCommandHints({ presentedControl }) {
       [visible.left + inset, y],
       [visible.right - inset, y],
     ];
+    // A hit test names a shadow tree's host for whatever that tree holds at the point, so
+    // a host over the face is read again inside its tree, and covers the face unless all
+    // it holds there over the face is faces lent in this pass. Its own box covers it.
+    /** @param {Element} host @param {number} atX @param {number} atY @returns {boolean} */
+    const holdsOnlyLent = (host, atX, atY) => {
+      const tree = host.shadowRoot;
+      if (!tree) return false;
+      const stack = tree.elementsFromPoint(atX, atY);
+      const at = stack.findIndex((each) => under(bindingBadge, each));
+      return (
+        at >= 0 &&
+        stack.slice(0, at).every(
+          (over) =>
+            over !== host &&
+            // What stands outside the tree, the reading in the face's own tree answers.
+            (over.getRootNode() !== tree ||
+              lent.has(over) ||
+              holdsOnlyLent(over, atX, atY)),
+        )
+      );
+    };
     return points.every(([atX, atY]) => {
       const stack = root.elementsFromPoint(atX, atY);
       const at = stack.indexOf(bindingBadge);
@@ -173,7 +194,12 @@ export function createCommandHints({ presentedControl }) {
         at >= 0 &&
         stack
           .slice(0, at)
-          .every((over) => lent.has(over) || renderedUnder(over, control))
+          .every(
+            (over) =>
+              lent.has(over) ||
+              renderedUnder(over, control) ||
+              holdsOnlyLent(over, atX, atY),
+          )
       );
     });
   }

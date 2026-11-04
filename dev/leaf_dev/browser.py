@@ -196,8 +196,9 @@ def tab(
 ):
     """A fresh blank tab in `window` and `scheme`, with reduced motion so a still
     never catches a transition midway (pass motion="no-preference" for a journey),
-    drawing `scale` device pixels to a CSS pixel. A caller listens on it before it
-    `load`s."""
+    drawing `scale` device pixels to a CSS pixel. Each of its frames keeps where a
+    mouse last moved over it (`POINTER`), for `settle`. A caller listens on it before
+    it `load`s."""
     width, height = window.size
     context = browser.new_context(
         viewport={"width": width, "height": height},
@@ -207,6 +208,7 @@ def tab(
         has_touch=window.touch,
         is_mobile=window.touch,
     )
+    context.add_init_script(POINTER)
     try:
         page = context.new_page()
         page.set_default_timeout(15_000)
@@ -321,11 +323,52 @@ def load(page: Page, address: str) -> None:
 
 
 def settle(page: Page) -> None:
-    """Wait until the page is ready, its fonts have loaded, and the runtime reports it
-    settled."""
+    """Wait until the page is ready, its fonts have loaded, the runtime reports it
+    settled, and its hover is on the element under the pointer (`catch_up_hover`)."""
     wait_until_ready(page)
     page.evaluate("() => document.fonts.ready")
     wait_for_probe(page, "pageSettled")
+    if catch_up_hover(page):
+        settle(page)
+
+
+# Where a mouse last moved over a frame, in the frame's own viewport, and when: each
+# frame of a `tab` keeps this.
+POINTER = """addEventListener("pointermove", (event) => {
+  if (event.pointerType === "mouse")
+    globalThis.__lfPointer = {x: event.clientX, y: event.clientY, at: Date.now()};
+}, {capture: true, passive: true});"""
+
+# Where the pointer rests, if the element under it doesn't match `:hover`.
+HOVER_BEHIND = """() => {
+  const at = globalThis.__lfPointer;
+  const under = at && document.elementFromPoint(at.x, at.y);
+  return under && !under.matches(":hover") ? at : null;
+}"""
+
+
+def catch_up_hover(page: Page) -> bool:
+    """Move the hover to the element under a resting pointer, if it still stands on an
+    element the pointer has left, and say whether the pointer moved to do so.
+
+    Content that scrolls under a resting pointer leaves the hover where it was until the
+    engine looks again. Chromium moves it within the frame. On 2026-11-03 Playwright's
+    Firefox (build 1555) and WebKit (build 2370) moved it 60 to 120 ms later, so a
+    capture taken first drew the button a state's driver had pressed still hovered.
+    Moving the pointer to where it already is moves the hover at once in every engine.
+    The move also dispatches `pointermove`, so the page may answer it, and `settle`
+    settles again after one.
+
+    The top document can't tell where a pointer in a child frame rests, so a pointer
+    that last moved in one is left alone."""
+    at = page.evaluate(HOVER_BEHIND)
+    if not at or any(
+        frame.evaluate("() => globalThis.__lfPointer?.at ?? 0") > at["at"]
+        for frame in page.frames
+    ):
+        return False
+    page.mouse.move(at["x"], at["y"])
+    return True
 
 
 # How long a scroller holds one position before its travel is over, counted in the

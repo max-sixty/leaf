@@ -31,6 +31,7 @@ from leaf.delivery import freeze_delivery, receive_held
 from leaf.harness import detached_environment, session_harness
 from leaf.hook_transport import read_plans
 from leaf.hosting import claim_and_start, cmd_stop
+from leaf.interaction_log import read_interactions
 from leaf.projection import AuthoredOrders, folded_positions
 from leaf.publishing import cmd_stamp
 from leaf.render_checks import wait_until_ready
@@ -44,6 +45,7 @@ from leaf.thread import post_reply
 from leaf.todos import cmd_start
 from leaf.vendoring import cmd_init
 from leaf_dev import LEAF_COMMAND
+from leaf_dev.arms import PageClient
 from leaf_dev.browser import (
     Window,
     headless_shell,
@@ -291,21 +293,11 @@ class DemoWaiter:
             self.process.wait(timeout=5)
 
 
-def wait_for_listening(page: Page) -> dict:
-    """Hold the canonical listening reading and wait for the page to present it."""
-    # Polled here: `wait_for_function` takes an async predicate's promise as a truthy
-    # answer and returns at once.
+def wait_for_listening(page: Page, client: PageClient) -> dict:
+    """Wait until the server reads the demo's agent as listening and the page has
+    applied that reading, and return it."""
     deadline = time.monotonic() + 30
-    while True:
-        state = page.evaluate(
-            """async () => {
-            const response = await fetch('/api/state');
-            if (!response.ok) throw new Error(`Leaf state: HTTP ${response.status}`);
-            return response.json();
-        }"""
-        )
-        if state["activity"]["kind"] == "listening":
-            break
+    while (state := client.state())["activity"]["kind"] != "listening":
         if time.monotonic() > deadline:
             raise click.ClickException(
                 f"the page never listened; its activity is {state['activity']!r}"
@@ -315,19 +307,39 @@ def wait_for_listening(page: Page) -> dict:
     return state
 
 
+# The interaction rows a page server writes as its request for a thread's title ends.
+TITLE_ENDS = ("thread_title_generated", "thread_title_failed", "thread_title_skipped")
+
+
+def wait_for_title(page_dir: Path) -> None:
+    """Wait until the page server has written the title the harness's model gave the
+    demo's one thread (`thread_titles.name_admitted_thread`), or fail with what its
+    request recorded. The model words the title afresh each run; a request ends within
+    three minutes, its retries for rate limits included."""
+    deadline = time.monotonic() + 180
+    while not (ended := read_interactions(page_dir, types=TITLE_ENDS)):
+        if time.monotonic() > deadline:
+            raise click.ClickException("no request for the thread's title ended in 180 s")
+        time.sleep(0.2)
+    if ended[0]["type"] != "thread_title_generated":
+        raise click.ClickException(f"the demo's thread got no title: {ended[0]}")
+
+
 def record(
-    page: Page, waiter: DemoWaiter, page_dir: Path
+    page: Page, client: PageClient, waiter: DemoWaiter, page_dir: Path
 ) -> tuple[list[Image.Image], list[int]]:
     frames: list[Image.Image] = []
     durations: list[int] = []
 
     def shot(duration: int) -> None:
+        # Each frame shows the page once it has applied the server's current reading.
+        wait_until_ready(page, client.state())
         frames.append(Image.open(io.BytesIO(screenshot(page))).convert("RGB"))
         durations.append(duration)
 
     # The page's own readiness, not the document's stamp: a gesture taken before the
     # log's replay finishes reads a half-written page.
-    wait_for_listening(page)
+    wait_for_listening(page, client)
     live_url = page.url
     shot(1600)
 
@@ -346,14 +358,18 @@ def record(
 
     field.press("ControlOrMeta+Enter")
     page.wait_for_selector(".lf-margin-thread")
+    # The agent takes the comment and listens again, and Leaf titles its thread, before
+    # the frame, so no frame catches the agent between waits or the title on its way.
+    comment_id = next(
+        event["id"] for event in waiter.receive() if event["kind"] == "comment"
+    )
+    wait_for_title(page_dir)
+    wait_for_listening(page, client)
     shot(1500)
     open_threads(page)
     thread = page.locator(".lf-fp-view[data-lf-route=threads] .lf-fp-thread").first
     thread.wait_for()
 
-    comment_id = next(
-        event["id"] for event in waiter.receive() if event["kind"] == "comment"
-    )
     cmd_start(page_dir, comment_id, "answering the backfill question")
     # The floating panel's empty field says what the agent is doing, once any passing
     # notice has had its seat.
@@ -435,11 +451,12 @@ def shoot_stills(browser, url: str, page_dir: Path, into: Path) -> None:
     cmd_stamp(page_dir, "On-call staffing moved into During, as the board now reads")
     cmd_waiting(page_dir)
 
+    client = PageClient(url)
     for name, window, scheme in STILLS:
         with tab(browser, window, scheme) as page:
             page.goto(url)
             # Hold the server's state and authored revision before taking the still.
-            state = wait_for_listening(page)
+            state = wait_for_listening(page, client)
             revision = rendered_revision(url, state)
             page.wait_for_function(
                 "revision => document.querySelector("
@@ -505,7 +522,7 @@ def record_demo(output: Path | None) -> None:
                 tab(browser, GIF_WINDOW) as page,
             ):
                 page.goto(url)
-                frames, durations = record(page, waiter, page_dir)
+                frames, durations = record(page, PageClient(url), waiter, page_dir)
                 write_gif(frames, durations, recording / "demo.gif")
                 shoot_stills(browser, url, page_dir, recording)
         finally:

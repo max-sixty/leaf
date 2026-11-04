@@ -197,9 +197,9 @@ hit its timeout, and that is a failure.
 
 The scheduled run's `test-macos` job runs every tier on macOS, which your Linux runner
 can't reproduce, and it takes four to five hours. For a failure only that job shows, the
-failing run is the evidence from before the fix, and the next scheduled run on main is
-the evidence after it. Finish on the evidence your runner gives; if that run still
-fails, its report brings the failure back to triage.
+failing run is the evidence from before the fix. The evidence from after it is the next
+scheduled run on main, once the fix has merged, so merge on the evidence your runner
+gives. If that run still fails, its report brings the failure back to triage.
 
 ## Cloudflare logs
 

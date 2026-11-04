@@ -153,15 +153,18 @@ const rows = new Map();
 // Withhold its row at the mutation checkpoint, before another frame can paint it.
 /** @type {WeakMap<HTMLElement, Element>} */
 const anchors = new WeakMap();
-// The rows withheld now, kept where they are withheld, so a scroll of the document,
-// which carries every other row, reads only these again (`scheduleStirReading`).
+// The withheld rows whose targets are drawn, kept where they are withheld, so a scroll of
+// the document, which carries every other row, reads only these again
+// (`scheduleStirReading`). A scroll draws no target that has left the page or stands in
+// skipped content, such as a closed disclosure or a tab not chosen; the change that
+// reveals one brings its own pass.
 /** @type {Set<HTMLElement>} */
-const withheldRows = new Set();
-/** @param {HTMLElement} row @param {boolean} on */
-function withhold(row, on) {
+const withheldDrawn = new Set();
+/** @param {HTMLElement} row @param {boolean} on @param {boolean} [drawn] whether its target is */
+function withhold(row, on, drawn = true) {
   row.classList.toggle("lf-withheld", on);
-  if (on) withheldRows.add(row);
-  else withheldRows.delete(row);
+  if (on && drawn) withheldDrawn.add(row);
+  else withheldDrawn.delete(row);
 }
 /** @param {Element} target */
 const targetBox = (target) => shownParts(target)[0] ?? target;
@@ -818,7 +821,8 @@ function heardPage(records) {
     const target = options.anchor();
     const anchor = anchors.get(row);
     if (!movedWith(target) && !movedWith(anchor)) continue;
-    if (!target?.isConnected || (anchor && !anchor.isConnected)) withhold(row, true);
+    if (!target?.isConnected || (anchor && !anchor.isConnected))
+      withhold(row, true, false);
     scheduleMarginLayout();
   }
 }
@@ -844,6 +848,8 @@ function hearTargetChanges(root) {
     childList: true,
     subtree: true,
     attributes: true,
+    // What tells the runtime's paint from any other change (page-paint.js, `paint`).
+    attributeOldValue: true,
     attributeFilter: ["style", "class", "hidden", "open"],
   });
   root.addEventListener(
@@ -1486,7 +1492,7 @@ export function unregisterMarginRow(row) {
   registered.delete(row);
   restyled.delete(row);
   anchors.delete(row);
-  withheldRows.delete(row);
+  withheldDrawn.delete(row);
   pushes.delete(row);
   folded.delete(row);
   if (!rows.size) {
@@ -1583,7 +1589,7 @@ function scheduleStirReading() {
     // The document carries ordinary rows and their lanes together, and scrolls every
     // target, so its scroll alone reads again only the rows it may bring back.
     const documentOnly = boxes.every((box) => box === pageScroller);
-    for (const row of documentOnly ? [...withheldRows] : [...rows.keys()]) {
+    for (const row of documentOnly ? [...withheldDrawn] : [...rows.keys()]) {
       const options = rows.get(row);
       const target = options?.anchor();
       if (!options || !target?.isConnected) continue;
@@ -1599,7 +1605,7 @@ function scheduleStirReading() {
           return false;
         });
       if (!moving) continue;
-      const withheld = withheldRows.has(row);
+      const withheld = row.classList.contains("lf-withheld");
       if (!withheld && documentOnly) continue;
       // A transform that moved the row's subject brings the pass, which stands the row
       // by it again.
@@ -1812,7 +1818,7 @@ function layoutMountedRows(layer) {
   // Posture determines row size. Write every posture before measuring those sizes;
   // every coordinate is then written together after packing.
   for (const { row, target, shown, place } of reads) {
-    withhold(row, !shown);
+    withhold(row, !shown, Boolean(target));
     if (!target) continue;
     if (row.dataset.lfPlace !== place) {
       // A push in one posture says nothing of where the row stands in the other.

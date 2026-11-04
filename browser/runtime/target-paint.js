@@ -28,7 +28,7 @@ function markOne(className) {
   let marked = [];
   function draw() {
     const boxes = target?.isConnected ? shownParts(target) : [];
-    paint(() => {
+    paint({ attribute: "class", token: className }, () => {
       for (const box of marked)
         if (!boxes.includes(box)) box.classList.toggle(className, false);
       for (const box of boxes) box.classList.toggle(className, true);
@@ -168,7 +168,7 @@ function drawLocation() {
     element?.isConnected && !locationStandsDown(element)
       ? [element, ...shownParts(element)]
       : [];
-  paint(() => {
+  paint({ attribute: "class", token: PROJECTED_LOCATION }, () => {
     for (const box of locationProjected)
       if (!boxes.includes(box)) box.classList.toggle(PROJECTED_LOCATION, false);
     for (const box of boxes) box.classList.toggle(PROJECTED_LOCATION, true);

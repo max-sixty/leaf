@@ -57,31 +57,88 @@ export const PAGE_PAINT_ATTRIBUTE = Object.freeze({
 // The runtime's paint on elements the page owns changes how a box looks and moves none:
 // the outline a mark draws (target-paint.js), an anchor name only the chrome positions by
 // (css-anchors.js, `nameAnchor`). So it is written through `paint`, unheard by the
-// observers that read where the page's boxes stand from its mutations (`readsLayout`):
-// each is handed what it heard before the write, and what the write produced is dropped,
-// as the margin's pass drops its own writes to its rows. An author's change, an anchor
-// name included, is heard as any other.
+// observers that read where the page's boxes stand from its mutations (`readsLayout`).
+// Each is handed what it heard before the write, and after it every record but the
+// write's own: a record whose attribute changed by the paint's token alone, in a token
+// list such as `class`, or by its property alone, in `style`. Any other change is heard,
+// an author's anchor name included, and so is a change the page's own code makes in
+// reaction to the paint, such as a custom element that moves a button when its class
+// changes. A record says what it changed only through its old value, so such an observer
+// observes `attributeOldValue`.
+/** @typedef {{attribute: "class" | "part", token: string} | {attribute: "style", property: string}} Paint */
 /** @type {Map<MutationObserver, (records: MutationRecord[]) => void>} */
 const layoutReaders = new Map();
-let painting = 0;
 /** @param {MutationObserver} observer @param {(records: MutationRecord[]) => void} read its callback */
 export function readsLayout(observer, read) {
   layoutReaders.set(observer, read);
 }
-/** @template T @param {() => T} write @returns {T} */
-export function paint(write) {
-  if (!painting)
+// The paints of the write running now, a nested one's included.
+/** @type {Paint[]} */
+let painting = [];
+/** @template T @param {Paint} change @param {() => T} write @returns {T} */
+export function paint(change, write) {
+  const outermost = !painting.length;
+  if (outermost)
     for (const [observer, read] of layoutReaders) {
       const heard = observer.takeRecords();
       if (heard.length) read(heard);
     }
-  painting += 1;
+  painting.push(change);
   try {
     return write();
   } finally {
-    painting -= 1;
-    if (!painting) for (const observer of layoutReaders.keys()) observer.takeRecords();
+    if (outermost) {
+      const paints = painting;
+      painting = [];
+      for (const [observer, read] of layoutReaders) {
+        const heard = notPainted(observer.takeRecords(), paints);
+        if (heard.length) read(heard);
+      }
+    }
   }
+}
+// The records a write produced that are not its paints' own. A record holds the value an
+// attribute had before it; the value after it is the next record's for that attribute, or
+// the attribute's value now.
+/** @param {MutationRecord[]} records @param {Paint[]} paints */
+function notPainted(records, paints) {
+  /** @type {Map<Node, Map<string, string | null>>} */
+  const later = new Map();
+  /** @type {Set<MutationRecord>} */
+  const own = new Set();
+  for (const record of [...records].reverse()) {
+    const { target, attributeName: name } = record;
+    if (record.type !== "attributes" || !name || !(target instanceof Element)) continue;
+    let values = later.get(target);
+    if (!values) later.set(target, (values = new Map()));
+    const after = values.has(name)
+      ? (values.get(name) ?? null)
+      : target.getAttribute(name);
+    values.set(name, record.oldValue);
+    if (paints.some((change) => changesOnly(change, name, record.oldValue, after)))
+      own.add(record);
+  }
+  return records.filter((record) => !own.has(record));
+}
+/** @param {string | null} value */
+const tokens = (value) => new Set((value ?? "").split(/\s+/).filter(Boolean));
+/** @type {CSSStyleDeclaration | null} */
+let scratch = null;
+/** @param {string | null} value @param {string} property */
+const without = (value, property) => {
+  scratch ??= document.createElement("div").style;
+  scratch.cssText = value ?? "";
+  scratch.removeProperty(property);
+  return scratch.cssText;
+};
+/** @param {Paint} change @param {string} name @param {string | null} before @param {string | null} after */
+function changesOnly(change, name, before, after) {
+  if (change.attribute !== name) return false;
+  if (!("token" in change))
+    return without(before, change.property) === without(after, change.property);
+  const [was, now] = [tokens(before), tokens(after)];
+  const changed = [...was, ...now].filter((token) => was.has(token) !== now.has(token));
+  return changed.every((token) => token === change.token);
 }
 
 // Whether the page has presented: the stamp presentation.js writes once on `body` and

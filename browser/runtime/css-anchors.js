@@ -172,8 +172,13 @@ export function anchorReading(el, name) {
 export function nameAnchor({ el, name, write, part }) {
   // Two readings of one box can both find it unnamed before either names it.
   if (write && part) {
-    if (!partNamed(el)) paint(() => namePart(el, name));
-  } else if (write) paint(() => (inlineStyle(el).anchorName = write));
+    if (!partNamed(el))
+      paint({ attribute: "part", token: partOf(name) }, () => namePart(el, name));
+  } else if (write)
+    paint(
+      { attribute: "style", property: "anchor-name" },
+      () => (inlineStyle(el).anchorName = write),
+    );
   return name;
 }
 

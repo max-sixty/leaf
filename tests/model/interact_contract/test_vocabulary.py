@@ -650,14 +650,23 @@ def test_candidate_vocabulary_can_change_after_frozen_thread_actions(page_dir):
     assert refused.revision == revision + 1
 
 
+@pytest.mark.parametrize("declares", [False, True])
 def test_a_fresh_server_does_not_revalidate_the_active_revisions_inputs(
-    page_dir, monkeypatch
+    page_dir, monkeypatch, declares
 ):
     """A revision's vocabulary was validated when it activated, so a process reading
-    the page anew does not validate it again while it stands unchanged, and no check
-    parses the layer's sheets: together they were most of a cold first read."""
+    the page anew does not validate the unchanged candidate again, and no check
+    parses the layer's sheets: together they were most of a cold first read. A page
+    declaring its own widget has the revision's own composition validated once under
+    this Leaf's layer, though its candidate's authored entry is unstamped where the
+    revision's composed one is stamped."""
     from leaf import revision_artifact, styles
 
+    if declares:
+        (page_dir / "page").mkdir(exist_ok=True)
+        (page_dir / "page" / "registry.json").write_text(
+            json.dumps({"lf-local": element_declaration("lf-local")})
+        )
     (page_dir / "index.html").write_text(styled("main { color: red; }"))
     assert revisioning_model.activate_source(page_dir).error is None
     validated, linted = [], []
@@ -680,7 +689,8 @@ def test_a_fresh_server_does_not_revalidate_the_active_revisions_inputs(
     # What a newly started server holds: none of this test's readings.
     with fresh_process():
         assert revisioning_model.activate_source(page_dir).error is None
-    assert validated == []
+    # The revision composes with the default source; the candidate names its file.
+    assert validated == (["page/registry.json"] if declares else [])
     assert linted == ["page <style> (line 5)"]
 
 

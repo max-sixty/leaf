@@ -585,15 +585,11 @@ def stamp_words(registry: dict) -> dict:
 
 def _named_attributes(entry: dict):
     """(attribute, grammar) for each attribute of one element declaration whose value
-    names something Leaf looks up: the element's own `id` and each `x-refers`
-    attribute naming an element by id hold an element id, an `x-data` input's source
-    attribute a data source, and a verb's `contract` attribute a data contract. A
-    keyed reference is left out: it names a member by the member's key attribute,
-    whose grammar the member's package declares."""
+    is a name Leaf looks up: the element's own `id`, an `x-data` input's source
+    attribute and a verb's `contract` attribute. An `x-refers` attribute is left out:
+    `page check` resolves its value to the element it names, whatever that element's
+    id or key."""
     yield "id", ELEMENT_ID
-    for attr, reference in entry.get("x-refers", {}).items():
-        if "tag" not in reference:
-            yield attr, ELEMENT_ID
     for spec in entry.get("x-data", {}).values():
         if source := spec.get("source"):
             yield source, DATA_SOURCE_NAME

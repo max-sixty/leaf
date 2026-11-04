@@ -167,8 +167,21 @@ def _revision_vocabulary(
         vocabulary,
         json.loads(declarations) if declarations else {},
         [*layer_widgets(record, page_dir), *widgets],
-        validated=vocabulary,
+        validated=(vocabulary, {}),
     ).registry
+
+
+def revision_inputs(
+    manifest: dict, declarations: bytes | None, page_dir: Path
+) -> tuple[dict, dict]:
+    """The layer vocabulary and page declarations a revision's vocabulary composes,
+    as `page.compose_page_registry` takes a composition already validated.
+
+    The layer is this Leaf's, so this composes the revision's vocabulary first
+    (`revision_vocabulary`), which validates the two together under this Leaf."""
+    revision_vocabulary(manifest, declarations, page_dir)
+    declared = json.loads(declarations) if declarations else {}
+    return layer_vocabulary(manifest["layer"], page_dir), declared
 
 
 def load_registry(page_dir: Path):
@@ -192,10 +205,11 @@ def read_page_registry(page_dir: Path):
     declarations and file inventory. This filesystem reading is for callers
     examining the authored candidate, never an already activated revision.
 
-    The candidate is validated where it differs from the active revision's
-    vocabulary, which was validated when its revision activated: a page whose layer
-    and declarations have not moved is not validated again. The page keeps the
-    composition until any input file or the active revision changes.
+    The candidate is validated where its layer or declarations differ from the
+    active revision's, which were validated together when its vocabulary was
+    composed: a page whose layer and declarations have not moved is not validated
+    again. The page keeps the composition until any input file or the active
+    revision changes.
     """
     from leaf.revision_artifact import read_revision
 
@@ -229,7 +243,7 @@ def read_page_registry(page_dir: Path):
                 *layer_widgets(record, page_dir),
                 *(path for path, _ in widgets),
             ],
-            validated=read_revision(page_dir, active).registry if active else None,
+            validated=read_revision(page_dir, active).inputs if active else None,
         )
 
     return memo(page_dir, _Candidate).get(key, compose)
@@ -249,14 +263,14 @@ def compose_candidate(
     layer: dict,
     widgets: Collection[str],
     *,
-    validated: dict | None = None,
+    validated: tuple[dict, dict] | None = None,
 ):
     """The candidate's vocabulary: the page's own declarations over `layer`.
 
     `widgets` are the page-root-relative widget files the candidate can load, the
-    layer's `widgets/` and the page's own `page/widgets/`. ``validated`` is a
-    vocabulary already validated, which a composition equal to it is not validated
-    against again."""
+    layer's `widgets/` and the page's own `page/widgets/`. ``validated`` is the
+    layer and declarations of a composition already validated, which a composition
+    of the same two is not validated against again."""
     from .page import compose_page_registry
 
     source = page_dir / "page" / "registry.json"

@@ -147,8 +147,9 @@ def test_a_widget_data_input_is_one_complete_contract(page_dir, change, code):
 
 
 def test_a_data_source_attribute_can_carry_ordinary_schema_metadata(page_dir):
-    """x-data requires the canonical string contract, not one byte-for-byte schema;
-    packages remain free to document or further constrain the attribute."""
+    """x-data requires the source attribute to be a string, not one byte-for-byte
+    schema: a package may describe it or make it optional, and Leaf supplies its
+    grammar."""
     declare_data_input(page_dir, "project-feed", {"type": "array"})
     registry = vocabulary(page_dir)
     registry["lf-test-data"]["properties"]["source"]["description"] = (

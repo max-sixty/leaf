@@ -228,10 +228,7 @@
     "x-instructions": "Set for to a control in the same playground and write value in that control's authored string form.",
     "type": "object",
     "properties": {
-      "for": {
-        "type": "string",
-        "pattern": "^[a-z0-9][a-z0-9-]*$"
-      },
+      "for": { "type": "string" },
       "value": {
         "type": "string"
       }
@@ -273,10 +270,7 @@
     "x-instructions": "Set for to a control in the enclosing playground. Numeric values already include the control's unit.",
     "type": "object",
     "properties": {
-      "for": {
-        "type": "string",
-        "pattern": "^[a-z0-9][a-z0-9-]*$"
-      }
+      "for": { "type": "string" }
     },
     "required": ["for"],
     "additionalProperties": false,

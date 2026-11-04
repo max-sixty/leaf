@@ -434,12 +434,11 @@ def test_generated_child_declaration_closes_its_boundary(page_dir, mutation, cod
 
 
 def test_composition_writes_the_grammar_of_each_name_leaf_looks_up(page_dir):
-    """A widget declares only that its id, an attribute naming another element by id,
-    its data source and its contract attribute are strings. The composed vocabulary
-    carries Leaf's grammar for each (`registry.contract.stamp_grammars`), replacing
-    one the declaration gave, so validation and an author reading the entry read
-    Leaf's. A keyed reference names a member by the member's own key, and keeps the
-    grammar it declares."""
+    """A widget declares only that its id, its data source and its contract attribute
+    are strings. The composed vocabulary carries Leaf's grammar for each
+    (`registry.contract.stamp_grammars`), replacing one the declaration gave, so
+    validation and an author reading the entry read Leaf's. A reference to another
+    element keeps what it declares, since `page check` resolves it to its target."""
     registry = vocabulary(page_dir)
     widgets = page_dir / "page" / "widgets"
     widgets.mkdir(parents=True, exist_ok=True)
@@ -450,10 +449,9 @@ def test_composition_writes_the_grammar_of_each_name_leaf_looks_up(page_dir):
         about={"type": "string"},
         source={"type": "string"},
         shape={"type": "string"},
-        pick={"type": "string", "pattern": "^[A-Z]+$"},
         restated={"type": "boolean"},
     )
-    named["x-refers"] = {"about": {}, "pick": {"tag": "lf-option", "key": "value"}}
+    named["x-refers"] = {"about": {}}
     named["x-data"] = {"feed": {"contract": "measured-scalar", "source": "source"}}
     named["x-state"] = {
         "submit": {
@@ -473,12 +471,11 @@ def test_composition_writes_the_grammar_of_each_name_leaf_looks_up(page_dir):
     properties = read_page_registry(page_dir).registry["lf-named"]["properties"]
     expected = {
         "id": f"^{ELEMENT_ID}$",
-        "about": f"^{ELEMENT_ID}$",
+        "about": None,
         "source": f"^{DATA_SOURCE_NAME}$",
         "shape": f"^{DATA_CONTRACT_NAME}$",
-        "pick": "^[A-Z]+$",
     }
-    assert {attr: properties[attr]["pattern"] for attr in expected} == expected
+    assert {attr: properties[attr].get("pattern") for attr in expected} == expected
 
 
 @pytest.mark.parametrize("kind", [None, "string"])

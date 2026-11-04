@@ -55,7 +55,7 @@ from leaf.findings import Finding, Rejected
 from leaf.page_memory import Slot, memo
 from leaf.passages import SourceReading, enclosing_ids
 from leaf.registry.contract import is_element_name
-from leaf.registry.storage import revision_vocabulary, selected
+from leaf.registry.storage import revision_inputs, revision_vocabulary, selected
 from leaf.resource_urls import ReferenceError, resource_reference
 from leaf.schema import CONTENT_TYPES, kernel_registry
 from leaf.state import fsync_parents
@@ -1280,6 +1280,14 @@ class RevisionReading(SourceReading):
         return _bundle_vocabulary(self.bundle)
 
     @cached_property
+    def inputs(self) -> tuple[dict, dict]:
+        """The layer vocabulary and page declarations `registry` composes
+        (`registry.storage.revision_inputs`)."""
+        return revision_inputs(
+            self.manifest, _bundle_declarations(self.bundle), self.bundle.parent.parent
+        )
+
+    @cached_property
     def inventory(self):
         """Historical consumers outlive eviction of the expensive parse.
 
@@ -1460,12 +1468,17 @@ def active_enclosing(page_dir: Path) -> dict:
 
 def _bundle_vocabulary(bundle: Path) -> dict:
     """The vocabulary of a stored bundle, as `RevisionArtifact.registry` reads it."""
-    declarations = bundle / ("resources" + PAGE_DECLARATIONS)
     return revision_vocabulary(
         json.loads((bundle / "manifest.json").read_bytes()),
-        declarations.read_bytes() if declarations.is_file() else None,
+        _bundle_declarations(bundle),
         bundle.parent.parent,
     )
+
+
+def _bundle_declarations(bundle: Path) -> bytes | None:
+    """The page declarations a stored bundle captured, if it captured any."""
+    declarations = bundle / ("resources" + PAGE_DECLARATIONS)
+    return declarations.read_bytes() if declarations.is_file() else None
 
 
 def _materialize(path: Path, bundle: Path) -> RevisionArtifact:

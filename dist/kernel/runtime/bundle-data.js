@@ -4639,6 +4639,7 @@ const newsParts = ({ settled, replies, messages, edits, reactions, summaries, th
 	counted(threads, "new thread", "new threads")
 ].flatMap((part) => typeof part === "string" && part.length > 0 ? [part] : []);
 const newsCount = (total) => `${total} new`;
+const NEWS_ROOM = newsCount(99);
 const said = (news) => {
 	const { settled, replies, messages, edits, reactions, summaries, threads } = news;
 	const total = [
@@ -5520,7 +5521,7 @@ var Transcript = class {
       aria-controls=${ranges.flatMap((range) => range.messages.map(({ key }) => this.messageNode(key)?.id)).filter(Boolean).join(" ")}
       @click=${() => this.#setSummaryExpanded(ids, !expanded)}
     >
-      <span data-room=${`Show ${subject}`}><span>${label}</span></span>
+      <span data-lf-room=${`Show ${subject}`}><span>${label}</span></span>
     </button>`;
 	}
 	#setSummaryExpanded(ids, expanded) {
@@ -5936,7 +5937,7 @@ var ThreadView = class {
 		if (this.#observedHeader) this.#sizes.unobserve(this.#observedHeader);
 		this.#observedHeader = null;
 		this.#releaseHeaderItems();
-		this.#news.node.removeAttribute("data-room");
+		keeps(this.#news.node, "data-lf-room", null);
 		this.#news.node.style.removeProperty("--lf-thread-news-start");
 		this.#news.node.style.removeProperty("--lf-thread-news-visible-end");
 	}
@@ -6022,10 +6023,10 @@ var ThreadView = class {
 		const right = Math.max(box.left, ...slot.items.map(({ node }) => node.getBoundingClientRect().right));
 		notice.style.setProperty("--lf-thread-news-start", layoutPx(right - box.left));
 		if (news) {
-			if (!notice.hasAttribute("data-room")) notice.dataset.room = news.text;
+			keeps(notice, "data-lf-room", NEWS_ROOM);
 			const shown = shownRect(header, /* @__PURE__ */ new Map());
 			if (shown) notice.style.setProperty("--lf-thread-news-visible-end", layoutPx(Math.max(0, shown.right - box.left)));
-		} else notice.removeAttribute("data-room");
+		} else keeps(notice, "data-lf-room", null);
 	}
 	get progressOpen() {
 		return this.#transcript.progressOpen;

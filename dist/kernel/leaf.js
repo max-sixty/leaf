@@ -5051,7 +5051,7 @@ function commandReferenceTemplate() {
       <div class="lf-dialog-title">Command reference</div>
       ${commandReferenceClose}
     </div>
-    <label class="choice lf-command-reference-preference">
+    <label class="lf-choice lf-command-reference-preference">
       <input
         type="checkbox"
         name="quick-keyboard-shortcuts"

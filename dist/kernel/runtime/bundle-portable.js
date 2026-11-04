@@ -2061,7 +2061,7 @@ const tick = (version) => {
 const ACTION_FACES = {
 	symbol: "lf-icon-action",
 	word: "lf-btn",
-	commit: "lf-btn primary",
+	commit: "lf-btn lf-commit",
 	mark: "lf-mark-action",
 	inline: "lf-inline-action",
 	row: "lf-row",

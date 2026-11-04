@@ -475,8 +475,12 @@ template, write `<h2 ${generated({ says: true })}>`. `wrote()` then leaves them 
 and a comment's quote doesn't run across them into the author's words. Don't write the
 `data-lf-gen`, `data-lf-said` or `data-lf-echo` attributes yourself.
 
-For changing text, use `page-layout.md`, "Space for changing text";
-the same `data-room` layout applies to authored and generated controls.
+Your module's elements wear Leaf's names for the idioms a page writes, so a page's CSS
+for its own controls never reaches them: `data-lf-room` for changing text, which holds
+its room as `data-room` does (`page-layout.md`, "Space for changing text"),
+`lf-choice` on a radio's or checkbox's label where a page writes `choice`, and
+`data-lf-scroll` on a scroll surface (`module-scroll-and-motion.md`). A button takes its
+face from its role (`offerAction`).
 
 A widget can upgrade inside a shut panel where every box measures zero, so take
 measurements inside `measure(element, take)`, which runs `take` once the element has a

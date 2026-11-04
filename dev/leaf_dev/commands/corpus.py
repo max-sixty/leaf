@@ -31,6 +31,7 @@ from leaf.structure import SourceDocument, rel_tokens
 from leaf.thread_context import sample_events, thread_ids
 from leaf_dev import ROOT
 from leaf_dev.example_data import (
+    CORPUS,
     authored_sources,
     capture_file,
     catalog_sources,
@@ -51,9 +52,9 @@ def sources(root: Path = ROOT) -> list[Path]:
 
 def source_root(source: Path) -> Path | None:
     """The checkout owning the reserved generated corpus source, if selected."""
-    if source.name == "corpus.html" and source.parent.name == "examples":
-        return source.parent.parent
-    return None
+    if not source.match(CORPUS.as_posix()):
+        return None
+    return source.parents[len(CORPUS.parts) - 1]
 
 
 def composition_inputs(root: Path) -> tuple[list[Path], list[Path]]:
@@ -196,7 +197,7 @@ def main_body(source: Path, parsed: SourceDocument) -> str:
 
 
 def build(inputs: list[Path]) -> str:
-    owner = {"corpus": "corpus.html", "corpus-lede": "corpus.html"}
+    owner = {"corpus": CORPUS.name, "corpus-lede": CORPUS.name}
     tabs = []
     authored_assets = []
     for source in inputs:
@@ -337,7 +338,7 @@ def generate(root: Path = ROOT) -> Path:
     repeated request doesn't wake its watcher. Source pages remain the only inputs.
     """
     inputs = sources(root)
-    output = root / "examples" / "corpus.html"
+    output = root / CORPUS
     files = {
         output: build(inputs).encode(),
         data_file(output): (

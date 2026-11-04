@@ -70,6 +70,7 @@ from leaf.registry.contract import DECLARED_WORDS
 from leaf.render_gate import browser as browser_model
 from leaf.render_gate.preview import preview_server
 from leaf.revisioning import activate_source
+from leaf_dev.example_data import authored_sources, example_versions, page_files
 
 
 def storage_contract() -> tuple[list[str], list[str]]:
@@ -1700,8 +1701,8 @@ def test_no_rule_rounds_a_box_edged_on_one_side(tmp_path):
     """A box marked by a thick edge on one side is not also rounded (browser/AGENTS.md,
     "Visual treatment carries meaning"): a stripe bent around a corner reads as decoration rather than a
     contour, and marks a state another face already shows. A state is one whole contour,
-    or a stripe on a square box. Leaf's own sheets and pages are read, a page's from its
-    `<style>` and the sheets shipped beside it, the corpus's merged copy aside, and a
+    or a stripe on a square box. Leaf's own sheets and pages are read, an authored page's
+    from each version's `<style>` and the sheets shipped beside it, and a
     stripe is a side's border of 2px or more or an inset shadow offset
     along one axis only. A transparent side draws no edge: it keeps a stripe's room,
     as every row does for the current row's stripe (controls.css, `.lf-row`). The
@@ -1743,17 +1744,14 @@ def test_no_rule_rounds_a_box_edged_on_one_side(tmp_path):
         for sheet in sorted(root.rglob("*.css"))
         if "vendor" not in sheet.parts
     ]
-    for root in (ROOT / "examples", ROOT / "docs"):
-        sheets += [
-            (sheet.relative_to(ROOT), sheet)
-            for sheet in sorted(root.rglob("*.css"))
-            if not sheet.parent.name.startswith("corpus")
-        ]
-    for page in sorted(
-        [*(ROOT / "examples").rglob("*.html"), *(ROOT / "docs").glob("*.html")]
-    ):
-        if page.name.startswith("corpus"):
-            continue
+    authored = authored_sources()
+    sheets += [
+        (sheet.relative_to(ROOT), sheet)
+        for root in (ROOT / "docs", *map(page_files, authored))
+        for sheet in sorted(root.rglob("*.css"))
+    ]
+    versions = [version for source in authored for version in example_versions(source)]
+    for page in sorted([*(ROOT / "docs").glob("*.html"), *versions]):
         styles = re.findall(r"<style[^>]*>(.*?)</style>", page.read_text(), re.DOTALL)
         if styles:
             sheet = tmp_path / page.relative_to(ROOT).with_suffix(".css")

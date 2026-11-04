@@ -110,19 +110,25 @@ wa-comparison::part(lf-focus-visible) {
 }
 
 /* A choice among a few views, such as a recording's scope, an image pair's view or a
-   dial's depth, is a radio group of buttons (`appearance="button"`). Each button is a
-   face of its own, a gap from the next, rather than upstream's joined segments; the row
-   wraps where it runs out of room, and a long name wraps inside its button. Its words
-   are set in Leaf's interface type, so they follow the page's density as Leaf's own
-   controls do. A widget sets only the buttons' height. */
-wa-radio-group::part(form-control-input) {
+   dial's depth, is a radio group of buttons (`appearance="button"`) that a widget
+   offers in the word role (controls.css), so they look as a row of toggles does: words
+   with no frame, the chosen one wearing a toggle's selected face, rather than
+   upstream's framed and joined segments. Their words take the choice type, whose width
+   that face leaves alone; the row wraps where it runs out of room, and a long name
+   wraps inside its radio. A widget sets only the radios' height. Since the word role's
+   face, not Web Awesome, sizes each radio, a group stands in the same row before Web
+   Awesome defines it, so a widget can load Web Awesome after presentation. */
+wa-radio-group::part(form-control-input),
+wa-radio-group:not(:defined) {
+  display: flex;
   flex-wrap: wrap;
-  gap: var(--sp-2);
+  gap: var(--sp-1);
 }
 wa-radio[appearance="button"] {
-  font: var(--font-ui);
+  display: inline-flex;
+  align-items: center;
+  font: var(--font-choice);
   margin: 0;
-  border-radius: var(--r);
   min-inline-size: 0;
   max-inline-size: 100%;
   box-sizing: border-box;

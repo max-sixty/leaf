@@ -617,22 +617,42 @@ def test_a_shot_keeps_its_reserved_frame_while_images_load(browser, serve):
     assert complete == pytest.approx(before, abs=1), (before, complete)
 
 
-def test_a_shot_keeps_its_divider_where_the_reader_left_it_across_views(browser, serve):
-    """Slider is the first view, its divider halfway; Pixels and back keep it where
-    the reader moved it."""
+def test_a_shot_holds_its_toolbar_while_the_divider_loads_and_keeps_it_across_views(
+    browser, serve
+):
+    """Slider reserves one image from first drawing, and its views stand in their final
+    face before Web Awesome defines them, so its arrival moves no control; Pixels and
+    back keep the divider where the reader moved it."""
     source = leaf_page(
-        "Move a divider",
-        f'<h1>Move a divider</h1><lf-shot id="divided-pair" alt="a pair" before="{SHOT_SRC["before"]}" after="{SHOT_SRC["after"]}"></lf-shot>',
+        "Request a divider",
+        f'<h1>Request a divider</h1><lf-shot id="deferred-pair" alt="a pair" before="{SHOT_SRC["before"]}" after="{SHOT_SRC["after"]}"></lf-shot>',
     )
     url = serve(source, media={SHOT_SRC[n]: data for n, data in SHOTS.items()})
-    page = open_page(browser, url)
+    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    held = []
+    page.route("**/vendor/webawesome.esm.js", lambda route: held.append(route))
+    page.goto(url, wait_until="domcontentloaded")
+    holding(page, held, 1, "the default comparison divider")
     shot = page.locator("lf-shot")
+    expect(shot).to_have_attribute("data-lf-shot-mode", "flip")
+    expect(shot.locator("wa-comparison")).to_have_count(0)
+    controls = shot.locator(".lf-shot-views wa-radio, .lf-shot-tools > button")
+    expect(controls).to_have_count(5)
+    pending = [control.bounding_box() for control in controls.all()]
+    reserved = shot.bounding_box()
+    for route in held:
+        route.continue_()
+    page.unroute("**/vendor/webawesome.esm.js")
+    render_checks_model.wait_until_ready(page)
     views = shot.locator(".lf-shot-views")
     expect(views.get_by_role("radio", name="Slider", exact=True)).to_have_attribute(
         "aria-checked", "true"
     )
     comparison = shot.locator("wa-comparison")
     expect(comparison).to_have_attribute("position", "50")
+    assert shot.bounding_box() == pytest.approx(reserved, abs=1)
+    for control, box in zip(controls.all(), pending, strict=True):
+        assert control.bounding_box() == pytest.approx(box, abs=0.5)
     handle = comparison.get_by_role("scrollbar")
     handle.press("Home")
     handle.press("ArrowRight")

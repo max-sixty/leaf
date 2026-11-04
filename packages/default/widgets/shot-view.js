@@ -2,6 +2,7 @@
  * Images load before their sources enter the drawing; frames and controls survive
  * capture revisions. ShotView owns inspection state, retained nodes and fitting. */
 import {
+  actionClass,
   offerElement,
   offerActionElement,
   offeredAction,
@@ -393,7 +394,7 @@ export class ShotView {
             ${Object.entries(SHOT_VIEWS).map(
               ([value, text]) =>
                 html`<wa-radio
-                  ${offered("lf-shot-view", true)}
+                  ${offered(actionClass("word", "lf-shot-view"), true)}
                   appearance="button"
                   value=${value}
                   ?disabled=${value === "pixels" && !this.reading}

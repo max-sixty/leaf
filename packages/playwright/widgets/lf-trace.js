@@ -119,6 +119,7 @@ import {
   currentLocationIn,
   commandsChanged,
   seconds,
+  actionClass,
 } from "/runtime/widget-api.js";
 
 import { advancePlayback, mergeIntervals } from "./playback.js";
@@ -2249,7 +2250,7 @@ export class Trace extends LeafElement {
             ([value]) => value,
             ([value, label]) =>
               html`<wa-radio
-                ${offered("lf-trace-source", true)}
+                ${offered(actionClass("word", "lf-trace-source"), true)}
                 appearance="button"
                 value=${value}
                 >${label}</wa-radio

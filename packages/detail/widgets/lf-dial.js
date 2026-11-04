@@ -34,6 +34,7 @@
  * reader can turn it wherever they are reading rather than only at the top, which is
  * where keeping their place matters. */
 import {
+  actionClass,
   authoredScope,
   focusDestination,
   foldDuration,
@@ -132,7 +133,13 @@ customElements.define(
       group.size = "s";
       group.orientation = "horizontal";
       for (const { name, label, title } of DEPTHS) {
-        const depth = offer("wa-radio", "lf-dial-depth", label, undefined, true);
+        const depth = offer(
+          "wa-radio",
+          actionClass("word", "lf-dial-depth"),
+          label,
+          undefined,
+          true,
+        );
         depth.value = name;
         depth.appearance = "button";
         depth.title = title;

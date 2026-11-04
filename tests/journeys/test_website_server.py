@@ -11,7 +11,6 @@ from process.website_server import (
 )
 from render_harness import (
     LONG_PAGE,
-    PANEL_THREAD,
     open_page,
     page_comment,
     panel_field,
@@ -25,6 +24,7 @@ from leaf.event_log import read_events
 from leaf.leases import take_wait_lease, waiter_lease_path
 from leaf.render_checks import rendered
 from leaf.thread import ProviderFinal, cmd_resolve, post_reply
+from leaf_dev.browser import PANEL_THREAD
 from leaf_dev.commands import verify_site
 
 

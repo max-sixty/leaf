@@ -12,6 +12,7 @@
  * predicate may read the whole log, which a paint that follows what it reads must not
  * (leaf-element.js). A change in what stands is said with `pageControlsChanged`.
  */
+import { capitalized } from "../words.js";
 import {
   PAGE_CONTROL_RANK,
   pageControlsChanged,
@@ -107,7 +108,7 @@ export function paintTouchControls() {
   /** @type {StanceFace | null} */
   const nextStance = held
     ? {
-        label: title.charAt(0).toUpperCase() + title.slice(1),
+        label: capitalized(title),
         disabled: !live(held.exit),
         press: { id: held.exit.id, row: held.exit, binding: undefined },
       }

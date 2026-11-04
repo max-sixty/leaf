@@ -331,6 +331,21 @@ svg[data-lf-icon] {
 .lf-msg-controls > .lf-react-trigger {
   anchor-name: --lf-react-trigger;
 }
+/* A popover a control opens over the page, such as a menu of choices or a card of
+   details, wears one face while it is open: the raised surfaces' ground (`--card`),
+   which it names as its ground for its opaque controls (package-themes.md), a border
+   that sets it apart from the page in either scheme, and the shadow of what opens over
+   the page (`--raise-2`, tokens.css). A popover takes the face with the `lf-popover`
+   class, and its own rule sets only its place, size and padding. The rule has no
+   specificity, so the popover's own rules win. */
+:where(.lf-popover:popover-open) {
+  --lf-ground: var(--card);
+  border: 1px solid var(--border-2);
+  border-radius: var(--r);
+  background: var(--lf-ground);
+  color: var(--ink);
+  box-shadow: var(--raise-2);
+}
 /* The list is an auto popover, in the top layer: open, it stands over everything in
    the thread, the sticky title and reply row included, so its message is never raised
    among the rows to carry it, and closing it hands focus back to where the user opened
@@ -340,15 +355,18 @@ svg[data-lf-icon] {
    message as the list scrolls, and closes once the trigger is out of view
    (reactions.js). Closed, it is the strip's own row of reactions in force, in flow,
    so the popover's UA box is taken off; whether it is open is read off the popover
-   alone, so a light dismiss leaves no frame between. */
+   alone, so a light dismiss leaves no frame between. Open, it wears the popover face
+   (`.lf-popover`, above). */
 .lf-react-strip > .lf-react-palette[popover] {
   position: static;
   margin: 0;
   padding: 0;
-  border: 0;
   width: auto;
   height: auto;
   overflow: visible;
+}
+.lf-react-strip > .lf-react-palette:not(:popover-open) {
+  border: 0;
   color: inherit;
   background: none;
 }
@@ -364,10 +382,6 @@ svg[data-lf-icon] {
   width: max-content;
   max-width: calc(100vw - 16px);
   padding: 4px;
-  border: 1px solid var(--border-2);
-  border-radius: var(--r);
-  background: var(--card);
-  box-shadow: var(--raise-2);
 }
 :where(.lf-react-strip > .lf-react-palette:popover-open) > .lf-react {
   box-sizing: border-box;
@@ -895,7 +909,9 @@ wa-copy-button.lf-icon-action {
    `.lf-diff-line-number`); the face adds no frame or ground of its own, the hand,
    and a + in the accent's tint standing before the number once the keys stand on
    it. Its seat shows the + for the line under the pointer too, and places it over
-   the gutter's width. */
+   the gutter's width. The + stands one band in from its line's edges, clear of the
+   band a mark on the line draws just inside them (base.css, "Where it stands"), so
+   the line's brackets show beside it. */
 .lf-gutter {
   border: 0;
   border-radius: 0;
@@ -905,9 +921,11 @@ wa-copy-button.lf-icon-action {
 .lf-gutter::before {
   content: "+";
   position: absolute;
-  inset-inline-start: 1px;
-  inset-block-start: 0;
-  width: calc(2ch - 2px);
+  inset-inline-start: var(--focus-ring-w);
+  inset-block: var(--focus-ring-w);
+  width: calc(2ch - 1px - var(--focus-ring-w));
+  display: grid;
+  place-content: center;
   border-radius: var(--r-s);
   background: var(--accent-tint);
   color: var(--accent);

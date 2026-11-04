@@ -9,63 +9,11 @@ import { applicationState } from "/runtime/semantic-state.js";
 import { mountRepaint } from "/runtime/repaint.js";
 import { nextRender } from "/runtime/rendering.js";
 import { createQueueWalk } from "/runtime/queue-walk.js";
+import { servedReading, servedState } from "../served.mjs";
 
-const noObligations = () => ({ all: [], user: [], unanswered: [] });
-let taken = 0;
-// A reading whose view lists `onUser` on the user's list, each an update handed back
-// to the user to send again.
-const reading = (onUser) => ({
-  taken: ++taken,
-  layer: { generation: "test" },
-  active: { revision: 1 },
-  events: [],
-  files: {},
-  workflows: [],
-  activity: null,
-  browser: {
-    basis: { through_seq: 0 },
-    thread_memberships: {},
-    todos: [],
-    version_notes: {},
-    views: {
-      1: {
-        basis: { revision: 1, through_seq: 0 },
-        obligations: onUser.map((item) => ({
-          id: item.id,
-          source: { kind: "update", id: "e1", subject: item.subject },
-          thread: item.thread,
-          message: null,
-          prompt: { text: null, target: "e1" },
-          status: "open",
-          next_actor: "user",
-          answer: null,
-          end: null,
-        })),
-        thread: {
-          threads: [],
-          projection: { entries: [], actions: [], reports: [], desired: [] },
-          obligations: noObligations(),
-        },
-        undo: [],
-        reports: [],
-        queues: { on_user: onUser, on_agent: [], done: [] },
-        document: {
-          obligations: noObligations(),
-          projection: { entries: [], actions: [], reports: [], desired: [] },
-        },
-      },
-    },
-  },
-});
-const resend = {
-  kind: "update",
-  id: "update:e1",
-  owner: "user",
-  subject: { kind: "page" },
-  thread: null,
-  also: [],
-  live: false,
-};
+// A page with nothing on On me, then the same page once the agent asked a question there.
+const empty = servedState();
+const filled = servedReading("question");
 const frame = () => new Promise((resolve) => nextRender(resolve));
 
 test("an item arriving on On me repaints the keys", async () => {
@@ -76,14 +24,14 @@ test("an item arriving on On me repaints the keys", async () => {
     authored: new Map(),
     descriptors: new Map(),
   });
-  applicationState.adopt(reading([]));
+  applicationState.adopt(empty);
   let frames = 0;
   mountRepaint({ reflectFirstScopes: () => frames++ });
   createQueueWalk({}).mount();
   await frame();
   const before = frames;
 
-  applicationState.adopt(reading([resend]));
+  applicationState.adopt(filled);
   assert.equal(applicationState.read().effective.queues.on_user.length, 1);
   // The walk's watcher reads the queues on the microtask after the publication.
   await null;

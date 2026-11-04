@@ -1,0 +1,66 @@
+# The turn-end check (`src/leaf/clerk.py`), replayed on a short conversation written
+# for each decision its prompt asks about, each with a guardrail whose right answer
+# names nothing. Run every case with `uv run leaf-dev eval 'turn-end-check*'
+# --harness claude-code`; inputs, labels and rubrics are in
+# workflows/fork_eval.yaml.
+description: Turn-end check
+metadata:
+  purpose: A fork at a clean turn end names nothing.
+  tags: [workflow, forks, asks]
+  harnesses: [claude-code]
+  conditions: [leaf]
+  executor: leaf_dev.fork_eval
+  scenario: clean
+variants:
+  ask-question:
+    metadata:
+      scenario: ask-question
+      purpose: A decision the agent's last reply left to the user goes On me as a question.
+  ask-step:
+    metadata:
+      scenario: ask-step
+      purpose: A command the agent asked the user to run goes On me as a step.
+  ask-step-done:
+    metadata:
+      scenario: ask-step-done
+      purpose: A command the user ran and confirmed since is left out.
+  stale-omission:
+    metadata:
+      scenario: stale-omission
+      purpose: A fact the work added, which the page doesn't mention and nothing contradicts, is no stale finding.
+  ask-on-me:
+    metadata:
+      scenario: ask-on-me
+      purpose: A question the reply asks, which an On me item already holds, isn't asked again.
+  ask-answered:
+    metadata:
+      scenario: ask-answered
+      purpose: A question the user answered in chat since is left out.
+  stale-edit:
+    metadata:
+      scenario: stale-edit
+      purpose: A lede the work has overtaken is named stale, and its few-word fix lands on the page.
+  stale-rewrite:
+    metadata:
+      scenario: stale-rewrite
+      purpose: A section the user dropped in chat is named stale, with no edit, since removing it needs more than a few words.
+  stale-passed-on:
+    metadata:
+      scenario: stale-passed-on
+      purpose: A stale passage Leaf's earlier message already passed on is left out.
+  settled:
+    metadata:
+      scenario: settled
+      purpose: An On me question the user answered in chat is named settled.
+  settled-open:
+    metadata:
+      scenario: settled-open
+      purpose: An On me question the user's chat message touches without answering is left alone.
+  unshown:
+    metadata:
+      scenario: unshown
+      purpose: Background work the agent promised to report on, which no page shows, is named unshown.
+  unshown-shown:
+    metadata:
+      scenario: unshown-shown
+      purpose: Background work the page shows started, and a watcher serving the agent's own check, are left out.

@@ -16,7 +16,6 @@ from render_cases_interaction import (
 from render_cases_widgets import PAGE_DECLARATION, PAGE_WIDGET
 from render_harness import (
     PANEL,
-    PANEL_THREAD,
     consume_browser_errors,
     expect_obligations_answered,
     expect_open_threads,
@@ -31,8 +30,8 @@ from render_harness import (
     panel_menu,
     panel_settled,
     refuse,
+    reported_browser_errors,
     round_trip,
-    said,
     sending,
     stamp_page,
     stored_draft_text,
@@ -47,6 +46,7 @@ from leaf import event_log as events_model
 from leaf import interaction_log as interaction_model
 from leaf import thread as thread_model
 from leaf.render_checks import one_frame, rendered, wait_until_ready
+from leaf_dev.browser import PANEL_THREAD
 
 THREAD_READER = r"""
 import {LeafElement, html, readThreads, threadSummary, threadTurns} from '/runtime/widget-api.js';
@@ -784,31 +784,16 @@ def test_a_returning_widget_repaints_to_restore_subscriptions(browser, serve):
     assert page.evaluate(leave_and_return) == {"drawn": 1, "failed": 0, "pending": []}
 
     # Resuming a deferral draws the same reading again, and this draw fails.
-    # Fault reporting waits until after the native operation; presentation completion
-    # alone does not mean the console has received the report.
-    failure = 'leaf: <lf-local id="page-local"> failed: deliberate render failure'
-    with page.expect_console_message(
-        predicate=lambda message: message.text.startswith(failure)
-    ):
-        page.evaluate(
-            "globalThis.__failLocalRender = true; "
-            "document.querySelector('#page-local').controller.defer()(); true"
-        )
+    page.evaluate(
+        "globalThis.__failLocalRender = true; "
+        "document.querySelector('#page-local').controller.defer()(); true"
+    )
     expect(page.locator("#page-local .lf-error")).to_have_text(
         "<lf-local> failed: deliberate render failure"
     )
-    with page.expect_console_message(
-        predicate=lambda message: message.text.startswith(failure)
-    ):
-        assert page.evaluate(leave_and_return) == {
-            "drawn": 0,
-            "failed": 2,
-            "pending": [],
-        }
-    errors = take_browser_errors(page)
-    assert [said(error) for error in errors] == [
-        'leaf: <lf-local id="page-local"> failed: deliberate render failure'
-    ] * 2
+    assert page.evaluate(leave_and_return) == {"drawn": 0, "failed": 2, "pending": []}
+    failure = 'leaf: <lf-local id="page-local"> failed: deliberate render failure'
+    reported_browser_errors(page, failure, failure)
 
 
 @pytest.mark.parametrize("lifetime", ["light", "shadow-child", "shadow-host"])
@@ -1055,10 +1040,9 @@ customElements.define('lf-controller-stage', class extends HTMLElement {
     )
     page.wait_for_function("readLeafPresentation().pending.length === 0")
     assert page.evaluate("window.__failedLocalRenders") == 1
-    errors = take_browser_errors(page)
-    assert [said(error) for error in errors] == [
-        'leaf: <lf-local id="page-local"> failed: deliberate render failure'
-    ]
+    reported_browser_errors(
+        page, 'leaf: <lf-local id="page-local"> failed: deliberate render failure'
+    )
 
 
 @pytest.mark.parametrize(
@@ -1335,9 +1319,9 @@ def test_thread_presentation_waits_for_its_frozen_widgets_only(browser, serve):
     page.wait_for_function("threadReady")
     expect(page.locator(".lf-floating-panel #thread-failing")).to_have_count(1)
     expect_open_threads(page, 2)
-    assert [said(error) for error in take_browser_errors(page)] == [
-        "leaf: Presentation failed: frozen descendant failure"
-    ]
+    reported_browser_errors(
+        page, "leaf: Presentation failed: frozen descendant failure"
+    )
 
 
 THREAD_ACTIONS = r"""

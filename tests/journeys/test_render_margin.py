@@ -31,7 +31,6 @@ from render_cases_layout import (
 )
 from render_harness import (
     LONG_PAGE,
-    PANEL_THREAD,
     comment_note,
     draft_control,
     example_media,
@@ -49,6 +48,7 @@ from render_harness import (
 from leaf import cli as cli_model
 from leaf import event_log as events_model
 from leaf.render_checks import rendered
+from leaf_dev.browser import PANEL_THREAD
 
 pytestmark = pytest.mark.shifts_unsurveyed
 

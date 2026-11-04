@@ -126,7 +126,7 @@ def test_a_comment_on_external_data_stays_with_the_revision_the_user_saw(
         "revision": replaced,
         "path": [1, "value"],
     }, "the source coordinate must follow construction order, not the datum key"
-    quote = open_panel_thread(page, comment["id"]).locator(".lf-fp-quote")
+    quote = open_panel_thread(page, comment["id"]).locator(".lf-thread-quote")
     expect(quote).to_contain_text("Ready")
     expect(quote.locator(".lf-anchor-status")).to_have_text("Earlier data")
     expect(quote).not_to_have_attribute("data-lf-detached", "")
@@ -504,7 +504,7 @@ customElements.define('lf-derived', class extends LeafElement {
         re.compile(r"\blf-mark-el\b")
     )
     assert page.evaluate("() => CSS.highlights.get('lf-mark')?.size ?? 0") == 0
-    quote = open_panel_thread(page, comment["id"]).locator(".lf-fp-quote")
+    quote = open_panel_thread(page, comment["id"]).locator(".lf-thread-quote")
     expect(quote).to_contain_text("Ready")
     expect(quote.locator(".lf-anchor-status")).to_have_text("Changed")
 

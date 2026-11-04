@@ -347,7 +347,11 @@ RING_CASES = (
     (
         "a resolved thread",
         (),
-        {"ship-review": ((".lf-fp-head .lf-fp-settle", FLOOR_RING),)},
+        {
+            "ship-review": (
+                (".lf-fp-thread-controls :is(.lf-resolve, .lf-reopen)", FLOOR_RING),
+            )
+        },
     ),
     # The same walk with the panel shut lands in the margin's thread view, on the
     # thread itself rather than a control inside it.
@@ -547,7 +551,7 @@ RING_SCOPE_WIDTH = {
 # Scopes whose samples stand in a thread's view of the panel: the view of the first
 # thread whose view holds the selector (`open_panel_thread_holding`).
 RING_SCOPE_THREAD = {
-    "a resolved thread": ".lf-fp-head .lf-fp-settle.lf-reopen",
+    "a resolved thread": ".lf-fp-thread-controls .lf-reopen",
     "a reaction palette": ".lf-msg-controls > .lf-react-trigger",
     "message media": ".lf-message-media",
 }
@@ -644,7 +648,7 @@ AIM_BOXES = browser_function("aims.js", "offeredAims")
 # What the sweep has to have stood in front of before its answer means anything. Each is
 # on a surface the walk has to open, and each was under the floor.
 AIM_SURFACES = (
-    ".lf-fp-settle",
+    ".lf-fp-thread-controls :is(.lf-resolve, .lf-reopen)",
     '.lf-copyable-text:has(pre[aria-label="Preview diagnostics"]) wa-copy-button',
     ".lf-react-strip .lf-react",
     ".lf-fp-compare",
@@ -668,12 +672,12 @@ def _each_aim_surface(page, page_dir):
     # A resolved thread, which is the only state that has a Reopen to aim at. Resolving
     # moves the user on to the next open thread, so the resolved one is opened again.
     open_panel_thread(page, comment)
-    page.locator(".lf-fp-head .lf-fp-settle").click()
+    page.locator(".lf-fp-thread-controls :is(.lf-resolve, .lf-reopen)").click()
     round_trip(page)
     open_panel_thread(page, comment)
-    expect(page.locator(".lf-fp-head .lf-fp-settle")).to_have_class(
-        re.compile(r"\blf-reopen\b")
-    )
+    expect(
+        page.locator(".lf-fp-thread-controls :is(.lf-resolve, .lf-reopen)")
+    ).to_have_class(re.compile(r"\blf-reopen\b"))
     yield
     page.keyboard.press("Escape")
     page.keyboard.press("Escape")

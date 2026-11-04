@@ -193,7 +193,7 @@ def test_z_takes_back_the_thread_the_user_just_resolved(browser, serve):
     undo_offered(page, offered=False)
 
     open_panel_thread(page, comment)
-    page.locator(".lf-fp-settle").click()
+    page.locator(".lf-fp-thread-controls :is(.lf-resolve, .lf-reopen)").click()
     round_trip(page)
 
     undo(page)
@@ -223,7 +223,7 @@ def test_z_waits_for_an_unanswered_thread_resolution(browser, serve):
         if event["kind"] == "comment"
     ]
     open_panel_thread(page, comment_ids[0])
-    page.locator(".lf-fp-settle").click()
+    page.locator(".lf-fp-thread-controls :is(.lf-resolve, .lf-reopen)").click()
     round_trip(page)
     undo_offered(page)
 
@@ -234,7 +234,7 @@ def test_z_waits_for_an_unanswered_thread_resolution(browser, serve):
     expect(page.locator(PANEL_THREAD)).to_have_attribute(
         "data-lf-thread", comment_ids[1]
     )
-    page.locator(".lf-fp-settle").click()
+    page.locator(".lf-fp-thread-controls :is(.lf-resolve, .lf-reopen)").click()
     holding(page, held, 1, "the second resolution")
     undo_offered(page, offered=False)
     page.keyboard.press("z")
@@ -262,7 +262,7 @@ def test_z_stops_at_a_newer_gesture_it_cannot_take_back(browser, serve):
         if event["kind"] == "comment"
     ][:2]
     open_panel_thread(page, first)
-    page.locator(".lf-fp-settle").click()
+    page.locator(".lf-fp-thread-controls :is(.lf-resolve, .lf-reopen)").click()
     round_trip(page)
     undo_offered(page)
 
@@ -397,9 +397,7 @@ def _old_resolve_below_the_fold(serve, *, picked_up=False):
 def _shown(page, thread):
     """The thread's transcript, open and in the window."""
     expect(
-        page.locator(
-            f'.lf-page-thread[data-lf-thread="{thread}"][data-lf-part="transcript"]'
-        )
+        page.locator(f'.lf-fp-messages > .lf-page-thread[data-lf-thread="{thread}"]')
     ).to_be_in_viewport()
 
 

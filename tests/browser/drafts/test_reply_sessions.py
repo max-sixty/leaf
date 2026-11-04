@@ -220,9 +220,9 @@ def expect_resolved(page, surface, thread, resolved):
     """The thread reads resolved, or not: the panel's by its head's Resolve or Reopen,
     a margin card by its own state."""
     if surface == "panel":
-        expect(page.locator(".lf-fp-settle")).to_have_accessible_name(
-            "Reopen" if resolved else "Resolve thread"
-        )
+        expect(
+            page.locator(".lf-fp-thread-controls :is(.lf-resolve, .lf-reopen)")
+        ).to_have_accessible_name("Reopen" if resolved else "Resolve thread")
     else:
         expect(thread).to_have_attribute("data-lf-resolved", str(resolved).lower())
 
@@ -332,7 +332,7 @@ def test_reply_editing_and_saved_words_have_separate_resolution_lifetimes(
     field.evaluate("box => box.setSelectionRange(5, 5)")
     if resolution == "user":
         with sending(page, "the deliberate resolution"):
-            page.locator(".lf-fp-settle").click()
+            page.locator(".lf-fp-thread-controls :is(.lf-resolve, .lf-reopen)").click()
     else:
         if resolution == "inactive-agent":
             page.keyboard.press("Escape")
@@ -371,7 +371,7 @@ def test_reply_editing_and_saved_words_have_separate_resolution_lifetimes(
     recovered = open_panel_thread(page, root)
     expect(page.locator(PANEL_REPLY)).to_have_js_property("value", words)
     with sending(page, "reopen with the saved reply"):
-        page.locator(".lf-fp-settle").click()
+        page.locator(".lf-fp-thread-controls :is(.lf-resolve, .lf-reopen)").click()
     expect(recovered).to_be_visible()
     expect(page.locator(PANEL_REPLY)).to_be_visible()
     expect(page.locator(PANEL_REPLY)).to_have_js_property("value", words)

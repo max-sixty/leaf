@@ -168,27 +168,35 @@ inside the messages it draws live there.
 `render(shownCollection, parts)` names outlets inside the widget: a whole conversation
 with `parts.thread(thread.key, outlet)`, or its parts with
 `parts.message(thread.key, message.key, outlet)` for each of its `threadTurns` and
-`parts.reply(thread.key, outlet)`. `parts.transcript(thread.key, outlet)` draws all of
-its turns as a whole conversation does, for a widget that draws the conversation's head
-itself, in place of message parts. Leaf fills the outlets and keeps the rendering,
+`parts.reply(thread.key, outlet)`. Leaf fills the outlets and keeps the rendering,
 reactions, read tracking and reply draft; the package keeps layout, order, selection,
 scroll and disclosure. The user's message editor opens in place of the message,
 with its frame extending slightly beyond the message's edges, so a scroller holding message
 parts keeps about 12px of padding beside them (the worked example's `.reader`).
-`parts.transcript` also takes `{drawn}`. `drawn(answer)` runs once its transcript DOM
-is placed, before asynchronous widget preparation finishes, so layout and scroll can
-follow the words before the next frame. `answer` is null except when this draw answers
-the user's last turn; then it is the read-only `{turn, reply}` message keys, with
-`reply: null` while only work under way has arrived. A render abandoned before drawing
-calls nothing. The handle's `update()` still waits for the widgets' preparation.
+
+`parts.thread` also takes `{head, reply, quote, settles, drawn}`, each optional, for
+a widget that draws the conversation's head itself, as Leaf's floating panel does:
+`head: {news, controls}` stands the notice of held news and Resolve on its head line,
+`reply: {outlet, options}` stands the reply box where it names, with the options
+`parts.reply` takes, `quote: true` quotes the words the thread is about over its
+messages, and `settles: {landing, reader: "primary"}` says where Resolve or Reopen
+takes the user: `landing(resolved)`, called as the press comes, returns `null` or a
+step Leaf runs once the settlement shows, which returns whether it moved the user, and
+taking the settlement back opens the thread in this widget again. `drawn(answer)` runs
+once the thread's DOM is placed, before asynchronous widget preparation finishes, so
+layout and scroll can follow the words before the next frame. `answer` is null except
+when this draw answers the user's last turn; then it is the read-only `{turn, reply}`
+message keys, with `reply: null` while only work under way has arrived. A render
+abandoned before drawing calls nothing. The handle's `update()` still waits for the
+widgets' preparation.
 
 `parts.reply` takes `{hint, accessibleName, sent}`, where
 `sent()` runs after a send instead of moving the user to the thread. The reply box
 stands in a resolved thread too, and a reply there reopens it. The collection
-holds back changes that would move what the user sees behind a notice, placed where
-`parts.news(thread.key, outlet)` names or else at the end of the first part's head,
-while `readThreads()` stays current for counts. A feed of single turns supplies Resolve
-and Reopen through `threadActions`.
+holds back changes that would move what the user sees behind a notice, which a whole
+conversation stands as a card does, or where its `head` names, and message parts at
+the end of the first part's head, while `readThreads()` stays current for counts. A
+feed of single turns supplies Resolve and Reopen through `threadActions`.
 
 Await the handle's `update()` after a local layout change, or `update({release: true})`
 to show held news for a deliberate change of view. If `render` throws or names an outlet

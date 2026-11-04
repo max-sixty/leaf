@@ -1,7 +1,7 @@
 /* A thread's messages as every reader of a whole thread draws them: a card on the page
-   or in the margin (thread-card.js), and the floating panel's view of a thread through
-   a primary reader's transcript part (primary-reader.js). The reader around it draws
-   the thread's head, controls and reply box; this owner draws only the transcript.
+   or in the margin, and the floating panel's view of a thread (thread-card.js). The
+   thread around it draws its head, controls and reply box; this owner draws only the
+   transcript.
 
    - Each turn is one MessageView, which shows whether its version is unread and
      reports its exposure to read tracking (read.js), so a reply counts as read the same
@@ -258,16 +258,14 @@ export class Transcript {
   /**
    * Draws `model`, a thread's reading (thread-card.js, `threadReading`). `appends`
    * declares that it grows at its end inside the scroller holding it, as a margin
-   * card's does (`data-lf-reflow`, tests/shift_watch.js). `notice` is a node the reader
-   * stands at the head of the transcript's first message in sight, as a primary
-   * reader's thread notice (primary-reader.js). Returns the disclosure that took over
-   * the one the user was on, where this draw replaced it, as the answer's head takes
-   * progress over from the working message.
+   * card's does (`data-lf-reflow`, tests/shift_watch.js). Returns the disclosure that
+   * took over the one the user was on, where this draw replaced it, as the answer's
+   * head takes progress over from the working message.
    * @param {import("./thread-card.js").ThreadViewModel} model
-   * @param {{arrived?: boolean, appends?: boolean, notice?: Element | null}} [options]
+   * @param {{arrived?: boolean, appends?: boolean}} [options]
    * @returns {HTMLElement | null}
    */
-  present(model, { arrived = false, appends = false, notice = null } = {}) {
+  present(model, { arrived = false, appends = false } = {}) {
     const prior = this.#model;
     const currentLocation = focused();
     const priorSummaries = new Set(prior?.summaries.map(({ id }) => id) ?? []);
@@ -377,10 +375,6 @@ export class Transcript {
       .filter((range) => range.summary.pending);
     const spoke = model.messages.findLastIndex(({ author }) => author === "user");
     this.#pendingOpen = pendingRanges.some((range) => range.expanded);
-    // The first message no fold holds, else the first.
-    const lead =
-      rangeState.find((range) => range.kind === "message")?.message ??
-      model.messages[0];
     // The working message stands after the range holding the last message said before
     // its words: as the face of that range where it is a progress run, else as a face
     // of its own.
@@ -408,11 +402,7 @@ export class Transcript {
     }
     for (const message of drawnMessages) {
       const view = message.view;
-      view.present(message.reading, {
-        arrived,
-        dated: dated.has(message.key),
-        headerControls: notice && message.key === lead?.key ? notice : nothing,
-      });
+      view.present(message.reading, { arrived, dated: dated.has(message.key) });
       // A reply still streaming at the thread's end grows at its foot as its words
       // come, as the working message does with each step (shift_watch.js).
       keeps(

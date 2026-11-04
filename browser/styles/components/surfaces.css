@@ -617,9 +617,11 @@ summary {
 }
 /* A whole thread holding focus wears a quiet ground. A primary reader's part is one
    message of a thread its presentation draws whole around it (`.lf-primary-part`
-   below), so focus inside a part leaves that ground to the drawing and the focused
+   below), and a thread drawn in a view that stands for it whole, as the floating
+   panel's is (`data-lf-thread-view`, thread/selectors.js), is drawn inside that
+   drawing, so focus inside either leaves that ground to the drawing and the focused
    control to its own ring. */
-.lf-page-thread:not(.lf-primary-part)[data-lf-focus-within] {
+.lf-page-thread:not(.lf-primary-part, [data-lf-thread-view] *)[data-lf-focus-within] {
   outline: none;
   border-radius: var(--r);
   --lf-ground: var(--focus-surface);
@@ -647,7 +649,7 @@ summary {
 /* A forced palette paints every ground in Canvas, so the quiet ground of a thread
    holding focus would vanish; the thread wears the ring instead. */
 @media (forced-colors: active) {
-  .lf-page-thread:not(.lf-primary-part)[data-lf-focus-within] {
+  .lf-page-thread:not(.lf-primary-part, [data-lf-thread-view] *)[data-lf-focus-within] {
     outline: var(--focus-ring);
     --lf-ring-at: var(--focus-ring-inset);
   }
@@ -824,11 +826,10 @@ summary {
 .lf-msg-head > .lf-msg-meta {
   margin-inline-end: auto;
 }
-/* A primary reader's first message part, or the first message of its transcript part,
-   holds its thread's news notice at the head's end, before the message's own controls
-   (controls.css), unless its presentation stands the notice elsewhere
-   (thread/primary-reader.js). It stays positioned, at no offset, so its reach
-   (`::after`) covers the notice rather than the whole message. */
+/* A primary reader's first message part holds its thread's news notice at the head's
+   end, before the message's own controls (controls.css; thread/primary-reader.js). It
+   stays positioned, at no offset, so its reach (`::after`) covers the notice rather
+   than the whole message. */
 .lf-msg-head > .lf-primary-news {
   position: relative;
 }

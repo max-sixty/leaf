@@ -288,6 +288,8 @@ function createApplication(dependencies) {
       done: /** @param {string} id */ (id) =>
         queueActions.done(queueItemKey({ kind: "todo", id })),
     },
+    // Where the words a thread is about stand, which a thread quoting them reads.
+    placedAt: dependencies.anchorPlacement.placedAt,
     read,
     openThread: openPageThread,
     landInThread: dependencies.landInThread,
@@ -688,7 +690,6 @@ function createApplication(dependencies) {
     consumeAnnotations,
     threadActions,
     queueActions,
-    settlement: settlementView,
     /** @param {string} id */
     openObligation(id) {
       const item = readObligations().all.find((item) => item.id === id);

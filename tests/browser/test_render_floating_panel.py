@@ -146,7 +146,7 @@ def test_one_field_starts_a_thread_takes_its_reply_and_settles_it(browser, serve
     expect(page.locator(".lf-fp-field .lf-compose-submit")).to_be_hidden()
     expect(page.locator(".lf-fp-head .lf-fp-close")).to_be_visible()
 
-    settle = page.locator(".lf-fp-settle")
+    settle = page.locator(".lf-fp-thread-controls :is(.lf-resolve, .lf-reopen)")
     with sending(page, "the resolve"):
         settle.click()
     assert events_model.read_events(serve.page_dir)[-1]["kind"] == "resolve"
@@ -368,7 +368,7 @@ def test_a_thread_s_keys_answer_in_its_view(browser, serve):
     page.locator("body").focus()
     page.keyboard.press("t")
     thread = page.locator(panel_view("thread"))
-    settle = page.locator(".lf-fp-settle")
+    settle = page.locator(".lf-fp-thread-controls :is(.lf-resolve, .lf-reopen)")
     expect(thread).to_be_visible()
     field(page).click()
     page.keyboard.type("Make it the weekend.")
@@ -393,8 +393,8 @@ def test_a_thread_s_keys_answer_in_its_view(browser, serve):
     expect(thread).to_be_focused()
     expect(settle).to_have_accessible_name("Resolve thread")
 
-    # A click on a message's words stands on the part of the thread drawing it.
-    message = thread.locator(".lf-primary-part", has_text="Is the window long enough?")
+    # A click on a message's words stands on the thread drawing it.
+    message = thread.locator(".lf-page-thread", has_text="Is the window long enough?")
     message.click()
     expect(message).to_be_focused()
     page.keyboard.press("e")
@@ -619,7 +619,7 @@ def test_resolve_opens_the_next_thread_as_tall_as_it_holds(browser, serve):
     title = page.locator(".lf-fp-head .lf-fp-title")
     expect(title).to_have_text("Is the window long enough?")
     thread = page.locator(panel_view("thread"))
-    settle = page.locator(".lf-fp-head .lf-fp-settle")
+    settle = page.locator(".lf-fp-thread-controls :is(.lf-resolve, .lf-reopen)")
     fits = "(view) => view.scrollHeight - view.clientHeight < 1"
     settled(page)
     short = thread.bounding_box()["height"]
@@ -699,7 +699,7 @@ def test_the_field_is_the_thread_s_reply_box(browser, serve):
     )
     expect(field(page)).to_be_focused()
 
-    page.locator(".lf-fp-settle").focus()
+    page.locator(".lf-fp-thread-controls :is(.lf-resolve, .lf-reopen)").focus()
     with sending(page, "the resolve"):
         page.keyboard.press("Enter")
     expect(page.locator(panel_view("threads"))).to_be_visible()
@@ -906,7 +906,7 @@ SEATS = """() => {
     name: [title[0], title[1]],
     back: seat('.lf-fp-head .lf-fp-back'),
     on: seat('.lf-fp-head .lf-fp-on-page'),
-    settle: seat('.lf-fp-head .lf-fp-settle'),
+    settle: seat('.lf-fp-thread-controls :is(.lf-resolve, .lf-reopen)'),
     close: seat('.lf-fp-head .lf-fp-close'),
   };
 }"""
@@ -969,7 +969,15 @@ def test_news_in_an_open_thread_moves_none_of_its_controls(browser, serve):
     settled(page)
     assert page.evaluate(SEATS) == seats
 
+    # Resolved by the agent while the user reads it, the thread holds the news behind
+    # its notice, its Resolve drawn as it stood, as a card's is; shown, Reopen takes
+    # Resolve's seat.
     agent({"kind": "resolve", "parent": root})
+    notice = page.locator(".lf-fp-news-outlet .lf-thread-news")
+    expect(notice).to_have_attribute("title", "Resolved")
+    settled(page)
+    assert page.evaluate(SEATS) == seats
+    notice.click()
     expect(page.locator(".lf-fp-head .lf-reopen")).to_be_visible()
     settled(page)
     assert page.evaluate(SEATS) == seats
@@ -1066,7 +1074,7 @@ def test_on_a_phone_a_thread_s_presses_take_a_line_beside_next_unread(browser, s
             ".lf-fp-back",
             ".lf-fp-next-unread",
             ".lf-fp-on-page",
-            ".lf-fp-settle",
+            ".lf-fp-thread-controls :is(.lf-resolve, .lf-reopen)",
             ".lf-fp-close",
         )
     )
@@ -2579,45 +2587,6 @@ def test_a_conversation_reader_arriving_later_takes_the_open_thread(browser, ser
     assert asked["focus"] is not False
     assert asked["part"] == "message"
     assert asked["message"] == stood_on
-
-
-def test_a_package_s_transcript_takes_its_notice_where_every_part_does(browser, serve):
-    """A package that draws a thread's head itself may name its transcript alone
-    (`parts.transcript`, as the panel's view does) without naming where the thread's
-    notice goes: Leaf draws the transcript, and news that would move it waits behind
-    the notice at the head of its first message, where every part takes it by
-    default."""
-    url = serve(LONG_PAGE)
-    root = panel_comment(serve.page_dir, "Is the window long enough?")
-    page = floating(browser, url)
-    page.evaluate(
-        """async () => {
-          const api = await window.__lfWidgetApi();
-          const host = document.createElement('div');
-          host.id = 'reader';
-          // Over the page, so drawing it moves none of the page's words.
-          host.style = 'position: fixed; inset: 0 0 auto auto; width: 320px';
-          document.querySelector('main').append(host);
-          window.reader = api.registerThreadPresentation(host, {
-            render: (collection, parts) => {
-              for (const thread of collection.threads) {
-                const outlet = document.createElement('div');
-                host.replaceChildren(outlet);
-                parts.transcript(thread.key, outlet);
-              }
-            },
-            reveal: () => {},
-          });
-          await window.reader.update();
-        }"""
-    )
-    reader = page.locator("#reader")
-    expect(reader.locator(".lf-msg")).to_contain_text("Is the window long enough?")
-    agent_said(serve.page_dir, root, "Forty-eight hours covers the first cohort.")
-    told(page)
-    expect(reader.locator(".lf-msg-head .lf-thread-news")).to_have_text("1 new")
-    expect(reader.locator(".lf-msg")).to_have_count(1)
-    assert page.evaluate("() => window.reader.primary")
 
 
 def test_a_reader_arriving_later_leaves_focus_the_user_moved_elsewhere(browser, serve):
@@ -5050,7 +5019,7 @@ def test_a_thread_s_words_start_on_its_head_s_edge(browser, serve):
         return range.getClientRects()[0].left - edge;
       };
       const view = document.querySelector('.lf-fp-view[data-lf-route=thread]');
-      const quote = view.querySelector('.lf-fp-quote');
+      const quote = view.querySelector('.lf-thread-quote');
       const frame = view.querySelector('.lf-msg-editor .lf-compose-field');
       const text = frame?.querySelector('leaf-text');
       const back = document.querySelector('.lf-fp-head .lf-fp-back').getBoundingClientRect();

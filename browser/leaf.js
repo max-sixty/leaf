@@ -510,7 +510,6 @@ async function boot() {
     arrivesAt: (item) => queueWalk.arrivesAt(item),
     onMe: queueWalk.onMe,
     withdraw: app.withdraw,
-    settlement: app.settlement,
     placedAt: anchorPlacement.placedAt,
     openThreadSubject: (id, options) =>
       app.threadDestinations.openThreadSubject(id, options),

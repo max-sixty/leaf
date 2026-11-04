@@ -989,11 +989,15 @@ def test_r_resolves_the_focused_thread_while_x_is_unbound(browser, serve):
 
     # The same key reopens a focused resolved thread.
     open_panel_thread(page, c1).focus()
-    expect(page.locator(".lf-fp-settle")).to_have_accessible_name("Reopen")
+    expect(
+        page.locator(".lf-fp-thread-controls :is(.lf-resolve, .lf-reopen)")
+    ).to_have_accessible_name("Reopen")
     with sending(page, "the reopen"):
         page.keyboard.press("r")
     assert events_model.read_events(serve.page_dir)[-1]["kind"] == "unresolve"
-    expect(page.locator(".lf-fp-settle")).to_have_accessible_name("Resolve thread")
+    expect(
+        page.locator(".lf-fp-thread-controls :is(.lf-resolve, .lf-reopen)")
+    ).to_have_accessible_name("Resolve thread")
 
 
 def test_r_resolves_a_thread_from_wherever_the_user_stands_in_it(browser, serve):
@@ -1049,9 +1053,9 @@ def test_r_resolves_a_thread_from_wherever_the_user_stands_in_it(browser, serve)
     page.keyboard.press("Escape")
     expect(view).to_be_focused()
 
-    # A pointer on the reply's words stands the user on the part drawing them, not
+    # A pointer on the reply's words stands the user on the thread drawing them, not
     # the view.
-    message = view.locator(".lf-primary-part", has_text="Reply 0")
+    message = view.locator(".lf-page-thread", has_text="Reply 0")
     message.get_by_text("Reply 0", exact=False).first.click()
     expect(message).to_be_focused()
     with sending(page, "the resolve from a message"):
@@ -1064,7 +1068,7 @@ def test_r_resolves_a_thread_from_wherever_the_user_stands_in_it(browser, serve)
     assert resolved() == threads[:2]
 
     card(2)
-    page.locator(".lf-fp-settle").focus()
+    page.locator(".lf-fp-thread-controls :is(.lf-resolve, .lf-reopen)").focus()
     with sending(page, "the resolve from its button"):
         page.keyboard.press("r")
     assert resolved() == threads[:3]
@@ -1109,7 +1113,8 @@ def thread_page(serve):
 
 def linked_thread(page, name):
     return page.locator(
-        f':is(.lf-page-thread:not([data-lf-part]), .lf-fp-view)[data-lf-thread="{name}"]'
+        f":is(.lf-page-thread:not([data-lf-part], .lf-fp-view *), .lf-fp-view)"
+        f'[data-lf-thread="{name}"]'
     )
 
 

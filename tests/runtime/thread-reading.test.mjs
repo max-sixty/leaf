@@ -461,7 +461,7 @@ test("prepared thread readings consume only their own held-news release", async 
     );
 });
 
-test("a transcript commits when drawn, and abandoned renders call nothing", async (t) => {
+test("a thread commits when drawn, and abandoned renders call nothing", async (t) => {
   const { createPrimaryReader } = await import("/runtime/thread/primary-reader.js");
   const { applicationState } = await import("/runtime/semantic-state.js");
   applicationState.identify(1);
@@ -496,13 +496,23 @@ test("a transcript commits when drawn, and abandoned renders call nothing", asyn
     owner,
     (reading, parts) => {
       const captured = intent;
-      parts.transcript(reading.threads[0].key, outlet, {
+      parts.thread(reading.threads[0].key, outlet, {
         drawn: (answer) => drawn.push({ captured, answer, text: outlet.textContent }),
       });
       return deferred?.promise;
     },
     {
-      reply: {},
+      // Every thread draws its reply box; this stands in for the box's input wiring,
+      // which composing-input.test.mjs covers.
+      reply: {
+        wireInput: () =>
+          Object.assign(() => {}, {
+            value: () => "",
+            button: null,
+            load() {},
+            cancelDictation() {},
+          }),
+      },
       reaction: {},
       read: { observeMessage: () => () => {}, observeFeedback: () => () => {} },
     },

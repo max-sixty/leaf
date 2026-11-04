@@ -353,14 +353,13 @@
     > leaf-text {
     max-height: 75dvh;
   }
-  /* The field holds the page's editor, or the open thread's reply box, which Leaf's
-     reader draws in the panel's outlet there (floating-panel.js, `replyOutlet`). Both
-     stand alike: the frame, the inset and the focus wash a card gives its reply box are
-     the card's, so the panel leaves them out, matching the card's own selectors. */
+  /* The field holds the page's editor, or the open thread's reply box, which the
+     thread draws in the panel's place for it there (floating-panel.js, `replyOutlet`).
+     Both stand alike: the frame, the inset and the focus wash a card gives its reply box
+     are the card's, so the panel leaves them out, matching the card's own selectors. */
   .lf-fp-editors,
   .lf-fp-box,
   .lf-fp-reply,
-  .lf-fp-reply > .lf-primary-part,
   .lf-fp-reply .lf-thread-reply,
   .lf-fp-field .lf-compose-field {
     flex: 1;
@@ -1007,7 +1006,9 @@
     display: flex;
     min-width: 0;
   }
-  .lf-fp-news-outlet {
+  /* The thread's own places on its head line, its notice's and its Resolve's, which
+     the thread draws in (floating-panel.js, `headOutlets`), lay out as what they hold. */
+  :is(.lf-fp-news-outlet, .lf-fp-thread-controls) {
     display: contents;
   }
   /* The news qualifies the thread, so it takes the size of the head line's words. It
@@ -1351,10 +1352,10 @@
   .lf-fp-thread.lf-mark-hover {
     background: var(--mark-hover);
   }
-  /* The words a thread in the panel is about, over its messages, as a card's head
-     quotes them (chrome.css, `.lf-quote`): three lines, the whole on Full quote, its
-     press above the words it grows (floating-panel.js, `quoteHead`). */
-  .lf-fp-quote-head {
+  /* The words a thread in the panel is about, over its messages, in a quote's face
+     (chrome.css, `.lf-quote`): three lines, the whole on Full quote, its press above the
+     words it grows (thread/thread-card.js, `#drawQuote`). */
+  .lf-fp-messages .lf-thread-quote-head:not([hidden]) {
     display: grid;
     justify-items: start;
     gap: 4px;
@@ -1365,7 +1366,7 @@
      detached quote's title still says where its words went. The head names it, so the
      rule outranks a card's `.lf-quote` (chrome.css), which this file comes ahead of.
      Its words start on the thread's edge, the 1px rule before them included. */
-  .lf-fp-quote-head > .lf-fp-quote {
+  .lf-fp-messages .lf-thread-quote-head > .lf-thread-quote {
     margin: 0;
     padding-inline-start: calc(var(--lf-fp-inset) - 1px);
     min-width: 0;
@@ -1376,14 +1377,14 @@
     -webkit-line-clamp: 3;
     overflow: hidden;
   }
-  .lf-fp-quote[data-lf-expanded="true"] {
+  .lf-fp-messages .lf-thread-quote[data-lf-expanded="true"] {
     display: block;
     overflow: visible;
   }
   /* Full quote, an inline press (controls.css) at the quote's size. Its reach
      (surfaces.css) lies inside the thread's view, which clips what passes its 8px top
      padding, so under a finger it stands low enough for the reach above it. */
-  .lf-fp-quote-head > .lf-quote-expand {
+  .lf-fp-messages .lf-thread-quote-head > .lf-quote-expand {
     margin-block-start: max(0px, (var(--aim-floor) - 1lh) / 2 - 8px);
     min-height: 0;
     padding: 0;
@@ -1803,16 +1804,23 @@
     font: var(--font-small);
     margin-right: 4px;
   }
-  /* The thread's transcript, drawn and spaced as a card's (thread/transcript.js), its
-     first author 16px under the quote, the quote head's 12px included. Its box starts
-     at the view's padding, as the quote's rule does, and the transcript alone insets
-     its words onto the thread's edge. */
-  .lf-fp-messages {
-    padding-inline-end: 8px;
-  }
-  .lf-fp-messages > .lf-primary-part {
+  /* The thread, drawn as a card's (thread/thread-card.js), stands on the view's
+     padding, as the quote's rule does, and its to-dos and transcript inset their words
+     onto the thread's edge. The transcript keeps the room around it a card's box gives
+     its own, but on the side the quote's rule stands, its first author 16px under the
+     quote, the quote head's 12px included. */
+  .lf-fp-messages > .lf-page-thread {
     --lf-thread-text-inset: var(--lf-fp-inset);
-    padding-inline-start: 0;
+    padding: 0;
+  }
+  .lf-fp-messages .lf-thread-transcript {
+    padding-block: var(--sp-1);
+    padding-inline-end: calc(8px + var(--sp-1));
+  }
+  /* The to-dos keep the inset a card gives them, 5px inside the thread's text edge
+     here, as they stood when the panel drew them outside the thread. */
+  .lf-fp-messages .lf-thread-todos {
+    padding-inline-start: 13px;
   }
   /* A rewrite in a thread's view stands where the message stood (response.css,
      `.lf-msg-editor`), at the height of the field below it, frame included, its frame

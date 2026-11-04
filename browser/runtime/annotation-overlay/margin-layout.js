@@ -705,6 +705,12 @@ export function scheduleMarginEntryLabels() {
 /** @param {HTMLElement} root @param {HTMLElement} projection */
 export function mountMarginLayer(root, projection) {
   layer = { root, projection, lanes: new Map(), sizes: sizeObserver(layoutMarginRows) };
+  faces.observe(projection, {
+    childList: true,
+    subtree: true,
+    attributes: true,
+    characterData: true,
+  });
   hearTargetChanges(document);
   watchScrollEnds(placeCarriedRows);
 }
@@ -719,6 +725,39 @@ function placeCarriedRows(box) {
   );
   if (carries && scrollMisplacesAnchors(box)) scheduleMarginLayout();
 }
+
+// A row's face redrawn. The projection draws every row each time it renders, and a seat
+// reads a face only through its size and the controls it holds, so controls put in or
+// taken out bring a pass, and a changed attribute, such as a control's label or hidden
+// state, brings one only where the face no longer measures the size the last pass
+// seated it at (`seatedFaces`). The pass's own writes to its rows are taken back at its
+// end, so they bring no pass of their own.
+/** @type {WeakMap<Element, {width: number, height: number}>} */
+const seatedFaces = new WeakMap();
+/** @type {Set<HTMLElement>} */
+const restyled = new Set();
+let faceCheck = 0;
+const faces = new MutationObserver((records) => {
+  for (const record of records) {
+    let row = /** @type {Node | null} */ (record.target);
+    while (row && !(row instanceof HTMLElement && rows.has(row))) row = row.parentNode;
+    if (!(row instanceof HTMLElement)) continue;
+    if (record.type !== "attributes") scheduleMarginLayout();
+    else restyled.add(row);
+  }
+  if (!restyled.size || faceCheck) return;
+  faceCheck = nextRender(() => {
+    faceCheck = 0;
+    const changed = [...restyled].some((row) => {
+      const face = seatedFaces.get(row);
+      if (!face) return rows.has(row);
+      const { width, height } = row.getBoundingClientRect();
+      return width !== face.width || height !== face.height;
+    });
+    restyled.clear();
+    if (changed) layoutMarginRows();
+  });
+});
 
 // Neither scroll events nor mutation records leave their shadow tree, so a target
 // inside one is heard on each tree holding it as well as on the document.
@@ -1368,10 +1407,43 @@ function observeLayout(column) {
 
 // Each row states its target (`anchor`), the row inside it it stands level with, if any
 // (`point`, pointed-place.js), and its place among the others in the layer (`order`).
+// The projection registers every row each time it draws, so a pass is asked for only
+// where a row is new or names another target, point, passage or place in the order.
 /** @param {HTMLElement} row @param {RowOptions} options */
 export function registerMarginRow(row, options) {
+  const named = {
+    target: options.anchor(),
+    point: options.point?.() ?? null,
+    passage: options.passage?.() ?? null,
+    order: options.order,
+  };
+  const was = registered.get(row);
   rows.set(row, options);
+  registered.set(row, named);
+  if (
+    was &&
+    was.target === named.target &&
+    was.point === named.point &&
+    was.order === named.order &&
+    samePassages(was.passage, named.passage)
+  )
+    return;
   scheduleMarginLayout();
+}
+// What each row named when it was last registered (`registerMarginRow`).
+/** @type {WeakMap<HTMLElement, {target: Element | null, point: Element | null, passage: ResolvedTarget | null, order: number | undefined}>} */
+const registered = new WeakMap();
+// Whether two resolved passages are the same words.
+/** @param {ResolvedTarget | null} a @param {ResolvedTarget | null} b */
+function samePassages(a, b) {
+  const [one, other] = [targetSegments(a), targetSegments(b)];
+  return (
+    one.length === other.length &&
+    one.every(
+      ({ node, start, end }, i) =>
+        other[i]?.node === node && other[i]?.start === start && other[i]?.end === end,
+    )
+  );
 }
 
 /** @param {HTMLElement} row */
@@ -1379,6 +1451,8 @@ export function unregisterMarginRow(row) {
   // The projection discards this host. Clear retained references without
   // repainting a face that will leave the document in the same turn.
   rows.delete(row);
+  registered.delete(row);
+  restyled.delete(row);
   anchors.delete(row);
   pushes.delete(row);
   folded.delete(row);
@@ -1513,6 +1587,8 @@ export function layoutMarginRows() {
   const mounted = layer;
   if (!mounted) return;
   layoutMountedRows(mounted);
+  // The pass's own writes to its rows, which need no pass of their own.
+  faces.takeRecords();
 }
 
 /** @param {Layer} layer */
@@ -1702,6 +1778,7 @@ function layoutMountedRows(layer) {
   /** @type {PlacedRow[]} */
   const placed = reads.filter(shownRead).map((read) => {
     const box = read.row.getBoundingClientRect();
+    seatedFaces.set(read.row, { width: box.width, height: box.height });
     return {
       key: read.row,
       rect: {
@@ -2109,5 +2186,3 @@ function layoutMountedRows(layer) {
     }),
   );
 }
-
-export { scheduleMarginLayout };

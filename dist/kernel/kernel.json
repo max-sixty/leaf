@@ -40,15 +40,15 @@
 
     "runtime/annotation-overlay/margin-cluster-view.js": "a329209183a6255d8df0b87dadd4047b521d14f2dd33de52da7d47fadcb88e1c",
 
-    "runtime/annotation-overlay/margin-layout.js": "f728d432b6ace0962c027a4363b0ed1eec5009df9a58a6ddac8967c40149e2dc",
+    "runtime/annotation-overlay/margin-layout.js": "95e9912a663feff2ff4d9b1ca06cea1c1c790951fce6d910ec423278df31176e",
 
     "runtime/annotation-overlay/margin-placement.js": "7eb32b30afc9432946f2ecd3ff60535ab3c1ff4ed4646fca1f5445bffb91de22",
 
-    "runtime/annotation-overlay/margin-projection.js": "28e8e41ca29bf6539d9cc65e043a242c1635d54a1d3b42f8b3e5885427003231",
+    "runtime/annotation-overlay/margin-projection.js": "6a31212acd4cd5b9d1f525864a8b4dd39f2e9de67608f20ce3176cad6dd6e86e",
 
     "runtime/annotation-overlay/surface-grip.js": "fcaae3d4a8967c133989238e9a284830e72fda427d2cf71ec6919d394e18fd00",
 
-    "runtime/annotation-overlay/thread-preview.js": "332c03ad3f22202a414b9a56c309607c6d36040af083ef890a943a2a298e78f5",
+    "runtime/annotation-overlay/thread-preview.js": "51b7084b5fea1561983fce229fd3b49b1ceb9ec63cec33f59486142c25cca116",
 
     "runtime/annotation-overlay/visual-mark-paint.js": "f89dd50442fa46729d31df5ee8902e0b54bec323f7c25282b147b7cb5aba0188",
 

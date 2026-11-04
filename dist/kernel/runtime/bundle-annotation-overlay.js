@@ -1,4 +1,4 @@
-import { LAYOUT, TEXT_FIELD, Z, afterScript, atScrollEnd, beginWalk, cancelAnimation, cancelRender, clamp, closeLayer, closestAcross, coarsePointer, currentLocationIn, declareRelease, drawn, focusDestination, focused, generatedElement, handBack, holdFocus, inChrome, inputCount, keepFoot, keeps, keepsHidden, keepsText, layerLanding, layoutPx, letGo, listWalkPosition, move, moveScrollerBy, nativeLayerHolding, nextAnimation, nextRender, offerAction, offeredActionElement, onCurrentLocation, onPressAway, onUserInput, pageScroller, pressLed, renderedOrder, renderedUnder, retainUserIntent, rightCover, ringBox, roomPx, rove, rowArrows, scrollLimit, scrollToEnd, seenRect, setChildLists, setChildren, shownBox, shownParts, shownWindow, showsContents, skipped, slotTop, tabStops, tabStore, under, union, visibleFocus, watchRoom } from "./bundle-portable.js";
+import { J, LAYOUT, TEXT_FIELD, Z, afterScript, atScrollEnd, beginWalk, cancelAnimation, cancelRender, clamp, closeLayer, closestAcross, coarsePointer, currentLocationIn, declareRelease, drawn, focusDestination, focusRevision, focused, generatedElement, handBack, holdFocus, inChrome, inputCount, keepFoot, keeps, keepsHidden, keepsText, layerLanding, layoutPx, letGo, listWalkPosition, move, moveScrollerBy, nativeLayerHolding, nextAnimation, nextRender, offerAction, offeredActionElement, onCurrentLocation, onPressAway, onUserInput, pageScroller, pressLed, renderedOrder, renderedUnder, retainUserIntent, rightCover, ringBox, roomPx, rove, rowArrows, scrollLimit, scrollToEnd, seenRect, setChildLists, setChildren, shownBox, shownParts, shownWindow, showsContents, skipped, slotTop, tabStops, tabStore, tick, under, union, visibleFocus, watchRoom } from "./bundle-portable.js";
 import { bareReaction, closeControl, cycledRow, el, hostIn, html, keys, nativePress, notice, pageRange, paintKeys, paintKeysWithin, render, repaint, sameAnchor, turns } from "./bundle-errors.js";
 import { setRuntimeRootAttribute } from "./bundle-layer-client.js";
 import { chromeForeground, chromeRoot, exactTarget, passageGeometry, pointBand, proseRect, rangeGeometry, readingRegionFor, registerReadingRegion, scrollerFor, targetElement, targetParts, targetRange, targetSegments, targetSurface, visualAt, windowHoldsRail } from "./bundle-content-layout.js";
@@ -7,7 +7,7 @@ import { blockAt, elementFromPointAcross, labelWords, pageWords, quoteFrom, rang
 import { anchorLabel, arrivalOf, carryingThreadPlace, claimSeatReplies, claimed, currentLocationThreadId, declareOffFlowSurface, declareSide, keepThreadLanding, pageCommand, pageRung, pageScope, pageSelection, placeKeeper, releaseAuthoredUnder, releaseReplies, revealHeld, rowWalk, selectionAnchor, showReturnTurn, threadFocusDestination, threadIdNamed, threadNamed } from "./bundle-data.js";
 import { SVG_NS, activateContributionControl, awaitingUser, canFold, choosePrimary, clearContributionControls, clusterProjection, contributionEntry, contributionEntryRecord, contributionEntrySource, dropStand, entryEngaged, entryHasMarginHost, focusedOfferOf, markerFace, materializeContributionControls, optionsOffered, outlineChange, paintGeometry, paintShape, paintStand, placement, presentContributionEntry, presentContributionReceipts, primaryReading, readingBehavior, readingChoices, readingContext, readingFace, readingKey, readingLabel, readingState, spokenContext, spokenSubject, standOver, syncContributionSelection, syncContributionUnread, threadReading, unreadIn } from "./bundle-page-layout.js";
 import { boxMotion, paintTrace } from "./bundle-box-motion.js";
-import { THREAD_CARD, cardMeasure, cardMinimum, commentAttachment, commentBoundary, commentPlacement, commentReference, floatingGeometry, floatingPlacement, floatingSelections, floatingUi, layoutMarginRows, makeRoom, marginColumn, mountMarginLayer, paintedBox, registerMarginRow, scheduleMarginEntryLabels, scheduleMarginLayout, standsFolded, standsWithheld, syncMarginContentLayout, unregisterMarginRow } from "./bundle-comment-placement.js";
+import { THREAD_CARD, cardMeasure, cardMinimum, commentAttachment, commentBoundary, commentPlacement, commentReference, floatingGeometry, floatingPlacement, floatingSelections, floatingUi, layoutMarginRows, makeRoom, marginColumn, mountMarginLayer, paintedBox, registerMarginRow, scheduleMarginEntryLabels, standsFolded, standsWithheld, syncMarginContentLayout, unregisterMarginRow } from "./bundle-comment-placement.js";
 
 //#region runtime/annotation-overlay/surface-grip.js
 const SLOP = 3;
@@ -226,6 +226,7 @@ const CUT_EDGES = [
 ];
 function createThreadPreview({ inventory, renderMarginThread, placedAt, scrollThreadIntoView, scrollToElement, openPageThread, openInPanel, onClose }) {
 	let previewSession = null;
+	const cardRevision = Z(0);
 	const { targetFor, entryPoint, entryPlace } = inventory;
 	const preview = el("aside", "lf-ui lf-margin-preview");
 	preview.id = THREAD_CARD;
@@ -283,7 +284,12 @@ function createThreadPreview({ inventory, renderMarginThread, placedAt, scrollTh
 	});
 	preview.append(following.ground, carry.grip, face);
 	const opener = () => previewSession?.control?.checkVisibility() ? previewSession.control : null;
-	const onOpener = () => Boolean(opener()) && focused() === opener();
+	const onOpener = J(() => {
+		focusRevision();
+		cardRevision.value;
+		const target = opener();
+		return Boolean(target) && focused() === target;
+	});
 	const stopsBeside = (root, at, side) => tabStops(root).filter((stop) => stop !== at && !renderedUnder(at, stop) && Math.sign(renderedOrder(stop, at)) === side);
 	const atCardEdge = (side) => {
 		const at = focused();
@@ -319,7 +325,7 @@ function createThreadPreview({ inventory, renderMarginThread, placedAt, scrollTh
 		title: "into the thread card",
 		repeat: true,
 		runFromCommandReference: false,
-		when: () => onOpener() && tabStops(preview).length > 0,
+		when: () => onOpener.value && tabStops(preview).length > 0,
 		get run() {
 			const target = tabStops(preview)[0];
 			return target ? () => focusDestination(target, "step") : void 0;
@@ -332,8 +338,8 @@ function createThreadPreview({ inventory, renderMarginThread, placedAt, scrollTh
 		repeat: true,
 		runFromCommandReference: false,
 		when: () => {
-			const target = opener();
-			return target !== null && onOpener() && under(stopsBeside(chromeRoot, target, -1).at(-1), preview);
+			const target = onOpener.value ? opener() : null;
+			return target !== null && under(stopsBeside(chromeRoot, target, -1).at(-1), preview);
 		},
 		run: () => focusDestination(preview, "return")
 	}];
@@ -424,6 +430,7 @@ function createThreadPreview({ inventory, renderMarginThread, placedAt, scrollTh
 		session.stopFoot?.();
 		preview.style.removeProperty("visibility");
 		previewSession = null;
+		tick(cardRevision);
 	}
 	function deferThreadPreviewFocus(positioned, focus, session) {
 		const mayFocus = retainUserIntent();
@@ -645,6 +652,7 @@ function createThreadPreview({ inventory, renderMarginThread, placedAt, scrollTh
 		if (!session) return;
 		forgetThreadPreviewPlacement(session);
 		session.control = button;
+		tick(cardRevision);
 		if (carry && button) focusDestination(button, "return");
 	}
 	function select({ entry, choice, item, control, origin, accompanies, forced = false, disclosed = false }) {
@@ -683,6 +691,7 @@ function createThreadPreview({ inventory, renderMarginThread, placedAt, scrollTh
 			followed: false
 		};
 		previewSession = session;
+		tick(cardRevision);
 		if (origin) session.side.adopt(origin);
 		keeps(preview, "data-lf-grows", origin ? "" : null);
 		return session;
@@ -1563,17 +1572,25 @@ function createMarginProjection({ inventory, refreshInventory, renderAnnotations
 		repaint();
 	});
 	let marginKeysAvailable = false;
+	const drawnMargin = Z(0);
+	const onSteppableEntry = J(() => {
+		focusRevision();
+		drawnMargin.value;
+		const active = focused();
+		const host = closestAcross(active, "[data-lf-margin-for]");
+		return active !== null && active.matches(".lf-margin-entry") && clusterMarginEntries(host).length > 1;
+	});
+	const onMarker = J(() => {
+		focusRevision();
+		return Boolean(focused()?.matches(".lf-margin-marker"));
+	});
 	const marginKeys = [
 		{
 			id: "margin.controls",
 			keys: ["ArrowLeft", "ArrowRight"],
 			title: "move through margin entries",
 			repeat: true,
-			when: () => {
-				const active = focused();
-				const host = closestAcross(active, "[data-lf-margin-for]");
-				return active !== null && active.matches(".lf-margin-entry") && clusterMarginEntries(host).length > 1;
-			},
+			when: () => onSteppableEntry.value,
 			runKey: stepClusterMarginEntries
 		},
 		...rowWalk({
@@ -1585,7 +1602,7 @@ function createMarginProjection({ inventory, refreshInventory, renderAnnotations
 			scroll: false
 		}).map((row) => ({
 			...row,
-			when: () => Boolean(focused()?.matches(".lf-margin-marker")) && visibleRows().length > 0
+			when: () => onMarker.value && visibleRows().length > 0
 		})),
 		...card.openerKeys
 	];
@@ -1729,6 +1746,7 @@ function createMarginProjection({ inventory, refreshInventory, renderAnnotations
 			host.remove();
 			hosts.delete(key);
 		}
+		let rank = 0;
 		pageInventory.forEach((entry, order) => {
 			if (!entryHasMarginHost(entry)) return;
 			let host = hosts.get(entry.key);
@@ -1761,7 +1779,7 @@ function createMarginProjection({ inventory, refreshInventory, renderAnnotations
 				hosts.set(entry.key, created);
 			}
 			const { marker, more } = host;
-			registerMarginRow(host, markerOptions(host, order));
+			registerMarginRow(host, markerOptions(host, rank++));
 			if (!host.isConnected) move(toolbar, host, pageInventory.slice(order + 1).map((later) => hosts.get(later.key)).find((later) => later?.parentElement === toolbar) ?? null);
 			host.lfEntry = entry;
 			host.lfTarget = targetFor(entry);
@@ -1811,7 +1829,7 @@ function createMarginProjection({ inventory, refreshInventory, renderAnnotations
 		if (room && railRoom === false) queueMicrotask(() => void returnToPage());
 		railRoom = room;
 		refreshHighlight();
-		scheduleMarginLayout();
+		tick(drawnMargin);
 		scheduleRoving();
 		scheduleMarginEntryLabels();
 		if (marginKeysAvailable !== pageInventory.length > 0) {

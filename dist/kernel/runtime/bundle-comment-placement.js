@@ -465,12 +465,42 @@ function mountMarginLayer(root, projection) {
 		lanes: /* @__PURE__ */ new Map(),
 		sizes: sizeObserver(layoutMarginRows)
 	};
+	faces.observe(projection, {
+		childList: true,
+		subtree: true,
+		attributes: true,
+		characterData: true
+	});
 	hearTargetChanges(document);
 	watchScrollEnds(placeCarriedRows);
 }
 function placeCarriedRows(box) {
 	if ([...carriers.values()].some((byAnchor) => [...byAnchor.keys()].some((anchor) => renderedUnder(anchorHolder(anchor), box))) && scrollMisplacesAnchors(box)) scheduleMarginLayout();
 }
+const seatedFaces = /* @__PURE__ */ new WeakMap();
+const restyled = /* @__PURE__ */ new Set();
+let faceCheck = 0;
+const faces = new MutationObserver((records) => {
+	for (const record of records) {
+		let row = record.target;
+		while (row && !(row instanceof HTMLElement && rows.has(row))) row = row.parentNode;
+		if (!(row instanceof HTMLElement)) continue;
+		if (record.type !== "attributes") scheduleMarginLayout();
+		else restyled.add(row);
+	}
+	if (!restyled.size || faceCheck) return;
+	faceCheck = nextRender(() => {
+		faceCheck = 0;
+		const changed = [...restyled].some((row) => {
+			const face = seatedFaces.get(row);
+			if (!face) return rows.has(row);
+			const { width, height } = row.getBoundingClientRect();
+			return width !== face.width || height !== face.height;
+		});
+		restyled.clear();
+		if (changed) layoutMarginRows();
+	});
+});
 const heard = /* @__PURE__ */ new WeakSet();
 function hearTargetChanges(root) {
 	if (heard.has(root)) return;
@@ -871,11 +901,27 @@ function observeLayout(column) {
 	observer.observe(observedColumn);
 }
 function registerMarginRow(row, options) {
+	const named = {
+		target: options.anchor(),
+		point: options.point?.() ?? null,
+		passage: options.passage?.() ?? null,
+		order: options.order
+	};
+	const was = registered.get(row);
 	rows.set(row, options);
+	registered.set(row, named);
+	if (was && was.target === named.target && was.point === named.point && was.order === named.order && samePassages(was.passage, named.passage)) return;
 	scheduleMarginLayout();
+}
+const registered = /* @__PURE__ */ new WeakMap();
+function samePassages(a, b) {
+	const [one, other] = [targetSegments(a), targetSegments(b)];
+	return one.length === other.length && one.every(({ node, start, end }, i) => other[i]?.node === node && other[i]?.start === start && other[i]?.end === end);
 }
 function unregisterMarginRow(row) {
 	rows.delete(row);
+	registered.delete(row);
+	restyled.delete(row);
 	anchors.delete(row);
 	pushes.delete(row);
 	folded.delete(row);
@@ -950,6 +996,7 @@ function layoutMarginRows() {
 	const mounted = layer;
 	if (!mounted) return;
 	layoutMountedRows(mounted);
+	faces.takeRecords();
 }
 function layoutMountedRows(layer) {
 	pass += 1;
@@ -1099,6 +1146,10 @@ function layoutMountedRows(layer) {
 	}
 	const placed = reads.filter(shownRead).map((read) => {
 		const box = read.row.getBoundingClientRect();
+		seatedFaces.set(read.row, {
+			width: box.width,
+			height: box.height
+		});
 		return {
 			key: read.row,
 			rect: {
@@ -2175,4 +2226,4 @@ function commentPlacement() {
 }
 
 //#endregion
-export { COMMENT_GAP, THREAD_CARD, cardMeasure, cardMinimum, commentAttachment, commentBoundary, commentPlacement, commentReference, floatingGeometry, floatingPlacement, floatingSelections, floatingUi, layoutMarginRows, makeRoom, marginColumn, marginSpot, mountMarginLayer, paintedBox, registerMarginRow, scheduleMarginEntryLabels, scheduleMarginLayout, standsFolded, standsWithheld, syncMarginContentLayout, unregisterMarginRow };
+export { COMMENT_GAP, THREAD_CARD, cardMeasure, cardMinimum, commentAttachment, commentBoundary, commentPlacement, commentReference, floatingGeometry, floatingPlacement, floatingSelections, floatingUi, layoutMarginRows, makeRoom, marginColumn, marginSpot, mountMarginLayer, paintedBox, registerMarginRow, scheduleMarginEntryLabels, standsFolded, standsWithheld, syncMarginContentLayout, unregisterMarginRow };

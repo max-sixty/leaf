@@ -17,11 +17,14 @@
  * it (geometry.js, `seenRect`, which takes away the box the chrome covers, so a control
  * beside the floating panel stays put) out to its margins, as far as the boxes between
  * it and its scroller let them show (`landable`), along each axis where it fits its
- * region, and it fills the region along one where it is longer, since a box taller than
- * the window that the user sees only part of still comes in as far as it fits. Its
- * edges are compared at layout precision (keeps.js, `atLayoutPrecision`): a
- * box a landing put flush at an edge reads back a float's rounding past it in Firefox,
- * and a reading that counted it unseen would land it again and enter travel's history.
+ * room, and it shows as much as the room holds along one where it is longer, since a box
+ * taller than the window that the user sees only part of still comes in as far as it
+ * fits. The room is what a landing could give it (`roomOf`), not what the boxes around
+ * it show where they stand now: a box a pane holds whole, with the pane's foot below the
+ * window, is not yet shown. Its edges are compared at layout precision (keeps.js,
+ * `atLayoutPrecision`): a box a landing put flush at an edge reads back a float's
+ * rounding past it in Firefox, and a reading that counted it unseen would land it again
+ * and enter travel's history.
  * A box a motion under way is carrying (scrolling.js, `scrollGoal`) is shown only where
  * it is seen both where it stands and where that motion will leave it, as a key pressed
  * while the page moves acts as if the motion had landed: `Shift+m` just after `m` finds
@@ -89,6 +92,7 @@ import {
   placeHolder,
   scrollContainer,
   seenRect,
+  shownBand,
   visualViewport,
 } from "./geometry.js";
 import { atLayoutPrecision } from "./keeps.js";
@@ -147,9 +151,11 @@ function marginBox(shown, where) {
 
 // The boxes a landing scrolls to show `where`, from the nearest out to `within`, this
 // document's scroller or a fixed box. A Range starts at the element holding it, which
-// may scroll it, and an element at its parent.
+// may scroll it, and an element at its parent; a fixed element stands still while every
+// box around it scrolls, so none of them shows it.
 /** @param {Destination} where @param {Element | null} [within] */
 function* scrollingBoxes(where, within = null) {
+  if (!(where instanceof Range) && getComputedStyle(where).position === "fixed") return;
   for (
     let box = where instanceof Range ? placeHolder(where) : renderedParent(where);
     box instanceof Element;
@@ -165,29 +171,27 @@ function* scrollingBoxes(where, within = null) {
   }
 }
 
-// The region a landing can show `where` in: the landing band of every box that scrolls
-// it, within the visible viewport.
+// The room a landing has for `where`: on each axis, the least of the visible viewport
+// and the landing band of every box that scrolls it, or null where one has none. Each
+// box can move the ones inside it, so the room is the bands' sizes rather than their
+// overlap where they stand now: a box whole in a pane whose foot is below the window
+// fits the pane, which the page can bring up.
 /** @param {Destination} where */
-function regionOf(where) {
-  const { offsetLeft, offsetTop, width, height } = visualViewport;
-  let region = {
-    left: offsetLeft,
-    top: offsetTop,
-    right: offsetLeft + width,
-    bottom: offsetTop + height,
-  };
+function roomOf(where) {
+  let { width, height } = visualViewport;
   for (const box of scrollingBoxes(where)) {
     const band = landingBand(box);
-    if (band) region = intersect(region, band);
+    if (!band) continue;
+    width = Math.min(width, band.right - band.left);
+    height = Math.min(height, band.bottom - band.top);
   }
-  return hasArea(region) ? region : null;
+  return width > 0 && height > 0 ? { width, height } : null;
 }
 
-/** @param {DOMRect} box @param {Box | null} region */
-const fits = (box, region) =>
-  region !== null &&
-  box.height <= region.bottom - region.top &&
-  box.width <= region.right - region.left;
+/** @typedef {{width: number, height: number}} Room */
+/** @param {DOMRect} box @param {Room | null} room */
+const fits = (box, room) =>
+  room !== null && box.height <= room.height && box.width <= room.width;
 
 // The element a landing shows of `where` (see the header): the box wearing its ring
 // where that box fits the region, and otherwise `where` itself. The fit is the box's
@@ -197,43 +201,34 @@ const fits = (box, region) =>
 /** @param {Destination} where @returns {Destination} */
 function shownFor(where) {
   const ring = ringBox(where);
-  return ring === where || !fits(placeBox(ring), regionOf(ring)) ? where : ring;
+  return ring === where || !fits(placeBox(ring), roomOf(ring)) ? where : ring;
 }
 
-// The room a landing has for `where`, as a width and a height.
+// The room a landing has for `where`, as a width and a height (`roomOf`).
 /** @param {Destination} where */
 export function landingRoom(where) {
-  const region = regionOf(shownFor(where));
-  return region
-    ? { width: region.right - region.left, height: region.bottom - region.top }
-    : { width: 0, height: 0 };
+  return roomOf(shownFor(where)) ?? { width: 0, height: 0 };
 }
 
 // Whether `where` and its margins fit the room a landing has for it.
 /** @param {Destination} where */
 export function fitsWhole(where) {
   const shown = shownFor(where);
-  return fits(marginBox(shown, where), regionOf(shown));
+  return fits(marginBox(shown, where), roomOf(shown));
 }
 
 // Whether `seen`, what the user sees of the margin box `box`, covers it along each axis
-// where it fits `region`, and the whole region along one where it is longer (see the
+// where it fits `room`, and spans the room along one where it is longer (see the
 // header).
-/** @param {Box} seen @param {Box} box @param {Box} region */
-function seesWhole(seen, box, region) {
-  /** @param {"top" | "left"} start @param {"bottom" | "right"} end */
-  const along = (start, end) => {
-    const fill =
-      atLayoutPrecision(box[end] - box[start]) >
-      atLayoutPrecision(region[end] - region[start]);
-    const from = fill ? region[start] : box[start];
-    const to = fill ? region[end] : box[end];
-    return (
-      atLayoutPrecision(seen[start]) <= atLayoutPrecision(from) &&
-      atLayoutPrecision(seen[end]) >= atLayoutPrecision(to)
-    );
-  };
-  return along("top", "bottom") && along("left", "right");
+/** @param {Box} seen @param {Box} box @param {Room} room */
+function seesWhole(seen, box, room) {
+  /** @param {"top" | "left"} start @param {"bottom" | "right"} end @param {number} size */
+  const along = (start, end, size) =>
+    atLayoutPrecision(box[end] - box[start]) > atLayoutPrecision(size)
+      ? atLayoutPrecision(seen[end] - seen[start]) >= atLayoutPrecision(size)
+      : atLayoutPrecision(seen[start]) <= atLayoutPrecision(box[start]) &&
+        atLayoutPrecision(seen[end]) >= atLayoutPrecision(box[end]);
+  return along("top", "bottom", room.height) && along("left", "right", room.width);
 }
 
 // What of `box` a landing can show: all of it but what the boxes between `shown` and the
@@ -280,12 +275,12 @@ function seenAhead(shown, seen) {
 /** @param {Destination} where */
 export function alreadyShown(where) {
   const shown = shownFor(where);
-  const region = regionOf(shown);
+  const room = roomOf(shown);
   const box = marginBox(shown, where);
   const seen = seenRect(shown, new Map(), box);
-  if (!region || !seen) return false;
+  if (!room || !seen) return false;
   const want = landable(shown, box);
-  if (!seesWhole(seen, want, region)) return false;
+  if (!seesWhole(seen, want, room)) return false;
   const ahead = seenAhead(shown, seen);
   if (!ahead) return true;
   const { x, y } = ahead.carried;
@@ -299,7 +294,7 @@ export function alreadyShown(where) {
         right: want.right - x,
         bottom: want.bottom - y,
       },
-      region,
+      room,
     ),
   );
 }
@@ -349,7 +344,10 @@ const revealBy = (start, end, low, high, block) =>
 // The moves a landing makes (see the header), box by box from `shown` out to `within`
 // and before `until`: the destination's own reading region puts `where`'s margin box
 // around `shown` at `block` in its landing band, and every other box reveals it there,
-// each across at the nearest edge, as far as the box can scroll along its own axes.
+// each across at the nearest edge, as far as the box can scroll along its own axes. A
+// box reveals what the boxes inside it will show of the destination, through their
+// clips rather than their landing bands, so the page brings up the pane a tall item
+// fills rather than the item's far end.
 // `moved` is how far they carry the destination in the window together, so the move and
 // its prediction (`landedBox`) are one reading.
 /** @param {Destination} shown @param {Destination} where @param {ScrollLogicalPosition} block
@@ -363,15 +361,30 @@ function movesOf(
   /** @type {Move[]} */
   const moves = [];
   const moved = { x: 0, y: 0 };
+  const core = placeBox(shown);
   const rect = marginBox(shown, where);
   const owner = within ? null : (scrollersOf(placeHolder(shown)).next().value ?? null);
   let around = false;
+  /** @type {Box | null} */
+  let inside = null;
   for (const box of scrollingBoxes(shown, within)) {
     if (box === until) break;
     const band = landingBand(box);
     if (band) {
-      const [left, top] = [rect.left - moved.x, rect.top - moved.y];
-      const [right, bottom] = [left + rect.width, top + rect.height];
+      // What the boxes inside this one will show of the destination, out to its
+      // margins, which are room to leave rather than part of what they clip.
+      const at = {
+        left: core.left - moved.x,
+        top: core.top - moved.y,
+        right: core.right - moved.x,
+        bottom: core.bottom - moved.y,
+      };
+      const cut = inside && intersect(at, inside);
+      const seen = cut && hasArea(cut) ? cut : at;
+      const left = seen.left - (core.left - rect.left);
+      const top = seen.top - (core.top - rect.top);
+      const right = seen.right + (rect.right - core.right);
+      const bottom = seen.bottom + (rect.bottom - core.bottom);
       const axes = scrollAxes(box);
       const across = sideways ? nearestScrollBy(left, right, band.left, band.right) : 0;
       const down =
@@ -389,6 +402,8 @@ function movesOf(
         moved.x += by.left * axes.x.x + by.top * axes.y.x;
         moved.y += by.left * axes.x.y + by.top * axes.y.y;
       }
+      const clip = shownBand(box);
+      if (clip) inside = inside ? intersect(inside, clip) : clip;
     }
     around ||= box === owner;
   }

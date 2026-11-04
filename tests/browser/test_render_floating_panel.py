@@ -2527,6 +2527,42 @@ def test_an_open_view_covers_the_page_beneath_it(browser, serve):
     assert whole
 
 
+def test_a_tab_into_a_popover_over_an_open_view_leaves_the_view_open(browser, serve):
+    """The top layer paints over the panel, so a popover standing over an open view is
+    in front of the user and the panel's cover takes none of it (geometry.js,
+    `covered`): a Tab's arrival there leaves the view open, as it does a stop the view
+    stands clear of."""
+    popover = (
+        '<div id="pop" popover="manual" style="position:fixed;inset:auto 0 120px 0;'
+        'margin:0 auto;width:360px"><button id="in-pop">Inside</button></div></main>'
+    )
+    page = floating(
+        browser, serve(LONG_PAGE.replace("</main>", popover, 1), comments=12)
+    )
+    open_threads(page)
+    expect(page.locator(".lf-fp-thread")).to_have_count(12)
+    settled(page)
+    reading = page.evaluate(
+        """async () => {
+          const {seenRect} = await window.__lfCheckApi();
+          const {focusDestination} = await window.__lfWidgetApi();
+          document.querySelector('#pop').showPopover();
+          const button = document.querySelector('#in-pop');
+          const view = document.querySelector('.lf-fp-view').getBoundingClientRect();
+          const box = button.getBoundingClientRect();
+          focusDestination(button, 'step');
+          const seen = seenRect(button, new Map());
+          return {over: box.top < view.bottom && box.bottom > view.top
+                    && box.left < view.right && box.right > view.left,
+                  whole: Boolean(seen) && seen.bottom - seen.top >= box.height - 0.5};
+        }"""
+    )
+    assert reading == {"over": True, "whole": True}
+    expect(page.locator("#in-pop")).to_be_focused()
+    rendered(page)
+    expect(page.locator(".lf-fp-view:not([data-lf-leaving])")).to_have_count(1)
+
+
 def test_a_page_s_own_conversation_reader_takes_the_panel_s_threads(browser, serve):
     """A package that draws the page's conversations itself keeps that place under the
     panel (application.js, `registerThreadPresentation`, `yields`): the page starts

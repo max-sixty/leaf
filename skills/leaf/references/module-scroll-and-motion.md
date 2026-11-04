@@ -104,12 +104,16 @@ reading in and redraws, for a "Show new" control, and `release()` lets the next 
 ### Scrolling to a destination
 
 To take the user somewhere, call `scrollIntoView(target, {block, behavior})`, where
-`target` is an element or a Range, which places it at `block` in every box that
-scrolls it, and at the nearest edge sideways, as native `Element.scrollIntoView` does;
-`block` defaults to `start`. A `nearest` landing moves nothing where the target is
-already shown: the user sees all of it where it fits, and it fills the view where it is
-longer. Pass `sideways: false` to align what the user is reading and keep their place
-across its lines. To bring an item into its own strip or list and leave the page where
+`target` is an element or a Range. It places the target at `block` in its own reading
+region, the box that scrolls it as the user reads, and every other box that scrolls
+it, inside or around that region, reveals it at the nearest edge, so a start landing in
+a bounded pane aligns it in the pane and moves the page only to show it; `block`
+defaults to `start`. Sideways, each box reveals it at the nearest edge. A `nearest`
+landing moves nothing where the target is already shown: the user sees all of it where
+it fits, and as much of it as the window holds where it is longer, which
+`alreadyShown(target)` answers for a widget deciding whether to land something else.
+Pass `sideways: false` to align what the user is reading and keep their place across
+its lines. To bring an item into its own strip or list and leave the page where
 it is, pass that box as `within`. Unlike native `Element.scrollIntoView`, it stays
 inside a live sample. Use it only for a deliberate move; focusing a visible control or
 redrawing keeps the scroll.

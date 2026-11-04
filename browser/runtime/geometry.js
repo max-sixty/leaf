@@ -537,16 +537,24 @@ export function shownRect(item, clips) {
 export function seenRect(item, clips, box = placeBox(item)) {
   const holder = placeHolder(item);
   const shown = holder && clippedPlace(item, clips, box);
-  if (!shown) return null;
+  return holder && shown ? inFront(shown, holder) : null;
+}
+// What of `box`, already cut by every box clipping `item`, is in front of the user: its
+// part within the visible viewport's height, less the boxes the chrome covers
+// (`uncovered`), or null where none of it is. `seenRect` reads every item through it,
+// and a box with no element of its own, a search match's line, asks it directly
+// (key-badge-placement.js, `clearPart`).
+/** @param {Box} box @param {Node} item */
+export function inFront(box, item) {
   const { offsetTop, height } = visualViewport;
   return uncovered(
     {
-      left: shown.left,
-      top: Math.max(shown.top, offsetTop),
-      right: shown.right,
-      bottom: Math.min(shown.bottom, offsetTop + height),
+      left: box.left,
+      top: Math.max(box.top, offsetTop),
+      right: box.right,
+      bottom: Math.min(box.bottom, offsetTop + height),
     },
-    holder,
+    item,
   );
 }
 // What of `box` the boxes the chrome covers leave (`coverBoxes`), but for one holding
@@ -562,6 +570,14 @@ function uncovered({ left, top, right, bottom }, item) {
     else top = over.bottom;
   }
   return bottom > top ? { left, top, right, bottom } : null;
+}
+// Whether the boxes the chrome covers stand over any of `box` for `item`, by the rule
+// `seenRect` cuts with: a surface asks it before giving way to a place it would stand
+// over (floating-panel.js, `clearFor`).
+/** @param {Box} box @param {Node} item */
+export function covered(box, item) {
+  const left = uncovered(box, item);
+  return !left || left.top > box.top || left.bottom < box.bottom;
 }
 // Whether the page draws `node` with what it holds: rendered (`checkVisibility`, with its
 // `options`) and not hidden until found. An element `hidden="until-found"` keeps a box

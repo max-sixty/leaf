@@ -18,11 +18,18 @@
    held clear of the same room by `clearBox` and tested by the same `exposes`, so both maps
    promise the user the same thing by "visible". `clearPart` answers for a box with no
    element of its own and is the one reading that does subtract the chrome at the foot,
-   because what it measures is drawn where it stands rather than moved somewhere legible. */
+   because what it measures is drawn where it stands rather than moved somewhere legible:
+   it reads what the user sees of it as every reading of what is seen does (geometry.js,
+   `inFront`, the rule `seenRect` cuts with), so a search match in the band an open panel
+   view covers is out of sight there, its part beside the view included. Where a chip may
+   stand is a different question, answered by the boxes it keeps clear of whole
+   (`reserve`, `paint`): a chip can move somewhere legible, so it keeps off every pixel of
+   the chrome, the side of a view included. */
 import { closestAcross, elementFromPointAcross, inChrome } from "../passages.js";
 import { PRESSES } from "../control-selectors.js";
 import {
   coverBoxes,
+  inFront,
   layoutWindow,
   shownParts,
   shownRect,
@@ -74,60 +81,6 @@ export function keyBadgePlacement() {
     return rect(left, top, right, bottom, sourceTop);
   };
 
-  // The same, less the boxes chrome paints over the page: each blocker divides a box
-  // crossing it into the space above, below, before, or after it, and the largest part
-  // wins. This is for a search mark, which unlike a chip cannot be moved somewhere legible,
-  // because where it is drawn is what it says. A blocker is its own rectangle here; taking
-  // the lane below it as well would take the gutter with it. The chip pass does reserve
-  // that lane (`lineBand`, hints.js), having somewhere else to put the chip.
-  /** @param {Box} box @param {number} sourceTop */
-  function clearOfChrome(box, sourceTop) {
-    const shown = clearBox(box, sourceTop);
-    if (!shown) return null;
-    return (
-      chrome
-        .reduce(
-          (available, blocker) =>
-            available.flatMap((part) =>
-              overlaps(part, blocker)
-                ? [
-                    rect(
-                      part.left,
-                      part.top,
-                      part.right,
-                      Math.min(part.bottom, blocker.top),
-                      sourceTop,
-                    ),
-                    rect(
-                      part.left,
-                      part.top,
-                      Math.min(part.right, blocker.left),
-                      part.bottom,
-                      sourceTop,
-                    ),
-                    rect(
-                      Math.max(part.left, blocker.right),
-                      part.top,
-                      part.right,
-                      part.bottom,
-                      sourceTop,
-                    ),
-                    rect(
-                      part.left,
-                      Math.max(part.top, blocker.bottom),
-                      part.right,
-                      part.bottom,
-                      sourceTop,
-                    ),
-                  ].filter((part) => part !== null)
-                : [part],
-            ),
-          [shown],
-        )
-        .sort((a, b) => b.width * b.height - a.width * a.height)[0] ?? null
-    );
-  }
-
   // Where a member begins, held clear of chrome: the corner a badge hangs off, which for
   // an inline run that wraps is not the middle of its bounds.
   /** @param {Element} item */
@@ -139,10 +92,14 @@ export function keyBadgePlacement() {
   // Range rather than from an element.
   /** @param {Element} item */
   const clipOver = (item) => shownRect(item, clips);
-  // A box with no element of its own, through the clip over the element that owns it.
-  /** @param {Box | null} box @param {Box | null} clip */
-  const clearPart = (box, clip) =>
-    box && clip ? clearOfChrome(intersect(box, clip), box.top) : null;
+  // What the user sees of a box with no element of its own, through the clip over the
+  // element that owns it (`clipOver`), the window and the chrome's covers (see the
+  // header).
+  /** @param {Box | null} box @param {Box | null} clip @param {Element} owner */
+  const clearPart = (box, clip, owner) => {
+    const seen = box && clip && inFront(intersect(box, clip), owner);
+    return seen && rect(seen.left, seen.top, seen.right, seen.bottom, box.top);
+  };
 
   // Whether the user can see what this box was measured from. Geometry cannot answer it:
   // a panel, a fixed sheet or an ordinary page box covers a member without clipping

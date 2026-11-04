@@ -321,7 +321,13 @@ import {
   scrollToEnd,
 } from "./scrolling.js";
 import { showReturnTurn } from "./thread/reply-landing.js";
-import { announceRoom, declareCover, placeBox, placeHolder } from "./geometry.js";
+import {
+  announceRoom,
+  covered,
+  declareCover,
+  placeBox,
+  placeHolder,
+} from "./geometry.js";
 import { overlaps } from "./rect.js";
 import { registerReadingRegion } from "./reading-regions.js";
 import { sectionsInView } from "./reading-place.js";
@@ -757,11 +763,6 @@ export function createFloatingPanel({
     pointer = null;
     readCorner();
   });
-  // The box stands over the window's foot, the row and any view open above it: what it
-  // covers reads as unseen (geometry.js, `declareCover`), and a landing stands clear of
-  // its reach (`--lf-panel-reach`, `followBox`).
-  declareCover(host, () => card.getBoundingClientRect());
-
   const leaf = shell("leaf");
   const field = shell("field");
   const editorSeat = shell("editors");
@@ -1724,6 +1725,12 @@ export function createFloatingPanel({
   // The ground stands beside the panel rather than in it, so it carries the panel's
   // part too, and the tokens a theme sets there colour both.
   ground.setAttribute("part", "panel");
+  // The box stands over the window's foot, the row and any view open above it: what it
+  // covers reads as unseen (geometry.js, `declareCover`), and a landing stands clear of
+  // its reach (`--lf-panel-reach`, `followBox`). It covers where its surface is drawn
+  // (box-motion.js, `outline`): while the box moves, the card stands transparent at its
+  // rest and the surface carries the panel from where it stood.
+  declareCover(host, () => following.outline());
   // A send is the user's change joining the stream the box shows (box-motion.js,
   // "send"): the box reads where that stream stands before the send draws, and the
   // readings until the send's rendering settles carry it from there on the box's own
@@ -5014,22 +5021,26 @@ export function createFloatingPanel({
   // Travel to a place on the page (anchor-travel.js, `arrive`) shows it, so the view
   // open above the row gives way where it would stand over any of that place once
   // landed (`landed`, landing-scroll.js `landedBox`), as it gives way to a press on the
-  // page: a long thread's view covers most of the window, and a place at the page's foot
-  // can't be scrolled above even a short one. A view the landing clears stays, so a link
-  // followed from a thread's view leaves the thread open for Back to return to. On me
-  // stays too where it lists the item travel lands on (`onMe.lists`), since its card
-  // shows that item, ringed where the `m` walk reached it (`walkedStop`); a thread On me
-  // doesn't list, as `t` reaches, has no card there. A Tab onto a page stop the view
-  // would stand over clears it the same way, since the ring the user follows would stand
-  // under it. What the panel holds is its own to show, and the row stays either way.
+  // page: a long thread's view covers most of the window, and a place at the page's
+  // foot can't be scrolled above even a short one. A view the landing clears stays, so
+  // a link followed from a thread's view leaves the thread open for Back to return to.
+  // On me stays too where it lists the item travel lands on (`onMe.lists`), since its
+  // card shows that item, ringed where the `m` walk reached it (`walkedStop`); a thread
+  // On me doesn't list, as `t` reaches, has no card there. A Tab onto a page stop the
+  // view would stand over clears it the same way, since the ring the user follows would
+  // stand under it. Whether the panel stands over the place at all is its cover's
+  // answer, by the rule every reading of what the user sees takes (geometry.js,
+  // `covered`), so a place in the top layer or the panel's own is never under it; the
+  // view gives way only where it is the part that does, and the row stays either way.
   /** @param {Element | Range} where @param {DOMRect | null} landed */
   const standsOver = (where, landed) => {
     const holder = placeHolder(where);
+    const box = landed ?? placeBox(where);
     return Boolean(
       trail.value.length &&
       holder &&
-      !under(holder, host) &&
-      overlaps(landed ?? placeBox(where), opened.getBoundingClientRect()),
+      covered(box, holder) &&
+      overlaps(box, opened.getBoundingClientRect()),
     );
   };
   /** @type {import("./anchor-travel.js").TravelOptions["clearFor"]} */

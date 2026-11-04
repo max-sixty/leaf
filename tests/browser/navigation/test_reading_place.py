@@ -1226,6 +1226,58 @@ def test_a_box_is_already_shown_where_a_nearest_landing_would_move_nothing(
     assert reading["top"] == pytest.approx(reading["band"], abs=1), reading
 
 
+def test_a_box_whole_in_a_pane_below_the_window_is_not_yet_shown(browser, serve):
+    """The room a box has is what a landing could give it, not what the boxes around it
+    show where they stand now: a 250px box a 300px pane holds whole, the pane's foot
+    below the window, fits the pane, so it is not yet shown, and a nearest landing
+    brings the page up until all of it is."""
+    source = leaf_page(
+        "Room in a pane",
+        '<div style="height:1200px"></div>'
+        '<div id="pane" style="height:300px;overflow:auto">'
+        '<div id="box" style="height:250px"></div><div style="height:600px"></div>'
+        '</div><div style="height:1600px"></div>',
+    )
+    page = open_page(browser, serve(source))
+    page.set_viewport_size({"width": 1280, "height": 900})
+    reading = page.evaluate("""async () => {
+      const {alreadyShown, landingBand} = await window.__lfCheckApi();
+      const {scrollIntoView} = await window.__lfWidgetApi();
+      const pane = document.querySelector('#pane');
+      const box = document.querySelector('#box');
+      scrollBy({top: pane.getBoundingClientRect().top - (innerHeight - 200),
+                behavior: 'instant'});
+      const before = {shown: alreadyShown(box), bottom: box.getBoundingClientRect().bottom};
+      scrollIntoView(box, {block: 'nearest', behavior: 'instant'});
+      return {before, after: alreadyShown(box), bottom: box.getBoundingClientRect().bottom,
+              band: landingBand(document.scrollingElement).bottom};
+    }""")
+    assert reading["before"]["bottom"] > reading["band"], reading
+    assert reading["before"]["shown"] is False, reading
+    assert reading["bottom"] <= reading["band"] + 1, reading
+    assert reading["after"] is True, reading
+
+
+def test_a_landing_on_a_fixed_box_moves_nothing_around_it(browser, serve):
+    """A fixed box stands still while every box around it scrolls, so a landing on one
+    the window doesn't show, as a Tab's arrival makes, moves none of them."""
+    source = leaf_page(
+        "A fixed box",
+        '<button id="fixed" style="position:fixed;left:20px;top:1200px">Fixed</button>'
+        '<div style="height:3000px"></div>',
+    )
+    page = open_page(browser, serve(source))
+    page.set_viewport_size({"width": 1280, "height": 900})
+    reading = page.evaluate("""async () => {
+      const {scrollIntoView} = await window.__lfWidgetApi();
+      scrollTo({top: 100, behavior: 'instant'});
+      const fixed = document.querySelector('#fixed');
+      scrollIntoView(fixed, {block: 'nearest', behavior: 'instant'});
+      return scrollY;
+    }""")
+    assert reading == 100
+
+
 def test_align_current_tall_block_reveals_its_opening_through_outer_scrollers(
     browser, serve
 ):

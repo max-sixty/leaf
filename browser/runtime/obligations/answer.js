@@ -4,7 +4,6 @@
 import { widgetWord } from "../addressable-names.js";
 import { closestAcross, elementById } from "../passages.js";
 import { tagsDeclaring } from "../registry.js";
-import { widgetElement } from "../widget-descriptors.js";
 import { answeredInWords } from "./model.js";
 import { leafSays } from "../voice.js";
 import { hasObligationSource } from "./source.js";
@@ -34,9 +33,7 @@ export function answerWords(item) {
   if (answeredInWords(item))
     return item.answer.value.text ?? item.answer.value.token ?? "";
   if (!hasObligationSource(item, "widget")) return "";
-  // PROTOTYPE (#4, design B): a widget a closed thread's message holds is its frozen
-  // markup, which still names its options.
-  const source = widgetElement(item.source.id);
+  const source = elementById(item.source.id);
   const formatter = customElements.get(item.source.tag)?.answerWords;
   return String(source && formatter ? formatter(item.answer.value, source) : "")
     .replace(/\s+/g, " ")

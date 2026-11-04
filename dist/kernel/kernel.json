@@ -192,7 +192,7 @@
 
     "runtime/file-api.js": "f3b92db21e51b8e6537c73e015c63e388234e8d1be210e60ebcb48015ca46eae",
 
-    "runtime/floating-panel.js": "ef4073329eab1b798590442adac863556c115f0398bdd0a58e769be3605aeee4",
+    "runtime/floating-panel.js": "0a96dac113bcea11aed61bba791b8242f148ff51afa8e7cac28482850f60487f",
 
     "runtime/focus.js": "4ce1d8d253d0651bf8e3181dfc821011a5b3ee24d692cc9ab8a3a69364a96345",
 
@@ -306,7 +306,7 @@
 
     "runtime/notifications.js": "d42f075562ef0e67939c021a1154aed35ea5beb7e1d67a15c864eb4889cc5994",
 
-    "runtime/obligations/answer.js": "dd00489c64c232e8265fd85d3623ef9fa6a70d3cd2a0be69b69ce5b3b5420c49",
+    "runtime/obligations/answer.js": "c90a9dc45657a0686f05010ff618278a12d1d8164e385567578ce30851fbb61b",
 
     "runtime/obligations/model.js": "c9f92b4c07e39bc6e55c3046a3016a38098275554f71fcc8a8a3b25559448166",
 

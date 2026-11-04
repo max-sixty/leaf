@@ -4,7 +4,6 @@ import { reportPageError, setRuntimeRootStyle, uploadMedia } from "./runtime/bun
 import { ADDRESSABLE, PAGE_CONTROL_RANK, PRESENTATION, UPGRADE, addressableLabel, addressableSays, addressableWord, afterPresentation, ago, aimTargetAt, aimTargets, anchorFor, anchoringIsReady, annotationAt, chromeForeground, chromeRoot, designPressAt, effectiveScroller, exactTarget, fragmentTarget, holdArrivingBounds, isAddressable, lightSeat, livePoint, markPagePresented, markPageUpgraded, openDocumentLayout, pageControls, pageControlsChanged, pageReadiness, placePoints, pointInto, railStands, reachScrollers, readingRegionFor, registerPageControl, registerReadingRegion, resolveAnchor, resolvedInMessage, revealAddressed, scrollChainOf, scrollerFor, sectionLabel, sectionOf, setAnchoringReady, settlePageInterface, shortAgo, targetElement, targetParts, targetPlace, targetRange, targetSegments, unclaimedVisualGesture, userReadingRegion, visualAt, visualParts, visualSelector, whenArrived } from "./runtime/bundle-content-layout.js";
 import { activeCommandLabel, annotationMarkSheets, annotationSheets, answerCloseRequest, availableCommandRoutes, chromeSheet, dispatchKey, escapeTakesAStep, executeCommand, innermostStance, invokePress, keyReady, marksSheet, onSampleNotice, registerSampleCommand, restoreUserView, sampleNotice, userIn } from "./runtime/bundle-restore-state.js";
 import { LEAF_SURFACE, authoredScope, blockAt, contextAround, elementById, elementFromPointAcross, elementOver, excerptWords, findText, inPage, leafSurface, pageDocument, pageParts, pageQueryAll, pageReadingVersion, pageText, pageWords, quoteFrom, rangeOf, says, segmentBlock, showsWords, watchPassageRoot } from "./runtime/bundle-passages.js";
-import { widgetElement } from "./runtime/bundle-abort.js";
 import { DESIGN_MODE_KEY, ELEMENTS, OBLIGATION_CONTROL, ON_CARD, PAGE_DRAFT, RESOLVED, THREAD, acceptData, allButCommandReference, allThreads, anchorLabel, answeredInWords, bringBackSurfaceOf, claimTraversals, commandSteps, comparisonBase, comparisonChanges, copyControl, createAnchorTravel, createPassageSelection, createRewriteRestore, createVersionController, createWritingResume, currentLocationOrigin, currentLocationThreadId, declareSide, declareThreadParts, designName, dismissReply, draftHasContent, drawnThreadId, focusScrolledAway, focusedThreadTarget, followBoxGrowth, gesturedOn, heldObligation, heldPagePlace, heldThread, holdPagePlace, initializeServedDocument, isExternalPageLink, landingPlace, leftThePage, loadDraft, messageHolding, messageReading, messageText, mirrorDraft, mountHistory, newsCount, newsNotice, notifyDataSubscribers, obligationEntry, obligationHolding, obligationPlace, obligationsIn, onReadingInterrupted, pageCommand, pageDoor, pageRung, pageScope, pageScopes, pageSelection, paintCoreControls, placeKeeper, placeOf, prepareDocument, quoteReading, readBoxPlace, readObligations, readPlace, readThreads, readingBlock, readingIsContinuous, releaseReplies, rememberWriting, replaceEntry, replyCompositionHasDraft, replyContext, replyDraftContext, replyDraftsHold, returnPlace, rowWalk, saveDraft, scrollThreadIntoView, sectionsInView, selectionAnchor, sendMessage, settleThread, showHeld, showReturnTurn, snapSelection, stepFrom, subjectPlace, takeInitialDocument, tellDraft, threadAttention, threadHeading, threadIn, threadList, threadName, threadNamed, threadTodos, titlePending, todoWord, touchPresses, upgradeWidgets, userChoice, versionPicker, versionsReading, walkOrigin, workflowStep, workflowWord } from "./runtime/bundle-data.js";
 import { DRAWING_COORDINATE_LIMIT, KINDS, MAX_DRAWING_FRAME_DEPTH, MAX_DRAWING_POINTS, MAX_DRAWING_SAYS_LENGTH, MAX_DRAWING_STROKES, annotationItems, beginRead, clearContributionControls, composerOpen, composerQuote, contributionHost, contributionItemKey, contributionReceipts, createPageLayout, createReactionController, createSelectionComposer, createThreadLanding, currentLocationThread, declareThreadKeys, entryControls, fabBar, fabInput, fabOptionsTrigger, inPageOrder, leavesBox, marginBarLayer, mountApplication, obligationEnding, obligationWord, ownedObligationControl, paintBarReactions, paintSet, partOver, pendingAbout, pendingAnchor, pendingDrawing, queueItemKey, queueTitle, reactionAvailable, reactionTokens, readPlan, readQueues, registerContribution, sendReaction, spokenSubject, textField, threadInput, visibleContributionEntryLabel } from "./runtime/bundle-page-layout.js";
 import { mediaViewer, readAttachedMedia, scopedMediaUrl, writeAttachedMedia } from "./runtime/media.js";
@@ -6026,7 +6025,6 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 	let query = "";
 	let searching = false;
 	const unfolded = /* @__PURE__ */ new Set();
-	const foldedGroups = /* @__PURE__ */ new Set();
 	let pageSearch = null;
 	const threadSearchInput = (() => {
 		const input = host.querySelector("input.lf-fp-search");
@@ -6507,7 +6505,6 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		trail.value = [];
 		searching = false;
 		unfolded.clear();
-		foldedGroups.clear();
 		transition(before, { handedOn });
 	}
 	function putAwayThen(run) {
@@ -7112,18 +7109,16 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
       ><span class="lf-fp-news-outlet">${joinedNotice.node}</span></span
     >`;
 	}
-	function settledHeading(key, title, count, startsOpen = false) {
-		const toggled = startsOpen ? foldedGroups : unfolded;
-		const open = toggled.has(key) !== startsOpen;
+	function settledHeading(key, title, count) {
+		const open = unfolded.has(key);
 		return html`<h3 class="lf-rows-head">
       <button
         type="button"
         ${offeredAction("row", "lf-fp-settled lf-disclosure-marker")}
         aria-expanded=${open ? "true" : "false"}
-        ?data-starts-open=${startsOpen}
         @click=${() => {
-			if (toggled.has(key)) toggled.delete(key);
-			else toggled.add(key);
+			if (open) unfolded.delete(key);
+			else unfolded.add(key);
 			refit();
 			paint();
 		}}
@@ -7345,53 +7340,6 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		const view = shownView();
 		if (view && trail.value.at(-1)?.view === "queue") moveScrollerBy(view, -view.scrollTop);
 	}
-	const marked = (name) => document.querySelector(`[${name}]`) !== null;
-	const candidateOf = (name, today) => marked("data-onme-today") ? today : document.documentElement.getAttribute(`data-playground-${name}`) ?? today;
-	const foldsDone = () => candidateOf("groups", "today") !== "today" || candidateOf("done", "cards") === "fold";
-	const foldsPage = () => candidateOf("where", "cards") === "page";
-	const pageWidgetOf = (item) => {
-		const record = item && carriesObligation(item) ? item.obligation : null;
-		if (record?.source.kind !== "widget" || record.message) return null;
-		const node = obligationPlace(record).node;
-		const main = document.querySelector("main");
-		return node?.isConnected && main?.contains(node) ? node : null;
-	};
-	let folded = [];
-	function foldPage() {
-		const wanted = foldsPage() && showing({ view: "queue" }) && queueTab === "you" ? queueLists().you.map(pageWidgetOf).filter(Boolean) : [];
-		const main = document.querySelector("main");
-		const holding = new Set(wanted.map((node) => {
-			let at = node;
-			while (at.parentElement && at.parentElement !== main) at = at.parentElement;
-			return at;
-		}));
-		const next = wanted.length ? [...main?.children ?? []].filter((block) => !holding.has(block) && !block.matches("hgroup, header, h1")) : [];
-		host.toggleAttribute("data-onme-side", candidateOf("opens", "foot") === "side" && showing({ view: "queue" }) && queueTab === "you");
-		const groupsHeld = candidateOf("groups", "today");
-		if (groupsHeld === "today") host.removeAttribute("data-onme-groups");
-		else host.setAttribute("data-onme-groups", groupsHeld);
-		if (next.length === folded.length && next.every((block, at) => block === folded[at])) return;
-		for (const block of folded) block.removeAttribute("hidden");
-		for (const block of next) block.setAttribute("hidden", "until-found");
-		folded = next;
-	}
-	let openedAtStart = false;
-	function openAtStart() {
-		if (openedAtStart || !marked("data-onme-open")) return;
-		if (readQueues().phase !== "ready" || !onUserCount()) return;
-		openedAtStart = true;
-		open({ view: "queue" }, { focus: false });
-	}
-	const expandedMessages = /* @__PURE__ */ new Set();
-	new MutationObserver(() => {
-		if (showing({ view: "queue" })) paint();
-	}).observe(document.documentElement, { attributes: true });
-	function ownCard(record) {
-		if (record.source.kind !== "widget") return null;
-		const element = widgetElement(record.source.id);
-		const draw = customElements.get(record.source.tag)?.card;
-		return element && draw ? draw(element, { pressed: () => paint() }) ?? null : null;
-	}
 	function openOnMe() {
 		if (chooseQueueTab("you") && showing({ view: "queue" })) paint();
 		else open({ view: "queue" });
@@ -7582,7 +7530,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		const record = carriesObligation(item) ? item.obligation : null;
 		const thread = item.thread ? threadByKey(item.thread) : null;
 		const inWords = record !== null && answeredInWords(record);
-		const asking = inWords && thread ? thread.msgs.find((candidate) => candidate.id === record.message) ?? null : null;
+		const asking = inWords && thread ? thread.msgs.find((candidate) => candidate.id === record.message) : null;
 		const message = asking && thread && presentation?.primary !== false ? {
 			thread,
 			reading: asking
@@ -7610,7 +7558,6 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		const heading = thread && title === threadName(thread) ? threadHeading(thread) : title;
 		const answered = record && record.status !== "open";
 		const choices = record && !answered && record.source.kind === "widget" && !inWords ? obligationView.choicesOf(record) : null;
-		const own = candidateOf("widget-card", "copied") === "parts" && record && !answered && record.source.kind === "widget" && !inWords ? ownCard(record) : null;
 		const gesture = answered ? answerGesture(record) : null;
 		const discuss = conversation ? html`<button
           type="button"
@@ -7658,8 +7605,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
               >
                 Reply
               </button>` : nothing}`;
-		} else if (own) answers = own;
-		else if (choices?.length) answers = html`${choices.map((choice) => {
+		} else if (choices?.length) answers = html`${choices.map((choice) => {
 			const press = () => {
 				choice.press();
 				paint();
@@ -7706,39 +7652,9 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		const key = queueItemKey(item);
 		const opened = opening.openItem === key;
 		const stop = queueStop(item);
-		const mine = item.owner === "user";
-		const kind = mine && list === "done" && foldsDone() ? "" : mine ? stop.noun : agentNoun(item);
+		const kind = item.owner === "user" ? stop.noun : agentNoun(item);
 		const where = says === "place" ? "" : onMe.place(item);
 		const walked = leads && queueTab === "you" && walkedStop() === stop.key;
-		const chosen_ = candidateOf("message", "whole");
-		const showing_ = chosen_;
-		const asked = (thread_, message_, carriedHere = false) => {
-			if (chosen_ === "title") return carriedHere ? html`<p class="lf-fp-prompt">${threadHeading(thread_)}</p>` : nothing;
-			const long = messageReading(message_, {
-				reactions: message_.reactions,
-				workflows: []
-			}).body.plainText.length > 320;
-			const at = `${key}:${message_.key}`;
-			const clamps = chosen_ === "clamp" && long;
-			const clamped = clamps && !expandedMessages.has(at);
-			return html`<div
-          class="lf-fp-asked lf-fp-outlet"
-          ?data-clamp=${clamped}
-          data-thread=${thread_.key}
-          data-message=${message_.key}
-        ></div>
-        ${clamps ? html`<button
-                type="button"
-                class="lf-fp-face lf-fp-quiet lf-fp-read-all"
-                @click=${() => {
-				if (expandedMessages.has(at)) expandedMessages.delete(at);
-				else expandedMessages.add(at);
-				paint();
-			}}
-              >
-                ${clamped ? "Read all" : "Read less"}
-              </button>` : nothing}`;
-		};
 		if (card) {
 			const about = [.../* @__PURE__ */ new Set([group, where])].filter(Boolean);
 			return html`<section
@@ -7750,15 +7666,19 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
         ?data-walked=${walked}
         style=${opening.seatHeights.has(key) ? `min-height: ${opening.seatHeights.get(key)}px` : ""}
       >
-        ${about.length ? html`<p class="lf-fp-on-place lf-rows-head">${about.join(" · ")}</p>` : nothing}${message ? html`${title ? html`<h3
-                      class=${showing_ === "title" ? "lf-fp-prompt" : "lf-fp-on-title"}
-                    >
-                      ${heading}
-                    </h3>` : nothing}
-              ${asked(message.thread, message.reading)}` : prompt ? html`<h3 class="lf-fp-on-title">${heading}</h3>
-                  <p class="lf-fp-prompt">${prompt}</p>` : html`<p class="lf-fp-prompt">${heading}</p>`}${carried.map(({ thread: where, message: carriedMessage }) => presentation?.primary !== false ? asked(where, carriedMessage, true) : html`<p class="lf-fp-prompt">
-                ${messageReading(carriedMessage, {
-				reactions: carriedMessage.reactions,
+        ${about.length ? html`<p class="lf-fp-on-place lf-rows-head">${about.join(" · ")}</p>` : nothing}${message ? html`${title ? html`<h3 class="lf-fp-on-title">${heading}</h3>` : nothing}
+                <div
+                  class="lf-fp-asked lf-fp-outlet"
+                  data-thread=${message.thread.key}
+                  data-message=${message.reading.key}
+                ></div>` : prompt ? html`<h3 class="lf-fp-on-title">${heading}</h3>
+                  <p class="lf-fp-prompt">${prompt}</p>` : html`<p class="lf-fp-prompt">${heading}</p>`}${carried.map(({ thread: where, message: asked }) => presentation?.primary !== false ? html`<div
+                class="lf-fp-asked lf-fp-outlet"
+                data-thread=${where.key}
+                data-message=${asked.key}
+              ></div>` : html`<p class="lf-fp-prompt">
+                ${messageReading(asked, {
+				reactions: asked.reactions,
 				workflows: []
 			}).body.plainText}
               </p>`)}
@@ -7815,8 +7735,6 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 	function groupedItems(groups, line) {
 		const rows = [];
 		let running = false;
-		const foldsEvery = candidateOf("fold", "no") === "yes";
-		const shut = (group) => group.folds ? !unfolded.has(String(group.key)) : group.headed !== false && foldsEvery && foldedGroups.has(group.key);
 		for (const group of groups) {
 			const headed = group.headed !== false;
 			if (rows.length && !headed && !running) rows.push({
@@ -7828,28 +7746,19 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 				key: group.key,
 				group
 			});
-			if (!shut(group)) for (const item of group.items) rows.push({
+			for (const item of group.items) rows.push({
 				key: queueItemKey(item),
 				item,
 				group
 			});
 		}
-		const heading = (group) => {
-			const count = group.count ?? group.items.length;
-			if (group.folds) return settledHeading(String(group.key), group.title, count);
-			if (foldsEvery) return settledHeading(group.key, group.title, count, true);
-			return html`<h3 class="lf-rows-head">
-        <span class="lf-fp-label">${group.title}</span
-        ><span class="lf-row-end">${count}</span>
-      </h3>`;
-		};
-		if (candidateOf("groups", "today") !== "today") return html`<div class="lf-fp-on-list lf-rows">
-        ${repeat(groups, (group) => group.key, (group) => html`<section class="lf-fp-on-group">
-              ${heading(group)}${shut(group) ? nothing : repeat(group.items, queueItemKey, (item) => line(item, group))}
-            </section>`)}
-      </div>`;
 		return html`<div class="lf-fp-on-list lf-rows">
-      ${repeat(rows, (row) => row.key, (row) => row.rule ? html`<hr class="lf-fp-rule lf-fp-on-rule" />` : row.item ? line(row.item, row.group) : heading(row.group))}
+      ${repeat(rows, (row) => row.key, (row) => row.rule ? html`<hr class="lf-fp-rule lf-fp-on-rule" />` : row.item ? line(row.item, row.group) : html`<h3 class="lf-rows-head">
+                  <span class="lf-fp-label">${row.group.title}</span
+                  ><span class="lf-row-end"
+                    >${row.group.count ?? row.group.items.length}</span
+                  >
+                </h3>`)}
     </div>`;
 	}
 	declareSide((node) => {
@@ -7891,27 +7800,21 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		seated = items;
 		const seatedKeys = new Set(items.map(queueItemKey));
 		const listOf = (item) => lists.you.some((current) => current === item) ? "you" : lists.agent.some((current) => current === item) ? "agent" : "done";
-		const onPage = foldsPage() ? items.filter((item) => pageWidgetOf(item)) : [];
-		const listed = items.filter((item) => !onPage.includes(item));
 		const grouping = onMe.grouping();
 		const says = grouping === "plan" ? null : grouping;
-		const held = new Set(listed.flatMap((item) => carrying.get(queueItemKey(item)) ?? []));
+		const held = new Set(items.flatMap((item) => carrying.get(queueItemKey(item)) ?? []));
 		const finished = lists.done.filter((item) => !seatedKeys.has(queueItemKey(item)) && !held.has(item.id));
 		const waits = (item) => lists.you.some((current) => current === item);
-		const groups = onMe.groups(listed, grouping, held).map((group) => ({
+		const groups = onMe.groups(items, grouping, held).map((group) => ({
 			...group,
-			headed: group.items.length > 1 || candidateOf("groups", "today") !== "today",
+			headed: group.items.length > 1,
 			count: group.items.filter(waits).length
 		}));
-		const onPageWaiting = onPage.filter((item) => lists.you.includes(item)).length;
-		return html`${onPage.length ? html`<p class="lf-rows-head lf-fp-on-page">
-            ${voiced(onPageWaiting ? `${onPageWaiting} on the page, each at its own question` : "Nothing left on the page")}
-          </p>` : nothing}${listed.length || onPage.length ? nothing : html`<p class="lf-rows-empty">Nothing waiting on me.</p>`}${keyed(grouping, groupedItems([...groups, ...finished.length ? [{
+		return html`${items.length ? nothing : html`<p class="lf-rows-empty">Nothing waiting on me.</p>`}${keyed(grouping, groupedItems([...groups, ...finished.length ? [{
 			key: "done",
 			title: "Done",
-			items: finished,
-			folds: foldsDone()
-		}] : []], (item, group) => !("leads" in group) ? onItemCard(item, "done", { card: !foldsDone() }) : onItemCard(item, listOf(item), {
+			items: finished
+		}] : []], (item, group) => !("leads" in group) ? onItemCard(item, "done", { card: true }) : onItemCard(item, listOf(item), {
 			card: true,
 			says: group.headed ? says : null,
 			group: group.headed ? null : group.title,
@@ -7936,8 +7839,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 			{
 				key: "done",
 				title: "Done",
-				items: lists.done,
-				folds: foldsDone()
+				items: lists.done
 			}
 		].filter((group) => group.items.length);
 		forgetOpened([...lists.agent, ...lists.done]);
@@ -8205,8 +8107,6 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		fitOpened();
 		showFromTop();
 		landWalked();
-		openAtStart();
-		foldPage();
 	}
 	const asked = /* @__PURE__ */ new WeakSet();
 	function seatOnItems() {

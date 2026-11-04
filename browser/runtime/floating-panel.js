@@ -327,7 +327,6 @@ import { runtime } from "./context.js";
 import { renderedOrder, renderedUnder, under } from "./shadow.js";
 import { nativeModalAdmits } from "./keyboard/layer-stack.js";
 import { closestAcross } from "./passages.js";
-import { widgetElement } from "./widget-descriptors.js";
 
 const prefs = () => window.lfChrome;
 
@@ -878,11 +877,6 @@ export function createFloatingPanel({
   // The settled sections the user unfolded while the panel stands open
   // (`settledHeading`).
   const unfolded = new Set();
-  // PROTOTYPE: the open groups of the On lists the user folded while the panel stands
-  // open, where every group folds (`groupedItems`), by the group's key, which is the
-  // page part it names where it names one.
-  /** @type {Set<string | Element>} */
-  const foldedGroups = new Set();
   /** @typedef {Parameters<import("./composing/target-picker.js").TargetPickerOptions["searchInPanel"]>[0]} PanelSearch */
   /** @type {PanelSearch | null} */
   let pageSearch = null;
@@ -1678,7 +1672,6 @@ export function createFloatingPanel({
     trail.value = [];
     searching = false;
     unfolded.clear();
-    foldedGroups.clear();
     transition(before, { handedOn });
   }
   // A row's press puts away the view it stands in, the menu or a list it leads to, and
@@ -2848,22 +2841,17 @@ export function createFloatingPanel({
   // do. The user chose the fold on 27 October over the newest three resolved with the
   // rest behind a row, which put a second order in a list read in the page's, and over
   // resolved threads only searched for, which left them nothing to browse.
-  // PROTOTYPE: a group that starts open (`startsOpen`) folds the other way, its key
-  // kept while the user has it folded (`foldedGroups`).
-  /** @param {string | Element} key @param {string} title @param {number} count @param {boolean} [startsOpen] */
-  function settledHeading(key, title, count, startsOpen = false) {
-    /** @type {Set<string | Element>} */
-    const toggled = startsOpen ? foldedGroups : unfolded;
-    const open = toggled.has(key) !== startsOpen;
+  /** @param {string} key @param {string} title @param {number} count */
+  function settledHeading(key, title, count) {
+    const open = unfolded.has(key);
     return html`<h3 class="lf-rows-head">
       <button
         type="button"
         ${offeredAction("row", "lf-fp-settled lf-disclosure-marker")}
         aria-expanded=${open ? "true" : "false"}
-        ?data-starts-open=${startsOpen}
         @click=${() => {
-          if (toggled.has(key)) toggled.delete(key);
-          else toggled.add(key);
+          if (open) unfolded.delete(key);
+          else unfolded.add(key);
           refit();
           paint();
         }}
@@ -3275,105 +3263,6 @@ export function createFloatingPanel({
     if (view && trail.value.at(-1)?.view === "queue")
       moveScrollerBy(view, -view.scrollTop);
   }
-  // PROTOTYPE (on-me panel exploration, .tmp/iterate-on-me-panel.md): the candidate
-  // designs the exploration page composes, each chosen by an attribute a playground
-  // sample's root carries (`data-playground-<name>`), today's design without one. A
-  // change repaints On me.
-  // A sample whose page holds an element marked `data-onme-today` shows today's design whatever the
-  // playground sets, and one carrying `data-onme-open` opens On me once it has items.
-  /** @param {string} name */
-  const marked = (name) => document.querySelector(`[${name}]`) !== null;
-  /** @param {string} name @param {string} today */
-  const candidateOf = (name, today) =>
-    marked("data-onme-today")
-      ? today
-      : (document.documentElement.getAttribute(`data-playground-${name}`) ?? today);
-  // PROTOTYPE: Done folds under its heading, as Threads' Resolved does, wherever the
-  // groups wear bands, since the bands are drawn with it.
-  const foldsDone = () =>
-    candidateOf("groups", "today") !== "today" ||
-    candidateOf("done", "cards") === "fold";
-  // PROTOTYPE: where On me shows a page widget's ask. `page` folds the page to the
-  // blocks holding the asks the page draws while On me stands open, so the user answers
-  // each on its own widget, and the panel keeps the rest: to-dos and what threads ask.
-  const foldsPage = () => candidateOf("where", "cards") === "page";
-  // The page widget an item waits on, where the page draws it.
-  /** @param {PanelQueueItem | undefined} item */
-  const pageWidgetOf = (item) => {
-    const record = item && carriesObligation(item) ? item.obligation : null;
-    if (record?.source.kind !== "widget" || record.message) return null;
-    const node = obligationPlace(record).node;
-    const main = document.querySelector("main");
-    return node?.isConnected && main?.contains(node) ? node : null;
-  };
-  /** @type {Element[]} */
-  let folded = [];
-  function foldPage() {
-    const wanted =
-      foldsPage() && showing({ view: "queue" }) && queueTab === "you"
-        ? queueLists().you.map(pageWidgetOf).filter(Boolean)
-        : [];
-    const main = document.querySelector("main");
-    const holding = new Set(
-      wanted.map((node) => {
-        /** @type {Element} */
-        let at = /** @type {Element} */ (node);
-        while (at.parentElement && at.parentElement !== main) at = at.parentElement;
-        return at;
-      }),
-    );
-    const next = wanted.length
-      ? [...(main?.children ?? [])].filter(
-          (block) => !holding.has(block) && !block.matches("hgroup, header, h1"),
-        )
-      : [];
-    // PROTOTYPE: On me standing beside the page, where the window has room right of
-    // the column, rather than over the column's foot.
-    host.toggleAttribute(
-      "data-onme-side",
-      candidateOf("opens", "foot") === "side" &&
-        showing({ view: "queue" }) &&
-        queueTab === "you",
-    );
-    // PROTOTYPE: how the On lists hold each group together, which the panel's sheet
-    // reads off the host (floating-panel.css, `data-onme-groups`).
-    const groupsHeld = candidateOf("groups", "today");
-    if (groupsHeld === "today") host.removeAttribute("data-onme-groups");
-    else host.setAttribute("data-onme-groups", groupsHeld);
-    if (
-      next.length === folded.length &&
-      next.every((block, at) => block === folded[at])
-    )
-      return;
-    for (const block of folded) block.removeAttribute("hidden");
-    for (const block of next) block.setAttribute("hidden", "until-found");
-    folded = next;
-  }
-  let openedAtStart = false;
-  function openAtStart() {
-    if (openedAtStart || !marked("data-onme-open")) return;
-    if (readQueues().phase !== "ready" || !onUserCount()) return;
-    openedAtStart = true;
-    open({ view: "queue" }, { focus: false });
-  }
-  const expandedMessages = new Set();
-  new MutationObserver(() => {
-    if (showing({ view: "queue" })) paint();
-  }).observe(document.documentElement, { attributes: true });
-  // PROTOTYPE (#4, design B): the card body a widget's class draws for its own
-  // obligation (`static card`), asked as `answerWords` is asked, with the authored
-  // element standing for it on the page or frozen in a thread message, so the panel
-  // names no widget. None where the class draws none.
-  /** @param {import("./framework/application.js").ObligationRecord} record */
-  function ownCard(record) {
-    if (record.source.kind !== "widget") return null;
-    const element = widgetElement(record.source.id);
-    const draw =
-      /** @type {{card?: (element: Element, options: {pressed: () => void}) => unknown} | undefined} */ (
-        customElements.get(record.source.tag)
-      )?.card;
-    return element && draw ? (draw(element, { pressed: () => paint() }) ?? null) : null;
-  }
   // The On me door, as `g M` presses it: the view on the user's list, turned to it where
   // the view shows another tab, else opened or closed.
   function openOnMe() {
@@ -3694,7 +3583,7 @@ export function createFloatingPanel({
     const inWords = record !== null && answeredInWords(record);
     const asking =
       inWords && thread
-        ? (thread.msgs.find((candidate) => candidate.id === record.message) ?? null)
+        ? thread.msgs.find((candidate) => candidate.id === record.message)
         : null;
     const message =
       asking && thread && presentation?.primary !== false
@@ -3740,16 +3629,6 @@ export function createFloatingPanel({
     const choices =
       record && !answered && record.source.kind === "widget" && !inWords
         ? obligationView.choicesOf(record)
-        : null;
-    // PROTOTYPE (#4, design B): the card the widget draws, where the candidate asks for
-    // it, in place of the controls copied off the page (`choices`).
-    const own =
-      candidateOf("widget-card", "copied") === "parts" &&
-      record &&
-      !answered &&
-      record.source.kind === "widget" &&
-      !inWords
-        ? ownCard(record)
         : null;
     const gesture = answered ? answerGesture(record) : null;
     const discuss = conversation
@@ -3824,8 +3703,7 @@ export function createFloatingPanel({
               </button>`
             : nothing
         }`;
-    } else if (own) answers = own;
-    else if (choices?.length)
+    } else if (choices?.length)
       // A choice that says more than its name, what choosing it gives and whether the
       // page advises it, stands on a line of its own with those words under its name,
       // two lines at most, so the user can answer here without Show, and whole on
@@ -3899,10 +3777,7 @@ export function createFloatingPanel({
     // A line says what its item is: what waits on the user in the walk's word for it,
     // so a suggestion says Insertion, Deletion or Rewrite as the field does after `m`,
     // and the agent's as the reply, answer or to-do it owes.
-    // PROTOTYPE: a finished line of the user's under a folded Done says how it ended, a
-    // to-do's Done or a question's answer, so it names no kind before its title.
-    const kind =
-      mine && list === "done" && foldsDone() ? "" : mine ? stop.noun : agentNoun(item);
+    const kind = mine ? stop.noun : agentNoun(item);
     const where = says === "place" ? "" : onMe.place(item);
     const walked = leads && queueTab === "you" && walkedStop() === stop.key;
     // On me's card says only where its item stands over its question, after the name
@@ -3911,44 +3786,6 @@ export function createFloatingPanel({
     // a to-do telling itself from a question by its Done. The user chose that on 26
     // October 2026 over a kind word before every card's place, which repeated what the
     // card's answers already say.
-    // PROTOTYPE: how much of a question asked in words its card shows: whole, its
-    // first lines with Read all where it runs past what five lines hold, or none of it.
-    const chosen_ = candidateOf("message", "whole");
-    const showing_ = chosen_;
-    /** @param {NonNullable<ReturnType<typeof threadByKey>>} thread_ @param {NonNullable<ReturnType<typeof threadByKey>>["msgs"][number]} message_ */
-    const asked = (thread_, message_, carriedHere = false) => {
-      if (chosen_ === "title")
-        return carriedHere
-          ? html`<p class="lf-fp-prompt">${threadHeading(thread_)}</p>`
-          : nothing;
-      const long =
-        messageReading(message_, { reactions: message_.reactions, workflows: [] }).body
-          .plainText.length > 320;
-      const at = `${key}:${message_.key}`;
-      const clamps = chosen_ === "clamp" && long;
-      const clamped = clamps && !expandedMessages.has(at);
-      return html`<div
-          class="lf-fp-asked lf-fp-outlet"
-          ?data-clamp=${clamped}
-          data-thread=${thread_.key}
-          data-message=${message_.key}
-        ></div>
-        ${
-          clamps
-            ? html`<button
-                type="button"
-                class="lf-fp-face lf-fp-quiet lf-fp-read-all"
-                @click=${() => {
-                  if (expandedMessages.has(at)) expandedMessages.delete(at);
-                  else expandedMessages.add(at);
-                  paint();
-                }}
-              >
-                ${clamped ? "Read all" : "Read less"}
-              </button>`
-            : nothing
-        }`;
-    };
     if (card) {
       const about = [...new Set([group, where])].filter(Boolean);
       return html`<section
@@ -3966,29 +3803,27 @@ export function createFloatingPanel({
             : nothing
         }${
           message
-            ? html`${
-                title
-                  ? html`<h3
-                      class=${showing_ === "title" ? "lf-fp-prompt" : "lf-fp-on-title"}
-                    >
-                      ${heading}
-                    </h3>`
-                  : nothing
-              }
-              ${asked(message.thread, message.reading)}`
+            ? html`${title ? html`<h3 class="lf-fp-on-title">${heading}</h3>` : nothing}
+                <div
+                  class="lf-fp-asked lf-fp-outlet"
+                  data-thread=${message.thread.key}
+                  data-message=${message.reading.key}
+                ></div>`
             : prompt
               ? html`<h3 class="lf-fp-on-title">${heading}</h3>
                   <p class="lf-fp-prompt">${prompt}</p>`
               : html`<p class="lf-fp-prompt">${heading}</p>`
-        }${carried.map(({ thread: where, message: carriedMessage }) =>
+        }${carried.map(({ thread: where, message: asked }) =>
           presentation?.primary !== false
-            ? asked(where, carriedMessage, true)
+            ? html`<div
+                class="lf-fp-asked lf-fp-outlet"
+                data-thread=${where.key}
+                data-message=${asked.key}
+              ></div>`
             : html`<p class="lf-fp-prompt">
                 ${
-                  messageReading(carriedMessage, {
-                    reactions: carriedMessage.reactions,
-                    workflows: [],
-                  }).body.plainText
+                  messageReading(asked, { reactions: asked.reactions, workflows: [] })
+                    .body.plainText
                 }
               </p>`,
         )}
@@ -4079,60 +3914,21 @@ export function createFloatingPanel({
   // its node, and the focus and drawing in it. `line` draws an item, given the group it
   // stands in. A rule belongs to its group, so replacing the group's first item
   // does not replace the rule and make the keyed renderer move surviving cards.
-  // PROTOTYPE: a group that `folds` stands folded under its heading, as Threads'
-  // Resolved does (`settledHeading`), its items shown only once the user unfolds it.
-  /** @template {{key: string | Element, title: string, items: readonly PanelQueueItem[], headed?: boolean, count?: number, folds?: boolean}} G
+  /** @template {{key: string | Element, title: string, items: readonly PanelQueueItem[], headed?: boolean, count?: number}} G
    * @param {readonly G[]} groups @param {(item: PanelQueueItem, group: G) => unknown} line */
   function groupedItems(groups, line) {
     /** @type {({key: string | Element, rule: true} | {key: string | Element, rule?: false, group: G, item?: PanelQueueItem})[]} */
     const rows = [];
     let running = false;
-    // PROTOTYPE: where every group folds, each heading is the press that folds it.
-    const foldsEvery = candidateOf("fold", "no") === "yes";
-    /** @param {G} group */
-    const shut = (group) =>
-      group.folds
-        ? !unfolded.has(String(group.key))
-        : group.headed !== false && foldsEvery && foldedGroups.has(group.key);
     for (const group of groups) {
       const headed = group.headed !== false;
       if (rows.length && !headed && !running)
         rows.push({ key: `rule:${group.key}`, rule: true });
       running = !headed;
       if (headed) rows.push({ key: group.key, group });
-      if (!shut(group))
-        for (const item of group.items)
-          rows.push({ key: queueItemKey(item), item, group });
+      for (const item of group.items)
+        rows.push({ key: queueItemKey(item), item, group });
     }
-    /** @param {G} group */
-    const heading = (group) => {
-      const count = group.count ?? group.items.length;
-      if (group.folds) return settledHeading(String(group.key), group.title, count);
-      if (foldsEvery) return settledHeading(group.key, group.title, count, true);
-      return html`<h3 class="lf-rows-head">
-        <span class="lf-fp-label">${group.title}</span
-        ><span class="lf-row-end">${count}</span>
-      </h3>`;
-    };
-    // PROTOTYPE: where groups wear bands, each group is a box of its own, so its band
-    // sticks only while its group passes and the next group's band pushes it off,
-    // rather than sliding over it. An item that moves to another group is drawn afresh
-    // there, a rare path (a place leaving the page) the user takes in at a glance.
-    if (candidateOf("groups", "today") !== "today")
-      return html`<div class="lf-fp-on-list lf-rows">
-        ${repeat(
-          groups,
-          (group) => group.key,
-          (group) =>
-            html`<section class="lf-fp-on-group">
-              ${heading(group)}${
-                shut(group)
-                  ? nothing
-                  : repeat(group.items, queueItemKey, (item) => line(item, group))
-              }
-            </section>`,
-        )}
-      </div>`;
     return html`<div class="lf-fp-on-list lf-rows">
       ${repeat(
         rows,
@@ -4142,7 +3938,12 @@ export function createFloatingPanel({
             ? html`<hr class="lf-fp-rule lf-fp-on-rule" />`
             : row.item
               ? line(row.item, row.group)
-              : heading(row.group),
+              : html`<h3 class="lf-rows-head">
+                  <span class="lf-fp-label">${row.group.title}</span
+                  ><span class="lf-row-end"
+                    >${row.group.count ?? row.group.items.length}</span
+                  >
+                </h3>`,
       )}
     </div>`;
   }
@@ -4226,14 +4027,11 @@ export function createFloatingPanel({
         : lists.agent.some((current) => current === item)
           ? "agent"
           : "done";
-    // PROTOTYPE: where the page answers its own widgets, the panel lists the rest.
-    const onPage = foldsPage() ? items.filter((item) => pageWidgetOf(item)) : [];
-    const listed = items.filter((item) => !onPage.includes(item));
     const grouping = onMe.grouping();
     const says = grouping === "plan" ? null : grouping;
     // A record a card carries is drawn on that card, ended or not, and not in Done too.
     const held = new Set(
-      listed.flatMap((item) => carrying.get(queueItemKey(item)) ?? []),
+      items.flatMap((item) => carrying.get(queueItemKey(item)) ?? []),
     );
     const finished = lists.done.filter(
       (item) => !seatedKeys.has(queueItemKey(item)) && !held.has(item.id),
@@ -4247,43 +4045,25 @@ export function createFloatingPanel({
     // the items need and grouped nothing.
     /** @param {PanelQueueItem} item */
     const waits = (item) => lists.you.some((current) => current === item);
-    const groups = onMe.groups(listed, grouping, held).map((group) => ({
+    const groups = onMe.groups(items, grouping, held).map((group) => ({
       ...group,
-      // PROTOTYPE: or every group, one of a single card included, as the user asked
-      // (3 November) of a list that groups at all.
-      headed: group.items.length > 1 || candidateOf("groups", "today") !== "today",
+      headed: group.items.length > 1,
       count: group.items.filter(waits).length,
     }));
     // Another grouping draws the list afresh: every card moves, and moving each keyed
     // node in turn would stand some back where they were.
-    const onPageWaiting = onPage.filter((item) => lists.you.includes(item)).length;
-    // PROTOTYPE: what left the list folded under Done, a line each once unfolded.
     return html`${
-      onPage.length
-        ? html`<p class="lf-rows-head lf-fp-on-page">
-            ${voiced(
-              onPageWaiting
-                ? `${onPageWaiting} on the page, each at its own question`
-                : "Nothing left on the page",
-            )}
-          </p>`
-        : nothing
-    }${
-      listed.length || onPage.length
-        ? nothing
-        : html`<p class="lf-rows-empty">Nothing waiting on me.</p>`
+      items.length ? nothing : html`<p class="lf-rows-empty">Nothing waiting on me.</p>`
     }${keyedBy(
       grouping,
       groupedItems(
         [
           ...groups,
-          ...(finished.length
-            ? [{ key: "done", title: "Done", items: finished, folds: foldsDone() }]
-            : []),
+          ...(finished.length ? [{ key: "done", title: "Done", items: finished }] : []),
         ],
         (item, group) =>
           !("leads" in group)
-            ? onItemCard(item, "done", { card: !foldsDone() })
+            ? onItemCard(item, "done", { card: true })
             : onItemCard(item, listOf(item), {
                 card: true,
                 says: group.headed ? says : null,
@@ -4305,12 +4085,7 @@ export function createFloatingPanel({
     const groups = [
       { key: "in-hand", title: "In hand", items: inHand },
       { key: "queued", title: "Up next", items: queued },
-      {
-        key: "done",
-        title: "Done",
-        items: lists.done,
-        folds: foldsDone(),
-      },
+      { key: "done", title: "Done", items: lists.done },
     ].filter((group) => group.items.length);
     forgetOpened([...lists.agent, ...lists.done]);
     return html`${opening.planShown ? planCards() : nothing}${
@@ -4729,8 +4504,6 @@ export function createFloatingPanel({
     fitOpened();
     showFromTop();
     landWalked();
-    openAtStart();
-    foldPage();
   }
   // A card's seat is the height it first stands at once its message is drawn; a card
   // whose message Leaf's reader has not drawn yet asks it to (`nominate`), once, and

@@ -1050,12 +1050,13 @@ customElements.define(
     shouldUpdate(changed) {
       const ready = super.shouldUpdate(changed);
       if (!ready) return false;
-      // Evidence and annotation availability are independent inputs. Other no-op
-      // updates must not clear a completed refusal.
+      // Evidence and annotation availability are independent inputs, and only drawn
+      // files offer Comment. Other no-op updates, a surface arriving or returning
+      // beside a refusal among them, must not clear a completed refusal.
       return (
         this.#shown === undefined ||
         this.value !== this.#shown ||
-        threadSurface(this).open !== this.#opener
+        (this.committed !== null && threadSurface(this).open !== this.#opener)
       );
     }
 

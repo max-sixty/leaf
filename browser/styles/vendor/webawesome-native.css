@@ -1,0 +1,253 @@
+/* @noformat Generated from node_modules/@awesome.me/webawesome/dist/styles/native.css by build/styles.mjs. */
+
+/* Region "Checkboxes + Radios" */
+:where(.choice > input[type="checkbox"]), :where(.choice > input[type="radio"]) {
+  width: fit-content;
+  color: var(--wa-form-control-value-color);
+  -webkit-user-select: none;
+  user-select: none;
+  display: inline-flex;
+}
+
+:where(:is(.choice > input[type="checkbox"], .choice > input[type="radio"])) {
+  cursor: pointer;
+}
+
+:where(:is(.choice > input[type="checkbox"], .choice > input[type="radio"]):disabled), :where(:is(.choice > input[type="checkbox"], .choice > input[type="radio"]):has(:disabled)) {
+  opacity: .5;
+  cursor: not-allowed;
+}
+
+:where(.choice > input[type="checkbox"]), :where(.choice > input[type="radio"]) {
+  appearance: none;
+  width: var(--wa-form-control-toggle-size);
+  height: var(--wa-form-control-toggle-size);
+  background-color: var(--wa-form-control-background-color);
+  border-color: var(--wa-form-control-border-color);
+  border-style: var(--wa-border-style);
+  border-width: var(--wa-form-control-border-width);
+  transition: background var(--wa-transition-normal),
+      border-color var(--wa-transition-fast),
+      box-shadow var(--wa-transition-fast),
+      color var(--wa-transition-fast);
+  transition-timing-function: var(--wa-transition-easing);
+  margin: 0;
+  flex: none;
+  justify-content: center;
+  align-items: center;
+  margin-inline-end: .5em;
+}
+
+:where(.choice > input[type="checkbox"]) {
+  --checked-icon-color: var(--wa-color-brand-on-loud);
+  --checked-icon-scale: .8;
+  border-radius: min(calc(var(--wa-form-control-toggle-size) * .375),
+      var(--wa-border-radius-s));
+}
+
+:where(.choice > input[type="checkbox"]:checked), :where(.choice > input[type="checkbox"]:indeterminate) {
+  color: var(--checked-icon-color);
+  background-color: var(--wa-form-control-activated-color);
+  border-color: var(--wa-form-control-activated-color);
+}
+
+:where(.choice > input[type="checkbox"]:checked):after, :where(.choice > input[type="checkbox"]:indeterminate):after {
+  content: "";
+  width: var(--wa-form-control-toggle-size);
+  height: var(--wa-form-control-toggle-size);
+  scale: var(--checked-icon-scale);
+  background-color: currentColor;
+}
+
+:where(.choice > input[type="checkbox"]:checked):after {
+  mask: url("data:image/svg+xml;utf8,<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 448 512\"><!--! Font Awesome Free 7.0.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2025 Fonticons, Inc. --><path fill=\"currentColor\" d=\"M434.8 70.1c14.3 10.4 17.5 30.4 7.1 44.7l-256 352c-5.5 7.6-14 12.3-23.4 13.1s-18.5-2.7-25.1-9.3l-128-128c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l101.5 101.5 234-321.7c10.4-14.3 30.4-17.5 44.7-7.1z\"/></svg>") center / 1em 1em no-repeat;
+}
+
+:where(.choice > input[type="checkbox"]:indeterminate):after {
+  mask: url("data:image/svg+xml;utf8,<svg xmlns=\"http://www.w3.org/2000/svg\" height=\"16\" width=\"14\" viewBox=\"0 0 448 512\"><path d=\"M431 256c0 17.7-14.3 32-32 32H49c-17.7 0-32-14.3-32-32s14.3-32 32-32h350c17.7 0 32 14.3 32 32z\"/></svg>") center no-repeat;
+}
+
+:where(.choice > input[type="radio"]) {
+  --checked-icon-color: var(--wa-form-control-activated-color);
+  --checked-icon-scale: .7;
+  color: #0000;
+  border-radius: 50%;
+}
+
+:where(.choice > input[type="radio"]:checked) {
+  color: var(--checked-icon-color);
+  border-color: var(--wa-form-control-activated-color);
+}
+
+:where(.choice > input[type="radio"]:checked):after {
+  content: "";
+  aspect-ratio: 1;
+  width: 100%;
+  scale: var(--checked-icon-scale);
+  background-color: currentColor;
+  border-radius: 50%;
+}
+
+/* Region "Buttons" */
+:where(:is(.lf-btn, .button, .lf-icon-action)) {
+  height: var(--wa-form-control-height);
+  padding: 0 var(--wa-form-control-padding-inline);
+  vertical-align: middle;
+  white-space: nowrap;
+  border-style: var(--wa-border-style);
+  border-width: max(1px, var(--wa-form-control-border-width));
+  transition-property: background, border, box-shadow, color;
+  transition-duration: var(--wa-transition-fast);
+  transition-timing-function: var(--wa-transition-easing);
+  cursor: pointer;
+  -webkit-user-select: none;
+  user-select: none;
+  border-start-start-radius: var(--_button-start-start-radius, var(--wa-form-control-border-radius));
+  border-start-end-radius: var(--_button-start-end-radius, var(--wa-form-control-border-radius));
+  border-end-end-radius: var(--_button-end-end-radius, var(--wa-form-control-border-radius));
+  border-end-start-radius: var(--_button-end-start-radius, var(--wa-form-control-border-radius));
+  justify-content: center;
+  align-items: center;
+  margin-block-start: var(--_button-vertical-indent);
+  margin-inline-start: var(--_button-horizontal-indent);
+  text-decoration: none;
+  display: inline-flex;
+}
+
+:where(:is(.lf-btn, .button, .lf-icon-action).primary) {
+  margin-block-start: var(--_button-vertical-indent-outlined);
+  margin-inline-start: var(--_button-horizontal-indent-outlined);
+}
+
+:where(:is(.lf-btn, .button, .lf-icon-action)) {
+  color: var(--wa-color-on-loud, var(--wa-color-neutral-on-loud));
+  background-color: var(--wa-color-fill-loud, var(--wa-color-neutral-fill-loud));
+  border-color: #0000;
+}
+
+@media (hover: hover) {
+  :where(:is(.lf-btn, .button, .lf-icon-action):not(:is(:disabled, [aria-disabled="true"])):hover) {
+    background-color: color-mix(in oklab,
+              var(--wa-color-fill-loud, var(--wa-color-neutral-fill-loud)),
+              var(--wa-color-mix-hover));
+    transform: var(--wa-button-transform-hover);
+  }
+}
+
+:where(:is(.lf-btn, .button, .lf-icon-action):not(:is(:disabled, [aria-disabled="true"])):active) {
+  background-color: color-mix(in oklab,
+            var(--wa-color-fill-loud, var(--wa-color-neutral-fill-loud)),
+            var(--wa-color-mix-active));
+  transform: var(--wa-button-transform-active);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :where(:is(.lf-btn, .button, .lf-icon-action):not(:is(:disabled, [aria-disabled="true"])):hover), :where(:is(.lf-btn, .button, .lf-icon-action):not(:is(:disabled, [aria-disabled="true"])):active) {
+    transform: none;
+  }
+}
+
+:where(:is(.lf-btn, .button, .lf-icon-action):not(.primary)) {
+  color: var(--wa-color-on-quiet, var(--wa-color-neutral-on-quiet));
+  background-color: #0000;
+  border-color: #0000;
+}
+
+:where(:is(.lf-btn, .button, .lf-icon-action):not(.primary):not(:is(:disabled, [aria-disabled="true"])):hover) {
+  color: var(--wa-color-on-quiet, var(--wa-color-neutral-on-quiet));
+  background-color: var(--wa-color-fill-quiet, var(--wa-color-neutral-fill-quiet));
+}
+
+:where(:is(.lf-btn, .button, .lf-icon-action):not(.primary):not(:is(:disabled, [aria-disabled="true"])):active) {
+  color: var(--wa-color-on-quiet, var(--wa-color-neutral-on-quiet));
+  background-color: color-mix(in oklab,
+            var(--wa-color-fill-quiet, var(--wa-color-neutral-fill-quiet)),
+            var(--wa-color-mix-active));
+}
+
+:where(:is(.lf-btn, .button, .lf-icon-action).primary) {
+  color: var(--wa-color-on-quiet, var(--wa-color-neutral-on-quiet));
+  border-color: var(--wa-color-border-loud, var(--wa-color-neutral-border-loud));
+  background-color: #0000;
+}
+
+:where(:is(.lf-btn, .button, .lf-icon-action).primary:not(:is(:disabled, [aria-disabled="true"])):hover) {
+  color: var(--wa-color-on-quiet, var(--wa-color-neutral-on-quiet));
+  background-color: var(--wa-color-fill-quiet, var(--wa-color-neutral-fill-quiet));
+}
+
+:where(:is(.lf-btn, .button, .lf-icon-action).primary:not(:is(:disabled, [aria-disabled="true"])):active) {
+  color: var(--wa-color-on-quiet, var(--wa-color-neutral-on-quiet));
+  background-color: color-mix(in oklab,
+            var(--wa-color-fill-quiet, var(--wa-color-neutral-fill-quiet)),
+            var(--wa-color-mix-active));
+}
+
+:where(:is(.lf-btn, .button, .lf-icon-action):is(:disabled, [aria-disabled="true"])) {
+  opacity: .5;
+  cursor: not-allowed;
+}
+
+:where(:is(.lf-btn, .button, .lf-icon-action):is(:disabled, [aria-disabled="true"]) *) {
+  pointer-events: none;
+}
+
+/* Region "Text Fields + Textareas + Selects" */
+:where(input:is(.lf-ui, .field):not([type="button"], [type="checkbox"], [type="color"], [type="file"], [type="hidden"], [type="image"], [type="radio"], [type="range"], [type="reset"], [type="submit"])), :where(textarea.field), :where(select:is(.lf-ui, .field):is(:not([size]), [size="0"], [size="1"])) {
+  width: 100%;
+  height: var(--wa-form-control-height);
+  padding: 0 var(--wa-form-control-padding-inline);
+  color: var(--wa-form-control-value-color);
+  vertical-align: middle;
+  background-color: var(--wa-form-control-background-color);
+  border-color: var(--wa-form-control-border-color);
+  border-style: var(--wa-form-control-border-style);
+  border-width: var(--wa-form-control-border-width);
+  border-radius: var(--wa-form-control-border-radius);
+  transition: background-color var(--wa-transition-normal),
+      border-color var(--wa-transition-normal),
+      outline-color var(--wa-transition-fast);
+  transition-timing-function: var(--wa-transition-easing);
+  cursor: text;
+}
+
+:where(:is(input:is(.lf-ui, .field):not([type="button"], [type="checkbox"], [type="color"], [type="file"], [type="hidden"], [type="image"], [type="radio"], [type="range"], [type="reset"], [type="submit"]), textarea.field, select:is(.lf-ui, .field):is(:not([size]), [size="0"], [size="1"])))::placeholder {
+  color: var(--wa-form-control-placeholder-color);
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+:where(:is(input:is(.lf-ui, .field):not([type="button"], [type="checkbox"], [type="color"], [type="file"], [type="hidden"], [type="image"], [type="radio"], [type="range"], [type="reset"], [type="submit"]), textarea.field, select:is(.lf-ui, .field):is(:not([size]), [size="0"], [size="1"])):disabled) {
+  opacity: .5;
+  cursor: not-allowed;
+}
+
+:where(textarea.field) {
+  height: auto;
+  min-height: var(--wa-form-control-height);
+  scroll-padding-block: var(--wa-form-control-padding-block);
+  padding: calc(var(--wa-form-control-padding-block) - ((1lh - 1em) / 2)) var(--wa-form-control-padding-inline);
+  resize: vertical;
+}
+
+:where(select:is(.lf-ui, .field):is(:not([size]), [size="0"], [size="1"])) {
+  --icon-caret: url("data:image/svg+xml;utf8,<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 448 512\"><!--! Font Awesome Free 7.0.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2025 Fonticons, Inc. --><path fill=\"rgb(180 180 200)\" d=\"M201.4 406.6c12.5 12.5 32.8 12.5 45.3 0l192-192c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L224 338.7 54.6 169.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3l192 192z\"/></svg>");
+  appearance: none;
+  background-image: var(--icon-caret), var(--icon-caret);
+  background-repeat: no-repeat;
+  background-position: center right var(--wa-form-control-padding-inline);
+  background-blend-mode: hue, difference;
+  text-overflow: ellipsis;
+  cursor: pointer;
+  min-width: 0;
+  background-size: 1rem 1rem;
+  padding-inline-end: calc(var(--wa-form-control-padding-inline) + 1rem + var(--wa-space-xs));
+  position: relative;
+  overflow: hidden;
+}
+
+:where(select:is(.lf-ui, .field):is(:not([size]), [size="0"], [size="1"])[multiple]) {
+  height: auto;
+  padding-inline: var(--wa-form-control-padding-inline);
+  background-image: none;
+}

@@ -176,7 +176,9 @@ changes the test or the behavior.
 
 Merge a pull request that fixes tests, without waiting for maintainer approval,
 once each test it claims to fix failed before the change and passes after it
-(a skipped or deleted test has not passed). Pull requests run only the later-tier
+(a skipped or deleted test has not passed). For a failure only `test-macos` shows, the
+checks your Linux runner can run suffice (**A red `ci` on main is live** says what
+settles the rest). Pull requests run only the later-tier
 tests they edit, so run the claimed ones yourself. The pull request's CI must
 reach a terminal result on the exact head (`monitor-ci`). A failure there outside
 the tests it claims, and not caused by its change, neither blocks the merge nor
@@ -197,9 +199,9 @@ hit its timeout, and that is a failure.
 
 The scheduled run's `test-macos` job runs every tier on macOS, which your Linux runner
 can't reproduce, and it takes four to five hours. For a failure only that job shows, the
-failing run is the evidence from before the fix. The evidence from after it is the next
-scheduled run on main, once the fix has merged, so merge on the evidence your runner
-gives. If that run still fails, its report brings the failure back to triage.
+failing run is the evidence from before the fix, and the next scheduled run on main,
+after the fix merges, is the evidence from after it. If that run still fails, its
+report brings the failure back to triage.
 
 ## Cloudflare logs
 

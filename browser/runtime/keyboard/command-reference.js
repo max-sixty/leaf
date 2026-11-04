@@ -39,6 +39,7 @@
    door as their Keyboard shortcuts row (page-controls.js), for a pointer. That row
    opens it from where the user was before pressing it, and Escape returns to the row's
    door. */
+import { labelWords } from "../words.js";
 import { setScroll } from "../arrivals.js";
 import {
   showNativeLayer,
@@ -59,7 +60,6 @@ import {
   commandPresentations,
   commandBinding,
   contextBindings,
-  declaresCommandHandler,
   allBindings,
   descriptionOf,
   titleOf,
@@ -290,11 +290,7 @@ let commandReferenceView = {
 };
 
 /** @param {string | null | undefined} value */
-const commandReferenceWords = (value) =>
-  String(value ?? "")
-    .toLocaleLowerCase()
-    .replace(/\s+/g, " ")
-    .trim();
+const commandReferenceWords = (value) => labelWords(value).toLocaleLowerCase();
 
 // A binding query retains a trailing separator: `g ` means the routes below the `g`
 // prefix. Case is retained for the first rank so `g t` and `g T` remain distinct.
@@ -400,15 +396,12 @@ function captureCommandReferenceCatalog() {
       : alternatives.some((binding) => routes.has(binding));
   };
   // Whether the reference can run a row is a fact of its declaration, and whether it
-  // can run it now is `available`'s. A `run` getter declares its capability even while
-  // it returns nothing (bindings.js, `checked`), so reading its value here would turn a
-  // command that waits on its scope, as Resolve waits on a thread, into a gesture
-  // with no command to run.
+  // can run it now is `available`'s.
   /** @param {Command} row @param {CommandRoute | null} route */
   const actionable = (row, route) =>
     Boolean(
-      (declaresCommandHandler(row, "run") ||
-        (commandBinding(row, route) != null && declaresCommandHandler(row, "runKey")) ||
+      (row.run ||
+        (commandBinding(row, route) != null && row.runKey) ||
         routedCommand(route)) &&
       (routedCommand(route)?.row ?? row).runFromCommandReference !== false,
     );

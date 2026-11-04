@@ -66,6 +66,12 @@ Events keep their stored fields and log order, and add:
   object holds each clause's text once, and the ids mean nothing outside the batch.
   Follow every clause the event names.
 
+`leaf page state` prints the same fields, apart from `waiting`, `answer` and
+`handling`, on each action in force and on each message of a thread it reads, so
+what a delivery told you stays readable after a compaction. It prints a message as
+it now reads, with its latest rewrite's replaced words in `edited` and its `unsent`
+as it stood at that rewrite.
+
 The batch's `threads` give each thread's title (null until named), anchor, whether
 it is resolved, earlier messages, and the gestures in force on widgets sent in it. A
 thread's history leaves out messages that are events in the batch, and a long thread

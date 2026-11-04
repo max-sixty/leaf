@@ -37,6 +37,7 @@ from render_harness import (
     http_error_console,
     open_page,
     open_threads,
+    over_plain_http,
     panel_control,
     panel_menu,
     panel_settled,
@@ -44,6 +45,7 @@ from render_harness import (
     resized,
     rgb_pixels,
     round_trip,
+    scroll_settled,
     select_words,
     sending,
     show_resolved,
@@ -2525,7 +2527,7 @@ def test_a_page_s_own_conversation_reader_takes_the_panel_s_threads(browser, ser
     panel (application.js, `registerThreadPresentation`, `yields`): the page starts
     without a fault, and a thread opened from the panel's Threads opens in the
     package's reader rather than above the row."""
-    from browser.test_render_application_boundary import package_workspace
+    from render_cases_interaction import package_workspace
 
     page = floating(browser, package_workspace(serve))
     workspace = page.locator("#workspace")
@@ -4468,6 +4470,27 @@ def test_each_view_s_list_is_one_tab_stop_its_keys_walk(browser, serve):
     expect(rows.nth(1)).to_have_attribute("tabindex", "0")
 
 
+def test_threads_arrows_move_on_from_a_row_scrolled_out_of_the_list(browser, serve):
+    """Wheeling Threads' list until its focused row leaves the list's view doesn't take
+    the user off that row, though keys skip a place scrolled off screen: the panel still
+    shows the list, so ↓ moves on to the next row and brings it into view."""
+    page = floating(browser, serve(LONG_PAGE, comments=30))
+    page.locator("body").focus()
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+t")
+    panel_settled(page, view="threads")
+    rows = page.locator(panel_view("threads")).locator(".lf-fp-thread")
+    expect(rows.first).to_be_focused()
+    box = rows.nth(3).bounding_box()
+    page.mouse.move(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+    page.mouse.wheel(0, 3000)
+    scroll_settled(page)
+    expect(rows.first).not_to_be_in_viewport()
+    page.keyboard.press("ArrowDown")
+    expect(rows.nth(1)).to_be_focused()
+    expect(rows.nth(1)).to_be_in_viewport()
+
+
 def test_a_menu_row_that_puts_the_menu_away_leaves_the_user_on_the_leaf(browser, serve):
     """A row's press takes its row away with the menu, so the user is located on the leaf
     that opened it: a row in a list the menu turned to does too, and folding stands on
@@ -4782,24 +4805,23 @@ def test_a_finger_finds_the_keyboard_s_conveniences_under_navigate(browser, serv
     expect(listed.filter(has_text="Align current item at top")).to_have_count(1)
 
 
-def test_the_share_link_shows_where_it_can_be_selected_without_a_clipboard(
-    browser, serve
-):
-    """About keeps the link readable and a copy control even without a Clipboard API;
-    the shared control owns plain-HTTP copying and browser permission failures."""
-    no_clipboard = "Object.defineProperty(Navigator.prototype, 'clipboard', {get: () => undefined});"
-    page = open_page(browser, serve(LONG_PAGE), init_script=no_clipboard)
-    menu = panel_menu(page)
-    about_row = menu.locator('.lf-fp-item[data-lf-row="inspection"]')
-    expect(about_row).to_be_visible()
-    expect(menu).not_to_contain_text("Copy link")
-    about_row.click()
-    about = page.get_by_role("dialog", name="About this page", exact=True)
-    link = about.get_by_label("Link", exact=True)
-    expect(link).to_contain_text(re.compile(r"^http://.*[?&]t="))
-    expect(about.get_by_role("button", name="Copy Link", exact=True)).to_be_visible()
-    expect(about).to_contain_text("Grants access")
-    page.keyboard.press("Escape")
+def test_copy_link_is_one_press_over_plain_http(browser, serve):
+    """A page another machine reads over plain HTTP has no Clipboard API, and the leaf's
+    menu still offers Copy link there, since the copy control copies through the
+    browser's selection command (copy-control.js, `canCopy`)."""
+    local_url = live_url(serve(LONG_PAGE))
+    context, remote_url = over_plain_http(browser, local_url)
+    page = open_page(browser, remote_url, context=context)
+    assert page.evaluate("!isSecureContext && navigator.clipboard === undefined")
+    row = panel_menu(page).locator('.lf-fp-item[data-lf-row="share"]')
+    expect(row).to_have_text("Copy link")
+    row.click()
+    panel_settled(page, open=False)
+    expect(field(page)).to_have_attribute("placeholder", re.compile("^Link copied"))
+    page.goto(local_url)
+    assert re.match(
+        r"^http://.*[?&]t=", page.evaluate("navigator.clipboard.readText()")
+    )
 
 
 def test_a_page_thread_opens_in_the_panel_from_the_page_s_routes(browser, serve):

@@ -31,7 +31,6 @@ from render_cases_navigation import source_revision
 from render_cases_widgets import LONG_LINE_DIFF_PAGE, MULTI_HUNK_PATCH
 from render_harness import (
     PANEL,
-    PANEL_THREAD,
     RELEASE_FOCUS,
     CutOff,
     _traffic,
@@ -64,6 +63,7 @@ from leaf.render_checks import (
     wait_until_ready,
 )
 from leaf_dev.browser import (
+    PANEL_THREAD,
     panel_tab,
     threads_tab,
 )

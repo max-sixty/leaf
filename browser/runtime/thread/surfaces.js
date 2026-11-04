@@ -30,10 +30,12 @@ import { reportPageError } from "../layer-client.js";
 import { aimTargetAt, datumAimTarget } from "../anchor-resolution.js";
 import { sameAnchor } from "../anchor-coordinate.js";
 import { closestAcross } from "../passages.js";
+import { drawnThreadId, drawnThreadsWithId } from "./selectors.js";
 import { tagsDeclaring } from "../registry.js";
 import { watchArrivals } from "../arrivals.js";
 import { renderThreadSurface, clearThreadSurface, pageSeatThread } from "./inline.js";
-import { readThreads, threadIdNamed } from "./state.js";
+import { readThreads, threadIdNamed, threadNamed } from "./state.js";
+import { discussed } from "./model.js";
 import { threadFocusDestination } from "./focus.js";
 import { HeldArrivals } from "./held-news.js";
 import { under } from "../shadow.js";
@@ -142,10 +144,7 @@ function register(owner, render, { invalidate, composition, reveal }, kind) {
     if (!outlet) return null;
     const thread = closestAcross(node, ".lf-page-thread");
     if (thread && under(thread, outlet))
-      return (
-        registration.placements?.placedAt(thread.getAttribute("data-lf-thread"))
-          ?.place ?? null
-      );
+      return registration.placements?.placedAt(drawnThreadId(thread))?.place ?? null;
     return outlet === composition.outlet()
       ? (registration.placements?.pendingAt()?.place ?? null)
       : null;
@@ -155,8 +154,8 @@ function register(owner, render, { invalidate, composition, reveal }, kind) {
     read: readThreads,
     reveal(key) {
       if (registrations.get(owner) !== registration) return false;
-      const thread = readThreads().threads.find((item) => item.key === key);
-      return thread ? reveal(thread.id) : false;
+      const thread = threadNamed(key);
+      return thread && discussed(thread) ? reveal(thread.id) : false;
     },
     open(node) {
       if (registrations.get(owner) !== registration) return false;
@@ -628,9 +627,7 @@ export function surfaceFocusTarget(name, { part = "reply" } = {}) {
   const thread =
     [...registrations.values()]
       .flatMap((registration) => [...registration.outlets])
-      .map((outlet) =>
-        outlet.querySelector(`.lf-page-thread[data-lf-thread="${CSS.escape(id)}"]`),
-      )
+      .map((outlet) => drawnThreadsWithId(outlet, id)[0])
       .find(Boolean) ?? pageSeatThread(id);
   return thread ? threadFocusDestination(thread, { part, message: name }) : null;
 }

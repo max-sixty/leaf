@@ -18,7 +18,6 @@ from render_cases_interaction import (
 from render_cases_layout import current_location_ring, rings_drawn
 from render_harness import (
     PANEL,
-    PANEL_THREAD,
     RELEASE_FOCUS,
     comment_note,
     leaf_page,
@@ -59,6 +58,7 @@ from browser.margin import (
 from leaf import event_log as events_model
 from leaf import render_checks as render_checks_model
 from leaf.render_checks import rendered
+from leaf_dev.browser import PANEL_THREAD
 
 pytestmark = pytest.mark.shifts_unsurveyed
 

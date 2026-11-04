@@ -44,6 +44,7 @@
      reader finds a message by, until they have collapsed. Where no fold plays, under
      reduced motion, before presentation or in an engine without intrinsic-size
      interpolation, it goes in the same frame. */
+import { counted } from "../words.js";
 import { focusDestination, focused } from "../focus.js";
 import { html, render, nothing, repeat, ref } from "/runtime/framework.js";
 import { MessageView } from "./messages.js";
@@ -657,7 +658,7 @@ export class Transcript {
     ];
     const expanded = ranges.every((range) => range.expanded);
     const count = ranges.reduce((total, range) => total + range.messages.length, 0);
-    const subject = `${count} ${progress ? "progress" : "earlier"} message${count === 1 ? "" : "s"}`;
+    const subject = counted(count, `${progress ? "progress" : "earlier"} message`);
     const label = `${expanded ? "Hide" : "Show"} ${subject}`;
     return html`<button
       type="button"

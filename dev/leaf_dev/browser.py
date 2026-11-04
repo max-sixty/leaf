@@ -374,6 +374,25 @@ def scroll_settled(page, scroller=None, axis="y", frames=SCROLL_STILL_FRAMES):
 # ends a list's tabs or another view's head line instead.
 ON_ME_MARK = ".lf-fp-on-user"
 
+# The floating panel (runtime/floating-panel.js) is Leaf's one chrome: a row of the leaf,
+# the field and the On me and Threads marks, with a view opened above it, the leaf's
+# menu among them. Its state stands on its host as attributes: `data-lf-open` names the
+# open view (menu, versions, group, errors, threads, thread, queue, leaves) and
+# `data-lf-rest="mark"` the panel folded to the leaf.
+PANEL = ".lf-floating-panel"
+
+
+def panel_view(name: str) -> str:
+    """The selector of the panel's `name` view (`data-lf-open`'s values, above) that
+    stands open. A view put away keeps its node, marked `data-lf-leaving`, until its
+    exit motion ends, so this never matches one: a selector that did would find two
+    views mid-switch, or a view already on its way out."""
+    return f'.lf-fp-view[data-lf-route="{name}"]:not([data-lf-leaving])'
+
+
+# A view of one thread, which names the thread it shows by id in `data-lf-thread`.
+PANEL_THREAD = panel_view("thread")
+
 
 def panel_tab(page: Page | FrameLocator, name: str):
     """The On view's tab `name` at the foot of the menu, On and Threads, each one of
@@ -393,7 +412,7 @@ def threads_tab(page: Page | FrameLocator):
     rendered(
         page.locator("html").element_handle().owner_frame(), facts=("updatesSettled",)
     )
-    host = page.locator(".lf-floating-panel")
+    host = page.locator(PANEL)
     if host.get_attribute("data-lf-open") not in ("queue", "threads"):
         exit_control = page.locator(".lf-fp-exit")
         if exit_control.count():
@@ -412,7 +431,7 @@ def open_threads(page: Page | FrameLocator) -> None:
     thread opened over Threads by its way back, else by the Threads tab (`threads_tab`)
     unless the mark opened Threads itself. The view lists the open threads, then the
     resolved ones folded under a Resolved heading (`show_resolved`)."""
-    host = page.locator(".lf-floating-panel")
+    host = page.locator(PANEL)
     if host.get_attribute("data-lf-open") == "threads":
         return
     back = page.get_by_role("button", name="Back to Threads")
@@ -422,18 +441,14 @@ def open_threads(page: Page | FrameLocator) -> None:
         tab = threads_tab(page)
         if host.get_attribute("data-lf-open") != "threads":
             tab.click()
-    page.locator(
-        '.lf-fp-view[data-lf-route="threads"]:not([data-lf-leaving])'
-    ).wait_for()
+    page.locator(panel_view("threads")).wait_for()
 
 
 def show_resolved(page: Page | FrameLocator):
     """Unfold the resolved threads in the open Threads, which stand folded under their
     Resolved heading (`.lf-fp-settled`) until the user presses it, and return their
     rows."""
-    threads = page.locator(
-        '.lf-fp-view[data-lf-route="threads"]:not([data-lf-leaving])'
-    )
+    threads = page.locator(panel_view("threads"))
     heading = threads.locator(".lf-fp-settled")
     if heading.get_attribute("aria-expanded") != "true":
         heading.click()
@@ -448,7 +463,7 @@ def go_to_threads(page: Page, frame: FrameLocator | None = None) -> None:
     route, which both share."""
     within = frame or page
     # Completing `g T` again closes the view (keyboard/go-to-sequence.js).
-    if within.locator(".lf-floating-panel").get_attribute("data-lf-open") == "threads":
+    if within.locator(PANEL).get_attribute("data-lf-open") == "threads":
         return
     # A press at the frame's top corner gives its document the keys; the page's own
     # only needs focus off any control.
@@ -458,6 +473,4 @@ def go_to_threads(page: Page, frame: FrameLocator | None = None) -> None:
         page.evaluate("() => document.activeElement?.blur()")
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
-    within.locator(
-        '.lf-fp-view[data-lf-route="threads"]:not([data-lf-leaving])'
-    ).wait_for()
+    within.locator(panel_view("threads")).wait_for()

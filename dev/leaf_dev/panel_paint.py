@@ -30,6 +30,7 @@ from PIL import Image, ImageChops, ImageColor
 from playwright.sync_api import expect
 
 from leaf.render_checks import one_frame, rendered
+from leaf_dev.browser import PANEL
 
 ROUTES = (
     ("pointer", ".lf-fp-minimize"),
@@ -44,9 +45,10 @@ def settled(page):
     so a box read is where it rests."""
     rendered(page)
     page.wait_for_function(
-        "() => ['.lf-floating-panel', '.lf-fp-ground'].every(s =>"
+        "selectors => selectors.every(s =>"
         " !document.querySelector(s).getAnimations({subtree: true}).some(a =>"
-        " Number.isFinite(a.effect?.getComputedTiming().endTime)))"
+        " Number.isFinite(a.effect?.getComputedTiming().endTime)))",
+        arg=[PANEL, ".lf-fp-ground"],
     )
 
 

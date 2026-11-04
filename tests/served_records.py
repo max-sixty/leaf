@@ -403,7 +403,7 @@ def obligation_value_cases():
                     "coordinate": json.dumps(coordinate, separators=(",", ":")),
                 }
             )
-        projection = StateProjection(held, {}, held, {}, {}, frozenset(), frozenset())
+        projection = StateProjection(held, {}, held, {}, frozenset(), frozenset())
         value, present = obligation_value(
             "owner",
             "set",

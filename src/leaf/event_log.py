@@ -3,6 +3,26 @@
 Stored events carry private native session context. It shares the event's durable
 append and is stripped from application readings, returned records and attempt
 comparisons.
+
+A log reads through its last newline. The line after it is an append mid-flush,
+or the tear a crash left, which the next append ends with a newline of its own.
+
+A process keeps each page's log as it last read it (`LogMemory`) and reads only the
+bytes appended since, since a later reading of an append-only file is the earlier
+one and its tail. A reading is a `Log`, a list of the application records that also
+names the continuous reading of the file it belongs to (`LogLineage`). A reader that
+keeps a fold of the log (`folded`) keeps it with that lineage and steps it through
+only the events appended since it last read, so an append and the reading after it
+cost what the new event changes rather than what the log holds. The file stays the
+record and a fold is a cache of it: a process that has not read the log yet, or a
+reading of a list that is not a page's log, folds every event.
+
+A later reading of the same file is told from a different file by the file's
+identity (device and inode), its size, which only grows, and the bytes that ended
+the last reading, still where they were. A log written anew fails one of them:
+`start_log` replaces the file, and the replacement may reuse the inode number its
+predecessor freed, while a fixture that rewrites the file in place fails the last.
+Either starts a new lineage, whose folds start again from the first event.
 """
 
 import json
@@ -10,12 +30,16 @@ import os
 import secrets
 import signal
 import sys
-from collections.abc import Iterator
+import threading
+import weakref
+from collections.abc import Callable, Iterable, Iterator
 from copy import deepcopy
 from pathlib import Path
+from typing import Protocol, Self
 
 from leaf.files import file_stamp
 from leaf.findings import Finding, Rejected
+from leaf.page_memory import memo
 from leaf.refusals import Refused
 from leaf.registry.kernel import kernel_event_ownership
 from leaf.state import (
@@ -75,24 +99,155 @@ def _attempt_payload(event: dict) -> dict:
     return {key: value for key, value in event.items() if key not in assigned}
 
 
+class Fold(Protocol):
+    """A reading of the log made one event at a time from the first, which a reader
+    may keep with the log's lineage (`folded`)."""
+
+    def step(self, event: dict) -> None:
+        """Take the log's next event into the fold."""
+
+    def copy(self) -> Self:
+        """A fold that steps on from here without changing this one."""
+
+    def reading(self):
+        """What the fold has read so far, which later steps leave unchanged."""
+
+
+class LogLineage:
+    """One continuous reading of one log file and what is kept with it: the ids and
+    attempts the file holds, and the folds readers keep (`folded`).
+
+    A fold is kept beside an `anchor`, the reading of whatever else it reads, such as
+    the document a projection folds the log against, and lives no longer than that
+    anchor: a reading made for one check takes its folds with it when it goes."""
+
+    def __init__(self) -> None:
+        self.ids: set[str] = set()
+        self.attempts: dict[str, dict] = {}
+        # anchor → key → [how many of the file's events the fold has taken, the fold]
+        self._folds: weakref.WeakKeyDictionary[object, dict[object, _Kept]] = (
+            weakref.WeakKeyDictionary()
+        )
+        self._lock = threading.RLock()
+
+    def took(self, events: Iterable[dict]) -> None:
+        for event in events:
+            if identity := event.get("id"):
+                self.ids.add(identity)
+            if attempt := event.get("attempt"):
+                self.attempts.setdefault(attempt, event)
+
+    def fold(self, log: "Log", anchor: object, key, start: Callable[[], Fold]):
+        with self._lock:
+            kept = self._folds.setdefault(anchor, {})
+            held = kept.get(key)
+            if held is not None and held.taken > log.stored:
+                # A reading taken before an append another thread has read since.
+                return _fold_all(log, start)
+            if held is None:
+                held = kept[key] = _Kept(start())
+            for event in log[held.taken : log.stored]:
+                held.fold.step(event)
+            held.taken = log.stored
+            if log.stored == len(log):
+                return held.fold.reading()
+            fold = held.fold.copy()
+        for event in log[log.stored :]:
+            fold.step(event)
+        return fold.reading()
+
+
+class _Kept:
+    """One kept fold and how many of the file's events it has taken."""
+
+    __slots__ = ("fold", "taken")
+
+    def __init__(self, fold: Fold) -> None:
+        self.fold = fold
+        self.taken = 0
+
+
+class Log(list):
+    """One reading of a page's log: its application records in order.
+
+    A list, so a reader iterates it as it would any list of events. It also names
+    its lineage, how many lines it read, a torn one included as `seq` counts it, and
+    how many of its events the file holds: `plus` makes a log with candidates the
+    file does not hold yet, which admission folds to read the page as an append
+    would leave it, without keeping that fold."""
+
+    __slots__ = ("lineage", "lines", "stored")
+
+    def __init__(
+        self,
+        events: Iterable[dict],
+        lineage: LogLineage,
+        lines: int,
+        stored: int | None = None,
+    ):
+        super().__init__(events)
+        self.lineage = lineage
+        self.lines = lines
+        self.stored = len(self) if stored is None else stored
+
+    def plus(self, *events: dict) -> "Log":
+        return Log([*self, *events], self.lineage, self.lines, self.stored)
+
+    def __reduce__(self):
+        # A copy, a deep copy for a frozen capture included, is a list like any
+        # other: what it holds may change apart from the file.
+        return list, (list(self),)
+
+
+def _fold_all(events: Iterable[dict], start: Callable[[], Fold]):
+    fold = start()
+    for event in events:
+        fold.step(event)
+    return fold.reading()
+
+
+def folded(events: list, anchor: object | None, key, start: Callable[[], Fold]):
+    """The reading of `start()`'s fold stepped through `events`.
+
+    Where `events` is a reading of a page's log (`Log`) and `anchor` is given, the
+    fold is kept with the log's lineage beside `anchor`, under `key`, and a later
+    reading of the log steps it through only what was appended since. `anchor` and
+    `key` together name every input of the fold besides the log, so the fold kept
+    under them is the one `start()` would make. Any other list is folded whole."""
+    if anchor is None or not isinstance(events, Log):
+        return _fold_all(events, start)
+    return events.lineage.fold(events, anchor, key, start)
+
+
+def extended(events: list, *more: dict) -> list:
+    """`events` with `more` after them: the log an append would leave, whose folds
+    step on from those kept for `events` where it is a page's log."""
+    return events.plus(*more) if isinstance(events, Log) else [*events, *more]
+
+
+def _held_ids(events: list[dict]):
+    if isinstance(events, Log):
+        return events.lineage.ids
+    return {existing.get("id") for existing in events}
+
+
 def _matching_attempt(events: list[dict], event: dict) -> dict | None:
     attempt = event.get("attempt")
     if not attempt:
         return None
-    for existing in events:
-        if existing.get("attempt") != attempt:
-            continue
-        if _attempt_payload(existing) != _attempt_payload(event):
-            raise AttemptConflict(
-                Finding("attempt-conflict", values={"attempt": attempt}), event
-            )
-        return deepcopy(existing)
-    return None
-
-
-def _event_id_exists(events: list[dict], event_id: str) -> bool:
-    """Whether this log already owns an event identity."""
-    return any(existing.get("id") == event_id for existing in events)
+    if isinstance(events, Log):
+        existing = events.lineage.attempts.get(attempt)
+        if existing is not None and existing["seq"] > events.lines:
+            existing = None
+    else:
+        existing = next((e for e in events if e.get("attempt") == attempt), None)
+    if existing is None:
+        return None
+    if _attempt_payload(existing) != _attempt_payload(event):
+        raise AttemptConflict(
+            Finding("attempt-conflict", values={"attempt": attempt}), event
+        )
+    return deepcopy(existing)
 
 
 def new_event_id(events: list[dict]) -> str:
@@ -102,22 +257,73 @@ def new_event_id(events: list[dict]) -> str:
     from checking the held log, not their width; a harness pairs the id with its page.
     Admission allocates it before semantic folding and storage keeps that identity.
     """
+    held = _held_ids(events)
     while True:
         candidate = secrets.token_hex(4)
-        if not _event_id_exists(events, candidate):
+        if candidate not in held:
             return candidate
 
 
+class LogMemory:
+    """A page's log as this process last read it (module header)."""
+
+    # How many of the bytes that ended the last reading a later one compares.
+    BOUNDARY = 64
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._log: Log | None = None
+        self._file: tuple[int, int] | None = None
+        self._offset = 0
+        self._boundary = b""
+
+    def read(self, f) -> Log:
+        """The log `f`, a binary handle open on it, holds through its last newline."""
+        fd = f.fileno()
+        with self._lock:
+            stat = os.fstat(fd)
+            log = self._log
+            if (
+                log is None
+                or (stat.st_dev, stat.st_ino) != self._file
+                or stat.st_size < self._offset
+                or os.pread(fd, len(self._boundary), self._offset - len(self._boundary))
+                != self._boundary
+            ):
+                log = Log([], LogLineage(), 0)
+                self._file = (stat.st_dev, stat.st_ino)
+                self._offset, self._boundary = 0, b""
+            if stat.st_size > self._offset:
+                data = os.pread(fd, stat.st_size - self._offset, self._offset)
+                complete = data[: data.rfind(b"\n") + 1]
+                if complete:
+                    events = _parse_events(complete, log.lines)
+                    log.lineage.took(events)
+                    log = Log(
+                        [*log, *events], log.lineage, log.lines + complete.count(b"\n")
+                    )
+                    self._offset += len(complete)
+                    self._boundary = (self._boundary + complete)[-self.BOUNDARY :]
+            self._log = log
+            return log
+
+
+def read_log(page_dir: Path, f) -> Log:
+    """The log that `f`, a binary handle open on `page_dir`'s log, holds."""
+    return memo(page_dir, LogMemory).read(f)
+
+
 def _append_event_unlocked(
-    f, event: dict, events: list[dict], *, context: dict | None = None
+    f, event: dict, events: Log, *, context: dict | None = None
 ) -> dict:
-    """Append while the caller holds this log file's exclusive lease.
+    """Append while the caller holds this log file's exclusive lease, where `events`
+    is the log read under it.
 
     Attempt identity is the append door's (`event_contracts.append_admitted`): it
     reads the log under this same lease before its gates, so two server threads
     cannot both observe an attempt's absence and append it twice."""
     if "id" in event:
-        if _event_id_exists(events, event["id"]):
+        if event["id"] in events.lineage.ids:
             raise ValueError(f"event id {event['id']!r} already exists")
     else:
         event["id"] = new_event_id(events)
@@ -125,14 +331,17 @@ def _append_event_unlocked(
     # A crash can tear the previous append mid-line: SIGKILL under a buffered
     # flush, a full disk. The line discipline is the writer's, so the writer
     # restores it — without this, the next event glues onto the torn fragment
-    # and one lost event becomes an unreadable line mid-file.
+    # and one lost event becomes an unreadable line mid-file. The log read under
+    # the lease counted every line through the last newline, so this event's line
+    # follows those and the fragment.
+    lines = events.lines
     f.seek(0, os.SEEK_END)
     if f.tell():
         f.seek(-1, os.SEEK_END)
         if f.read(1) != b"\n":
             f.write(b"\n")
-    f.seek(0)
-    seq = f.read().count(b"\n") + 1
+            lines += 1
+    seq = lines + 1
     stored = event if context is None else {**event, "context": context}
     f.write((jsonl_line(stored) + "\n").encode())
     # To the platter before the caller is told it landed: an event is a
@@ -164,10 +373,11 @@ def append_event(page_dir: Path, event: dict) -> dict:
     with open(log, "a", encoding="utf-8"):
         pass
     with flocked(log) as f:
-        f.seek(0)
-        events = _parse_events(f.read())
         return _append_event_unlocked(
-            f, event, events, context=session_context(event.get("session"))
+            f,
+            event,
+            read_log(page_dir, f),
+            context=session_context(event.get("session")),
         )
 
 
@@ -190,12 +400,11 @@ def _parse_events(data: bytes, before: int = 0) -> list[dict]:
         try:
             event = json.loads(line.decode("utf-8"))
         except (json.JSONDecodeError, UnicodeDecodeError):
-            # The final line is a concurrent append mid-flush, complete on the
-            # next read. An earlier one is the tear a crash left, standing alone
-            # because append_event repairs the discipline before writing: that
-            # event's sender already saw its send fail, the seqs around it hold,
-            # and there is nothing anyone could do with a fragment — so it is
-            # skipped, not raised over, and the page keeps reading.
+            # The tear a crash left, standing alone because the next append
+            # ended its line: that event's sender already saw its send fail, the
+            # seqs around it hold, and there is nothing anyone could do with a
+            # fragment — so it is skipped, not raised over, and the page keeps
+            # reading.
             continue
         event.pop("context", None)
         event["seq"] = before + i + 1
@@ -204,10 +413,11 @@ def _parse_events(data: bytes, before: int = 0) -> list[dict]:
 
 
 def read_events(page_dir: Path) -> list:
-    path = page_dir / EVENTS_FILE
-    if not path.exists():
+    try:
+        with open(page_dir / EVENTS_FILE, "rb") as f:
+            return read_log(page_dir, f)
+    except FileNotFoundError:
         return []
-    return _parse_events(path.read_bytes())
 
 
 def _line_start(data: bytes, n: int) -> int:

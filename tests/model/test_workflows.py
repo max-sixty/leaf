@@ -682,9 +682,7 @@ def test_thread_attention_names_the_workflow_the_thread_waits_on():
         ),
     ]
     # Only which thread the board widget stands in matters here.
-    empty = projection_model.StateProjection(
-        {}, {}, {}, {}, {}, frozenset(), frozenset()
-    )
+    empty = projection_model.StateProjection({}, {}, {}, {}, frozenset(), frozenset())
     frozen = projection_model.FrozenThreadReading(
         ThreadStructure(set(), {}, {}), {}, {}, {"board": "root"}, empty
     )
@@ -774,9 +772,7 @@ def test_served_workflows_list_the_strongest_first():
             ["back", "working"],
         ),
     ]
-    empty = projection_model.StateProjection(
-        {}, {}, {}, {}, {}, frozenset(), frozenset()
-    )
+    empty = projection_model.StateProjection({}, {}, {}, {}, frozenset(), frozenset())
     frozen = projection_model.FrozenThreadReading(
         ThreadStructure(set(), {}, {}), {}, {}, {}, empty
     )

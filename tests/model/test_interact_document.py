@@ -1068,7 +1068,6 @@ def test_the_position_fold_matches_the_browser_cases(case):
         actions={},
         reports={},
         desired=desired,
-        report_settlements={},
         classified={},
         absorbed=frozenset(),
         in_force=frozenset(),

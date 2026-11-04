@@ -174,7 +174,6 @@ def browser_state(
                 readings[revision],
                 events,
                 revision,
-                withdrawn=withdrawn,
                 revisions=revision_ids if revision_ids is not None else readings,
                 revision_reader=revisions or readings.__getitem__,
             )

@@ -109,7 +109,6 @@ def work_state(
             source,
             events,
             revision,
-            withdrawn=log.withdrawn,
             revisions=revisions,
             revision_reader=revision_reader,
         )

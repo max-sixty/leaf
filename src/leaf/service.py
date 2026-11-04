@@ -28,9 +28,10 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from leaf.event_log import (
+    Log,
     _append_event_unlocked,
     _matching_attempt,
-    _parse_events,
+    read_log,
 )
 from leaf.files import read_json, unfinished_publications
 from leaf.interaction_log import append_interactions, session_context
@@ -697,11 +698,10 @@ class PageTransaction:
         )
 
     @property
-    def events(self) -> list:
+    def events(self) -> Log:
         if self._events is None:
             assert self._log is not None
-            self._log.seek(0)
-            self._events = _parse_events(self._log.read())
+            self._events = read_log(self.page_dir, self._log)
         return self._events
 
     def matching_attempt(self, event: dict) -> dict | None:

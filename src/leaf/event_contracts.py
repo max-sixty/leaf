@@ -10,7 +10,7 @@ domains: undo in `events` and widget meaning in `event_meaning`.
 
 from pathlib import Path
 
-from leaf.event_log import APPEND_STAMPED, EventRefused, new_event_id
+from leaf.event_log import APPEND_STAMPED, EventRefused, extended, new_event_id
 from leaf.event_meaning import AdmissionReadings, admit_widget_event
 from leaf.events import (
     build_threads,
@@ -890,8 +890,12 @@ def admitted_event(view, events: list, event: dict) -> dict:
         # decides what that command changes for the page the agent owes now.
         revisions = view.revisions
         active_registry = view.registry(revisions[-1] if revisions else None)
-        before = AdmissionReadings(view, events, active_registry)
-        after = AdmissionReadings(view, [*events, candidate], active_registry)
+        before = (
+            readings
+            if active_registry is registry
+            else AdmissionReadings(view, events, active_registry)
+        )
+        after = AdmissionReadings(view, extended(events, candidate), active_registry)
         attention = attention_reading(before) != attention_reading(after)
     event = {**event, "attention": attention}
     return event

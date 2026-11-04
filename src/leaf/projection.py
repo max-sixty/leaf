@@ -1,16 +1,16 @@
 """Declaration-driven state and retirement projections."""
 
 from collections.abc import Callable, Iterable
+from copy import copy
 from dataclasses import dataclass, replace
 from functools import cached_property
 from typing import NamedTuple
 
+from leaf.event_log import folded
 from leaf.events import (
     InForce,
     event_coordinate,
-    report_settlements,
-    retractions,
-    taken_back,
+    note_settlements,
 )
 from leaf.passages import (
     EMPTY,
@@ -177,7 +177,6 @@ class StateProjection:
     actions: dict
     reports: dict
     desired: dict
-    report_settlements: dict
     classified: dict
     absorbed: frozenset
     in_force: frozenset
@@ -287,9 +286,9 @@ def state_projection(
     spk: dict,
     registry: dict,
     upto,
-    floors: dict | None = None,
     *,
-    withdrawn: set | None = None,
+    retracting: bool = True,
+    anchor: object | None = None,
 ) -> StateProjection:
     """Project user actions and agent reports onto owner-unit-verb coordinates.
 
@@ -302,91 +301,158 @@ def state_projection(
 
     Both writers share one classification pass over the window. They end by
     different facts: undo or a retraction floor ends an action, while a note
-    settling a report ends that report. `report_settlements` retains the answer
-    version for gate diagnostics; `classified` retains valid entries for other
+    settling a report ends that report. `classified` retains valid entries for other
     derived readings. Events apply where their admitted operation still matches
     the widget and their payload remains valid in its current domain. A domain
     may broaden without losing valid decisions. The log and captured document
     retain the original operation; changing a declaration never applies it to a
-    different record or constructor."""
-    if floors is None:
-        floors = retractions(events, upto)
-    if withdrawn is None:
-        withdrawn = taken_back(events)
-    settled = report_settlements(events, upto)
-    reports = {}
-    settlement_versions = {}
-    classified = {}
-    # Where each id sits is all the retraction test asks of a page, taken once for
-    # the walk rather than per event; `InForce` decides each coordinate's winner.
-    in_force = InForce(enclosing_of(spk), floors, withdrawn)
-    specs = {}
-    for event in events:
-        if event["kind"] not in verb_writers():
-            continue
-        if upto is not None and event["revision"] > upto:
-            continue
-        rec = byid.get(event["widget"])
-        if rec is None:
-            continue
-        spec = event_spec(registry.get(rec["tag"], {}), event)
-        if spec is None:
-            continue
+    different record or constructor.
+
+    A version note through `upto` retracts what it restates where `retracting`;
+    the frozen thread markup no version rewrites folds with none. Given `anchor`,
+    the reading of `byid`, `spk` and `registry`, the fold is kept with a page's log
+    and steps only through what was appended since (`event_log.folded`)."""
+    return folded(
+        events,
+        anchor,
+        ("state", upto, retracting),
+        lambda: ProjectionFold(byid, spk, registry, upto, retracting=retracting),
+    )
+
+
+class ProjectionFold:
+    """`state_projection`'s walk over the log, one event at a time.
+
+    An undo withdraws its action and a note through `upto` retracts and settles
+    where it falls (`InForce`). What a reader of the whole log would order by the
+    first action or report standing at the end, `reading` orders the same way, so a
+    walk and a whole read give one projection."""
+
+    def __init__(self, byid: dict, spk: dict, registry: dict, upto, *, retracting):
+        self.byid = byid
+        self.registry = registry
+        self.upto = upto
+        self.retracting = retracting
+        self.writers = verb_writers()
+        # Where each id sits is all the retraction test asks of a page, taken once
+        # for the walk rather than per event.
+        self.in_force = InForce(enclosing_of(spk))
+        self.classified: dict[str, tuple] = {}
+        # Each classified event → its place in the walk.
+        self.position: dict[str, int] = {}
+        self.specs: dict[str, dict] = {}
+        # coordinate → its live reports, id → entry, in log order.
+        self.reports: dict[tuple, dict[str, tuple]] = {}
+        self.report_at: dict[str, tuple] = {}
+        self.absorbed: set[str] = set()
+        # (widget, verb, kind) → its spec and current definition, which the
+        # document and vocabulary decide alone.
+        self.definitions: dict[tuple, tuple | None] = {}
+        self._orders = None
+
+    def copy(self) -> "ProjectionFold":
+        twin = copy(self)
+        twin.in_force = self.in_force.copy()
+        twin.classified = dict(self.classified)
+        twin.position = dict(self.position)
+        twin.specs = dict(self.specs)
+        twin.reports = {
+            coordinate: dict(entries) for coordinate, entries in self.reports.items()
+        }
+        twin.report_at = dict(self.report_at)
+        twin.absorbed = set(self.absorbed)
+        return twin
+
+    def _definition(self, event: dict) -> tuple | None:
+        key = (event["widget"], event["action"], event["kind"])
+        if key not in self.definitions:
+            rec = self.byid[event["widget"]]
+            spec = event_spec(self.registry.get(rec["tag"], {}), event)
+            self.definitions[key] = (
+                None
+                if spec is None
+                else (
+                    spec,
+                    state_definition(
+                        rec["tag"],
+                        self.registry[rec["tag"]],
+                        spec,
+                        attrs=rec["attrs"],
+                        registry=self.registry,
+                    ),
+                )
+            )
+        return self.definitions[key]
+
+    def step(self, event: dict) -> None:
+        if undoes := event.get("undoes"):
+            self.in_force.withdraw(undoes)
+            return
+        kind = event["kind"]
+        if kind != "note" and kind not in self.writers:
+            return
+        if self.upto is not None and event["revision"] > self.upto:
+            return
+        if kind == "note":
+            if self.retracting:
+                self.in_force.restate(event)
+            for identity in note_settlements(event, "report"):
+                if (coordinate := self.report_at.pop(identity, None)) is not None:
+                    del self.reports[coordinate][identity]
+            return
+        if event["widget"] not in self.byid:
+            return
+        definition = self._definition(event)
+        if definition is None:
+            return
+        spec, current = definition
         recorded = event["meaning"].get("state")
-        current = state_definition(
-            rec["tag"],
-            registry[rec["tag"]],
-            spec,
-            attrs=rec["attrs"],
-            registry=registry,
-        )
         if not same_state_operation(recorded, current):
-            continue
+            return
         # Admission already checked this payload. Only a changed domain needs
         # the validator again; it may broaden without losing the old operation.
         if not same_state_definition(
             recorded.get("detail"), current["detail"]
         ) and schema_error(current["detail"], event["detail"]):
-            continue
+            return
         coordinate = event_coordinate(event)
         entry = (event, spec)
-        classified[event["id"]] = (coordinate, entry)
-        if event["kind"] == "action":
-            if in_force.admit(event):
-                specs[event["id"]] = spec
-        elif settled_at := settled.get(event["id"]):
-            settlement_versions[coordinate] = max(
-                settlement_versions.get(coordinate, 0), settled_at
-            )
+        self.position[event["id"]] = len(self.classified)
+        self.classified[event["id"]] = (coordinate, entry)
+        if kind == "action":
+            if self.in_force.admit(event):
+                self.specs[event["id"]] = spec
+            if event["meaning"].get("among") is not None:
+                if self._orders is None:
+                    self._orders = AuthoredOrders(self.byid, self.registry)
+                if move_absorbed(event, spec, self._orders):
+                    self.absorbed.add(event["id"])
         else:
-            reports.setdefault(coordinate, []).append(entry)
+            self.reports.setdefault(coordinate, {})[event["id"]] = entry
+            self.report_at[event["id"]] = coordinate
 
-    actions = {
-        coordinate: (winner, specs[winner["id"]])
-        for coordinate, winner in in_force.winners().items()
-    }
-    desired = {coordinate: entries[-1] for coordinate, entries in reports.items()}
-    desired.update(actions)
-    moves = [
-        (event, spec)
-        for _coordinate, (event, spec) in classified.values()
-        if event["kind"] == "action" and event["meaning"].get("among") is not None
-    ]
-    absorbed = frozenset()
-    if moves:
-        orders = AuthoredOrders(byid, registry)
-        absorbed = frozenset(
-            event["id"] for event, spec in moves if move_absorbed(event, spec, orders)
+    def reading(self) -> StateProjection:
+        actions = {
+            coordinate: (winner, self.specs[winner["id"]])
+            for coordinate, winner in self.in_force.winners().items()
+        }
+        reports = {
+            coordinate: list(entries.values())
+            for coordinate, entries in sorted(
+                ((c, entries) for c, entries in self.reports.items() if entries),
+                key=lambda item: self.position[next(iter(item[1]))],
+            )
+        }
+        desired = {coordinate: entries[-1] for coordinate, entries in reports.items()}
+        desired.update(actions)
+        return StateProjection(
+            actions,
+            reports,
+            desired,
+            dict(self.classified),
+            frozenset(self.absorbed),
+            self.in_force.ids(),
         )
-    return StateProjection(
-        actions,
-        reports,
-        desired,
-        settlement_versions,
-        classified,
-        absorbed,
-        in_force.ids(),
-    )
 
 
 def with_action(
@@ -407,9 +473,7 @@ def with_action(
     )
 
 
-def frozen_thread_reading(
-    events: list, registry: dict, *, withdrawn: set | None = None
-) -> FrozenThreadReading:
+def frozen_thread_reading(events: list, registry: dict) -> FrozenThreadReading:
     """Project every frozen message fragment through one shared reading."""
     structure = thread_structure(events)
     by_name = thread_names(events)
@@ -423,7 +487,7 @@ def frozen_thread_reading(
         by_name,
         by_widget,
         state_projection(
-            events, structure.by_id, spk, registry, None, floors={}, withdrawn=withdrawn
+            events, structure.by_id, spk, registry, None, retracting=False
         ),
     )
 
@@ -762,7 +826,6 @@ def page_reading(
     events: list,
     revision: int,
     *,
-    withdrawn: set | None = None,
     revisions: Iterable[int] = (),
     revision_reader: Callable[[int], SourceReading] | None = None,
 ) -> PageReading:
@@ -771,8 +834,9 @@ def page_reading(
     Document inspection and the passage readings used by `leaf thread create` and
     `page check` share declarations, floors, and the log window. The document's
     own reading (`SourceReading`) travels with the projection for callers that need
-    its authored construction; a stored revision's is held across reads, so only
-    the fold over the log is taken here. Revision history is optional transaction
+    its authored construction; a stored revision's is held across reads, and so is
+    the fold over its page's log, which each read steps through what was appended
+    since (`state_projection`). Revision history is optional transaction
     input: this owner selects predecessors newest first and reads each under its
     captured vocabulary, lazily when obligation registration needs it."""
     return PageReading(
@@ -785,7 +849,7 @@ def page_reading(
             reading.spoken,
             reading.registry,
             revision,
-            withdrawn=withdrawn,
+            anchor=reading,
         ),
         (
             lambda: (

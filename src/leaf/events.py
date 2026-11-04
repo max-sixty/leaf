@@ -554,14 +554,6 @@ def _report_notes(events: list, upto):
                 yield identity, event
 
 
-def report_settlements(events: list, upto=None) -> dict:
-    """Report event id → the greatest revision whose note settled it."""
-    at = {}
-    for identity, note in _report_notes(events, upto):
-        at[identity] = max(at.get(identity, 0), note["revision"])
-    return at
-
-
 def report_settled_at(events: list, upto=None) -> dict:
     """Report event id → the seq of the first note that settled it: every prefix
     of the log through that seq, and none shorter, reads it settled."""
@@ -632,10 +624,11 @@ class InForce:
     admission until an undo withdraws it or a version note retracts what it rests on
     (`action_retracted`), and the latest action in force wins, one answering nothing
     included. A reader of the final state admits the log's actions with `withdrawn`
-    and the log's whole `floors` given (`build_threads`, the projection fold); a
-    reader of what each event changed walks the log in order instead, handing undos
-    to `withdraw` and notes to `restate` where they fall (`thread_memberships`). The
-    two agree on where the walk ends.
+    and the log's whole `floors` given (`build_threads`); a reader that walks the log
+    in order hands undos to `withdraw` and notes to `restate` where they fall, as
+    one that reads what each event changed does (`thread_memberships`) and one kept
+    with the log to step through each append (`projection.ProjectionFold`). The two
+    agree on where the walk ends, `winners`' order included.
 
     A step reports a `Change` only where the winner moved: taking out an action
     that was not winning changes no coordinate's reading.
@@ -652,19 +645,46 @@ class InForce:
         self.withdrawn = withdrawn
         self._at: dict[tuple, OrderedDict[str, dict]] = {}
         self._coordinate: dict[str, tuple] = {}
+        # Each action in force → how many actions were admitted before it.
+        self._index: dict[str, int] = {}
+        self._admitted = 0
         # identity → the actions in force resting on it, in log order.
         self._resting: dict[str, OrderedDict[str, None]] = {}
+
+    def copy(self) -> "InForce":
+        """A walk that goes on from here without changing this one."""
+        twin = InForce(self.within, self.floors, self.withdrawn)
+        twin._at = {
+            coordinate: OrderedDict(actions) for coordinate, actions in self._at.items()
+        }
+        twin._coordinate = dict(self._coordinate)
+        twin._index = dict(self._index)
+        twin._admitted = self._admitted
+        twin._resting = {
+            identity: OrderedDict(resting)
+            for identity, resting in self._resting.items()
+        }
+        return twin
 
     def winner(self, coordinate: tuple) -> dict | None:
         actions = self._at.get(coordinate)
         return actions[next(reversed(actions))] if actions else None
 
     def winners(self) -> dict:
-        """Coordinate → its winner, for every coordinate an action stands at."""
+        """Coordinate → its winner, for every coordinate an action stands at, in the
+        order of each one's earliest action in force: the order a reader of the
+        final state admits them in, whatever a walk took out on the way."""
+        standing = sorted(
+            (
+                (coordinate, actions)
+                for coordinate, actions in self._at.items()
+                if actions
+            ),
+            key=lambda item: self._index[next(iter(item[1]))],
+        )
         return {
             coordinate: actions[next(reversed(actions))]
-            for coordinate, actions in self._at.items()
-            if actions
+            for coordinate, actions in standing
         }
 
     def ids(self) -> frozenset:
@@ -682,6 +702,8 @@ class InForce:
         before = self.winner(coordinate)
         self._at.setdefault(coordinate, OrderedDict())[action["id"]] = action
         self._coordinate[action["id"]] = coordinate
+        self._index[action["id"]] = self._admitted
+        self._admitted += 1
         for identity in action_rests_on(action, self.within):
             self._resting.setdefault(identity, OrderedDict())[action["id"]] = None
         return Change(coordinate, before, action)
@@ -719,6 +741,7 @@ class InForce:
 
     def _remove(self, identity: str) -> None:
         coordinate = self._coordinate.pop(identity)
+        del self._index[identity]
         action = self._at[coordinate].pop(identity)
         for rested in action_rests_on(action, self.within):
             self._resting[rested].pop(identity, None)

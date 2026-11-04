@@ -140,8 +140,25 @@ def revision_vocabulary(
 ) -> dict:
     """The vocabulary this Leaf reads a revision of the page at `page_dir` in: the
     declarations it captured, `declarations`, over the layer its `manifest` selects,
-    with the page widgets it captured. Every revision selecting the same layer and declaring the same shares
-    one read-only reading."""
+    with the page widgets it captured. Every revision selecting the same layer and
+    declaring the same shares one read-only reading."""
+    return _revision_composition(manifest, declarations, page_dir)[0]
+
+
+def revision_inputs(
+    manifest: dict, declarations: bytes | None, page_dir: Path
+) -> tuple[dict, dict]:
+    """The layer vocabulary and page declarations this Leaf composed and validated a
+    revision's vocabulary from (`revision_vocabulary`), as
+    `page.compose_page_registry` takes a composition already validated. The layer
+    is the one that composition read, so a package installed since pairs with
+    nothing it wasn't validated over."""
+    return _revision_composition(manifest, declarations, page_dir)[1]
+
+
+def _revision_composition(
+    manifest: dict, declarations: bytes | None, page_dir: Path
+) -> tuple[dict, tuple[dict, dict]]:
     widgets = tuple(
         implementation["path"].lstrip("/")
         for implementation in manifest["implementations"].values()
@@ -151,37 +168,26 @@ def revision_vocabulary(
     readings = selected_vocabulary(layer, page_dir).readings
     key = ("revision", json.dumps(layer, sort_keys=True), declarations, widgets)
     if key not in readings:
-        readings[key] = _revision_vocabulary(layer, declarations, widgets, page_dir)
+        readings[key] = _compose_revision(layer, declarations, widgets, page_dir)
     return readings[key]
 
 
-def _revision_vocabulary(
+def _compose_revision(
     record: dict, declarations: bytes | None, widgets: tuple[str, ...], page_dir: Path
-) -> dict:
+) -> tuple[dict, tuple[dict, dict]]:
     from .page import compose_page_registry
 
     # The selected layer was validated where it was composed, so a revision
     # declaring nothing over it is not validated again.
     vocabulary = layer_vocabulary(record, page_dir)
-    return compose_page_registry(
+    declared = json.loads(declarations) if declarations else {}
+    composed = compose_page_registry(
         vocabulary,
-        json.loads(declarations) if declarations else {},
+        declared,
         [*layer_widgets(record, page_dir), *widgets],
         validated=(vocabulary, {}),
-    ).registry
-
-
-def revision_inputs(
-    manifest: dict, declarations: bytes | None, page_dir: Path
-) -> tuple[dict, dict]:
-    """The layer vocabulary and page declarations a revision's vocabulary composes,
-    as `page.compose_page_registry` takes a composition already validated.
-
-    The layer is this Leaf's, so this composes the revision's vocabulary first
-    (`revision_vocabulary`), which validates the two together under this Leaf."""
-    revision_vocabulary(manifest, declarations, page_dir)
-    declared = json.loads(declarations) if declarations else {}
-    return layer_vocabulary(manifest["layer"], page_dir), declared
+    )
+    return composed.registry, (vocabulary, declared)
 
 
 def load_registry(page_dir: Path):

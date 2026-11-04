@@ -4,12 +4,11 @@
    returning false: Leaf's own chrome, the floating panel, declines a thread about a
    passage, which opens beside its passage. A message whose widgets the primary holds
    goes there even where it declines (messages.js, `authoredHolders`). A part the
-   primary declined uses the page's nearest drawing of its thread: the exact outlet or
-   the seat a page-owned box keeps for it (surfaces.js, `surfaceFocusTarget`), with
-   whatever holds it closed opened, as a seat's Resolved disclosure holds a resolved
-   thread; then a page preview; then a deliberately revealed widget seat. A message
-   part lands on its message there. Where none of
-   those shows it, the primary is asked again with `request.last` set, which says
+   primary declined uses the page's nearest drawing of its thread: the exact outlet, or
+   the seat an `x-thread-seat` widget holds it in (surfaces.js, `surfaceFocusTarget`),
+   whose Resolved disclosure opens for a resolved thread; then a page preview; then a
+   deliberately revealed widget seat. A message part lands on its message there. Where
+   none of those shows it, the primary is asked again with `request.last` set, which says
    nothing else will show the thread, so the floating panel takes any thread then; a
    second refusal leaves the thread unopened. That is every thread about a passage on a
    window with no room for the rail, where no margin card stands (margin-projection.js,
@@ -336,8 +335,9 @@ export function createThreadDestinations({
         if (!scroll && (!surface || !presented(surface))) return DECLINED;
         if (preview) intent.handoff(preview.close);
         if (navigationStep) {
-          // Travel goes to the thread's place, so a drawing there that something holds
-          // closed, as a seat's Resolved disclosure holds a resolved thread, opens first.
+          // Travel lands on the thread's place, so a disclosure holding the drawing
+          // closed there, as a seat's Resolved disclosure holds a resolved thread,
+          // opens first.
           if (surface) await reveal(surface, intent).ready;
           if (!mayPresent()) return null;
           if (!(await scrollToThread(id, { part: localPart, focus, intent, history })))

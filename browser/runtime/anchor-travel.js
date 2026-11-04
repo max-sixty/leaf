@@ -60,7 +60,7 @@ import {
   shownBox,
 } from "./geometry.js";
 import { scrollBehavior } from "./motion.js";
-import { renderedParent } from "./shadow-tree.js";
+import { renderedParent, under } from "./shadow-tree.js";
 import { nextFrame } from "./rendering.js";
 import { scrollersOf, unconcealedReadingRegions } from "./reading-regions.js";
 import { prepareEntry, replaceEntry } from "./history.js";
@@ -637,7 +637,14 @@ export function createAnchorTravel({
         /** @type {ScrollPlacement[]} */
         const scroll = [];
         if (target) scroll.push({ at: target, block: "nearest" });
-        scroll.push({ at: where, when: () => !readableDestination(where) });
+        // Then the place lands in the reading band if the window can't show it whole.
+        // A part inside the place, as a seat's thread is inside its element, skips that
+        // landing, since landing a place taller than the window scrolls the part back
+        // out of view.
+        const inside =
+          target !== where && where instanceof Element && under(target, where);
+        if (!inside)
+          scroll.push({ at: where, when: () => !readableDestination(where) });
         return { where, focus: target, scroll };
       },
       {

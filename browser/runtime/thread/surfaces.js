@@ -616,9 +616,10 @@ export function revealHeld(ids) {
   return null;
 }
 
-// The part of a thread a seat on the page draws: a widget's outlet, else the seat a
-// page-owned box keeps beside its element (inline.js, `pageSeatThread`), which holds
-// the thread's page position as an outlet does (margin-projection.js, `seatedOnPage`).
+// The node a seat on the page draws for a thread's part: in a widget's outlet, else in
+// the seat an `x-thread-seat` widget holds the thread in (inline.js, `pageSeatThread`),
+// which takes the thread's page position as an outlet does (margin-projection.js,
+// `seatedOnPage`).
 // Resolve after reveal/presentation: a datum's outlet may have been replaced. Travel
 // takes the node rather than a callback that privately focuses and scrolls it.
 /** @param {string} name @param {{part?: import("./destination.js").ThreadPart}} [options] */

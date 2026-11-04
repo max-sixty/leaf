@@ -806,12 +806,11 @@ def test_replies_held_in_a_page_seat_show_when_the_user_turns_to_them(
         page.keyboard.press("t")
     elif end == "onto":
         page.keyboard.press("t")
-        # The walk lands on the thread in the margin's card, which is the same thread.
-        card = page.locator(
-            f'.lf-margin-preview .lf-page-thread[data-lf-thread="{root}"]'
-        )
-        expect(card).to_be_focused()
+        # The walk lands on the thread in its seat, where the user already stands, and
+        # opens no card beside it.
+        expect(thread).to_be_focused()
         rendered(page)
+        expect(page.locator(".lf-margin-preview")).to_be_hidden()
         expect(news).to_be_visible()
         expect(thread.locator(".lf-msg")).to_have_count(1)
         return

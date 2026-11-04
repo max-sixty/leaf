@@ -32,7 +32,8 @@ class Window:
 
 # The windows a tool opens a page in by name, as `eval --viewport large` or
 # `stills --viewport phone` does. An eval author's request and a judge's instructions
-# give a window's description, so rewording one changes what those agents are asked.
+# give a window's description, which states its size, so a change to either changes
+# what those agents are asked.
 WINDOWS = {
     "desktop": Window((1280, 800), "a 1280px by 800px desktop content viewport"),
     "large": Window((1600, 1000), "a large 1600px by 1000px desktop content viewport"),
@@ -214,8 +215,8 @@ def tab_options(command):
         "--touch/--no-touch",
         default=None,
         help="Show the page under a finger: a coarse pointer and mobile emulation, at "
-        "--viewport's size. By default as the window --viewport names sets it, "
-        "and otherwise off.",
+        "--viewport's size. Overrides the pointer of the window --viewport names "
+        "or of a state; without either, off.",
     )(sized)
     sized = click.option(
         "--scheme",

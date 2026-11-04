@@ -537,6 +537,7 @@ def page_state(
                 "ephemeral",
                 "revision",
                 "edited",
+                "withdrawn",
                 "suggestion",
                 "viewing",
             ):

@@ -20,14 +20,13 @@ from leaf.state import kernel_registry
 from leaf.structure import SourceDocument
 from leaf.validation import composition as validation_model
 from leaf_dev import declared_records, docs
+from leaf_dev.docs import DOCS, EXAMPLES, product_sources
 from leaf_dev.example_data import published_sources
 from leaf_dev.page_fixtures import authored_markup
 
 ROOT = Path(__file__).parents[2]
 ASSETS = ROOT / "browser"
 DEFAULT_PACKAGE = ROOT / "packages" / "default"
-DOCS = ROOT / "docs"
-EXAMPLES = ROOT / "examples"
 
 
 def test_kernel_event_contracts_declare_closed_records():
@@ -49,9 +48,7 @@ def test_kernel_event_contracts_declare_closed_records():
 
 
 def test_docs_pages_leave_delivery_markup_to_leaf():
-    pages = sorted(DOCS.glob("*.html"))
-    assert pages
-    for page in pages:
+    for page in product_sources():
         text = page.read_text()
         assert 'href="/theme.css"' not in text, page.name
         assert 'src="/leaf.js"' not in text, page.name
@@ -65,7 +62,7 @@ def test_every_published_source_says_what_its_page_is():
     The build composes the rest of a page's card from these two and refuses a page
     without them, so the failure this catches is one that would stop a deploy.
     """
-    sources = [*DOCS.glob("*.html"), *published_sources()]
+    sources = [*product_sources(), *published_sources()]
     descriptions = {}
     for page in sorted(sources):
         parsed = SourceDocument(page.read_text())
@@ -374,7 +371,7 @@ def test_every_command_the_docs_show_is_one_leaf_has():
 
     shown = [
         (source.name, line)
-        for source in sorted(DOCS.glob("*.html"))
+        for source in product_sources()
         for line in shown_in(SourceDocument(authored_markup(source)).tree)
     ]
     assert len(shown) > 10, (

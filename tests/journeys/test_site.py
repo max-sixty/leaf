@@ -75,6 +75,7 @@ from leaf.service import acknowledged
 from leaf.structure import SourceDocument
 from leaf_dev.browser import panel_tab, show_resolved
 from leaf_dev.commands import site as site_build
+from leaf_dev.docs import DOCS, EXAMPLES, product_sources
 from leaf_dev.example_data import (
     WORKED_EXAMPLES,
     authored_sources,
@@ -87,8 +88,6 @@ from leaf_dev.leaf_assets import pinned_assets
 from leaf_dev.page_fixtures import authored_markup, read_event_lines, source_packages
 
 ROOT = Path(__file__).parents[2]
-DOCS = ROOT / "docs"
-EXAMPLES = ROOT / "examples"
 FEATURE_GALLERY = EXAMPLES / "developer" / "feature-gallery.html"
 
 
@@ -135,16 +134,6 @@ def sample_allocation(page, url, template):
 
     page.route("**/api/samples", allocated)
     return allocation
-
-
-def pages_under(directory):
-    """The pages a sweep walks, proved to exist before it walks them. A check that
-    is a loop over a glob and nothing else turns, when its directory moves or is
-    renamed, into a sweep that pressed nothing — green, and for the wrong reason
-    (tests/AGENTS.md, "Sweeps over controls")."""
-    pages = sorted(directory.glob("*.html"))
-    assert pages, f"no pages under {directory}"
-    return pages
 
 
 def heading(source: str) -> str:
@@ -320,7 +309,7 @@ def opened(page, url):
 
 def test_product_pages_select_the_sources_packages(site):
     """Publication and local previews compose the product source's same layer."""
-    for page in pages_under(DOCS):
+    for page in product_sources():
         target = site_build.product_page(site, page.name)
         source_markup = page.read_text()
         assert 'href="/theme.css"' not in source_markup, page.name
@@ -388,7 +377,7 @@ def test_published_example_has_the_normal_leaf_layout(hosted, browser, serve):
 def test_product_pages_are_published_as_complete_page_records(site):
     """Each page retains its layer selection, history, and every captured media
     input."""
-    sources = pages_under(DOCS)
+    sources = product_sources()
     for source in sources:
         page = site_build.product_page(site, source.name)
         expected = authored_markup(source)
@@ -1099,7 +1088,7 @@ def test_every_product_route_is_a_live_leaf_page(site, hosted, browser):
     takes its paper from the theme in both schemes, and nothing scrolls sideways at
     390px: the nav wraps, the screenshots scale, and a command too long for the
     column scrolls inside its own block, as the architecture diagram fits its box."""
-    names = [source.name for source in site_build.product_sources()]
+    names = [source.name for source in product_sources()]
     page = browser.new_page()
     failed = []
     page.on(

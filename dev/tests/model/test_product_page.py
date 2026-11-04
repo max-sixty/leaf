@@ -5,11 +5,11 @@ import subprocess
 from typing import cast
 
 import pytest
-from model.test_product_page import DOCS, EXAMPLES
 
 from leaf.structure import SourceDocument
 from leaf_dev import docs
 from leaf_dev.commands import record_demo
+from leaf_dev.docs import DOCS, EXAMPLES
 from leaf_dev.example_data import document_metadata
 
 

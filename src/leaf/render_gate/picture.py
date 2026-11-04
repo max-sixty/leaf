@@ -124,7 +124,7 @@ def _picture(browser, url: str, comment: dict, out: Path) -> str | None:
         page.goto(url)
         wait_until_ready(page, served(page, url, "/api/state").json())
         rendered(page)
-        ink = page.locator(f'.lf-drawing-posted[data-thread="{comment["id"]}"]')
+        ink = page.locator(f'.lf-drawing-posted[data-lf-thread="{comment["id"]}"]')
         if not ink.count():
             return _no_ink(page, comment)
         ink.evaluate(CENTER)

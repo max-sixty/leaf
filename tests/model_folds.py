@@ -102,12 +102,14 @@ def served_reading(
     view_revision: int | None = None,
     presence: dict | None = None,
     data: dict | None = None,
+    held: str | None = None,
 ) -> dict:
     """The `/api/state` reading of one page, folded in this process.
 
     `documents` holds the revisions available at this point, or one string for
     a single revision. The newest is active; `view_revision` also reads a historical
-    document, through the same route as the browser.
+    document, through the same route as the browser. `held` is the `browser.basis.key`
+    of a reading the browser holds, which the answer completes (`served_state.tail`).
 
     `events` are written the way a command states them. The log's own fields —
     `id` (`e1`, `e2`, … in written order, which is what a later event names its
@@ -179,6 +181,7 @@ def served_reading(
             taken=float(len(log) + 1),
         ),
         view_revision=view_revision,
+        held=held,
     ).state
     assert (error := served_state_error(state)) is None, error
     return state

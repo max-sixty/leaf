@@ -167,7 +167,7 @@ export class TabSet extends LeafElement {
   #root = false;
   /** @type {(MutationObserver) | null} */
   #contextObserver = null;
-  #strip = offer("div", "lf-tabstrip scroll");
+  #strip = offer("div", "lf-tabstrip");
   /** @type {(() => void) | null} */
   #stopHeader = null;
   #side = false;
@@ -206,6 +206,7 @@ export class TabSet extends LeafElement {
     // is what makes a drag across the name possible at all.
     const strip = this.#strip;
     strip.setAttribute("role", "tablist");
+    strip.toggleAttribute("data-lf-scroll", true);
     if (down) strip.setAttribute("aria-orientation", "vertical");
     // Group runs are fixed by authored panels. Lit owns every generated child;
     // panel nodes stay outside its render root, with native reading and focus state.
@@ -218,7 +219,7 @@ export class TabSet extends LeafElement {
         this.#runs.push(run);
       }
       run.panels.push(panel);
-      if (!panel.classList.contains("scroll")) panel.classList.add("scroll");
+      panel.toggleAttribute("data-lf-scroll", true);
       panel.setAttribute("role", "tabpanel");
       keeps(panel, "aria-label", panel.getAttribute("label"));
       // The browser found something inside (find-in-page, an anchor jump), or
@@ -642,7 +643,7 @@ export class TabSet extends LeafElement {
   // the tabs are the keyboard's route, and a focused tab brings itself into view.
   /** @param {"start" | "end"} to */
   #edge(to) {
-    return html`<span class="lf-tabstrip-scroll" data-to=${to} aria-hidden="true"
+    return html`<span class="lf-tabstrip-scroll" data-lf-to=${to} aria-hidden="true"
       ><span
         @click=${() => {
           const strip = this.#strip;

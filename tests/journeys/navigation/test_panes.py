@@ -1,21 +1,20 @@
-import pytest
-
 """Tests scheduled by the measured cost of their boundary."""
 
-
+import pytest
 from browser.navigation.test_panes import only_thread, travel_to_passage
 from playwright.sync_api import expect
 from render_harness import (
-    CORPUS_SOURCES,
     open_page,
     pane_scroll_behavior,
     resized,
 )
 
+from leaf_dev.example_data import named_source
+
 
 @pytest.mark.shifts_unsurveyed
 def test_thread_travel_reveals_a_review_detail_in_its_pane_only(browser, serve):
-    example = next(e for e in CORPUS_SOURCES if e.stem == "review-queue")
+    example = named_source("review-queue")
     page = open_page(
         browser,
         serve(

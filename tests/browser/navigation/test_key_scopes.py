@@ -96,7 +96,7 @@ def test_a_walked_thread_leaves_through_what_holds_it(browser, serve):
     preview = page.locator(".lf-margin-preview")
     # The view holds one thread at a time, so the walk's landings are told apart by id.
     threads = [
-        page.locator(f'.lf-margin-preview .lf-page-thread[data-thread="{root}"]')
+        page.locator(f'.lf-margin-preview .lf-page-thread[data-lf-thread="{root}"]')
         for root in roots
     ]
 
@@ -116,7 +116,7 @@ def test_a_walked_thread_leaves_through_what_holds_it(browser, serve):
     page.keyboard.press("t")
     expect(threads[1]).to_be_focused()
     page.keyboard.press("t")
-    agents = preview.locator(f'.lf-page-thread[data-thread="{asked}"]')
+    agents = preview.locator(f'.lf-page-thread[data-lf-thread="{asked}"]')
     expect(agents).to_be_focused()
     page.keyboard.press("Escape")
     expect(preview).to_be_hidden()
@@ -181,7 +181,7 @@ def test_the_thread_walk_goes_on_from_the_place_the_panel_holds(browser, serve):
     )
     page = open_page(browser, url)
     threads = [
-        page.locator(f'.lf-margin-preview .lf-page-thread[data-thread="{root}"]')
+        page.locator(f'.lf-margin-preview .lf-page-thread[data-lf-thread="{root}"]')
         for root in roots
     ]
     page.keyboard.press("t")
@@ -217,7 +217,7 @@ def test_a_layer_is_left_the_same_way_however_it_was_reached(browser, serve):
     toggle = page.locator(".lf-fp-on-user")
     marker = page.locator('[data-lf-margin-for="p"] > .lf-margin-marker')
     threads = [
-        page.locator(f'.lf-margin-preview .lf-page-thread[data-thread="{root}"]')
+        page.locator(f'.lf-margin-preview .lf-page-thread[data-lf-thread="{root}"]')
         for root in roots
     ]
 
@@ -310,7 +310,7 @@ def test_a_view_reached_from_another_view_leaves_both_of_them_shut(browser, serv
 
     page.keyboard.press("g")
     page.keyboard.press("Shift+m")
-    row = page.locator(".lf-fp-on-item[data-key*='\"widget:second-options\"']")
+    row = page.locator(".lf-fp-on-item[data-lf-key*='\"widget:second-options\"']")
     expect(row).to_be_visible()
     row.focus()
     expect(row).to_be_focused()
@@ -1351,9 +1351,9 @@ def test_holding_a_key_repeats_only_where_the_press_is_a_walk(
     page.keyboard.press("t")
     walked = page.locator(PANEL_THREAD)
     expect(walked).to_be_focused()
-    first = walked.get_attribute("data-thread")
+    first = walked.get_attribute("data-lf-thread")
     page.evaluate(press, ["t", True])  # a walk repeats
-    expect(walked).not_to_have_attribute("data-thread", first)
+    expect(walked).not_to_have_attribute("data-lf-thread", first)
     expect(walked).to_be_focused()
 
     page.keyboard.press("m")
@@ -1803,7 +1803,7 @@ def test_a_label_press_keeps_the_controls_current_keyboard_location(browser, ser
     held_obligation = page.locator("#first-question-decision[data-lf-obligation]")
     expect(held_obligation).to_have_count(1)
     expect(
-        page.locator(".lf-location[data-for='first-question-decision']")
+        page.locator(".lf-location[data-lf-for='first-question-decision']")
     ).to_be_visible()
     # Native label activation temporarily blurs the radio. Its logical input
     # destination remains in place until the label's click transfers focus. The
@@ -1908,7 +1908,7 @@ def test_escape_on_a_declaring_control_does_exactly_what_it_says(browser, serve)
     # the view the ladder would have put away stands.
     expect(page.locator(".lf-lift")).to_have_count(0)
     expect(page.locator("#col-todo #card-heater")).to_have_count(1)
-    expect(page.locator(PANEL)).to_have_attribute("data-open", "threads")
+    expect(page.locator(PANEL)).to_have_attribute("data-lf-open", "threads")
 
 
 @pytest.mark.parametrize("entry", ["walk", "option", "aim"])

@@ -60,15 +60,15 @@ lf-text-document .lf-text-document-listing {
   --diffs-fg: var(--code-ink);
   --diffs-fg-number: var(--code-muted);
 }
-lf-text-document [data-number]::before {
-  content: attr(data-number);
+lf-text-document [data-lf-number]::before {
+  content: attr(data-lf-number);
 }
 /* A run of rows (lf-text-document.js, `inRuns`) spans the listing's grid and lays out
    Pierre's two columns itself, and the browser draws it only while it is in view. Each
    run sizes its number column to its own numbers, so every number takes the width of
    the text's widest one (Pierre's `--diffs-min-number-column-width-default`), and
    every run's lines start at the same x. */
-lf-text-document [data-number] {
+lf-text-document [data-lf-number] {
   display: inline-block;
   min-inline-size: var(--diffs-min-number-column-width-default);
 }

@@ -102,12 +102,12 @@ async function sourceListing(source, language) {
   const styles = [...rendered.querySelectorAll("style")];
   listingSheet ??= scopedSheet(styles.map((style) => style.textContent).join("\n"));
   for (const style of styles) style.remove();
-  // A line number is Leaf's control, drawn from `data-number`; dropping Pierre's
+  // A line number is Leaf's control, drawn from `data-lf-number`; dropping Pierre's
   // attribute keeps its sheet's rule for that span (a positioned, stacked
   // inline-block) off it.
   for (const number of rendered.querySelectorAll("span[data-line-number-content]")) {
     number.removeAttribute("data-line-number-content");
-    number.setAttribute("data-number", number.textContent);
+    number.setAttribute("data-lf-number", number.textContent);
     number.textContent = "";
     number.classList.add("lf-ui");
     generatedElement(number, { says: false });
@@ -588,7 +588,8 @@ class TextDocument extends LeafElement {
     figure.className = "lf-text-document-view";
     const caption = document.createElement("figcaption");
     const listing = document.createElement("div");
-    listing.className = "lf-text-document-listing scroll";
+    listing.className = "lf-text-document-listing";
+    listing.toggleAttribute("data-lf-scroll", true);
     figure.append(caption);
     if (!preview) {
       figure.append(listing);

@@ -234,7 +234,7 @@ customElements.define('lf-feed', class extends LeafElement {
 
     page.locator('[data-lf-datum="a-1"]').click(modifiers=["Alt"])
     page.keyboard.press("Tab")
-    reaction = page.locator('.lf-fab-bar .lf-react[data-token="keep"]')
+    reaction = page.locator('.lf-fab-bar .lf-react[data-lf-token="keep"]')
     expect(reaction).to_be_visible()
     with sending(page, "the record reaction"):
         reaction.click()

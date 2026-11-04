@@ -374,7 +374,7 @@ customElements.define(
                     ><span class="lf-row-main">${record.title}</span
                     ><span
                       class="lf-vr-case-status lf-row-end"
-                      data-approved=${String(approved)}
+                      data-lf-approved=${String(approved)}
                       >${iconTemplate("check")}<span class="lf-quiet"
                         >Looks right</span
                       ></span
@@ -522,7 +522,8 @@ customElements.define(
                         ${threads.length} ${threads.length === 1 ? "thread" : "threads"}
                       </button>
                       <div
-                        class="lf-vr-thread-list lf-popover scroll"
+                        class="lf-vr-thread-list lf-popover"
+                        data-lf-scroll
                         id=${`${this.id}-${record.id}-threads`}
                         popover
                       >
@@ -581,7 +582,8 @@ customElements.define(
                 Capture details
               </button>
               <div
-                class="lf-vr-details lf-popover scroll"
+                class="lf-vr-details lf-popover"
+                data-lf-scroll
                 id=${`${this.id}-${record.id}-inspection`}
                 popover
                 @toggle=${landOnClose}

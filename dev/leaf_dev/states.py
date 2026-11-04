@@ -7,9 +7,10 @@ composes, named after its file (`corpus.sources`), and the surfaces a user reach
 acting. Where a change touches a surface no state reaches, add one state for it, never
 one per size, scheme or pointer: `--viewport`, `--scheme` and `--touch` choose those
 for every state a run opens, in stills and probe alike, and a surface laid out
-differently on a phone is still one state. A state names its own viewport or pointer
-only where its surface appears at no other, such as a card in a short window or the
-floating panel's view of a thread on a phone; `--viewport` and `--touch` override it.
+differently on a phone is still one state. A state names its own window only where
+its surface appears in no other, such as a card in a short window or the floating
+panel's view of a thread on a phone; `--viewport` replaces it, and `--touch` or
+`--no-touch` sets its pointer (`browser.chosen_window`).
 A state may name a region whose before/after bounds frame stills' comparison,
 retaining related controls without shrinking their details behind unrelated viewport
 changes.
@@ -30,8 +31,8 @@ from playwright.sync_api import Locator, Page, expect
 from leaf.render_checks import wait_until_ready
 from leaf_dev.arms import PageClient, served_page
 from leaf_dev.browser import (
-    DESKTOP,
-    PHONE,
+    WINDOWS,
+    Window,
     go_to_threads,
     load,
     scroll_settled,
@@ -259,7 +260,7 @@ def share_link(page: Page) -> None:
         " () => Promise.reject(new Error('refused')); }"
     )
     page.locator(".lf-fp-leaf").click()
-    page.locator('.lf-fp-item[data-row="share"]').click()
+    page.locator('.lf-fp-item[data-lf-row="share"]').click()
     about = page.get_by_role("dialog", name="About this page", exact=True)
     expect(about).to_contain_text(re.compile(r"Source captured for r\d+"))
     link = about.get_by_label("Link", exact=True)
@@ -299,7 +300,7 @@ def playground_text(page: Page) -> None:
 def page_about(page: Page) -> None:
     """The page's identity and captured diagnostics in the menu's inspection dialog."""
     page.locator(".lf-fp-leaf").click()
-    page.locator('.lf-fp-item[data-row="inspection"]').click()
+    page.locator('.lf-fp-item[data-lf-row="inspection"]').click()
     expect(page.locator(".lf-inspection-dialog")).to_contain_text(
         re.compile(r"Source captured for r\d+")
     )
@@ -320,8 +321,10 @@ def panel_status_hover(page: Page) -> None:
 def open_thread(page: Page, key: str) -> None:
     """The thread `key`, opened from Threads in the floating panel's view."""
     go_to_threads(page)
-    page.locator(f'.lf-fp-thread[data-key="{key}"]').click()
-    expect(page.locator(".lf-fp-view[data-view=thread] .lf-msg").first).to_be_visible()
+    page.locator(f'.lf-fp-thread[data-lf-key="{key}"]').click()
+    expect(
+        page.locator(".lf-fp-view[data-lf-route=thread] .lf-msg").first
+    ).to_be_visible()
 
 
 def floating_thread(page: Page) -> None:
@@ -329,7 +332,7 @@ def floating_thread(page: Page) -> None:
     its view, and under it, on the row, the way back, Show on page, Resolve and Close."""
     go_to_threads(page)
     page.locator(".lf-fp-thread", has_text="One reconnect in forty").click()
-    expect(page.locator(".lf-fp-view[data-view=thread]")).to_be_visible()
+    expect(page.locator(".lf-fp-view[data-lf-route=thread]")).to_be_visible()
 
 
 def thread_code_copy(page: Page) -> None:
@@ -342,7 +345,7 @@ def thread_code_copy(page: Page) -> None:
         "Run this command:\n\n```sh\necho hello\n```\n\nThen continue.",
     )
     floating_thread(page)
-    page.locator(".lf-fp-view[data-view=thread] pre").hover()
+    page.locator(".lf-fp-view[data-lf-route=thread] pre").hover()
 
 
 def floating_thread_unread(page: Page) -> None:
@@ -364,7 +367,7 @@ def panel_new_reply(page: Page) -> None:
     """The same thread after the user's own turn, with the agent's answer to it too long
     for the view, arrived below the fold behind New reply."""
     floating_thread(page)
-    view = page.locator(".lf-fp-view[data-view=thread]")
+    view = page.locator(".lf-fp-view[data-lf-route=thread]")
     messages = view.locator(".lf-msg")
     sent = messages.count() + 1
     page.locator(".lf-fp-field leaf-text").click()
@@ -419,7 +422,9 @@ def reaction_palette(page: Page) -> None:
     """A reply's reactions in the floating panel's thread, the palette opened from the
     strip's trigger, none in force."""
     floating_thread(page)
-    message = page.locator(".lf-fp-view[data-view=thread] .lf-msg:has(.lf-react-strip)")
+    message = page.locator(
+        ".lf-fp-view[data-lf-route=thread] .lf-msg:has(.lf-react-strip)"
+    )
     message.first.hover()
     message.first.locator(".lf-react-trigger").click()
     expect(message.first.locator(".lf-react-palette:popover-open")).to_be_visible()
@@ -429,11 +434,11 @@ def reaction_pressed(page: Page) -> None:
     """The same reply once the user has added its first reaction, which the closed
     strip keeps in sight in the accent, under the pointer and away from it."""
     reaction_palette(page)
-    strip = page.locator(".lf-fp-view[data-view=thread] .lf-react-strip").first
+    strip = page.locator(".lf-fp-view[data-lf-route=thread] .lf-react-strip").first
     strip.locator(".lf-react").first.click()
     expect(strip.locator('.lf-react[aria-pressed="true"]')).to_have_count(1)
     # A press beside the palette puts it away, as any popover is.
-    page.locator(".lf-fp-view[data-view=thread] .lf-msg-body").first.click()
+    page.locator(".lf-fp-view[data-lf-route=thread] .lf-msg-body").first.click()
     expect(strip.locator(".lf-react-palette:popover-open")).to_have_count(0)
     settle(page)
 
@@ -442,7 +447,7 @@ def floating_thread_retitled(page: Page) -> None:
     """The same thread once its opening message is rewritten short, so its title is far
     narrower than the view it names."""
     floating_thread(page)
-    page.locator(".lf-fp-view[data-view=thread] .lf-msg-body").first.dblclick()
+    page.locator(".lf-fp-view[data-lf-route=thread] .lf-msg-body").first.dblclick()
     page.keyboard.press("ControlOrMeta+a")
     page.keyboard.type("Ship it?")
     page.keyboard.press("Enter")
@@ -545,8 +550,8 @@ def panel_reply_empty(page: Page) -> None:
     """The last open thread, opened from Threads in the floating panel, with the caret
     in its empty reply."""
     go_to_threads(page)
-    page.locator(".lf-fp-thread:not([data-resolved])").last.click()
-    expect(page.locator(".lf-fp-view[data-view=thread]")).to_be_visible()
+    page.locator(".lf-fp-thread:not([data-lf-resolved])").last.click()
+    expect(page.locator(".lf-fp-view[data-lf-route=thread]")).to_be_visible()
     page.locator(".lf-fp-field leaf-text").click()
     expect(page.locator(".lf-fp-field leaf-text")).to_be_focused()
 
@@ -560,7 +565,7 @@ def panel_dictating(page: Page) -> None:
     dictate.evaluate(
         """button => {
           button.setAttribute("aria-pressed", "true");
-          button.dataset.dictation = "listening";
+          button.dataset.lfDictation = "listening";
         }"""
     )
     settle(page)
@@ -751,7 +756,7 @@ def card_reply_resolved_elsewhere(page: Page) -> None:
     """An agent resolves the thread while the user keeps writing in its margin card."""
     card_reply(page)
     card = page.locator(".lf-margin-preview .lf-page-thread")
-    root = card.get_attribute("data-thread")
+    root = card.get_attribute("data-lf-thread")
     assert root
     as_agent("thread", "resolve", root)
     expect(card.locator(".lf-reopen")).to_be_visible()
@@ -770,7 +775,7 @@ def held_news(page: Page, thread: Locator) -> None:
     notice (held-news.js)."""
     thread.get_by_role("textbox", name="Reply", exact=True).click()
     page.keyboard.insert_text("Drafting a reply while the news arrives")
-    root = thread.get_attribute("data-thread")
+    root = thread.get_attribute("data-lf-thread")
     assert root
     as_agent("thread", "reply", root, "--text", "That one goes first.")
     notice = thread.locator(".lf-thread-news")
@@ -802,7 +807,7 @@ def card_held_step(page: Page) -> None:
     thread = page.locator(".lf-margin-preview .lf-page-thread")
     thread.get_by_role("textbox", name="Reply", exact=True).click()
     page.keyboard.insert_text("Drafting a reply while the agent works")
-    root = thread.get_attribute("data-thread")
+    root = thread.get_attribute("data-lf-thread")
     assert root
     as_agent("thread", "reply", root, "--ephemeral", "--text", "Checking the stop.")
     state = PageClient(served_page.get().address).state()
@@ -823,7 +828,7 @@ def card_after_interjection(page: Page) -> None:
     settle(page)
     served = served_page.get()
     delivery = json.loads(served.leaf("wait", str(served.directory), timeout=15).stdout)
-    sent = reply.get_attribute("data-event")
+    sent = reply.get_attribute("data-lf-event")
     reference = next(
         event["answer"]["ref"]
         for batch in delivery["batches"]
@@ -874,7 +879,7 @@ def option_references(page: Page) -> None:
 def on_me(page: Page) -> None:
     """On me, opened from the floating panel's On me mark."""
     page.locator(".lf-fp-on-user").click()
-    expect(page.locator(".lf-fp-view[data-view=queue]")).to_be_visible()
+    expect(page.locator(".lf-fp-view[data-lf-route=queue]")).to_be_visible()
 
 
 def on_me_todo(page: Page) -> None:
@@ -898,14 +903,18 @@ def on_me_todo(page: Page) -> None:
 def on_me_choice(page: Page) -> None:
     """A described choice card in On me, before answering."""
     on_me(page)
-    card = page.locator('.lf-fp-on-item[data-obligation="widget:decision-dedupe"]')
+    card = page.locator(
+        '.lf-fp-on-item[data-lf-obligation-id="widget:decision-dedupe"]'
+    )
     card.scroll_into_view_if_needed()
 
 
 def on_me_choice_answered(page: Page) -> None:
     """The result and Undo replacing a described choice on its retained card."""
     on_me_choice(page)
-    card = page.locator('.lf-fp-on-item[data-obligation="widget:decision-dedupe"]')
+    card = page.locator(
+        '.lf-fp-on-item[data-lf-obligation-id="widget:decision-dedupe"]'
+    )
     card.locator(".lf-fp-answer").first.click()
     expect(card.locator(".lf-fp-said")).to_contain_text("Answered:")
 
@@ -916,7 +925,7 @@ def on_agent(page: Page) -> None:
     page.locator(".lf-fp-filters button").filter(
         has_text=re.compile(r"^\s*On (?!me)")
     ).first.click()
-    expect(page.locator(".lf-fp-view[data-view=queue]")).to_be_visible()
+    expect(page.locator(".lf-fp-view[data-lf-route=queue]")).to_be_visible()
 
 
 def threads_returning(page: Page) -> None:
@@ -1014,8 +1023,10 @@ def retained_quote(page: Page) -> None:
     sample.scroll_into_view_if_needed()
     child = sample.frame_locator("iframe")
     go_to_threads(page, child)
-    child.locator('.lf-fp-thread[data-key="bg-retained-quote-thread"]').click()
-    expect(child.locator(".lf-fp-view[data-view=thread] .lf-msg").first).to_be_visible()
+    child.locator('.lf-fp-thread[data-lf-key="bg-retained-quote-thread"]').click()
+    expect(
+        child.locator(".lf-fp-view[data-lf-route=thread] .lf-msg").first
+    ).to_be_visible()
 
 
 def retained_quote_full(page: Page) -> None:
@@ -1093,7 +1104,9 @@ def image_in_page(page: Page) -> None:
 def thread_picture(page: Page) -> None:
     """The gallery's pasted screenshot, a white page, in its message in the panel."""
     open_thread(page, "2be2443f0bb6cc49fc86b52f340e6073")
-    picture = page.locator(".lf-fp-view[data-view=thread] .lf-message-media img").first
+    picture = page.locator(
+        ".lf-fp-view[data-lf-route=thread] .lf-message-media img"
+    ).first
     picture.evaluate("image => image.decode()")
     picture.scroll_into_view_if_needed()
 
@@ -1101,7 +1114,7 @@ def thread_picture(page: Page) -> None:
 def image_preview(page: Page) -> None:
     """Inspect the gallery's pasted screenshot through the shared image viewer."""
     open_thread(page, "2be2443f0bb6cc49fc86b52f340e6073")
-    page.locator(".lf-fp-view[data-view=thread] .lf-media-open").first.click()
+    page.locator(".lf-fp-view[data-lf-route=thread] .lf-media-open").first.click()
     page.get_by_role("dialog", name="Image preview").wait_for(state="visible")
     page.wait_for_function("""() => {
       const zoom = document.querySelector('.lf-media-viewer-zoom');
@@ -1114,7 +1127,7 @@ def panel_by_keyboard(page: Page) -> None:
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
     page.wait_for_function(
-        "() => document.activeElement?.matches('.lf-fp-view[data-view=threads] .lf-fp-thread')"
+        "() => document.activeElement?.matches('.lf-fp-view[data-lf-route=threads] .lf-fp-thread')"
     )
 
 
@@ -1133,7 +1146,7 @@ def composer_resting(page: Page) -> None:
     # it, rather than raising a field beside it. It arrives on a later frame, so the
     # pointer decides, not whether it is there yet.
     if page.evaluate("matchMedia('(pointer: coarse)').matches"):
-        page.locator('.lf-fp-field leaf-text[data-says="selection"]').click()
+        page.locator('.lf-fp-field leaf-text[data-lf-says="selection"]').click()
 
 
 def composer_empty(page: Page) -> None:
@@ -1277,8 +1290,8 @@ def panel_reply_long(page: Page) -> None:
     """The last open thread, opened from Threads in the floating panel, with a reply
     of two wrapped paragraphs in the panel's field, its reply box."""
     go_to_threads(page)
-    page.locator(".lf-fp-thread:not([data-resolved])").last.click()
-    expect(page.locator(".lf-fp-view[data-view=thread]")).to_be_visible()
+    page.locator(".lf-fp-thread:not([data-lf-resolved])").last.click()
+    expect(page.locator(".lf-fp-view[data-lf-route=thread]")).to_be_visible()
     page.locator(".lf-fp-field leaf-text").click()
     page.keyboard.insert_text(LONG_DRAFT)
 
@@ -1542,7 +1555,7 @@ def diff_author_notes(page: Page) -> None:
 def diff_path_by_keyboard(page: Page) -> None:
     """A folded diff file's row under the keyboard, saying the whole path its row cuts
     short."""
-    head = page.locator("#pr-exact-patch .lf-diff-head[data-path-cut]").first
+    head = page.locator("#pr-exact-patch .lf-diff-head[data-lf-path-cut]").first
     head.scroll_into_view_if_needed()
     page.keyboard.press("Shift")
     head.focus()
@@ -1673,7 +1686,7 @@ def aim_cut_by_pane(page: Page) -> None:
     page.mouse.move(box["x"] + 120, box["y"] + 20)
     page.keyboard.down("Alt")
     page.wait_for_function(
-        "() => document.querySelector('.lf-aim')?.dataset.for === 'sort-source-note'"
+        "() => document.querySelector('.lf-aim')?.dataset.lfFor === 'sort-source-note'"
     )
 
 
@@ -1774,8 +1787,8 @@ def capture_menu(page: Page) -> None:
     """Capture area, chosen from the leaf menu's Annotations, standing over the dimmed
     page with no area drawn until a drag draws one."""
     more_menu(page)
-    page.locator('.lf-fp-item[data-row="group:annotate"]').click()
-    page.locator('.lf-fp-item[data-row="command:capture.region.open"]').click()
+    page.locator('.lf-fp-item[data-lf-row="group:annotate"]').click()
+    page.locator('.lf-fp-item[data-lf-row="command:capture.region.open"]').click()
     expect(page.get_by_role("region", name="Capture area", exact=True)).to_be_visible()
 
 
@@ -1804,7 +1817,7 @@ def capture_small_drag(page: Page) -> None:
 def versions_menu(page: Page) -> None:
     """Versions, opened from the leaf's menu: a row for each version, with its note."""
     more_menu(page)
-    page.locator('.lf-fp-item[data-row="versions"]').click()
+    page.locator('.lf-fp-item[data-lf-row="versions"]').click()
     page.locator(".lf-fp-version").first.wait_for()
 
 
@@ -1869,7 +1882,7 @@ def overflowing_tabs(page: Page) -> None:
     ).click()
     strip = page.locator("#bg-rollout-tabs > .lf-tabstrip")
     strip.scroll_into_view_if_needed()
-    strip.locator('.lf-tabstrip-scroll[data-to="end"] > span').click()
+    strip.locator('.lf-tabstrip-scroll[data-lf-to="end"] > span').click()
     scroll_settled(page)
 
 
@@ -2086,18 +2099,9 @@ class State:
     name: str
     source: str
     drive: Callable[[Page], None] | None = None
-    viewport: tuple[int, int] = DESKTOP
-    touch: bool = False
+    window: Window = WINDOWS["macbook"]
     region: str | None = None
     activated: bool = True
-
-    def window(
-        self, viewport: tuple[int, int] | None, scheme: str, touch: bool | None
-    ) -> tuple[tuple[int, int], str, bool]:
-        """The viewport, scheme and pointer to open this state's tab in, as the run
-        gave them (`tab_options`), with the state's own viewport and pointer where it
-        gave none."""
-        return viewport or self.viewport, scheme, self.touch if touch is None else touch
 
 
 STATES = (
@@ -2108,7 +2112,7 @@ STATES = (
         region="#leaf-request-document",
     ),
     State("printed-exhibit", "lost-update", printed_exhibit, region="main"),
-    State("failed-widget", "review-a-plan", failed_widget, viewport=(1600, 900)),
+    State("failed-widget", "review-a-plan", failed_widget, window=Window((1600, 900))),
     State("page-about", "review-a-plan", page_about, region=".lf-inspection-dialog"),
     State(
         "authored-timeline-keyboard",
@@ -2208,7 +2212,7 @@ STATES = (
         "film-inspector",
         "wt-merge",
         film_inspector,
-        viewport=(900, 900),
+        window=Window((900, 900)),
         region="#merge-film .film-stage",
     ),
     State(
@@ -2233,7 +2237,7 @@ STATES = (
         "trace-comparison-header",
         "review-a-fix",
         trace_comparison,
-        viewport=(900, 900),
+        window=Window((900, 900)),
         region="#fix-before",
     ),
     State("drawing-photo-comment", "feature-gallery", drawing_photo_comment),
@@ -2415,20 +2419,21 @@ STATES = (
         "contents-over-reading",
         "sidebar-contents",
         contents_over_reading,
-        viewport=(1100, 900),
+        window=Window((1100, 900)),
         region=".lf-toc-start a",
     ),
     State("playground-controls", "notification-playground", playground_controls),
     State("playground-instruction", "notification-playground", playground_instruction),
     State("playground-inline-end", "motion-playground", page_end),
     State("playground-tall-stage", "alert-thresholds", playground_tall_stage),
-    State("playground-short-window", "data-explorer", page_end, viewport=(844, 390)),
+    State(
+        "playground-short-window", "data-explorer", page_end, window=Window((844, 390))
+    ),
     State(
         "margin-gallery",
         "feature-gallery",
         margin_gallery,
-        viewport=PHONE,
-        touch=True,
+        window=WINDOWS["phone"],
     ),
     State("release-draft", "release-notes", draft_edit),
     State("release-draft-long", "release-notes", draft_long_edit),
@@ -2454,7 +2459,7 @@ STATES = (
         "gallery-wide-schedule",
         "feature-gallery",
         wide_schedule,
-        viewport=(1726, 900),
+        window=Window((1726, 900)),
     ),
     State("gallery-multiline-passage", "feature-gallery", multiline_passage),
     State("plan-execution", "review-a-plan", plan_execution, region="#plan-execute"),
@@ -2481,7 +2486,7 @@ STATES = (
         "thread-choice-hints-card",
         "thread-choice-hints",
         card_by_keyboard,
-        viewport=(1000, 838),
+        window=Window((1000, 838)),
         region=".lf-margin-preview",
     ),
     State("plan-card-reply", "review-a-plan", card_reply),
@@ -2517,29 +2522,33 @@ STATES = (
         region="#goal-parser .lf-page-thread",
     ),
     State(
-        "plan-card-reply-large", "review-a-plan", card_reply_large, viewport=(1440, 600)
+        "plan-card-reply-large",
+        "review-a-plan",
+        card_reply_large,
+        window=Window((1440, 600)),
     ),
     State("plan-panel", "review-a-plan", go_to_threads),
     State("plan-panel-keyboard", "review-a-plan", panel_by_keyboard),
-    State("plan-go-to", "review-a-plan", go_to, viewport=(1024, 768)),
+    State("plan-go-to", "review-a-plan", go_to, window=Window((1024, 768))),
     State(
         "plan-thread-in-panel",
         "review-a-plan",
         thread_by_marker,
-        viewport=PHONE,
-        touch=True,
+        window=WINDOWS["phone"],
     ),
     State("plan-more", "review-a-plan", more_menu),
     State("plan-capture", "review-a-plan", capture_area),
     State(
-        "plan-capture-drag", "review-a-plan", capture_small_drag, viewport=(390, 740)
+        "plan-capture-drag",
+        "review-a-plan",
+        capture_small_drag,
+        window=Window((390, 740)),
     ),
     State(
         "plan-versions-touch",
         "review-a-plan",
         versions_menu,
-        viewport=PHONE,
-        touch=True,
+        window=WINDOWS["phone"],
     ),
     State("plan-card-reply-long", "review-a-plan", card_reply_long),
     State("plan-panel-reply-long", "review-a-plan", panel_reply_long),
@@ -2616,7 +2625,12 @@ STATES = (
         composer_caret_motion,
         region=".lf-fab-bar",
     ),
-    State("triage-composer-space", "triage-board", composer_space, viewport=(362, 900)),
+    State(
+        "triage-composer-space",
+        "triage-board",
+        composer_space,
+        window=Window((362, 900)),
+    ),
     State(
         "triage-composer-scrolling",
         "triage-board",
@@ -2629,7 +2643,7 @@ STATES = (
         "plan-composer-sent-zoomed",
         "review-a-plan",
         composer_sent_zoomed,
-        viewport=(1200, 900),
+        window=Window((1200, 900)),
     ),
     State("alert-queue-tally", "alert-review", tally_after_an_answer),
     State(
@@ -2664,13 +2678,13 @@ STATES = (
         "breakout-captions-scrolled",
         "breakout-table-caption",
         breakout_captions_scrolled,
-        viewport=PHONE,
+        window=Window(WINDOWS["phone"].size),
     ),
     State(
         "table-scrolled-sideways",
         "security-boundary",
         table_scrolled_sideways,
-        viewport=PHONE,
+        window=Window(WINDOWS["phone"].size),
         region="#security-vendor-table",
     ),
     State("triage-grabbed", "triage-board", card_grabbed),
@@ -2679,12 +2693,13 @@ STATES = (
         "triage-moved-touch",
         "triage-board",
         card_moved_by_destination,
-        viewport=PHONE,
-        touch=True,
+        window=WINDOWS["phone"],
         region="#col-blocking",
     ),
     State("walkthrough-body", "pr-walkthrough", into_the_body),
-    State("progress-body-short", "live-progress", into_the_body, viewport=(900, 600)),
+    State(
+        "progress-body-short", "live-progress", into_the_body, window=Window((900, 600))
+    ),
     State("walkthrough-calls", "pr-walkthrough", call_tree, region="#pr-call-diagram"),
     State("diagram-flow", "pr-walkthrough", diagram_flow, region="#pr-flow-diagram"),
     State("diagram-shape-comment", "pr-walkthrough", diagram_shape_comment),
@@ -2696,28 +2711,27 @@ STATES = (
         "walkthrough-path-keyboard",
         "pr-walkthrough",
         diff_path_by_keyboard,
-        viewport=PHONE,
+        window=Window(WINDOWS["phone"].size),
     ),
     State(
         "walkthrough-diff-source-pointer",
         "pr-walkthrough",
         diff_source_by_pointer,
-        viewport=(600, 900),
+        window=Window((600, 900)),
         region="#pr-exact-patch .lf-diff-file:has(code[data-code])",
     ),
     State(
         "walkthrough-diff-source-keyboard",
         "pr-walkthrough",
         diff_source_by_keyboard,
-        viewport=(600, 900),
+        window=Window((600, 900)),
         region="#pr-exact-patch .lf-diff-file:has(code[data-code])",
     ),
     State(
         "walkthrough-source-touch",
         "pr-walkthrough",
         code_source_by_touch,
-        viewport=PHONE,
-        touch=True,
+        window=WINDOWS["phone"],
     ),
     State("ship-thread", "ship-review", element_thread),
     State(
@@ -2737,9 +2751,14 @@ STATES = (
         option_thread_open,
         region="#off-workaround-review",
     ),
-    State("ship-card-more-room", "ship-review", card_more_room, viewport=(1440, 600)),
     State(
-        "ship-card-short-window", "ship-review", card_by_pointer, viewport=(1440, 480)
+        "ship-card-more-room", "ship-review", card_more_room, window=Window((1440, 600))
+    ),
+    State(
+        "ship-card-short-window",
+        "ship-review",
+        card_by_pointer,
+        window=Window((1440, 480)),
     ),
     State("on-me-todo", "review-a-plan", on_me_todo),
     State("on-me", "corpus", on_me),

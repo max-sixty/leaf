@@ -970,8 +970,7 @@ def folded(page_dir, board="b1"):
         board,
         "move",
         registry["lf-board"]["x-state"]["move"]["record"],
-        document.document.by_id,
-        registry,
+        projection_model.AuthoredOrders(document.document.by_id, registry),
         document.projection,
     )
 
@@ -1078,8 +1077,7 @@ def test_the_position_fold_matches_the_browser_cases(case):
         "board",
         "move",
         spec["record"],
-        document.by_id,
-        registry,
+        projection_model.AuthoredOrders(document.by_id, registry),
         projection,
     )
     assert order == case["order"]

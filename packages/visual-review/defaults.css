@@ -102,7 +102,7 @@ lf-visual-review {
 .lf-vr-case-status {
   color: var(--ok-ink);
 }
-.lf-vr-case-status[data-approved="false"] {
+.lf-vr-case-status[data-lf-approved="false"] {
   visibility: hidden;
 }
 .lf-vr-detail {

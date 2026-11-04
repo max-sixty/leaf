@@ -1,8 +1,8 @@
-import { CARET_KEYS, HOLDS_WORD, J, OUTPUT, PAGE_PAINT_ATTRIBUTE, PRESS, RUNTIME_PAINT_ATTRIBUTE, SourcePairs, TEXT_BOX, TEXT_FIELD, W, WALK, Z, actionElement, actionTemplate, afterScript, aimedTop, alreadyShown, atScrollEnd, attachDeferredLoader, backgroundFlash, beginWalk, bindQueuedWork, blurFocused, byRenderedOrder, cancelRender, caretAtKey, chosenSince, clippedContents, clippedPlace, closestAcross, currentLocationIn, currentLocationNodes, currentLocationTouches, d, dataBody, deepFocus, describeFailure, drawn as drawn$2, eventSource, fitsWhole, flashDuration, focusDestination, focused, foldBlock, frameFor, generatedElement, growthAfterIsSeen, growthIsSeen, headerInset, holdCurrentLocation, holdFocus, iconElement, inChrome, inUi, inWindowChrome, inlineStyle, inputCount, isElement, isHTML, keeps, keepsHidden, keepsText, landedBox, landingBand, layoutPx, listWalkPosition, measure, motion, motionPlays, move, moveScrollerBy, nativeLayerHolding, nextAnimation, nextFrame, nextRender, offer, offerAction, offerContentElement, offered, offeredAction, offeredActionElement, onCurrentLocation, onLetGo, onPress, onPressAway, onUserInput, outputProducer, pagePresented, pageScroller, passOn, patchRetains, patchTree, placeBox, placeHolder, placeKept, plainPress, pointerAt, presented, readCaret, recentPlaceInput, refuseOutput, registrations, renderedOrder, renderedParent, renderedUnder, renderingState, restorePointer, restrictUserIntent, retainUserIntent, roomPx, scrollBehavior, scrollChoices, scrollGoal, scrollIntoReadingBand, scrollIntoView, scrollLimit, scrollToEnd, scrollersOf, seenRect, selectsAll, setChildren, setRegistration, setScroll, shownBox, shownRect, shownWindow, showsContents, sizeObserver, skipped, skipper, slotTop, stopScroll, stuckBox, synNodes, syntax, syntaxLanguageNames, tabStore, takesLetters, tick, under, union, upFrom, updateSurface, userScrollport, visibleBand, watchArrivals, watchOwner, watchScrollEnds, whenNone, x } from "./bundle-portable.js";
+import { CARET_KEYS, HOLDS_WORD, J, OUTPUT, PAGE_PAINT_ATTRIBUTE, PRESS, RUNTIME_PAINT_ATTRIBUTE, SourcePairs, TEXT_BOX, TEXT_FIELD, W, WALK, Z, actionElement, actionTemplate, afterScript, aimedTop, alreadyShown, atScrollEnd, attachDeferredLoader, backgroundFlash, beginWalk, bindQueuedWork, blurFocused, byRenderedOrder, cancelRender, caretAtKey, chosenSince, clippedContents, clippedPlace, closestAcross, composedParentNode, currentLocationIn, currentLocationNodes, currentLocationTouches, d, dataBody, deepFocus, describeFailure, drawn as drawn$2, eventSource, fitsWhole, flashDuration, focusDestination, focused, foldBlock, frameFor, generatedElement, growthAfterIsSeen, growthIsSeen, headerInset, holdCurrentLocation, holdFocus, iconElement, inChrome, inUi, inWindowChrome, inlineStyle, inputCount, isElement, isHTML, keeps, keepsHidden, keepsText, landedBox, landingBand, layoutPx, listWalkPosition, measure, motion, motionPlays, move, moveScrollerBy, nativeLayerHolding, nextAnimation, nextFrame, nextRender, offer, offerAction, offerContentElement, offered, offeredAction, offeredActionElement, onCurrentLocation, onLetGo, onPress, onPressAway, onUserInput, outputProducer, pagePresented, pageScroller, passOn, patchRetains, patchTree, placeBox, placeHolder, placeKept, plainPress, pointerAt, presented, readCaret, recentPlaceInput, refuseOutput, registrations, renderedOrder, renderedParent, renderedUnder, renderingState, restorePointer, restrictUserIntent, retainUserIntent, roomPx, scrollBehavior, scrollChoices, scrollGoal, scrollIntoReadingBand, scrollIntoView, scrollLimit, scrollToEnd, scrollersOf, seenRect, selectsAll, setChildren, setRegistration, setScroll, shownBox, shownRect, shownWindow, showsContents, sizeObserver, skipped, skipper, slotTop, stopScroll, stuckBox, synNodes, syntax, syntaxLanguageNames, tabStore, takesLetters, tick, under, union, upFrom, updateSurface, userScrollport, visibleBand, watchArrivals, watchOwner, watchScrollEnds, whenNone, x } from "./bundle-portable.js";
 import { COLLAPSE, LIVE_ROOT, PENDING, PRESENTATION_DOM, TEXT_BLOCK, adoptRegistry, agentName, agentSays, announce, applicationPresenter, applicationState, ariaShortcuts, attachApplicationPresentation, authoredBody, bindings, buttonCommand, checked, clampedRow, commandAvailable, commandRoutes, commandScope, commandsOn, cycledRow, decisionFor, declarationFor, declareCommandReadiness, declaresCommandHandler, deleted, descriptionOf, editable, el, elementDeclarations, elementsDeclaring, exhibits, foldWidgetStates, fragmentUrl, hasObligationSource, holdStatus, holdingError, html, isElementName, isReaction, keyed, keys, labelOf, lastMovedAt, layerRoot, leafSays, live as live$1, live$1 as live, loadShadowRules, marks, messageKey, nothing, notice, obligationValue, offlineDeferred, offlineInteractive, pageClaimed, pageRange, pageUrl, paintKeys, passErrorsAt, projectCommandScope, projectView, projectionOrigins, projectionRegionsPresented, pruneScopedElements, raiseError, readApplication, readPart, ref, registry, render as render$1, repaint, repeat, reveal, revisionLabel, runtime, runtimeModule, runtimeResource, sameAnchor, savedReadingSettled, seatRoot, selectEnds, selectionBackward, share, spell, tagsDeclaring, threadKey, threadNames, titleOf, tokenEntry, touchPresses as touchPresses$1, turns, voiced, watchCommandScopes, watchPresentation, whenApplicationPresented, whenApplicationRegionsPresented, whenDocumentPresented, whenWidgetsPresented, word } from "./bundle-errors.js";
 import { LayerRefused, admitReading, admitResponse, randomId, reportPageError, requestJson, revealLayer, runtimeRootState, sameLayer, setRuntimeRootAttribute } from "./bundle-layer-client.js";
 import { ADDRESSABLE, PAGE_CONTROL_RANK, addressableWord, addressedElements, ago, aimControl, aimTargetAt, anchorControl, anchorForPassage, anchorForRange, anchoringIsReady, chromeForeground, chromeRoot, claimReachStop, containingReadingRegionFor, datumAimTarget, datumLabel, deferredArrival, effectiveScroller, followingItsEnd, fragmentAddress, fragmentTarget, headerLevels, isAddressable, leadingTitle, livePoint, nameable, onReadingInput, pageReadingRegion, pressedElsewhere, projectedDatum, reachScrollers, readInsets, readingRegionFor, readingRegions, recentReadingRegion, regionScrollBehavior, regionsSettled, registerPageControl, releaseControl, releaseReachStop, resolveAnchor, revealAddressed, revealControl, scrollChainOf, scrollerFor, sectionLabel, sectionOf, settleDocumentLayout, shortAgo, shownRegionBounds, standInChrome, tabFromBlock, targetElement, targetPlace, targetSegments, unconcealedReadingRegions, visualPartLabel, watchReadingRegionTransitions, writeInsets } from "./bundle-content-layout.js";
-import { LEAF_SURFACE, alignInlineText, alignText, authored, authoredScope, blockAt, elementById, excerptWords, fencePassageParts, inPage, labelWords, leafSurface, pageBlocks, pageDocument, pageQueryAll, pageText, pageWords, pointAt, quoteFrom, quotedWords, rangeOf, readingFrom, renderRetired, segmentBlock, segmentsIn, spanIn, textNodesUnder, textUnits, verbatimBoundaryIdentity, verbatimOwnerIdentity } from "./bundle-passages.js";
+import { LEAF_SURFACE, alignInlineText, alignText, authored, authoredScope, blockAt, elementById, fencePassageParts, inPage, labelWords, leafSurface, pageBlocks, pageDocument, pageQueryAll, pageText, pageWords, pointAt, quoteFrom, quotedWords, rangeOf, readingFrom, renderRetired, segmentBlock, segmentsIn, spanIn, textNodesUnder, textUnits, verbatimBoundaryIdentity, verbatimOwnerIdentity } from "./bundle-passages.js";
 import { aborted, authoredStates, commitWidgetDescriptors, quoted, rememberAuthoredParents, stageAuthoredStates, stageWidgetDescriptors, widgetElement } from "./bundle-abort.js";
 import { isCanonicalMediaUrl, readAttachedMedia, scopedMediaUrl, writeAttachedMedia } from "./media.js";
 import { diffArrays } from "/vendor/jsdiff.esm.js";
@@ -615,7 +615,7 @@ const storedDraft = (ctx) => {
 	const read = draftStore.read(DRAFT + ctx);
 	return read.available ? parseDraftRecord(read.value) : null;
 };
-const attemptAccepted = (attempt) => runtime.receipts.some((event) => event.attempt === attempt);
+const attemptAccepted = (attempt) => runtime.events.some((event) => event.attempt === attempt);
 const writeDraftRecord = (ctx, record) => draftStore.set(DRAFT + ctx, JSON.stringify(record));
 const rawDraftRecord = (ctx) => {
 	const cached = draftCache.get(ctx);
@@ -1397,7 +1397,7 @@ function placeKeeper(scroller, { items, identity, active = () => true, preferred
 //#endregion
 //#region runtime/thread/selectors.js
 const THREAD = ".lf-page-thread, [data-lf-thread-view]";
-const drawnThreadId = (node) => node?.getAttribute("data-thread") ?? null;
+const drawnThreadId = (node) => node?.getAttribute("data-lf-thread") ?? null;
 const SAYS_IN = `${THREAD}, .lf-thread-seat`;
 const SAY_ROW = ".lf-thread-reply, .lf-say";
 const SAY_BOX = SAY_ROW.split(", ").map((row) => `:scope > ${row} ${TEXT_FIELD}`).join(", ");
@@ -1453,7 +1453,7 @@ const landingTarget = (held, control) => {
 const onScreen = (node) => seenRect(node, /* @__PURE__ */ new Map()) !== null;
 const returnTurn = (transcript, unread) => {
 	const turns = [...transcript.querySelectorAll(":scope > :is(.lf-msg, .lf-thread-checkpoint)")];
-	let start = unread ? turns.find((node) => node.getAttribute("data-message") === unread) ?? null : null;
+	let start = unread ? turns.find((node) => node.getAttribute("data-lf-message") === unread) ?? null : null;
 	while (start && !showsContents(start)) start = start.previousElementSibling;
 	return start ?? turns.findLast((node) => showsContents(node)) ?? null;
 };
@@ -1663,7 +1663,7 @@ function openMessageEdit(id, view, thread) {
 const keptRewrite = (id) => !open.has(id) && !sending.has(id) && draftHasContent(rewriteContext(id));
 const watchRewrite = (id, changed) => watchDraft(rewriteContext(id), changed);
 function openMessageEditIn(thread, id) {
-	const message = [...thread?.querySelectorAll(".lf-msg") ?? []].find((node) => node.getAttribute("data-event") === id);
+	const message = [...thread?.querySelectorAll(".lf-msg") ?? []].find((node) => node.getAttribute("data-lf-event") === id);
 	message?.dispatchEvent(new CustomEvent(OPEN_MESSAGE_EDIT));
 	return message?.querySelector(`:scope > .lf-msg-body > .lf-msg-editor ${TEXT_FIELD}`) ?? null;
 }
@@ -2385,7 +2385,7 @@ function watchCodeBlocks() {
 		}
 	});
 	watchArrivals("pre, table:not([role='presentation']), [data-lf-content='data']:not([data-lf-verbatim])", [], {
-		arrive: (block) => block.classList.toggle("scroll", true),
+		arrive: (block) => block.toggleAttribute(PAGE_PAINT_ATTRIBUTE.scrollSurface, true),
 		leave: () => {}
 	});
 	prepareDocumentBlocks = (blocks) => {
@@ -2840,7 +2840,7 @@ function toggle(video) {
 	});
 }
 function paintRecordingControls(video, bar, enterFullScreen) {
-	keeps(bar, "data-playing", video.paused ? null : "");
+	keeps(bar, "data-lf-playing", video.paused ? null : "");
 	keeps(bar, "role", "group");
 	keeps(bar, "aria-label", video.getAttribute("aria-label") || "Recording");
 	render$1(html`<button
@@ -2915,7 +2915,7 @@ function prepare(video) {
 	});
 	const show = (flag, force) => {
 		if (force) revealControl(bar, video);
-		keeps(bar, `data-${flag}`, force ? "" : null);
+		keeps(bar, `data-lf-${flag}`, force ? "" : null);
 	};
 	on("pointerenter", () => show("hovered", true));
 	on("pointerleave", () => show("hovered", false));
@@ -3186,7 +3186,7 @@ var ReactionStripView = class {
 		render$1(html`
         ${repeat(model.choices, (choice) => choice.name, (choice) => html` <button
               ${offeredAction("reaction", `lf-react ${HOLDS_WORD}`)}
-              data-token=${choice.name}
+              data-lf-token=${choice.name}
               title=${choice.label}
               aria-label=${choice.label}
               aria-pressed=${String(Boolean(choice.inForce))}
@@ -3213,7 +3213,7 @@ var ReactionStripView = class {
 			if (event.newState === "closed") registration.close();
 		};
 		this.node.onclick = (event) => {
-			if (!event.composedPath().some((node) => node instanceof HTMLButtonElement && node.matches(".lf-react[data-token]"))) return;
+			if (!event.composedPath().some((node) => node instanceof HTMLButtonElement && node.matches(".lf-react[data-lf-token]"))) return;
 			registration.close();
 			this.#commands.pressed?.();
 		};
@@ -3358,7 +3358,7 @@ function authoredHolder(id) {
 	for (const view of authoredHolders.values()) if (view.model.id === id && shown(view)) return view.node;
 	return null;
 }
-function messageReading(message, { authoredRank = 0, reactions, workflows, leaves = null }) {
+function messageReading(message, { authoredRank = 0, workflows, leaves = null }) {
 	const workflow = strongestWorkflow(workflows);
 	const token = message.token ? tokenEntry(message.token) : null;
 	const kind = isReaction(message) ? "reaction" : deleted(message) ? "deleted" : message.suggestion ? "suggestion" : "prose";
@@ -3399,7 +3399,7 @@ function messageReading(message, { authoredRank = 0, reactions, workflows, leave
 		}),
 		markdown: kind === "reaction" ? null : [message.text, message.body.kind === "authored" ? message.body.markup : null].filter(Boolean).join("\n\n"),
 		authoredRank,
-		reactions
+		reactions: message.reactions
 	});
 }
 var MessageView = class {
@@ -3433,7 +3433,7 @@ var MessageView = class {
 		this.#dated = dated;
 		if (!prior) {
 			this.node.classList.add("lf-msg");
-			this.node.dataset.message = model.key;
+			this.node.dataset.lfMessage = model.key;
 			this.node.classList.add("lf-ui");
 			generatedElement(this.node, { says: false });
 			this.node.dataset.lfOffer = "";
@@ -3465,11 +3465,11 @@ var MessageView = class {
 			if (keptRewrite(presentation.model.id) !== this.#kept) this.#commands.edit.paint(this.node);
 		});
 		keeps(this.node, "data-lf-author", model.author);
-		keeps(this.node, "data-event", model.id);
+		keeps(this.node, "data-lf-event", model.id);
 		this.node.classList.toggle("lf-unread", Boolean(model.unread));
-		keeps(this.node, "data-attempt", model.attempt || null);
+		keeps(this.node, "data-lf-attempt", model.attempt || null);
 		keeps(this.node, "aria-busy", model.pending ? "true" : null);
-		keeps(this.node, "data-failure", model.failure || null);
+		keeps(this.node, "data-lf-failure", model.failure || null);
 		const authoredKey = model.attempt ?? model.id;
 		const authored = model.body.authored ? authoredMessage(model).nodes : [];
 		let displaced = null;
@@ -3713,7 +3713,7 @@ function createProjectionPresentation() {
 		const root = applicationState.read();
 		if (root.phase === "waiting" || root.authoritative === null || !projectionRegionsPresented([])) return;
 		const projection = root.effective.projection;
-		const records = root.effective.view?.coverage ?? [];
+		const records = root.effective.coverage;
 		if (records.every((record) => {
 			if (record.coordinate === null) return true;
 			const e = record.event;
@@ -4318,24 +4318,17 @@ function createReplyView(key, commands, redraw, { onChange = () => {}, editLast 
 //#endregion
 //#region runtime/thread/folding.js
 const NAMED = 48;
-function settledName(key) {
-	const thread = threadNamed(key);
-	if (!thread) return "the thread";
-	const passage = threadPassage(thread);
-	return anchorLabel(passage?.quote ? {
-		...passage,
-		quote: excerptWords(passage.quote, NAMED)
-	} : passage, thread.root.about) || quotedWords(threadName(thread), NAMED);
-}
-async function settleThread({ parent, key, resolved, prepareLanding, pendingEntries, actions, landedAway, offerUndo, returnToThread }) {
+async function settleThread({ parent, key, resolved, prepareLanding, reader = null, pendingEntries, actions, undo }) {
 	const land = prepareLanding?.();
 	const since = inputCount();
 	const attempt = randomId();
-	const named = settledName(key);
+	const thread = threadNamed(key);
+	const named = thread ? quotedWords(threadName(thread), NAMED) : "the thread";
 	const answer = resolved ? actions.reopen(key, { attempt }) : actions.resolve(key, { attempt });
 	if (!answer) return;
-	notice(`${resolved ? "Reopened" : "Resolved"} ${named}`, { press: offerUndo(attempt) });
-	if (land) landedAway(attempt);
+	undo.retainGesture(attempt, { settled: { reader } });
+	notice(`${resolved ? "Reopened" : "Resolved"} ${named}`, { press: undo.offerUndo(attempt) });
+	if (land) undo.landedAway(attempt);
 	await landGesture({
 		land,
 		answer,
@@ -4343,7 +4336,7 @@ async function settleThread({ parent, key, resolved, prepareLanding, pendingEntr
 		refused: async () => {
 			const mayReturn = retainUserIntent({ since });
 			await whenDocumentPresented();
-			return returnToThread(parent(), mayReturn);
+			return undo.returnToThread(parent(), mayReturn, reader);
 		}
 	});
 }
@@ -4381,7 +4374,7 @@ const threadReplyInput = (thread) => {
 	return input && shownBox(input).height ? input : null;
 };
 function threadFocusDestination(thread, options = {}) {
-	if (options.part === "message") return thread.querySelector(`.lf-msg[data-event="${CSS.escape(options.message)}"]`);
+	if (options.part === "message") return thread.querySelector(`.lf-msg[data-lf-event="${CSS.escape(options.message)}"]`);
 	return (options.part === "thread" ? thread : null) ?? threadReplyInput(thread) ?? thread;
 }
 function focusedThreadTarget() {
@@ -4660,7 +4653,7 @@ function newsNotice(header = false) {
 	const node = offerAction("inline", header ? "lf-thread-header-action lf-thread-news" : "lf-thread-news");
 	keeps(node, "data-lf-news", "");
 	const words = document.createElement("span");
-	words.dataset.voice = "leaf";
+	words.dataset.lfVoice = "leaf";
 	node.append(words);
 	let open = () => null;
 	node.addEventListener("mousedown", (event) => event.preventDefault());
@@ -4999,7 +4992,7 @@ var HeldArrivals = class {
 		});
 	}
 	#lapse(which) {
-		const currentLocation = new Set(currentLocationNodes().map((node) => closestAcross(node, THREAD)?.getAttribute("data-thread")));
+		const currentLocation = new Set(currentLocationNodes().map((node) => closestAcross(node, THREAD)?.getAttribute("data-lf-thread")));
 		return this.#release((held) => which(held) && !currentLocation.has(held.id));
 	}
 	#watch(threads) {
@@ -5074,7 +5067,7 @@ var ReplyContinuity = class {
 		const extent = parseFloat(getComputedStyle(this.#owner).blockSize);
 		const place = offFlowSurfaceOf(this.#owner) ? null : placeKeeper(scrollerFor(this.#owner), {
 			items: ".lf-reply-continuity",
-			identity: (node) => node.getAttribute("data-thread"),
+			identity: (node) => node.getAttribute("data-lf-thread"),
 			preferred: () => this.#owner
 		});
 		return {
@@ -5203,9 +5196,9 @@ function workingPlace(ranges, position) {
 //#endregion
 //#region runtime/thread/transcript.js
 const MESSAGE_NAMES = [
-	"data-message",
-	"data-event",
-	"data-attempt"
+	"data-lf-message",
+	"data-lf-event",
+	"data-lf-attempt"
 ];
 function workingView(working, controls = nothing, observe = null) {
 	return html`<div class="lf-thread-working-head">
@@ -5269,7 +5262,7 @@ var Transcript = class {
 		return [...this.#messages].flatMap(([key, { node }]) => wanted.has(key) || !node.isConnected ? [] : [node]);
 	}
 	summaryNode(id) {
-		return this.node.querySelector(`:scope > [data-summary-id="${CSS.escape(id)}"]`);
+		return this.node.querySelector(`:scope > [data-lf-summary-id="${CSS.escape(id)}"]`);
 	}
 	get foot() {
 		return [...this.node.children].findLast((node) => showsContents(node)) ?? null;
@@ -5394,7 +5387,7 @@ var Transcript = class {
 				key: `face:${id}`,
 				body: (tail) => html`<div
             class="lf-thread-working"
-            data-face=${id}
+            data-lf-face=${id}
             aria-live="polite"
             data-lf-live=${reading.live ? "" : nothing}
             data-lf-append-tail=${tail ? "" : nothing}
@@ -5444,7 +5437,7 @@ var Transcript = class {
 		this.#stopWorkingExposure?.();
 		this.#stopWorkingExposure = null;
 		this.#paint();
-		const faceNode = (row) => this.node.querySelector(`:scope > [data-face="${CSS.escape(row.key.slice(5))}"]`);
+		const faceNode = (row) => this.node.querySelector(`:scope > [data-lf-face="${CSS.escape(row.key.slice(5))}"]`);
 		this.#facing = new Map([...facing].map(([key, row]) => [key, faceNode(row)]));
 		for (const [key, fold] of this.#folding) {
 			if (fold.played) continue;
@@ -5458,8 +5451,8 @@ var Transcript = class {
 			}, () => {});
 		}
 		if (!currentLocationToggle || currentLocationToggle.isConnected) return null;
-		const toggleFor = (id) => this.node.querySelector(`.lf-summary-expand[data-summary-toggle="${CSS.escape(id)}"]`);
-		const succeeded = currentLocationToggle.dataset.summaryToggle;
+		const toggleFor = (id) => this.node.querySelector(`.lf-summary-expand[data-lf-summary-toggle="${CSS.escape(id)}"]`);
+		const succeeded = currentLocationToggle.dataset.lfSummaryToggle;
 		return [...succeeded ? [succeeded, ...(successors.get(succeeded) ?? []).map(({ summary }) => summary.id)] : []].map(toggleFor).find(Boolean) ?? null;
 	}
 	#withFolds(rows) {
@@ -5487,8 +5480,8 @@ var Transcript = class {
 		const progress = Boolean(range.summary.pending);
 		return html`<section
       class="lf-thread-checkpoint"
-      data-summary-id=${range.summary.id}
-      data-expanded=${range.expanded}
+      data-lf-summary-id=${range.summary.id}
+      data-lf-expanded=${range.expanded}
       ?hidden=${progress && !range.expanded}
       aria-owns=${covered.map(({ id }) => id).join(" ")}
       style=${`--lf-fold-head: ${anchor}; --lf-fold-foot: ${anchor}-foot;`}
@@ -5516,7 +5509,7 @@ var Transcript = class {
 		return html`<button
       type="button"
       ${offeredAction("inline", `lf-thread-disclosure lf-disclosure-marker lf-summary-expand${progress ? " lf-progress-expand" : ""}`)}
-      data-summary-toggle=${ids[0]}
+      data-lf-summary-toggle=${ids[0]}
       aria-expanded=${String(expanded)}
       aria-controls=${ranges.flatMap((range) => range.messages.map(({ key }) => this.messageNode(key)?.id)).filter(Boolean).join(" ")}
       @click=${() => this.#setSummaryExpanded(ids, !expanded)}
@@ -5528,7 +5521,7 @@ var Transcript = class {
 		for (const id of ids) if (expanded) this.#expandedSummaries.add(id);
 		else this.#expandedSummaries.delete(id);
 		this.#repaint();
-		const toggle = this.node.querySelector(`.lf-summary-expand[data-summary-toggle="${CSS.escape(ids[0])}"]`);
+		const toggle = this.node.querySelector(`.lf-summary-expand[data-lf-summary-toggle="${CSS.escape(ids[0])}"]`);
 		if (toggle) {
 			focusDestination(toggle, "return");
 			scrollThreadIntoView(this.#home(), toggle, "instant");
@@ -5670,7 +5663,6 @@ function threadReading(thread, surface, commands) {
 	const presented = new Set(thread.msgs.map(({ id }) => id));
 	const messages = turns(thread).filter((message) => message.completed_by === void 0 || !presented.has(message.completed_by)).map((message) => messageReading(message, {
 		authoredRank: commands.authoredRank ?? (surface === "margin" ? 2 : 1),
-		reactions: surface === "outlet" ? message.reactions : null,
 		workflows: message.workflows,
 		leaves: leaves(message)
 	}));
@@ -5857,9 +5849,9 @@ var ThreadView = class {
 		const notice = this.#news;
 		if (model.news) notice.set(model.news);
 		const news = model.news ? notice.node : nothing;
-		keeps(this.node, "data-thread", model.id);
-		keeps(this.node, "data-resolved", model.resolved);
-		keeps(this.node, "data-attempt", model.attempt || null);
+		keeps(this.node, "data-lf-thread", model.id);
+		keeps(this.node, "data-lf-resolved", model.resolved);
+		keeps(this.node, "data-lf-attempt", model.attempt || null);
 		keeps(this.node, "role", "group");
 		keeps(this.node, "aria-label", `Thread, ${model.summary.topic}`);
 		const settlement = model.settlement ? this.#settlement(model, model.settlement) : nothing;
@@ -6062,6 +6054,7 @@ var ThreadView = class {
 			key: model.key,
 			resolved: model.resolved,
 			prepareLanding: model.surface === "margin" && !model.resolved ? this.#marginControls?.prepareLanding ?? null : this.#prepareThreadLanding,
+			reader: model.surface === "margin" ? "page" : null,
 			...this.#commands.settlement
 		}).catch(() => {});
 	};
@@ -6453,7 +6446,7 @@ function obligationsIn(region, items = readObligations().all) {
 //#endregion
 //#region runtime/obligations/view-elements.js
 const OBLIGATION_CONTROL = ":is(button[data-lf-offer], [data-lf-offer][tabindex])";
-const ON_CARD = ".lf-fp-on-item[data-obligation]";
+const ON_CARD = ".lf-fp-on-item[data-lf-obligation-id]";
 
 //#endregion
 //#region runtime/reading-place.js
@@ -6946,9 +6939,17 @@ function declareSide(bridge, { beside = false } = {}) {
 }
 function obligationHolding(items, node, inventory = items) {
 	if (!node) return null;
+	const names = namedPlaces(items);
+	const near = /* @__PURE__ */ new Map();
+	for (let at = node; at; at = composedParentNode(at)) {
+		if (!isElement(at)) continue;
+		const datum = at.getAttribute("data-lf-datum");
+		const owner = at.getAttribute("data-lf-projection");
+		for (const name of [at.id && `#${at.id}`, datum !== null && `@${owner} ${datum}`]) for (const [order, item] of name && names.get(name) || []) near.set(item, order);
+	}
 	const holds = (element) => element && under(node, element);
 	let held = null;
-	for (const item of items) {
+	for (const [item] of [...near].sort((a, b) => a[1] - b[1])) {
 		const { source, node: target } = obligationPlace(item, inventory);
 		const at = holds(source) ? source : holds(target) ? target : null;
 		if (at && (!held || at !== held.at && under(at, held.at))) held = {
@@ -6957,6 +6958,30 @@ function obligationHolding(items, node, inventory = items) {
 		};
 	}
 	return held?.item ?? null;
+}
+const placeNames = /* @__PURE__ */ new WeakMap();
+function namedPlaces(items) {
+	const held = placeNames.get(items);
+	if (held) return held;
+	const names = /* @__PURE__ */ new Map();
+	const add = (name, order, item) => {
+		const listed = names.get(name);
+		if (!listed) names.set(name, [[order, item]]);
+		else if (listed.at(-1)?.[1] !== item) listed.push([order, item]);
+	};
+	items.forEach((item, order) => {
+		const { source } = item;
+		if (source.kind === "todo") {
+			const place = source.subject;
+			if (place.kind !== "page" && place.kind !== "thread") add(`#${place.id}`, order, item);
+		} else if (source.kind === "widget" && source.unit) add(`@${source.id} ${source.unit}`, order, item);
+		else if (source.kind === "widget") {
+			add(`#${source.id}`, order, item);
+			if (item.prompt.target) add(`#${item.prompt.target}`, order, item);
+		}
+	});
+	placeNames.set(items, names);
+	return names;
 }
 const placeOf = (node) => placeFrom(node, /* @__PURE__ */ new Set(), true);
 const arrivalOf = (node) => placeFrom(node, /* @__PURE__ */ new Set(), false);
@@ -7094,7 +7119,7 @@ function register(owner, render, { invalidate, composition, reveal }, kind) {
 			const outlet = [...registration.outlets].find((outlet) => under(node, outlet));
 			if (!outlet) return null;
 			const thread = closestAcross(node, ".lf-page-thread");
-			if (thread && under(thread, outlet)) return registration.placements?.placedAt(thread.getAttribute("data-thread"))?.place ?? null;
+			if (thread && under(thread, outlet)) return registration.placements?.placedAt(thread.getAttribute("data-lf-thread"))?.place ?? null;
 			return outlet === composition.outlet() ? registration.placements?.pendingAt()?.place ?? null : null;
 		}),
 		handle: {
@@ -7378,7 +7403,7 @@ function revealHeld(ids) {
 function surfaceFocusTarget(name, { part = "reply" } = {}) {
 	const id = threadIdNamed(name);
 	for (const registration of registrations.values()) {
-		const thread = [...registration.outlets].map((outlet) => outlet.querySelector(`.lf-page-thread[data-thread="${CSS.escape(id)}"]`)).find(Boolean);
+		const thread = [...registration.outlets].map((outlet) => outlet.querySelector(`.lf-page-thread[data-lf-thread="${CSS.escape(id)}"]`)).find(Boolean);
 		if (!thread) continue;
 		return threadFocusDestination(thread, {
 			part,

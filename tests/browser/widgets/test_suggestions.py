@@ -744,7 +744,7 @@ def test_accept_all_decides_every_pending_suggestion(browser, serve):
         )
     ).to_be_enabled()
     expect_accept_all(page, 2)
-    panel_menu(page).locator('.lf-fp-item[data-row="blanket:accept"]').click()
+    panel_menu(page).locator('.lf-fp-item[data-lf-row="blanket:accept"]').click()
 
     for widget in ("sug-refill", "sug-thistle", "sug-in-card"):
         expect(page.locator(f"#{widget} lf-new")).to_be_visible()

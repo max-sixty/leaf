@@ -964,12 +964,7 @@ export function createSemanticApplication({ presentation } = {}) {
               ? [event]
               : [],
     );
-    const attached = new Set(
-      (state?.browser.todos ?? []).flatMap(({ subject }) =>
-        subject.kind === "thread" ? [subject.id] : [],
-      ),
-    );
-    const folded = foldThreads(view?.thread.threads ?? [], gestures, attached);
+    const folded = foldThreads(view?.thread.threads ?? [], gestures);
     const widgets = widgetStates(document.authored, projection);
     const { parents: widgetParents, memberships } = currentWidgetRelations(
       document,

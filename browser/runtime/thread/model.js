@@ -164,9 +164,11 @@ const pendingSeat = (message) =>
 // tab made them, as `events.build_threads` folds the log. A comment opens a thread where
 // it was written; a reply joins the thread it answers; a rewrite shows as its message's
 // new words; settlement changes the thread's state, and a turn reopens a resolved one;
-// taking back a message drops it from its thread, or leaves it Deleted in its place
-// where something stands on it, and a thread it opened goes with it; taking back a
-// rewrite gives its message the words it replaced. They leave again when the server accepts or refuses them, so
+// taking back a message takes its words or mark away, and taking back a rewrite gives
+// its message the words it replaced. Whether a message taken back keeps its place,
+// and a thread it opened stands, depends on what else the log holds, so the press
+// leaves the message's place Deleted and the server's reading decides; a mark drawn
+// as a chip, or alone on the page, has no place of its own and comes off. They leave again when the server accepts or refuses them, so
 // this is a reading of the same outbox and log the server projects rather than a second
 // store beside it.
 //
@@ -202,29 +204,9 @@ function unedited(thread, message, withdrawn) {
   };
 }
 
-// The messages taken back, by the user now or the log already, that something left in
-// the thread stands on, a message naming one as its parent or a to-do attached to the
-// thread its opening message, which keep their place with nothing in them
-// (`events.standing_withdrawn`). A parent is older than its message, so one pass from
-// the newest finds a chain of them. A reply still streaming is not in the log yet, so
-// it stands on nothing.
-/** @param {Thread} thread @param {(message: Thread["msgs"][number]) => boolean} gone
- * @param {ReadonlySet<string>} attached */
-function standingIn(thread, gone, attached) {
-  const standing = new Set(attached.has(thread.id) ? [thread.root.id] : []);
-  for (const message of thread.msgs.toReversed())
-    if (
-      "parent" in message &&
-      !message.provisional &&
-      (!gone(message) || standing.has(message.id))
-    )
-      standing.add(message.parent);
-  return standing;
-}
-
-// A message taken back as the log's answer will draw it: in its place, with no words
-// and no mark, saying the words it was sent with, which its first rewrite replaced
-// (`events.message_reading`).
+// A message the user is taking back, as the press draws it: in its place, with no words
+// and no mark, saying the words it was sent with, which its first rewrite replaced, as
+// the log's placeholder does (`events.message_reading`).
 /** @param {Thread} thread @param {Thread["msgs"][number]} message
  * @returns {Thread["msgs"][number]} */
 function takenBack(thread, message) {
@@ -244,10 +226,9 @@ function takenBack(thread, message) {
 // parent went by, and each undo.
 /** @param {readonly Thread[]} threads
  * @param {readonly import("../../types/domain.js").ThreadGesture[]} gestures
- * @param {ReadonlySet<string>} attached the threads a to-do is attached to
  * @returns {Thread[]}
  */
-export function foldThreads(threads, gestures, attached) {
+export function foldThreads(threads, gestures) {
   if (!gestures.length) return [...threads];
   const withdrawn = new Set(
     gestures.flatMap((gesture) => (gesture.kind === "undo" ? [gesture.undoes] : [])),
@@ -257,23 +238,16 @@ export function foldThreads(threads, gestures, attached) {
   // threads this fold made, which a gesture may change in place.
   /** @type {Set<Thread>} */
   const owned = new Set();
-  /** @param {Thread["msgs"][number]} message */
-  const gone = (message) => withdrawn.has(message.id) || Boolean(message.withdrawn);
   /** @param {Thread} thread @returns {Thread[]} */
   const without = (thread) => {
-    const standing = standingIn(thread, gone, attached);
-    if (gone(thread.root) && !standing.has(thread.root.id)) return [];
+    if (thread.bare_reaction && withdrawn.has(thread.root.id)) return [];
     const msgs = thread.msgs.flatMap((message) =>
-      !gone(message)
+      !withdrawn.has(message.id) || message.withdrawn
         ? [unedited(thread, message, withdrawn)]
-        : !standing.has(message.id)
+        : isReaction(message) && message.id !== thread.root.id
           ? []
-          : message.withdrawn
-            ? [message]
-            : [takenBack(thread, message)],
+          : [takenBack(thread, message)],
     );
-    // A mark taken back paints nothing, though its place stays.
-    const unmarked = thread.bare_reaction && withdrawn.has(thread.root.id);
     // A thread whose closing event the user is taking back stands open again; the
     // log's answer restores any earlier closure.
     const reopened = Boolean(
@@ -281,7 +255,6 @@ export function foldThreads(threads, gestures, attached) {
     );
     if (
       !reopened &&
-      !unmarked &&
       msgs.length === thread.msgs.length &&
       msgs.every((message, at) => message === thread.msgs[at])
     )
@@ -291,7 +264,6 @@ export function foldThreads(threads, gestures, attached) {
       ...thread,
       root: msgs.find(({ id }) => id === thread.root.id) ?? thread.root,
       msgs,
-      ...(unmarked ? { bare_reaction: false } : {}),
       ...(reopened ? { resolved: null } : {}),
     };
     owned.add(copy);

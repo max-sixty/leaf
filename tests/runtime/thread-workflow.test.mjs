@@ -16,7 +16,6 @@ import { isTurnEvent, turnMessage } from "../../browser/runtime/pending/model.js
 import { servedReading, servedThread, servedWorkflow } from "../served.mjs";
 
 // No thread has a to-do attached.
-const NONE = new Set();
 
 // The user's turns, which `events.exchange` and `events.turn_message` read off the log
 // by the same cases (`tests/turn_cases.json`).
@@ -217,7 +216,7 @@ test("a thread the user is still sending waits on that send", () => {
     text: "Question",
     ts: "2026-09-22T10:00:00Z",
   };
-  const [thread] = foldThreads([], [root], NONE);
+  const [thread] = foldThreads([], [root]);
   const [record] = readThreadRecords(
     [{ ...thread, unread: {} }],
     { revision: 1, registry: {}, descriptors: new Map(), messageBodies: new Map() },
@@ -245,7 +244,7 @@ test("a pending reply shows on its message and leaves whose turn it is to the lo
     ts: "now",
     pending: true,
   };
-  const [folded] = foldThreads([thread], [reply], NONE);
+  const [folded] = foldThreads([thread], [reply]);
 
   const [record] = readThreadRecords(
     [folded],
@@ -277,7 +276,7 @@ test("taking back a rewrite draws its message as the log's answer will", () => {
     edited,
     content_version,
   });
-  const [folded] = foldThreads([rewritten], [{ kind: "undo", undoes: "e3" }], NONE);
+  const [folded] = foldThreads([rewritten], [{ kind: "undo", undoes: "e3" }]);
   assert.equal(folded.root.text, "Chart 2025.");
   assert.deepEqual(folded.msgs.map(words), answered.msgs.map(words));
   assert.deepEqual(words(folded.root), words(answered.root));
@@ -302,7 +301,6 @@ test("taking back an answered reaction keeps its place as the log's answer will"
       { kind: "undo", undoes: "e3" },
       { kind: "undo", undoes: "e1" },
     ],
-    NONE,
   );
   assert.deepEqual(folded.msgs.map(place), [
     { id: "e1", text: "", token: undefined, was: "change", deleted: true },
@@ -313,7 +311,7 @@ test("taking back an answered reaction keeps its place as the log's answer will"
   assert.equal(folded.bare_reaction, taken.bare_reaction);
 });
 
-test("taking back a sent reply keeps its place where answered, as the log's answer will", () => {
+test("the press leaves a sent message's place Deleted, as the log's answer does where answered", () => {
   const [answered] = servedReading("a reply answered").threads;
   const [taken] = servedReading("a reply answered, taken back").threads;
   /** @param {import("../../browser/types/domain.js").Message} message */
@@ -323,7 +321,7 @@ test("taking back a sent reply keeps its place where answered, as the log's answ
     was: message.withdrawn?.was,
     deleted: deleted(message),
   });
-  const [folded] = foldThreads([answered], [{ kind: "undo", undoes: "e3" }], NONE);
+  const [folded] = foldThreads([answered], [{ kind: "undo", undoes: "e3" }]);
   assert.deepEqual(folded.msgs.map(place)[2], {
     id: "e3",
     text: "",
@@ -331,69 +329,53 @@ test("taking back a sent reply keeps its place where answered, as the log's answ
     deleted: true,
   });
   assert.deepEqual(folded.msgs.map(place), taken.msgs.map(place));
-  // A reply nothing answers leaves the thread, and a comment nothing answers takes
-  // its thread with it.
+  // Whether anything stands on a message is the log's to say, so the press leaves the
+  // place of one nothing answers, or one a reply still streams to, and of a comment
+  // alone in its thread, which the server's reading then takes away.
   const loose = { ...answered.msgs[2], id: "loose", parent: "e4", text: "And this?" };
-  const sent = { ...answered, msgs: [...answered.msgs, loose] };
-  assert.deepEqual(
-    foldThreads([sent], [{ kind: "undo", undoes: "loose" }], NONE)[0].msgs.map(
-      ({ id }) => id,
-    ),
-    ["e1", "e2", "e3", "e4"],
-  );
-  // A reply still streaming to it is not in the log yet, so it keeps no place.
   const stream = {
     ...answered.msgs[3],
     id: "stream:t1",
     parent: "loose",
     provisional: true,
   };
-  const streaming = { ...answered, msgs: [...sent.msgs, stream] };
-  assert.deepEqual(
-    foldThreads([streaming], [{ kind: "undo", undoes: "loose" }], NONE)[0].msgs.map(
-      ({ id }) => id,
-    ),
-    ["e1", "e2", "e3", "e4", "stream:t1"],
-  );
   const alone = { ...answered, msgs: [answered.root] };
-  assert.deepEqual(foldThreads([alone], [{ kind: "undo", undoes: "e1" }], NONE), []);
+  for (const [thread, undoes] of [
+    [{ ...answered, msgs: [...answered.msgs, loose] }, "loose"],
+    [{ ...answered, msgs: [...answered.msgs, loose, stream] }, "loose"],
+    [alone, "e1"],
+  ]) {
+    const [pressed] = foldThreads([thread], [{ kind: "undo", undoes }]);
+    const left = pressed.msgs.find(({ id }) => id === undoes);
+    assert.deepEqual(
+      [pressed.msgs.length, left && place(left).deleted],
+      [thread.msgs.length, true],
+    );
+  }
 });
 
-test("a to-do attached to a thread keeps its taken-back opening in place", () => {
-  const attached = new Set(["e1"]);
+test("a mark alone on the page comes off in the press, and a place the log kept stays", () => {
   const [holding] = servedReading("a reaction holding a to-do").threads;
   const [held] = servedReading("a reaction holding a to-do taken back").threads;
   assert.equal(held.root.withdrawn?.was, "change");
-  const [folded] = foldThreads([holding], [{ kind: "undo", undoes: "e1" }], attached);
-  assert.deepEqual(
-    [folded.root.withdrawn?.was, folded.root.token, deleted(folded.root)],
-    ["change", undefined, true],
-  );
+  // The press takes the mark off; the log's answer brings back the place a to-do keeps.
+  assert.deepEqual(foldThreads([holding], [{ kind: "undo", undoes: "e1" }]), []);
   // The log's place stays through the next gesture, whatever else stood on it.
-  assert.deepEqual(
-    foldThreads([held], [{ kind: "undo", undoes: "elsewhere" }], attached),
-    [held],
-  );
+  assert.deepEqual(foldThreads([held], [{ kind: "undo", undoes: "elsewhere" }]), [
+    held,
+  ]);
+  // A chip taken back comes off, and leaves the place it stood on.
+  const { withdrawn: _, ...said } = held.root;
   const marked = {
     ...held,
-    msgs: [...held.msgs, { ...held.root, id: "mark", parent: "e1", token: "keep" }],
+    msgs: [...held.msgs, { ...said, id: "mark", parent: "e1", token: "keep" }],
   };
   assert.deepEqual(
-    foldThreads([marked], [{ kind: "undo", undoes: "mark" }], attached).map(
-      ({ msgs }) => msgs.map(({ id }) => id),
+    foldThreads([marked], [{ kind: "undo", undoes: "mark" }]).map(({ msgs }) =>
+      msgs.map(({ id }) => id),
     ),
     [["e1"]],
   );
-});
-
-test("taking back the mark that kept a taken-back reaction's place takes the thread", () => {
-  const [kept] = servedReading("a reaction on a reaction taken back").threads;
-  assert.equal(kept.root.withdrawn?.was, "change");
-  assert.deepEqual(
-    servedReading("a reaction on a reaction, both taken back").threads,
-    [],
-  );
-  assert.deepEqual(foldThreads([kept], [{ kind: "undo", undoes: "e2" }], NONE), []);
 });
 
 test("a local rewrite shows on its message and reopens a closed thread", () => {
@@ -424,7 +406,7 @@ test("a local rewrite shows on its message and reopens a closed thread", () => {
     text: "Chart 2025.",
     ts: "now",
   };
-  const [folded] = foldThreads([thread], [rewrite], NONE);
+  const [folded] = foldThreads([thread], [rewrite]);
 
   const [record] = readThreadRecords(
     [folded],
@@ -474,7 +456,7 @@ test("pending thread gestures fold in the order the user made them, as the log w
   const unresolve = { ...resolve, kind: "unresolve" };
   const owed = { kind: "needs_user", reason: "obligation", workflow: null };
   const fold = (changes, ...gestures) =>
-    foldThreads([servedThread([asked, question], changes)], gestures, NONE)[0];
+    foldThreads([servedThread([asked, question], changes)], gestures)[0];
 
   // Whose turn the thread is stays as the server read it, whatever the user sends,
   // until the log answers.
@@ -516,7 +498,7 @@ test("a thread this tab opened carries every field a served thread does", () => 
     text: "Question",
     ts: "2026-09-22T10:00:00Z",
   };
-  const [opened] = foldThreads([], [root], NONE);
+  const [opened] = foldThreads([], [root]);
   assert.deepEqual(
     Object.keys(opened).sort(),
     Object.keys(servedThread([root])).sort(),

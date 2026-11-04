@@ -1189,8 +1189,8 @@ export class ThreadView {
       key: model.key,
       resolved: model.resolved,
       // Where the container says a settlement takes the user, as the floating panel
-      // moves on to the next thread and a margin card's Resolve closes it on its
-      // passage (`ThreadOutlets`, `landing`), else the thread's own.
+      // moves on to the next thread and a margin card to the next at its passage, else
+      // closes onto it (`ThreadOutlets`, `landing`), else the thread's own.
       prepareLanding: () => landing?.(model.resolved) ?? this.#prepareThreadLanding(),
       // The reader a way back reopens the thread in, which its container names
       // (`ViewOutlets`, `reader`).

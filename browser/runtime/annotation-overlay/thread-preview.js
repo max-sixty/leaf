@@ -38,7 +38,17 @@
    move the reading; keepThreadLanding retains their destination through fitting until
    a newer reading gesture ends that authority. Size is fitted before paint, so a sent
    reply does not grow twice. Margin location and its keyboard ladder own dismissal
-   and target landing; the card keeps Send's focus on the thread that received it. */
+   and target landing; the card keeps Send's focus on the thread that received it.
+
+   Resolve moves the card on to the next open thread at its passage, the one after the
+   resolved thread in the card's count ("1/3"), else the one before, and stands the user
+   on it, so the page never moves; at a passage with no other thread the card closes
+   and leaves the user on its target (`landing`). Undo opens the thread again in the
+   card where it was resolved (undo.js, the page's reader). The user chose this on 4
+   November 2026 over closing the card onto its passage whatever else stood there, which
+   left the card and the floating panel doing different things, and over moving on to
+   the next open thread on the page, as the panel does, which scrolls the page under the
+   user after each Resolve. */
 import {
   followsEnd,
   keepFoot,
@@ -907,7 +917,13 @@ export function createThreadPreview({
       : null;
     const threadItems = choice.items;
     const wanted = requestedItem ?? current.threadItem ?? focusedItem;
-    const selected = threadItems.find((item) => item.id === wanted) ?? threadItems[0];
+    // A thread that left the cluster the card shows, as one resolved there leaves it,
+    // gives its place to the thread after it, else the one before (`landing`).
+    const stood = current.choice.items.findIndex((item) => item.id === wanted);
+    const selected =
+      threadItems.find((item) => item.id === wanted) ??
+      threadItems[Math.min(stood, threadItems.length - 1)] ??
+      threadItems[0];
     const arriving = current.threadItem !== selected.id || !current.transcript;
     const session =
       arriving && current.threadItem !== selected.id
@@ -1043,8 +1059,10 @@ export function createThreadPreview({
       // The card stands for the thread on the page, where taking back a settlement made
       // in it opens the thread again.
       reader: "page",
-      // A resolved thread with no draft has no margin card, so resolving closes it and
-      // hands the user to its target. Reopen lands as the thread's own does.
+      // Resolve stands the user on the thread that took the resolved one's place in the
+      // card (`buildThreadCard`), or, where the passage held no other, on the target
+      // the closed card stood by, since a resolved thread has no margin card (header).
+      // Reopen lands as the thread's own does.
       landing: (resolved) => {
         if (resolved) return null;
         const target = targetFor(previewSession?.entry);

@@ -1075,7 +1075,8 @@ wa-copy-button.lf-icon-action {
 }
 /* What a picture is still waiting for, in a word on its corner, as lf-trace says while
    a capture loads and lf-shot while it finds the changed pixels. The picture's box
-   positions it. */
+   positions it. The word stays hidden for its first 150ms, so a wait too short to read
+   ends without one. A delay is no motion, so reduced motion keeps it. */
 .lf-media-status {
   position: absolute;
   inset-block-start: var(--sp-2);
@@ -1083,6 +1084,12 @@ wa-copy-button.lf-icon-action {
   padding: var(--sp-1) var(--sp-2);
   background: var(--lf-ground);
   color: var(--muted);
+  animation: lf-media-status-waits 0s 150ms backwards;
+}
+@keyframes lf-media-status-waits {
+  from {
+    visibility: hidden;
+  }
 }
 
 .lf-picture:hover {

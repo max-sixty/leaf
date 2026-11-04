@@ -210,7 +210,8 @@ export class ShotView {
   pixels = false;
   /** @type {string | null} */
   pixelUrl = null;
-  pixelsPending = false;
+  /** @type {Element | null} */
+  error = null;
 
   /** @type {((view: string, label: string) => void) | undefined} */
   chooseView;
@@ -498,11 +499,11 @@ export class ShotView {
                     <span class="lf-shot-pixel-mask" style=${pixelStyle}></span>
                   </div>
                   ${
-                    this.pixelsPending
-                      ? html`<span ${offered("lf-media-status lf-shot-pixel-status")}>
+                    this.pixelUrl || this.error
+                      ? nothing
+                      : html`<span ${offered("lf-media-status lf-shot-pixel-status")}>
                           Finding changed pixels…
                         </span>`
-                      : nothing
                   }
                 </div>`
               : nothing

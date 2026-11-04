@@ -234,31 +234,6 @@ def _page_pool(tmp_path_factory):
     return PagePool(tmp_path_factory.mktemp("page-templates"))
 
 
-@pytest.fixture(scope="session")
-def compiled_checkout():
-    """This checkout, with its kernel compiled in place where it is stale.
-
-    A lock serializes the compile, so xdist workers wait for one build.
-    Source-only model tests need no compiler; the browser tiers request it lazily.
-    """
-    from leaf_dev.commands.distribution import current_kernel
-
-    return current_kernel()
-
-
-@pytest.fixture(autouse=True)
-def compiled_pages(request, monkeypatch, isolated_session):
-    """Browser-tier page producers vendor the same kernel the website ships: this
-    checkout's, compiled where stale (`compiled_checkout`). In-process model and
-    process tests vendor the source modules whether or not that kernel is current,
-    so their readings of a page's runtime do not depend on when it was last rebuilt.
-    """
-    if request.path.parent.name not in {"smoke", "browser", "journeys"}:
-        monkeypatch.setattr(layer_model, "KERNEL", request.path.parent / "no-kernel")
-        return
-    request.getfixturevalue("compiled_checkout")
-
-
 @pytest.fixture
 def initialized_page(_page_pool, tmp_path):
     """Put a page initialized with `packages` at `destination`, from the pool, in the

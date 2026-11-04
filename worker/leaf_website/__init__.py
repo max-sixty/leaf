@@ -1535,7 +1535,9 @@ class WebsitePageEndpoint(PageEndpoint):
             or (root := self._published_root(revision)) is None
         ):
             return None
-        response = self._revision_resource(revision, "/" + match["resource"], root)
+        response = self._revision_resource(
+            self._artifact(revision), "/" + match["resource"], root
+        )
         if response is not None:
             response.headers.update(
                 {

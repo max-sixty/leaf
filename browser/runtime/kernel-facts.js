@@ -9,10 +9,10 @@
 
    Imported as a JSON module, the table is part of the module graph: it has arrived
    before any module here evaluates, so the pure folds read it synchronously. The
-   compiled kernel holds this module's exports as literals rather than the whole
-   table (`build/runtime-bundle.mjs`, `kernelFacts`), and records the table's hash, so
-   after an edit an install serves the source modules, which read it here, until the
-   kernel is rebuilt. Either way no build stands between an edit and either reader. */
+   kernel a prepared installation compiles holds this module's exports as literals
+   rather than the whole table (`build/runtime-bundle.mjs`, `kernelFacts`), and records
+   the table's hash, so a tree whose table differs serves the source modules, which
+   read it here. */
 import kernel from "./kernel-registry.json" with { type: "json" };
 
 const { collapse, blocks, context } = kernel.$passages;

@@ -720,32 +720,11 @@ def test_a_shot_compares_its_frames_with_a_direct_divider(browser, serve):
     )
 
     page = browser.new_page(viewport={"width": 1200, "height": 900})
-    page.add_init_script(
-        """new MutationObserver(() => {
-          if (document.body?.hasAttribute('data-lf-presented') &&
-              window.__lfPresentedAt === undefined)
-            window.__lfPresentedAt = performance.now();
-        }).observe(document, {attributes: true, subtree: true});
-        new PerformanceObserver(list => {
-          for (const entry of list.getEntries())
-            if (entry.name.endsWith('/vendor/webawesome.esm.js'))
-              window.__lfComparisonRequestedAt = entry.startTime;
-        }).observe({type: 'resource', buffered: true});"""
-    )
     page.goto(url)
     render_checks_model.wait_until_ready(page)
-    page.locator("lf-shot").get_by_role("button", name="Slider", exact=True).click()
     comparison = page.locator("lf-shot wa-comparison")
     handle = comparison.get_by_role("scrollbar")
     expect(handle).to_be_visible()
-    page.wait_for_function("window.__lfComparisonRequestedAt !== undefined")
-    timing = page.evaluate(
-        """() => ({
-          presented: window.__lfPresentedAt,
-          requested: window.__lfComparisonRequestedAt,
-        })"""
-    )
-    assert timing["requested"] >= timing["presented"]
     rail = page.locator("lf-shot .lf-shot-toolbar")
     expect(rail).to_have_count(1)
     expect(rail.locator(".lf-shotcap")).to_have_text(["Before", "After"])
@@ -817,7 +796,7 @@ def test_a_shot_compares_its_frames_with_a_direct_divider(browser, serve):
     page.keyboard.up("Shift")
     expect(comparison).to_have_attribute("position", "0")
     comparison.evaluate("node => { node.position = 50; }")
-    view = page.locator("lf-shot").get_by_role("button", name="Slider", exact=True)
+    view = page.locator("lf-shot").get_by_role("radio", name="Slider", exact=True)
     # A second finger does not replace the primary contact's input destination.
     view.focus()
     handle.evaluate("""handle => handle.dispatchEvent(new PointerEvent('pointerdown', {

@@ -58,7 +58,7 @@ def test_depths_fold_keep_the_place_and_restore(browser, serve):
     reading = top(page, "#cause-1")
     depth(page, "Skim")
     expect(page.locator("lf-dial .lf-dial-depth", has_text="Skim")).to_have_attribute(
-        "aria-pressed", "true"
+        "aria-checked", "true"
     )
     # Each section's three paragraphs and its closed detail.
     expect(folded).to_have_count(4 * len(SECTIONS))
@@ -83,3 +83,15 @@ def test_depths_fold_keep_the_place_and_restore(browser, serve):
     expect(markers).to_have_count(0)
     expect(page.locator("details[open]")).to_have_count(0)
     expect(page.locator("main [hidden]")).to_have_count(0)
+
+    # The depths are one radio group: an arrow from Read chooses the depth beside it.
+    read = page.get_by_role("radio", name="Read", exact=True)
+    skim = page.get_by_role("radio", name="Skim", exact=True)
+    read.focus()
+    page.keyboard.press("ArrowLeft")
+    expect(skim).to_be_focused()
+    expect(skim).to_have_attribute("aria-checked", "true")
+    expect(folded).to_have_count(4 * len(SECTIONS))
+    page.keyboard.press("ArrowRight")
+    expect(read).to_have_attribute("aria-checked", "true")
+    expect(folded).to_have_count(0)

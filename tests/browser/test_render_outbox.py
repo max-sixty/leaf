@@ -82,8 +82,11 @@ from render_harness import (
 
 from browser.test_render_application_boundary import long_thread
 from browser.threads import open_panel_thread
+from leaf import delivery as delivery_model
+from leaf import event_contracts as event_contracts_model
 from leaf import event_log as events_model
 from leaf import schema as schema_model
+from leaf import service as service_model
 from leaf.registry.contract import RANK
 from leaf.render_checks import rendered
 from leaf.render_gate.scheme import console_finding
@@ -2996,23 +2999,27 @@ def test_undo_waits_while_the_candidate_is_applying_then_reads_accepted_truth(
             "markup": '<lf-preparation id="detail"><p>Supporting detail</p></lf-preparation>',
         },
     )
-    append_command(
-        serve.page_dir,
-        {
-            "kind": "action",
-            "author": "user",
-            "revision": 1,
-            "widget": "sug-thistle",
-            "action": "decide",
-            "detail": {"outcome": "accept"},
-        },
-    )
+    # Picked up in the same write, so every reading the server serves from here on,
+    # the read receipt's answer included, has `z` show the suggestion first wherever
+    # the layout leaves it.
+    with service_model.PageTransaction(serve.page_dir) as transaction:
+        action, _ = event_contracts_model.append_admitted(
+            transaction,
+            {
+                "kind": "action",
+                "author": "user",
+                "revision": 1,
+                "widget": "sug-thistle",
+                "action": "decide",
+                "detail": {"outcome": "accept"},
+            },
+        )
+        delivery_model.record_pickup(transaction, [action])
     holding(page, held_states, 1, "candidate read")
     candidate = held_states[0].fetch().json()
     head = candidate["browser"]["views"]["1"]["undo"][0]
     assert head["event"]["widget"] == "sug-thistle"
-    # Picked up, so `z` shows the suggestion first wherever the layout leaves it.
-    head["picked_up"] = True
+    assert head["picked_up"]
     with page.expect_request("**/preparation-content"):
         held_states.pop(0).fulfill(json=candidate)
     holding(page, preparations, 1, "thread preparation")

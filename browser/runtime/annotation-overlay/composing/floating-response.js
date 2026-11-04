@@ -28,7 +28,7 @@ import { cancelRender, nextRender } from "../../rendering.js";
 import { boxMotion } from "../../box-motion.js";
 import { sameAnchor } from "../../anchor-coordinate.js";
 import { declareOffFlowSurface } from "../../off-flow.js";
-import { rightCover, shownBox } from "../../geometry.js";
+import { shownBox } from "../../geometry.js";
 import {
   passageGeometry,
   rangeGeometry,
@@ -72,8 +72,7 @@ export function createFloatingResponsePlacement({
   scrollToRange,
 }) {
   /** @param {Element} [scroller] */
-  const floatBoundary = (scroller) =>
-    commentBoundary({ scroller, right: rightCover() });
+  const floatBoundary = (scroller) => commentBoundary({ scroller });
   // The side the bar holds and its inline start, by the rule the thread card it becomes
   // stands by too (comment-placement.js).
   const fabPlacement = commentPlacement();

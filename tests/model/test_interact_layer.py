@@ -672,7 +672,9 @@ def test_shim_dispatches_every_command_through_one_uv_run(tmp_path, monkeypatch,
     # than whatever project the caller's directory sits in. `--no-dev` because
     # the dev group is the suite and the repo's own scripts, neither a harness's to
     # install. The module rather than the `leaf` console script because a long
-    # payload path turns the console script into a `/bin/sh` trampoline.
+    # payload path turns the console script into a `/bin/sh` trampoline. `-P`
+    # because `-m` would otherwise put the caller's directory first on the module
+    # path, where a `leaf.py` would run in Leaf's place.
     assert dispatched == [
         "run",
         "-q",
@@ -680,6 +682,7 @@ def test_shim_dispatches_every_command_through_one_uv_run(tmp_path, monkeypatch,
         "--project",
         str(PLUGIN_ROOT),
         "python",
+        "-P",
         "-m",
         "leaf",
         *args,

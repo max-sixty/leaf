@@ -625,45 +625,45 @@ def test_a_rewrite_opened_on_held_words_starts_from_the_words_as_they_stand(
     ]
 
 
-def test_one_editor_shows_a_message_across_its_readers(browser, serve):
+def test_one_unchanged_rewrite_stands_open_in_a_thread_across_its_readers(
+    browser, serve, subtests
+):
     """A rewrite opened on a message in Feed stayed open there when the same message's
     rewrite was opened in another reader, so two editors of one draft stood at once.
     Opening it in one reader closes it in the other, the message there reading as it
-    stands."""
-    page, _workspace, message = _rewrite_surface(browser, serve, "feed")
-    mine = message.get_attribute("data-lf-event")
-    message.locator(".lf-msg-text").dblclick()
-    expect(message.locator(".lf-msg-editor leaf-text")).to_be_focused()
-    page.locator('[data-lf-margin-for="cd-q"] .lf-margin-marker').click()
-    card = page.locator(f'.lf-margin-preview .lf-msg[data-lf-event="{mine}"]')
-    card.locator(".lf-msg-text").dblclick()
-    expect(card.locator(".lf-msg-editor leaf-text")).to_be_focused()
-    expect(message.locator(".lf-msg-editor")).to_have_count(0)
-    expect(message.locator(".lf-msg-text")).to_have_text("Fit the north bracket.")
-
-
-def test_one_unchanged_rewrite_stands_open_in_a_thread_across_its_readers(
-    browser, serve
-):
-    """Opening a rewrite of one message closes a rewrite of another in the same thread
-    whose words the user left as they were, in a thread card. A rewrite left open in
-    Feed stayed open when another message's rewrite opened in another reader, since
+    stands. Opening a rewrite of one message closes a rewrite of another in the same
+    thread whose words the user left as they were, in a thread card. A rewrite left open
+    in Feed stayed open when another message's rewrite opened in another reader, since
     each reader put aside only its own."""
     page, workspace, message = _rewrite_surface(browser, serve, "feed", thanks=True)
-    message.locator(".lf-msg-text").dblclick()
-    expect(message.locator(".lf-msg-editor leaf-text")).to_be_focused()
-    page.locator('[data-lf-margin-for="cd-q"] .lf-margin-marker').click()
-    said = page.locator(".lf-margin-preview .lf-msg[data-lf-author=user]").filter(
-        has_text="Thanks."
-    )
-    # Named by its id, since an open rewrite holds its words in the box, not as text.
-    thanks = page.locator(
-        f'.lf-margin-preview .lf-msg[data-lf-event="{said.get_attribute("data-lf-event")}"]'
-    )
-    thanks.locator(".lf-msg-text").dblclick()
-    expect(thanks.locator(".lf-msg-editor leaf-text")).to_be_focused()
-    expect(workspace.locator(".lf-msg-editor")).to_have_count(0)
-    expect(message.locator(".lf-msg-text")).to_have_text("Fit the north bracket.")
+    mine = message.get_attribute("data-lf-event")
+    marker = page.locator('[data-lf-margin-for="cd-q"] .lf-margin-marker')
+
+    def rewrite_in_feed():
+        message.locator(".lf-msg-text").dblclick()
+        expect(message.locator(".lf-msg-editor leaf-text")).to_be_focused()
+        marker.click()
+
+    with subtests.test("the same message"):
+        rewrite_in_feed()
+        card = page.locator(f'.lf-margin-preview .lf-msg[data-lf-event="{mine}"]')
+        card.locator(".lf-msg-text").dblclick()
+        expect(card.locator(".lf-msg-editor leaf-text")).to_be_focused()
+        expect(message.locator(".lf-msg-editor")).to_have_count(0)
+        expect(message.locator(".lf-msg-text")).to_have_text("Fit the north bracket.")
+    with subtests.test("another message"):
+        rewrite_in_feed()
+        said = page.locator(".lf-margin-preview .lf-msg[data-lf-author=user]").filter(
+            has_text="Thanks."
+        )
+        # Named by its id, since an open rewrite holds its words in the box, not as text.
+        thanks = page.locator(
+            f'.lf-margin-preview .lf-msg[data-lf-event="{said.get_attribute("data-lf-event")}"]'
+        )
+        thanks.locator(".lf-msg-text").dblclick()
+        expect(thanks.locator(".lf-msg-editor leaf-text")).to_be_focused()
+        expect(workspace.locator(".lf-msg-editor")).to_have_count(0)
+        expect(message.locator(".lf-msg-text")).to_have_text("Fit the north bracket.")
 
 
 def test_walking_up_through_rewrites_shows_each_one(browser, serve):

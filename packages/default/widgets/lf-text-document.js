@@ -539,10 +539,14 @@ class TextDocument extends LeafElement {
   // So can a new face, which shows where a drawn run changes height. The runs are
   // sized again in the next frame, outside the observer's delivery: sized in it when
   // Firefox's face arrived, they resized the code it watches, and Firefox reported the
-  // notification it couldn't deliver as an error. The observer also sizes them first,
-  // once the listing has a box: measured as each document drew, every closed tab's
-  // listing was a read of the page's layout, and Chromium's answer took longer for each
-  // document drawn before it, 0.8 s over 30 documents of 4 MB.
+  // notification it couldn't deliver as an error. A document the page shows is sized
+  // as it draws (`show`), so the observer's first delivery already sees its runs at
+  // their lines' heights; left to the next frame, Firefox on Linux CI reported a loop
+  // of undelivered notifications for a long document.
+  // A hidden one is sized by the observer once its listing has a box: measured as each
+  // document drew, every closed tab's listing was a read of the page's layout, and
+  // Chromium's answer took longer for each document drawn before it, 0.8 s over 30
+  // documents of 4 MB.
   sizes = sizeObserver((entries) => {
     for (const { target, contentRect } of entries)
       if (target === this.view?.listing) this.list(contentRect.width > 0);
@@ -795,6 +799,7 @@ class TextDocument extends LeafElement {
           : null;
       setChildren(this, [view.figure]);
       this.showLone();
+      if (this.listed) this.refit();
       // The drawn text's items, marked for whoever hosts the widget: on a Leaf page,
       // comments on them anchor to the document's data.
       if (previewNode) {

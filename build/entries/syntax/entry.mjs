@@ -112,39 +112,13 @@ export async function registerLanguage(lang, grammar) {
   await instance.loadLanguage(grammar);
 }
 
-/** Each language's own highlighter for `tokenize`, holding that language's grammars
- * alone, the ones it embeds always included. A grammar's lazily embedded languages,
- * such as the language a Markdown fence names, colour only where their grammar is
- * loaded, and in the highlighter the page's blocks share that was whatever other blocks
- * had loaded: the same Markdown fence was coloured beside a JavaScript block and flat
- * without one. Here they are always flat. */
-/** @type {Map<string, ReturnType<typeof createHighlighterCore>>} */
-const tokenizers = new Map();
-/** @param {string} lang */
-const tokenizer = (lang) => {
-  let ready = tokenizers.get(lang);
-  if (!ready) {
-    const loader = bundledLanguages[lang];
-    if (!loader) throw new Error(`Leaf has not loaded the ${lang} grammar`);
-    ready = loader().then((grammar) =>
-      createHighlighterCore({
-        engine: createJavaScriptRegexEngine(),
-        langs: [grammar.default],
-        themes: [leafTheme],
-      }),
-    );
-    tokenizers.set(lang, ready);
-  }
-  return ready;
-};
-
 /** Offsets preserve original line endings even when Shiki normalizes its lines. Returns
  * the tokens and the grammar state their last line ends in, which a later call takes as
  * `state` to continue from it: a text tokenized a part at a time, each part from the
  * state the one before it ended in, is coloured as the whole text would be. */
 /** @param {string} source @param {string} lang @param {import("@shikijs/core").GrammarState} [state] */
 export async function tokenize(source, lang, state) {
-  const instance = await tokenizer(lang);
+  const instance = await createHighlighter({ langs: [lang] });
   const lines = instance.codeToTokensBase(source, {
     lang,
     theme: themeName,

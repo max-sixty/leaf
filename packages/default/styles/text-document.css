@@ -91,6 +91,33 @@ lf-text-document .lf-text-document-run > *::before {
   color: var(--code-muted);
   text-align: end;
 }
+/* Syntax colour on a listing's text (lf-text-document.js, `tokenHighlight`): one
+   highlight for each colour of the token theme (build/entries/syntax/entry.mjs,
+   `leafTheme`), named by its variable. A test holds this list to the theme's. */
+::highlight(lf-token-syn-comment) {
+  color: var(--syn-comment);
+}
+::highlight(lf-token-syn-keyword) {
+  color: var(--syn-keyword);
+}
+::highlight(lf-token-syn-string) {
+  color: var(--syn-string);
+}
+::highlight(lf-token-syn-number) {
+  color: var(--syn-number);
+}
+::highlight(lf-token-syn-name) {
+  color: var(--syn-name);
+}
+::highlight(lf-token-syn-type) {
+  color: var(--syn-type);
+}
+::highlight(lf-token-ok-ink) {
+  color: var(--ok-ink);
+}
+::highlight(lf-token-danger-ink) {
+  color: var(--danger-ink);
+}
 /* A folded panel's rows (`hidden="until-found"`, as a closed tab's) count no numbers
    until it opens. Firefox styles and builds the generated content of rows it doesn't
    draw: in a folded document of 70,000 lines the numbers took about 120 of the 150 ms

@@ -2000,7 +2000,7 @@ def test_shell_commands_share_colors_in_plain_code_widgets_and_diffs(browser, se
           for (const lang of langs)
             for (const src of samples) {
               try {
-                const tokens = await syntax(src, lang);
+                const { tokens } = await syntax(src, lang);
                 const back = tokens.map(t => t.text).join('');
                 if (back !== src) bad.push([lang, src, back]);
               } catch (e) { bad.push([lang, src, String(e)]); }
@@ -2051,7 +2051,7 @@ def test_shell_commands_share_colors_in_plain_code_widgets_and_diffs(browser, se
 
     heredoc = page.evaluate("""async () => {
       const { syntax } = await window.__lfWidgetApi();
-      return await syntax("cat <<'EOF'\\nleaf is literal text\\nEOF\\n", 'bash');
+      return (await syntax("cat <<'EOF'\\nleaf is literal text\\nEOF\\n", 'bash')).tokens;
     }""")
     assert any(
         token["style"].get("color") == "var(--syn-string)"

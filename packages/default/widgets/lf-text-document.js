@@ -30,7 +30,6 @@
 import {
   failSoft,
   ensureSyntaxLanguage,
-  inBaseLayer,
   keeps,
   LeafElement,
   nothing,
@@ -292,47 +291,26 @@ function sizeRuns(code, text, { columns, tab }, drawn) {
     run.style.containIntrinsicBlockSize = `auto ${lines}lh`;
 }
 
-// Each token style's highlight, registered once for every document in the page, and
-// the rule that paints it, in one sheet each root that holds a document adopts. A
+// Each token colour's highlight, registered once for every document in the page and
+// named by the token theme's colour variable, which text-document.css paints. A
 // highlight paints only what doesn't change layout (css-highlight-api-1), so a token
-// keeps its theme colour and decoration but not its font style: a comment, italic in
-// a code block, stands upright here. A style with nothing a highlight can paint has
-// none (null).
-/** @type {Map<string, Highlight | null>} */
+// keeps its theme colour but not its font style: a comment, italic in a code block,
+// stands upright here. A token whose colour is no variable, or that has none, has no
+// highlight (null). The rules are declared rather than written as each colour first
+// appears: Firefox restyled the whole page for each rule a sheet gained, 0.85 s a rule
+// beside a long document, and End there showed its scroll 1.5 s after the press.
+/** @type {Map<string, Highlight>} */
 const tokenHighlights = new Map();
-const PAINTED = new Set([
-  "color",
-  "background-color",
-  "text-decoration",
-  "text-shadow",
-]);
-/** @type {CSSStyleSheet | undefined} */
-let tokenSheet;
-const tokenRules = () => {
-  tokenSheet ??= new CSSStyleSheet();
-  if (!tokenSheet.cssRules.length) tokenSheet.replaceSync(inBaseLayer(""));
-  return {
-    sheet: tokenSheet,
-    layer: /** @type {CSSLayerBlockRule} */ (tokenSheet.cssRules[0]),
-  };
-};
-/** @param {object} style a token's CSS declarations, by property */
+/** @param {{color?: string}} style */
 function tokenHighlight(style) {
-  const key = JSON.stringify(style);
-  const known = tokenHighlights.get(key);
-  if (known !== undefined) return known;
-  const paint = Object.entries(style)
-    .filter(([property]) => PAINTED.has(property))
-    .map(([property, value]) => `${property}: ${value};`)
-    .join(" ");
-  const highlight = paint ? new Highlight() : null;
-  if (highlight) {
-    const name = `lf-token-${tokenHighlights.size}`;
-    CSS.highlights.set(name, highlight);
-    const { layer } = tokenRules();
-    layer.insertRule(`::highlight(${name}) { ${paint} }`, layer.cssRules.length);
+  const colour = style.color?.match(/^var\(--([\w-]+)\)$/)?.[1];
+  if (!colour) return null;
+  let highlight = tokenHighlights.get(colour);
+  if (!highlight) {
+    highlight = new Highlight();
+    CSS.highlights.set(`lf-token-${colour}`, highlight);
+    tokenHighlights.set(colour, highlight);
   }
-  tokenHighlights.set(key, highlight);
   return highlight;
 }
 
@@ -376,10 +354,12 @@ class RunColours {
     const run = Math.floor(from / RUN);
     this.states.length = Math.min(this.states.length, run + 1);
     const runs = [...code.children];
-    for (const painted of [...this.painted.keys()]) {
-      const place = runs.indexOf(painted);
-      if (place < 0 || place >= run) this.unpaint(painted);
-    }
+    this.unpaint(
+      [...this.painted.keys()].filter((painted) => {
+        const place = runs.indexOf(painted);
+        return place < 0 || place >= run;
+      }),
+    );
   }
 
   // Paint the runs the browser draws (`shown`) and the run on either side of each, and
@@ -395,8 +375,7 @@ class RunColours {
       if (at >= 0)
         for (const near of runs.slice(Math.max(0, at - 1), at + 2)) this.near.add(near);
     }
-    for (const run of [...this.painted.keys()])
-      if (!this.near.has(run)) this.unpaint(run);
+    this.unpaint([...this.painted.keys()].filter((run) => !this.near.has(run)));
     for (const run of this.near) if (!this.painted.has(run)) this.paint(code, run);
     this.walk(code).catch(this.failed);
   }
@@ -466,7 +445,7 @@ class RunColours {
       }
       offset += text.length;
     }
-    this.unpaint(run);
+    this.unpaint([run]);
     this.painted.set(run, { exact, ranges });
   }
 
@@ -513,17 +492,32 @@ class RunColours {
     return this.text.slice(at * RUN, (at + 1) * RUN).join("\n");
   }
 
-  /** @param {Element} run */
-  unpaint(run) {
-    for (const [highlight, range] of this.painted.get(run)?.ranges ?? [])
-      highlight.delete(range);
-    this.painted.delete(run);
+  // Takes the paint off `runs`. Each highlight it touches is rebuilt from the ranges it
+  // keeps rather than losing each of its ranges in turn: Firefox finds a range to delete
+  // by walking the highlight's list, and taking two runs scrolled out of view off it
+  // held a frame for over 100 ms.
+  /** @param {Iterable<Element>} runs */
+  unpaint(runs) {
+    /** @type {Map<Highlight, Set<AbstractRange>>} */
+    const gone = new Map();
+    for (const run of runs) {
+      for (const [highlight, range] of this.painted.get(run)?.ranges ?? []) {
+        const ranges = gone.get(highlight) ?? new Set();
+        gone.set(highlight, ranges.add(range));
+      }
+      this.painted.delete(run);
+    }
+    for (const [highlight, ranges] of gone) {
+      const kept = [...highlight].filter((range) => !ranges.has(range));
+      highlight.clear();
+      for (const range of kept) highlight.add(range);
+    }
   }
 
   clear() {
     this.version++;
     this.near.clear();
-    for (const run of [...this.painted.keys()]) this.unpaint(run);
+    this.unpaint([...this.painted.keys()]);
   }
 }
 
@@ -720,12 +714,6 @@ class TextDocument extends LeafElement {
       }
       if (rendering !== this.rendering || !this.isConnected) return;
       const { pre: drawnPre, code: drawnCode, text } = listing(source);
-      if (language) {
-        const root = /** @type {Document | ShadowRoot} */ (this.getRootNode());
-        const { sheet } = tokenRules();
-        if (!root.adoptedStyleSheets.includes(sheet))
-          root.adoptedStyleSheets = [...root.adoptedStyleSheets, sheet];
-      }
       if (this.colours?.lang !== language) {
         this.colours?.clear();
         this.colours = language

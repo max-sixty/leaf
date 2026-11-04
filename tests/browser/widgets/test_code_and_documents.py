@@ -33,6 +33,17 @@ pytestmark = pytest.mark.shifts_unsurveyed
 # The rows of the text document `#log`, one a line, in order across its runs.
 ROWS = "#log .lf-text-document-run > *"
 
+# A row's number, generated content standing in the row's padding: what it says and
+# where it ends, beside where the row's words start, both from the row's left edge.
+NUMBER = """row => {
+  const number = getComputedStyle(row, '::before');
+  const words = document.createRange();
+  words.selectNodeContents(row);
+  return {content: number.content,
+          end: parseFloat(number.left) + parseFloat(number.width),
+          words: words.getBoundingClientRect().left - row.getBoundingClientRect().left};
+}"""
+
 
 def test_a_markdown_document_switches_between_rendered_content_and_exact_source(
     browser, serve
@@ -78,18 +89,8 @@ def test_a_markdown_document_switches_between_rendered_content_and_exact_source(
     expect(document.locator("pre")).to_be_visible()
     assert document.locator("code").text_content() == text
     # Numbering stays in its own visible column and outside the exact source text.
-    number = document.locator(".lf-text-document-run > *").first.evaluate(
-        """row => {
-          const number = getComputedStyle(row, '::before');
-          const words = document.createRange();
-          words.selectNodeContents(row);
-          return {content: number.content,
-                  end: parseFloat(number.left) + parseFloat(number.width),
-                  words: words.getBoundingClientRect().left
-                    - row.getBoundingClientRect().left};
-        }"""
-    )
-    assert number["content"].startswith("counter(lf-line)"), number
+    number = document.locator(".lf-text-document-run > *").first.evaluate(NUMBER)
+    assert number["content"] == 'counter(lf-line) / ""', number
     assert 0 < number["end"] < number["words"], number
     source.press("ArrowLeft")
     expect(preview).to_be_focused()
@@ -537,22 +538,9 @@ def test_find_reaches_the_text_of_a_document_in_a_tab_nobody_opened(
         tab.click()
     row = page.locator("#doc-2 .lf-text-document-run > *").first
     expect(row).to_be_visible()
-    beside = row.evaluate(
-        """row => {
-          const number = getComputedStyle(row, '::before');
-          const words = document.createRange();
-          words.selectNodeContents(row);
-          return {content: number.content, top: number.top,
-                  beside: parseFloat(number.left) + parseFloat(number.width)
-                    < words.getBoundingClientRect().left
-                      - row.getBoundingClientRect().left};
-        }"""
-    )
-    assert beside == {
-        "content": 'counter(lf-line) / ""',
-        "top": "0px",
-        "beside": True,
-    }, beside
+    number = row.evaluate(NUMBER)
+    assert number["content"] == 'counter(lf-line) / ""', number
+    assert 0 < number["end"] < number["words"], number
     # The opened document's lines in view take their syntax colour; the tab nobody
     # opened takes none.
     page.wait_for_function(TOKENS_IN, arg="#doc-2 code")

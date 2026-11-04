@@ -129,7 +129,7 @@ def test_timeline_labels_stay_clear_at_any_width_and_on_paper(browser, serve):
     page = open_page(browser, serve(leaf_page("Race", RACE), packages=("timeline",)))
     assert_labels_clear(page)
     # The ruler picks round intervals, and events with room share a label row.
-    expect(page.locator("#race .lf-timeline-tick[data-lf-major]")).to_have_text(
+    expect(page.locator("#race .lf-axis-tick[data-lf-major]")).to_have_text(
         ["0 s", "1 s", "2 s", "3 s", "4 s", "5 s"]
     )
     lanes = page.evaluate(LABEL_BOXES)["lanes"]

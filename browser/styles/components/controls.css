@@ -1938,3 +1938,52 @@ textarea.field {
   padding: 5px 8px;
   color: var(--muted);
 }
+/* A time axis's ruler, drawn by every widget that has one (`axisTicks`,
+   runtime/time-axis.js): a tick at each time on the axis, at its fraction of it
+   (`--lf-axis-at`) inside the drawing's edge (`--lf-axis-edge`, `AXIS_EDGE`), so it
+   holds at any width, a printed page's included. A major tick runs the ruler's height
+   and carries its time; the last one reads back from its tick (`data-lf-flip`) where
+   its words would run past the axis's end. A faint line continues each major tick
+   down through the drawing below the ruler, so a mark far below it, in a later lane,
+   still reads against it; the drawing clips that line at its own foot. */
+.lf-axis-ruler {
+  position: relative;
+  color: var(--muted);
+}
+.lf-axis-tick {
+  position: absolute;
+  left: calc(
+    var(--lf-axis-edge) + var(--lf-axis-at) * (100% - 2 * var(--lf-axis-edge))
+  );
+  inset-block-end: 0;
+  block-size: 4px;
+  border-inline-start: 1px solid var(--border-2);
+  white-space: nowrap;
+}
+.lf-axis-tick[data-lf-major] {
+  block-size: 100%;
+  box-sizing: border-box;
+  padding-inline-start: 3px;
+  padding-block-start: 3px;
+  border-inline-start-color: var(--muted);
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+}
+.lf-axis-tick[data-lf-flip] {
+  translate: -100% 0;
+  padding-inline: 0 3px;
+  border-inline-start: 0;
+  border-inline-end: 1px solid var(--muted);
+}
+.lf-axis-tick[data-lf-major]::after {
+  content: "";
+  position: absolute;
+  inset-inline-start: -1px;
+  inset-block-start: 100%;
+  block-size: 2000px;
+  border-inline-start: 1px dotted var(--rule);
+  pointer-events: none;
+}
+.lf-axis-tick[data-lf-flip]::after {
+  inset-inline: auto -1px;
+}

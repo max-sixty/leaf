@@ -215,8 +215,9 @@ lf-trace[hidden="until-found"] {
   min-inline-size: 0;
   scrollbar-width: thin;
 }
+/* The track clips the ruler's lines at its foot (controls.css, `.lf-axis-tick`). */
 .lf-trace-track {
-  --lf-trace-span: calc(100% - 2 * var(--lf-trace-edge));
+  --lf-trace-span: calc(100% - 2 * var(--lf-axis-edge));
   position: relative;
   inline-size: calc(var(--lf-trace-zoom, 1) * 100%);
   min-inline-size: 100%;
@@ -225,15 +226,10 @@ lf-trace[hidden="until-found"] {
   cursor: crosshair;
   overflow: hidden;
 }
-.lf-trace-ruler {
-  position: relative;
-  color: var(--muted);
-}
 .lf-trace-lane {
   position: relative;
 }
 :is(
-  .lf-trace-tick,
   .lf-trace-moment-pin,
   .lf-trace-input-label,
   .lf-trace-bar,
@@ -241,40 +237,7 @@ lf-trace[hidden="until-found"] {
   .lf-trace-capture
 ) {
   position: absolute;
-  left: calc(var(--lf-trace-edge) + var(--t) * var(--lf-trace-span));
-}
-.lf-trace-tick {
-  inset-block-end: 0;
-  block-size: 4px;
-  border-inline-start: 1px solid var(--border-2);
-}
-.lf-trace-tick-major {
-  block-size: 100%;
-  box-sizing: border-box;
-  padding-inline-start: 3px;
-  padding-block-start: 3px;
-  border-inline-start-color: var(--muted);
-  white-space: nowrap;
-}
-/* The last label reads back from its tick, inside the scale. */
-.lf-trace-tick-major[data-lf-flip] {
-  translate: -100% 0;
-  padding-inline: 0 3px;
-  border-inline-start: 0;
-  border-inline-end: 1px solid var(--muted);
-}
-.lf-trace-tick-major[data-lf-flip]::after {
-  inset-inline: auto -1px;
-}
-/* Grid lines continue the major ticks through the lanes. */
-.lf-trace-tick-major::after {
-  content: "";
-  position: absolute;
-  inset-inline-start: -1px;
-  inset-block-start: 100%;
-  block-size: 2000px;
-  border-inline-start: 1px dashed color-mix(in srgb, var(--border-2) 70%, transparent);
-  pointer-events: none;
+  left: calc(var(--lf-axis-edge) + var(--t) * var(--lf-trace-span));
 }
 /* Bars span their recorded call; a 2px floor keeps an instant visible. */
 .lf-trace-bar {
@@ -437,7 +400,7 @@ lf-trace[hidden="until-found"] {
 .lf-trace-playhead {
   position: absolute;
   inset-block: 0;
-  left: calc(var(--lf-trace-edge) + var(--lf-trace-time, 0) * var(--lf-trace-span));
+  left: calc(var(--lf-axis-edge) + var(--lf-trace-time, 0) * var(--lf-trace-span));
   inline-size: 2px;
   translate: -1px 0;
   background: var(--accent);

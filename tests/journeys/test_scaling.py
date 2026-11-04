@@ -20,7 +20,6 @@ import pytest
 
 from leaf_dev import ROOT
 from leaf_dev.arms import serving_source
-from leaf_dev.browser import headless_shell
 from leaf_dev.commands.scaling import (
     AXES,
     BASE,
@@ -36,9 +35,9 @@ ROUNDS = 2
 
 
 @pytest.mark.parametrize("axis", sorted(AXES))
-def test_no_cost_grows_faster_than_the_page(axis, tmp_path):
+def test_no_cost_grows_faster_than_the_page(axis, tmp_path, browser):
     authored, log = AXES[axis]
-    with ExitStack() as serving, headless_shell() as browser:
+    with ExitStack() as serving:
         addresses = []
         for n in SIZES:
             source = tmp_path / f"{axis}{n}.html"

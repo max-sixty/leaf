@@ -130,28 +130,6 @@ def test_page_map_cancellation_returns_to_its_opener_without_moving_the_reading(
     assert page.evaluate(reading) == before
 
 
-@pytest.mark.parametrize("route", ["Escape", "Close"])
-def test_page_map_cancellation_without_an_opener_keeps_the_scrolled_reading(
-    browser, serve, route
-):
-    page = open_page(browser, serve(READING_CONTROLS_PAGE))
-    page.evaluate("() => document.getElementById('p40').scrollIntoView()")
-    page_at_rest(page)
-    before = page.evaluate("() => document.scrollingElement.scrollTop")
-    page.keyboard.press("g")
-    page.keyboard.press("Shift+p")
-    sheet = page.get_by_role("dialog", name="Page Map", exact=True)
-    expect(sheet).to_be_visible()
-    if route == "Escape":
-        page.keyboard.press("Escape")
-    else:
-        sheet.get_by_role("button", name="Close Page Map").click()
-    expect(sheet).to_be_hidden()
-    assert page.evaluate("() => document.scrollingElement.scrollTop") == before
-    page.keyboard.press("Tab")
-    expect(page.locator("#next-control")).to_be_focused()
-
-
 def test_history_returns_the_working_place_as_well_as_the_viewport(browser, serve):
     """Back and Forward restore the place commands read, not just its pixels."""
     page = open_page(
@@ -515,14 +493,12 @@ def test_back_returns_the_passage_chosen_between_trips(
     page.wait_for_function("scrollY < 100")
 
 
-@pytest.mark.parametrize("moved", ["inline", "breakpoint"])
-def test_a_reading_finds_words_drawn_outside_their_blocks_box(browser, serve, moved):
+def test_a_reading_finds_words_drawn_outside_their_blocks_box(browser, serve):
     """A block whose own box lies below the window can still draw words in it, through a
     positioned child. A reading of the screen passes over a block only when its words
     are drawn inside its box, so the words the reader sees name the place, including
     once a breakpoint moves the child after an earlier reading, with no change to the
     page's text."""
-    style = "position: absolute; top: 200px; left: 0" if moved == "inline" else ""
     source = leaf_page(
         "Words outside their block",
         "<style>@media (width < 800px) {"
@@ -530,23 +506,21 @@ def test_a_reading_finds_words_drawn_outside_their_blocks_box(browser, serve, mo
         '<div style="position: relative">'
         '<div style="height: 1400px"></div>'
         '<p id="carrier">The carrier paragraph sits far below the window.'
-        f'<span id="drawn" style="{style}">'
-        "These positioned words are drawn in the window.</span></p>"
+        '<span id="drawn">These positioned words are drawn in the window.</span></p>'
         "</div>"
         + "".join(f"<p>Later paragraph {n} below the carrier.</p>" for n in range(5)),
     )
     page = open_page(browser, serve(source))
     resized(page, 1000, 600)
     rendered(page)
-    first = """async () => {
+    reading = """async () => {
       const rp = await window.__lfCheckApi();
       return rp.readingBlock()?.id ?? null;
     }"""
-    if moved == "breakpoint":
-        assert page.evaluate(first) is None
-        resized(page, 700, 600)
-        rendered(page)
-    assert page.evaluate(first) == "carrier"
+    assert page.evaluate(reading) is None
+    resized(page, 700, 600)
+    rendered(page)
+    assert page.evaluate(reading) == "carrier"
 
 
 @pytest.mark.parametrize("separated", [False, True])
@@ -1155,30 +1129,58 @@ def test_the_menu_keeps_its_place_when_a_revision_shortens_the_words_it_held(
     _expect_aligned(page, "#remembered")
 
 
-def test_align_current_thread_stays_in_its_panel_without_travel(browser, serve):
-    page = open_page(
-        browser, serve(ALIGN_CURRENT_PAGE, anchored=[("remembered", "amber")] * 8)
+def test_align_in_the_panel_stays_there_without_travel(browser, serve, subtests):
+    """`g z` on a row in Threads, or on a control of an obligation in a reply the panel
+    draws, moves nothing on the page and adds no history: the item it aligns is the panel's
+    own."""
+    url = serve(ALIGN_CURRENT_PAGE, anchored=[("remembered", "amber")] * 8)
+    roots = [
+        event["id"]
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "comment"
+    ]
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Codex",
+            "parent": roots[4],
+            "revision": 1,
+            "text": "Choose the follow-up.",
+            "markup": '<lf-ask id="reply-ask"><h3>Which follow-up should be ready?</h3>'
+            '<lf-options id="reply-options" choose><lf-option id="reply-yes">Ready</lf-option>'
+            '<lf-option id="reply-no">Wait</lf-option></lf-options></lf-ask>',
+        },
     )
-    page.keyboard.press("g")
-    page.keyboard.press("Shift+t")
-    panel_settled(page, view="threads")
-    row = page.locator(".lf-fp-thread").nth(4)
-    row.focus()
-    rendered(page)
-    before = page.evaluate(
-        "[scrollY,history.length,navigation.currentEntry.key,location.href]"
-    )
-    page.keyboard.press("g")
-    page.keyboard.press("z")
-    rendered(page)
-    expect(row).to_be_focused()
-    panel_settled(page, view="threads")
-    assert (
-        page.evaluate(
-            "[scrollY,history.length,navigation.currentEntry.key,location.href]"
-        )
-        == before
-    )
+    page = open_page(browser, url)
+    travel = "[scrollY,history.length,navigation.currentEntry.key,location.href]"
+
+    with subtests.test(case="a row in Threads"):
+        page.keyboard.press("g")
+        page.keyboard.press("Shift+t")
+        panel_settled(page, view="threads")
+        row = page.locator(".lf-fp-thread").nth(4)
+        row.focus()
+        rendered(page)
+        before = page.evaluate(travel)
+        page.keyboard.press("g")
+        page.keyboard.press("z")
+        rendered(page)
+        expect(row).to_be_focused()
+        panel_settled(page, view="threads")
+        assert page.evaluate(travel) == before
+
+    with subtests.test(case="an obligation in a reply"):
+        view = open_panel_thread(page, roots[4])
+        control = view.locator('lf-option[id="reply-yes"]').get_by_role("checkbox")
+        control.focus()
+        before = page.evaluate(travel)
+        page.keyboard.press("g")
+        page.keyboard.press("z")
+        rendered(page)
+        expect(control).to_be_focused()
+        assert page.evaluate(travel) == before
 
 
 def test_a_nearest_landing_asks_whether_its_box_is_already_shown(
@@ -1325,13 +1327,15 @@ def test_align_current_tall_block_in_a_pane_in_a_pane_lands_its_opening(browser,
     """`g z` on a tall item in a pane that stands in another pane, both partly above the
     window, aligns the item's opening in its own pane and then brings that opening to
     the page's band: each box around reads where the boxes inside it have just put the
-    item, so the opening is not left above the window."""
+    item, so the opening is not left above the window. The press stays in the current
+    history entry."""
     source = leaf_page(
         "A tall item two panes deep",
         '<h1>Read the opening</h1><div style="height:700px"></div>'
         '<div id="outer" data-bound="start" style="height:300px;overflow:auto">'
         '<div style="height:200px"></div>'
-        '<div id="inner" data-bound="start" style="height:250px;overflow:auto">'
+        '<div id="inner" data-bound="start" '
+        'style="height:250px;overflow:auto;scroll-padding-top:24px">'
         '<pre id="tall" tabindex="0" style="margin:0">'
         + "A line in the current item.\n"
         * 80
@@ -1352,46 +1356,13 @@ def test_align_current_tall_block_in_a_pane_in_a_pane_lands_its_opening(browser,
     )
     scroll_settled(page)
     assert page.locator("#tall").bounding_box()["y"] < 0
+    history = page.evaluate("[history.length,navigation.currentEntry.key]")
     page.keyboard.press("g")
     page.keyboard.press("z")
     scroll_settled(page)
     _expect_aligned(page, "#tall")
     assert page.locator("#inner").evaluate("box => box.scrollTop") == 0
     expect(page.locator("#tall")).to_be_focused()
-
-
-def test_align_current_tall_block_reveals_its_opening_through_outer_scrollers(
-    browser, serve
-):
-    source = leaf_page(
-        "A tall current item",
-        '<h1>Read the opening</h1><div style="height:600px"></div>'
-        '<div id="inspection" data-bound="start" style="height:300px;overflow:auto;scroll-padding-top:24px">'
-        '<pre id="tall" tabindex="0">'
-        + "A line in the current item.\n"
-        * 80
-        + '</pre><div style="height:600px"></div></div>'
-        '<div style="height:1400px"></div>',
-    )
-    page = open_page(browser, serve(source))
-    page.emulate_media(reduced_motion="reduce")
-    page.locator("#tall").focus()
-    page.evaluate("""async () => {
-      const {landingBand} = await window.__lfCheckApi();
-      const box = document.querySelector('#inspection');
-      const docY = box.getBoundingClientRect().top + scrollY;
-      scrollTo(0, docY - landingBand(document.scrollingElement).top + 80);
-      box.scrollTop = 300;
-    }""")
-    scroll_settled(page)
-    history = page.evaluate("[history.length,navigation.currentEntry.key]")
-    assert page.locator("#tall").bounding_box()["y"] < 0
-    page.keyboard.press("g")
-    page.keyboard.press("z")
-    scroll_settled(page, "#inspection")
-    _expect_aligned(page, "#tall")
-    expect(page.locator("#tall")).to_be_focused()
-    assert page.locator("#inspection").evaluate("box => box.scrollTop") == 0
     assert page.evaluate("[history.length,navigation.currentEntry.key]") == history
 
 
@@ -1531,41 +1502,6 @@ def test_align_current_item_does_not_follow_old_page_caret_from_empty_threads(
     page.keyboard.press("g")
     page.keyboard.press("z")
     expect(threads).to_be_focused()
-    assert (
-        page.evaluate("[scrollY,history.length,navigation.currentEntry.key]") == before
-    )
-
-
-def test_align_current_obligation_in_a_reply_keeps_its_question_extent(browser, serve):
-    url = serve(ALIGN_CURRENT_PAGE, anchored=[("remembered", "amber")] * 8)
-    roots = [
-        event["id"]
-        for event in events_model.read_events(serve.page_dir)
-        if event["kind"] == "comment"
-    ]
-    append_carried_log_record(
-        serve.page_dir,
-        {
-            "kind": "reply",
-            "author": "agent",
-            "agent": "Codex",
-            "parent": roots[4],
-            "revision": 1,
-            "text": "Choose the follow-up.",
-            "markup": '<lf-ask id="reply-ask"><h3>Which follow-up should be ready?</h3>'
-            '<lf-options id="reply-options" choose><lf-option id="reply-yes">Ready</lf-option>'
-            '<lf-option id="reply-no">Wait</lf-option></lf-options></lf-ask>',
-        },
-    )
-    page = open_page(browser, url)
-    view = open_panel_thread(page, roots[4])
-    control = view.locator('lf-option[id="reply-yes"]').get_by_role("checkbox")
-    control.focus()
-    before = page.evaluate("[scrollY,history.length,navigation.currentEntry.key]")
-    page.keyboard.press("g")
-    page.keyboard.press("z")
-    rendered(page)
-    expect(control).to_be_focused()
     assert (
         page.evaluate("[scrollY,history.length,navigation.currentEntry.key]") == before
     )
@@ -1981,7 +1917,9 @@ def test_closing_a_surface_leaves_the_next_tab_where_the_user_is_reading(
     browser, serve, subtests
 ):
     """A step that lands the user in the document moves the Tab starting point there, and
-    closing a mode gives back the press that opened it with the user's place.
+    closing a mode gives back the press that opened it with the user's place, whichever
+    surface it is and however it closes: Threads, the reference, and the Page Map by
+    Escape or by its Close. The page has not moved under it either.
 
     The landing is blurred, so `activeElement` reads `body` whether or not it moved, and
     every journey that asserts only that would pass over a landing that had quietly reset
@@ -1999,6 +1937,7 @@ def test_closing_a_surface_leaves_the_next_tab_where_the_user_is_reading(
     page = open_page(browser, serve(READING_CONTROLS_PAGE))
     threads = page.locator(panel_view("threads"))
     reference = page.locator(".lf-command-reference")
+    page_map = page.get_by_role("dialog", name="Page Map", exact=True)
 
     def close_threads():
         page.keyboard.press("g")
@@ -2013,13 +1952,35 @@ def test_closing_a_surface_leaves_the_next_tab_where_the_user_is_reading(
         page.keyboard.press("Escape")
         expect(reference).to_be_hidden()
 
-    for surface, close in (("threads", close_threads), ("reference", close_reference)):
+    def open_page_map():
+        page.keyboard.press("g")
+        page.keyboard.press("Shift+p")
+        expect(page_map).to_be_visible()
+
+    def close_page_map_by_escape():
+        open_page_map()
+        page.keyboard.press("Escape")
+        expect(page_map).to_be_hidden()
+
+    def close_page_map_by_its_close():
+        open_page_map()
+        page_map.get_by_role("button", name="Close Page Map").click()
+        expect(page_map).to_be_hidden()
+
+    for surface, close in (
+        ("threads", close_threads),
+        ("reference", close_reference),
+        ("page map by Escape", close_page_map_by_escape),
+        ("page map by its Close", close_page_map_by_its_close),
+    ):
         with subtests.test(surface=surface):
             page.evaluate(RELEASE_FOCUS)
             page.evaluate("() => document.getElementById('p40').scrollIntoView()")
             page_at_rest(page)
+            before = page.evaluate("() => document.scrollingElement.scrollTop")
             close()
             assert page.evaluate("() => document.activeElement === document.body")
+            assert page.evaluate("() => document.scrollingElement.scrollTop") == before
 
             page.keyboard.press("Tab")
             expect(page.locator("#next-control")).to_be_focused()
@@ -2032,3 +1993,5 @@ def test_closing_a_surface_leaves_the_next_tab_where_the_user_is_reading(
                 )
                 == 0
             )
+        # What a failed case left up goes before the next case opens its surface.
+        page.keyboard.press("Escape")

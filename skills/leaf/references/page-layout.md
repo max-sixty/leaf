@@ -236,8 +236,8 @@ height page CSS gives it, as `max-block-size` or `--lf-bound`, and 28rem otherwi
 `data-width` widens one block, overriding its widget's default. Put it on the block
 itself, such as a `table` or `lf-code`, and write no CSS that copies its widths or
 sets its inline margins. An `available` block reaches past the prose by its own start
-margin, so space it with `margin-block` rather than `margin`. It works on column and
-sidebar pages:
+margin, so space it with `margin-block` rather than `margin`. `data-width` works on
+column and sidebar pages:
 
 - `data-width="wide"` is for a block slightly wider than the column, such as code up
   to 100 columns, a diff or a table of a few more columns. The block starts at the

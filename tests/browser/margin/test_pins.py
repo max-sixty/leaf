@@ -592,13 +592,18 @@ def test_a_pin_stays_inside_a_window_that_shrinks_around_a_fixed_canvas(browser,
     assert pin.evaluate("pin => pin.getBoundingClientRect().bottom") <= 720
 
 
-def test_o_hides_what_is_drawn_over_the_page_and_moves_nothing(browser, serve):
+def test_o_hides_what_is_drawn_over_the_page_and_the_panel_says_so(browser, serve):
     """`o` hides the annotation layer: every pin, the controls one holds included, and
     the durable marks, while the rail and what stands in it stay, since the rail covers
     nothing. Nothing in the layer takes up room, so no box of the page moves. A press on
     a passage whose mark is hidden opens nothing, and the choice is the tab's, so a
     reload keeps it. An obligation walk reveals the pin it lands on for as long as the
-    user stands there."""
+    user stands there.
+
+    Hidden annotations leave a commented page looking as if nobody commented, and the
+    hidden layer comes back with a reload, after its notice has passed. So while it is
+    hidden the panel's field says so, ahead of the status or after a stance's name,
+    until `o` shows the layer again."""
     page = open_page(
         browser,
         serve(
@@ -639,6 +644,20 @@ def test_o_hides_what_is_drawn_over_the_page_and_moves_nothing(browser, serve):
     expect(page.locator("html")).to_have_attribute("data-lf-annotations", "hidden")
     expect(pin).to_be_hidden()
 
+    field = panel_field(page)
+    expect(field).to_have_attribute("data-lf-says", "status")
+    expect(field).to_have_attribute(
+        "placeholder", re.compile(r"^Annotations hidden · \S")
+    )
+    page.evaluate(RELEASE_FOCUS)
+    page.keyboard.press("w")
+    expect(field).to_have_attribute("data-lf-says", "stance")
+    expect(field).to_have_attribute(
+        "placeholder", re.compile("^In Draw mode · Annotations hidden")
+    )
+    page.keyboard.press("Escape")
+    expect(page.locator("html")).not_to_have_attribute("data-lf-draw-mode", "")
+
     # An explicit obligation walk reveals its pin until the user leaves that obligation.
     # The passage follows both obligations, so a step back lands on the last one.
     page.locator("#gap").click()
@@ -653,6 +672,12 @@ def test_o_hides_what_is_drawn_over_the_page_and_moves_nothing(browser, serve):
     page.keyboard.press("o")
     expect(pin).to_be_visible()
     assert page.evaluate(wash) == ""
+    expect(page.locator("html")).not_to_have_attribute(
+        "data-lf-annotations", re.compile(".*")
+    )
+    # The notice saying the annotations are shown passes, and the status stands alone.
+    expect(field).to_have_attribute("data-lf-says", "status")
+    expect(field).not_to_have_attribute("placeholder", re.compile("Annotations"))
 
 
 def test_a_finger_hides_the_annotations_from_the_leaf_s_menu(browser, serve):
@@ -691,43 +716,6 @@ def test_a_finger_hides_the_annotations_from_the_leaf_s_menu(browser, serve):
         "data-lf-annotations", re.compile(".*")
     )
     expect(pin).to_be_visible()
-
-
-def test_the_panel_says_the_annotations_are_hidden_while_they_are(browser, serve):
-    """Hidden annotations leave a commented page looking as if nobody commented, and
-    the hidden layer comes back with a reload, after its notice has passed. So while it
-    is hidden the panel's field says so, ahead of the status or after a stance's name,
-    until `o` shows the layer again."""
-    page = open_page(browser, serve(PANEL_PAGE, events=[_comment_on("lede")]))
-    margins_laid_out(page)
-    field = panel_field(page)
-    page.evaluate(RELEASE_FOCUS)
-    page.keyboard.press("o")
-    expect(page.locator("html")).to_have_attribute("data-lf-annotations", "hidden")
-
-    page.reload()
-    page.wait_for_selector("body[data-lf-presented]")
-    expect(field).to_have_attribute("data-lf-says", "status")
-    expect(field).to_have_attribute(
-        "placeholder", re.compile(r"^Annotations hidden · \S")
-    )
-
-    page.evaluate(RELEASE_FOCUS)
-    page.keyboard.press("w")
-    expect(field).to_have_attribute("data-lf-says", "stance")
-    expect(field).to_have_attribute(
-        "placeholder", re.compile("^In Draw mode · Annotations hidden")
-    )
-    page.keyboard.press("Escape")
-    expect(page.locator("html")).not_to_have_attribute("data-lf-draw-mode", "")
-
-    page.keyboard.press("o")
-    expect(page.locator("html")).not_to_have_attribute(
-        "data-lf-annotations", re.compile(".*")
-    )
-    # The notice saying the annotations are shown passes, and the status stands alone.
-    expect(field).to_have_attribute("data-lf-says", "status")
-    expect(field).not_to_have_attribute("placeholder", re.compile("Annotations"))
 
 
 FOOTER_OBLIGATION_PAGE = leaf_page(

@@ -36,6 +36,7 @@ from leaf import vendoring as vendoring_model
 from leaf.registry import contract as registry_contract
 from leaf.registry import page as registry_page
 from leaf.registry import storage as registry_storage
+from leaf.registry import validation as registry_validation
 from model.interact_contract import (
     _stateful_page_declaration,
 )
@@ -662,10 +663,10 @@ def test_a_fresh_server_does_not_revalidate_the_active_revisions_inputs(
     (page_dir / "index.html").write_text(styled("main { color: red; }"))
     assert revisioning_model.activate_source(page_dir).error is None
     validated, linted = [], []
-    real_validate = registry_page.validate_registry
+    real_validate = registry_validation.validate_registry
     real_lint = styles.dropped_css
     monkeypatch.setattr(
-        registry_page,
+        registry_validation,
         "validate_registry",
         lambda registry, source: (
             validated.append(source) or real_validate(registry, source)

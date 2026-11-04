@@ -2243,17 +2243,22 @@ def test_reading_a_page_composes_only_its_layers_vocabulary(
             'export { x } from "/runtime/semantic-state.js";\n',
             "imports private kernel module",
         ),
+        (
+            "registry.json",
+            '{"$languages": {"paths": {".notes": "notes"}}}\n',
+            "$languages.names does not declare",
+        ),
     ],
-    ids=["sheet", "module"],
+    ids=["sheet", "module", "registry"],
 )
 def test_a_package_that_stops_composing_is_refused_where_the_page_is_served(
     tmp_path, monkeypatch, path, contents, named
 ):
     """`page init` refuses a package that doesn't compose, but its copy in the page can
     stop composing later, edited in place or read by a stricter Leaf. Reading the
-    page's state needs no package sheet or module, so the page reads on, and `page
-    check` and a server about to bind (`http.page_endpoint`, which `server start`
-    runs) refuse it, naming the repair."""
+    page's state needs no package sheet or module, nor a validated registry, so the
+    page reads on, and `page check` and a server about to bind (`http.page_endpoint`,
+    which `server start` runs) refuse it, naming the repair."""
     from leaf.http import page_endpoint
 
     monkeypatch.chdir(tmp_path)
@@ -2269,10 +2274,15 @@ def test_a_package_that_stops_composing_is_refused_where_the_page_is_served(
     )
     assert made.exit_code == 0, made.output
     (page / "index.html").write_text(leaf_page("Notes", '<p id="n">Ship Tuesday.</p>'))
+    stamped = runner.invoke(cli_model.cli, ["page", "stamp", str(page), "--text", "v1"])
+    assert stamped.exit_code == 0, stamped.output
     (page / schema_model.PACKAGES_DIR / "notes" / path).write_text(contents)
 
-    state = runner.invoke(cli_model.cli, ["page", "state", str(page)])
-    assert state.exit_code == 0, state.output
+    # A process of its own, as a hook is, which composes the layer afresh.
+    state = subprocess.run(
+        [*LEAF_COMMAND, "page", "state", str(page)], capture_output=True, text=True
+    )
+    assert state.returncode == 0, state.stderr
     checked = runner.invoke(cli_model.cli, ["page", "check", str(page)])
     assert checked.exit_code == 1
     [finding] = json.loads(checked.output)["findings"]

@@ -618,11 +618,11 @@ const bundles = {
     },
   }),
 
-  // Split chrome controls, the controls a widget needs before the page shows (`views`)
-  // and the optional catalogue, sharing their dependency graph. All three entry points
-  // register the same components once. The catalogue remains on demand; the shared
-  // chunks are core payload because chrome also reads them. Lit binds to the page's one
-  // copy (`build/lit.mjs`).
+  // Split chrome controls, the controls Leaf's widgets load with themselves (`views`)
+  // and the catalogue a package's own module may import, sharing their dependency graph.
+  // All three entry points register the same components once. The catalogue remains on
+  // demand; the shared chunks are core payload because chrome also reads them. Lit binds
+  // to the page's one copy (`build/lit.mjs`).
   webawesome: async () => ({
     out: `${packageVendor("default")}/webawesome.esm.js`,
     entryPoints: {

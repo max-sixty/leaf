@@ -126,8 +126,8 @@ import {
 import { advancePlayback, mergeIntervals } from "./playback.js";
 import { RecordingTimeline } from "./timeline.js";
 
-// Reuse the default package’s selected WebAwesome controls, already shipped with Leaf.
-import "/vendor/webawesome.esm.js";
+// The scope chooser's radios, from the default package's Web Awesome controls.
+import "/vendor/webawesome-views.js";
 import { Viewer, css as imageCss } from "/vendor/images.esm.js";
 // Dependency styles apply only inside recording widgets. Keeping them in their
 // module makes the same presentation available in an offline export.

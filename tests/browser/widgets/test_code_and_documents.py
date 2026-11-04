@@ -5,7 +5,9 @@ import json
 from base64 import b64encode
 
 import pytest
+from interact_support import append_carried_log_record
 from playwright.sync_api import expect
+from render_cases_navigation import source_revision
 from render_cases_widgets import LONG_LINE_DIFF_PAGE
 from render_harness import (
     ROOT,
@@ -23,6 +25,7 @@ from render_harness import (
     write,
 )
 
+from browser.threads import open_panel_thread
 from leaf import data as data_model
 from leaf import event_log as events_model
 from leaf import exporting as exporting_model
@@ -591,6 +594,111 @@ def test_the_page_presents_without_waiting_for_a_closed_tab_s_document(browser, 
         "announced doc-1",
         "announced doc-2",
     ]
+
+
+# Closed tabs' documents draw once the page has presented, one a task after a
+# zero-delay timeout (lf-text-document.js, `drawLater`). Stretching those timeouts from
+# presentation on holds each document's draw back long enough to act while the queue
+# runs.
+HOLD_QUEUE = """(() => {
+  const timeout = window.setTimeout;
+  window.setTimeout = (fn, ms, ...rest) => timeout(fn,
+    !ms && window.holdQueue && String(fn).includes('[native code]') ? window.holdQueue : ms,
+    ...rest);
+  new MutationObserver(() => {
+    if (document.body?.hasAttribute('data-lf-presented') && window.holdQueue === undefined)
+      window.holdQueue = 2000;
+  }).observe(document, {attributes: true, subtree: true,
+                        attributeFilter: ['data-lf-presented']});
+})()"""
+
+
+def closed_documents(serve, count):
+    """A page of `count` tabs, each a document bound to its own source of distinct
+    lines; Doc 0's tab is open."""
+    tabs = "".join(
+        f'<lf-tab id="tab-{at}" label="Doc {at}"><lf-text-document id="doc-{at}" '
+        f'source="text-{at}"></lf-text-document></lf-tab>'
+        for at in range(count)
+    )
+    url = serve(
+        leaf_page("Documents", f'<lf-tabs id="docs" list="side">{tabs}</lf-tabs>')
+    )
+    for at in range(count):
+        lines = "".join(f"line {line} of document {at}\n" for line in range(40))
+        data_model.cmd_data_set(serve.page_dir, f"text-{at}", lines)
+    return url
+
+
+def test_a_tab_opened_while_closed_documents_draw_reports_its_document_at_once(
+    browser, serve
+):
+    """A closed tab's document reports its draw, marking its text and stamping its
+    data's provenance, with the other closed tabs' once the last has drawn, or as soon
+    as its tab shows: opened before its draw, it reports as it draws; opened after,
+    it reports as it opens. Either way the stamp a comment on its text anchors to
+    stands while the other documents still draw."""
+    url = closed_documents(serve, 4)
+    page = open_page(browser, url, init_script=HOLD_QUEUE, upgraded=False)
+    page.wait_for_function("() => document.body.hasAttribute('data-lf-presented')")
+    last = page.locator("#doc-3")
+    page.get_by_role("tab", name="Doc 1", exact=True).click()
+    expect(page.locator("#doc-1 figure")).to_have_attribute("data-lf-source", "text-1")
+    expect(last).not_to_have_class("lf-rendered")
+    expect(page.locator("#doc-2")).to_have_class("lf-rendered")
+    expect(page.locator("#doc-2 figure")).not_to_have_attribute(
+        "data-lf-source", "text-2"
+    )
+    page.get_by_role("tab", name="Doc 2", exact=True).click()
+    expect(page.locator("#doc-2 figure")).to_have_attribute("data-lf-source", "text-2")
+    expect(last).not_to_have_class("lf-rendered")
+    expect(page.locator("#doc-3 figure")).to_have_attribute(
+        "data-lf-source", "text-3", timeout=15_000
+    )
+
+
+def test_a_comment_on_a_closed_tab_s_document_never_reads_as_earlier_data(
+    browser, serve
+):
+    """A comment on the text of a document in a closed tab stands on the document
+    while the document has yet to report its draw, and says nothing about earlier
+    data: the comment is on the data the document will draw. Read as a revision
+    mismatch, it said "Earlier data" for the seconds before the document drew."""
+    url = closed_documents(serve, 3)
+    comment = append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "Is line 7 right?",
+            "anchor": {
+                "section": "doc-2",
+                "datum": "document",
+                "identity": "document",
+                "source": "text-2",
+                "source_revision": source_revision(serve.page_dir, "text-2"),
+                "quote": "line 7 of document 2",
+            },
+        },
+    )
+    seen = """(() => {
+      window.earlier = false;
+      new MutationObserver(() => {
+        for (const status of document.querySelectorAll('.lf-anchor-status'))
+          if (status.textContent.includes('Earlier data')) window.earlier = true;
+      }).observe(document, {childList: true, subtree: true, characterData: true});
+    })()"""
+    page = open_page(browser, url, init_script=HOLD_QUEUE + ";" + seen, upgraded=False)
+    page.wait_for_function("() => document.body.hasAttribute('data-lf-presented')")
+    quote = open_panel_thread(page, comment["id"]).locator(".lf-fp-quote")
+    expect(quote).to_be_visible()
+    expect(page.locator("#doc-2")).not_to_have_class("lf-rendered")
+    expect(quote).not_to_contain_text("Earlier data")
+    expect(page.locator("#doc-2 figure")).to_have_attribute(
+        "data-lf-source", "text-2", timeout=15_000
+    )
+    assert not page.evaluate("window.earlier")
 
 
 def test_a_listing_s_scroll_mark_changes_nothing_its_rows_inherit(browser, serve):

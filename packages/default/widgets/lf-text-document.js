@@ -523,11 +523,15 @@ class RunColours {
 }
 
 // First draws the page doesn't show, as in a closed tab, made once it has presented, one
-// a task in the order their updates asked (`show`). A document drawn so announces its
-// draw (`drawn`), which stamps its data's provenance and has the page take a new reading,
-// once the queue is empty, together with the others, or as soon as it shows. Announced
-// one at a time, each sent the page through a pass that read every element in it again
-// to find a comment's words: 3 to 5 s a document in Firefox with one comment on the page.
+// a task in the order their updates asked (`show`). A document drawn so reports its
+// draw (`announce`: its text's marks and `drawn`, which stamps its data's provenance
+// and has the page take a new reading) once the queue is empty, together with the
+// others, or as soon as it shows; until then a comment on its data stands on the
+// document (anchor-resolution.js). Reported one at a time, each sent the page through a
+// pass that read every element in it again to find a comment's words: 3 to 5 s a
+// document in Firefox with one comment on the page. The queue is a stopgap: a page
+// reading that keeps what an unchanged part of the page read would make each report
+// cheap, and the queue removable.
 /** @type {{doc: TextDocument, value: string | null, rendering: number}[]} */
 const drawingLater = [];
 /** @type {Promise<void> | null} */
@@ -641,10 +645,18 @@ class TextDocument extends LeafElement {
   // The value of the draw the document has yet to announce (`drawLater`).
   /** @type {{value: string | null} | null} */
   unannounced = null;
+  // Reports the draw: marks its text's items for whoever hosts the widget, in the turn
+  // that announces them (`drawn`), so on a Leaf page comments on them anchor to the
+  // document's data.
   announce() {
     const drawing = this.unannounced;
-    if (!drawing || !this.isConnected) return;
+    const { view, sourceView } = this;
+    if (!drawing || !view || !sourceView || !this.isConnected) return;
     this.unannounced = null;
+    if (view.preview) {
+      mark(sourceView.pre, "source");
+      mark(view.preview, "preview");
+    } else mark(view.figure, "document");
     this.dispatchEvent(new CustomEvent("drawn", { detail: { value: drawing.value } }));
   }
   colourShown() {
@@ -667,7 +679,6 @@ class TextDocument extends LeafElement {
     // colour of the runs it drew, which a return draws again as they show.
     whileConnected(this, () => {
       this.showLone();
-      if (!drawingAfterPresentation) this.announce();
       return () => {
         this.rendering = this.rendering + 1;
         this.finishFrame?.();
@@ -843,12 +854,7 @@ class TextDocument extends LeafElement {
       setChildren(this, [view.figure]);
       this.showLone();
       if (this.listed) this.refit();
-      // The drawn text's items, marked for whoever hosts the widget: on a Leaf page,
-      // comments on them anchor to the document's data.
-      if (previewNode) {
-        mark(this.sourceView.pre, "source");
-        mark(previewNode, "preview");
-      } else mark(view.figure, "document");
+      // A first draw the page doesn't show is announced with the others (`drawLater`).
       this.unannounced = { value };
       if (!presented || this.listed) this.announce();
       if (loaded) await loaded;

@@ -22,6 +22,9 @@ export const RUNTIME_PAINT_ATTRIBUTE = Object.freeze({
   dataVersion: "data-lf-data-version",
   source: "data-lf-source",
   sourceRevision: "data-lf-source-revision",
+  // A data widget that has reported a draw (projection/data.js, `projectMarked`), so
+  // its source stamps say which revision it shows (anchor-resolution.js).
+  drawReported: "data-lf-draw-reported",
   userOverride: "data-lf-user-override",
   presented: "data-lf-presented",
   reported: "data-lf-reported",

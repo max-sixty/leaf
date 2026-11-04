@@ -440,16 +440,18 @@ def measure(browser, address: str, profiles: Path | None) -> dict:
         return {"elements": elements, **costs}
 
 
-def exponent(cost: str, sizes: list[int], costs: list[float]) -> float | None:
-    """The least-squares slope of log growth on log size over the largest sizes,
-    where a cost's growth is what it adds to its cost at the first size, BASE; None
-    for growth under the cost's floor."""
+def exponent(
+    cost: str, sizes: list[int], costs: list[float], fitted: int = FITTED
+) -> float | None:
+    """The least-squares slope of log growth on log size over the `fitted` largest
+    sizes, where a cost's growth is what it adds to its cost at the first size,
+    BASE; None for growth under the cost's floor."""
     fixed = costs[0]
     if costs[-1] - fixed < FLOORS.get(cost, FLOOR):
         return None
     pairs = [
         (math.log(n), math.log(c - fixed))
-        for n, c in list(zip(sizes, costs, strict=True))[-FITTED:]
+        for n, c in list(zip(sizes, costs, strict=True))[-fitted:]
         if c > fixed
     ]
     if len(pairs) < 2:
@@ -460,9 +462,16 @@ def exponent(cost: str, sizes: list[int], costs: list[float]) -> float | None:
     return sum((x - mean_x) * (y - mean_y) for x, y in pairs) / spread
 
 
-def table(title: str, rows: list[dict], count: str, costs: dict[str, str]) -> str:
+def table(
+    title: str,
+    rows: list[dict],
+    count: str,
+    costs: dict[str, str],
+    fitted: int = FITTED,
+) -> str:
     """`rows` by size, with the `count` each page held and each of `costs` under its
-    label, then each cost's exponent, marked `!` above SUPERLINEAR."""
+    label, then each cost's exponent over the `fitted` largest sizes, marked `!`
+    above SUPERLINEAR."""
     sizes = [row["n"] for row in rows]
     lines = [
         title,
@@ -475,7 +484,7 @@ def table(title: str, rows: list[dict], count: str, costs: dict[str, str]) -> st
         )
     cells = []
     for cost in costs:
-        slope = exponent(cost, sizes, [row[cost] for row in rows])
+        slope = exponent(cost, sizes, [row[cost] for row in rows], fitted)
         mark = "!" if slope is not None and slope > SUPERLINEAR else " "
         cells.append(f" {'-' if slope is None else f'{slope:.2f}':>9}{mark}")
     lines.append(f"{'exponent':>16}" + "".join(cells))
@@ -618,7 +627,7 @@ def scale_server(axes: Iterable[str], sizes: list[int], profile: bool, run: Path
     """Time each server path on each axis's pages in this process, as `--server`
     does (`leaf_dev.server_scaling`), and name each path that breaks the rule
     (`server_scaling.failures`)."""
-    from leaf_dev.server_scaling import PATHS, RUNS, failures, measure
+    from leaf_dev.server_scaling import FITTED, PATHS, RUNS, failures, measure
 
     click.echo(f"Server paths of this checkout, least CPU of {RUNS} runs\n")
     results = {}
@@ -626,7 +635,7 @@ def scale_server(axes: Iterable[str], sizes: list[int], profile: bool, run: Path
         rows, profiles = measure(COLLECTIONS[axis], sizes, run / axis, profile)
         results[axis] = rows
         paths = {path: f"{path} ms" for path in PATHS if path in rows[0]}
-        click.echo(table(axis, rows, "events", paths))
+        click.echo(table(axis, rows, "events", paths, FITTED))
         for path, failure in failures(COLLECTIONS[axis], rows).items():
             click.echo(f"  {path}: {failure['why']}")
         click.echo()

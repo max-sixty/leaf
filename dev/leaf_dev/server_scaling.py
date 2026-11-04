@@ -60,6 +60,9 @@ CLICK = ("append", "state")
 INPUT = "append"
 RUNS = 3
 BUDGET_MS = 100
+# How many of the largest sizes an exponent is fitted over: 256 to 1,600, a ratio of
+# 6.25. Over three, a ratio of 3.1, a host at load 50 fitted linear costs past 1.5.
+FITTED = 4
 
 
 @contextmanager
@@ -334,7 +337,7 @@ def failures(collection: Collection, rows: list[dict]) -> dict[str, dict]:
         if path not in rows[0]:
             continue
         readings = [row[path] for row in rows]
-        slope = exponent(path, sizes, readings)
+        slope = exponent(path, sizes, readings, FITTED)
         at = dict(zip(sizes, readings, strict=True))
         ceiling = INPUT_CEILING if collection.session and path == INPUT else SUPERLINEAR
         why = []

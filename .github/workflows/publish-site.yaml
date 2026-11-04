@@ -11,10 +11,9 @@ on:
     paths:
       - "docs/**"
       - "examples/**"
-      # Browser source, compiled kernel and packages compose what visitors load;
-      # Python and skill instructions run the hosted agent.
+      # Browser source and packages compose what visitors load; Python and skill
+      # instructions run the hosted agent.
       - "browser/**"
-      - "dist/kernel/**"
       - "packages/**"
       - "src/**"
       - "skills/leaf/**"

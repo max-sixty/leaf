@@ -71,7 +71,13 @@ from leaf.render_gate import browser as browser_model
 from leaf.render_gate.preview import preview_server
 from leaf.revisioning import activate_source
 from leaf_dev.docs import DOCS, product_sources
-from leaf_dev.example_data import authored_sources, example_versions, page_files
+from leaf_dev.example_data import (
+    authored_sources,
+    data_file,
+    example_versions,
+    named_source,
+    page_files,
+)
 
 
 def storage_contract() -> tuple[list[str], list[str]]:
@@ -1374,54 +1380,58 @@ def test_the_chrome_restates_no_rule_a_page_side_sheet_already_makes():
 
 def test_leaf_writes_its_own_marks_under_its_prefix():
     """A class or data attribute Leaf writes on an element is `lf-` or `data-lf-`, the
-    names `page check` refuses an author, so a page's own CSS can't restyle Leaf's
-    elements by naming one. Before #5050, a page rule for `.hi` turned lf-code's
-    highlighted line blue, and one for `.away` the panel's away leaf red.
+    names `page check` refuses an author, so a page's CSS for its own names never
+    reaches Leaf's elements (browser/AGENTS.md, "Leaf's elements wear only Leaf's
+    names"). Before #5050, a page rule for `.hi` turned lf-code's highlighted line blue,
+    and one for `.away` the panel's away leaf red; a rule for `.choice` once outlined a
+    playground's own choices the same way.
 
-    Leaf also writes two kinds of name it doesn't own, where one rule draws both. The
-    first is an author's: the idioms and tones the registries declare, such as
-    `label.choice`, `[data-room]` and `.ok`, which the theme draws alike on Leaf's
-    controls. The second is a library's, on an element Leaf draws for that library to
-    read or style: Pierre's row attributes on lf-diff's own rows, and the class
-    markdown-it gives a task item's checkbox, which the composer's editor draws too.
+    The names Leaf writes without its prefix are a library's, on an element Leaf draws
+    for that library to read or style: Pierre's row attributes on lf-diff's own rows,
+    and the class markdown-it gives a task item's checkbox, which the composer's editor
+    draws too.
 
-    Read from each module's source (`js_facts.mjs`, `marks`), so a name built from a
-    dynamic part, as `lf-${kind}` is, goes unread."""
+    Read from each module's source (`js_facts.mjs`, `marks`), with the classes of each
+    control face (`ACTION_FACES`, control-faces.js), so a name built from a dynamic
+    part, as `lf-${kind}` is, goes unread."""
     libraries = {
         "data-code",
         "data-line-type",
         "data-overflow",
         "task-list-item-checkbox",
     }
-    authored = set()
-    for registry in [
-        schema_model.ASSETS / "registry.json",
-        *schema_model.BUNDLED_PACKAGES.glob("*/registry.json"),
-    ]:
-        entries = json.loads(registry.read_text())
-        authored |= set(entries.get("$tones", {}).get("names", []))
-        idioms = [key for key in entries if not re.fullmatch(r"[$a-z][\w-]*", key)]
-        for idiom in idioms:
-            authored |= set(re.findall(r"\.([\w-]+)", idiom))
-            authored |= set(re.findall(r"\[(data-[\w-]+)", idiom))
-    assert {"choice", "ok", "data-room"} <= authored, sorted(authored)
     modules = [
         module
         for root in (schema_model.ASSETS, schema_model.BUNDLED_PACKAGES)
         for module in sorted(root.rglob("*.js"))
         if "vendor" not in module.parts
     ]
-    marks = json.loads(js_facts("marks", modules))
-    assert sum(map(len, marks.values())) > 1000, "the reading of marks is broken"
-    leaks = [
-        f"{Path(module).relative_to(schema_model.PLUGIN_ROOT)}:{mark['line']} "
-        f"{mark['name']}"
-        for module, found in marks.items()
+    marks = [
+        (f"{Path(module).relative_to(schema_model.PLUGIN_ROOT)}:{mark['line']}", mark)
+        for module, found in json.loads(js_facts("marks", modules)).items()
         for mark in found
+    ]
+    assert len(marks) > 1000, "the reading of marks is broken"
+    faces = schema_model.ASSETS / "runtime" / "control-faces.js"
+    constants = json.loads(js_facts("literals", [faces]))[str(faces)]["constants"]
+    roles = {
+        key: value
+        for key, value in constants.items()
+        if key.startswith("ACTION_FACES.")
+    }
+    assert "ACTION_FACES.commit" in roles, "the reading of control faces is broken"
+    marks += [
+        (key, {"kind": "class", "name": name})
+        for key, value in roles.items()
+        for name in value.split()
+    ]
+    leaks = [
+        f"{where} {mark['name']}"
+        for where, mark in marks
         if not mark["name"].startswith(
             "data-lf-" if mark["kind"] == "attribute" else "lf-"
         )
-        and mark["name"] not in authored | libraries
+        and mark["name"] not in libraries
     ]
     assert leaks == [], leaks
 
@@ -1626,9 +1636,7 @@ def test_controls_are_built_by_role_and_never_by_face():
     cannot draw two controls of one kind two ways. The classes of a role's face are
     spelled only in control-faces.js's `ACTION_FACES`, which `offerAction` reads; any other
     bundled module that spells one, in a string or a comment, has chosen a face itself.
-    module-authoring.md lists the roles for package authors, in the table's order.
-    `primary` and the authored `button` face are ordinary words too, so they count
-    where a string lists classes or a template's `class` attribute names them."""
+    module-authoring.md lists the roles for package authors, in the table's order."""
     owner = schema_model.ASSETS / "runtime" / "control-faces.js"
     table = re.search(r"const ACTION_FACES = \{(.*?)\};", owner.read_text(), re.DOTALL)
     assert table is not None
@@ -1638,13 +1646,7 @@ def test_controls_are_built_by_role_and_never_by_face():
     documented = re.findall(r"^- `\"(\w+)\"`, ", reference, re.MULTILINE)
     assert documented == list(roles), "module-authoring.md lists other roles"
     faces = {name for classes in roles.values() for name in classes.split()}
-    named = re.compile(
-        r"(?<![\w-])("
-        + "|".join(sorted(name for name in faces if name.startswith("lf-")))
-        + r")(?![\w-])"
-    )
-    words = {name for name in faces if not name.startswith("lf-")} | {"button"}
-    assert words == {"primary", "button"}, words
+    named = re.compile(r"(?<![\w-])(" + "|".join(sorted(faces)) + r")(?![\w-])")
     spelled = []
     for source in _bundled_modules():
         if source == owner:
@@ -1652,20 +1654,6 @@ def test_controls_are_built_by_role_and_never_by_face():
         text = source.read_text()
         where = source.relative_to(ROOT)
         spelled += [f"{where}: {match[1]}" for match in named.finditer(text)]
-        code = re.sub(r"/\*.*?\*/|(?<![:\w\"'])//[^\n]*", "", text, flags=re.DOTALL)
-        for literal in re.findall(r"([\"'`])((?:(?!\1).)*)\1", code):
-            classes = literal[1].split()
-            if (
-                len(classes) > 1
-                and all(re.fullmatch(r"[a-z][\w-]*", name) for name in classes)
-                and words & set(classes)
-            ):
-                spelled.append(f"{where}: {literal[1]}")
-        spelled += [
-            f"{where}: class={value[1]}"
-            for value in re.findall(r"class=([\"'])(.*?)\1", code)
-            if words & set(value[1].split())
-        ]
     assert not spelled, (
         "build these controls with offerAction or offeredAction by role:\n"
         + "\n".join(spelled)
@@ -4320,17 +4308,15 @@ def test_data_set_refuses_a_visual_run_the_widget_cannot_show(
     that repeats an id or names a URL that parser refuses, rather than storing a run
     the widget cannot show."""
     monkeypatch.chdir(tmp_path)
-    example = Path(__file__).parents[2] / "examples" / "developer"
+    gallery = named_source("visual-review-gallery")
     page = tmp_path / "visual-review"
     runner = CliRunner()
     initialized = runner.invoke(
         cli_model.cli, ["page", "init", "--package", "visual-review", str(page)]
     )
     assert initialized.exit_code == 0, initialized.output
-    shutil.copy(example / "visual-review-gallery.html", page / "index.html")
-    run = json.loads((example / "visual-review-gallery.data.json").read_text())[
-        "gallery-visual-run"
-    ]
+    shutil.copy(gallery, page / "index.html")
+    run = json.loads(data_file(gallery).read_text())["gallery-visual-run"]
 
     def data_set(value):
         return runner.invoke(

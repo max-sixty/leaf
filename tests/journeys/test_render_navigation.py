@@ -33,7 +33,6 @@ from render_harness import (
     PANEL,
     PANEL_THREAD,
     RELEASE_FOCUS,
-    ROOT,
     command_reference_rows,
     expect_obligations_answered,
     expect_open_threads,
@@ -319,7 +318,7 @@ def test_inner_state_is_left_before_the_surface_around_it(browser, serve):
 
     # `m` from a heading into a thread's obligation, with Threads already open: each Escape
     # leaves one layer, the innermost first, without returning to the heading.
-    page = open_page(browser, serve(ROOT / "examples" / "ship-review.html"))
+    page = open_page(browser, serve(named_source("ship-review")))
     open_threads(page)
     heading = page.locator("main h2").first
     heading.evaluate("el => { el.tabIndex = -1; el.focus(); }")

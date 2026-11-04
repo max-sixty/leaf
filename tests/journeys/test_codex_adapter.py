@@ -556,7 +556,7 @@ def test_selecting_a_checkout_replaces_the_sessions_delivery_runtime(
     the fake external Codex endpoint records the delivery instead of opening a turn.
     """
     foreign = tmp_path / "installed"
-    for name in ("src", "browser", "packages", "dist", "skills"):
+    for name in ("src", "browser", "packages", "skills"):
         shutil.copytree(PLUGIN_ROOT / name, foreign / name)
     launcher = foreign / "bin/leaf"
     launcher.parent.mkdir()

@@ -1,6 +1,5 @@
 # Bundled JavaScript keeps the compiler's layout and minification.
 browser/vendor/
-dist/kernel/**/*.js
 packages/**/vendor/
 # Compiler paths keep the browser build's generated JSON layout.
 browser/types/tsconfig.paths.json

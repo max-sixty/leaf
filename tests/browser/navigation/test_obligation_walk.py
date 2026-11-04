@@ -21,7 +21,6 @@ from render_cases_navigation import (
 from render_harness import (
     PANEL_THREAD,
     RELEASE_FOCUS,
-    ROOT,
     leaf_page,
     open_page,
     open_threads,
@@ -42,6 +41,7 @@ from browser.navigation import expect_walk_position, walk_position
 from browser.threads import open_panel_thread
 from leaf import event_log as events_model
 from leaf.render_checks import rendered
+from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -558,7 +558,7 @@ def test_frozen_widget_obligation_walk_orders_by_its_threads_page_passage(
     browser, serve
 ):
     """A materialized frozen source keeps its thread's authored page order."""
-    page = open_page(browser, serve(ROOT / "examples" / "ship-review.html"))
+    page = open_page(browser, serve(named_source("ship-review")))
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
     panel_settled(page, view="threads")
@@ -572,7 +572,7 @@ def test_an_obligation_walk_leaves_the_card_it_reached_through(browser, serve):
     through that thread's margin card, which draws the reply's widgets, so the press
     opens the card on the way and leaves the panel shut. Escape puts the card away,
     leaving the user beside the passage."""
-    page = open_page(browser, serve(ROOT / "examples" / "ship-review.html"))
+    page = open_page(browser, serve(named_source("ship-review")))
     page.keyboard.press("m")
     item = page.locator(f"{CARD} lf-ask[data-lf-obligation]")
     expect(item).to_be_focused()
@@ -750,8 +750,9 @@ def test_keys_pressed_while_the_page_moves_act_as_if_it_had_landed(browser, serv
     """Keys typed while the page still moves add up as if each motion had landed: `m u`
     typed quickly ends where it ends typed slowly, `d m` lands the ask, `m Shift+m`
     returns to the ask `m` set off from, `j m` beside an ask `j` leaves in view
-    moves no further than `j`, and Back after `m m` returns to where the first `m`
-    lands. Each ends where the same keys typed slowly end."""
+    moves no further than `j`, Back after `m m` returns to where the first `m` lands,
+    and `d`, or `d d`, pressed while the browser's own PageDown still moves the page
+    steps on from where PageDown lands. Each ends where the same keys typed slowly end."""
     asks = "".join(
         f'<div style="height:3000px">Reading on</div><lf-ask id="ask-{index}">'
         f'<h2>Which route?</h2><lf-options id="routes-{index}" choose>'
@@ -824,6 +825,28 @@ def test_keys_pressed_while_the_page_moves_act_as_if_it_had_landed(browser, serv
     page.wait_for_function("navigation.transition === null")
     expect(first).to_be_focused()
     assert settled() == pytest.approx(landing, abs=2)
+
+    from_the_top()
+    page.keyboard.press("PageDown")
+    paged_down = settled()
+    from_the_top()
+    page.keyboard.press("d")
+    step = settled()
+    from_the_top()
+    page.keyboard.press("PageDown")
+    page.wait_for_function("scrollY > 0")
+    page.keyboard.press("d")
+    assert settled() == pytest.approx(paged_down + step, abs=2)
+    from_the_top()
+    page.keyboard.press("PageDown")
+    page.wait_for_function("scrollY > 0")
+    page.keyboard.press("d")
+    # Two frames of PageDown's scroll between the presses, as a typed pair gets.
+    page.evaluate(
+        "() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))"
+    )
+    page.keyboard.press("d")
+    assert settled() == pytest.approx(paged_down + 2 * step, abs=2)
 
 
 def test_the_obligation_walk_uses_the_visible_reading_after_its_focus_is_released(

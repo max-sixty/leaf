@@ -18,19 +18,19 @@
   vertical-align: middle;
   align-self: center;
 }
-:is(.lf-chip, :where(lf-option) > .tag).ok {
+:is(.lf-chip[data-lf-tone="ok"], :where(lf-option) > .tag.ok) {
   --lf-tone-tint: var(--ok-tint);
   --lf-tone-ink: var(--ok-ink);
 }
-:is(.lf-chip, :where(lf-option) > .tag).warn {
+:is(.lf-chip[data-lf-tone="warn"], :where(lf-option) > .tag.warn) {
   --lf-tone-tint: var(--warn-tint);
   --lf-tone-ink: var(--warn-ink);
 }
-:is(.lf-chip, :where(lf-option) > .tag).danger {
+:is(.lf-chip[data-lf-tone="danger"], :where(lf-option) > .tag.danger) {
   --lf-tone-tint: var(--danger-tint);
   --lf-tone-ink: var(--danger-ink);
 }
-:is(.lf-chip, :where(lf-option) > .tag):is(.ok, .warn, .danger) {
+:is(.lf-chip[data-lf-tone], :where(lf-option) > .tag:is(.ok, .warn, .danger)) {
   background: var(--lf-tone-tint);
   color: var(--lf-tone-ink);
 }

@@ -83,7 +83,9 @@ that change, cancel the hold and apply the change in that gesture.
 When a widget redraws or resizes content where the user is reading, the browser's
 scroll anchoring keeps their place: don't restore `scrollTop` or set
 `overflow-anchor: none`. Redraw by keeping the nodes the change leaves as they were,
-since a node that replaces the one anchoring holds loses the place. Where a change
+as `setRenderedChildren` does for a subtree the module renders whole
+([module-authoring.md](module-authoring.md), "Retained nodes"), since a node that replaces
+the one anchoring holds loses the place. Where a change
 hides what the reader is reading, as folding it does, anchoring can't hold it: read
 `const hold = holdPlace(node, standIn)` before the change and call `hold()` after it,
 in the same task, and `node`, or the node `standIn` names for it once the change hid

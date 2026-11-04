@@ -1,46 +1,47 @@
 /* Where the user is in what scrolls, and the one hold that keeps them there across a
    change.
 
-   The browser's scroll anchoring keeps the reader's place through every re-render and
-   revision: it picks a node on screen before the change, the first box the scroller
-   shows in document order in both Chromium and Firefox, and after the change scrolls
-   by however far content above that node moved it. Leaf adds no anchoring of its own,
+   The browser's scroll anchoring keeps the reader's place through every re-render: it
+   picks a node on screen before the change, the first box the scroller shows in
+   document order in both Chromium and Firefox, and after the change scrolls by however
+   far content above that node moved it. Leaf adds no anchoring of its own to a render,
    and turns the browser's off only on a box that must not be its anchor, as the aside
    before a sidebar page's body (layouts.css), or while a motion carries a box's content
    (box-motion.js). A render helps it by keeping the nodes it doesn't change, since a
    node it replaces is an anchor lost: neither engine anchors again, so whatever grew
-   above moves the reader by its full height (dom-children.js, `setMarkup`, for a
-   message's words; `x-patch: members` for a widget a revision edits inside).
+   above moves the reader by its full height (dom-children.js, `setRenderedChildren`,
+   for a message's words; `x-patch: members` for a widget a revision edits inside). A
+   revision restores the reader's landmark after anchoring as well (version.js), which
+   also returns them where a patch moved what they read between scrollers or into a
+   closed disclosure.
 
    Anchoring can't hold three places the user relies on, and `holdPlace` holds them,
-   once, after the change has drawn:
+   once, in the task that makes the change:
    - a control under the user's hands below growth on screen, as an agent's turn
      arriving just above the reply box they type in, which anchoring keeps still only
      where its anchor stands below the growth (reply-landing.js, `holdBox`);
    - the reading line, a quarter of the way down the window the page shows, where
      growth starts below the box anchoring holds and above the line, as an edit growing
      the first paragraph of the message whose second the user reads, with the reply box
-     they wrote in scrolled away (`holdBox`), or a revision adding a paragraph under a
-     figure at the window's top (version.js) (`readingAt`);
+     they wrote in scrolled away (`holdBox`, `readingAt`);
    - a place the change hides, as Skim folds the paragraph being read, where the node
      standing for it takes its place (lf-dial.js).
    `holdPlace(node, standIn)` reads where `node` stands and returns the step that,
    once the change has drawn, scrolls it, or what `standIn(node)` names once the change
    hid or removed it, back there. The change itself scrolls nothing. A forced layout
    applies anchoring's correction first, so the hold pays only for what anchoring left.
-   It ends with its step, so a scroll the user makes after is never fought, and a
-   change that draws over several tasks, as a revision's patch does, takes the step only
-   while no input has come since it began (version.js, `currentIntent`).
+   It ends with its step, so a scroll the user makes after is never fought. A revision
+   takes no hold: after its landmark restore, the hold put back what it read where it
+   stood and undid the restore (82px off a line the restore had kept), and before it,
+   the restore undid the hold.
 
-   The user chose this on 2026-11-04 over restoring a landmark after each change,
+   The user chose this on 2026-11-04 over a keeper wrapped around every re-render,
    accepting that a re-render that replaces the very element they read can move them
-   by what grew above it, and that a page turning anchoring off (`overflow-anchor:
-   none`) keeps only what the hold keeps across a revision. Rejected: a keeper that recorded every
-   item on screen under the identity it was rendered with, handed the place to a
-   replacement drawn under the same identity, preferred the item under the pointer or
-   focus, and turned anchoring off while it held a change spanning tasks, which three
-   surfaces wrapped every render in, for a 400-line module and its corrections of the
-   browser's own.
+   by what grew above it. Rejected: that keeper, which recorded every item on screen
+   under the identity it was rendered with, handed the place to a replacement drawn
+   under the same identity, preferred the item under the pointer or focus, and turned
+   anchoring off while it held a change spanning tasks, which three surfaces wrapped
+   every render in, for a 400-line module and its corrections of the browser's own.
 
    The module also owns when focus marks the user's place at all (`focusedInView`),
    and whether the user has scrolled away from the control focus stands on

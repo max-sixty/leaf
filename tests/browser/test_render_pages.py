@@ -3043,10 +3043,11 @@ def test_a_sidebar_pages_track_stays_in_view_only_beside_the_body(
 
 def test_a_revision_keeps_the_readers_place_in_a_sidebar_tracks_body(browser, serve):
     """The box a track gathers its blocks into is a reading region named by the track's
-    id, so a neighbour never renames it. A revision that adds a block before the
-    reader's writes it inside that box, which stays the one box the track holds and
-    keeps the reader where they were. A revision that replaces the track gathers the
-    replacement's blocks into a box of its own, standing beside the body."""
+    id, so a neighbour never renames it. A revision that rewrites what the track holds,
+    adding a block before the reader's and renaming theirs, writes it inside that box,
+    which stays the one box the track holds and keeps the reader where they were. A
+    revision that replaces the track gathers the replacement's blocks into a box of its
+    own, standing beside the body, before the reader's place returns."""
     paragraphs = "".join(f"<p id='f{n}'>Follow-up {n} to check.</p>" for n in range(60))
     body = "<div id='body'>" + "<p>Body paragraph. " * 600 + "</p></div>"
     regions = """async () => (await window.__lfCheckApi())
@@ -3082,14 +3083,14 @@ def test_a_revision_keeps_the_readers_place_in_a_sidebar_tracks_body(browser, se
     read = "() => document.getElementById('f30').getBoundingClientRect().top"
     before = page.evaluate(read)
 
-    rewritten = f"<p id='lead'>Approve.</p><div id='block'>{paragraphs}</div>"
+    rewritten = f"<p id='lead'>Approve.</p><div id='checks'>{paragraphs}</div>"
     stamp_page(serve.page_dir, source("track", rewritten), "add a verdict")
     wait_for_revision(page, 2)
     scroll_settled(page)
     assert page.evaluate(held, "track") == {
         "only": True,
         "kept": True,
-        "blocks": ["lead", "block"],
+        "blocks": ["lead", "checks"],
     }
     assert "lf-region:layout#track-body" in page.evaluate(regions)
     assert page.evaluate(read) == pytest.approx(before, abs=2)
@@ -3102,7 +3103,7 @@ def test_a_revision_keeps_the_readers_place_in_a_sidebar_tracks_body(browser, se
     assert page.evaluate(held, "new-track") == {
         "only": True,
         "kept": False,
-        "blocks": ["lead", "block"],
+        "blocks": ["lead", "checks"],
     }
     assert "lf-region:layout#new-track-body" in page.evaluate(regions)
 

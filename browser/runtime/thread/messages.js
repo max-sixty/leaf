@@ -23,7 +23,7 @@ import {
   ref,
   render,
 } from "/runtime/framework.js";
-import { setMarkup } from "../dom-children.js";
+import { setRenderedChildren } from "../dom-children.js";
 import { generatedElement, offeredAction } from "../widget-elements.js";
 import {
   loadMarkdown,
@@ -72,10 +72,12 @@ import { flashDuration, motion } from "../motion.js";
 import { agentName, pageClaimed } from "../semantic-state.js";
 import { copyControl } from "../copy-control.js";
 
-// A message's words, drawn into the element the binding stands on. A rewrite of one
-// paragraph keeps the others' nodes (dom-children.js, `setMarkup`), so the browser's
-// scroll anchoring still holds the paragraph a reader is in when an edit grows one
-// above it; a property binding to `innerHTML` replaced every one.
+// A message's words, drawn into the element the binding stands on and reconciled as a
+// revision reconciles authored markup (dom-children.js, `setRenderedChildren`): an
+// edit keeps every node it leaves alone and rewrites a changed paragraph's words in
+// place, so the browser's scroll anchoring still holds the paragraph a reader is in
+// when an edit grows one above it. A property binding to `innerHTML` replaced every
+// one, and neither engine anchors again on a node that replaces its anchor.
 const keptWords = directive(
   class extends Directive {
     /** @type {string | null} */
@@ -88,7 +90,9 @@ const keptWords = directive(
     update(part, [markup]) {
       if (markup === this.#drawn) return noChange;
       this.#drawn = markup;
-      setMarkup(part.element, markup);
+      const parsed = document.createElement("template");
+      parsed.innerHTML = markup;
+      setRenderedChildren(part.element, parsed.content.childNodes);
       return noChange;
     }
   },

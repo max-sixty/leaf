@@ -63,11 +63,13 @@ own (`../SOUL.md`, "Keep the foundation small and extensible").
 - **What the reader reads stays put through re-renders and revisions.** The browser's
   scroll anchoring holds it while content above changes height, so a render keeps the
   nodes it doesn't change, as a revision's patch, a widget declaring `x-patch: members`
-  and a message's words (`setMarkup` in `dom-children.js`) do, and Leaf turns anchoring
-  off on no box the reader reads in. One Leaf hold, acting once as the change draws,
-  keeps what anchoring can't: the control under the user's hands, the reading line
-  where growth starts between anchoring's box and it, and a place the change hides.
-  Owner: `user-place.js`, whose header records the costs the user accepted. Check:
+  and a message's words (`setRenderedChildren` in `dom-children.js`) do, and Leaf turns
+  anchoring off on no box the reader reads in. A revision then restores the reader's
+  landmark (`version.js`). One Leaf hold, acting once in the task that makes a
+  re-render's change, keeps what anchoring can't: the control under the user's hands,
+  the reading line where growth starts between anchoring's box and it, and a place the
+  change hides. Owner: `user-place.js`, whose header records the costs the user
+  accepted. Check:
   `test_an_edit_above_the_paragraph_read_holds_it_with_the_reply_box_scrolled_away`.
 - **Nothing Leaf draws moves the page's content.** Pins, passage marks and runtime
   controls sit over the page and take no space, and no rule pads or widens a block to
@@ -488,7 +490,7 @@ adds its row. Rows marked _lint_ are enforced in `eslint.config.mjs`.
 | Whether a node is inside another across shadow trees                                                  | `shadow-tree.js` `under`, `renderedUnder`, `composedParentNode`                    |
 | Put the user on an element, saying what moved them                                                    | `focus.js` `focusDestination(node, cause)` (_lint_)                                |
 | Move a node, keeping the user's place in it                                                           | `dom-move.js` `move(parent, node, before)` (_lint_)                                |
-| Make a list of nodes, some already placed, a parent's children, or what markup parses to              | `dom-children.js` `setChildren`, `setMarkup`                                       |
+| Make a list of nodes, some already placed, a parent's children                                        | `dom-children.js` `setChildren`                                                    |
 | Whether a control takes typed letters                                                                 | `focus.js` `typesText`, `takesLetters`                                             |
 | Which keys move a caret, and whether a key is Select All                                              | `control-selectors.js` `CARET_KEYS`, `selectsAll`                                  |
 | A hint map's walk and choose rows                                                                     | `keyboard/hints.js` `createHintSession`                                            |

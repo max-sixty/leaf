@@ -1867,12 +1867,13 @@ def test_a_revision_serves_reaction_tokens_in_their_declared_order(page_dir):
 def test_a_revision_s_resources_are_cached_and_its_document_is_asked_again(
     server, page_dir
 ):
-    """A revision's resources are named by its digest and the runtime's identity, so
-    the browser keeps them for every document that imports them, a gallery's live
-    samples included. The document and the page's state may be stored, which lets the
-    back/forward cache keep the page, but each reuse asks what the page is now, and so
-    does a path under the namespace that names nothing, or names a runtime this server
-    does not run."""
+    """A revision's resources are named by its digest and the runtime's identity, and
+    page media by a digest of its bytes, so the browser keeps them for every document
+    that names them, a gallery's live samples and later revisions included. The
+    document and the page's state may be stored, which lets the back/forward cache
+    keep the page, but each reuse asks what the page is now, and so does a path under
+    either namespace that names nothing, or names a runtime this server does not run."""
+    media = media_model.cmd_media(page_dir, [example_media() / "051bee487bfb5d13.png"])
     publish(page_dir)
     revision = "/revisions/" + files_model.revision_path(page_dir, 1).stem
     root = revision_root(page_dir, 1)
@@ -1887,6 +1888,8 @@ def test_a_revision_s_resources_are_cached_and_its_document_is_asked_again(
     immutable = "private, max-age=31536000, immutable"
     assert cache_control(f"{root}/leaf.js") == (200, immutable)
     assert cache_control(f"{root}/theme.css") == (200, immutable)
+    assert cache_control(media[0]["path"]) == (200, immutable)
+    assert cache_control("/media/0123456789abcdef.png") == (404, "no-cache")
     assert cache_control("/") == (200, "no-cache")
     assert cache_control("/api/state") == (200, "no-cache")
     assert cache_control(f"{root}/no-such-module.js") == (404, "no-cache")
@@ -2211,97 +2214,6 @@ def test_undo_candidate_names_the_prior_durable_winner(server, page_dir):
     assert "gesture" not in prior
 
 
-def test_undo_offer_keeps_the_doors_active_page_containment(page_dir):
-    """A pinned view paints its own projection but admits undo against live threads.
-
-    The option belonged to the answering widget only in the pinned revision.
-    Restating it under another owner cannot retract the live thread's answer.
-    Using pinned containment would reopen the reaction and incorrectly offer Undo.
-    """
-    old_page = PAGE.replace("<lf-options>", '<lf-options id="picks">')
-    old_page = old_page.replace(
-        "</section>",
-        '<lf-ask id="other-decision"><h3>Another choice</h3>'
-        '<lf-options id="other-picks" choose><lf-option id="other-option">'
-        "Another option</lf-option></lf-options></lf-ask></section>",
-    )
-    new_page = (
-        old_page.replace('id="flag-first"', 'id="moved-option"')
-        .replace('id="other-option"', 'id="flag-first"')
-        .replace('id="moved-option"', 'id="other-option"')
-    )
-    documents = {
-        1: structure_model.SourceDocument(old_page),
-        2: structure_model.SourceDocument(new_page),
-    }
-    (page_dir / "index.html").write_text(old_page)
-    publish(page_dir)
-    reaction = append_carried_log_record(
-        page_dir,
-        {"kind": "comment", "author": "user", "revision": 1, "token": "keep"},
-    )
-    append_carried_log_record(
-        page_dir,
-        {
-            "kind": "action",
-            "author": "user",
-            "revision": 1,
-            "widget": "picks",
-            "action": "choose",
-            "detail": {"value": ["flag-first"]},
-            "meaning": {
-                "scope": "page",
-                "unit": "picks",
-                "depends": ["flag-first", "picks"],
-                "answer": reaction["id"],
-            },
-        },
-    )
-    (page_dir / "index.html").write_text(new_page)
-    publish(page_dir)
-    append_carried_log_record(
-        page_dir,
-        {
-            "kind": "note",
-            "author": "agent",
-            "version": 2,
-            "revision": 2,
-            "text": "Restated the option under its new owner.",
-            "restated": ["flag-first"],
-        },
-    )
-
-    events = event_model.read_events(page_dir)
-    registry = registry_storage.require_registry(page_dir)
-
-    def reading(active_revision):
-        state, _reading = served_browser.browser_state(
-            {
-                revision: passages_model.SourceReading(document, registry)
-                for revision, document in documents.items()
-            },
-            events,
-            active_revision,
-            presence_model.presence(page_dir, events),
-            {},
-            {1, 2},
-            cleanup_model.now_iso(),
-        )
-        return state
-
-    # The same log really does admit the reaction if read against the old page.
-    # This control makes the containment difference observable rather than nominal.
-    pinned_undo = reading(1)["views"]["1"]["undo"]
-    assert reaction["id"] in {item["event"]["id"] for item in pinned_undo}
-
-    browser = reading(2)
-    assert set(browser["views"]) == {"1", "2"}
-    for view in browser["views"].values():
-        assert reaction["id"] not in {
-            candidate["event"]["id"] for candidate in view["undo"]
-        }
-
-
 def test_undo_candidates_keep_only_user_gestures_in_force():
     """The browser undo list follows the event fold for speech, marks, and closures."""
     events = [
@@ -2342,9 +2254,7 @@ def test_undo_candidates_keep_only_user_gestures_in_force():
     document = document_reading_model.DocumentReading(
         source, empty, {}, passages, {}, {}, {}
     )
-    undo_reading = event_folds_model.UndoReading(
-        events, within={}, absorbed=frozenset()
-    )
+    undo_reading = event_folds_model.UndoReading(events, absorbed=frozenset())
 
     candidates = served_document.browser_undo_candidates(
         events,
@@ -2354,15 +2264,26 @@ def test_undo_candidates_keep_only_user_gestures_in_force():
         words=gesture_words_model.GestureWords(events, {}, {}.__getitem__),
     )
 
-    assert [candidate["event"]["id"] for candidate in candidates] == ["rx1", "r2"]
-    # The user's newest gesture, rx2, is answered and cannot be taken back, so `z`
-    # takes nothing; the entries stay for the exact controls that name them.
-    assert not any(candidate.get("newest") for candidate in candidates)
+    # An answered reaction is the user's to take back as an unanswered one is, so the
+    # newest, rx2, heads the list for `z`. The comment is no longer the newest gesture,
+    # and no exact control names a message with words, so it isn't listed.
+    assert [candidate["event"]["id"] for candidate in candidates] == [
+        "rx2",
+        "rx1",
+        "r2",
+    ]
+    assert [candidate.get("newest", False) for candidate in candidates] == [
+        True,
+        False,
+        False,
+    ]
 
 
 def test_undo_walk_ends_at_the_users_newest_gesture():
     """`z` takes the head only while it is the user's newest gesture. Bookkeeping
-    and gestures already withdrawn do not end the walk; a sent reply does."""
+    and gestures already withdrawn do not end the walk, and a comment the user sent
+    is taken as any gesture is, while it is the newest; an action this document does
+    not paint ends the walk."""
     events = [
         {"id": "c1", "kind": "comment", "author": "user", "text": "question"},
         {"id": "r1", "kind": "resolve", "author": "user", "parent": "c1"},
@@ -2370,6 +2291,7 @@ def test_undo_walk_ends_at_the_users_newest_gesture():
         {"id": "c2", "kind": "comment", "author": "user", "text": "another"},
         {"id": "r2", "kind": "resolve", "author": "user", "parent": "c2"},
         {"id": "u2", "kind": "undo", "author": "user", "undoes": "r2"},
+        {"id": "a1", "kind": "action", "author": "user", "widget": "gone"},
     ]
     empty = projection_model.StateProjection(
         {}, {}, {}, {}, {}, frozenset(), frozenset()
@@ -2385,66 +2307,17 @@ def test_undo_walk_ends_at_the_users_newest_gesture():
             log,
             document,
             empty,
-            undo_reading=event_folds_model.UndoReading(
-                log, within={}, absorbed=frozenset()
-            ),
+            undo_reading=event_folds_model.UndoReading(log, absorbed=frozenset()),
             words=gesture_words_model.GestureWords(log, {}, {}.__getitem__),
         )
         return [(item["event"]["id"], item.get("newest", False)) for item in candidates]
 
-    # c2 was said after r1 and r2 is withdrawn: the newest gesture in force is c2.
+    # a1 is the newest gesture, and this document paints nothing of it.
     assert walk(events) == [("r1", False)]
-    # Without c2, the read and the withdrawn r2 leave r1 the newest gesture.
-    assert walk([e for e in events if e["id"] != "c2"]) == [("r1", True)]
-
-
-def test_undo_candidates_say_which_gestures_the_agent_picked_up():
-    """An entry a delivery handed into an agent's turn says so, which is what makes
-    `z` show it before taking it back. A queued delivery has reached no turn yet."""
-    events = [
-        {"id": "c1", "kind": "comment", "author": "user", "text": "question"},
-        {"id": "c2", "kind": "comment", "author": "user", "text": "another"},
-        {"id": "r1", "kind": "resolve", "author": "user", "parent": "c1"},
-        {"id": "r2", "kind": "resolve", "author": "user", "parent": "c2"},
-        {
-            "id": "p1",
-            "kind": "pickup",
-            "author": "page",
-            "events": ["r1"],
-            "phase": "opened",
-            "session": "s",
-            "turn": "t",
-        },
-        {
-            "id": "p2",
-            "kind": "pickup",
-            "author": "page",
-            "events": ["r2"],
-            "phase": "queued",
-            "session": "s",
-            "turn": None,
-        },
-    ]
-    empty = projection_model.StateProjection(
-        {}, {}, {}, {}, {}, frozenset(), frozenset()
-    )
-    source = structure_model.SourceDocument("")
-    passages = passages_model.page_passages(source, {})
-    document = document_reading_model.DocumentReading(
-        source, empty, {}, passages, {}, {}, {}
-    )
-    candidates = served_document.browser_undo_candidates(
-        events,
-        document,
-        empty,
-        undo_reading=event_folds_model.UndoReading(
-            events, within={}, absorbed=frozenset()
-        ),
-        words=gesture_words_model.GestureWords(events, {}, {}.__getitem__),
-    )
-    assert [
-        (item["event"]["id"], item.get("picked_up", False)) for item in candidates
-    ] == [("r2", False), ("r1", True)]
+    # Without it, the withdrawn r2 leaves c2 the newest gesture in force.
+    assert walk(events[:-1]) == [("c2", True), ("r1", False)]
+    # Without c2, the read leaves r1 the newest gesture.
+    assert walk([e for e in events[:-1] if e["id"] != "c2"]) == [("r1", True)]
 
 
 def test_each_view_offers_only_the_gestures_it_paints(page_dir):

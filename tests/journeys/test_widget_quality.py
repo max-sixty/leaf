@@ -12,11 +12,13 @@ from browser.test_widget_quality import (
 )
 from click.testing import CliRunner
 from conftest import LEAF_COMMAND
+from interact_support import wait_for
 from known_widget_findings import KNOWN, PACKAGES
 from model_folds import leaf_page
 from playwright.sync_api import expect
 
 from leaf import cli as cli_model
+from leaf import event_log
 from leaf.render_checks import wait_until_ready
 from leaf.render_gate.widget_quality import widget_findings
 
@@ -171,6 +173,18 @@ def test_complete_views_restore_native_values_in_wrapped_layouts(
         title = "A longer title that wraps the actual instruction in a phone column"
         page.get_by_role("textbox", name="Title").fill(title)
         page.get_by_role("radio", name="Bold", exact=True).check()
+        # The blur records the title and the press then records Bold; the press's
+        # record waits for the first's answer, so a reload before the log holds it
+        # leaves it unsent.
+        wait_for(
+            lambda: [
+                event["detail"]["values"]
+                for event in event_log.read_events(serve.page_dir)
+                if event.get("action") == "tune"
+            ],
+            lambda tunes: tunes and tunes[-1]["tone"] == "bold",
+            failure="the press on Bold was never recorded",
+        )
         first_and_upgraded(lambda: page.reload(wait_until="commit"), title)
         expect(page.get_by_role("radio", name="Bold", exact=True)).to_be_checked()
         assert page.locator("#drawing").evaluate("host => host.values.title") == title

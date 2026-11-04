@@ -27,6 +27,7 @@ from browser.startup import (
 )
 from leaf import event_log as events_model
 from leaf.render_checks import rendered, wait_until_ready
+from leaf_dev.browser import PANEL_THREAD
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -39,10 +40,6 @@ HELD_KEYS_THREAD = {
     "text": "Walk to me.",
     "anchor": {"section": "said"},
 }
-# The user standing on that thread, wherever the window opens it: its margin card on a
-# desktop, the panel's view of it on a phone (#5039). The panel's head names the thread
-# too, ahead of the view, so this asks which one holds focus rather than taking the first.
-ON_HELD_THREAD = '[data-lf-thread="held-thread"]:focus'
 
 
 @pytest.mark.parametrize("command", ["unread", "reaction", "version"])
@@ -327,7 +324,7 @@ def test_held_keys_outlast_any_wait_for_the_runtime(browser, serve):
     expect(page.locator(".lf-held-keys kbd")).to_have_text("t")
     page.clock.resume()
     release()
-    expect(page.locator(ON_HELD_THREAD)).to_have_count(1)
+    expect(page.locator('[data-lf-thread="held-thread"]').first).to_be_focused()
     expect(page.locator(".lf-held-keys")).to_have_count(0)
 
 
@@ -433,7 +430,13 @@ def test_a_key_pressed_before_presentation_runs_once_the_page_presents(
     expect(page.locator("body")).not_to_have_attribute("data-lf-presented", "1")
 
     release()
-    expect(page.locator(ON_HELD_THREAD)).to_have_count(1)
+    # A margin card on a wide window; the panel's thread on a phone.
+    expect(
+        page.locator(
+            f'{PANEL_THREAD}[data-lf-thread="held-thread"], '
+            '.lf-margin-preview .lf-page-thread[data-lf-thread="held-thread"]'
+        )
+    ).to_be_focused()
     expect(echo).to_have_count(0)
 
 
@@ -451,7 +454,7 @@ def test_a_checkbox_keeps_page_keys_after_reveal(browser, serve):
     page = open_page(browser, url)
     page.locator("#box").focus()
     page.keyboard.press("t")
-    expect(page.locator(ON_HELD_THREAD)).to_have_count(1)
+    expect(page.locator('[data-lf-thread="held-thread"]').first).to_be_focused()
 
 
 def test_editors_and_select_typeahead_keep_letters_while_history_waits(browser, serve):
@@ -483,7 +486,7 @@ def test_editors_and_select_typeahead_keep_letters_while_history_waits(browser, 
     page.keyboard.press("t")
     expect(page.locator(".lf-held-keys kbd")).to_have_text("t")
     release()
-    expect(page.locator(ON_HELD_THREAD)).to_have_count(1)
+    expect(page.locator('[data-lf-thread="held-thread"]').first).to_be_focused()
     expect(page.locator("#editor")).to_have_value("c")
 
 
@@ -505,7 +508,7 @@ def test_disabled_quick_shortcuts_are_not_held_before_presentation(
     expect(page.locator(".lf-held-keys")).to_have_count(0)
     release()
     wait_until_ready(page)
-    expect(page.locator(ON_HELD_THREAD)).to_have_count(0)
+    expect(page.locator('[data-lf-thread="held-thread"]:focus')).to_have_count(0)
     expect(page.locator(".lf-held-keys")).to_have_count(0)
 
 
@@ -532,7 +535,7 @@ def test_disabling_quick_shortcuts_discards_keys_already_held(browser, serve):
     expect(page.locator(".lf-held-keys")).to_have_count(0)
     expect(page.locator(PANEL)).not_to_have_attribute("data-lf-open", "threads")
     page.keyboard.press("t")
-    expect(page.locator(ON_HELD_THREAD)).to_have_count(0)
+    expect(page.locator('[data-lf-thread="held-thread"]:focus')).to_have_count(0)
 
 
 def test_a_key_pressed_while_held_keys_run_waits_its_turn(browser, serve):
@@ -640,7 +643,7 @@ def test_escape_or_a_pointer_press_lets_go_of_held_keys(browser, serve, gesture)
     assert page.evaluate("() => !document.activeElement?.closest('[data-lf-thread]')")
     # The positive control: the same key on the presented page walks to the thread.
     page.keyboard.press("t")
-    expect(page.locator(ON_HELD_THREAD)).to_have_count(1)
+    expect(page.locator('[data-lf-thread="held-thread"]').first).to_be_focused()
 
 
 def test_the_help_overlay_answers_to_one_owner(browser, serve):

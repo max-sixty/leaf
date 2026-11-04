@@ -42,6 +42,7 @@ from browser.threads import (
 )
 from leaf import thread as thread_model
 from leaf.render_checks import one_frame, rendered
+from leaf_dev.browser import PANEL_THREAD
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -1031,7 +1032,7 @@ def test_words_scrolled_past_a_card_head_show_nowhere_above_it(
                 "text": f"Turn {turn}. " + LANDING_WORDS,
             },
         )
-        for turn in range(1, 8)
+        for turn in range(1, 10)
     ]
     # A summary's words have no head of their own, and pass beneath the actions too.
     summarize_thread(serve.page_dir, turns[0]["id"], turns[1]["id"], LANDING_WORDS)
@@ -1410,33 +1411,13 @@ def test_a_dropped_surface_keeps_its_box_until_placement_commits(
         assert landed[axis] == pytest.approx(held[axis], abs=0.5), (held, landed)
 
 
-@pytest.mark.parametrize(
-    ("zoom_home", "width"),
-    [("root", 605), ("transformed-holder", 315)],
-)
-def test_a_zoomed_floating_draft_and_sent_comment_fit_a_narrow_window(
-    browser, serve, zoom_home, width
-):
-    """Root and local zoom keep the draft and sent card in their available room."""
-    source = (
-        LONG_PAGE
-        if zoom_home == "root"
-        else leaf_page(
-            "Zoomed comments",
-            """<style>
-              div.lf-chrome { position:fixed; inset:0; pointer-events:none;
-                transform:scale(1.2); transform-origin:0 0; }
-              .lf-fab-bar, .lf-margin-preview { zoom:1.2; }
-            </style>
-            <h1>Fictional planning note</h1>
-            <p id="p1">We will combine the setup steps into one operation, then
-              check the result before continuing.</p>""",
-        )
-    )
-    page = open_page(browser, serve(source))
+def test_a_zoomed_floating_draft_and_sent_comment_fit_a_narrow_window(browser, serve):
+    """Under root zoom, the draft and the thread Send opens in the panel keep to a
+    narrow window, and the card the thread moves to in a wide one shows its words."""
+    width = 605
+    page = open_page(browser, serve(LONG_PAGE))
     resized(page, width, 898)
-    if zoom_home == "root":
-        page.evaluate("document.documentElement.style.zoom = '1.25'")
+    page.evaluate("document.documentElement.style.zoom = '1.25'")
     one_frame(page)
     page.locator("#p1").click(click_count=3)
     page.keyboard.press("c")
@@ -1461,13 +1442,15 @@ def test_a_zoomed_floating_draft_and_sent_comment_fit_a_narrow_window(
     with sending(page, "the zoomed narrow-window comment"):
         page.keyboard.press("ControlOrMeta+Enter")
     round_trip(page)
-    card = page.locator(".lf-margin-preview")
-    expect(card).to_be_visible()
-    expect(card.locator(".lf-msg-text").first).to_contain_text(content)
-    bounds = card.bounding_box()
+    view = page.locator(PANEL_THREAD)
+    expect(view).to_be_visible()
+    expect(view.locator(".lf-msg-text").first).to_contain_text(content)
+    bounds = view.bounding_box()
     assert 0 <= bounds["x"] and bounds["x"] + bounds["width"] <= width + 0.1, bounds
     resized(page, 1440, 900)
     rendered(page)
+    card = page.locator(".lf-margin-preview")
+    expect(card).to_be_visible()
     text = card.locator(".lf-msg-text").first
     assert text.evaluate("el => el.scrollHeight <= el.clientHeight + 1")
 

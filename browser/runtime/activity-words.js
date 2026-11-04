@@ -8,7 +8,6 @@
 import { counted } from "./words.js";
 import { ago } from "./presence.js";
 import { itemNoun } from "./queues.js";
-import { hasObligationSource } from "./obligations/source.js";
 import { agentSays, leafSays, saidBy, wordsText } from "./voice.js";
 
 /** @typedef {import("../types/contract.js").ServedActivity} Activity */
@@ -395,13 +394,7 @@ function queueKinds(items) {
       byWords.set(nouns, group);
     }
     group.count++;
-    // To-do records keep the agent's title for either owner. A user's to-do is
-    // carried as its obligation; an agent's as its native to-do record.
-    const title = item.todo
-      ? item.todo.title
-      : hasObligationSource(item.obligation, "todo")
-        ? item.obligation.prompt.text
-        : null;
+    const title = item.todo ? item.todo.title : null;
     if (title !== null) {
       if (group.titles.length) group.titles.push(leafSays(" · "));
       group.titles.push(agentSays(title));

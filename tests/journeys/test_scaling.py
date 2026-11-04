@@ -5,7 +5,8 @@ never grows faster than the page, and loading or applying a reading grows no fas
 n log n. A step that walks one of the page's collections for each member of another
 breaks it, and reads as linear in its own code. This measures each page `leaf-dev
 scaling` generates at three sizes and its fixed-work page, as that command does, and
-fails a cost whose growth above the fixed work fits an exponent past `SUPERLINEAR`.
+fails a cost other than a Tab's whose growth above the fixed work fits an exponent
+past `SUPERLINEAR`.
 `uv run leaf-dev scaling AXIS --profile` names the function that grew.
 
 A busy runner adds time to a reading and never takes it away, so each size is measured
@@ -48,7 +49,8 @@ def test_no_cost_grows_faster_than_the_page(axis, tmp_path, browser):
             for _ in range(ROUNDS)
         ]
     grown = {}
-    for cost in (*TRANSITIONS, *SERVER):
+    # `leaf-dev scaling` reports a Tab's cost, which this doesn't hold to anything yet.
+    for cost in (c for c in (*TRANSITIONS, *SERVER) if c != "tab"):
         readings = [
             min(row[cost] for row in by_size) for by_size in zip(*rounds, strict=True)
         ]

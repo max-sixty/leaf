@@ -1129,6 +1129,20 @@ def refuse(route):
     route.abort("aborted")
 
 
+# A tab names the reading it holds in `Leaf-Held-Basis`, and the server answers it
+# with a `Tail`, a patch against that reading (`served_state/tail.py`). A test that
+# rewrites the reading itself drops the header, so the server answers whole.
+def fetch_whole_state(route):
+    """Fetch this state read as a whole reading; return the response and its body."""
+    headers = {
+        name: value
+        for name, value in route.request.headers.items()
+        if name != "leaf-held-basis"
+    }
+    response = route.fetch(headers=headers)
+    return response, response.json()
+
+
 # A tab a test holds stale is stale only while nothing reaches it: every state
 # application reconciles the draft store against shared storage before it settles
 # anything (settleAcceptedDrafts), so a stale view the assertions take their time
@@ -1811,6 +1825,14 @@ def show_resolved(page):
     rows = dev_browser.show_resolved(page)
     panel_settled(page, view="threads")
     return rows
+
+
+def show_done(page):
+    """Unfold what left the open On list (`leaf_dev.browser.show_done`), returning its
+    items once the view's motion ends."""
+    items = dev_browser.show_done(page)
+    panel_settled(page, view="queue")
+    return items
 
 
 # How many open threads the page's reading holds, the number the Threads tab says

@@ -1162,7 +1162,7 @@ def test_the_marks_on_a_target_in_panes_ride_each_panes_scroll(browser, serve):
     target = page.locator("#pane-sec")
     for mark, stand in (
         (("data-lf-mark", re.compile(r"\bhere\b")), lambda: None),
-        (("class", re.compile(r"\blf-traced\b")), marker.focus),
+        (("data-lf-traced", ""), marker.focus),
     ):
         stand()
         expect(target).to_have_attribute(*mark)

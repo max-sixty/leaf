@@ -37,8 +37,8 @@
    mount installs the mode teardown listeners after composition. */
 
 import { showNativeLayer, closeNativeLayer } from "./keyboard/layer-stack.js";
-import { clipsPastSurfaces, seenRect, whenNone } from "./geometry.js";
-import { scrollIntoReadingBand } from "./landing-scroll.js";
+import { shownRect, whenNone } from "./geometry.js";
+import { scrollIntoView } from "./landing-scroll.js";
 import { registerContribution } from "./contributions.js";
 import { runtime } from "./context.js";
 import { registry } from "./registry.js";
@@ -115,6 +115,9 @@ const anchorChoices = (anchor) =>
 /** @param {{name: string, glyph: string, label: string}} choice @param {(name: string) => unknown} pressed */
 function reactionChip({ name, glyph, label }, pressed) {
   const chip = offerAction("response", `lf-react ${HOLDS_WORD}`);
+  // A toggle from the start, before the bar paints which reactions stand
+  // (`paintBarReactions`), so it wears a reaction's face (controls.css).
+  chip.setAttribute("aria-pressed", "false");
   chip.dataset.lfToken = name;
   chip.title = label;
   chip.setAttribute("aria-label", label);
@@ -314,7 +317,6 @@ export function createReactionController({
           glyph: choice.glyph,
           label: choice.label,
           rank: "secondary",
-          className: "lf-react",
           pressed: Boolean(choice.inForce),
         })),
         readings: [],
@@ -432,15 +434,15 @@ export function createReactionController({
         // `e` opens the latest reply of the thread the user is in, which may be
         // scrolled out of the list: it comes into view to be answered, since a list
         // hung from a trigger out of view would neither show nor stay open, and it
-        // closes once none of the trigger is in front of the user (`seenRect`). The
-        // list stands in the top layer, above the floating panel, so a surface standing
-        // over the trigger does not take it away; a scroll carrying the trigger out of
-        // sight does.
-        scrollIntoReadingBand(picker.trigger, picker.trigger, "nearest", "instant");
+        // closes once none of the trigger is within the window and the boxes around it
+        // (`shownRect`). The list stands in the top layer, above the floating panel, so
+        // the room the panel takes does not take it away; a scroll carrying the trigger
+        // out of sight does.
+        scrollIntoView(picker.trigger, { block: "nearest", behavior: "instant" });
         showNativeLayer(picker.palette, { source: picker.trigger });
         const opened = reactSurface;
         /** @param {Element} trigger */
-        const seen = (trigger) => seenRect(trigger, clipsPastSurfaces());
+        const seen = (trigger) => shownRect(trigger, new Map());
         reactDeparture = whenNone([picker.trigger], seen, () => {
           if (reactSurface === opened) setReact(false);
         });

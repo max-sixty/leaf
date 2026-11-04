@@ -67,13 +67,17 @@ from leaf_dev.browser import PANEL_THREAD
 pytestmark = pytest.mark.shifts_unsurveyed
 
 MARGIN_RESPONSES = '[data-lf-margin-entry-owner="responses"]'
+# The margin entry of a reaction in force, which discloses its removal.
+REACTION_MARK = (
+    '[data-lf-margin-entry-owner="reactions"][data-lf-behavior="disclosure"]'
+)
 
 # The wash and the glyphs a reaction in force paints, read off the page: the ranges in
 # the highlight registry (their words, whitespace dropped, the way the corpus reads a
 # comment's mark) and every seated glyph by its target and accessible action name.
 PAINTED = """() => ({
   washed: [...(CSS.highlights.get('lf-react') ?? [])].map(r => r.toString().replace(/\\s/g, '')).join(''),
-  glyphs: [...document.querySelectorAll('.lf-margin-cluster .lf-react-mark')]
+  glyphs: [...document.querySelectorAll('.lf-margin-cluster [data-lf-margin-entry-owner="reactions"][data-lf-behavior="disclosure"]')]
     .map(m => [m.closest('[data-lf-margin-for]').dataset.lfMarginFor,
                m.getAttribute('aria-label')]),
   projected: [...document.querySelectorAll('[data-lf-mark]')].length,
@@ -258,7 +262,7 @@ def test_a_token_press_marks_the_passage_and_its_revealed_remove_takes_it_back(
     level = page.evaluate(
         """() => {
           const p = document.querySelector('#how-store').getBoundingClientRect();
-          const receipt = document.querySelector('.lf-margin-cluster .lf-react-mark');
+          const receipt = document.querySelector('.lf-margin-cluster [data-lf-margin-entry-owner="reactions"][data-lf-behavior="disclosure"]');
           const item = receipt.closest('.lf-margin-cluster');
           const g = item.getBoundingClientRect();
           return { dy: g.top - p.top, right: g.left - p.right,
@@ -290,7 +294,7 @@ def test_a_token_press_marks_the_passage_and_its_revealed_remove_takes_it_back(
     page.keyboard.press("e")
     surface = bar
     expect(receipt_item).to_have_count(1)
-    expect(receipt_item.locator(".lf-react-mark")).to_have_count(1)
+    expect(receipt_item.locator(REACTION_MARK)).to_have_count(1)
     expect(receipt_item.locator(MARGIN_RESPONSES)).to_have_count(0)
     expect(surface.locator(".lf-react:visible")).to_have_count(6)
     expect(surface.locator('.lf-react[data-lf-token="shorten"]')).to_have_attribute(
@@ -301,7 +305,7 @@ def test_a_token_press_marks_the_passage_and_its_revealed_remove_takes_it_back(
     )
     page.mouse.click(40, 300)  # the bar down, the reaction's glyph remains
     expect(bar).to_be_hidden()
-    expect(receipt_item.locator(".lf-react-mark")).to_have_count(1)
+    expect(receipt_item.locator(REACTION_MARK)).to_have_count(1)
     mark = receipt_item.get_by_role(
         "button", name="shorten reaction actions", exact=True
     )
@@ -459,7 +463,7 @@ def test_selected_reactions_keep_neutral_button_furniture(browser, serve, scheme
     item = page.locator('.lf-margin-cluster[data-lf-margin-for="reaction-target"]')
 
     def open_margin_reactions():
-        item.locator(".lf-sug-accept").focus()
+        item.locator("[data-lf-margin-entry-key=accept]").focus()
         page.keyboard.press("e")
         expect(item.locator(f"{MARGIN_RESPONSES}:visible")).to_have_count(6)
 
@@ -640,7 +644,7 @@ def test_reactions_raised_from_a_folded_pin_s_toggle_take_the_focus(browser, ser
         page.keyboard.press("Tab")
         if row.evaluate("row => row.contains(document.activeElement)"):
             break
-    expect(row.locator(".lf-sug-accept")).to_be_focused()
+    expect(row.locator("[data-lf-margin-entry-key=accept]")).to_be_focused()
     page.keyboard.press("Escape")
     expect(toggle).to_be_focused()
     page.keyboard.press("e")
@@ -1206,7 +1210,7 @@ def test_a_visual_fallback_yields_to_stable_targets_inside_the_picture(browser, 
     nested_picture.hover()
     page.keyboard.down("Alt")
     expect(
-        page.locator(".lf-aimed"),
+        page.locator("[data-lf-aimed]"),
         "the aim promised the picture box while its anchor resolved to the section",
     ).to_have_id("outer")
     page.keyboard.up("Alt")
@@ -1529,8 +1533,8 @@ def test_a_visual_proxy_resolves_a_rebuilt_part_and_reveals_it_on_focus(browser,
     # It shows nothing of its own: the part wears the focus ring, whole, along the edge
     # of what it draws.
     assert control.evaluate("control => getComputedStyle(control).opacity") == "0"
-    expect(page.locator(".lf-proxied")).to_have_count(1)
-    expect(part).to_have_class(re.compile(r"\blf-proxied\b"))
+    expect(page.locator("[data-lf-proxied]")).to_have_count(1)
+    expect(part).to_have_attribute("data-lf-proxied", "")
     assert_drawn_in(part, token_colour(page, "--accent"), 2)
 
 
@@ -2468,7 +2472,9 @@ def test_a_remote_resolve_disarms_the_open_reply_list_it_takes_away(browser, ser
 
     thread_model.cmd_resolve(serve.page_dir, root)
     told(page)
-    expect(page.locator(".lf-fp-head .lf-thread-news")).to_have_text("Resolved")
+    news = page.locator(".lf-fp-head .lf-thread-news")
+    expect(news).to_have_text("1 new")
+    expect(news).to_have_attribute("title", "Resolved")
     expect(strip.locator(".lf-react-palette:popover-open")).to_have_count(1)
     count = len(events_model.read_events(serve.page_dir))
     page.keyboard.press("1")
@@ -2516,6 +2522,56 @@ def test_a_reply_to_a_reaction_opens_a_thread_and_resolve_is_its_floor(browser, 
     told(page)
     expect_open_threads(page, 0)
     assert page.evaluate("() => CSS.highlights.get('lf-mark').size") == 0
+
+
+def test_z_takes_back_a_reaction_the_agent_answered_into_its_place(browser, serve):
+    """A reaction someone has answered is the user's to take back, as one nobody has
+    answered is, where the log used to refuse it and `z` did nothing. Taking it back
+    draws its place in the thread Deleted in the press, before the log answers, above
+    the answer, which stays, as does the thread; the mark stays off the page."""
+    url = serve(PANEL_PAGE)
+    reaction = append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "token": "change",
+            "anchor": {"section": "merge-both", "quote": "one document offline"},
+        },
+    )
+    thread_model.post_reply(
+        serve.page_dir,
+        {"parent": reaction["id"]},
+        "Which part — the case, or the answer?",
+    )
+    page = open_page(browser, url)
+    thread = open_panel_thread(page, reaction["id"])
+    thread.focus()
+    root = thread.locator(f'.lf-msg[data-lf-event="{reaction["id"]}"]')
+    expect(root.locator(".lf-react-said")).to_have_text("❌ change")
+    undo_offered(page)
+
+    held = []
+    page.route("**/api/event", lambda route: held.append(route))
+    page.keyboard.press("z")
+    expect(root.locator(".lf-msg-deleted")).to_have_text("Deleted")
+    expect(root.locator(".lf-react-said")).to_have_count(0)
+    expect(thread).to_contain_text("Which part — the case, or the answer?")
+    page.unroute("**/api/event")
+    for route in held:
+        route.continue_()
+    round_trip(page)
+    taken = events_model.read_events(serve.page_dir)[-1]
+    assert (taken["kind"], taken["undoes"]) == ("undo", reaction["id"])
+
+    page.reload()
+    expect_open_threads(page, 1)
+    thread = open_panel_thread(page, reaction["id"])
+    root = thread.locator(f'.lf-msg[data-lf-event="{reaction["id"]}"]')
+    expect(root.locator(".lf-msg-deleted")).to_have_text("Deleted")
+    expect(thread).to_contain_text("Which part — the case, or the answer?")
+    assert painted(page, []) == {"washed": "", "glyphs": [], "projected": 0}
 
 
 def test_escape_clears_selection_and_keeps_actions_dismissed(browser, serve):

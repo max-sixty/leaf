@@ -1,8 +1,6 @@
 """The obligation walk with `m`: where it lands, how it reveals an obligation in tabs and scrollers,
 and an obligation's digits and thread."""
 
-import re
-
 import pytest
 from interact_support import append_carried_log_record
 from playwright.sync_api import expect
@@ -22,6 +20,7 @@ from render_cases_navigation import (
 )
 from render_harness import (
     RELEASE_FOCUS,
+    held_frames,
     leaf_page,
     open_page,
     open_threads,
@@ -751,7 +750,9 @@ def test_keys_pressed_while_the_page_moves_act_as_if_it_had_landed(browser, serv
     returns to the ask `m` set off from, `j m` beside an ask `j` leaves in view
     moves no further than `j`, Back after `m m` returns to where the first `m` lands,
     and `d`, or `d d`, pressed while the browser's own PageDown still moves the page
-    steps on from where PageDown lands. Each ends where the same keys typed slowly end."""
+    steps on from where PageDown lands. Each ends where the same keys typed slowly end.
+    Home pressed before `d` has moved the page keeps it at the top, though at the top
+    Home itself moves nothing."""
     asks = "".join(
         f'<div style="height:3000px">Reading on</div><lf-ask id="ask-{index}">'
         f'<h2>Which route?</h2><lf-options id="routes-{index}" choose>'
@@ -846,6 +847,13 @@ def test_keys_pressed_while_the_page_moves_act_as_if_it_had_landed(browser, serv
     )
     page.keyboard.press("d")
     assert settled() == pytest.approx(paged_down + 2 * step, abs=2)
+
+    from_the_top()
+    with held_frames(page):
+        page.keyboard.press("d")
+        page.keyboard.press("Home")
+    rendered(page)
+    assert settled() == 0
 
 
 def test_the_obligation_walk_uses_the_visible_reading_after_its_focus_is_released(
@@ -1453,7 +1461,7 @@ def test_an_obligation_landed_in_a_pane_keeps_its_ring_inside_the_pane(browser, 
     expect(item).to_be_focused()
     expect(item).to_have_attribute("data-lf-obligation", "1")
     scroll_settled(page, "#ask-detail > :not(header, footer)")
-    expect(item).to_have_class(re.compile(r"\blf-projected-location\b"))
+    expect(item).to_have_attribute("data-lf-projected-location", "")
     ring = item.evaluate(MARK)
     pane_top = item.evaluate(
         """ask => {
@@ -1489,7 +1497,7 @@ def test_the_ring_round_a_question_stands_clear_of_its_words(browser, serve):
     resized(page, 1280, 800)
     page.keyboard.press("m")
     question = page.locator("#rollout")
-    expect(question).to_have_class(re.compile(r"\blf-projected-location\b"))
+    expect(question).to_have_attribute("data-lf-projected-location", "")
     ring, column = question.evaluate(MARK), page.evaluate(ASK_WORDS)
     assert ring["ring"]["left"] + ring["width"] < column["words"], (ring, column)
     page.close()
@@ -1498,7 +1506,7 @@ def test_the_ring_round_a_question_stands_clear_of_its_words(browser, serve):
     resized(page, 1280, 800)
     page.keyboard.press("m")
     question = page.locator("#rollout")
-    expect(question).to_have_class(re.compile(r"\blf-projected-location\b"))
+    expect(question).to_have_attribute("data-lf-projected-location", "")
     ring, workspace = question.evaluate(MARK), page.evaluate(ASK_WORDS)
     assert ring["offset"] > 0, ring
     assert ring["ring"]["top"] >= 0 and ring["ring"]["left"] >= 0, ring

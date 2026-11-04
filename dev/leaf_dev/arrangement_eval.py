@@ -374,8 +374,7 @@ def restored_page(saved: dict):
 
 
 def latest_seq(page: Path) -> int:
-    events = read_events(page) if (page / "events.jsonl").exists() else []
-    return max((e["seq"] for e in events), default=0)
+    return max((e["seq"] for e in read_events(page)), default=0)
 
 
 def open_as_user(run: Run, url: str) -> None:

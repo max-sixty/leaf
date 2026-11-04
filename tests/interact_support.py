@@ -730,8 +730,8 @@ def declare_data_input(
         "description": "A test widget with one external-data input.",
         "type": "object",
         "properties": {
-            "id": {"type": "string", "pattern": f"^{schema_model.ELEMENT_ID}$"},
-            "source": {"type": "string", "pattern": "^[a-z][a-z0-9-]*$"},
+            "id": {"type": "string"},
+            "source": {"type": "string"},
         },
         "required": ["id", "source"],
         "additionalProperties": False,

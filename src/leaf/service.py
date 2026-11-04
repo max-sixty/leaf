@@ -31,6 +31,7 @@ from leaf.event_log import (
     _append_event_unlocked,
     _matching_attempt,
     _parse_events,
+    initialized,
 )
 from leaf.files import read_json, unfinished_publications
 from leaf.interaction_log import append_interactions, session_context
@@ -43,6 +44,7 @@ from leaf.state import (
     TIME,
     Record,
     chat_exists,
+    claims_home,
     claims_lock,
     described,
     drop_locator,
@@ -60,7 +62,6 @@ from leaf.state import (
     session_lock_path,
     session_record,
     standing_claims,
-    state_home,
 )
 
 if TYPE_CHECKING:
@@ -79,7 +80,7 @@ def delivery_reply_attempt(delivery_id: str) -> str:
 
 def claim_path(page_dir: Path) -> Path:
     """The page's one canonical payload, also written by resident page servers."""
-    return state_home().resolve() / "claims" / f"{page_key(page_dir)}.json"
+    return claims_home() / f"{page_key(page_dir)}.json"
 
 
 CLAIM = Record(
@@ -922,7 +923,7 @@ def owned_pages(session_id: str | None) -> list:
     pages = {
         Path(claim["page"])
         for claim in claim_records(session_id)
-        if claim_is_active(claim) and (Path(claim["page"]) / EVENTS_FILE).is_file()
+        if claim_is_active(claim) and initialized(Path(claim["page"]))
     }
     return sorted(pages, key=str)
 

@@ -30,10 +30,9 @@ sources and regenerates their composition before refreshing its page.
 Changes to the watcher's Python, schemas or dependencies need an explicit restart;
 the current preview stays served until then.
 
-The preview serves the selected checkout in place, compiling its kernel there before
-each refresh where a runtime edit left it stale (`current_kernel`); authored-page edits
-compile nothing. A `--user` preview's session runs its hooks and delivery from the
-launching checkout's `bin/leaf`.
+The preview serves the selected checkout in place, with its runtime's source modules,
+so a runtime edit reaches the page with no build. A `--user` preview's session runs its
+hooks and delivery from the launching checkout's `bin/leaf`.
 
 While it runs, a native subscription (`leaf.file_changes`) reports edits.
 Initialization decides whether the layer actually changed; identical saves leave the
@@ -79,7 +78,6 @@ from leaf.publishing import authored_digest, authored_files, write_authored_file
 from leaf.refusals import Refused
 from leaf.schema import LAYER_FILE, PACKAGES_DIR
 from leaf_dev import ROOT
-from leaf_dev.commands.distribution import compiler_root, current_kernel
 from leaf_dev.example_data import (
     capture_file,
     data_companion,
@@ -518,7 +516,6 @@ def refresh_preview(
     """
     try:
         refresh_composition(source)
-        current_kernel(runtime)
         fixture = read_fixture(source, runtime=runtime)
         incoming = incoming_files(source)
         incoming_digest = authored_digest(incoming)
@@ -840,7 +837,6 @@ def serve_preview(
     service = None
     changes = None
     try:
-        current_kernel(runtime)
         state["serving"] = serving_identity(runtime)
         prepared_page = None
         if resumed:
@@ -960,6 +956,12 @@ def serve_preview(
             service.stop()
 
 
+def launching_checkout() -> Path:
+    """The developer checkout that launched this preview, which a selected-runtime
+    worker otherwise can't tell from the checkout it runs in."""
+    return Path(os.environ.get("LEAF_PREVIEW_LAUNCHER_ROOT", ROOT)).resolve()
+
+
 def start_preview_worker(source: Path, page: Path, runtime: Path, user: bool) -> None:
     """Become the preview, in the selected checkout's uv environment.
 
@@ -994,10 +996,9 @@ def start_preview_worker(source: Path, page: Path, runtime: Path, user: bool) ->
     # the root as this launcher resolved it, rather than reading a relative setting
     # against a directory of its own.
     os.environ["LEAF_PREVIEWS_ROOT"] = str(page.parent)
-    # The selected runtime owns this worker, but an installed payload has no
-    # browser build dependencies. Compile its modules with the checkout that
-    # launched the preview.
-    os.environ["LEAF_PREVIEW_COMPILER_ROOT"] = str(ROOT)
+    # The selected runtime owns this worker, and the checkout launching it owns the
+    # session's hooks (`launching_checkout`).
+    os.environ["LEAF_PREVIEW_LAUNCHER_ROOT"] = str(ROOT)
     if user:
         command.append("--user")
     os.chdir(runtime)
@@ -1033,7 +1034,7 @@ def start_desktop_preview(source: Path, page: Path, runtime: Path, harness) -> N
     # and delivery, including a comparison whose renderers use other runtimes.
     # Prepare the lifetime before choosing it, and choose before the adapter.
     claim = prepare_claim(harness, page)
-    select_launcher(harness.session, compiler_root() / "bin/leaf")
+    select_launcher(harness.session, launching_checkout() / "bin/leaf")
     with (
         harness.preparing_delivery(),
         starting_detached(
@@ -1148,7 +1149,9 @@ def preview(
                         from leaf.session_runtime import select_launcher
 
                         prepare_claim(harness, page)
-                        select_launcher(harness.session, compiler_root() / "bin/leaf")
+                        select_launcher(
+                            harness.session, launching_checkout() / "bin/leaf"
+                        )
                     run_preview(source, page, runtime / "bin" / "leaf", runtime, user)
         elif export:
             export_preview(*checkout(runtime), authored_source(example, source), slot)
@@ -1173,7 +1176,6 @@ def export_preview(
     from leaf_dev.arms import run_directory
 
     out_dir = run_directory(TMP / "exports")
-    current_kernel(runtime)
     with tempfile.TemporaryDirectory(prefix="preview-export-", dir=TMP) as staging:
         page = Path(staging) / "page"
         prepared = prepare_page(

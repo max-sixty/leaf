@@ -399,8 +399,8 @@ export function stuckBox(node, within = null) {
 export const fixedInWindow = (el, style = getComputedStyle(el)) =>
   style.position === "fixed" && (!isHTML(el) || el.offsetParent === null);
 // A box stuck in the window: fixed there, and placed by no anchor.
-/** @param {Element} el @param {CSSStyleDeclaration} style */
-const inWindow = (el, style) =>
+/** @param {Element} el @param {CSSStyleDeclaration} [style] */
+export const inWindow = (el, style = getComputedStyle(el)) =>
   isHTML(el) && fixedInWindow(el, style) && !style.positionAnchor.startsWith("--");
 // Whether `sticky` stands where sticking holds it, in the scroller around it. A sticky
 // box that clips what it holds, as a tab strip does, still sticks in that scroller.

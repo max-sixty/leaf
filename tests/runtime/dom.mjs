@@ -59,6 +59,10 @@ for (const [name, read] of Object.entries({
 }))
   Object.defineProperty(viewport, name, { configurable: true, get: read });
 window.visualViewport ??= viewport;
+// happy-dom's `elementFromPoint` finds nothing, since nothing is laid out, and it lacks
+// `elementsFromPoint`, which root-headers.js asks of the window's top: nothing stands
+// there either.
+document.elementsFromPoint ??= () => [];
 // States that each of `elements` stands in the window, for a test that focuses one and
 // presses a key: Leaf's keys act at a control only while the user sees it (dispatch.js).
 export function inView(...elements) {

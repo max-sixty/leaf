@@ -200,6 +200,40 @@ def test_website_restore_streams_shared_chunks_once_across_files_and_pages(
         assert previous.read_bytes() == b"previous local input"
 
 
+def test_publishing_saved_responses_keeps_the_reading_a_tab_holds(
+    page_dir, tmp_path, monkeypatch
+):
+    """Saving a published page's responses reads its state once for each revision.
+    None of those readings is one a tab goes on to extend, so they leave the server's
+    remembered readings alone, and the tab's next answer is still only what changed
+    (`served_state.tail`), even where the server remembers a single reading."""
+    from leaf.served_state import tail
+    from leaf_website.storage import restore
+
+    monkeypatch.setattr(tail, "REMEMBERED", 1)
+    site = tmp_path / "site"
+    private = site / "page"
+    shutil.copytree(page_dir, private)
+    write_manifest(site, {"/example": ("page", "example")})
+    assert website_server.activate_source(private).error is None
+    service = website_server.PageStateService(private)
+    held = tail.answer(service.page_state(), None)["browser"]["basis"]["key"]
+    monkeypatch.setenv("LEAF_SITE_ROOT", str(site))
+    with durable_page_store() as (store_url, stored):
+        monkeypatch.setenv("LEAF_PAGE_STORE_URL", store_url)
+        restore(site)
+
+        def commit():
+            with PageTransaction(private):
+                pass
+
+        # Playwright's session fixture may already own this thread's event loop.
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            executor.submit(commit).result()
+        assert stored["publications"]
+    assert "since" in tail.answer(service.page_state(), held)
+
+
 def test_saved_website_record_keeps_an_unstamped_revisions_publication_date(
     page_dir, tmp_path, monkeypatch
 ):

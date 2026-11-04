@@ -21,8 +21,12 @@ globalThis.fetch = async () => new Response(null, { status: 204 });
 const { completeState, heldHeaders } = await import("/runtime/layer-client.js");
 
 // Every object of `done` equal to the one at its place in `held` is that object, and
-// every item of a list equal to an item the held list had is that item: the readers
-// after completion compare by identity, so a copy would read as a change.
+// every item of a list equal to an item the held list had is that item, down into an
+// item that changed, such as a thread one reply joined: the readers after completion
+// compare by identity, so a copy would read as a change.
+/** @param {unknown} item */
+const named = (item) =>
+  item && typeof item === "object" && "id" in item ? item.id : undefined;
 /** @param {unknown} held @param {unknown} done @param {string} path */
 function assertKept(held, done, path) {
   if (!held || !done || typeof held !== "object" || typeof done !== "object") return;
@@ -34,6 +38,10 @@ function assertKept(held, done, path) {
     for (const item of done)
       if (held.some((each) => isDeepStrictEqual(each, item)))
         assert.ok(held.includes(item), `an item of ${path} was copied`);
+      else if (named(item) !== undefined) {
+        const before = held.find((each) => named(each) === named(item));
+        if (before) assertKept(before, item, `${path}[${named(item)}]`);
+      }
     return;
   }
   for (const [key, value] of Object.entries(done))

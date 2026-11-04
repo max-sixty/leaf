@@ -654,24 +654,46 @@ TAIL_LOG = (
 def tail_cases() -> list[dict]:
     """Answers that complete a reading the browser holds, each beside that reading and
     the whole answer at the same position, for the browser's completion to be held to
-    (`served_state.tail`). The last changes only what the page's claim reads, with
-    nothing logged between."""
+    (`served_state.tail`). One changes only what the page's claim reads, with nothing
+    logged between, and the last is a reply that joins a long thread, which changes
+    that thread from within."""
+    # A thread the agent and the user have gone back and forth in, and one more reply.
+    exchange = (
+        *TAIL_LOG[:3],
+        *(
+            {"kind": "reply", "parent": "e3", "text": f"And {at}?"}
+            if at % 2
+            else {
+                "kind": "reply",
+                "author": "agent",
+                "parent": "e3",
+                "text": f"So {at}.",
+            }
+            for at in range(6)
+        ),
+        {"kind": "reply", "parent": "e3", "text": "Thanks."},
+    )
     cases = []
-    for name, held, through, presence in (
-        ("a pick after a pick", 1, 2, UNCLAIMED),
-        ("an undo of an older pick", 4, 5, UNCLAIMED),
-        ("a pickup", 5, 6, UNCLAIMED),
-        ("several events at once", 2, len(TAIL_LOG), UNCLAIMED),
-        ("nothing new", len(TAIL_LOG), len(TAIL_LOG), UNCLAIMED),
-        ("a session claims the page", 3, 3, HELD),
+    for name, log, held, through, presence in (
+        ("a pick after a pick", TAIL_LOG, 1, 2, UNCLAIMED),
+        ("an undo of an older pick", TAIL_LOG, 4, 5, UNCLAIMED),
+        ("a pickup", TAIL_LOG, 5, 6, UNCLAIMED),
+        ("several events at once", TAIL_LOG, 2, len(TAIL_LOG), UNCLAIMED),
+        ("nothing new", TAIL_LOG, len(TAIL_LOG), len(TAIL_LOG), UNCLAIMED),
+        ("a session claims the page", TAIL_LOG, 3, 3, HELD),
+        (
+            "a reply to a long thread",
+            exchange,
+            len(exchange) - 1,
+            len(exchange),
+            UNCLAIMED,
+        ),
     ):
-        reading = served_reading(TAIL_PAGE, TAIL_LOG[:held])
+        reading = served_reading(TAIL_PAGE, log[:held])
         key = reading["browser"]["basis"]["key"]
-        tail = served_reading(
-            TAIL_PAGE, TAIL_LOG[:through], presence=presence, held=key
-        )
+        tail = served_reading(TAIL_PAGE, log[:through], presence=presence, held=key)
         assert "since" in tail, name
-        whole = served_reading(TAIL_PAGE, TAIL_LOG[:through], presence=presence)
+        whole = served_reading(TAIL_PAGE, log[:through], presence=presence)
         cases.append({"name": name, "held": reading, "tail": tail, "whole": whole})
     return cases
 

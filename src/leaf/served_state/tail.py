@@ -2,11 +2,12 @@
 
 A browser adopts each state answer whole (`browser/AGENTS.md`, "One writer for each
 fact"), and on a large page most of an answer is records the tab already holds: its
-threads, workflows, obligations and On rows, its projection entries and undo list.
-So the page server names each reading it serves by its content, `browser.basis.key`,
-and remembers the most recent ones by that name. A tab sends back the key of the
-reading it adopted as `Leaf-Held-Basis`, and when this process still remembers that
-reading the answer carries `since`, naming it, and in place of the reading:
+threads and their messages, workflows, obligations and On rows, its projection
+entries and undo list. So the page server names each reading it serves by its
+content, `browser.basis.key`, and remembers the most recent ones. A tab sends back the
+key of the reading it adopted as `Leaf-Held-Basis`, and when this process still
+remembers that reading the answer carries `since`, naming it, and in place of the
+reading:
 
 - `patch`: the changes from the held reading to this one;
 - `events`: the events logged after the held reading's `through_seq`, since the log
@@ -15,33 +16,40 @@ reading the answer carries `since`, naming it, and in place of the reading:
   (`http.page_state`).
 
 So an answer costs what changed since the tab's reading, however many records the
-page holds. The browser applies the patch to the reading it named (`completeState` in
-`layer-client.js`); what it assembles is the whole answer, and the records the patch
-leaves alone keep the identity they had there, which is what lets every reader
-downstream skip them.
+page holds and however long a thread runs: a reply sends its message and the fields
+of its thread it changed. The browser applies the patch to the reading it named
+(`completeState` in `layer-client.js`); what it assembles is the whole answer, and
+whatever the patch leaves alone keeps the identity it had there, down to each
+message, which is what lets every reader downstream skip it.
 
-The patch is a list of changes, each at a path of keys from the reading's root
-through its objects:
+The patch is a list of changes, each at a path of keys from the root of what it
+changes through its objects:
 
 - `{"at": path, "value": v}`: the value at `path` is now `v`, whole;
 - `{"at": path}`: the object at `path[:-1]` no longer holds `path[-1]`;
-- `{"at": path, "by": ..., "items": [...], "dropped": [...], "after": [...]}`: the
-  list at `path`, whose items are each named by its `id` (`by` `"id"`), its event's
-  `id` (`"event"`) or itself, a string (`"self"`), changed. `items` holds the new and
-  changed items whole, `dropped` names the items it no longer holds, and `after`
-  pairs each item that is new or moved, in the list's order, with the name of the
-  item now before it, or null for the first. Every other item keeps its place. Each
-  of the three is left out where empty.
+- `{"at": path, "by": ..., "items": [...], "changed": [...], "dropped": [...],
+  "after": [...]}`: the list at `path`, whose items are each named by its `id` (`by`
+  `"id"`), its event's `id` (`"event"`) or itself, a string (`"self"`), changed.
+  `items` holds the new items whole; `changed` pairs the name of each item it held
+  that is now otherwise with the patch, in this same form and from that item's root,
+  that makes it so; `dropped` names the items it no longer holds; and `after` pairs
+  each item that is new or moved, in the list's order, with the name of the item now
+  before it, or null for the first. Every other item keeps its place. Each of the
+  four is left out where empty.
 
 A list whose items are not all named one of those ways, or whose names repeat, is a
-value like any other. An item is never patched inside: a thread with one new message
-comes whole.
+value like any other.
 
-Readings are remembered in this process alone, so a restarted server, or another
-process, answers whole, as it does a key it never served or has forgotten. Naming by
-content rather than by log position is what makes the patch exact: a reading depends
-on the claim, the live stream and the clock as well as the log, so the same log
-sequence can read two ways, while the same key cannot.
+#5271 sent only the history after the held reading and re-read it at the held
+sequence, which keeps no record of what each tab holds and is exact, since it sent
+everything else whole. Remembering readings, as this module does instead, reverses
+that, and buys the rest: the threads and workflows also read the claim, the live
+stream and the clock, so the same log sequence can read two ways and re-reading
+can't give what the tab holds of them, while a content name can, so those records
+travel as changes too. Readings are remembered in this process alone, each as the
+JSON of its parts, one copy shared by every remembered reading that holds a part
+unchanged. A restarted server, or another process, answers whole, as it does a key
+it never served or has forgotten.
 """
 
 import hashlib
@@ -55,20 +63,13 @@ _OWN = frozenset({"events", "data"})
 # the answers each received but had not adopted yet when it next asked.
 REMEMBERED = 16
 
-# Each remembered reading's log position and fingerprint, oldest first.
+# Each remembered reading's log position and parts (`_parts`), oldest first.
 _served: OrderedDict[str, tuple[int, tuple]] = OrderedDict()
 _lock = threading.Lock()
 
 
-def _digest(*parts: bytes) -> bytes:
-    hasher = hashlib.blake2b(digest_size=16)
-    for part in parts:
-        hasher.update(part)
-    return hasher.digest()
-
-
-def _value_digest(value) -> bytes:
-    return _digest(b"v", json.dumps(value, separators=(",", ":")).encode())
+def _json(value) -> bytes:
+    return json.dumps(value, separators=(",", ":")).encode()
 
 
 def _named(items: list) -> tuple[str, list[str]] | None:
@@ -91,37 +92,59 @@ def _named(items: list) -> tuple[str, list[str]] | None:
     return (by, names) if len(set(names)) == len(names) else None
 
 
-def _fingerprint(value) -> tuple:
-    """A digest of `value`, beside those of its keys where it is an object, and of its
-    items where it is a named list."""
+def _parts(value, earlier: tuple | None) -> tuple:
+    """`value` as this module remembers it: an object as its keys' parts, a named list
+    as its items' names and JSON, and anything else as its JSON. A part the same as the
+    one at its place in `earlier`, a remembered reading's, is that reading's copy, so a
+    part that didn't change is the very one the held reading has."""
     if isinstance(value, dict):
-        children = {key: _fingerprint(child) for key, child in value.items()}
-        return (
-            "object",
-            _digest(
-                b"o", *(json.dumps(key).encode() + c[1] for key, c in children.items())
-            ),
-            children,
-        )
+        same_kind = earlier is not None and earlier[0] == "object"
+        children = earlier[1] if same_kind else {}
+        parts = {key: _parts(child, children.get(key)) for key, child in value.items()}
+        if (
+            same_kind
+            and parts.keys() == children.keys()
+            and all(part is children[key] for key, part in parts.items())
+        ):
+            return earlier
+        return ("object", parts)
     named = _named(value) if isinstance(value, list) else None
     if named is None:
-        return ("value", _value_digest(value))
+        encoded = _json(value)
+        if earlier is not None and earlier[0] == "value" and earlier[1] == encoded:
+            return earlier
+        return ("value", encoded)
     by, names = named
-    digests = tuple(_value_digest(item) for item in value)
-    return (
-        "list",
-        _digest(
-            b"l",
-            by.encode(),
-            *(
-                json.dumps(name).encode() + d
-                for name, d in zip(names, digests, strict=True)
-            ),
-        ),
-        by,
-        tuple(names),
-        digests,
+    before = (
+        dict(zip(earlier[2], earlier[3], strict=True))
+        if earlier is not None and earlier[0] == "list"
+        else {}
     )
+    items = []
+    for name, item in zip(names, value, strict=True):
+        encoded = _json(item)
+        kept = before.get(name)
+        items.append(kept if kept == encoded else encoded)
+    part = ("list", by, tuple(names), tuple(items))
+    return earlier if part == earlier else part
+
+
+def _feed(hasher, part: tuple) -> None:
+    """Feed `hasher` everything `part` holds, so its digest names that content."""
+    if part[0] == "object":
+        hasher.update(b"{")
+        for key, child in part[1].items():
+            hasher.update(_json(key))
+            _feed(hasher, child)
+        hasher.update(b"}")
+    elif part[0] == "list":
+        hasher.update(b"[" + part[1].encode())
+        for name, item in zip(part[2], part[3], strict=True):
+            hasher.update(_json(name))
+            hasher.update(item)
+        hasher.update(b"]")
+    else:
+        hasher.update(part[1])
 
 
 def _staying(names: list[str], held_at: dict[str, int]) -> set[str]:
@@ -151,21 +174,25 @@ def _staying(names: list[str], held_at: dict[str, int]) -> set[str]:
     return staying
 
 
-def _list_change(held: tuple, current: tuple, items: list, path: list) -> dict:
-    _, _, by, held_names, held_digests = held
-    _, _, _, names, digests = current
-    held_digest = dict(zip(held_names, held_digests, strict=True))
+def _list_change(path, by, held_names, names, items, same, held_item) -> dict | None:
+    """The change that makes the held list named `held_names` the list of `items`,
+    named `names`, or None where there is none. `same(before, at)` says whether held
+    item `before` is the current item `at`, and `held_item(before)` gives it."""
     held_at = {name: at for at, name in enumerate(held_names)}
-    kept = set(names)
-    change: dict = {"at": path, "by": by}
-    if sent := [
-        item
-        for name, digest, item in zip(names, digests, items, strict=True)
-        if held_digest.get(name) != digest
-    ]:
-        change["items"] = sent
-    if dropped := [name for name in held_names if name not in kept]:
-        change["dropped"] = dropped
+    whole, changed = [], []
+    for at, (name, item) in enumerate(zip(names, items, strict=True)):
+        before = held_at.get(name)
+        if before is None:
+            whole.append(item)
+        elif not same(before, at):
+            old = held_item(before)
+            if isinstance(old, dict) and isinstance(item, dict):
+                inner: list = []
+                _value_changes(old, item, [], inner)
+                changed.append([name, inner])
+            else:
+                whole.append(item)
+    current = set(names)
     staying = _staying([name for name in names if name in held_at], held_at)
     after = []
     previous = None
@@ -173,24 +200,75 @@ def _list_change(held: tuple, current: tuple, items: list, path: list) -> dict:
         if name not in staying:
             after.append([name, previous])
         previous = name
-    if after:
-        change["after"] = after
-    return change
+    change: dict = {"at": path, "by": by}
+    for field, entries in (
+        ("items", whole),
+        ("changed", changed),
+        ("dropped", [name for name in held_names if name not in current]),
+        ("after", after),
+    ):
+        if entries:
+            change[field] = entries
+    return change if len(change) > 2 else None
+
+
+def _value_changes(held, value, path: list, patch: list) -> None:
+    """Append to `patch` the changes that make `held` `value`, both as read."""
+    if held == value:
+        return
+    if isinstance(held, dict) and isinstance(value, dict):
+        for key, child in value.items():
+            if key in held:
+                _value_changes(held[key], child, [*path, key], patch)
+            else:
+                patch.append({"at": [*path, key], "value": child})
+        patch.extend({"at": [*path, key]} for key in held if key not in value)
+        return
+    if isinstance(held, list) and isinstance(value, list):
+        was, now = _named(held), _named(value)
+        if was is not None and now is not None and was[0] == now[0]:
+            change = _list_change(
+                path,
+                now[0],
+                was[1],
+                now[1],
+                value,
+                lambda before, at: held[before] == value[at],
+                held.__getitem__,
+            )
+            if change is not None:
+                patch.append(change)
+            return
+    patch.append({"at": path, "value": value})
 
 
 def _changes(held: tuple, current: tuple, value, path: list, patch: list) -> None:
-    """Append to `patch` the changes that make the held fingerprint's value `value`."""
-    if held[1] == current[1]:
+    """Append to `patch` the changes that make the held parts `value`, whose parts are
+    `current`."""
+    if held is current:
         return
     if held[0] == current[0] == "object":
-        for key, child in current[2].items():
-            if key in held[2]:
-                _changes(held[2][key], child, value[key], [*path, key], patch)
+        for key, child in current[1].items():
+            if key in held[1]:
+                _changes(held[1][key], child, value[key], [*path, key], patch)
             else:
                 patch.append({"at": [*path, key], "value": value[key]})
-        patch.extend({"at": [*path, key]} for key in held[2] if key not in current[2])
-    elif held[0] == current[0] == "list" and held[2] == current[2]:
-        patch.append(_list_change(held, current, value, path))
+        patch.extend({"at": [*path, key]} for key in held[1] if key not in current[1])
+    elif held[0] == current[0] == "list" and held[1] == current[1]:
+        held_items, items = held[3], current[3]
+        change = _list_change(
+            path,
+            current[1],
+            held[2],
+            current[2],
+            value,
+            lambda before, at: held_items[before] is items[at],
+            lambda before: json.loads(held_items[before]),
+        )
+        if change is not None:
+            patch.append(change)
+    elif held[0] == current[0] == "value" and held[1] == current[1]:
+        return
     else:
         patch.append({"at": path, "value": value})
 
@@ -205,22 +283,25 @@ def answer(state: dict, held: str | None) -> dict:
     basis = browser["basis"]
     basis.pop("key", None)
     patched = {key: value for key, value in state.items() if key not in _OWN}
-    current = _fingerprint(patched)
-    key = basis["key"] = current[1].hex()
     with _lock:
-        before = None
+        before = _served.get(held) if held is not None else None
+        latest = next(reversed(_served.values()), None)
+    current = _parts(patched, (before or latest or (0, None))[1])
+    hasher = hashlib.blake2b(digest_size=16)
+    _feed(hasher, current)
+    key = basis["key"] = hasher.hexdigest()
+    with _lock:
         if held is not None and held in _served:
             _served.move_to_end(held)
-            before = _served[held]
         _served[key] = (basis["through_seq"], current)
         _served.move_to_end(key)
         while len(_served) > REMEMBERED:
             _served.popitem(last=False)
     if before is None:
         return state
-    through, fingerprint = before
+    through, parts = before
     patch: list = []
-    _changes(fingerprint, current, patched, [], patch)
+    _changes(parts, current, patched, [], patch)
     # The key names the reading rather than being part of it, and moves when it does.
     if patch:
         patch.append({"at": ["browser", "basis", "key"], "value": key})

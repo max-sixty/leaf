@@ -1721,7 +1721,7 @@
       "additionalProperties": false
     },
     "Change": {
-      "description": "One change a `Tail` makes to the reading it starts from, at `at`, a path of keys from the reading's root through its objects (`served_state.tail`).",
+      "description": "One change a `Tail` makes to the reading it starts from, at `at`, a path of keys through its objects from the root of what it changes: the reading, or for a change inside a list's item, that item (`served_state.tail`).",
       "anyOf": [
         {
           "description": "The value at `at` is now `value`, whole.",
@@ -1741,12 +1741,23 @@
           "additionalProperties": false
         },
         {
-          "description": "The list at `at`, whose items are each named by its `id` (`by` `id`), its event's `id` (`event`) or itself, a string (`self`), changed: `items` holds its new and changed items whole, `dropped` names those it no longer holds, and `after` pairs each item that is new or moved, in the list's order, with the name of the item now before it, or null for the first. Every other item keeps its place.",
+          "description": "The list at `at`, whose items are each named by its `id` (`by` `id`), its event's `id` (`event`) or itself, a string (`self`), changed: `items` holds its new items whole, `changed` pairs the name of each item it held that is now otherwise with the changes from that item to what it is now, `dropped` names those it no longer holds, and `after` pairs each item that is new or moved, in the list's order, with the name of the item now before it, or null for the first. Every other item keeps its place.",
           "type": "object",
           "properties": {
             "at": { "type": "array", "items": { "type": "string" } },
             "by": { "enum": ["id", "event", "self"] },
             "items": { "type": "array" },
+            "changed": {
+              "type": "array",
+              "items": {
+                "type": "array",
+                "prefixItems": [
+                  { "type": "string" },
+                  { "type": "array", "items": { "$ref": "#/$defs/Change" } }
+                ],
+                "items": false
+              }
+            },
             "dropped": { "type": "array", "items": { "type": "string" } },
             "after": {
               "type": "array",
@@ -1766,13 +1777,18 @@
       "description": "The answer `POST /api/event` gives once its gates pass (`event_endpoint`).",
       "anyOf": [
         {
-          "description": "Accepted, with the page's state, which holds the event's receipt.",
+          "description": "Accepted, with the event the log holds for it and the page's state, which holds the event's receipt (`event_endpoint.with_state`).",
           "type": "object",
           "properties": {
             "ok": { "const": true },
+            "event": { "$ref": "#/$defs/Event" },
+            "needs_reply": {
+              "description": "Whether the event owes the agent an answer: its update stands among those the agent owes (`obligations.update_obligation`).",
+              "type": "boolean"
+            },
             "state": { "anyOf": [{ "$ref": "#" }, { "$ref": "#/$defs/Tail" }] }
           },
-          "required": ["ok", "state"],
+          "required": ["ok", "event", "needs_reply", "state"],
           "additionalProperties": false
         },
         {

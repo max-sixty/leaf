@@ -166,11 +166,13 @@ export const heldHeaders = ({ data, state }) => ({
 /** @typedef {import("../types/contract.js").ServedChange} Change */
 /** @typedef {Record<string, unknown> | unknown[]} Container */
 
-// The list a change names, from the held one: the items it sent in their places, those
-// it moved or added after the item it pairs each with, in the list's order, and the
-// rest where they were (`served_state/tail.py`).
+// The list a change names, from the held one: the items it sent and those it changed in
+// their places, those it moved or added after the item it pairs each with, in the
+// list's order, and the rest where they were (`served_state/tail.py`). A changed item
+// is the held one with its own changes applied, so what they leave alone in it, such
+// as each message of a thread one reply joined, keeps its identity too.
 /** @param {readonly unknown[]} held @param {Extract<Change, {by: unknown}>} change */
-function changedList(held, { by, items = [], dropped = [], after = [] }) {
+function changedList(held, { by, items = [], changed = [], dropped = [], after = [] }) {
   /** @param {unknown} item */
   const name = (item) =>
     /** @type {string} */ (
@@ -182,6 +184,7 @@ function changedList(held, { by, items = [], dropped = [], after = [] }) {
     );
   const sent = new Map(items.map((item) => [name(item), item]));
   const kept = new Map(held.map((item) => [name(item), item]));
+  for (const [key, patch] of changed) sent.set(key, patched(kept.get(key), patch));
   const placed = new Set([...dropped, ...after.map(([key]) => key)]);
   const order = [...kept.keys()].filter((key) => !placed.has(key));
   for (const [key, before] of after)
@@ -235,7 +238,7 @@ export function completeState(answer, held) {
   return {
     ...patched(prior, patch),
     data: { ...data, sources },
-    events: [...prior.events, ...events],
+    events: events.length ? [...prior.events, ...events] : prior.events,
   };
 }
 

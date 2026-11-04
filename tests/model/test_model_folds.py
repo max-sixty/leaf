@@ -652,10 +652,45 @@ def test_an_answer_sends_a_held_reading_only_what_changed():
     changed = {tuple(change["at"]): change for change in many["patch"]}
     assert ("browser", "views", "1", "thread", "threads") not in changed
     # The pick answers its widget's question and owes the agent an update.
-    assert [
-        item["id"]
-        for item in changed[("browser", "views", "1", "obligations")]["items"]
-    ] == ["widget:pick", f"update:{picked['id']}"]
+    obligations = changed[("browser", "views", "1", "obligations")]
+    assert [name for name, _ in obligations["changed"]] == ["widget:pick"]
+    assert [item["id"] for item in obligations["items"]] == [f"update:{picked['id']}"]
+
+
+def test_a_reply_sends_its_message_and_what_it_changed_of_its_thread():
+    """However long the thread a reply joins, its answer carries the new message and
+    the fields of the thread it changed, and none of the thread's other messages
+    (`served_state.tail`)."""
+    page = model.leaf_page("Tail", '<p id="p">One.</p>')
+
+    def thread_change(replies: int) -> list:
+        log = [
+            {"kind": "comment", "text": "Why?"},
+            *(
+                {"kind": "reply", "parent": "e1", "text": f"And {at}?"}
+                if at % 2
+                else {"kind": "reply", "author": "agent", "parent": "e1", "text": "So."}
+                for at in range(replies)
+            ),
+        ]
+        held = model.served_reading(page, log)["browser"]["basis"]["key"]
+        reply = {"kind": "reply", "parent": "e1", "text": "Thanks."}
+        tail = model.served_reading(page, [*log, reply], held=held)
+        [threads] = [
+            change
+            for change in tail["patch"]
+            if change["at"] == ["browser", "views", "1", "thread", "threads"]
+        ]
+        assert set(threads) == {"at", "by", "changed"}
+        [[name, changes]] = threads["changed"]
+        assert name == "e1"
+        return changes
+
+    short, long = thread_change(4), thread_change(40)
+    assert [change["at"] for change in short] == [change["at"] for change in long]
+    [messages] = [change for change in long if change["at"] == ["msgs"]]
+    assert set(messages) == {"at", "by", "items", "after"}
+    assert [message["text"] for message in messages["items"]] == ["Thanks."]
 
 
 def test_an_answer_to_a_reading_the_server_does_not_remember_is_whole():

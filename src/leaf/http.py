@@ -40,7 +40,7 @@ from .data import (
     StaleDataError,
     deferred_value,
 )
-from .event_endpoint import accept_event, event_fault, event_rejection
+from .event_endpoint import accept_event, event_fault, event_rejection, with_state
 from .file_bindings import FileBindingError, StaleFileError, read_file, save_file
 from .files import (
     missing_revision,
@@ -515,7 +515,14 @@ class PageEndpoint:
         """What a tab is sent of `state`: only what changed since the reading it names
         by `Leaf-Held-Basis`, where this process still remembers that reading, else
         the whole of it (`served_state.tail`). Without this every gesture's answer
-        would carry back every record and past event the tab already holds."""
+        would carry back every record and past event the tab already holds.
+
+        A capture's readings are whole and unnamed: a render check reads them, or
+        leaf.page saves them as a published page's responses, one for each revision,
+        and none is a reading a tab goes on to extend from this process, so
+        remembering them would only push out the readings the tabs hold."""
+        if self.page_snapshot is not None:
+            return state
         return tail_answer(state, self.headers.get("Leaf-Held-Basis"))
 
     def page_browser_view(self, view_revision: int, through_seq: int) -> dict:
@@ -1395,12 +1402,9 @@ class PageEndpoint:
 
     def _accept_event(self) -> Response:
         view_revision = self.requested_view_revision()
-        status, answer = accept_event(
-            self.page_dir,
-            self.posted,
-            lambda: self.sent(self.page_state(view_revision)),
-        )
-        return self._json(answer, status)
+        status, answer = accept_event(self.page_dir, self.posted)
+        state = self.page_state(view_revision)
+        return self._json(with_state(answer, state, self.sent(state)), status)
 
     # Every POST a page answers, by path pattern. A route lists its gates in the
     # order they refuse; its body is already read when the first one runs. File

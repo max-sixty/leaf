@@ -384,7 +384,6 @@ def test_a_comment_on_a_claude_code_page_is_named_as_it_arrives(
             "revision": 1,
             "text": "Why does the export take a minute?",
         },
-        dict,
     )
     assert status == 200, body
     titles = wait_for(
@@ -446,7 +445,6 @@ def test_a_comment_on_a_codex_page_is_named_as_it_arrives(
             "revision": 1,
             "text": "Why does the export take a minute?",
         },
-        dict,
     )
     assert status == 200, body
     [title] = wait_for(
@@ -483,7 +481,6 @@ def test_a_comment_on_a_codex_page_is_named_as_it_arrives(
             "parent": reaction["id"],
             "text": "Can the import run in parallel?",
         },
-        dict,
     )
     assert status == 200, body
     wait_for(
@@ -581,7 +578,6 @@ def test_a_comment_on_a_pi_page_is_named_as_it_arrives(page_dir, tmp_path, monke
             "revision": 1,
             "text": "Why does the export take a minute?",
         },
-        dict,
     )
     assert status == 200, body
     [title] = wait_for(

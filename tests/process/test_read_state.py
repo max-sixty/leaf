@@ -173,7 +173,6 @@ def test_read_does_not_nudge_a_closed_agent_turn(page_dir, monkeypatch):
             "kind": "read",
             "messages": [{"message": message["id"], "version": message["id"]}],
         },
-        dict,
     )
     assert status == 200, answer
     assert nudges == []
@@ -181,7 +180,6 @@ def test_read_does_not_nudge_a_closed_agent_turn(page_dir, monkeypatch):
     status, body = endpoint_model.accept_event(
         page_dir,
         {"kind": "comment", "revision": 1, "text": "Please continue."},
-        dict,
     )
     assert status == 200, body
     assert nudges == [page_dir.resolve()]

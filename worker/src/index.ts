@@ -35,7 +35,6 @@ import { type DurableObject } from "cloudflare:workers";
 import * as z from "zod/mini";
 import type {
   Event,
-  ServedChange,
   ServedEventAnswer,
   ServedSampleAnswer,
   ServedState,
@@ -462,56 +461,14 @@ async function recordInteractions(
   return new Response(null, { status: 204, headers: { "Cache-Control": "no-store" } });
 }
 
-// Whether `patch`, the changes an answer carries since the reading its request named
-// (`served_state/tail.py`), puts `item` in the list at `path`: an item new since then
-// arrives as one of the list's changed items, or in a value set at or above `path`.
-function patchAdds(
-  patch: ReadonlyArray<ServedChange>,
-  path: readonly string[],
-  item: string,
-): boolean {
-  return patch.some((change) => {
-    if (change.at.length > path.length || change.at.some((key, at) => key !== path[at]))
-      return false;
-    if ("by" in change)
-      return change.at.length === path.length && (change.items ?? []).includes(item);
-    if (!("value" in change)) return false;
-    const value = path
-      .slice(change.at.length)
-      .reduce<unknown>(
-        (part, key) => (part as Record<string, unknown> | null | undefined)?.[key],
-        change.value,
-      );
-    return Array.isArray(value) && value.includes(item);
-  });
-}
-
-async function acceptedEvent(
-  postedRequest: Request,
-  response: Response,
-): Promise<AcceptedEvent | null> {
+// The event an accepted POST's answer names, and whether it owes the agent an
+// answer, as the event door says (`event_endpoint.with_state`).
+async function acceptedEvent(response: Response): Promise<AcceptedEvent | null> {
   if (!response.ok) return null;
   try {
-    const posted = (await postedRequest.json()) as { attempt?: unknown };
-    if (typeof posted.attempt !== "string") return null;
-    // An accepted event's answer carries the page's state (`event_endpoint.accept_event`).
     const answer = (await response.clone().json()) as ServedEventAnswer;
     if (answer.ok !== true) return null;
-    const { state } = answer;
-    const event = state.events.find(
-      (candidate) => candidate.attempt === posted.attempt,
-    );
-    if (!event) return null;
-    // An update the agent owes an answer publishes its own obligation, on the agent
-    // until it answers (`obligations.update_obligation`).
-    const owed = `update:${event.id}`;
-    return {
-      event,
-      needsReply:
-        "since" in state
-          ? patchAdds(state.patch, ["activity", "obligations"], owed)
-          : state.activity.obligations.includes(owed),
-    };
+    return { event: answer.event, needsReply: answer.needs_reply };
   } catch {
     return null;
   }
@@ -795,10 +752,7 @@ export default {
         return response;
       }
     }
-    const postedRequest =
-      request.method === "POST" && route.inside === "api/event"
-        ? request.clone()
-        : null;
+    const posted = request.method === "POST" && route.inside === "api/event";
     const response = await getContainer(env.PAGES, privateContainer).fetch(request);
     const containerRelease = response.headers.get("Leaf-Release");
     if (containerRelease !== null && containerRelease !== manifest.release) {
@@ -806,8 +760,8 @@ export default {
       if (existing === null) cookies.push(sessionCookie(sessionId, secure));
       return rollingOut(request, env, manifest, route, reference, cookies);
     }
-    if (postedRequest) {
-      const accepted = await acceptedEvent(postedRequest, response);
+    if (posted) {
+      const accepted = await acceptedEvent(response);
       if (accepted) {
         recordAcceptedEvent(env, route, manifest.release, reference, accepted);
       }

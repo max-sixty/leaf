@@ -987,15 +987,19 @@ export function createFloatingPanel({
   // interface's.
   const HIDDEN = "Annotations hidden";
   const hiddenLead = () => (annotationsHidden() ? [leafSays(`${HIDDEN} · `)] : []);
-  /** @param {string | null} key @param {Element | null} input */
-  function fieldReading(key, input) {
+  // `drawn` is the thread as its view draws it, which the reply box's words read
+  // (`replyOptionsFor`).
+  /** @param {string | null} key @param {Element | null} input
+   * @param {import("./thread/thread-card.js").ThreadViewModel | null} [drawn] */
+  function fieldReading(key, input, drawn = null) {
     const [error] = sayable();
     if (error) return { says: "error", words: leafSays(error.message) };
     const thread = key ? threadByKey(key) : null;
     // A retained field can repaint between a thread leaving the reading and its
     // route being retired. Its native row survives that interval, not its turn.
     if (key && !thread) return { says: "absent", words: "" };
-    if (input === focused()) return { says: "destination", words: whereTo(thread) };
+    if (input === focused())
+      return { says: "destination", words: whereTo(drawn ?? thread) };
     if (thread && !noticeReading().visible && !statusContextReading().goTo)
       return { says: "turn", words: "Reply", offers: true };
     const stance = key ? null : statusContextReading().stance;
@@ -1037,32 +1041,29 @@ export function createFloatingPanel({
   // walk's position. The thread walk standing on this thread says only its place,
   // "11 of 11", since the view names the thread. The agent's own line, a to-do's title
   // or a start's, stays in the thread, where the working message says it. A notice or
-  // the Go-to word, which pass in a moment, take the reply's place.
-  /** @param {string | null} key @param {Element | null} input */
-  function turnLead(key, input) {
+  // the Go-to word, which pass in a moment, take the reply's place. The thread's word
+  // is the one its view draws (`drawn`), held news included, as its Resolve says it.
+  /** @param {string | null} key @param {Element | null} input
+   * @param {import("./thread/thread-card.js").ThreadViewModel} drawn */
+  function turnLead(key, input, drawn) {
     if (fieldReading(key, input).says !== "turn") return "";
-    const thread = threadByKey(key);
     const { walk } = statusContextReading();
     const position = !walk?.shown
       ? ""
-      : walk.kind === "thread" && walk.target === thread?.id
+      : walk.kind === "thread" && walk.target === drawn.id
         ? `${walk.position} of ${walk.total}`
         : walk.text;
     // A walk gone on to the page, leaving the thread's view open above the stop it
     // reached (`clearFor`), names that stop alone: the user is at it now, not at this
     // thread's turn.
     const away = Boolean(position) && !currentLocationIn(host);
-    const word = away
-      ? null
-      : thread?.resolved
-        ? RESOLVED
-        : thread && threadAttention(thread, agentName())?.word;
+    const word = away ? null : drawn.resolved ? RESOLVED : drawn.attention?.word;
     if (!word) return position;
     return voiced([word, ...(position ? [` · ${position}`] : [])]);
   }
   // Where the words go, as the focused field's placeholder says it; the thread's own
   // name already heads its view. A reply to a resolved thread reopens it (events.md).
-  /** @param {ReturnType<typeof readThreads>["threads"][number] | null} thread */
+  /** @param {{resolved: unknown} | null} thread */
   const whereTo = (thread) =>
     !thread
       ? "Comment on the page"
@@ -1074,9 +1075,10 @@ export function createFloatingPanel({
   // reading changes in the same paint as the words (floating-panel.css). Words all one
   // speaker says, such as an error or Leaf's own state, mark the editor with that voice,
   // which its native placeholder wears whole (`voiceOf`).
-  /** @param {string | null} key @param {Element | null} input */
-  function saying(key, input) {
-    const { says, words, offers } = fieldReading(key, input);
+  /** @param {string | null} key @param {Element | null} input
+   * @param {import("./thread/thread-card.js").ThreadViewModel | null} [drawn] */
+  function saying(key, input, drawn = null) {
+    const { says, words, offers } = fieldReading(key, input, drawn);
     if (input) {
       keeps(input, "data-lf-says", says);
       keeps(input, "data-lf-voice", voiceOf(words));
@@ -1087,9 +1089,10 @@ export function createFloatingPanel({
   // The empty words drawn as parts, where the native placeholder's one face can't say
   // them: words whose speakers differ, and the agent's sentence, whose node the
   // status's exposure registers (`statusParts`). Null leaves the native placeholder.
-  /** @param {string | null} key @param {Element | null} input */
-  function fieldHint(key, input) {
-    const { words } = fieldReading(key, input);
+  /** @param {string | null} key @param {Element | null} input
+   * @param {import("./thread/thread-card.js").ThreadViewModel | null} [drawn] */
+  function fieldHint(key, input, drawn = null) {
+    const { words } = fieldReading(key, input, drawn);
     const parts = [words].flat();
     return wordsText(words) &&
       (!voiceOf(words) ||
@@ -1184,7 +1187,7 @@ export function createFloatingPanel({
   // resolved thread took Reopen first.
   const replyOutlet = el("div", "lf-fp-reply");
   const replyInput = () => replyOutlet.querySelector(TEXT_FIELD);
-  /** @type {Map<string, import("./thread/replies.js").ReplyOptions>} */
+  /** @type {Map<string, import("./thread/thread-card.js").ThreadReplyOptions>} */
   const replyOptions = new Map();
   /** @param {string} key */
   const replyOptionsFor = (key) => {
@@ -1193,9 +1196,10 @@ export function createFloatingPanel({
       replyOptions.set(
         key,
         (options = {
-          hint: () => saying(key, replyInput()),
-          hintParts: () => fieldHint(key, replyInput()),
-          hintLead: () => turnLead(key, replyInput()),
+          // The thread's view hands its words the thread as it draws it (`drawn`).
+          hint: (drawn) => saying(key, replyInput(), drawn),
+          hintParts: (drawn) => fieldHint(key, replyInput(), drawn),
+          hintLead: (drawn) => turnLead(key, replyInput(), drawn),
           accessibleName: () => `Reply to ${threadTitle(key)}`,
           sending: streamSend,
           // A turn the log refuses takes its room back from the view, and the words it
@@ -2965,6 +2969,11 @@ export function createFloatingPanel({
   // notice among the thread's presses on 16 October over the notice at the end of the
   // first message's head, cut to 5rem there ("2 new rep…"), and over the news joining
   // New reply at the view's foot. Its Resolve ends the thread's presses, before Close.
+  // While the thread holds news, its Resolve and the field's words say the thread as
+  // its view draws it, held news included, as a card's do, so the three change together
+  // when the user shows the news. The panel took the card's rule on 4 November; until
+  // then Resolve and the field said the thread as it stood, Reopen and "Reply to
+  // reopen" beside a notice still holding the agent's Resolve.
   // Each thread's head line draws places of its own for them (`threadPresses`), so the
   // notice of the thread the user leaves goes with them rather than standing in the
   // next one's until the reader draws that.

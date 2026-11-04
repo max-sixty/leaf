@@ -382,6 +382,8 @@ export function createPrimaryReader(
       nodes.push(node);
       children.set(parent, nodes);
     };
+    /** @type {{item: Nomination, view: RetainedPart, reading: import("./held-news.js").HeldThread}[]} */
+    const drawing = [];
     for (const item of selected) {
       const reading = shown.get(item.key);
       if (!reading) throw new Error(`No prepared Thread has key ${item.key}`);
@@ -459,6 +461,42 @@ export function createPrimaryReader(
         }
         views.set(item.identity, view);
       }
+      // A native slot keeps the canonical conversation and its authored widgets in
+      // the document's stylesheet scope, including html/body state conditions.
+      // The package's shadow tree owns only their physical layout. No copied style
+      // sheet or second renderer is needed for arbitrary nested package widgets.
+      const slots = (view.slots ??= []);
+      let destination = item.outlet;
+      let previous = null;
+      let depth = 0;
+      for (let host; (host = shadowHost(destination.getRootNode()));) {
+        let slot = slots[depth];
+        if (!slot) {
+          slot = document.createElement("slot");
+          slot.name = "lf-thread-part-" + randomId();
+          slots.push(slot);
+        }
+        keeps(slot, "slot", previous?.name ?? null);
+        place(destination, slot);
+        previous = slot;
+        destination = host;
+        depth++;
+      }
+      for (const slot of slots.splice(depth)) slot.remove();
+      keeps(view.node, "slot", previous?.name ?? null);
+      place(destination, view.node);
+      const parts = destinations.get(item.key) ?? [];
+      parts.push(view);
+      destinations.set(item.key, parts);
+      drawing.push({ item, view, reading });
+    }
+    for (const [parent, nodes] of children) orderChildren(parent, nodes);
+    // Each part draws where it now stands, so what it reads of its own layout is read
+    // in place: a package may hand a new outlet on each render, and a thread drawn out
+    // of the document read no room for its held news beside its first head, its notice
+    // standing at the head's start until a later frame moved it to its place
+    // (thread-card.js, `#retainHeaderSlot`).
+    for (const { item, view, reading } of drawing) {
       if (view.kind === "thread") {
         if (item.kind === "thread") view.setOutlets(item.options);
         view.present(reading);
@@ -487,35 +525,7 @@ export function createPrimaryReader(
         } else if (view.notice.node.parentNode !== view.node)
           move(view.node, view.notice.node, null);
       }
-      // A native slot keeps the canonical conversation and its authored widgets in
-      // the document's stylesheet scope, including html/body state conditions.
-      // The package's shadow tree owns only their physical layout. No copied style
-      // sheet or second renderer is needed for arbitrary nested package widgets.
-      const slots = (view.slots ??= []);
-      let destination = item.outlet;
-      let previous = null;
-      let depth = 0;
-      for (let host; (host = shadowHost(destination.getRootNode()));) {
-        let slot = slots[depth];
-        if (!slot) {
-          slot = document.createElement("slot");
-          slot.name = "lf-thread-part-" + randomId();
-          slots.push(slot);
-        }
-        keeps(slot, "slot", previous?.name ?? null);
-        place(destination, slot);
-        previous = slot;
-        destination = host;
-        depth++;
-      }
-      for (const slot of slots.splice(depth)) slot.remove();
-      keeps(view.node, "slot", previous?.name ?? null);
-      place(destination, view.node);
-      const parts = destinations.get(item.key) ?? [];
-      parts.push(view);
-      destinations.set(item.key, parts);
     }
-    for (const [parent, nodes] of children) orderChildren(parent, nodes);
     // A thread or a reply part standing in the document takes the row being written in
     // its thread that no view holds (replies.js, `claim`).
     for (const view of views.values())

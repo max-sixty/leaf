@@ -916,7 +916,8 @@ def test_news_in_an_open_thread_moves_none_of_its_controls(browser, serve):
     """A thread's controls each stand where they stood while the thread changes. Retitled
     long or short, the name over the view gives or takes room at its own end, and Back,
     Show on page, Resolve and Close stay put; detached by a revision, Show on page leaves
-    its seat empty; resolved by the agent, the thread's Reopen takes Resolve's seat."""
+    its seat empty; resolved by the agent, the thread holds the news, its Resolve and the
+    field's words agreeing with it, and shown, Reopen takes Resolve's seat."""
     url = serve(LONG_PAGE, comments=3, anchored=[("p3", "Paragraph 3.")])
     root = events_model.read_events(serve.page_dir)[-1]["id"]
     page = floating(browser, url)
@@ -970,15 +971,28 @@ def test_news_in_an_open_thread_moves_none_of_its_controls(browser, serve):
     assert page.evaluate(SEATS) == seats
 
     # Resolved by the agent while the user reads it, the thread holds the news behind
-    # its notice, its Resolve drawn as it stood, as a card's is; shown, Reopen takes
-    # Resolve's seat.
+    # its notice, its Resolve and the field's words saying the thread as it stood, as a
+    # card's do; shown, all three change together, and Reopen takes Resolve's seat.
+    box = field(page)
+    box.focus()
+    words = page.locator(".lf-fp-field .lf-compose-placeholder-words")
+    expect(words).to_have_text("Reply in this thread")
     agent({"kind": "resolve", "parent": root})
     notice = page.locator(".lf-fp-news-outlet .lf-thread-news")
     expect(notice).to_have_attribute("title", "Resolved")
+    expect(page.locator(".lf-fp-head .lf-resolve")).to_be_visible()
+    expect(words).to_have_text("Reply in this thread")
+    # Off the field, it says the thread's word before Reply, which isn't Resolved yet.
+    page.locator(panel_view("thread")).focus()
+    expect(lead(page)).not_to_contain_text("Resolved")
+    expect(notice).to_be_visible()
     settled(page)
     assert page.evaluate(SEATS) == seats
     notice.click()
     expect(page.locator(".lf-fp-head .lf-reopen")).to_be_visible()
+    expect(lead(page)).to_contain_text("Resolved")
+    box.focus()
+    expect(words).to_have_text("Reply to reopen")
     settled(page)
     assert page.evaluate(SEATS) == seats
 
@@ -2587,6 +2601,44 @@ def test_a_conversation_reader_arriving_later_takes_the_open_thread(browser, ser
     assert asked["focus"] is not False
     assert asked["part"] == "message"
     assert asked["message"] == stood_on
+
+
+def test_a_package_s_whole_thread_takes_its_notice_where_a_card_does(browser, serve):
+    """A package that names a whole thread and none of its head's places
+    (`parts.thread`, no `head`): Leaf draws the thread, and news that would move it
+    waits behind the notice beside its first message's head, as a card's does, which
+    stands there from its first paint."""
+    url = serve(LONG_PAGE)
+    root = panel_comment(serve.page_dir, "Is the window long enough?")
+    page = floating(browser, url)
+    page.evaluate(
+        """async () => {
+          const api = await window.__lfWidgetApi();
+          const host = document.createElement('div');
+          host.id = 'reader';
+          // Over the page, so drawing it moves none of the page's words.
+          host.style = 'position: fixed; inset: 0 0 auto auto; width: 320px';
+          document.querySelector('main').append(host);
+          window.reader = api.registerThreadPresentation(host, {
+            render: (collection, parts) => {
+              for (const thread of collection.threads) {
+                const outlet = document.createElement('div');
+                host.replaceChildren(outlet);
+                parts.thread(thread.key, outlet);
+              }
+            },
+            reveal: () => {},
+          });
+          await window.reader.update();
+        }"""
+    )
+    reader = page.locator("#reader")
+    expect(reader.locator(".lf-msg")).to_contain_text("Is the window long enough?")
+    agent_said(serve.page_dir, root, "Forty-eight hours covers the first cohort.")
+    told(page)
+    expect(reader.locator(".lf-thread-content > .lf-thread-news")).to_have_text("1 new")
+    expect(reader.locator(".lf-msg")).to_have_count(1)
+    assert page.evaluate("() => window.reader.primary")
 
 
 def test_a_reader_arriving_later_leaves_focus_the_user_moved_elsewhere(browser, serve):

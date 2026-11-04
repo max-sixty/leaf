@@ -430,10 +430,16 @@ function wordsWidth(node) {
    (replies.js, `createReplyView`); `quote`, whether the thread draws the words it is
    about over its messages; and `settles`, where a settlement takes the user and the
    reader the way back reopens the thread in (folding.js, `settleThread`). The reply's
-   options are read as the box is made, once for the view. */
+   options are read as the box is made, once for the view. What the box's empty words
+   say reads the thread as the thread draws it (`drawn`), held news included, so they
+   agree with its settlement and notice, as a card's own words do (`#createReply`). */
+/** @typedef {Omit<import("./replies.js").ReplyOptions, "hint" | "hintParts" | "hintLead"> & {
+ * hint?: (drawn: ThreadViewModel) => string,
+ * hintParts?: (drawn: ThreadViewModel) => unknown,
+ * hintLead?: (drawn: ThreadViewModel) => unknown}} ThreadReplyOptions */
 /** @typedef {{
  * head?: {news: HTMLElement, controls: HTMLElement},
- * reply?: {outlet: HTMLElement, options?: import("./replies.js").ReplyOptions},
+ * reply?: {outlet: HTMLElement, options?: ThreadReplyOptions},
  * quote?: boolean,
  * settles?: {landing: (resolved: boolean) => import("./folding.js").Landing | null,
  *   reader: import("../undo.js").Reader},
@@ -830,9 +836,6 @@ export class ThreadView {
     if (marginControls && model.news) measure(this.node, () => this.#watchMarginNews());
     else this.#releaseMarginNews();
     this.#continuity?.after(bodyPlace);
-    // The reply box's empty words follow the settlement (`#createReply`).
-    if (prior && Boolean(prior.resolved) !== Boolean(model.resolved))
-      this.#reply.sync();
     // A page thread whose render took the user's place puts them in its reply, or on
     // the thread itself.
     // Handing it on is the card's own act, which the list holding the card defers to.
@@ -1240,6 +1243,13 @@ export class ThreadView {
   /** @param {ThreadViewModel} model */
   #createReply(model) {
     const commands = this.#commands.reply;
+    const { hint, hintParts, hintLead, ...options } =
+      this.#outlets.reply?.options ?? {};
+    // The box's empty words say the thread as this view draws it, held news included,
+    // so they change with its settlement and notice, when the user shows the news, and
+    // not before. They read the drawn reading as a signal, so the box draws them again
+    // with each reading the thread draws.
+    const drawn = () => this.#shown.value;
     return createReplyView(
       model.key,
       {
@@ -1258,12 +1268,16 @@ export class ThreadView {
       },
       () => this.repaint(),
       {
-        hint: () => (this.#model?.resolved ? "Reply to reopen" : "Reply"),
+        hint: hint
+          ? () => hint(drawn())
+          : () => (drawn().resolved ? "Reply to reopen" : "Reply"),
+        ...(hintParts && { hintParts: () => hintParts(drawn()) }),
+        ...(hintLead && { hintLead: () => hintLead(drawn()) }),
         // A margin card moves with the send it presents (thread-preview.js).
         sending: () => this.#marginControls?.sending?.(),
         // A container standing the box in its own place says what it reads there and
         // how a send lands (`ThreadOutlets`, `reply`).
-        ...this.#outlets.reply?.options,
+        ...options,
         editLast: this.#rewrites.editLast,
       },
     );

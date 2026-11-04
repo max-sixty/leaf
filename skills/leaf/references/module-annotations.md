@@ -178,7 +178,9 @@ parts keeps about 12px of padding beside them (the worked example's `.reader`).
 a widget that draws the conversation's head itself, as Leaf's floating panel does:
 `head: {news, controls}` stands the notice of held news and Resolve on its head line,
 `reply: {outlet, options}` stands the reply box where it names, with the options
-`parts.reply` takes, `quote: true` quotes the words the thread is about over its
+`parts.reply` takes, its `hint`, `hintParts` and `hintLead` called with the thread as
+it is drawn, held news included, so the box's words agree with its Resolve and
+notice, `quote: true` quotes the words the thread is about over its
 messages, and `settles: {landing, reader: "primary"}` says where Resolve or Reopen
 takes the user: `landing(resolved)`, called as the press comes, returns `null` or a
 step Leaf runs once the settlement shows, which returns whether it moved the user, and

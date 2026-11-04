@@ -238,8 +238,8 @@ def install_tree(out: Path) -> Path:
 
 
 def checkout_leaf() -> Callable:
-    """Run `leaf` commands from this checkout, whose pages vendor its committed kernel
-    while that is current and its source modules otherwise."""
+    """Run `leaf` commands from this checkout, whose pages run its runtime's source
+    modules."""
     # `environment()` keeps the builder's harness session out of published version notes.
     return partial(leaf, LEAF_COMMAND, environment())
 

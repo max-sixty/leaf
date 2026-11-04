@@ -383,7 +383,7 @@ customElements.define(
           if (!choice || choice.closest("lf-playground") !== this) return;
           if (reachedForWords(choice) || worksInside(target, choice)) return;
           /** @type {HTMLInputElement | null} */
-          const radio = choice.querySelector(":scope > .choice > input");
+          const radio = choice.querySelector(":scope > .lf-choice > input");
           if (!radio) throw new Error("A playground choice needs its rendered radio");
           focusDestination(radio, "press");
           radio.click();

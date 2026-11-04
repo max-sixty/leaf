@@ -30,7 +30,6 @@ from leaf_dev.arms import (
     run_directory,
     run_leaf,
 )
-from leaf_dev.commands.distribution import current_kernel
 from leaf_dev.example_data import named_source
 
 OUT = ROOT / ".tmp" / "bench-check"
@@ -57,7 +56,6 @@ def bench_check(base: str) -> None:
     arms = choose_arms(base, out)
     pages = {}
     for arm, version in arms.items():
-        current_kernel(version.directory)
         for name in PAGES:
             page = pages[arm, name] = out / "pages" / arm / name
             page.parent.mkdir(parents=True, exist_ok=True)

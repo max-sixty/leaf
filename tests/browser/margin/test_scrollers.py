@@ -793,9 +793,8 @@ def test_a_pin_in_a_pane_rides_an_anchored_carrier_through_boxes_that_scroll_not
             ), wrapper
 
 
-@pytest.mark.parametrize("change", ["size", "layout"])
 def test_a_bounded_region_reflows_its_margin_without_resizing_the_page(
-    browser, serve, change
+    browser, serve, subtests
 ):
     """A fixed-size pane can move its target through a sibling's resize or a
     same-size view rearrangement. The geometry owner hears the size owner and the
@@ -819,35 +818,37 @@ def test_a_bounded_region_reflows_its_margin_without_resizing_the_page(
         hit: row.contains(document.elementFromPoint(r.left + r.width / 2,
                                                    r.top + r.height / 2))};
     }"""
-    before = page.evaluate(reading)
-    page.evaluate(
-        """async change => {
-          const target = document.getElementById('pane-top');
-          if (change === 'size') target.previousElementSibling.style.height = '224px';
-          else {
-            target.setAttribute('data-offset', '');
-            const {layoutChanged} = await window.__lfWidgetApi();
-            await layoutChanged(target);
-          }
-        }""",
-        change,
-    )
-    rendered(page)
-    after = page.evaluate(reading)
-    assert after["height"] == before["height"]
-    if change == "size":
-        assert after["top"] - before["top"] == pytest.approx(24, abs=1)
-        assert after["offset"] == pytest.approx(before["offset"], abs=1)
-    else:
-        # Moving only the paragraph can change the clear seat around it. The layout
-        # notification must settle that seat as a full geometry reading would.
-        assert after["top"] != before["top"]
-        page.evaluate("""async () => {
-          const {layoutChanged} = await window.__lfWidgetApi();
-          layoutChanged(document.body);
-        }""")
-        assert page.evaluate(reading) == after
-    assert after["hit"]
+    for change in ("size", "layout"):
+        with subtests.test(change=change):
+            before = page.evaluate(reading)
+            page.evaluate(
+                """async change => {
+                  const target = document.getElementById('pane-top');
+                  if (change === 'size') target.previousElementSibling.style.height = '224px';
+                  else {
+                    target.setAttribute('data-offset', '');
+                    const {layoutChanged} = await window.__lfWidgetApi();
+                    await layoutChanged(target);
+                  }
+                }""",
+                change,
+            )
+            rendered(page)
+            after = page.evaluate(reading)
+            assert after["height"] == before["height"]
+            if change == "size":
+                assert after["top"] - before["top"] == pytest.approx(24, abs=1)
+                assert after["offset"] == pytest.approx(before["offset"], abs=1)
+            else:
+                # Moving only the paragraph can change the clear seat around it. The layout
+                # notification must settle that seat as a full geometry reading would.
+                assert after["top"] != before["top"]
+                page.evaluate("""async () => {
+                  const {layoutChanged} = await window.__lfWidgetApi();
+                  layoutChanged(document.body);
+                }""")
+                assert page.evaluate(reading) == after
+            assert after["hit"]
 
 
 _PARAGRAPH = (

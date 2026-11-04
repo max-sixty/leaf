@@ -80,7 +80,7 @@ def acting_on(page_dir: Path) -> None:
 
 def launched() -> float:
     """When this `leaf` command started: its launcher's start where `bin/leaf`'s uv
-    runs this process as `python -m leaf` with the same arguments, else this
+    runs this process as `python -P -m leaf` with the same arguments, else this
     process's own."""
     import psutil
 
@@ -88,7 +88,7 @@ def launched() -> float:
     args = process.cmdline()[1:]
     parent = process.parent()
     words = parent.cmdline() if parent is not None else []
-    if args[:2] == ["-m", "leaf"] and words[-len(args) :] == args:
+    if args[:3] == ["-P", "-m", "leaf"] and words[-len(args) :] == args:
         return parent.create_time()
     return process.create_time()
 

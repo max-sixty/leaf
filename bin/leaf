@@ -32,7 +32,8 @@
 # enough to pass the ~127-byte shebang limit — a harness cache path reaches it —
 # uv writes the console script as a `/bin/sh` trampoline, and `-m` leaves no
 # trampoline to reason about. `__main__.py` fixes `prog_name`, so usage lines
-# still read `leaf`. Which harness session is running, and under what id, is the
+# still read `leaf`. `-P` keeps the caller's working directory off the module
+# path, where a `leaf.py` would stand in for the package. Which harness session is running, and under what id, is the
 # hook registration's and payload's to say, or a shell command's environment's
 # (`harness.py`), never this launcher's.
 #
@@ -47,7 +48,7 @@
 # standalone program answers the hook on that environment's interpreter
 # (`state.answer_gated_hook`). In a session holding no claim it returns before
 # the package's imports; otherwise it starts the whole hook on that interpreter,
-# running `uv sync` first only where the lock changed since its last sync.
+# going through uv first only where the lock changed since uv last synced it.
 # Worker tool batches also stop at this gate: only the parent receives the input
 # its session claimed.
 #
@@ -72,4 +73,4 @@ fi
 if [ "${1:-}" = hook ] && [ "${4:-}" = --if-claimed ] && [ -x "$python" ]; then
     exec "$python" -S "$state" "$@"
 fi
-exec uv run -q --no-dev --project "$root" python -m leaf "$@"
+exec uv run -q --no-dev --project "$root" python -P -m leaf "$@"

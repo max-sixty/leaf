@@ -915,21 +915,24 @@ def main() -> None:
         end_harness_instance(payload.get("session_id") or "")
 
 
-def answer_gated_hook(argv: list[str]) -> None:
+def answer_gated_hook(argv: list[str], *, synced: str | None = None) -> None:
     """Answer a hook registered `--if-claimed`, which `bin/leaf` hands here on the
     environment's interpreter, started with -S so no site packages load. Where the
     session holds no claim, or the payload is a worker's tool batch, it returns at
     once: a hook it skips takes about 25 ms in place of about 70 for starting the
     package (measured on macOS). Otherwise it starts Leaf on that interpreter
-    (`python -m leaf`) with the payload, as `uv run` would without uv's own start.
-    A payload it can't read runs the hook whole, which reports it.
+    (`python -m leaf`) with the payload, as `uv run` would without uv's own start,
+    and with -P, so a `leaf.py` in the harness's working directory can't stand in
+    for the package. A payload it can't read runs the hook whole, which reports it.
 
-    `uv run` syncs the environment to the lock before each run. This program runs
-    `uv sync` only where `uv.lock` or `pyproject.toml` differs, by modification
-    time or size, from `.venv/leaf-synced`, which records both as they were
-    before the last sync it ran, so a change landing during that sync takes
-    another. A copy Claude Code installed never changes, so it syncs once; a
-    checkout syncs after an update changes its lock."""
+    `uv run` syncs the environment to the lock before each run. This program goes
+    through it only where `uv.lock` or `pyproject.toml` differs, by modification
+    time or size, from `.venv/leaf-synced`: it hands itself to `uv run`, which
+    syncs, takes the harness's signals and starts this program again, `synced` to
+    the two files as they were before the sync. That run records them only if
+    they still are, so a change landing during the sync takes another. A copy
+    Claude Code installed never changes, so it syncs once; a checkout syncs after
+    an update changes its lock."""
     text = sys.stdin.read()
     try:
         payload = json.loads(text)
@@ -947,16 +950,15 @@ def answer_gated_hook(argv: list[str]) -> None:
         for info in map(
             os.stat, (PLUGIN_ROOT / "uv.lock", PLUGIN_ROOT / "pyproject.toml")
         )
-    ).encode()
-    if _read_bytes(record) != inputs:
-        import subprocess
-
-        sync = ["uv", "sync", "--inexact", "-q", "--no-dev", "--project"]
-        synced = subprocess.run([*sync, str(PLUGIN_ROOT)], stdout=sys.stderr)
-        if synced.returncode:
-            sys.exit(synced.returncode)
-        replace_bytes([(record, inputs, False)])
-    exec_with_input([str(environment / "bin" / "python"), "-m", "leaf", *argv], text)
+    )
+    if synced == inputs:
+        replace_bytes([(record, inputs.encode(), False)])
+    elif synced is None and _read_bytes(record) != inputs.encode():
+        uv_run = ["uv", "run", "-q", "--no-dev", "--project", str(PLUGIN_ROOT)]
+        gate = ["python", "-S", __file__, "synced", inputs]
+        exec_with_input([*uv_run, *gate, *argv], text)
+    python = str(environment / "bin" / "python")
+    exec_with_input([python, "-P", "-m", "leaf", *argv], text)
 
 
 def _read_bytes(path: Path) -> bytes | None:
@@ -983,5 +985,7 @@ def exec_with_input(
 if __name__ == "__main__":
     if sys.argv[1:2] == ["hook"]:
         answer_gated_hook(sys.argv[1:])
+    elif sys.argv[1:2] == ["synced"]:
+        answer_gated_hook(sys.argv[3:], synced=sys.argv[2])
     else:
         main()

@@ -49,15 +49,14 @@ from leaf_dev.commands.scaling import (
 )
 
 PATHS = ("state", "append", "delivery", "agent", "thread", "activate")
-# A click's paths: admitting its event and the reading the server answers with. Root
-# `AGENTS.md`, "Responsiveness", puts that reading on screen within `BUDGET_MS` at
-# `REFERENCE`, and after `SESSION_REFERENCE` events on the session's page; it holds
-# the agent's paths only to growing no faster than the page. Admission reads the page
-# as a reading does, so on the session's page both may grow with the log.
+# A click's paths: admitting its event and computing the reading the server answers
+# with. Root `AGENTS.md`, "Responsiveness", puts that reading on screen within
+# `BUDGET_MS`, so the two together take no more at `REFERENCE`; it holds the agent's
+# paths only to growing no faster than the page. Admission reads the page as a
+# reading does, so on the `events` page both may grow with the log.
 CLICK = ("append", "state")
 RUNS = 3
 BUDGET_MS = 100
-SESSION_REFERENCE = 1024
 # How many of the largest sizes an exponent is fitted over: 256 to 1,600, a ratio of
 # 6.25. Over three, a ratio of 3.1, a host at load 50 fitted linear costs past 1.5.
 FITTED = 4
@@ -323,25 +322,29 @@ def measure(
     return rows, {path: (before, after) for path, (before, after) in profiled.items()}
 
 
-def failures(collection: Collection, rows: list[dict]) -> dict[str, dict]:
-    """Each path of `collection`'s `rows` that breaks root `AGENTS.md`,
-    "Responsiveness", with its readings and why: growth above the smallest page
-    fitting an exponent past `SUPERLINEAR`, or a click's path taking more than
-    `BUDGET_MS` at `REFERENCE`, or at `SESSION_REFERENCE` on the session's page."""
+def failures(rows: list[dict]) -> dict[str, dict]:
+    """Each path in `rows` that breaks root `AGENTS.md`, "Responsiveness", with its
+    readings and why: a path whose growth above the smallest page fits an exponent
+    past `SUPERLINEAR`, and `click` where a click's paths together take more than
+    `BUDGET_MS` at `REFERENCE`."""
     sizes = [row["n"] for row in rows]
-    reference = SESSION_REFERENCE if collection.session else REFERENCE
     failed = {}
     for path in PATHS:
         if path not in rows[0]:
             continue
         readings = [row[path] for row in rows]
         slope = exponent(path, sizes, readings, FITTED)
-        at = dict(zip(sizes, readings, strict=True))
-        why = []
         if slope is not None and slope > SUPERLINEAR:
-            why.append(f"growth fits exponent {slope:.2f}, past {SUPERLINEAR}")
-        if path in CLICK and at.get(reference, 0) > BUDGET_MS:
-            why.append(f"{at[reference]:.0f} ms at {reference}, over {BUDGET_MS} ms")
-        if why:
-            failed[path] = {"by size": at, "exponent": slope, "why": "; ".join(why)}
+            failed[path] = {
+                "by size": dict(zip(sizes, readings, strict=True)),
+                "exponent": slope,
+                "why": f"growth fits exponent {slope:.2f}, past {SUPERLINEAR}",
+            }
+    click = {row["n"]: sum(row[path] for path in CLICK) for row in rows}
+    if click.get(REFERENCE, 0) > BUDGET_MS:
+        failed["click"] = {
+            "by size": click,
+            "why": f"{' + '.join(CLICK)} take {click[REFERENCE]:.0f} ms at {REFERENCE},"
+            f" over {BUDGET_MS} ms",
+        }
     return failed

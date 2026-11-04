@@ -74,11 +74,10 @@ applying a reading of it, grow no faster than the page times the logarithm of it
 size. The server admits each event against such a reading, so its work per event
 may grow with the events the log holds. On the largest page `leaf-dev scaling`
 generates, a keystroke and a wheel step each fit in 8 ms of main-thread time, and a
-click shows the server's reading within 100 ms, as it also does once the session's
-log holds 1,024 events. A step
-that walks one of those collections for each member of another, as finding each
-obligation's heading by reading every heading did, grows with the square of the
-page. So does a style or layout pass forced once per element, since each pass can
+click shows the server's reading within 100 ms. A step that walks one of those
+collections for each member of another, as finding each obligation's heading by
+reading every heading did, grows with the square of the page. So does a style or
+layout pass forced once per element, since each pass can
 cover the whole page (`browser/AGENTS.md`, "Runtime ownership"). `leaf-dev
 scaling` measures how each cost grows with the page.
 

@@ -27,8 +27,7 @@ another. Fitting the cost itself would let fixed work hide that: 30 ms per click
 --server times the server's paths on each page instead, in this process with no
 browser (`leaf_dev.server_scaling` names the paths and how it reads them), and names
 each path that breaks the rule: growth fitting an exponent above SUPERLINEAR, or a
-click's path taking more than its budget at REFERENCE, or after
-`server_scaling.SESSION_REFERENCE` events on the session's page. The daily
+click's paths together taking more than their budget at REFERENCE. The daily
 `tests/journeys/test_server_scaling.py` fails those.
 
 --base also measures the merge base with main (or REF), chosen as every A/B command
@@ -274,14 +273,11 @@ def exchange(m: int) -> list[dict]:
 class Collection(NamedTuple):
     """A page that holds `n` of one collection and a fixed amount of the rest: its
     authored markup, the events its log holds after it, and how many versions of
-    the page are saved before the log. `session` marks the page that holds the same
-    at every size while its log grows, so what grows with `n` is only how long the
-    session has run."""
+    the page are saved before the log."""
 
     authored: Callable[[int], str]
     log: Callable[[int], list[dict]] = lambda _: []
     versions: Callable[[int], int] = lambda _: 1
-    session: bool = False
 
     def sources(self, n: int) -> list[str]:
         """Each saved version's markup, oldest first: the authored page, its heading
@@ -326,7 +322,6 @@ COLLECTIONS: dict[str, Collection] = {
     "events": Collection(
         lambda _: ask_sections(16),
         lambda n: [pick(k % 16 + 1, k % 4 + 1) for k in range(n)],
-        session=True,
     ),
     "revisions": Collection(
         lambda _: ask_sections(16),
@@ -635,7 +630,7 @@ def scale_server(axes: Iterable[str], sizes: list[int], profile: bool, run: Path
         results[axis] = rows
         paths = {path: f"{path} ms" for path in PATHS if path in rows[0]}
         click.echo(table(axis, rows, "events", paths, FITTED))
-        for path, failure in failures(COLLECTIONS[axis], rows).items():
+        for path, failure in failures(rows).items():
             click.echo(f"  {path}: {failure['why']}")
         click.echo()
         if profile:

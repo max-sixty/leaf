@@ -106,8 +106,9 @@
  *   and its head line moves with it: news, such as an answer growing a thread, carries
  *   the thread's presses up with its name. A press on the head line holds the view's
  *   height as it acts, so the presses there stay under the pointer for the next press,
- *   as a press in the view holds it (`judgePress`), and Resolve opens the next thread
- *   at the height the resolved one stood at. It lasts while it is used: Escape or a press on the page puts it
+ *   as a press in the view holds it (`judgePress`); Resolve, which takes the thread
+ *   away, opens the next one at its own height (`resolveLanding`). It lasts while it
+ *   is used: Escape or a press on the page puts it
  *   away, Escape once the caret has
  *   left the field, since the caret is the innermost thing open, and travel to a
  *   place on the page it would stand over once landed puts it away, so an `m` walk
@@ -171,10 +172,15 @@
  * height as they act, the leaf's menu holds what it showed while it stands, and a
  * control the user pressed in a thread stays where it was (browser/AGENTS.md, "The
  * page holds still under the user's aim"). Resolving a thread opened from Threads moves the user on to the next
- * one (`resolveLanding`), opened at the height the resolved one stood at, so its
- * Resolve stands under the pointer. That Resolve is the press's own result and takes
- * the next press at once, as the user chose on 31 October. Rejected: holding a control
- * that arrives under the pointer inert until the pointer moves.
+ * one (`resolveLanding`), a view of its own as tall as what it holds, so its head line
+ * stands where that height puts it: the press took the pressed Resolve away, and the
+ * next thread is its result, which the user said on 31 October is fine. A control
+ * that arrives under the pointer takes the next press at once, as the user chose then.
+ * Rejected: holding such a control inert until the pointer moves; and opening the next
+ * thread at the height the resolved one stood at, so Resolve stayed under the pointer
+ * (#4878), which the user rejected on 3 November: a run of Resolves showed every
+ * thread at the first one's height, cut off or with room under it, until their next
+ * turn, and a key's Resolve, which aims at nothing, held it too.
  *
  * Every change of the box's layout takes effect in one step, and what the user sees
  * then travels from where it was drawn to where it stands, by one model
@@ -1614,16 +1620,13 @@ export function createFloatingPanel({
       threads().filter((candidate) => !candidate.resolved),
       placedAt,
     );
-  // Resolve stands on the view's head line, which moves as the view's height does, and
-  // a user resolving threads in turn presses it again: the next thread opens at the
-  // height the resolved one stood at as the press came, held as any press on the head
-  // line holds its view (`holdThread`), so Resolve stays under the pointer.
+  // The next thread is a fresh opening, as tall as what it holds (the header records
+  // why its Resolve doesn't stay under the pointer).
   /** @param {ReturnType<typeof readThreads>["threads"][number]} thread */
   function resolveLanding(thread) {
     const route = trail.value.at(-1);
     const fromThreads = trail.value.at(-2)?.view === "threads";
     const at = openThreads().indexOf(thread);
-    const height = openView()?.getBoundingClientRect().height ?? null;
     const mayLand = retainUserIntent();
     return () => {
       if (!mayLand() || trail.value.at(-1) !== route) return false;
@@ -1631,7 +1634,6 @@ export function createFloatingPanel({
       const next = fromThreads ? (kept[at] ?? kept[at - 1]) : null;
       if (next) {
         open({ view: "thread", thread: next.key }, { replace: true, focus: false });
-        if (holdThread(height)) paint();
         const view = shownView();
         if (view) focusDestination(view, "move");
       } else back();
@@ -1848,8 +1850,7 @@ export function createFloatingPanel({
   // inside the view, brought into sight as the press takes the user there: Next unread
   // to a reply a summary held, and the held news's notice to the first message it
   // showed (`landing`); news that changed messages in place shows in place. The
-  // presses beside it stay under the pointer, Resolve for the next thread among them
-  // (`resolveLanding`).
+  // presses beside it stay under the pointer.
   // A press on the name holds nothing, as words in the view don't. Rejected: the news
   // growing the view, which carried Resolve and Close up from beside the notice.
   head.addEventListener(
@@ -3609,8 +3610,7 @@ export function createFloatingPanel({
     const said = message
       ? ""
       : asking
-        ? messageReading(asking, { reactions: asking.reactions, workflows: [] }).body
-            .plainText
+        ? messageReading(asking, { workflows: [] }).body.plainText
         : record?.prompt?.text;
     const prompt = said && said.trim() !== title.trim() ? said : "";
     // The other questions the user answers at this card's place (`also`): further
@@ -3830,10 +3830,7 @@ export function createFloatingPanel({
                 data-lf-message=${asked.key}
               ></div>`
             : html`<p class="lf-fp-prompt">
-                ${
-                  messageReading(asked, { reactions: asked.reactions, workflows: [] })
-                    .body.plainText
-                }
+                ${messageReading(asked, { workflows: [] }).body.plainText}
               </p>`,
         )}
         <div class="lf-fp-answers">
@@ -4429,9 +4426,13 @@ export function createFloatingPanel({
                 // the page once the reader has drawn the view gone, and the route
                 // lands in it there; where the page draws no view of the thread, as a
                 // window with no room for the rail does, on its place
-                // (thread/destination.js, `page`).
+                // (thread/destination.js, `reader: "page"`).
                 void present({ release: true }).then(() =>
-                  threadActions.open(thread.key, { part: null, intent, page: true }),
+                  threadActions.open(thread.key, {
+                    part: null,
+                    intent,
+                    reader: "page",
+                  }),
                 );
               }}
             ></button>`
@@ -4452,6 +4453,7 @@ export function createFloatingPanel({
             resolved: Boolean(thread.resolved),
             prepareLanding: () =>
               thread.resolved ? reopenLanding() : resolveLanding(thread),
+            reader: "primary",
             ...settlement,
           }).catch(() => {});
         }}

@@ -2146,10 +2146,15 @@ def test_browser_state_is_the_same_snapshot_as_an_accepted_action(server, page_d
     )
 
     assert status == 200, body
-    state = json.loads(body)["state"]
-    assert state["since"]["through_seq"] == held["through_seq"]
-    [accepted] = state["events"]
+    tail = json.loads(body)["state"]
+    assert tail["since"] == {"key": held["key"]}
+    [accepted] = tail["events"]
     assert accepted["attempt"] == sent["attempt"]
+    assert ["browser", "views", "1", "undo"] in [
+        change["at"] for change in tail["patch"]
+    ]
+    # The whole reading at the same position, as the tab completes it.
+    state = json.loads(fetch(f"{server}/api/state")[1])
     browser = state["browser"]
     view = browser["views"]["1"]
     [entry] = view["document"]["projection"]["entries"]

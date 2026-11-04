@@ -4,12 +4,12 @@
 
    The panel stands on the page's own ground, set off by a hairline and the faintest
    shadow, with 12px corners: part of the page rather than a widget laid on it. Its
-   controls are set in the interface's compact font (`--font-compact`, base.css), with
+   controls are set in the interface's compact font (`--font-compact`, tokens.css), with
    the small font for what qualifies them, as every other list's ends and headings do,
    and what anyone wrote (questions, messages, a plan) in a thread's,
    `--font-message`; none of it takes the page's prose face. It once set its own 13px and
    12px, which put its qualifiers half a pixel larger than the headings and statuses
-   it shares with the other lists. Three inks: the ink, the muted (`--muted`, base.css)
+   it shares with the other lists. Three inks: the ink, the muted (`--muted`, tokens.css)
    for what qualifies a line, as every list's does, and the
    accent for what is on the user, with the empty field's status a step dimmer at 62%
    (`--lf-fp-quiet`). The status is as dim as WCAG AA's 4.5:1 for text lets it be on the
@@ -773,6 +773,22 @@
     font: var(--font-message);
     color: var(--muted);
   }
+  /* The row holds one line. A notice's words longer than the room the field gives it
+     end in an ellipsis, and its press stays whole; wrapped, they took two lines and
+     stood Undo over its key. */
+  .lf-fp-row-notice-face {
+    max-width: 100%;
+    > * {
+      flex: none;
+    }
+  }
+  .lf-fp-row-notice-face > .lf-fp-row-notice-says {
+    flex: 0 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
   .lf-fp-row-notice-sep {
     color: var(--lf-fp-quiet);
   }
@@ -1165,18 +1181,25 @@
     scrollbar-width: thin;
   }
   /* A view holding focus is where keys act. One a pointer opened wears no ring, since
-     nothing in it was chosen yet; one a key came back to, as Escape does from a
-     thread's reply to its thread, wears it as a card's thread does, on the stage the
-     view fills, since a thread's view fades out its own top edge (below). The stage
-     runs to the panel's edges, so the ring stands on a box of its own a gap inside
-     them, in the view's padding, one band inside that box's edge and rounded as the
-     panel's other rings are: drawn on the stage's edge, it ran along the panel's
-     border and was cut square above the crumb. */
+     nothing in it was chosen yet; one a key came to, as an empty Threads is by `g T`,
+     wears it on the stage the view fills. The stage runs to the panel's edges, so the
+     ring stands on a box of its own a gap inside them, in the view's padding, one band
+     inside that box's edge and rounded as the panel's other rings are: drawn on the
+     stage's edge, it ran along the panel's border and was cut square above the crumb.
+     A thread's view wears none, however focus came to it. The user chose that on
+     3 Nov 2026; it departs from the visible focus browser/AGENTS.md asks of a scroller
+     ("A region that must scroll behaves like the document").
+     TODO: how Leaf draws focus rings is still being decided, so this may change. */
   .lf-fp-view:focus {
     outline: none;
     box-shadow: none;
   }
-  .lf-fp-stage:has(> .lf-fp-view[data-lf-focus-visible]:not([data-lf-leaving]))::after {
+  .lf-fp-stage:has(
+      > .lf-fp-view[data-lf-focus-visible]:not(
+          [data-lf-leaving],
+          [data-lf-route="thread"]
+        )
+    )::after {
     content: "";
     position: absolute;
     inset: 4px;

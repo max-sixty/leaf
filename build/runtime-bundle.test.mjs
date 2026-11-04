@@ -1,4 +1,4 @@
-/** The committed kernel shares one state instance with native package modules. */
+/** The kernel shares one state instance with native package modules. */
 import assert from "node:assert/strict";
 import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";

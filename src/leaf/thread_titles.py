@@ -63,11 +63,11 @@ which no App Server setting leaves out (codex-cli 0.160). Every harness answers 
 the same schema, which Pi is told in its system prompt (`inference.pi_generate`).
 The request runs beside the agent's work and never delays it.
 
-The title is written as the session that holds the page's claim, and only while the
-thread is still untitled (`thread.name_untitled`), so a name the agent gave first
-stands, and an agent's reply that comes later leaves this one in place. A request
-that fails or finds no words leaves the thread untitled, and tells the caller's
-`record`. A delivery the agent answers with its own reply asks it to name an
+The title is fitted to one line and the title limit (`thread.fit_title`), and written
+as the session that holds the page's claim, and only while the thread is still
+untitled (`thread.name_untitled`), so a name the agent gave first stands, and an
+agent's reply that comes later leaves this one in place. A request that fails or
+finds no words leaves the thread untitled, and tells the caller's `record`. A delivery the agent answers with its own reply asks it to name an
 untitled thread; one a Codex turn's final message answers does not, so its thread
 stays untitled until the user's next message in it asks again. The retry above makes
 that rare: only a refusal past its cap, or a failure of another kind, leaves one.
@@ -85,7 +85,7 @@ from .inference import RateLimited
 from .interaction_log import append_interactions
 from .page_view import published_threads
 from .service import PageTransaction
-from .thread import name_untitled
+from .thread import fit_title, name_untitled
 from .thread_context import thread_names
 
 INSTRUCTIONS = (
@@ -149,7 +149,7 @@ def title_reading(reading: dict) -> dict:
     """Turn a structured inference result into title diagnostics."""
     value = reading.pop("value")
     usage = reading.pop("usage")
-    return {"title": value["title"].strip(), **reading, **usage}
+    return {"title": value["title"], **reading, **usage}
 
 
 def title_generator(infer: Callable[..., dict]) -> Generate:
@@ -169,14 +169,15 @@ def app_server_title(endpoint: str) -> Generate:
 
 
 def write_title(page_dir: Path, thread: str, title: str, session_id: str) -> bool:
-    """Name `thread` as the page's claimant, unless it has a name or another
-    claimant; whether the name was written."""
+    """Name `thread` `title`, fitted to a title (`thread.fit_title`), as the page's
+    claimant, unless it has a name or another claimant; whether the name was
+    written."""
     with PageTransaction(page_dir) as page:
         claim = page.active_claim
         if claim is None or claim["id"] != session_id:
             return False
         identity = {"agent": claim["agent"], "session": claim["id"]}
-        return name_untitled(page, thread, title, identity) is not None
+        return name_untitled(page, thread, fit_title(title), identity) is not None
 
 
 def _name_thread(

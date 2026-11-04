@@ -777,9 +777,7 @@ test("a version being marked read reads read, outside the gesture ledger", () =>
     text: "Answer",
   };
   reading.browser.views[1].thread.threads = [
-    servedThread([root], {
-      unread: [{ message: "agent-root", version: "agent-root" }],
-    }),
+    servedThread([root], { unread: { "agent-root": "agent-root" } }),
   ];
   app.adopt(reading);
   const thread = () => app.read().effective.thread.all[0];
@@ -798,9 +796,7 @@ test("a version being marked read reads read, outside the gesture ledger", () =>
 
   // Marking read names one exact version; an edit's version is not it.
   const edited = structuredClone(reading);
-  edited.browser.views[1].thread.threads[0].unread = [
-    { message: "agent-root", version: "edit-2" },
-  ];
+  edited.browser.views[1].thread.threads[0].unread = { "agent-root": "edit-2" };
   app.adopt(edited);
   app.markRead(original);
   assert.equal(thread().msgs[0].unread, true);

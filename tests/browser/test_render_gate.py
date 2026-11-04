@@ -58,11 +58,9 @@ from render_cases_widgets import (
     visual_widgets,
 )
 from render_harness import (
-    CORPUS_SOURCES,
     EXAMPLE_PACKAGES,
     LONG_PAGE,
     OPEN_THREAD_COUNT,
-    ROOT,
     TOKEN,
     _traffic,
     _until,
@@ -113,6 +111,7 @@ from leaf.render_gate import scheme as render_gate_scheme
 from leaf.render_gate import version as render_gate_model
 from leaf.render_gate.widget_quality import own_tags
 from leaf.validation import composition as validation_model
+from leaf_dev.example_data import authored_sources, named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -2605,7 +2604,7 @@ def test_every_idiom_in_the_catalog_stands_in_a_corpus_source(browser):
     assert idioms, "no idioms read — an empty catalog demonstrates itself"
     page = browser.new_page()
     held, invalid = set(), set()
-    for example in CORPUS_SOURCES:
+    for example in authored_sources():
         page.set_content(example.read_text(), wait_until="domcontentloaded")
         answer = page.evaluate(
             """(selectors) => {
@@ -3161,7 +3160,7 @@ def test_a_diagrams_reserved_box_includes_its_scrollbar_clearance(
     font metrics. Removing it exposes the natural drawing and native track sizes;
     the overlay and classic track share the drawing's own blank bottom padding.
     """
-    source = (ROOT / "examples" / "security-boundary.html").read_text()
+    source = named_source("security-boundary").read_text()
     # The example draws its five-step chain top-down so it fits a phone; drawn
     # left-to-right it runs past a 678px viewport and scrolls, which this test needs.
     source = source.replace("flowchart TD", "flowchart LR", 1).replace(
@@ -4008,7 +4007,7 @@ def test_the_layer_traps_no_margin_in_the_panel_it_draws(browser, serve):
     panel on nothing and reports the control as missing."""
     seeded = [
         path
-        for path in CORPUS_SOURCES
+        for path in authored_sources()
         if (log := path.with_suffix(".jsonl")).exists()
         and any(
             event.get("kind") == "comment" and event.get("anchor")

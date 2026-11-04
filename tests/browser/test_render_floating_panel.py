@@ -596,11 +596,12 @@ def test_a_resolve_s_notice_stands_for_that_resolve_alone(browser, serve):
     expect(title).to_have_text(first)
 
 
-def test_resolve_stays_under_the_pointer_as_the_next_thread_opens(browser, serve):
-    """Resolve stands on the thread's head line, which moves as the view's height does,
-    so the next thread Resolve opens takes the height the resolved one stood at, and a
-    user resolving threads in turn finds Resolve where they pressed it, in every frame
-    of the move, the thread held at that height going as the next one comes."""
+def test_resolve_opens_the_next_thread_as_tall_as_it_holds(browser, serve):
+    """The next thread Resolve opens is a view of its own, as tall as what it holds, by
+    a press on ✓ and by `r` alike: a longer one grows the view to show it whole and a
+    shorter one shrinks it, its ✓ standing where that height puts it. It once opened at
+    the height the resolved one stood at, so ✓ stayed under the pointer, which showed a
+    longer thread cut off behind a scroll until the user's next turn."""
     url = serve(LONG_PAGE)
     panel_comment(serve.page_dir, "Is the window long enough?")
     panel_comment(
@@ -614,32 +615,24 @@ def test_resolve_stays_under_the_pointer_as_the_next_thread_opens(browser, serve
     page.locator(".lf-fp-thread", has_text="Is the window long enough?").click()
     title = page.locator(".lf-fp-head .lf-fp-title")
     expect(title).to_have_text("Is the window long enough?")
+    thread = page.locator(panel_view("thread"))
     settle = page.locator(".lf-fp-head .lf-fp-settle")
+    fits = "(view) => view.scrollHeight - view.clientHeight < 1"
     settled(page)
-    pressed = settle.bounding_box()
+    short = thread.bounding_box()["height"]
     with sending(page, "the resolve"):
         settle.click()
     expect(title).to_contain_text("Should the mobile cohort wait?")
     settled(page)
-    assert settle.bounding_box() == pressed
-    page.evaluate(
-        """() => {
-            const tops = (window.lfTops = []);
-            const tick = () => {
-                const press = document.querySelector('.lf-fp-head .lf-fp-settle');
-                if (press) tops.push(press.getBoundingClientRect().top);
-                if (!window.lfStop) requestAnimationFrame(tick);
-            };
-            requestAnimationFrame(tick);
-        }"""
-    )
+    assert thread.evaluate(fits)
+    assert thread.bounding_box()["height"] > short
+    expect(thread).to_be_focused()
     with sending(page, "the second resolve"):
-        settle.click()
+        page.keyboard.press("r")
     expect(title).to_have_text("Who watches the weekend?")
     settled(page)
-    tops = page.evaluate("() => { window.lfStop = true; return window.lfTops; }")
-    assert settle.bounding_box() == pressed
-    assert {round(top - pressed["y"], 1) for top in tops} == {0}, tops
+    assert thread.evaluate(fits)
+    assert thread.bounding_box()["height"] == short
 
 
 def test_the_field_is_the_thread_s_reply_box(browser, serve):

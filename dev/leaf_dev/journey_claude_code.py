@@ -118,6 +118,7 @@ import psutil
 
 from leaf.delivery import DELIVERY, delivery_pointer_prompt
 from leaf.harness import (
+    NUDGE_WORDS,
     ClaudeCodeHarness,
     claude_code_live_turn,
     claude_code_registry,
@@ -138,6 +139,7 @@ from leaf_dev.commands.journey import (
     user_at,
 )
 from leaf_dev.reply_phases import (
+    LEAF_WAKE,
     claude_code_debug_records,
     claude_code_records,
     ends_turn,
@@ -789,10 +791,9 @@ def leaf_rows(records: list[dict]) -> dict[str, int]:
         text = json.dumps(content) if not isinstance(content, str) else content
         kind = (
             "Stop hook wake"
-            if "<summary>Leaf: new input</summary>" in text
+            if f"<summary>{LEAF_WAKE}</summary>" in text
             else "nudge"
-            # The words of `ClaudeCodeHarness.nudge`.
-            if "has new input, which arrives with this message." in text
+            if NUDGE_WORDS in text
             else None
         )
         if kind is not None and (

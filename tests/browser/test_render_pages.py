@@ -57,6 +57,7 @@ from render_harness import (
     TOKEN,
     consume_browser_errors,
     expect_open_threads,
+    fetch_whole_state,
     held_frames,
     http_error_console,
     leaf_page,
@@ -405,8 +406,7 @@ def test_a_failed_agent_root_restores_the_focused_first_message_composer(
         if broken:
             refuse(route)
             return
-        response = route.fetch()
-        state = response.json()
+        response, state = fetch_whole_state(route)
         view = state["browser"]["views"][str(state["active"]["revision"])]
         view["document"]["projection"]["entries"].append(None)
         broken.append(True)
@@ -485,8 +485,7 @@ def test_a_failed_resolution_restores_a_focused_inline_reply(browser, serve):
         if broken:
             refuse(route)
             return
-        response = route.fetch()
-        state = response.json()
+        response, state = fetch_whole_state(route)
         view = state["browser"]["views"][str(state["active"]["revision"])]
         view["document"]["projection"]["entries"].append(None)
         broken.append(True)
@@ -553,8 +552,7 @@ def test_failed_resolve_candidate_restores_focused_reply(browser, serve):
         if broken:
             refuse(route)
             return
-        response = route.fetch()
-        state = response.json()
+        response, state = fetch_whole_state(route)
         view = state["browser"]["views"][str(state["active"]["revision"])]
         view["document"]["projection"]["entries"].append(None)
         broken.append(True)
@@ -610,8 +608,7 @@ def test_a_failed_state_keeps_focus_in_the_open_versions_menu(browser, serve):
         if broken:
             refuse(route)
             return
-        response = route.fetch()
-        state = response.json()
+        response, state = fetch_whole_state(route)
         view = state["browser"]["views"][str(state["active"]["revision"])]
         view["document"]["projection"]["entries"].append(None)
         broken.append(True)
@@ -3435,8 +3432,7 @@ def test_a_reply_notice_survives_a_failed_state_and_keeps_its_agent(browser, ser
         if broken:
             refuse(route)
             return
-        response = route.fetch()
-        state = response.json()
+        response, state = fetch_whole_state(route)
         state["agent"] = "Rejected agent"
         rejected_version = {
             **state["versions"][-1],

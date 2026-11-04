@@ -902,12 +902,16 @@ const COLLAPSIBLE = new RegExp(`^(?:${COLLAPSE.source})$`, "u");
 // authored whitespace, mapped to the start of the segment after it. Text and its DOM
 // route come from this one walk,
 // so a consumer that paints a reading cannot disagree with `quoteFrom` about its words.
+// `visit` hears where each character stands and how much text precedes it, before the
+// character is read: a space a collapsed run or a block's edge leaves goes in ahead of the
+// next word, so it falls after that word's place.
 /** @typedef {{node: Text, offset: number}} TextPoint
- * @typedef {{text: string, start: TextPoint, end: TextPoint}} TextUnit */
-/** @overload @param {readonly Segment[]} segments @param {false} mapCharacters @returns {string} */
+ * @typedef {{text: string, start: TextPoint, end: TextPoint}} TextUnit
+ * @typedef {(node: Text, offset: number, length: number) => void} Visit */
+/** @overload @param {readonly Segment[]} segments @param {false} mapCharacters @param {Visit} [visit] @returns {string} */
 /** @overload @param {readonly Segment[]} segments @param {true} mapCharacters @returns {{text: string, units: TextUnit[]}} */
-/** @param {readonly Segment[]} segments @param {boolean} mapCharacters */
-function readSegments(segments, mapCharacters) {
+/** @param {readonly Segment[]} segments @param {boolean} mapCharacters @param {Visit} [visit] */
+function readSegments(segments, mapCharacters, visit) {
   let text = "";
   /** @type {TextUnit[]} */
   const units = [];
@@ -943,6 +947,7 @@ function readSegments(segments, mapCharacters) {
     let offset = seg.start;
     for (const character of seg.node.data.slice(seg.start, seg.end)) {
       const end = offset + character.length;
+      visit?.(seg.node, offset, text.length);
       push(character, { node: seg.node, offset }, { node: seg.node, offset: end });
       offset = end;
     }
@@ -1126,21 +1131,26 @@ function spanOf(reading, lo, hi) {
 // confirms it by also having nothing there, which exactly one occurrence does. Refusing to
 // read it that way handed the last copy's mark to the first.
 //
-// It asks the reading's quote text in place (`quoteIndex`), up to the side's fence, as a
-// neighbourhood reads it: the words there, less the space ahead of the first.
+// A side is read from the words the reading keeps (`wordsBetween`), the words a fresh read
+// of the span gives, until it holds as many code units as `want` — the unit endsWith
+// compares in. Only copies that need telling apart are asked about, but a capture asks
+// about every copy at each width it tries, and the copies of a repeated paragraph agree
+// for thousands of characters before one differs.
 /** @param {PageReading} reading @param {number} at @param {string} want @param {boolean} before */
 const holds = (reading, at, want, before) => {
-  const { text, positions } = quoteIndex(reading);
-  const near = /** @type {number} */ (positions[at]);
-  const far = /** @type {number} */ (positions[fenceEdge(reading, at, before)]);
-  if (before) {
-    const start = text[far] === " " ? far + 1 : far;
-    if (!want) return near <= start;
-    return near - start >= want.length && text.startsWith(want, near - want.length);
+  const edge = fenceEdge(reading, at, before);
+  // One character is all it takes to refute an empty side, and asking for none would answer
+  // with none: doubling zero never grows.
+  const enough = want.length || 1;
+  for (let raw = 2 * enough; ; raw *= 2) {
+    const lo = before ? Math.max(edge, at - raw) : at;
+    const hi = before ? at : Math.min(edge, at + raw);
+    const there = wordsBetween(reading, lo, hi);
+    if (there.length >= enough || (before ? lo === edge : hi === edge)) {
+      if (!want) return there === "";
+      return before ? there.endsWith(want) : there.startsWith(want);
+    }
   }
-  const start = text[near] === " " ? near + 1 : near;
-  if (!want) return far <= start;
-  return far - start >= want.length && text.startsWith(want, start);
 };
 // The fence a neighbourhood of `at` stops at: the last at or before it, else the reading's
 // start, or the first at or after it, else its end. Fences stand in reading order.
@@ -1167,84 +1177,82 @@ function fenceEdge({ fences, raw }, at, before) {
 // early on any neighbourhood holding an emoji — the window reached 24 of them while
 // holding 23 characters — so the browser stored a prefix a character short of the one the
 // file's reading stores for that same passage, and the two captures wrote different
-// anchors for one passage. `holds` asks in the other unit (`want.length`, the stored
-// string's own, which is what its endsWith compares in), and that is an over-decision this can
-// only over-satisfy: reaching N code points takes at least N code units, so its window is
-// never the one short of confirming that a repeated anchor would detach over.
-//
-// The text comes from the reading's words read once as `quoteFrom` reads them
-// (`quoteIndex`), so each neighbourhood is a slice of it rather than a new walk of the
-// segments it spans: a capture among words the page repeats asks for the neighbourhood
-// of every copy at every width it tries.
+// anchors for one passage.
 /** @param {PageReading} reading @param {number} at @param {number} want @param {boolean} before */
 export function neighbourhood(reading, at, want, before) {
   const edge = fenceEdge(reading, at, before);
-  const { text, positions } = quoteIndex(reading);
-  const near = /** @type {number} */ (positions[at]);
-  const far = /** @type {number} */ (positions[edge]);
-  // Two code units hold any code point, so a window of twice as many units as the
-  // points wanted holds them unless a collapsed space or the edge takes some.
-  for (let units = want * 2 + 2; ; units *= 2) {
-    const lo = before ? Math.max(far, near - units) : near;
-    const hi = before ? near : Math.min(far, near + units);
-    const slice = text.slice(lo, hi);
-    // A span's quote drops the space its first words would follow.
-    const words = slice.startsWith(" ") ? slice.slice(1) : slice;
-    if (
-      (before ? lo === far : hi === far) ||
-      words.length >= 2 * want ||
-      [...words].length >= want
-    )
-      return words;
+  for (let raw = want * 2; ; raw *= 2) {
+    const lo = before ? Math.max(edge, at - raw) : at;
+    const hi = before ? at : Math.min(edge, at + raw);
+    const text = quoteFrom(spanOf(reading, lo, hi));
+    if ([...text].length >= want || (before ? lo === edge : hi === edge)) return text;
   }
 }
-/** @type {WeakMap<readonly IndexedSegment[], {text: string, positions: Int32Array}>} */
-const quoteIndexes = new WeakMap();
-// The reading's words as `quoteFrom` reads the whole of them, once per reading, and where
-// each raw position falls in that text: after the words before it, and before the space
-// a collapsed run or a block's edge leaves ahead of the next word. A span's quote is that
-// text between its two positions, less a space at its start.
-/** @param {PageReading} reading */
-function quoteIndex(reading) {
+// The words of raw[lo..hi) as `quoteFrom` reads its span: the whole reading's words
+// between the two places, less the space ahead of the first.
+/** @param {PageReading} reading @param {number} lo @param {number} hi */
+function wordsBetween(reading, lo, hi) {
+  let words = "";
+  for (let k = Math.floor(lo / PIECE); k * PIECE < hi; k++) {
+    const { text, places } = wordsPiece(reading, k);
+    const start = k * PIECE;
+    const from = /** @type {number} */ (places[Math.max(lo, start) - start]);
+    const to = /** @type {number} */ (places[Math.min(hi, start + PIECE) - start]);
+    words += text.slice(from, to);
+  }
+  return words.startsWith(" ") ? words.slice(1) : words;
+}
+// The reading's words are kept in pieces of this much raw text, each read the first time
+// something asks for words in it, so a question about a few places reads only around them.
+const PIECE = 4096;
+/** @type {WeakMap<readonly IndexedSegment[], Map<number, {text: string, places: Int32Array}>>} */
+const readPieces = new WeakMap();
+// Piece `k`: the words the whole reading has for raw[k·PIECE..(k+1)·PIECE), read from a
+// little before it, and where each raw place in it falls among them, as `visit` hears it.
+/** @param {PageReading} reading @param {number} k */
+function wordsPiece(reading, k) {
   const { segments, raw } = reading;
-  let index = quoteIndexes.get(segments);
-  if (index) return index;
-  const positions = new Int32Array(raw.length + 1);
-  /** @type {string[]} */
-  const parts = [];
-  let length = 0;
-  let pending = false;
-  let at = 0;
-  /** @type {IndexedSegment | undefined} */
-  let previous;
-  for (const segment of segments) {
-    for (; at < segment.rawStart; at++) positions[at] = length;
-    if (
-      previous &&
-      length &&
-      (segment.breakBefore || segmentTextBlock(segment) !== segmentTextBlock(previous))
-    )
-      pending = true;
-    for (const character of segment.node.data.slice(segment.start, segment.end)) {
-      positions[at] = length;
-      if (COLLAPSIBLE.test(character)) {
-        if (length) pending = true;
-      } else {
-        if (pending) parts.push(" ");
-        length += pending ? 1 + character.length : character.length;
-        pending = false;
-        parts.push(character);
-      }
-      if (character.length === 2) positions[at + 1] = length;
-      at += character.length;
-    }
-    previous = segment;
+  let pieces = readPieces.get(segments);
+  if (!pieces) readPieces.set(segments, (pieces = new Map()));
+  const kept = pieces.get(k);
+  if (kept) return kept;
+  const lo = k * PIECE;
+  const hi = Math.min(raw.length, lo + PIECE);
+  // The read starts at the last word character before the piece, so it reaches the piece as
+  // the whole reading does: owing a space or not, after the same block.
+  let from = lo;
+  while (from > 0 && (raw[from - 1] === EDGE || COLLAPSIBLE.test(raw.charAt(from - 1))))
+    from--;
+  if (from > 0) from -= isPair(raw, from - 2) ? 2 : 1;
+  // A pair the piece's end divides is read whole here, and its second half is the next
+  // piece's start, where the words after the pair begin.
+  const end = isPair(raw, hi - 1) ? hi + 1 : hi;
+  const places = new Int32Array(hi - lo + 1).fill(-1);
+  /** @type {Text | undefined} */
+  let node;
+  let base = 0;
+  const text = readSegments(spanOf(reading, from, end), false, (at, offset, length) => {
+    if (at !== node) base = /** @type {number} */ (reading.positions.get((node = at)));
+    const place = base + offset - lo;
+    if (place >= 0 && place < places.length) places[place] = length;
+  });
+  // A place that holds no character — an edge between segments, a pair's second half, the
+  // piece's end — falls where the next character does.
+  let next = text.length;
+  for (let i = hi - lo; i >= 0; i--) {
+    const place = /** @type {number} */ (places[i]);
+    places[i] = next = place < 0 ? next : place;
   }
-  for (; at <= raw.length; at++) positions[at] = length;
-  index = { text: parts.join(""), positions };
-  quoteIndexes.set(segments, index);
-  return index;
+  const piece = { text, places };
+  pieces.set(k, piece);
+  return piece;
 }
+// Whether raw[i] and raw[i + 1] are the two halves of one character.
+/** @param {string} raw @param {number} i */
+const isPair = (raw, i) =>
+  i >= 0 &&
+  /[\uD800-\uDBFF]/.test(raw.charAt(i)) &&
+  /[\uDC00-\uDFFF]/.test(raw.charAt(i + 1));
 // `reading` with fences at the edges of the words `element` holds, so a neighbourhood
 // read from inside it stops there.
 /** @param {PageReading} reading @param {Element} element @returns {PageReading} */
@@ -1624,7 +1632,9 @@ export function findQuote(text, quote, anchor, within) {
   // occurrences overlapping within it are one candidate — which is the lead's own
   // repetition and not the passage's, since the walk still has to confirm the rest.
   // The occurrences are kept with the reading, since a capture resolves one quote at
-  // each width of context it tries, and a second exact one settles that none is unique.
+  // each width of context it tries. Context is read only to tell copies apart: a sole
+  // candidate is the answer whatever its neighbours say, and a second exact one settles
+  // that none is unique.
   const [pre, post] = [anchor.prefix ?? "", anchor.suffix ?? ""];
   const candidates = occurrences(text, quote, within ?? null, () => {
     const pattern = new RegExp(
@@ -1648,18 +1658,14 @@ export function findQuote(text, quote, anchor, within) {
     return found;
   });
   const exact = [];
-  for (const hit of candidates) {
+  for (const hit of candidates.length > 1 ? candidates : []) {
     if (!holds(text, hit.from, pre, true) || !holds(text, hit.to, post, false))
       continue;
     exact.push(hit);
     if (exact.length > 1) break;
   }
   const found =
-    exact.length === 1
-      ? exact[0]
-      : exact.length === 0 && candidates.length === 1
-        ? candidates[0]
-        : null;
+    candidates.length === 1 ? candidates[0] : exact.length === 1 ? exact[0] : null;
   // The characters the match covers, cut out of the index the same way a neighbourhood is —
   // walking the segments a second time to rebuild the span would be a second answer to
   // "which text is this", and the two disagree wherever an edge falls inside the match.

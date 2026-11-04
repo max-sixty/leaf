@@ -598,7 +598,13 @@ button.lf-inline-action,
    floor as its face.
 
    A control on this list leaves the floor's block axis (above) to its reach. No box
-   inherits that, so a control inside one keeps its own floor. */
+   inherits that, so a control inside one keeps its own floor.
+
+   Where a surface knows its control's face already meets the floor, the reach would
+   be the control's own box, so the surface drops it, as options.css does for Done
+   and, under a mouse, Add: each reach and its control are positioned boxes, which
+   Chromium's hit test visits on every call wherever the point is. A kind whose face
+   can run short, such as a mark or inline action, keeps its reach. */
 @property --lf-face-floor {
   syntax: "*";
   inherits: false;

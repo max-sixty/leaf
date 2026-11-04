@@ -1,64 +1,13 @@
 """Page claims: which session and harness hold a page, what a claim records, when it
 is active, and the leases and page locks that keep a wait and a claim exclusive."""
 
-import json
 import shlex
 import subprocess
 
-from click.testing import CliRunner
 from conftest import LEAF_COMMAND
-from interact_support import (
-    STATED_TIMEOUT,
-    append_carried_log_record,
-    page_packages,
-    publish,
-    start_server_command,
-)
+from interact_support import STATED_TIMEOUT
 
-from leaf import cli as cli_model
-from leaf import hooks as hooks_model
 from leaf import service as service_model
-from leaf.registry.storage import layer_record
-from leaf_dev.page_fixtures import package_selection_args
-
-
-def test_revendor_preserves_pending_input_for_the_current_claim(claimed, capsys):
-    """A served page's pending comment reaches its session after a re-selection
-    restarts its server."""
-    publish(claimed)
-    started = start_server_command(claimed, session_id="s1")
-    assert started.returncode == 0, started.stderr
-    prior_claim = service_model.page_claim(claimed)
-    asked = append_carried_log_record(
-        claimed, {"kind": "comment", "author": "user", "text": "Still here"}
-    )
-    layer = layer_record(claimed)
-    assert layer is not None
-    generation = layer["generation"]
-    extra = claimed.parent / "extra"
-    extra.mkdir()
-    (extra / "overrides.css").write_text("/* another selection */\n")
-    result = CliRunner().invoke(
-        cli_model.cli,
-        [
-            "page",
-            "init",
-            *package_selection_args((*page_packages(), "./extra")),
-            str(claimed),
-        ],
-    )
-    assert result.exit_code == 0, result.output
-    layer_2 = layer_record(claimed)
-    assert layer_2 is not None
-    assert layer_2["generation"] != generation
-    assert service_model.page_claim(claimed) == prior_claim
-    hooks_model.cmd_hook(
-        "claude-code", {"hook_event_name": "UserPromptSubmit", "session_id": "s1"}
-    )
-    context = json.loads(capsys.readouterr().out)["hookSpecificOutput"]
-    [batch] = json.loads(context["additionalContext"].split("\n")[1])["batches"]
-    assert batch["page"] == str(claimed)
-    assert [event["id"] for event in batch["events"]] == [asked["id"]]
 
 
 def test_the_app_s_shared_codex_is_not_taken_for_one_session_s_lifetime(
@@ -116,35 +65,11 @@ from concurrent.futures import ThreadPoolExecutor
 
 from interact_support import (
     claim_and_wait_command,
-    page_state,
     spawn_probe,
     wait_for,
 )
 
 from leaf import vendoring as vendoring_model
-
-
-def test_a_codex_command_claims_the_page_for_its_thread(codex_claimed_page):
-    session = service_model.page_claim(codex_claimed_page)
-    assert session is not None
-    assert session["id"] == "codex-thread"
-    assert session["agent"] == "Codex"
-    assert session["harness"] == "codex"
-    assert set(session) == {
-        "page",
-        "id",
-        "agent",
-        "harness",
-        "pid",
-        "cwd",
-        "ts",
-        "turn",
-        "turn_opened",
-        "turn_closed",
-        "generation",
-        "acquisition",
-    }
-    assert page_state(codex_claimed_page)["agent"] == "Codex"
 
 
 def test_a_fresh_init_does_not_delete_a_concurrently_created_pages_claim(

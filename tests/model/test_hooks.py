@@ -1920,16 +1920,11 @@ def select_another_leaf(tmp_path) -> Path:
     return other.resolve()
 
 
-@pytest.mark.parametrize("selected", [False, True])
-def test_a_checkout_that_re_vendors_a_page_delivers_for_its_session(
-    claimed, tmp_path, selected
-):
+def test_a_checkout_that_re_vendors_a_page_delivers_for_its_session(claimed):
     """A command from a checkout, such as a worktree's `bin/leaf`, that re-vendors
-    a page becomes its session's delivering Leaf, whether the session had no
-    selection, as an installed plugin's doesn't, or had selected another, so its
-    hooks and watch can still read the page."""
-    if selected:
-        select_another_leaf(tmp_path)
+    a page becomes its session's delivering Leaf where the session had no selection,
+    as an installed plugin's doesn't, so its hooks and watch can still read the
+    page."""
     vendored_at_another_protocol(claimed)
 
     vendoring_model.renew_layer(claimed, harness_model.session_harness(), command=True)

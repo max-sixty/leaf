@@ -62,7 +62,7 @@ def test_a_website_turn_posts_its_answer_when_the_move_is_settled_first(
     request.addfinalizer(watcher.close)
     # The send opens the new thread's view in the panel, its reply standing in the
     # field with the caret in it.
-    thread = page.locator(f'{PANEL_THREAD}[data-thread="{comment["id"]}"]')
+    thread = page.locator(f'{PANEL_THREAD}[data-lf-thread="{comment["id"]}"]')
     expect(thread).to_be_visible()
     # The user goes on writing in the reply, which the agent's resolve below must not
     # take from under them. The agent's reply joins the thread with its first words,
@@ -128,7 +128,7 @@ def test_a_website_turn_posts_its_answer_when_the_move_is_settled_first(
             for event in read_events(page_dir)
             if event["kind"] == "comment" and event["id"] != comment["id"]
         ]
-        other_thread = page.locator(f'{PANEL_THREAD}[data-thread="{other["id"]}"]')
+        other_thread = page.locator(f'{PANEL_THREAD}[data-lf-thread="{other["id"]}"]')
         expect(other_thread).to_be_visible()
 
     committed = page.evaluate("Date.now()")

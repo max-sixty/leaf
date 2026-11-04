@@ -546,14 +546,28 @@ def retractions(events: list, upto=None) -> dict:
     return at
 
 
+def _report_notes(events: list, upto):
+    """Each report id a note through revision `upto` settles, with that note."""
+    for event in events:
+        if event["kind"] == "note" and (upto is None or event["revision"] <= upto):
+            for identity in note_settlements(event, "report"):
+                yield identity, event
+
+
 def report_settlements(events: list, upto=None) -> dict:
     """Report event id → the greatest revision whose note settled it."""
     at = {}
-    for event in events:
-        if event["kind"] != "note" or (upto is not None and event["revision"] > upto):
-            continue
-        for identity in note_settlements(event, "report"):
-            at[identity] = max(at.get(identity, 0), event["revision"])
+    for identity, note in _report_notes(events, upto):
+        at[identity] = max(at.get(identity, 0), note["revision"])
+    return at
+
+
+def report_settled_at(events: list, upto=None) -> dict:
+    """Report event id → the seq of the first note that settled it: every prefix
+    of the log through that seq, and none shorter, reads it settled."""
+    at = {}
+    for identity, note in _report_notes(events, upto):
+        at[identity] = min(at.get(identity, note["seq"]), note["seq"])
     return at
 
 

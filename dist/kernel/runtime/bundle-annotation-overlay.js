@@ -5,7 +5,7 @@ import { chromeForeground, chromeRoot, exactTarget, passageGeometry, pointBand, 
 import { ANNOTATIONS_KEY } from "./bundle-restore-state.js";
 import { blockAt, elementFromPointAcross, labelWords, pageWords, quoteFrom, rangeOf, segmentsIn } from "./bundle-passages.js";
 import { anchorLabel, arrivalOf, carryingThreadPlace, claimSeatReplies, claimed, currentLocationThreadId, declareOffFlowSurface, declareSide, keepThreadLanding, pageCommand, pageRung, pageScope, pageSelection, placeKeeper, releaseAuthoredUnder, releaseReplies, revealHeld, rowWalk, selectionAnchor, showReturnTurn, threadFocusDestination, threadIdNamed, threadNamed } from "./bundle-data.js";
-import { SVG_NS, activateContributionControl, awaitingUser, canFold, choosePrimary, clearContributionControls, clusterProjection, contributionEntry, contributionEntryRecord, contributionEntrySource, dropStand, entryEngaged, entryHasMarginHost, focusedOfferOf, markerFace, materializeContributionControls, optionsOffered, paintGeometry, paintShape, paintStand, placement, presentContributionEntry, presentContributionReceipts, primaryReading, readingBehavior, readingChoices, readingContext, readingFace, readingKey, readingLabel, readingState, spokenContext, spokenSubject, standOver, syncContributionSelection, syncContributionUnread, threadReading, unreadIn } from "./bundle-page-layout.js";
+import { SVG_NS, activateContributionControl, awaitingUser, canFold, choosePrimary, clearContributionControls, clusterProjection, contributionEntry, contributionEntryRecord, contributionEntrySource, dropStand, entryEngaged, entryHasMarginHost, focusedOfferOf, markerFace, materializeContributionControls, optionsOffered, outlineChange, paintGeometry, paintShape, paintStand, placement, presentContributionEntry, presentContributionReceipts, primaryReading, readingBehavior, readingChoices, readingContext, readingFace, readingKey, readingLabel, readingState, spokenContext, spokenSubject, standOver, syncContributionSelection, syncContributionUnread, threadReading, unreadIn } from "./bundle-page-layout.js";
 import { boxMotion, paintTrace } from "./bundle-box-motion.js";
 import { THREAD_CARD, cardMeasure, cardMinimum, commentAttachment, commentBoundary, commentPlacement, commentReference, floatingGeometry, floatingPlacement, floatingSelections, floatingUi, layoutMarginRows, makeRoom, marginColumn, mountMarginLayer, paintedBox, registerMarginRow, scheduleMarginEntryLabels, scheduleMarginLayout, standsFolded, standsWithheld, syncMarginContentLayout, unregisterMarginRow } from "./bundle-comment-placement.js";
 
@@ -350,8 +350,8 @@ function createThreadPreview({ inventory, renderMarginThread, placedAt, scrollTh
 		session.stopFoot?.();
 		session.stopFoot = transcript ? keepFoot(transcript, { atEnd: true }) : null;
 		session.place = transcript ? placeKeeper(transcript, {
-			items: ".lf-msg[data-event]",
-			identity: (message) => message.getAttribute("data-event")
+			items: ".lf-msg[data-lf-event]",
+			identity: (message) => message.getAttribute("data-lf-event")
 		}) : null;
 		if (previewRegionMounted && transcript) {
 			let decided = "";
@@ -894,7 +894,7 @@ function createThreadPreview({ inventory, renderMarginThread, placedAt, scrollTh
 	}
 	function focusTarget(name, { part = null } = {}) {
 		const id = threadIdNamed(name);
-		const thread = [...previewList.querySelectorAll(".lf-page-thread")].find((candidate) => candidate.getAttribute("data-thread") === id);
+		const thread = [...previewList.querySelectorAll(".lf-page-thread")].find((candidate) => candidate.getAttribute("data-lf-thread") === id);
 		return thread ? threadFocusDestination(thread, {
 			part: part ?? "thread",
 			message: name
@@ -1842,7 +1842,9 @@ function createMarginProjection({ inventory, refreshInventory, renderAnnotations
 		const currentLocationShown = !marker && entry && marksFor(currentLocation).length > 0 && threadReading(entry)?.items.some((item) => item.thread.id === currentLocation);
 		const target = targetFor(entry) ?? null;
 		const obligationShown = target && target === currentLocationObligation();
-		highlight(drawingOnly || currentLocationShown || obligationShown ? null : target);
+		const changeSource = marker ? entry?.items.map((item) => sourceItem(item)).find((source) => source?.change) : null;
+		outlineChange(changeSource?.change && !changeSource.discloses?.()?.open ? changeSource.change : null);
+		highlight(changeSource || drawingOnly || currentLocationShown || obligationShown ? null : target);
 	}
 	function previewChanged() {
 		refreshHighlight();
@@ -1895,7 +1897,7 @@ function createMarginProjection({ inventory, refreshInventory, renderAnnotations
 		paintKeys();
 	}
 	function yieldPreview() {
-		const id = card.thread()?.getAttribute("data-thread");
+		const id = card.thread()?.getAttribute("data-lf-thread");
 		const inCard = currentLocationIn(preview);
 		const replying = card.replying();
 		const intent = retainUserIntent();
@@ -2059,7 +2061,7 @@ function createMarginProjection({ inventory, refreshInventory, renderAnnotations
 		return choice ? threadIdOf(choice) : null;
 	};
 	const threadIdsOf = (choice) => choice.items.map((item) => item.thread.id);
-	const seatedOnPage = (id) => claimed(id) || [...document.querySelectorAll(`.lf-page-thread[data-thread="${CSS.escape(id)}"]`)].some((seat) => closestAcross(seat, ".lf-thread-seat[data-lf-thread-seat]"));
+	const seatedOnPage = (id) => claimed(id) || [...document.querySelectorAll(`.lf-page-thread[data-lf-thread="${CSS.escape(id)}"]`)].some((seat) => closestAcross(seat, ".lf-thread-seat[data-lf-thread-seat]"));
 	const threadEntryAt = (node) => {
 		const ids = threadIdsAt(node);
 		const here = (entry) => {
@@ -2546,7 +2548,7 @@ function createVisualMarkPaint() {
 			const { overlay, shape, stand } = record;
 			const { rect, shapeKey } = placed;
 			element.classList.toggle(PROJECTED, true);
-			keeps(overlay, "data-for", element.id || null);
+			keeps(overlay, "data-lf-for", element.id || null);
 			overlay.classList.toggle("lf-shaped", Boolean(geometry));
 			if (rebuildGeometry || record.geometry !== geometry || record.shapeKey !== shapeKey) {
 				if (geometry) paintShape(shape, geometry, rect);

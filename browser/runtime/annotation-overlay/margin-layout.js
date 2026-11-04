@@ -73,10 +73,10 @@ import {
 } from "../geometry.js";
 import { skipped } from "../shown-box.js";
 import {
+  composedParentNode,
   renderedChildren,
   renderedParent,
   renderedUnder,
-  under,
   upFrom,
 } from "../shadow.js";
 import { isText } from "../shadow-tree.js";
@@ -747,13 +747,25 @@ function hearTargetChanges(root) {
       )
     )
       afterScript(layoutMarginRows);
-    const moved = records
-      .flatMap((record) => [...record.removedNodes, ...record.addedNodes])
-      .filter((node) => node instanceof Element);
+    // Each row climbs once from its target and its anchor, rather than asking of every
+    // moved node whether it holds them: a first paint moves a node per widget.
+    /** @type {Set<Node>} */
+    const moved = new Set(
+      records
+        .flatMap((record) => [...record.removedNodes, ...record.addedNodes])
+        .filter((node) => node instanceof Element),
+    );
+    if (!moved.size) return;
+    /** @param {Node | null | undefined} node */
+    const movedWith = (node) => {
+      for (let at = node; at; at = composedParentNode(at))
+        if (moved.has(at)) return true;
+      return false;
+    };
     for (const [row, options] of rows) {
       const target = options.anchor();
       const anchor = anchors.get(row);
-      if (!moved.some((node) => under(target, node) || under(anchor, node))) continue;
+      if (!movedWith(target) && !movedWith(anchor)) continue;
       if (!target?.isConnected || (anchor && !anchor.isConnected))
         row.classList.toggle("lf-withheld", true);
       scheduleMarginLayout();
@@ -870,7 +882,8 @@ function partsOf(target) {
 // press would then miss. A box's fill, rule or shadow is not cover: a pin over the empty
 // part of a card hides nothing. The target, and a box that holds it, are not ones to
 // avoid, since the pin stands on them. The walk leaves any subtree whose box misses the
-// band, so a long page costs what lies near the target.
+// band, and finds the children that meet it in an index the pass shares (`childIndex`),
+// so a long page costs each pin what lies near its target.
 //
 // Anything the keyboard can reach is a control, so a package need declare nothing, but
 // for the stop reach.js lends a box so the keyboard can reach and scroll what it holds,
@@ -910,8 +923,102 @@ function controlsIn(host) {
   return found;
 }
 
-/** @param {Element} root @param {Pick<Box, "top" | "bottom">} band @param {Element} target @param {import("../geometry.js").ClipCache} bands @param {Element} stop @param {readonly DOMRect[]} standing where the block controls stand (`blockControlBoxes`) */
-function coverIn(root, band, target, bands, stop, standing) {
+// What a seat's walk reads of each parent's children, once per layout pass for every pin
+// (`coverIn`): each run of words' line boxes, and each element's box, leaving out the
+// chrome and skipped content. Pins seat one after another with no write between, so the
+// boxes hold for the whole pass. A walk that read every child's box for each pin would
+// cost pins × the page; the index costs each parent's children once, and a pin a search
+// for the children its band meets. Children stand sorted by their tops, so those from the
+// first to start below the band's foot all miss it, and a tree holding the lowest bottom
+// over each run of them skips every run that ends above the band's top, however the page
+// lays them out: a tall early sibling, such as a sidebar beside the rest, costs one more
+// child per band rather than every child before the band. A child with no box, such as
+// a `display: contents` wrapper, meets every band.
+/** @typedef {{node: Text, order: number, box: Box, lines: DOMRect[]} | {node: Element, order: number, box: DOMRect, lines: null}} Child */
+function childIndex() {
+  /** @type {Map<Element, {sized: Child[], tops: number[], lowest: Float64Array, leaves: number, boxless: Child[]}>} */
+  const read = new Map();
+  /** @param {Element} parent @param {Iterable<Node>} children */
+  const index = (parent, children) => {
+    /** @type {Child[]} */
+    const sized = [];
+    /** @type {Child[]} */
+    const boxless = [];
+    let order = 0;
+    for (const node of children) {
+      order += 1;
+      if (node instanceof Text) {
+        if (!node.data.trim()) continue;
+        const words = document.createRange();
+        words.selectNodeContents(node);
+        const lines = [...words.getClientRects()];
+        const box = union(lines);
+        if (box) sized.push({ node, order, box, lines });
+        continue;
+      }
+      if (!(node instanceof Element) || node.closest(".lf-chrome")) continue;
+      if (skipped(node)) continue;
+      const box = node.getBoundingClientRect();
+      (box.width || box.height ? sized : boxless).push({
+        node,
+        order,
+        box,
+        lines: null,
+      });
+    }
+    sized.sort((a, b) => a.box.top - b.box.top);
+    // A binary tree over the sorted children: leaf `leaves + i` holds child i's bottom,
+    // and every other node the lowest bottom beneath it.
+    let leaves = 1;
+    while (leaves < sized.length) leaves *= 2;
+    const lowest = new Float64Array(2 * leaves).fill(-Infinity);
+    sized.forEach(({ box }, i) => (lowest[leaves + i] = box.bottom));
+    for (let node = leaves - 1; node > 0; node -= 1)
+      lowest[node] = Math.max(
+        /** @type {number} */ (lowest[2 * node]),
+        /** @type {number} */ (lowest[2 * node + 1]),
+      );
+    return { sized, tops: sized.map(({ box }) => box.top), lowest, leaves, boxless };
+  };
+  // The first index of an ascending list whose value is `past` a bound.
+  /** @param {readonly number[]} values @param {(value: number) => boolean} past */
+  const firstPast = (values, past) => {
+    let low = 0;
+    let high = values.length;
+    while (low < high) {
+      const middle = (low + high) >> 1;
+      if (past(/** @type {number} */ (values[middle]))) high = middle;
+      else low = middle + 1;
+    }
+    return low;
+  };
+  /** @param {Element} parent @param {() => Iterable<Node>} children @param {Pick<Box, "top" | "bottom">} band */
+  return (parent, children, band) => {
+    let held = read.get(parent);
+    if (!held) read.set(parent, (held = index(parent, children())));
+    const { sized, tops, lowest, leaves, boxless } = held;
+    const to = firstPast(tops, (top) => top >= band.bottom);
+    /** @type {Child[]} */
+    const meeting = [...boxless];
+    // The children before `to` in the run node `at` covers, [start, end), that reach
+    // below the band's top.
+    /** @param {number} at @param {number} start @param {number} end */
+    const collect = (at, start, end) => {
+      if (start >= to || /** @type {number} */ (lowest[at]) <= band.top) return;
+      if (end - start === 1) meeting.push(/** @type {Child} */ (sized[start]));
+      else {
+        const middle = (start + end) >> 1;
+        collect(2 * at, start, middle);
+        collect(2 * at + 1, middle, end);
+      }
+    };
+    collect(1, 0, leaves);
+    return meeting.sort((a, b) => a.order - b.order);
+  };
+}
+
+/** @param {Element} root @param {Pick<Box, "top" | "bottom">} band @param {Element} target @param {import("../geometry.js").ClipCache} bands @param {Element} stop @param {readonly DOMRect[]} standing where the block controls stand (`blockControlBoxes`) @param {ReturnType<typeof childIndex>} children the pass's index of what each parent holds */
+function coverIn(root, band, target, bands, stop, standing, children) {
   /** @type {Box[]} */
   const cover = [];
   /** @type {Box[]} */
@@ -920,26 +1027,20 @@ function coverIn(root, band, target, bands, stop, standing) {
   const boxes = [];
   /** @param {Box} box */
   const meets = (box) => box.bottom > band.top && box.top < band.bottom;
-  /** @param {Element} parent @param {Iterable<Node>} children */
-  const visit = (parent, children) => {
-    for (const node of children) {
-      if (node instanceof Text) {
-        if (!node.data.trim()) continue;
-        const words = document.createRange();
-        words.selectNodeContents(node);
-        for (const box of words.getClientRects()) {
-          if (!meets(box)) continue;
-          const shown = clippedContents(box, parent, bands, stop);
+  /** @param {Element} parent @param {() => Iterable<Node>} held */
+  const visit = (parent, held) => {
+    for (const child of children(parent, held, band)) {
+      if (child.lines) {
+        for (const line of child.lines) {
+          if (!meets(line)) continue;
+          const shown = clippedContents(line, parent, bands, stop);
           if (shown && shown.right - shown.left > 1 && shown.bottom - shown.top > 1)
             cover.push(shown);
         }
         continue;
       }
-      if (!(node instanceof Element) || node.closest(".lf-chrome")) continue;
-      if (skipped(node)) continue;
-      const box = node.getBoundingClientRect();
+      const { node, box } = child;
       const boxless = !box.width && !box.height;
-      if (!boxless && !meets(box)) continue;
       const holds = node !== target && renderedUnder(target, node);
       if (!boxless && !holds && node !== target) boxes.push({ node, box });
       const control = node.matches(CONTROL);
@@ -969,13 +1070,13 @@ function coverIn(root, band, target, bands, stop, standing) {
       // skipped content's layout (`skipped`).
       if (node instanceof HTMLDetailsElement && !node.open) {
         const summary = node.querySelector(":scope > summary");
-        if (summary) visit(node, [summary]);
+        if (summary) visit(node, () => [summary]);
         continue;
       }
-      visit(node, renderedChildren(node));
+      visit(node, () => renderedChildren(node));
     }
   };
-  visit(root, renderedChildren(root));
+  visit(root, () => renderedChildren(root));
   for (const box of standing)
     if (box.width && meets(box)) {
       cover.push(box);
@@ -1094,6 +1195,7 @@ function pinSeating(rows, { bands, shell, pinInset }) {
   // seated (`blockControlBoxes`).
   /** @type {DOMRect[] | undefined} */
   let standing;
+  const children = childIndex();
   return rows.map((entry) => {
     const { read } = entry;
     if (read.place !== "pin") {
@@ -1165,6 +1267,7 @@ function pinSeating(rows, { bands, shell, pinInset }) {
       bands,
       stop,
       standing,
+      children,
     );
     const { cover, controls } = room;
     const end = parts.at(-1);
@@ -1927,37 +2030,50 @@ function layoutMountedRows(layer) {
 
   // A push says where a seated row stands, so a row that no longer stands has none.
   for (const row of pushes.keys()) if (!packed.has(row)) pushes.delete(row);
-  for (const { key: row, rect, read, visualLeft, step = 0 } of placed) {
+  // A pin seated beside its target can stand outside what its pane shows though the
+  // target is inside it, so a seated pin is withheld by where it stands. Every pin is
+  // read, with the window's scroll, before any row is written: a read after a write
+  // lays the page out again, once per row.
+  const { scrollX: windowX, scrollY: windowY } = window;
+  const seated = placed.map(({ key: row, rect, read, visualLeft, step = 0 }) => {
     const push = packed.get(row) ?? 0;
-    pushes.set(row, push);
-    const left = (visualLeft ?? rect.left) + step;
     const top = rect.top + push;
     const level = read.place === "pin" && Boolean(read.preformatted && read.words);
-    // A pin seated beside its target can stand outside what its pane shows though the
-    // target is inside it, so a seated pin is withheld by where it stands.
-    if (read.place === "pin")
-      row.classList.toggle(
-        "lf-withheld",
-        !targetShown(
-          read.target,
-          read.extent,
-          { top, bottom: rect.bottom + push, right: rect.right, level },
-          bands,
-        ),
+    const withheld =
+      read.place === "pin" &&
+      !targetShown(
+        read.target,
+        read.extent,
+        { top, bottom: rect.bottom + push, right: rect.right, level },
+        bands,
       );
+    return {
+      row,
+      rect,
+      read,
+      push,
+      left: (visualLeft ?? rect.left) + step,
+      top,
+      level,
+      withheld,
+    };
+  });
+  for (const { row, rect, read, push, left, top, level, withheld } of seated) {
+    pushes.set(row, push);
+    if (read.place === "pin") row.classList.toggle("lf-withheld", withheld);
     const across = read.axes === "xy";
     const at = read.carrierPaint?.box;
-    const fromTop = at ? at.top : -scrollY;
+    const fromTop = at ? at.top : -windowY;
     standsBy.set(row, {
       anchor: at ? read.carrier : null,
       across,
       top: top - fromTop,
       bottom: rect.bottom + push - fromTop,
-      right: rect.right - (at ? (across ? at.left : 0) : -scrollX),
+      right: rect.right - (at ? (across ? at.left : 0) : -windowX),
       level,
       subject: {
         top: read.subject.top - fromTop,
-        left: read.subject.left - (at ? at.left : -scrollX),
+        left: read.subject.left - (at ? at.left : -windowX),
       },
     });
     if (read.carrierPaint) {
@@ -1981,8 +2097,8 @@ function layoutMountedRows(layer) {
       setStyle(row, "--lf-margin-y", layoutPx(top));
       continue;
     }
-    setStyle(row, "--lf-margin-x", layoutPx(left + scrollX));
-    setStyle(row, "--lf-margin-y", layoutPx(top + scrollY));
+    setStyle(row, "--lf-margin-x", layoutPx(left + windowX));
+    setStyle(row, "--lf-margin-y", layoutPx(top + windowY));
   }
 
   // With the column's box and height as the pass read them, so a listener measuring

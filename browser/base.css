@@ -483,13 +483,14 @@ main {
  * states that beside its overflow, so it holds from the first paint, before the runtime
  * runs (a bounded block, a table, a board; a workspace pane's body from minus its top
  * padding, layouts.css). The runtime marks each declared scroll surface it finds
- * scrolling, whoever made it scroll: a box with the `scroll` class, which a reading
- * region's body takes when it registers (reach.js, `paintSlot`). The mark restarts the
- * slot ([data-lf-scrolls], state.css). The runtime reads no other box's overflow, so a
- * box CSS makes scroll without stating a restart or carrying the class keeps the slot
- * it met, and a header inside it sticks that far below the box's top. The mark sits
- * above packages and Layouts, so it outranks a value stacked onto a box that scrolls (a
- * page tab's panel the page makes scroll), and it restarts at `--lf-top-start`, which a
+ * scrolling, whoever made it scroll: a box with the page's `scroll` class or the
+ * runtime's and modules' `data-lf-scroll`, which a reading region's body takes when it
+ * registers (reach.js, `paintSlot`). The mark restarts the slot ([data-lf-scrolls],
+ * state.css). The runtime reads no other box's overflow, so a box CSS makes scroll
+ * without stating a restart or carrying either keeps the slot it met, and a header
+ * inside it sticks that far below the box's top. The mark sits above packages and
+ * Layouts, so it outranks a value stacked onto a box that scrolls (a page tab's panel
+ * the page makes scroll), and it restarts at `--lf-top-start`, which a
  * box that starts its slot other than at 0 states beside its `--lf-top` (a workspace
  * pane's body, a thread list). A box the user scrolls only sideways restarts it for
  * what it holds and keeps the headers over itself for their landings (`across`,
@@ -1013,6 +1014,15 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
   border-color: color-mix(in srgb, var(--ink) 34%, var(--paper));
   color: var(--lf-entry-ink, var(--ink-2));
   box-shadow: none;
+}
+/* A change's entry opens its card, a disclosure, but wears an action's raised face, so
+   the one press beside a change reads as a press (margin-bars.js); the user chose it on
+   3 November over the flatter disclosure face. */
+.lf-margin-face[data-lf-behavior="disclosure"][data-lf-kinds="change"] {
+  border-width: 2px;
+  border-color: var(--border-2);
+  color: var(--lf-entry-ink, var(--ink));
+  box-shadow: var(--lf-entry-lift);
 }
 .lf-margin-face[data-lf-behavior="status"] {
   border-color: var(--rule);

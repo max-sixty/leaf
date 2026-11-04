@@ -10,7 +10,7 @@ from functools import cached_property
 from leaf.events import event_document
 from leaf.obligations import answer_verbs, answering_action, replayed_attrs
 from leaf.projection import (
-    authored_positions,
+    AuthoredOrders,
     frozen_thread_reading,
     page_reading,
     with_action,
@@ -198,8 +198,8 @@ def admit_widget_event(sender, event: dict, readings: AdmissionReadings) -> dict
             readings.page(event["revision"]) if scope == "page" else readings.thread
         )
         byid = reading.document.by_id if scope == "page" else reading.by_id
-        admitted["meaning"]["among"] = authored_positions(
-            event["widget"], position, byid, registry
+        admitted["meaning"]["among"] = AuthoredOrders(byid, registry).of(
+            event["widget"], position
         )[event["detail"]["value"]]
     answers, closes = answer_meaning(sender, record, admitted, readings)
     if answers:

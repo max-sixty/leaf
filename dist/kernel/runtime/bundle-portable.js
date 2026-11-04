@@ -1759,6 +1759,7 @@ const RUNTIME_PAINT_ATTRIBUTE = Object.freeze({
 	presented: "data-lf-presented",
 	reported: "data-lf-reported",
 	upgraded: "data-lf-upgraded",
+	scrollSurface: "data-lf-scroll",
 	scrolls: "data-lf-scrolls",
 	moreBefore: "data-lf-more-before",
 	moreAfter: "data-lf-more-after",

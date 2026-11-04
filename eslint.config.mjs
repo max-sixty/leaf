@@ -1374,7 +1374,6 @@ export default [
     ignores: [
       ".tmp/**",
       ".venv/**",
-      "examples/corpus.html",
       "browser/vendor/**",
       "dist/kernel/**",
       "packages/*/vendor/**",

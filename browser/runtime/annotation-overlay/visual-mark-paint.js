@@ -87,7 +87,7 @@ export function createVisualMarkPaint() {
       const { overlay, shape, stand } = record;
       const { rect, shapeKey } = placed;
       element.classList.toggle(PROJECTED, true);
-      keeps(overlay, "data-for", element.id || null);
+      keeps(overlay, "data-lf-for", element.id || null);
       overlay.classList.toggle("lf-shaped", Boolean(geometry));
       if (
         rebuildGeometry ||

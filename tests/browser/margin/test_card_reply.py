@@ -291,7 +291,9 @@ def test_a_reply_next_on_me_lands_on_rings_its_card(browser, serve):
     page.emulate_media(reduced_motion="reduce")
     resized(page, 1440, 900)
     page.keyboard.press("m")
-    message = page.locator(f'.lf-margin-preview .lf-msg[data-event="{question["id"]}"]')
+    message = page.locator(
+        f'.lf-margin-preview .lf-msg[data-lf-event="{question["id"]}"]'
+    )
     expect(message).to_be_focused()
     rendered(page)
     drawn = rings_drawn(page)
@@ -490,7 +492,7 @@ def test_news_during_a_card_s_ride_lands_at_its_end(browser, serve):
             "agent": "Claude",
             "revision": 1,
             "parent": LONG_THREAD_ROOT["id"],
-            "responds": preview.locator(".lf-msg").last.get_attribute("data-event"),
+            "responds": preview.locator(".lf-msg").last.get_attribute("data-lf-event"),
             "text": "Noted, the weekend shift as well.",
         },
     )
@@ -946,7 +948,7 @@ def test_an_incoming_margin_reply_follows_only_at_the_tail(browser, serve):
         },
     )
     told(page)
-    incoming = transcript.locator(f'[data-event="{newest["id"]}"]')
+    incoming = transcript.locator(f'[data-lf-event="{newest["id"]}"]')
     expect(incoming).to_be_visible()
     page.wait_for_function(
         "before => document.querySelector('.lf-margin-preview .lf-thread-transcript').scrollTop > before",
@@ -1448,7 +1450,7 @@ def test_a_turn_arriving_leaves_a_card_under_its_words_where_it_stands(browser, 
         {k: v for k, v in LONG_THREAD[1].items() if k not in ("id", "ts")},
     )
     told(page)
-    expect(preview.locator(f'[data-event="{reply["id"]}"]')).to_be_attached()
+    expect(preview.locator(f'[data-lf-event="{reply["id"]}"]')).to_be_attached()
     rendered(page)
     assert preview.evaluate(
         "card => card.getBoundingClientRect().top"
@@ -1496,7 +1498,7 @@ def test_an_answer_arriving_lifts_a_card_beside_its_words(browser, serve, repeat
         },
     )
     told(page)
-    expect(transcript.locator(f'[data-event="{answer["id"]}"]')).to_be_attached()
+    expect(transcript.locator(f'[data-lf-event="{answer["id"]}"]')).to_be_attached()
     rendered(page)
     risen = preview.bounding_box()
     room = preview.evaluate(
@@ -1697,7 +1699,7 @@ def test_a_sent_reply_leaves_the_reply_row_where_it_stands(browser, serve, size,
             "agent": "Claude",
             "revision": 1,
             "parent": LONG_THREAD_ROOT["id"],
-            "responds": preview.locator(".lf-msg").last.get_attribute("data-event"),
+            "responds": preview.locator(".lf-msg").last.get_attribute("data-lf-event"),
             "text": "Noted.",
         },
     )
@@ -1708,7 +1710,7 @@ def test_a_sent_reply_leaves_the_reply_row_where_it_stands(browser, serve, size,
         finish(accepted, "top", "foot", "editorTop", "editorFoot")
         begin()
         notice.click()
-    expect(preview.locator(f'[data-event="{answer["id"]}"]')).to_be_attached()
+    expect(preview.locator(f'[data-lf-event="{answer["id"]}"]')).to_be_attached()
     reading_edge = "foot" if accepted["side"] == "above" else "top"
     answered = finish(accepted, reading_edge)
     if reading_edge == "top":

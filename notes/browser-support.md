@@ -21,7 +21,7 @@ status changes rather than appending the investigation's chronology.
 `uv run leaf-dev probe SOURCE --browser firefox` (or `webkit`) runs a probe or
 journey in Playwright's Firefox or WebKit, and `--browser ios` runs a probe in
 Safari on an iPhone simulator, whose WebKit can differ from Playwright's desktop
-build.
+build. `leaf-dev stills --browser` compares a change's states in any of them.
 
 Minor visual differences are acceptable when content remains readable and
 controls remain usable. Lost drafts, broken actions, inaccessible controls, and
@@ -557,8 +557,9 @@ Playwright Firefox 155 screencasts intermittently omitted fixed layers on
 2026-10-22, including a stationary marker outside Leaf's chrome. Native
 screenshots sampled during the same journeys retained those layers; whether
 the omission occurs in native-window paint remains unresolved.
-`leaf-dev bench-panel-motion` reports missing mark and focus-outline paint in
-Chromium's sampled frames; the functional test checks their settled paint.
+The probe journey in `dev/leaf_dev/panel_paint.py` reports missing mark and
+focus-outline paint in Chromium's sampled frames; the functional test checks
+their settled paint.
 Firefox recordings remain diagnostic
 evidence and cannot establish all-frame visibility. Recheck the same
 fold/unfold journey with a stationary fixed marker, native screenshots and a

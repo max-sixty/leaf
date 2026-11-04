@@ -8,7 +8,6 @@ from playwright.sync_api import expect
 from render_cases_interaction import live_url
 from render_cases_navigation import source_revision
 from render_harness import (
-    CORPUS_SOURCES,
     example_media,
     expect_on_me,
     expect_panel_says,
@@ -24,11 +23,10 @@ from render_harness import (
 
 from leaf import data as data_model
 from leaf.render_checks import rendered
+from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
-VISUAL_REVIEW_GALLERY = next(
-    path for path in CORPUS_SOURCES if path.stem == "visual-review-gallery"
-)
+VISUAL_REVIEW_GALLERY = named_source("visual-review-gallery")
 SELECTED = ".lf-vr-case:not([hidden])"
 
 
@@ -131,7 +129,7 @@ def test_on_me_materializes_a_frozen_review_at_its_requested_case(browser, serve
     expect_on_me(page, 6)
     count.click()
     card = page.locator(
-        '.lf-fp-on-item[data-obligation="widget:reply-review:keep-mobile-destinations"]'
+        '.lf-fp-on-item[data-lf-obligation-id="widget:reply-review:keep-mobile-destinations"]'
     )
     card.get_by_role("button", name="Show", exact=True).click()
     case = page.locator("#reply-review").locator(SELECTED)

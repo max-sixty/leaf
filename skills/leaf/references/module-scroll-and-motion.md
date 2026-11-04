@@ -36,11 +36,13 @@ module stacks the track with the content, as on a phone, it declares
 `--lf-track-scroll-behavior: flow` on the track's parent, and the track scrolls with
 the page. Register the track as a reading region, since it may scroll.
 
-A horizontal scroll surface uses the shared `scroll` class on its actual
-viewport and declares overflow in its CSS. The class supplies containment. Leaf adds
-keyboard access and continuation cues, inspecting these surfaces for overflow instead
-of reading every descendant's styles. A reading region's body receives this class when
-it registers; its CSS still decides whether the region scrolls or flows.
+A horizontal scroll surface a module builds wears `data-lf-scroll` on its actual
+viewport and declares overflow in its CSS; the page's own markup says the same with
+`class="scroll"` (`page-authoring.md`), a name the module leaves to the page, so the
+page's CSS for it reaches only the page's own boxes. The mark supplies containment. Leaf adds keyboard
+access and continuation cues, inspecting these surfaces for overflow instead of reading
+every descendant's styles. A reading region's body receives the mark when it
+registers; its CSS still decides whether the region scrolls or flows.
 Sticky headers set `--lf-head-inset: 0px` beside their `position: sticky` rule so
 keyboard focus counts the header's own inset as visible.
 
@@ -157,9 +159,9 @@ itself.
 
 A box a package makes scroll sets `--lf-top: 0px` beside its `overflow`, so a header
 inside it sticks at its top from the first paint. Leaf also restarts `--lf-top` on a box
-with the `scroll` class, such as a registered reading region's body, once it finds the
-box scrolling and not sticking, `overflow: hidden` included. Leaf reads no other box's
-overflow, so in a box that scrolls without that declaration or the class, a header
+marked as a scroll surface, such as a registered reading region's body, once it finds
+the box scrolling and not sticking, `overflow: hidden` included. Leaf reads no other
+box's overflow, so in a box that scrolls without that declaration or the mark, a header
 sticks as far below the box's top as the headers stacked over the box, and covers what
 lies under the header. A header sticks below its scroller's top padding; to have it sit
 on the scroller's edge, set `--lf-top-start` to minus that padding and

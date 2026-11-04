@@ -93,7 +93,8 @@ const viewerZoom = offerAction("word", "lf-media-viewer-zoom", "100%");
 const stage = document.createElement("div");
 stage.className = "lf-media-viewer-stage";
 const caption = document.createElement("p");
-caption.className = "lf-media-viewer-caption scroll";
+caption.className = "lf-media-viewer-caption";
+caption.toggleAttribute("data-lf-scroll", true);
 
 /** @type {import("photoswipe").default | null} */
 let inspector = null;

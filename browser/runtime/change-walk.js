@@ -1,17 +1,18 @@
 // @ts-check
 /* The change walk: `h` and Shift+`h` step through the changes the version comparison
-   marks (version.js, `comparisonChanges`), each a run of changed blocks, in the page's
+   marks (version.js, `comparisonChanges`), each a hunk of the block diff, in the page's
    order, coming round at either end, while a Compare in Versions stands. A diff
    reader's next and previous hunk, which is what the letter stands for.
 
    A step starts from the user's place by the rule every page walk shares
-   (current-target.js, `walkOrigin` and `stepFrom`), and lands on the block the change
-   starts with, brought into view where it is not, with the walk's position said as
-   every walk says it (walk-position.js). A current location anywhere in a change is
-   at that change, so the next step goes on to the following one; from any other
-   origin a step compares only where each change starts, as an editor's next-hunk key
-   does. The change's margin entry opens what its blocks said before (version.js,
-   `toggleInlineComparison`).
+   (current-target.js, `walkOrigin` and `stepFrom`), and lands where the change stands
+   (its `at`): the block it starts with, or the block after the gap where it only took
+   blocks out. It brings that block into view where it is not, and says the walk's
+   position as every walk says it (walk-position.js). A current location anywhere in a
+   change is at that change, so the next step goes on to the following one; from any
+   other origin a step compares only where each change starts, as an editor's next-hunk
+   key does. The change's margin entry opens what it replaced over it (version.js,
+   `toggleChangeCard`).
 
    The marks are annotations, so `o` hides them with the rest, and nothing here stops
    them: a comparison ends with its Compare in Versions. The user decided
@@ -34,15 +35,17 @@ import { repaint } from "./repaint.js";
 import { beginWalk, listWalkPosition } from "./walk-position.js";
 
 /** @typedef {import("./version.js").Change} Change */
-// Where a change starts, which is where a step lands.
-const start = (/** @type {Change} */ change) => change[0];
+// Where a change stands, which is where a step lands.
+const start = (/** @type {Change} */ change) => change.at;
 
 // The change the user's current location is in, if any.
 /** @param {readonly Change[]} list */
 const currentChange = (list, origin = currentLocationOrigin()) =>
   origin?.kind === "current-location"
     ? (list.find((change) =>
-        change.some((block) => renderedUnder(origin.node, block)),
+        (change.blocks.length ? change.blocks : [change.at]).some((block) =>
+          renderedUnder(origin.node, block),
+        ),
       ) ?? null)
     : null;
 

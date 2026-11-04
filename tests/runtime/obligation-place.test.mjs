@@ -65,6 +65,38 @@ test("the innermost obligation holding a node is where the user stands", () => {
   }
 });
 
+test("a lookup in a list named before reads only the obligations named where the node stands", () => {
+  // A keystroke asks this of the inventory many times, so each lookup after the first
+  // costs the node's depth rather than the inventory.
+  const ids = Array.from({ length: 32 }, (_, n) => `w${n}`);
+  document.body.innerHTML = ids
+    .map((id) => `<section id="${id}"><button>${id}</button></section>`)
+    .join("");
+  const read = new Set();
+  const items = ids.map(
+    (id) =>
+      new Proxy(
+        {
+          id: `widget:${id}`,
+          thread: null,
+          message: null,
+          source: { kind: "widget", id },
+          prompt: { target: id },
+        },
+        { get: (record, key) => (read.add(record.id), Reflect.get(record, key)) },
+      ),
+  );
+  const button = document.querySelector("#w7 button");
+  try {
+    assert.equal(obligationHolding(items, button), items[7]);
+    read.clear();
+    assert.equal(obligationHolding(items, button), items[7]);
+    assert.deepEqual([...read], ["widget:w7"]);
+  } finally {
+    document.body.replaceChildren();
+  }
+});
+
 test("a region holds the live widget obligations whose source is it or stands under it", () => {
   document.body.innerHTML =
     '<section id="queue"><div id="item"><div id="first"></div><div id="gone"></div></div></section><div id="outside"></div>';

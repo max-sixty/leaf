@@ -326,16 +326,11 @@ export function createObligationView({
         }),
     );
   }
-  // The widget obligation whose commands answer where `node` stands.
+  // The widget obligation whose commands answer where `node` stands, which is the
+  // obligation holding it: only a widget's obligation has a place (`obligationPlace`).
   /** @param {Element | null} node */
-  const answerableAt = (node) => {
-    const all = readObligations().all;
-    return obligationHolding(
-      all.filter((item) => item.source.kind === "widget"),
-      placeOf(node),
-      all,
-    );
-  };
+  const answerableAt = (node) =>
+    obligationHolding(readObligations().all, placeOf(node));
   /** @param {Element | null} origin */
   function obligationContext(origin) {
     if (!origin) return null;

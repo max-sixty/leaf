@@ -92,7 +92,8 @@ export function declareSide(bridge, { beside = false } = {}) {
 // those waiting on the user, placed as the whole `inventory` places them. Only the
 // obligations whose place names one of the node's ancestors are placed
 // (`namedPlaces`), so a keystroke, which asks this many times, costs the node's depth
-// rather than the inventory.
+// rather than the inventory. The names are read once per list, so that holds for a
+// list the state keeps, such as the inventory, and not for one built for the call.
 /** @template {import("./framework/application.js").ObligationRecord} T
  * @param {readonly T[]} items @param {Node | null} node
  * @param {readonly import("./framework/application.js").ObligationRecord[]} inventory */

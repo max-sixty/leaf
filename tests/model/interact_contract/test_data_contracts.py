@@ -586,7 +586,6 @@ def test_widget_data_inputs_accept_typed_outputs_and_refuse_ambiguous_bindings()
                     "contract": "rows",
                     "source": "source",
                     "reference": "for",
-                    "output": "rows",
                 }
             },
             "x-refers": {"for": {}},
@@ -611,7 +610,13 @@ def test_widget_data_inputs_accept_typed_outputs_and_refuse_ambiguous_bindings()
     registry["lf-consumer"]["x-data"]["rows"].pop("source")
     registry["lf-consumer"]["properties"].pop("source")
     assert errors('for="feed"') == []
-    registry["lf-producer"]["x-output"]["rows"]["contract"] = "other"
+    registry["lf-producer"]["x-output"]["more"] = {"contract": "other"}
+    assert errors('for="feed"') == [], "an output of another contract is no matter"
+    registry["lf-producer"]["x-output"]["more"]["contract"] = "rows"
+    several = errors('for="feed"')
+    assert [finding.code for finding in several] == ["output-contract"]
+    assert "'rows', 'more'" in str(several[0])
+    registry["lf-producer"]["x-output"] = {"rows": {"contract": "other"}}
     assert [finding.code for finding in errors('for="feed"')] == ["output-contract"]
     registry["lf-producer"].pop("x-output")
     assert [finding.code for finding in errors('for="feed"')] == ["output-contract"]

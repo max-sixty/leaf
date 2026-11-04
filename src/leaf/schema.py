@@ -317,8 +317,9 @@ DATA_INPUTS_SCHEMA = {
                 "pattern": f"^{DATA_CONTRACT_NAME}$",
             },
             "source": {"type": "string", "pattern": f"^{HTML_NAME}$"},
+            # The x-refers attribute naming a widget, whose one output of this
+            # input's contract the input reads.
             "reference": {"type": "string", "pattern": f"^{HTML_NAME}$"},
-            "output": {"type": "string", "pattern": f"^{HTML_NAME}$"},
             # The element property the runtime sets to the delivered value
             # (element-data.js, "Bound values").
             "property": {"type": "string", "pattern": "^[a-z][A-Za-z0-9]*$"},
@@ -326,9 +327,8 @@ DATA_INPUTS_SCHEMA = {
             # the <pre> is its text; bound, the element holds no <pre>.
             "body": {"const": True},
         },
-        "dependentRequired": {"reference": ["output"], "output": ["reference"]},
         "required": ["contract"],
-        "anyOf": [{"required": ["source"]}, {"required": ["reference", "output"]}],
+        "anyOf": [{"required": ["source"]}, {"required": ["reference"]}],
         "additionalProperties": False,
     },
 }

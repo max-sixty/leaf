@@ -53,7 +53,6 @@
       "frame": {
         "contract": "merge-frame",
         "reference": "for",
-        "output": "frame",
         "property": "frame"
       }
     },

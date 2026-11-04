@@ -331,11 +331,11 @@ function outputScene(draw) {
   adoptRegistry({
     [producerTag]: {
       "x-data": { rows: { source: "source", contract: "rows", property: "value" } },
-      "x-output": { rows: { contract: "rows" } },
+      "x-output": { rows: { contract: "rows" }, totals: { contract: "totals" } },
     },
     [consumerTag]: {
       "x-data": {
-        rows: { reference: "for", output: "rows", contract: "rows", property: "value" },
+        rows: { reference: "for", contract: "rows", property: "value" },
       },
       "x-refers": { for: {} },
     },
@@ -393,6 +393,9 @@ test("typed output readers retain authored scope and producer instance identity"
   publishOutput(pageProducer, "rows", { rows: ["page"] });
   await settleOutput();
   assert.equal(readings.get("page").length, 2, "same complete value does not repaint");
+  publishOutput(pageProducer, "totals", { count: 1 });
+  await settleOutput();
+  assert.equal(readings.get("page").length, 2, "an input binds by its contract");
   readings.get("page").at(-1).rows[0] = "consumer mutation";
   assert.deepEqual(
     current().value,

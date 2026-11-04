@@ -314,18 +314,18 @@ an external source or another widget's output:
     "contract": "file-list",
     "source": "source",
     "reference": "for",
-    "output": "files",
     "property": "value"
   }
 },
 "x-refers": {"for": {}}
 ```
 
-The input's `reference` names its ordinary element relation, and `output` names the
-producer's declared output. The consumer declares both attributes in `properties`.
-A page binds either `source="project-files"` or `for="review"`, where `review`
-is a widget publishing `files`. `page check` verifies the referenced widget declares the
-named output with the input's contract. Consumers never identify a producer by tag.
+The input's `reference` names its ordinary element relation, and the input reads the
+one output of its contract that the widget named there declares. The consumer declares
+both attributes in `properties`. A page binds either `source="project-files"` or
+`for="review"`, where `review` is any widget publishing a `file-list`. `page check`
+refuses a referenced widget that declares none or more than one output of that contract.
+Consumers never identify a producer by tag or by its output's name.
 
 The producer calls `publishOutput(this, "files", value)` after deriving its complete
 value, and publishes `null` when that output is unavailable. This helper is also

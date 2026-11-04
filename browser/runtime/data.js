@@ -147,7 +147,7 @@ function acceptOutput(element, output, value) {
   if (owner.connected && reading !== held) tick(outputsMoved);
 }
 
-/** @typedef {{contract: string, source?: string} & ({reference: string, output: string} | {reference?: never, output?: never})} DataInput */
+/** @typedef {{contract: string, source?: string, reference?: string}} DataInput */
 
 // The reading of one source, which moves only as state application delivers: the
 // accepted one claims the element's region inside the publication that accepts it, and
@@ -198,16 +198,20 @@ function deliveredSource(source, declaration, input, accepted) {
   );
 }
 
-// The reading of one widget's output, resolved in the reader's authored scope each time
-// an output moves, so it follows the instance standing under the bound id.
-/** @param {Element} element @param {string} attribute @param {string} widget @param {string} output */
-function publishedOutput(element, attribute, widget, output) {
+// The reading of a bound widget's output of `contract`, resolved in the reader's authored
+// scope each time an output moves, so it follows the instance standing under the bound
+// id. `page check` holds that widget to one output of the contract.
+/** @param {Element} element @param {string} attribute @param {string} widget @param {string} contract */
+function publishedOutput(element, attribute, widget, contract) {
   const reading = computed(() => {
     outputsMoved.value;
     return untracked(() => {
       const producer = referencedProjection(element, attribute, widget);
       const owner = producer && outputOwners.get(producer);
-      return owner?.connected ? (owner.values.get(output) ?? null) : null;
+      if (!owner?.connected) return null;
+      for (const held of owner.values.values())
+        if (held?.contract === contract) return held;
+      return null;
     });
   });
   return computed(
@@ -274,7 +278,7 @@ export function dataReader(element, input, accepted) {
   const bound = source
     ? deliveredSource(source, declaration, input, accepted)
     : widget
-      ? publishedOutput(element, declaration.reference, widget, declaration.output)
+      ? publishedOutput(element, declaration.reference, widget, declaration.contract)
       : null;
   /** @type {DataSnapshot | null} */
   let reported = null;
@@ -286,7 +290,7 @@ export function dataReader(element, input, accepted) {
     if (incompatible && reported !== sourceStore) {
       reported = sourceStore;
       reportPageError(
-        `${source ? `data source ${source}` : `widget output ${widget}.${declaration.output}`} carries contract ${sourceStore.contract}; ` +
+        `data source ${source} carries contract ${sourceStore.contract}; ` +
           `<${element.localName}> input ${input} requires ${declaration.contract}`,
       );
     }

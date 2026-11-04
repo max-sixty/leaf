@@ -163,7 +163,6 @@
         "contract": "text-document",
         "source": "source",
         "reference": "for",
-        "output": "document",
         "property": "value",
         "body": true
       }
@@ -370,7 +369,6 @@
       "playhead": {
         "contract": "source-lines",
         "reference": "follows",
-        "output": "playhead",
         "property": "playhead"
       }
     },

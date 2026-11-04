@@ -474,20 +474,21 @@ def reference_errors(
             producer = by_id.get(target)
             if not target or not producer:
                 continue  # The ordinary relation check names a missing target.
-            output = (
-                registry.get(producer["tag"], {})
-                .get("x-output", {})
-                .get(spec["output"])
-            )
-            if output is None or output["contract"] != spec["contract"]:
+            outputs = registry.get(producer["tag"], {}).get("x-output", {})
+            matching = [
+                name
+                for name, output in outputs.items()
+                if output["contract"] == spec["contract"]
+            ]
+            if len(matching) != 1:
                 errors.append(
                     found_at(
                         "output-contract",
                         rec,
                         input=input_name,
                         target=target,
-                        output=spec["output"],
                         contract=spec["contract"],
+                        outputs=matching,
                     )
                 )
     owned = [

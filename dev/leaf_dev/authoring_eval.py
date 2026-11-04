@@ -353,7 +353,11 @@ def execute(
             interaction = None
             if operable and metadata["case"].split("/")[-1] in {"choice", "form"}:
                 interaction = operated_interaction(
-                    metadata["case"], page, payload, evidence, plain=not leaf
+                    metadata["case"],
+                    page,
+                    payload,
+                    evidence,
+                    plain=not run.leaf_condition,
                 )
             (evidence / "check-plain.txt").write_text(plain_output)
             (evidence / "check.txt").write_text(render_output)

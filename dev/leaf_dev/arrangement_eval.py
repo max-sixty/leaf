@@ -147,6 +147,12 @@ CASES = {
 }
 
 
+def is_leaf(condition: str) -> bool:
+    """Whether the author in `condition` writes a Leaf page; in `html` it writes plain
+    HTML."""
+    return condition == "leaf"
+
+
 @dataclass(frozen=True)
 class Run:
     subject: str
@@ -171,7 +177,7 @@ class Run:
 
     @property
     def leaf_condition(self) -> bool:
-        return self.condition == "leaf"
+        return is_leaf(self.condition)
 
     @property
     def work(self) -> Path:
@@ -339,11 +345,11 @@ def restored_page(saved: dict):
         if manifest.exists()
         else [{"page": original.name, "url": None}]
     )
-    plain = saved["condition"] == "html"
+    leaf = is_leaf(saved["condition"])
     with live_copies(
         [original.parent / entry["page"] for entry in archived],
         Path(saved["payload"]),
-        plain=plain,
+        plain=not leaf,
     ) as copies:
         addresses = {
             entry["url"]: copy.address
@@ -356,10 +362,8 @@ def restored_page(saved: dict):
             restored = rebase_page_links(source, addresses)
             if restored != source:
                 document.write_text(restored)
-                if not plain:
-                    state = json.loads(
-                        copy.leaf("page", "state", str(copy.directory)).stdout
-                    )
+                if leaf:
+                    state = read_page_state(copy.arm, copy.state, copy.directory)
                     if not state["source"]["live"]:
                         raise RuntimeError(state["source"]["error"])
         [served] = [copy for copy in copies if copy.directory.name == original.name]
@@ -573,7 +577,7 @@ def capture_phase(run: Run, phase: int, page: Path | None = None) -> dict:
     page = page or run.page(phase)
     if page is None:
         return result
-    html = run.condition == "html"
+    html = not run.leaf_condition
     try:
         run.shots.mkdir(parents=True, exist_ok=True)
         with headless_shell() as browser:
@@ -690,7 +694,7 @@ def judge_pages(
                     label: pane_readings.read(address, widths)
                     for label, address in addresses.items()
                 }
-                if all(page["condition"] == "leaf" for page in pages.values())
+                if all(is_leaf(page["condition"]) for page in pages.values())
                 else {}
             )
             (evidence / "panes.json").write_text(json.dumps(panes, indent=2))

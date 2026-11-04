@@ -43,7 +43,7 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
-from collections.abc import Callable, Iterable
+from collections.abc import Iterable
 from contextlib import ExitStack, contextmanager
 from contextvars import ContextVar
 from datetime import datetime
@@ -250,11 +250,18 @@ def build_source(arm: Path, state: Path, source: Path, page: Path) -> None:
 
 class ServedPage(NamedTuple):
     """A page `serving_source` or `live_copies` serves: its directory, its address,
-    and its arm's launcher under its state home."""
+    and the arm that serves it under the state home `state`."""
 
     directory: Path
     address: str
-    leaf: Callable[..., subprocess.CompletedProcess]
+    arm: Path
+    state: Path
+
+    def leaf(
+        self, *args: str, timeout: float | None = None
+    ) -> subprocess.CompletedProcess:
+        """Run the arm's launcher under the state home, refusing a failed command."""
+        return run_leaf(self.arm, self.state, *args, check=True, timeout=timeout)
 
 
 # The page `serving_source` serves while it does, for an input that writes to it from
@@ -278,9 +285,7 @@ def serving_source(arm: Path, source: Path, scratch: Path, log: Path | None = No
             env=environment(XDG_STATE_HOME=str(state)),
         )
     with serving(arm, state, page) as address:
-        bound = served_page.set(
-            ServedPage(page, address, partial(run_leaf, arm, state, check=True))
-        )
+        bound = served_page.set(ServedPage(page, address, arm, state))
         try:
             yield address
         finally:
@@ -300,14 +305,13 @@ def live_copies(pages: Iterable[Path], arm: Path, *, plain: bool):
         ExitStack() as servers,
     ):
         state = Path(scratch) / "state"
-        leaf = partial(run_leaf, arm, state, check=True)
         copies = []
         for page in pages:
             copy = shutil.copytree(page, Path(scratch) / "pages" / page.name)
             address = servers.enter_context(
                 plain_html.serving(copy) if plain else serving(arm, state, copy)
             )
-            copies.append(ServedPage(copy, address, leaf))
+            copies.append(ServedPage(copy, address, arm, state))
         yield copies
 
 

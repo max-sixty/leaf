@@ -9,7 +9,7 @@ from PIL import Image
 
 from leaf_dev import visits
 from leaf_dev.arms import Arm
-from leaf_dev.browser import DESKTOP
+from leaf_dev.browser import DESKTOP, WINDOWS
 from leaf_dev.commands import stills
 from leaf_dev.states import State
 
@@ -285,6 +285,14 @@ def test_the_run_opens_each_state_in_its_own_window_unless_told_another(
     )
     assert result.exit_code == 0, result.output
     assert set(windows) == {((390, 844), "dark", False)}
+
+    # A named window brings its pointer.
+    windows.clear()
+    (tmp_path / "phone").mkdir()
+    monkeypatch.setattr(stills, "run_directory", lambda path: tmp_path / "phone")
+    result = CliRunner().invoke(stills.stills, ["--viewport", "phone"])
+    assert result.exit_code == 0, result.output
+    assert set(windows) == {(WINDOWS["phone"].size, "light", True)}
 
 
 def test_the_run_lists_lines_whose_words_split_their_baseline(

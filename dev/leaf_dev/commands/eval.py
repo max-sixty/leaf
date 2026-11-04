@@ -64,7 +64,8 @@ from leaf_dev.arms import (
     install_codex_plugin,
     instruction_context,
 )
-from leaf_dev.eval_cases import DEFAULT_VIEWPORTS, VIEWPORTS, definition
+from leaf_dev.browser import WINDOWS
+from leaf_dev.eval_cases import DEFAULT_VIEWPORTS, definition
 from leaf_dev.eval_records import run_samples
 from leaf_dev.leaf_assets import pinned_copy
 from leaf_dev.regrade import REPLAY, judgment
@@ -726,7 +727,7 @@ def run_name(scope: str, globs: tuple[str, ...]) -> str:
 @click.option(
     "--viewport",
     "viewports",
-    type=click.Choice(list(VIEWPORTS)),
+    type=click.Choice(list(WINDOWS)),
     multiple=True,
     default=DEFAULT_VIEWPORTS,
     show_default=True,

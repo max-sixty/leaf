@@ -8,7 +8,6 @@ from interact_support import append_carried_log_record
 from playwright.sync_api import expect
 from render_cases_interaction import PANEL_PAGE, live_url
 from render_harness import (
-    EXAMPLES,
     expect_open_threads,
     leaf_page,
     margins_laid_out,
@@ -25,6 +24,7 @@ from browser.margin import (
     _comment_on,
 )
 from leaf.render_checks import rendered
+from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -314,7 +314,7 @@ def test_a_page_that_can_grow_margin_status_reserves_its_rail_before_the_first_g
     Measured on the shipped board rather than a fixture, because the strip is only worth
     reserving where a real page's width, its claims and its exhibits meet; a fixture
     built to make those agree would prove nothing about any page a user opens."""
-    example = next(page for page in EXAMPLES if page.stem == "triage-board")
+    example = named_source("triage-board")
     page = open_page(browser, live_url(serve(example)))
     margins_laid_out(page)
     column = page.locator("main").evaluate(

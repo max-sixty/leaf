@@ -1,6 +1,6 @@
 # Added for #11's recorded-effect contract cutover. The comparison scores whether
 # the public instructions let an author use the effect-owned payload without
-# recreating a schema or field mapping. The candidate passed and the baseline
+# recreating a schema or field mapping. The head passed and the baseline
 # failed in one Codex sample per arm; this is diagnostic, not a reliability estimate.
 # Reworded by #2329 (`update: true` to `report: true`); at 3fe3eb0af it passed
 # 1/1 on Claude Code.

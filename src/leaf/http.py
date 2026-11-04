@@ -500,13 +500,18 @@ class PageEndpoint:
         what it was just handed. Between the two, the worst case is a token already
         stale on arrival, which costs one more request and no news.
 
-        A tab names the data version it holds in `Leaf-Data-Version`, and an answer
-        whose data is still that version leaves out its sources, which the tab
-        restores from the reading it named (`completeData` in `layer-client.js`).
-        Data moves only when an agent sets it, so without this every gesture's
-        answer would carry back each source value the tab already holds.
+        A tab names what it holds, and the answer leaves that out for the tab to
+        restore from the reading it named (`completeState` in `layer-client.js`):
+        `Leaf-Data-Version` names its data version, and an answer whose data is still
+        that version leaves out its sources, since data moves only when an agent sets
+        it; `Leaf-Held-Basis` names its reading, by the `browser.basis.key` that
+        reading carried, and an answer that can extend it carries only the history
+        since (`served_state.tail`). Without these every gesture's answer would carry
+        back each source value and every past event the tab already holds.
         """
-        state = self._state_service().page_state(view_revision)
+        state = self._state_service().page_state(
+            view_revision, held=self.headers.get("Leaf-Held-Basis")
+        )
         if self.headers.get("Leaf-Data-Version") == state["data"]["version"]:
             state["data"] = {"version": state["data"]["version"]}
         return state
@@ -1477,16 +1482,17 @@ class SampleEndpoint(PageEndpoint):
 
     def _delivery(self, artifact: RevisionArtifact, revision: int) -> Delivery:
         # Every child arrives inert, so its startup cannot take focus from the page;
-        # the host releases it once it presents. Whether the child lays out as a
-        # block or a window is its frame's to say (sample.js), which its bootstrap
-        # asks before it paints.
+        # the host releases it once it presents. The root carries it, since Leaf's
+        # chrome stands after the body. Whether the child lays out as a block or a
+        # window is its frame's to say (sample.js), which its bootstrap asks before it
+        # paints.
         return replace(
             super()._delivery(artifact, revision),
             html_attributes={
                 "data-lf-user-scope": self.page_root + "/",
                 "data-lf-sample": "",
+                "inert": "",
             },
-            body_attributes={"inert": ""},
         )
 
 

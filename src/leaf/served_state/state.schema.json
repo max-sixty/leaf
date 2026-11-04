@@ -265,9 +265,31 @@
           "anyOf": [{ "$ref": "#/$defs/Browser" }, { "type": "null" }]
         },
         "events": {
-          "description": "The log, as logged: a message's text is Markdown the page's vendored runtime renders, and its markup the fragment the CLI gate validated. The wire adds nothing, so the only vocabulary a page's frozen layer has to keep speaking is the log's own, which `$events` already stamps.",
+          "description": "The log, as logged, or in an answer with `since` the events logged after its `through_seq`: a message's text is Markdown the page's vendored runtime renders, and its markup the fragment the CLI gate validated. The wire adds nothing, so the only vocabulary a page's frozen layer has to keep speaking is the log's own, which `$events` already stamps.",
           "type": "array",
           "items": { "$ref": "#/$defs/Event" }
+        },
+        "since": {
+          "description": "Present when the answer completes a reading the browser holds, which its request named by that reading's `browser.basis.key` (`served_state.tail`). Then `events`, and each view's projection `entries` and `undo`, hold only what is new or changed after the held reading's `through_seq`; `dropped` names by event id, per view and list, the held entries the list no longer holds; and the browser keeps the rest (`completeState` in `layer-client.js`).",
+          "type": "object",
+          "properties": {
+            "through_seq": { "type": "integer" },
+            "dropped": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "object",
+                "properties": {
+                  "document": { "type": "array", "items": { "type": "string" } },
+                  "thread": { "type": "array", "items": { "type": "string" } },
+                  "undo": { "type": "array", "items": { "type": "string" } }
+                },
+                "required": ["document", "thread", "undo"],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": ["through_seq", "dropped"],
+          "additionalProperties": false
         },
         "preview": {
           "description": "The identity a developer preview shows in browser chrome, as `leaf-dev preview` wrote it (`server.preview_metadata`); absent on a page that is not a preview.",
@@ -911,10 +933,13 @@
       "type": "object",
       "properties": {
         "basis": {
-          "description": "The log position the reading was taken through.",
+          "description": "The log position the reading was taken through, and `key`, its name, which a request sends back in `Leaf-Held-Basis` to be answered with only what the reading lacks (`since`).",
           "type": "object",
-          "properties": { "through_seq": { "type": "integer" } },
-          "required": ["through_seq"],
+          "properties": {
+            "through_seq": { "type": "integer" },
+            "key": { "type": "string" }
+          },
+          "required": ["through_seq", "key"],
           "additionalProperties": false
         },
         "history": {
@@ -950,11 +975,6 @@
             { "type": "null" }
           ]
         },
-        "receipts": {
-          "description": "Every logged event a browser attempt wrote, which carries its `attempt`.",
-          "type": "array",
-          "items": { "$ref": "#/$defs/Event" }
-        },
         "thread_memberships": {
           "description": "Every thread whose history each logged event changes (`thread_context.thread_memberships`), which the browser reads for the gesture an unsent undo takes back or an unsent action replaces.",
           "type": "object",
@@ -971,7 +991,6 @@
         "views",
         "todos",
         "plan",
-        "receipts",
         "thread_memberships",
         "version_notes"
       ],
@@ -1059,7 +1078,7 @@
           }
         },
         "undo": {
-          "description": "The user's gestures this document can take back, newest first (`served_state.document.browser_undo_candidates`); `newest` marks the user's newest gesture, `gesture` says what that one did when it is an action, and `picked_up` marks a gesture a delivery handed into an agent's turn.",
+          "description": "The user's gestures this document can take back, newest first (`served_state.document.browser_undo_candidates`), or in an answer with `since` those new or changed since; `newest` marks the user's newest gesture, `gesture` says what that one did when it is an action, and `picked_up` marks a gesture a delivery handed into an agent's turn.",
           "type": "array",
           "items": {
             "type": "object",
@@ -1071,24 +1090,6 @@
               "picked_up": { "const": true }
             },
             "required": ["event"],
-            "additionalProperties": false
-          }
-        },
-        "coverage": {
-          "description": "Each widget event and undo with the coordinate it is classified at in this view, or null.",
-          "type": "array",
-          "items": {
-            "type": "object",
-            "properties": {
-              "event": { "$ref": "#/$defs/Event" },
-              "coordinate": {
-                "anyOf": [
-                  { "type": "array", "items": { "type": "string" } },
-                  { "type": "null" }
-                ]
-              }
-            },
-            "required": ["event", "coordinate"],
             "additionalProperties": false
           }
         },
@@ -1112,7 +1113,6 @@
         "obligations",
         "reports",
         "undo",
-        "coverage",
         "published_at",
         "queues"
       ],
@@ -1123,6 +1123,7 @@
       "type": "object",
       "properties": {
         "entries": {
+          "description": "Each widget event this projection classifies, in log order, or in an answer with `since` those new or changed since.",
           "type": "array",
           "items": {
             "type": "object",

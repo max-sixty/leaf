@@ -14,9 +14,9 @@ types, the effective registry, and implementation provenance. Its canonical
 manifest determines its digest, and carries a second ``executable`` digest over
 the captured inputs an already-open document cannot re-evaluate in place; the
 runtime it runs with is named beside it by the delivering Leaf. Scripts include
-their patch region: head and body scripts stay installed while main is patched.
-Moving a script across those regions reloads, so a retained script cannot duplicate
-an arriving main script. Moving among containers within main without changing
+their patch region: head scripts stay installed while authored body content is patched.
+Moving a script between head and body reloads, so a retained script cannot duplicate
+an arriving body script. Moving among containers within body without changing
 script order, or editing prose, does not reload. The HTML revision file is the commit marker: the complete bundle is made durable before
 that file appears. Users never discover a staged or incomplete revision,
 including after a process crash. A publication that also changes the log stages
@@ -50,7 +50,13 @@ from types import MappingProxyType
 
 from pywhatwgurl import URL
 
-from leaf.files import file_stamp, latest_revision, list_revisions, revision_path
+from leaf.files import (
+    file_stamp,
+    latest_revision,
+    list_revisions,
+    revision_names,
+    revision_path,
+)
 from leaf.findings import Finding, Rejected
 from leaf.page_memory import Slot, memo
 from leaf.passages import SourceReading, enclosing_ids
@@ -1351,8 +1357,8 @@ class _Readings:
     whether or not their document has been parsed yet, so 8 MB of source keeps one
     page's readings under about 160 MB. A normal history fits whole: some 180
     revisions of the largest shipped example page (44 KB), about 700 of the median
-    one. A longer one re-parses what a whole-history scan
-    (`validation.admission.version_ids`) reaches after the budget is spent.
+    one. A longer one re-parses an evicted revision a reader asks for again; a scan
+    of the whole history reads each revision once (`revision_history`).
 
     Endpoints read from a thread pool, so every change is under the lock."""
 
@@ -1445,6 +1451,56 @@ class _CompactReadings:
                 _, _, evicted_size = self.held.pop(next(iter(self.held)))
                 self.size -= evicted_size
             return value
+
+
+@dataclass(frozen=True)
+class RevisionHistory:
+    """What a scan across every stored revision reads: each id any revision
+    authored, and each revision's data consumers (`SourceInventory`), oldest
+    first. Callers read these and change neither."""
+
+    ids: frozenset[str] = frozenset()
+    data_documents: tuple[tuple[int, list], ...] = ()
+
+
+class _History:
+    """A page's `RevisionHistory` and the revision markers it has read.
+
+    Markers are named by their content and only ever added, so a newer listing
+    extends the one read, and only the revisions it adds are read. A scan that read
+    each revision on every call re-parsed each one the compact budget had evicted:
+    on 1,600 versions of a page of 16 questions, `leaf page state` took a second."""
+
+    def __init__(self) -> None:
+        self.lock = threading.Lock()
+        self.markers: tuple = ()
+        self.history = RevisionHistory()
+
+
+def revision_history(page_dir: Path) -> RevisionHistory:
+    """The page's `RevisionHistory` through its newest revision."""
+    markers = tuple(revision_names(page_dir).items())
+    held = memo(page_dir, _History)
+    with held.lock:
+        if markers[: len(held.markers)] != held.markers:
+            held.markers, held.history = (), RevisionHistory()
+        if added := markers[len(held.markers) :]:
+            inventories = [
+                (revision, read_revision(page_dir, revision).inventory)
+                for revision, _name in added
+            ]
+            held.history = RevisionHistory(
+                held.history.ids.union(
+                    *(inventory.ids for _, inventory in inventories)
+                ),
+                held.history.data_documents
+                + tuple(
+                    (revision, inventory.data_documents)
+                    for revision, inventory in inventories
+                ),
+            )
+            held.markers = markers
+        return held.history
 
 
 def active_enclosing(page_dir: Path) -> dict:

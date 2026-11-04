@@ -11,8 +11,8 @@ Codex delivery adapter follows the selection alone (`selected_launcher`):
 
 - the launcher the session selected, while it exists: the checkout a user preview
   serves (`dev/leaf_dev/commands/preview.py`), or a checkout whose command
-  initialized one of the session's pages (`select_checkout`), whose protocol the
-  session's own copy may not speak yet;
+  claimed one of the session's pages or initialized one it holds
+  (`select_checkout`), whose protocol the session's own copy may not speak yet;
 - otherwise, from a copy Claude Code installed, the copy it has installed since,
   which the marketplace sweep moves to each new commit;
 - otherwise this one.
@@ -87,9 +87,9 @@ def installed_launcher() -> Path | None:
     )
 
 
-def select_launcher(session_id: str, launcher: Path) -> None:
+def select_launcher(session_id: str, launcher: Path) -> bool:
     """Select `launcher` for the session's delivery, once a preview or a command
-    has established its session lifetime."""
+    has established its session lifetime, and say whether the selection changed."""
     launcher = launcher.resolve(strict=True)
     if not os.access(launcher, os.X_OK):
         raise Refused(f"the selected Leaf launcher is not executable: {launcher}")
@@ -97,8 +97,10 @@ def select_launcher(session_id: str, launcher: Path) -> None:
         record = session_record(session_id)
         if not session_live(record):
             raise Refused("a session must be established before selecting its Leaf")
-        if record.get("launcher") != str(launcher):
-            write_session({**record, "launcher": str(launcher)})
+        if record.get("launcher") == str(launcher):
+            return False
+        write_session({**record, "launcher": str(launcher)})
+        return True
 
 
 def hand_off_command(argv: list[str]) -> None:
@@ -123,16 +125,24 @@ def hand_off_command(argv: list[str]) -> None:
     os.execve(launcher, [str(launcher), *argv], environment)
 
 
-def select_checkout(session_id: str) -> None:
+def select_checkout(session_id: str) -> bool:
     """Select this Leaf for the session's delivery where it runs from a checkout,
-    as a command initializes one of the session's pages (`vendoring`), since the
-    copy the session loaded may not read the page at this protocol. A checkout
-    can't tell which copy the session's hooks run, so it selects itself whenever
-    the session lives. Only a command selects: a hook runs the delivering Leaf
+    and say whether the selection changed. Its callers call it only for a page the
+    established session takes or holds: a command that claims one (`server start`,
+    `server run`, `page claim`), and an init or renewal of a held page
+    (`vendoring._deliver_from_here`). The copy the session loaded may not read the
+    page at this protocol, and a checkout can't tell which copy the session's hooks
+    run, so it selects itself for each such page.
+
+    A claim selects before it prepares delivery: a Codex task's adapter starts from
+    the selected Leaf (`codex_adapter.preparing_adapter`), and one running from
+    another Leaf leaves once this one is selected, so preparing first would join the
+    adapter about to leave. Only a command selects: a hook runs the delivering Leaf
     already, and a write to the lifecycle record would change the snapshot its own
     readings compare against."""
-    if not plugin_cache_copy(PLUGIN_ROOT) and session_live(session_record(session_id)):
-        select_launcher(session_id, own_launcher())
+    return not plugin_cache_copy(PLUGIN_ROOT) and select_launcher(
+        session_id, own_launcher()
+    )
 
 
 def own_launcher() -> Path:

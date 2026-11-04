@@ -12,7 +12,6 @@ from render_cases_interaction import SUGGESTION_PAGE
 from render_cases_navigation import JOURNEY_V1, SENTENCE
 from render_cases_widgets import MANIFEST_DIFF_PAGE, MULTI_HUNK_PATCH, TYPED_PARTS_PAGE
 from render_harness import (
-    EXAMPLES,
     LONG_PAGE,
     PANEL,
     PANEL_THREAD,
@@ -38,7 +37,7 @@ from leaf import cli as cli_model
 from leaf import data as data_model
 from leaf.render_checks import wait_until_ready
 from leaf.runtime_selection import serving_runtime
-from leaf_dev.example_data import patch_manifest
+from leaf_dev.example_data import named_source, patch_manifest
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -159,7 +158,7 @@ def test_a_page_loads_only_the_widget_modules_its_markup_uses(browser, serve):
     renders under, so a page with no such widget never asks for it, and the theme
     arrives once, through the document's `<link>`.
     """
-    example = next(p for p in EXAMPLES if p.stem == "triage-board")
+    example = named_source("triage-board")
     context = browser.new_context(viewport={"width": 1280, "height": 800})
     asked = _asked(context)
     page = open_page(browser, serve(example), context=context)
@@ -479,7 +478,7 @@ def test_a_widget_a_reply_carries_arrives_with_its_module(browser, serve):
     already connected. The board is served first with no options anywhere on it, so
     the module can only have arrived because the reply asked for it.
     """
-    example = next(p for p in EXAMPLES if p.stem == "triage-board")
+    example = named_source("triage-board")
     context = browser.new_context(viewport={"width": 1280, "height": 800})
     asked = _asked(context)
     page = open_page(browser, serve(example), context=context)

@@ -131,7 +131,10 @@ export function returnPlace(checkpoint) {
   }
   // A thread card may have closed on departure, still painted but inert during
   // its closing fade. Its page target is the same working place from the other
-  // side, and remains a browser focus destination on return.
+  // side, and remains a browser focus destination on return. Arriving there opens
+  // the card beside it again wherever a card stands, as the card accompanies any
+  // page target the user arrives at other than by a press (margin-projection.js,
+  // `followCurrentLocation`).
   else if (place?.isConnected && presented(place)) focusDestination(place, "return");
   else blurFocused();
   const selection = getSelection();

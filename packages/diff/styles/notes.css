@@ -14,12 +14,12 @@ lf-diff-note {
   color: var(--ink);
   white-space: normal;
   overflow-wrap: anywhere;
-  font: var(--t-4)/1.5 var(--sans);
+  font: var(--font-widget);
   contain: inline-size;
 }
 lf-diff-note[data-lf-unmatched]::before {
   content: attr(data-lf-unmatched);
   display: block;
   color: var(--muted);
-  font-size: var(--t-6);
+  font: var(--font-small);
 }

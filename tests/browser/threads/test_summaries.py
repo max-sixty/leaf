@@ -38,7 +38,7 @@ def show_held_news(card):
 def open_margin_card(page, root):
     """Open the margin card of the passage thread `root`, by its marker, and return it."""
     page.locator('[data-lf-margin-for="how-store"] .lf-margin-marker').click()
-    card = page.locator(f'.lf-margin-preview .lf-page-thread[data-thread="{root}"]')
+    card = page.locator(f'.lf-margin-preview .lf-page-thread[data-lf-thread="{root}"]')
     expect(card).to_be_visible()
     return card
 
@@ -79,7 +79,7 @@ def test_a_seated_reply_draws_its_widget_in_place(browser, serve, resolved):
     page = open_page(browser, url)
     if resolved:
         page.locator(".lf-resolved-summary").click()
-    message = page.locator(f'#jobs .lf-msg[data-event="{reply["id"]}"]')
+    message = page.locator(f'#jobs .lf-msg[data-lf-event="{reply["id"]}"]')
     expect(message.locator("#first-job")).to_be_visible()
     with sending(page, "the first job"):
         message.locator("#mounts").click()
@@ -105,7 +105,7 @@ def test_a_seated_reply_lends_its_widget_to_the_panel_and_takes_it_back(browser,
         "</lf-options></lf-ask>",
     )
     page = open_page(browser, url)
-    seated = page.locator(f'#jobs .lf-msg[data-event="{reply["id"]}"]')
+    seated = page.locator(f'#jobs .lf-msg[data-lf-event="{reply["id"]}"]')
     expect(seated.locator("#first-job")).to_be_visible()
     view = open_panel_thread(page, root)
     expect(view.locator("#first-job")).to_be_visible()
@@ -133,12 +133,12 @@ def test_a_reply_folded_in_one_view_keeps_its_widget_in_view_in_another(browser,
     summarize_thread(serve.page_dir, asked["id"], last["id"], "The mounts go first.")
 
     page = open_page(browser, url)
-    seat = page.locator(f'#jobs .lf-page-thread[data-thread="{root}"]')
+    seat = page.locator(f'#jobs .lf-page-thread[data-lf-thread="{root}"]')
     seat.get_by_role("button", name="Show 3 earlier messages", exact=True).click()
-    message = seat.locator(f'.lf-msg[data-event="{asked["id"]}"]')
+    message = seat.locator(f'.lf-msg[data-lf-event="{asked["id"]}"]')
     expect(message.locator("#folded-note")).to_be_visible()
     view = open_panel_thread(page, root)
-    expect(view.locator(f'.lf-msg[data-event="{asked["id"]}"]')).to_be_hidden()
+    expect(view.locator(f'.lf-msg[data-lf-event="{asked["id"]}"]')).to_be_hidden()
     expect(message.locator("#folded-note")).to_be_attached()
 
 
@@ -163,10 +163,10 @@ def test_the_browser_s_search_and_leaf_s_travel_open_a_closed_fold(browser, serv
     summarize_thread(serve.page_dir, asked["id"], last["id"], "The mounts go first.")
 
     page = open_page(browser, url)
-    seat = page.locator(f'#jobs .lf-page-thread[data-thread="{root}"]')
+    seat = page.locator(f'#jobs .lf-page-thread[data-lf-thread="{root}"]')
     toggle = seat.locator(".lf-summary-expand")
     covered = [
-        seat.locator(f'.lf-msg[data-event="{message["id"]}"]')
+        seat.locator(f'.lf-msg[data-lf-event="{message["id"]}"]')
         for message in (asked, middle, last)
     ]
     note = covered[0].locator("#folded-note")
@@ -234,9 +234,9 @@ def test_a_summary_folds_originals_and_reveals_them(browser, serve):
     )
 
     page = open_page(browser, url)
-    card = page.locator(f'#jobs .lf-page-thread[data-thread="{root}"]')
+    card = page.locator(f'#jobs .lf-page-thread[data-lf-thread="{root}"]')
     checkpoint = card.locator(
-        f'.lf-thread-checkpoint[data-summary-id="{summary["id"]}"]'
+        f'.lf-thread-checkpoint[data-lf-summary-id="{summary["id"]}"]'
     )
     expand = checkpoint.locator(".lf-summary-expand")
     expect(expand).to_have_attribute("aria-expanded", "false")
@@ -263,26 +263,28 @@ def test_a_summary_folds_originals_and_reveals_them(browser, serve):
         )
         == "normal"
     )
-    expect(card.locator(f'.lf-msg[data-event="{root}"]')).to_be_visible()
-    expect(card.locator(f'.lf-msg[data-event="{latest["id"]}"]')).to_be_visible()
+    expect(card.locator(f'.lf-msg[data-lf-event="{root}"]')).to_be_visible()
+    expect(card.locator(f'.lf-msg[data-lf-event="{latest["id"]}"]')).to_be_visible()
     for message in (first, middle, last):
-        expect(card.locator(f'.lf-msg[data-event="{message["id"]}"]')).to_be_hidden()
+        expect(card.locator(f'.lf-msg[data-lf-event="{message["id"]}"]')).to_be_hidden()
 
     expand.focus()
     page.keyboard.press("Enter")
     expect(expand).to_have_attribute("aria-expanded", "true")
     for message in (first, middle, last):
-        expect(card.locator(f'.lf-msg[data-event="{message["id"]}"]')).to_be_visible()
+        expect(
+            card.locator(f'.lf-msg[data-lf-event="{message["id"]}"]')
+        ).to_be_visible()
     expect(checkpoint.locator(".lf-summary-refold")).to_have_count(0)
     expect(expand).to_have_accessible_name("Hide 3 earlier messages")
     expand.focus()
     page.keyboard.press("Enter")
     expect(expand).to_have_attribute("aria-expanded", "false")
-    expect(card.locator(f'.lf-msg[data-event="{last["id"]}"]')).to_be_hidden()
+    expect(card.locator(f'.lf-msg[data-lf-event="{last["id"]}"]')).to_be_hidden()
 
     # The open fold shows a reply's markup in place.
     card.get_by_role("button", name="Show 3 earlier messages", exact=True).click()
-    expect(card.locator(f'.lf-msg[data-event="{last["id"]}"]')).to_contain_text(
+    expect(card.locator(f'.lf-msg[data-lf-event="{last["id"]}"]')).to_contain_text(
         "The measured result is 18 minutes."
     )
 
@@ -302,16 +304,16 @@ def test_previous_progress_messages_can_fold_without_summary_prose(browser, serv
     )
 
     page = open_page(browser, url)
-    card = page.locator(f'#jobs .lf-page-thread[data-thread="{root}"]')
+    card = page.locator(f'#jobs .lf-page-thread[data-lf-thread="{root}"]')
     checkpoint = card.locator(
-        f'.lf-thread-checkpoint[data-summary-id="{summary["id"]}"]'
+        f'.lf-thread-checkpoint[data-lf-summary-id="{summary["id"]}"]'
     )
     label = checkpoint.locator(".lf-summary-label")
     expand = checkpoint.get_by_role("button", name="Show 2 earlier messages")
     expect(label).to_have_text("Previous progress messages")
     expect(checkpoint.locator(".lf-summary-text")).to_have_count(0)
-    expect(card.locator(f'.lf-msg[data-event="{answer["id"]}"]')).to_be_visible()
-    expect(card.locator(f'.lf-msg[data-event="{first["id"]}"]')).to_be_hidden()
+    expect(card.locator(f'.lf-msg[data-lf-event="{answer["id"]}"]')).to_be_visible()
+    expect(card.locator(f'.lf-msg[data-lf-event="{first["id"]}"]')).to_be_hidden()
     # Font metrics decide whether they share a line; both arrangements must remain
     # readable and inside the checkpoint. The narrower screen exercises wrapping
     # even with macOS's smaller text metrics.
@@ -333,10 +335,10 @@ def test_previous_progress_messages_can_fold_without_summary_prose(browser, serv
         )
     expand.focus()
     page.keyboard.press("Enter")
-    expect(card.locator(f'.lf-msg[data-event="{first["id"]}"]')).to_be_visible()
-    expect(card.locator(f'.lf-msg[data-event="{last["id"]}"]')).to_be_visible()
+    expect(card.locator(f'.lf-msg[data-lf-event="{first["id"]}"]')).to_be_visible()
+    expect(card.locator(f'.lf-msg[data-lf-event="{last["id"]}"]')).to_be_visible()
     checkpoint.get_by_role("button", name="Hide 2 earlier messages").click()
-    expect(card.locator(f'.lf-msg[data-event="{first["id"]}"]')).to_be_hidden()
+    expect(card.locator(f'.lf-msg[data-lf-event="{first["id"]}"]')).to_be_hidden()
 
 
 @pytest.mark.parametrize("interleaved", [True, False])
@@ -375,11 +377,11 @@ def test_ephemeral_progress_hides_when_its_held_completion_is_revealed(
 
     def show(page):
         resized(page, 390, 844)
-        return page.locator(f'#jobs .lf-page-thread[data-thread="{root}"]')
+        return page.locator(f'#jobs .lf-page-thread[data-lf-thread="{root}"]')
 
     page = open_page(browser, url)
     card = show(page)
-    identity = "data-event"
+    identity = "data-lf-event"
     original = card.locator(f'.lf-msg[{identity}="{folded["id"]}"]')
     expect(original).to_be_hidden()
     runs = 2 if interleaved else 1
@@ -401,7 +403,9 @@ def test_ephemeral_progress_hides_when_its_held_completion_is_revealed(
 
     fresh = open_page(browser, url)
     fresh_card = show(fresh)
-    expect(fresh_card.locator(f'.lf-msg[data-event="{answer["id"]}"]')).to_be_visible()
+    expect(
+        fresh_card.locator(f'.lf-msg[data-lf-event="{answer["id"]}"]')
+    ).to_be_visible()
     expect(fresh_card.locator(".lf-thread-checkpoint")).to_have_count(0)
     expect(fresh_card.locator(".lf-thread-working")).to_have_count(0)
     if interleaved:
@@ -448,7 +452,7 @@ def test_progress_disclosure_keeps_its_words_visible_beside_margin_paging(
     page.locator(".lf-margin-marker").first.click()
     preview = page.locator(".lf-margin-preview")
     expect(preview).to_be_visible()
-    card = preview.locator(f'.lf-page-thread[data-thread="{root}"]')
+    card = preview.locator(f'.lf-page-thread[data-lf-thread="{root}"]')
     for _ in roots[1:]:
         if card.count():
             break
@@ -498,7 +502,8 @@ def test_progress_disclosure_keeps_its_words_visible_beside_margin_paging(
 
     expect_headers_clear_actions()
     originals = [
-        card.locator(f'.lf-msg[data-event="{message["id"]}"]') for message in progress
+        card.locator(f'.lf-msg[data-lf-event="{message["id"]}"]')
+        for message in progress
     ]
     for original in originals:
         expect(original).to_be_hidden()
@@ -581,8 +586,8 @@ def test_a_summary_folds_its_messages_where_they_stand(request, serve, engine):
     append_user_reply(serve.page_dir, root, "Keep the latest visible.")
 
     page = open_page(request.getfixturevalue(engine), url)
-    card = page.locator(f'#jobs .lf-page-thread[data-thread="{root}"]')
-    frame = card.locator(f'.lf-msg[data-event="{framed["id"]}"] iframe')
+    card = page.locator(f'#jobs .lf-page-thread[data-lf-thread="{root}"]')
+    frame = card.locator(f'.lf-msg[data-lf-event="{framed["id"]}"] iframe')
     expect(frame).to_be_attached()
     frame.evaluate("""frame => new Promise(loaded => {
       const settle = () => {
@@ -594,7 +599,7 @@ def test_a_summary_folds_its_messages_where_they_stand(request, serve, engine):
       if (frame.contentDocument?.readyState === "complete") settle();
       else frame.addEventListener("load", settle, {once: true});
     })""")
-    words = card.locator(f'.lf-msg[data-event="{worded["id"]}"] .lf-msg-text')
+    words = card.locator(f'.lf-msg[data-lf-event="{worded["id"]}"] .lf-msg-text')
     words.evaluate("""node => {
       const range = document.createRange();
       range.selectNodeContents(node);
@@ -612,14 +617,14 @@ def test_a_summary_folds_its_messages_where_they_stand(request, serve, engine):
     )
     told(page)
     show_held_news(card)
-    checkpoint = card.locator(f'[data-summary-id="{summary["id"]}"]')
+    checkpoint = card.locator(f'[data-lf-summary-id="{summary["id"]}"]')
     toggle = checkpoint.locator(".lf-summary-expand")
     expect(toggle).to_have_attribute("aria-expanded", "true")
     kept()
     selected = page.evaluate("getSelection().toString()")
     assert selected.strip() == "The mounts take an hour."
     covered = [
-        card.locator(f'.lf-msg[data-event="{message["id"]}"]')
+        card.locator(f'.lf-msg[data-lf-event="{message["id"]}"]')
         for message in (framed, worded, edited)
     ]
     owned = checkpoint.evaluate("node => node.getAttribute('aria-owns').split(' ')")
@@ -684,7 +689,7 @@ def test_a_summary_gathering_the_message_the_user_is_on_keeps_them_on_it(
     page = open_page(browser, url)
     resized(page, 1440, 600)
     card = open_margin_card(page, root)
-    link = card.locator(f'.lf-msg[data-event="{held["id"]}"] a')
+    link = card.locator(f'.lf-msg[data-lf-event="{held["id"]}"] a')
     link.focus()
     expect(link).to_be_focused()
 
@@ -693,10 +698,10 @@ def test_a_summary_gathering_the_message_the_user_is_on_keeps_them_on_it(
     )
     told(page)
     show_held_news(card)
-    expect(card.locator(f'[data-summary-id="{summary["id"]}"]')).to_be_visible()
+    expect(card.locator(f'[data-lf-summary-id="{summary["id"]}"]')).to_be_visible()
     expect(
         card.locator(
-            f'.lf-msg[data-event="{held["id"]}"][data-lf-summary="{summary["id"]}"]'
+            f'.lf-msg[data-lf-event="{held["id"]}"][data-lf-summary="{summary["id"]}"]'
         )
     ).to_be_visible()
     expect(link).to_be_focused()
@@ -742,8 +747,8 @@ def test_a_root_summary_keeps_thread_actions_outside_its_fold(
         control.tap() if touch else control.click()
 
     activate(page.locator('[data-lf-margin-for="how-store"] .lf-margin-marker'))
-    card = page.locator(f'.lf-margin-preview .lf-page-thread[data-thread="{root}"]')
-    checkpoint = card.locator(f'[data-summary-id="{summary["id"]}"]')
+    card = page.locator(f'.lf-margin-preview .lf-page-thread[data-lf-thread="{root}"]')
+    checkpoint = card.locator(f'[data-lf-summary-id="{summary["id"]}"]')
     expect(card.get_by_role("button", name="Resolve thread")).to_be_visible()
     alignment = card.evaluate("""card => {
       const headerNode = card.querySelector('.lf-summary-header');
@@ -762,7 +767,7 @@ def test_a_root_summary_keeps_thread_actions_outside_its_fold(
     assert alignment["disclosureRight"] <= alignment["contentRight"] + 0.5, alignment
     expect(card.get_by_role("button", name="Close thread")).to_have_count(0)
     root_message = card.locator(
-        f'.lf-msg[data-event="{root}"][data-lf-summary="{summary["id"]}"]'
+        f'.lf-msg[data-lf-event="{root}"][data-lf-summary="{summary["id"]}"]'
     )
     expect(root_message.locator(":scope > .lf-msg-head")).to_be_hidden()
     expect(root_message.locator(":scope > .lf-msg-body")).to_be_hidden()
@@ -821,13 +826,13 @@ def test_a_later_summary_replaces_its_overlap_and_an_edit_restores_originals(
     )
     page = open_page(browser, url)
     card = open_margin_card(page, root)
-    old_checkpoint = card.locator(f'[data-summary-id="{old["id"]}"]')
+    old_checkpoint = card.locator(f'[data-lf-summary-id="{old["id"]}"]')
     expect(old_checkpoint).to_be_visible()
     # The user is located on the summary they opened: a message takes no focus in a card.
     opened = old_checkpoint.locator(".lf-summary-expand")
     opened.click()
     expect(opened).to_be_focused()
-    selected_message = card.locator(f'.lf-msg[data-event="{second["id"]}"]')
+    selected_message = card.locator(f'.lf-msg[data-lf-event="{second["id"]}"]')
 
     replacement = summarize_thread(
         serve.page_dir,
@@ -841,8 +846,8 @@ def test_a_later_summary_replaces_its_overlap_and_an_edit_restores_originals(
     expect(old_checkpoint).to_be_visible()
     expect(opened).to_be_focused()
     notice.click()
-    expect(card.locator(f'[data-summary-id="{old["id"]}"]')).to_have_count(0)
-    checkpoint = card.locator(f'[data-summary-id="{replacement["id"]}"]')
+    expect(card.locator(f'[data-lf-summary-id="{old["id"]}"]')).to_have_count(0)
+    checkpoint = card.locator(f'[data-lf-summary-id="{replacement["id"]}"]')
     expect(checkpoint.locator(".lf-summary-expand")).to_have_attribute(
         "aria-expanded", "true"
     )
@@ -866,11 +871,11 @@ def test_a_later_summary_replaces_its_overlap_and_an_edit_restores_originals(
     expect(checkpoint).to_be_visible()
     card.get_by_role("button", name="2 new", exact=True).click()
     expect(card.locator(".lf-thread-checkpoint")).to_have_count(0)
-    expect(card.locator(f'.lf-msg[data-event="{first["id"]}"]')).to_be_visible()
-    expect(card.locator(f'.lf-msg[data-event="{second["id"]}"]')).to_contain_text(
+    expect(card.locator(f'.lf-msg[data-lf-event="{first["id"]}"]')).to_be_visible()
+    expect(card.locator(f'.lf-msg[data-lf-event="{second["id"]}"]')).to_contain_text(
         "The corrected second constraint."
     )
-    expect(card.locator(f'.lf-msg[data-event="{third["id"]}"]')).to_be_visible()
+    expect(card.locator(f'.lf-msg[data-lf-event="{third["id"]}"]')).to_be_visible()
 
 
 def test_expanding_a_summary_keeps_completed_progress_hidden(browser, serve):
@@ -895,7 +900,7 @@ def test_expanding_a_summary_keeps_completed_progress_hidden(browser, serve):
     thread = open_panel_thread(page, root)
     expect(thread.locator(".lf-summary-text")).to_have_text("Checking both parts.")
     thread.locator(".lf-summary-expand").click()
-    expect(thread.locator(f'.lf-msg[data-event="{answer["id"]}"]')).to_be_visible()
-    expect(thread.locator(f'.lf-msg[data-event="{asked["id"]}"]')).to_be_visible()
-    expect(thread.locator(f'.lf-msg[data-event="{progress["id"]}"]')).to_be_hidden()
+    expect(thread.locator(f'.lf-msg[data-lf-event="{answer["id"]}"]')).to_be_visible()
+    expect(thread.locator(f'.lf-msg[data-lf-event="{asked["id"]}"]')).to_be_visible()
+    expect(thread.locator(f'.lf-msg[data-lf-event="{progress["id"]}"]')).to_be_hidden()
     expect(thread.locator(".lf-thread-working")).to_have_count(0)

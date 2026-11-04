@@ -29,6 +29,7 @@ from leaf.schema import MEDIA_DIR, MEDIA_TYPES
 from leaf.structure import SourceDocument
 from leaf_dev import ROOT, docs
 from leaf_dev.example_data import (
+    DEVELOPER_GALLERIES,
     data_operations,
     example_versions,
     page_files,
@@ -95,8 +96,8 @@ def record_run_context(
 
 def source_manifest_candidates(source: Path) -> list[Path]:
     candidates = [source.parent / "layer.json"]
-    # `examples/developer/` pages take the catalog's package selection.
-    if source.parent.name == "developer":
+    # The developer galleries take the worked examples' package selection.
+    if source.parent.match(DEVELOPER_GALLERIES.as_posix()):
         candidates.append(source.parent.parent / "layer.json")
     return candidates
 

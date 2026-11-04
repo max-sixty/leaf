@@ -444,7 +444,7 @@ def test_back_returns_the_passage_chosen_between_trips(
     entries = page.evaluate("history.length")
     page.keyboard.press("t")
     expect(
-        page.locator(f'.lf-margin-preview [data-thread="{roots[0]}"]')
+        page.locator(f'.lf-margin-preview [data-lf-thread="{roots[0]}"]')
     ).to_be_focused()
     scroll_settled(page)
     assert page.evaluate("history.length") == entries + 1
@@ -469,7 +469,7 @@ def test_back_returns_the_passage_chosen_between_trips(
     ), "the old landing must still be visible to expose accidental history grouping"
     chosen_top = page.evaluate("scrollY")
     page.keyboard.press("t")
-    second = page.locator(f'.lf-margin-preview [data-thread="{roots[1]}"]')
+    second = page.locator(f'.lf-margin-preview [data-lf-thread="{roots[1]}"]')
     expect(second).to_be_focused()
     scroll_settled(page)
     assert page.evaluate("history.length") == entries + 2
@@ -503,7 +503,7 @@ def test_back_returns_the_passage_chosen_between_trips(
     # the current location returns focus to its card. Both are the second thread's working place.
     assert page.evaluate(
         "id => document.activeElement.id === 'second' || "
-        "document.activeElement.closest('[data-thread]')?.dataset.thread === id",
+        "document.activeElement.closest('[data-lf-thread]')?.dataset.lfThread === id",
         arg=roots[1],
     )
     page.wait_for_function("navigation.transition === null")
@@ -604,7 +604,9 @@ def test_reading_landmarks_use_drawn_segments_in_mixed_blocks(
     assert chosen["place"]["quote"] == visible
     chosen_scroll = page.evaluate("scrollY")
     page.keyboard.press("t")
-    expect(page.locator(f'.lf-margin-preview [data-thread="{root}"]')).to_be_focused()
+    expect(
+        page.locator(f'.lf-margin-preview [data-lf-thread="{root}"]')
+    ).to_be_focused()
     scroll_settled(page)
     page.go_back()
     page.wait_for_function("top => Math.abs(scrollY-top) <= 2", arg=chosen_scroll)
@@ -761,7 +763,8 @@ def test_back_returns_from_an_obligation_the_walk_travelled_to(browser, serve):
     """Each step of the obligation walk somewhere else adds a history entry where the user
     stood, as each trip to a thread does, so Back returns to the obligation the user was
     on, though answering it took it out of On me, and then to where they were reading.
-    `m` from a thread `t` reached comes back to the thread."""
+    `m` from a thread `t` reached comes back to the thread, its card open again beside
+    its passage."""
     filler = "".join(f"<p>Filler paragraph {n}.</p>" for n in range(60))
     url = serve(
         leaf_page(
@@ -811,19 +814,23 @@ def test_back_returns_from_an_obligation_the_walk_travelled_to(browser, serve):
 
     # `t` travels to the thread just below the first obligation, and `m` from there to
     # the second leaves that thread, so it adds an entry of its own: Back returns to the
-    # thread's landing, and Back again to the bottom.
+    # thread's landing, its card open beside the passage again, and Back again to the
+    # bottom.
+    card = page.locator(".lf-margin-thread .lf-page-thread")
     start = entry()
     page.keyboard.press("t")
-    page.wait_for_function("() => document.activeElement?.closest('[data-thread]')")
+    page.wait_for_function("() => document.activeElement?.closest('[data-lf-thread]')")
     scroll_settled(page)
     thread = page.evaluate("document.scrollingElement.scrollTop")
     assert thread < reading - 1000
     page.keyboard.press("m")
     expect(page.locator("#second-decision")).to_be_focused()
+    expect(card).to_be_hidden()
     scroll_settled(page)
     assert entry() == start + 2
     back_to(thread)
     expect(page.locator("#above")).to_be_in_viewport()
+    expect(card).to_be_visible()
     back_to(reading)
 
     # From the bottom again, the obligation walk upward.
@@ -1591,7 +1598,7 @@ def test_restore_selection_has_touch_route_and_does_not_carry_draft(browser, ser
         "expected => getSelection().toString() === expected", arg=selected
     )
     # The menu took the On view's place, as its tab does, and the command puts it away.
-    expect(page.locator(PANEL)).not_to_have_attribute("data-open", re.compile("."))
+    expect(page.locator(PANEL)).not_to_have_attribute("data-lf-open", re.compile("."))
     page.keyboard.press("Escape")
     page.keyboard.press("g")
     page.keyboard.press("i")

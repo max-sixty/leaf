@@ -54,7 +54,6 @@ from render_cases_widgets import (
 )
 from render_harness import (
     EDITOR_ROOTS,
-    EXAMPLES,
     FOLLOWER_MARK,
     LONG_PAGE,
     PANEL,
@@ -101,6 +100,7 @@ from leaf.render_checks import rendered, wait_until_ready
 from leaf.render_gate.scheme import collect_page_exceptions
 from leaf.served_state import context as served_context
 from leaf.validation import composition as validation_model
+from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -129,12 +129,12 @@ AIM_PRESS_CASES = (
     ),
     (
         "release-notes",
-        next(p for p in EXAMPLES if p.stem == "release-notes"),
+        named_source("release-notes"),
         frozenset({"draft mousedown", "suggestion margin control"}),
     ),
     (
         "ship-review",
-        next(p for p in EXAMPLES if p.stem == "ship-review"),
+        named_source("ship-review"),
         frozenset({"option click", "existing mark"}),
     ),
 )
@@ -182,7 +182,7 @@ def test_the_catalog_sidenote_can_be_aimed_whole(browser, serve):
 
     note.hover()
     page.keyboard.down("Alt")
-    expect(page.locator(".lf-aim")).to_have_attribute("data-for", "logout-frequency")
+    expect(page.locator(".lf-aim")).to_have_attribute("data-lf-for", "logout-frequency")
     note.click()
     page.keyboard.up("Alt")
 
@@ -251,7 +251,7 @@ def test_a_compact_comment_carries_its_box_into_the_inline_thread(browser, serve
     expect(preview.locator(".lf-page-thread")).to_be_focused()
     message = preview.locator(".lf-msg-body").first
     expect(preview.locator(".lf-page-thread")).to_have_attribute(
-        "data-thread", admitted["id"]
+        "data-lf-thread", admitted["id"]
     )
     expect(message).to_have_text("Carry this comment into its thread.")
     full = message.evaluate(
@@ -287,12 +287,12 @@ def test_an_aimed_comment_keeps_its_place_with_on_me_open(browser, serve, width)
     # where the comment press below also lands.
     target.hover(position={"x": 12, "y": 12})
     page.keyboard.down("Alt")
-    expect(page.locator(".lf-aim")).to_have_attribute("data-for", "lq-keep")
+    expect(page.locator(".lf-aim")).to_have_attribute("data-lf-for", "lq-keep")
     # Open by script so the pointer remains parked on the target while the view arrives.
     page.locator(".lf-fp-on-user").evaluate("node => node.click()")
     panel_settled(page, view="queue")
     expect(page.locator(".lf-aim")).to_be_visible()
-    expect(page.locator(".lf-aim")).to_have_attribute("data-for", "lq-keep")
+    expect(page.locator(".lf-aim")).to_have_attribute("data-lf-for", "lq-keep")
     aligned = page.evaluate(
         """() => {
           const target = document.getElementById('lq-keep').getBoundingClientRect();
@@ -565,7 +565,7 @@ def test_a_growing_comment_is_independent_of_page_controls(browser, serve):
     """
     page = open_page(
         browser,
-        serve(next(example for example in EXAMPLES if example.stem == "release-notes")),
+        serve(named_source("release-notes")),
     )
     resized(page, 1337, 386)
     page.evaluate("() => { location.hash = '#rn-console-why' }")
@@ -1236,9 +1236,9 @@ def test_a_pointed_comment_keeps_the_rows_still_owed(browser, serve, case):
         page.keyboard.press("t")
         shown = page.locator(".lf-margin-preview .lf-page-thread")
         expect(shown).to_have_count(1)
-        if shown.get_attribute("data-thread") != first:
+        if shown.get_attribute("data-lf-thread") != first:
             page.keyboard.press("Shift+t")
-        expect(shown).to_have_attribute("data-thread", first)
+        expect(shown).to_have_attribute("data-lf-thread", first)
         scroll_settled(page)
         rendered(page)
         card = page.locator(".lf-margin-preview").bounding_box()
@@ -1572,7 +1572,7 @@ def test_a_comment_rechooses_after_target_width_reflow(browser, serve):
     """New horizontal room invalidates the old fallback instead of detaching it."""
     page = open_page(
         browser,
-        serve(next(example for example in EXAMPLES if example.stem == "release-notes")),
+        serve(named_source("release-notes")),
     )
     resized(page, 700, 600)
     target = page.locator("#rn-console-why")
@@ -1606,7 +1606,7 @@ def test_a_draft_below_its_passage_keeps_its_lane_whatever_it_holds(browser, ser
     same draft typed into an empty field."""
     page = open_page(
         browser,
-        serve(next(example for example in EXAMPLES if example.stem == "release-notes")),
+        serve(named_source("release-notes")),
     )
     resized(page, 700, 600)
     target = page.locator("#rn-console-why")
@@ -1680,7 +1680,7 @@ def test_a_comment_rechooses_its_side_after_vertical_target_motion(browser, serv
     moves with it (comment-placement.js)."""
     page = open_page(
         browser,
-        serve(next(example for example in EXAMPLES if example.stem == "release-notes")),
+        serve(named_source("release-notes")),
     )
     resized(page, 700, 600)
     target = page.locator("#rn-console-why")
@@ -1747,13 +1747,13 @@ def test_design_legend_tracks_a_height_only_page_reflow(browser, serve):
     page.evaluate(RELEASE_FOCUS)
     page.keyboard.press("l")
     expect(page.locator("body")).to_have_attribute("data-lf-design-mode", "")
-    legend = page.locator('.lf-legend-box[data-for="p30"]')
+    legend = page.locator('.lf-legend-box[data-lf-for="p30"]')
     expect(legend).to_be_visible()
 
     before = page.evaluate(
         """() => {
           const target = document.getElementById('p30').getBoundingClientRect();
-          const legend = document.querySelector('.lf-legend-box[data-for="p30"]')
+          const legend = document.querySelector('.lf-legend-box[data-lf-for="p30"]')
             .getBoundingClientRect();
           return {targetTop: target.top, dx: legend.left - target.left,
                   dy: legend.top - target.top,
@@ -1779,7 +1779,7 @@ def test_design_legend_tracks_a_height_only_page_reflow(browser, serve):
             () => requestAnimationFrame(() => requestAnimationFrame(done))
           ));
           const targetBox = target.getBoundingClientRect();
-          const legendBox = document.querySelector('.lf-legend-box[data-for="p30"]')
+          const legendBox = document.querySelector('.lf-legend-box[data-lf-for="p30"]')
             .getBoundingClientRect();
           return {targetTop: targetBox.top, dx: legendBox.left - targetBox.left,
                   dy: legendBox.top - targetBox.top};
@@ -1819,7 +1819,7 @@ def test_a_margin_label_covers_the_target_trace(browser, serve, monkeypatch):
     )
     marker.hover()
     label = marker.locator(":scope > .lf-margin-entry-label")
-    trace = page.locator('.lf-target-trace[data-for="jobs"]')
+    trace = page.locator('.lf-target-trace[data-lf-for="jobs"]')
     expect(label).to_be_visible()
     expect(trace).to_be_visible()
     label.evaluate(
@@ -1885,7 +1885,7 @@ def test_the_aim_reads_the_pointer_where_the_press_is_dispatched_from(browser, s
 
     page.mouse.move(seam["x"], seam["y"])
     page.keyboard.down("Alt")
-    expect(page.locator(".lf-aim")).to_have_attribute("data-for", seam["at"])
+    expect(page.locator(".lf-aim")).to_have_attribute("data-lf-for", seam["at"])
     page.mouse.click(seam["x"], seam["y"])
     page.keyboard.up("Alt")
 
@@ -2050,12 +2050,12 @@ def test_a_reload_under_a_held_aim_rearms_on_the_first_move(browser, serve):
     heading = page.locator("#t")
     heading.hover()
     page.keyboard.down("Alt")
-    expect(page.locator(".lf-aim")).to_have_attribute("data-for", "t")
+    expect(page.locator(".lf-aim")).to_have_attribute("data-lf-for", "t")
     page.reload()
     wait_until_ready(page)
-    expect(page.locator(".lf-aim[data-for]")).to_have_count(0)  # the latch is gone
+    expect(page.locator(".lf-aim[data-lf-for]")).to_have_count(0)  # the latch is gone
     heading.hover()  # the first move under the still-held key
-    expect(page.locator(".lf-aim")).to_have_attribute("data-for", "t")
+    expect(page.locator(".lf-aim")).to_have_attribute("data-lf-for", "t")
     page.keyboard.up("Alt")
 
 
@@ -2087,11 +2087,13 @@ def test_design_mode_comments_on_what_a_press_lands_on_and_nothing_else(browser,
     # box on every item, and on every item but a widget's parts its name — the group
     # is named, its options wear the hairline alone and are named under the pointer.
     def box_of(element_id):
-        return page.locator(f'.lf-legend-box[data-for="{element_id}"]')
+        return page.locator(f'.lf-legend-box[data-lf-for="{element_id}"]')
 
     expect(box_of("t")).to_be_visible()
     assert set(
-        page.eval_on_selector_all(".lf-legend-box", "bs => bs.map(b => b.dataset.for)")
+        page.eval_on_selector_all(
+            ".lf-legend-box", "bs => bs.map(b => b.dataset.lfFor)"
+        )
     ) == set(page.eval_on_selector_all("main [id]", "es => es.map(e => e.id)"))
     expect(box_of("approach").locator(".lf-legend-tag")).to_have_text(
         "lf-options · approach"
@@ -2103,7 +2105,7 @@ def test_design_mode_comments_on_what_a_press_lands_on_and_nothing_else(browser,
     # draws the aim's own box on it, the promise about the next press.
     option.hover()
     expect(page.locator(".lf-inspect")).to_have_text("lf-option · opt-shim")
-    expect(page.locator(".lf-aim")).to_have_attribute("data-for", "opt-shim")
+    expect(page.locator(".lf-aim")).to_have_attribute("data-lf-for", "opt-shim")
     option.click(modifiers=["Alt"])
     composer = page.locator(".lf-composer")
     expect(composer).to_be_visible()
@@ -2188,13 +2190,13 @@ def test_target_picker_selects_in_the_current_comment_mode(browser, serve, mode,
     expect(hints.first).to_be_visible()
     if mode == "l":
         expect(
-            page.locator('.lf-legend-box[data-for="subject"] .lf-legend-tag')
+            page.locator('.lf-legend-box[data-lf-for="subject"] .lf-legend-tag')
         ).to_be_hidden()
         page.keyboard.press("Escape")
         expect(hints).to_have_count(0)
         expect(page.locator("body")).to_have_attribute("data-lf-design-mode", "")
         expect(
-            page.locator('.lf-legend-box[data-for="subject"] .lf-legend-tag')
+            page.locator('.lf-legend-box[data-lf-for="subject"] .lf-legend-tag')
         ).to_be_visible()
         page.keyboard.press("s")
         expect(hints.first).to_be_visible()
@@ -2652,7 +2654,7 @@ def test_design_mode_leaves_leaves_surfaces_working_inside_a_widget(browser, ser
     )
     page = open_page(browser, url)
     resized(page, 1440, 900)
-    thread = page.locator(f'lf-diff .lf-page-thread[data-thread="{root["id"]}"]')
+    thread = page.locator(f'lf-diff .lf-page-thread[data-lf-thread="{root["id"]}"]')
     reply = thread.locator("leaf-text")
     expect(reply).to_be_visible()
     page.keyboard.press("l")
@@ -2711,7 +2713,7 @@ def test_design_mode_settles_on_a_page_with_marked_elements(browser, serve):
     )
     expect(page.locator("#commented.lf-mark-el")).to_have_count(1)
     page.keyboard.press("l")
-    expect(page.locator('.lf-legend-box[data-for="reacted"]')).to_be_visible()
+    expect(page.locator('.lf-legend-box[data-lf-for="reacted"]')).to_be_visible()
     rendered(page)
 
 
@@ -2765,7 +2767,7 @@ def test_the_legend_follows_the_page_it_is_a_reading_of(browser, serve):
     page.evaluate("() => { document.scrollingElement.scrollTop = 1200; }")
     p = page.locator("#p20")
     expect(p).to_be_in_viewport()
-    expect(page.locator('.lf-legend-box[data-for="p20"]')).to_be_visible()
+    expect(page.locator('.lf-legend-box[data-lf-for="p20"]')).to_be_visible()
     page.wait_for_function(LEGEND_TRUE)
     # The name floats where the box's tag stood, over the item's corner — on a scrolled
     # page as on a fresh one.
@@ -2795,10 +2797,10 @@ def test_the_legend_follows_the_page_it_is_a_reading_of(browser, serve):
     aim = page.evaluate(
         """() => {
       const b = document.querySelector('.lf-aim');
-      const it = document.getElementById(b.dataset.for);
+      const it = document.getElementById(b.dataset.lfFor);
       const r = it.getBoundingClientRect();
       const bb = b.getBoundingClientRect();
-      return { on: b.dataset.for, dx: bb.left - r.left, dy: bb.top - r.top };
+      return { on: b.dataset.lfFor, dx: bb.left - r.left, dy: bb.top - r.top };
     }"""
     )
     assert aim["on"] == "p20" and abs(aim["dx"]) < 2 and abs(aim["dy"]) < 2, aim
@@ -2813,10 +2815,10 @@ def test_two_names_at_one_corner_step_apart(browser, serve):
     page = open_page(browser, serve(CORNER_PAGE))
     page.keyboard.press("l")
     expect(
-        page.locator('.lf-legend-box[data-for="wrap"] .lf-legend-tag')
+        page.locator('.lf-legend-box[data-lf-for="wrap"] .lf-legend-tag')
     ).to_be_visible()
     expect(
-        page.locator('.lf-legend-box[data-for="inner"] .lf-legend-tag')
+        page.locator('.lf-legend-box[data-lf-for="inner"] .lf-legend-tag')
     ).to_be_visible()
     clash = page.evaluate(
         """() => {
@@ -2848,11 +2850,13 @@ def test_a_picture_is_one_addressable_element_however_many_ids_its_renderer_coin
     expect(node).to_be_visible()
     node.hover()
     page.keyboard.down("Alt")
-    expect(page.locator(".lf-aim")).to_have_attribute("data-for", "flow")
+    expect(page.locator(".lf-aim")).to_have_attribute("data-lf-for", "flow")
     page.keyboard.up("Alt")
     page.keyboard.press("l")
     assert set(
-        page.eval_on_selector_all(".lf-legend-box", "bs => bs.map(b => b.dataset.for)")
+        page.eval_on_selector_all(
+            ".lf-legend-box", "bs => bs.map(b => b.dataset.lfFor)"
+        )
     ) == {"t", "p", "flow", "tree"}
     node.hover()
     expect(page.locator(".lf-inspect")).to_have_text("lf-diagram · flow")
@@ -2883,11 +2887,11 @@ height="56" fill="#ddd"></rect><text x="52" y="34" text-anchor="middle">Drawer</
     corner = {"x": 8, "y": 8}
     drawer.hover(position=corner)
     page.keyboard.down("Alt")
-    expect(page.locator(".lf-aim")).to_have_attribute("data-for", "fig-drawer")
+    expect(page.locator(".lf-aim")).to_have_attribute("data-lf-for", "fig-drawer")
     page.keyboard.up("Alt")
     page.locator("#fig svg > rect").hover()
     page.keyboard.down("Alt")
-    expect(page.locator(".lf-aim")).to_have_attribute("data-for", "fig")
+    expect(page.locator(".lf-aim")).to_have_attribute("data-lf-for", "fig")
     page.keyboard.up("Alt")
 
     drawer.click(modifiers=["Alt"], position=corner)
@@ -2965,7 +2969,7 @@ def test_a_generic_package_gets_nested_hits_and_can_narrow_a_paint_surface(
 
     page.locator("#outer-surface").hover(position={"x": 20, "y": 20})
     page.keyboard.down("Alt")
-    expect(page.locator(".lf-aim")).to_have_attribute("data-for", "outer")
+    expect(page.locator(".lf-aim")).to_have_attribute("data-lf-for", "outer")
     assert page.eval_on_selector_all(
         ".lf-aim-shape > g > *", "nodes => nodes.map(node => node.localName)"
     ) == ["rect"]
@@ -2973,7 +2977,7 @@ def test_a_generic_package_gets_nested_hits_and_can_narrow_a_paint_surface(
 
     page.locator("#inner path").hover()
     page.keyboard.down("Alt")
-    expect(page.locator(".lf-aim")).to_have_attribute("data-for", "inner")
+    expect(page.locator(".lf-aim")).to_have_attribute("data-lf-for", "inner")
     assert page.eval_on_selector_all(
         ".lf-aim-shape > g > *", "nodes => nodes.map(node => node.localName)"
     ) == ["path", "line"]
@@ -3151,13 +3155,15 @@ def test_a_visual_surface_narrows_paint_without_narrowing_semantic_interaction(
     expect(page.locator("body")).to_have_class(re.compile(r"\blf-over-mark\b"))
     page.mouse.click(point["x"], point["y"])
     expect(
-        page.locator('.lf-margin-preview .lf-page-thread[data-thread="outer-comment"]')
+        page.locator(
+            '.lf-margin-preview .lf-page-thread[data-lf-thread="outer-comment"]'
+        )
     ).to_be_visible()
     expect(outer).to_have_class(re.compile(r"\blf-projected-mark\b"))
     assert page.eval_on_selector_all(
         ".lf-visual-mark-shape > g > *", "nodes => nodes.map(node => node.localName)"
     ) == ["rect"]
-    expect(page.locator(PANEL)).not_to_have_attribute("data-open", re.compile("."))
+    expect(page.locator(PANEL)).not_to_have_attribute("data-lf-open", re.compile("."))
     expect(page.locator(".lf-composer")).to_be_hidden()
 
     point = midpoint(decoration)
@@ -3253,7 +3259,7 @@ def test_a_shadow_visual_surface_is_clipped_by_its_host(browser, serve):
 
     page.keyboard.down("Alt")
     aim = page.locator(".lf-aim")
-    expect(aim).to_have_attribute("data-for", "wide-surface")
+    expect(aim).to_have_attribute("data-lf-for", "wide-surface")
     shown = page.evaluate(SHOWN_PAINT, ".lf-aim")
     assert shown["left"] >= host_box["x"]
     assert shown["right"] == pytest.approx(right)
@@ -3562,7 +3568,7 @@ def test_a_scroll_under_a_held_aim_moves_the_promise_with_the_page(browser, serv
     )
     page.wait_for_function(
         """(first) => {
-      const promised = document.querySelector(".lf-aim")?.getAttribute("data-for");
+      const promised = document.querySelector(".lf-aim")?.getAttribute("data-lf-for");
       const at = document.elementFromPoint(600, 300)?.closest("[id]:not(.lf-ui)");
       return Boolean(promised) && promised === at?.id && promised !== first;
     }""",
@@ -3604,7 +3610,7 @@ def test_a_held_aim_in_a_pane_paints_in_the_frame_its_target_scrolls(browser, se
     target = page.locator("#pane-target").bounding_box()
     page.mouse.move(target["x"] + 40, target["y"] + 130)
     page.keyboard.down("Alt")
-    expect(page.locator(".lf-aim")).to_have_attribute("data-for", "pane-target")
+    expect(page.locator(".lf-aim")).to_have_attribute("data-lf-for", "pane-target")
     rendered(page)
     assert_follows_in_every_frame(page, "#aim-pane > div")
     page.keyboard.up("Alt")
@@ -3702,7 +3708,7 @@ def test_target_brackets_and_focus_share_the_visible_boundary(browser, serve, su
             node = page.locator(f"#{target}")
             node.hover(position={"x": 10, "y": 10})
             page.keyboard.down("Alt")
-            expect(page.locator(".lf-aim")).to_have_attribute("data-for", target)
+            expect(page.locator(".lf-aim")).to_have_attribute("data-lf-for", target)
             aimed = boundary(target, ".lf-aim")
             if target == "rounded":
                 assert aimed["radius"] == "12px", aimed
@@ -3718,9 +3724,9 @@ def test_target_brackets_and_focus_share_the_visible_boundary(browser, serve, su
                 assert pending["nativeOutline"] == "dashed", pending
             page.keyboard.press("Escape")
             expect(node).to_be_focused()
-            focus = page.locator(f'.lf-visual-mark-focus[data-for="{target}"]')
+            focus = page.locator(f'.lf-visual-mark-focus[data-lf-for="{target}"]')
             expect(focus).to_be_visible()
-            focused = boundary(target, f'.lf-visual-mark-focus[data-for="{target}"]')
+            focused = boundary(target, f'.lf-visual-mark-focus[data-lf-for="{target}"]')
             assert focused["radius"] == aimed["radius"], (aimed, focused)
             assert focused["clip"] == "none", focused
             assert focused["nativeOutline"] == "none", focused
@@ -3732,7 +3738,7 @@ def test_target_brackets_and_focus_share_the_visible_boundary(browser, serve, su
                 scroll_settled(page, "#port")
                 rendered(page)
                 clipped = boundary(
-                    target, f'.lf-visual-mark-focus[data-for="{target}"]'
+                    target, f'.lf-visual-mark-focus[data-lf-for="{target}"]'
                 )
                 # The original top is outside the clip: neither focus nor brackets
                 # invent a horizontal edge across the surviving part of the card.
@@ -3740,7 +3746,7 @@ def test_target_brackets_and_focus_share_the_visible_boundary(browser, serve, su
                 assert clipped["radius"] == "12px", clipped
                 page.keyboard.down("Alt")
                 port.hover(position={"x": 25, "y": 60})
-                expect(page.locator(".lf-aim")).to_have_attribute("data-for", target)
+                expect(page.locator(".lf-aim")).to_have_attribute("data-lf-for", target)
                 aimed = boundary(target, ".lf-aim")
                 assert aimed["radius"] == clipped["radius"], (aimed, clipped)
                 page.keyboard.up("Alt")
@@ -3770,14 +3776,14 @@ def test_the_aim_and_a_comment_stand_inside_a_cell_their_frame_leaves_no_room(
     cell.hover(position={"x": 300, "y": 10})
     page.keyboard.down("Alt")
     aim = page.locator(".lf-aim")
-    expect(aim).to_have_attribute("data-for", "ship-thursday")
+    expect(aim).to_have_attribute("data-lf-for", "ship-thursday")
     inner = "node => getComputedStyle(node, '::before').outlineOffset"
     assert aim.evaluate(inner) == "-2px"
     page.mouse.down()
     page.mouse.up()
     page.keyboard.up("Alt")
     open_compact_comment(page)
-    pending = page.locator('.lf-visual-mark-pending[data-for="ship-thursday"]')
+    pending = page.locator('.lf-visual-mark-pending[data-lf-for="ship-thursday"]')
     expect(pending).to_be_visible()
     assert pending.evaluate(inner) == "-2px"
 
@@ -3804,7 +3810,7 @@ def test_the_aim_on_a_row_a_clip_packs_stays_inside_the_row(browser, serve):
     row.hover(position={"x": 20, "y": 5})
     page.keyboard.down("Alt")
     aim = page.locator(".lf-aim")
-    expect(aim).to_have_attribute("data-for", "row-2")
+    expect(aim).to_have_attribute("data-lf-for", "row-2")
     drawn = aim.evaluate(
         """node => {
           const ring = getComputedStyle(node, '::before');
@@ -3839,7 +3845,7 @@ def test_the_aim_round_a_field_stands_on_its_edge_where_its_ring_does(browser, s
     field.hover(position={"x": 8, "y": 6})
     page.keyboard.down("Alt")
     aim = page.locator(".lf-aim")
-    expect(aim).to_have_attribute("data-for", "name")
+    expect(aim).to_have_attribute("data-lf-for", "name")
     gap = "node => getComputedStyle(node, '::before').outlineOffset"
     assert aim.evaluate(gap) == "0px"
     assert field.evaluate("node => getComputedStyle(node).outlineOffset") == "0px"
@@ -3977,7 +3983,7 @@ graph LR
     if subject == "words":
         page.locator("#pane-words").hover()
         page.keyboard.down("Alt")
-        expect(page.locator(".lf-aim")).to_have_attribute("data-for", "pane-words")
+        expect(page.locator(".lf-aim")).to_have_attribute("data-lf-for", "pane-words")
     else:
         page.locator('#flow g[data-id="S"]').hover()
         page.keyboard.down("Alt")
@@ -4019,7 +4025,7 @@ def test_a_replay_under_a_held_aim_repaints_the_promise(browser, serve):
     )
     page.mouse.move(*spot)
     page.keyboard.down("Alt")
-    expect(page.locator(".lf-aim")).to_have_attribute("data-for", "card-importer")
+    expect(page.locator(".lf-aim")).to_have_attribute("data-lf-for", "card-importer")
     append_command(
         serve.page_dir,
         {
@@ -4036,7 +4042,7 @@ def test_a_replay_under_a_held_aim_repaints_the_promise(browser, serve):
     page.wait_for_function(
         """([x, y]) => {
       const promised =
-        document.querySelector(".lf-aim")?.getAttribute("data-for") ?? null;
+        document.querySelector(".lf-aim")?.getAttribute("data-lf-for") ?? null;
       const at = document.elementFromPoint(x, y)?.closest("[id]:not(.lf-ui)") ?? null;
       return promised === (at?.id ?? null) && promised !== "card-importer";
     }""",
@@ -4077,7 +4083,7 @@ def test_the_aims_box_is_what_the_page_shows_of_the_element(browser, serve):
     clip |= {"width": math.floor(box["width"]), "height": math.floor(box["height"])}
     quiet = Image.open(io.BytesIO(page.screenshot(clip=clip))).convert("RGB")
     page.keyboard.down("Alt")
-    expect(page.locator(".lf-aim")).to_have_attribute("data-for", "card-star")
+    expect(page.locator(".lf-aim")).to_have_attribute("data-lf-for", "card-star")
     armed = Image.open(io.BytesIO(page.screenshot(clip=clip))).convert("RGB")
     assert quiet.size == armed.size
     geometry = page.evaluate("""() => {
@@ -4098,7 +4104,7 @@ def test_the_aims_box_is_what_the_page_shows_of_the_element(browser, serve):
 
     row = page.locator("#row-ship")
     row.hover()
-    expect(page.locator(".lf-aim")).to_have_attribute("data-for", "row-ship")
+    expect(page.locator(".lf-aim")).to_have_attribute("data-lf-for", "row-ship")
     edges = page.evaluate("""() => {
         const group = document.getElementById("rows").getBoundingClientRect();
         const row = document.getElementById("row-ship").getBoundingClientRect();
@@ -4163,22 +4169,22 @@ def test_the_armed_cursor_says_whether_a_press_would_take_anything(browser, serv
 
     page.mouse.move(*on_item)
     page.keyboard.down("Alt")
-    expect(page.locator(".lf-aim")).to_have_attribute("data-for", "p2")
+    expect(page.locator(".lf-aim")).to_have_attribute("data-lf-for", "p2")
     assert page.evaluate(at_pointer, on_item) == "pointer", (
         "the aim boxed the paragraph and the cursor declined to promise the press"
     )
 
     page.mouse.move(*in_gap)
-    expect(page.locator(".lf-aim[data-for]")).to_have_count(0)
+    expect(page.locator(".lf-aim[data-lf-for]")).to_have_count(0)
     assert page.evaluate(at_pointer, in_gap) == "default", (
         "the aim had nothing to take and the hand promised a press anyway"
     )
 
     # Back on the item, so the arm coming off is read from the state that promises most.
     page.mouse.move(*on_item)
-    expect(page.locator(".lf-aim")).to_have_attribute("data-for", "p2")
+    expect(page.locator(".lf-aim")).to_have_attribute("data-lf-for", "p2")
     page.keyboard.up("Alt")
-    expect(page.locator(".lf-aim[data-for]")).to_have_count(0)
+    expect(page.locator(".lf-aim[data-lf-for]")).to_have_count(0)
     assert page.evaluate(at_pointer, on_item) == "auto", (
         "the key came up and the page went on offering the aim's press"
     )
@@ -4327,7 +4333,7 @@ def _open_attachment_draft(browser, url, target):
     page = open_page(browser, url)
     rendered(page)
     expect(page.locator(".lf-fp-field leaf-text")).not_to_have_attribute(
-        "data-says", "notice"
+        "data-lf-says", "notice"
     )
     destination = page.locator(target).first
     for _ in range(50):
@@ -4348,7 +4354,7 @@ def test_quote_attachment_can_hide_while_its_paragraph_remains(browser, serve):
     page = open_page(browser, serve(COMPOSER_ATTACHMENT_PAGE))
     rendered(page)
     expect(page.locator(".lf-fp-field leaf-text")).not_to_have_attribute(
-        "data-says", "notice"
+        "data-lf-says", "notice"
     )
     page.locator("#quote-holder").scroll_into_view_if_needed()
     points = page.locator("#quote-holder").evaluate(
@@ -4627,12 +4633,14 @@ def test_a_scroll_carries_paint_over_targets_and_writes_it_once_settled(
     _paint_mode(page, mode, "finding" if scroller == "pane" else "Paragraph 3")
     if mode == "design":
         named = ["pane-target", "pane-later"] if scroller == "pane" else ["p3", "p4"]
-        expect(page.locator(f'.lf-legend-box[data-for="{named[0]}"]')).to_be_visible()
+        expect(
+            page.locator(f'.lf-legend-box[data-lf-for="{named[0]}"]')
+        ).to_be_visible()
         # The boxes one set of frames cuts share its stand, each anchored to what it
         # names.
         stand = page.evaluate(
             """([first, next]) => {
-              const box = (id) => document.querySelector(`.lf-legend-box[data-for="${id}"]`);
+              const box = (id) => document.querySelector(`.lf-legend-box[data-lf-for="${id}"]`);
               return {shared: box(first).closest('.lf-paint-stand')
                         === box(next).closest('.lf-paint-stand'),
                       anchors: [box(first), box(next)].map(
@@ -4751,7 +4759,7 @@ def test_design_paint_in_a_pane_paints_in_the_frame_its_target_scrolls(
     follower = (
         f".lf-inspect {{ background: {FOLLOWER_MARK} !important; }}"
         if paint == "inspect"
-        else '.lf-legend-box[data-for="pane-target"]'
+        else '.lf-legend-box[data-lf-for="pane-target"]'
         f" {{ border: 6px solid {FOLLOWER_MARK} !important; }}"
     )
     page = open_page(
@@ -4800,12 +4808,12 @@ def test_legend_tags_step_apart_as_the_page_slides_under_a_sticky_bar(browser, s
     resized(page, 1280, 720)
     _design_mode(page)
     expect(
-        page.locator('.lf-legend-box[data-for="nav"] .lf-legend-tag')
+        page.locator('.lf-legend-box[data-lf-for="nav"] .lf-legend-tag')
     ).to_be_visible()
     overlaps = """() => {
       const tags = [...document.querySelectorAll('.lf-legend-tag')]
         .filter((tag) => tag.checkVisibility())
-        .map((tag) => [tag.closest('.lf-legend-box').dataset.for,
+        .map((tag) => [tag.closest('.lf-legend-box').dataset.lfFor,
                        tag.getBoundingClientRect()]);
       const found = [];
       for (const [i, [a, r]] of tags.entries())
@@ -4833,14 +4841,14 @@ def test_each_legend_box_stays_on_what_it_names_without_a_pass(browser, serve):
     page.evaluate("() => document.getElementById('pop').showPopover()")
     _design_mode(page)
     offsets = """(ids) => ids.map((id) => {
-      const box = document.querySelector(`.lf-legend-box[data-for="${id}"]`);
+      const box = document.querySelector(`.lf-legend-box[data-lf-for="${id}"]`);
       if (!box?.isConnected) return [id, null];
       const b = box.getBoundingClientRect();
       const it = document.getElementById(id).getBoundingClientRect();
       return [id, Math.round(b.left - it.left), Math.round(b.top - it.top)];
     })"""
     ids = ["nav", "p3", "fixedbar", "inpop"]
-    expect(page.locator('.lf-legend-box[data-for="inpop"]')).to_be_visible()
+    expect(page.locator('.lf-legend-box[data-lf-for="inpop"]')).to_be_visible()
     assert page.evaluate(offsets, ids) == [[id, -1, -1] for id in ids]
     page.mouse.move(2, 300)
     page.mouse.wheel(0, 600)
@@ -6048,7 +6056,7 @@ def test_design_mode_survives_the_reload_a_new_version_brings(browser, serve):
     page.reload()
     wait_until_ready(page)
     expect(page.locator("body")).to_have_attribute("data-lf-design-mode", "")
-    expect(page.locator('.lf-legend-box[data-for="approach"]')).to_be_visible()
+    expect(page.locator('.lf-legend-box[data-lf-for="approach"]')).to_be_visible()
     page.keyboard.press("Escape")
     expect(page.locator("body")).not_to_have_attribute("data-lf-design-mode", "")
     page.reload()

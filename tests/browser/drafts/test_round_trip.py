@@ -105,7 +105,7 @@ def test_page_round_trip(browser, serve):
     stamp_page(d, JOURNEY_V2, "moved")
     told(page)
     expect(
-        panel_menu(page).locator('.lf-fp-item[data-row="versions"]')
+        panel_menu(page).locator('.lf-fp-item[data-lf-row="versions"]')
     ).to_contain_text("v2")
     close_panel_menu(page)
     assert "/versions/" not in page.url

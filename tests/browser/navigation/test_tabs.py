@@ -130,7 +130,7 @@ def test_overflowing_section_tabs_reveal_and_open_their_sections(browser, serve)
     expect(choices.first).to_have_attribute("aria-selected", "true")
     assert strip.evaluate("el => el.scrollWidth > el.clientWidth")
 
-    strip.locator('.lf-tabstrip-scroll[data-to="end"] > span').click()
+    strip.locator('.lf-tabstrip-scroll[data-lf-to="end"] > span').click()
     page.wait_for_function(
         "document.querySelector('#bg-rollout-tabs > .lf-tabstrip').scrollLeft > 0"
     )

@@ -4612,6 +4612,11 @@ export function createFloatingPanel({
     if (searchSurface.hidden !== !search) postureMoved = true;
     const input = fieldInput();
     if (input) syncInput(input);
+    // The caret this paint puts in the page's field starts the writing posture in the
+    // same paint, so the row draws it once rather than stepping out of it and back
+    // when the field takes focus (`onCurrentLocation`).
+    const caretLands = caretToField && !replying && !search;
+    if (caretLands) writing = true;
     keeps(host, "data-lf-writing", writing ? "" : null);
     // A draft's Send takes the corner and the quick mark steps aside, unless a way
     // out holds that seat (`quickHidden`).
@@ -4658,7 +4663,7 @@ export function createFloatingPanel({
         listed[0],
     );
     if (leavesReply && hadEditorFocus && !search) focusDestination(leaf, "return");
-    if (caretToField && !replying && !search) {
+    if (caretLands) {
       caretToField = false;
       focusDestination(pageEditor().input, "move");
     }

@@ -78,7 +78,6 @@ from leaf.publishing import authored_digest, authored_files, write_authored_file
 from leaf.refusals import Refused
 from leaf.schema import LAYER_FILE, PACKAGES_DIR
 from leaf_dev import ROOT
-from leaf_dev.commands.distribution import compiler_root
 from leaf_dev.example_data import (
     capture_file,
     data_companion,
@@ -957,6 +956,12 @@ def serve_preview(
             service.stop()
 
 
+def launching_checkout() -> Path:
+    """The developer checkout that launched this preview, which a selected-runtime
+    worker otherwise can't tell from the checkout it runs in."""
+    return Path(os.environ.get("LEAF_PREVIEW_LAUNCHER_ROOT", ROOT)).resolve()
+
+
 def start_preview_worker(source: Path, page: Path, runtime: Path, user: bool) -> None:
     """Become the preview, in the selected checkout's uv environment.
 
@@ -991,10 +996,9 @@ def start_preview_worker(source: Path, page: Path, runtime: Path, user: bool) ->
     # the root as this launcher resolved it, rather than reading a relative setting
     # against a directory of its own.
     os.environ["LEAF_PREVIEWS_ROOT"] = str(page.parent)
-    # The selected runtime owns this worker, but an installed payload has no
-    # browser build dependencies. Compile its modules with the checkout that
-    # launched the preview.
-    os.environ["LEAF_PREVIEW_COMPILER_ROOT"] = str(ROOT)
+    # The selected runtime owns this worker, and the checkout launching it owns the
+    # session's hooks (`launching_checkout`).
+    os.environ["LEAF_PREVIEW_LAUNCHER_ROOT"] = str(ROOT)
     if user:
         command.append("--user")
     os.chdir(runtime)
@@ -1030,7 +1034,7 @@ def start_desktop_preview(source: Path, page: Path, runtime: Path, harness) -> N
     # and delivery, including a comparison whose renderers use other runtimes.
     # Prepare the lifetime before choosing it, and choose before the adapter.
     claim = prepare_claim(harness, page)
-    select_launcher(harness.session, compiler_root() / "bin/leaf")
+    select_launcher(harness.session, launching_checkout() / "bin/leaf")
     with (
         harness.preparing_delivery(),
         starting_detached(
@@ -1145,7 +1149,9 @@ def preview(
                         from leaf.session_runtime import select_launcher
 
                         prepare_claim(harness, page)
-                        select_launcher(harness.session, compiler_root() / "bin/leaf")
+                        select_launcher(
+                            harness.session, launching_checkout() / "bin/leaf"
+                        )
                     run_preview(source, page, runtime / "bin" / "leaf", runtime, user)
         elif export:
             export_preview(*checkout(runtime), authored_source(example, source), slot)

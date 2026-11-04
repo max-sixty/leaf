@@ -23,7 +23,7 @@ chooses its arms (`arms.choose_arms`), so a change shows its exponents beside th
 base's. --profile
 records a V8 CPU profile of each transition at the smallest and largest size and
 lists the functions whose time grew superlinearly between them, which names the
-nested walk; the kernel's bundles keep function names, so grep the source for them.
+nested walk.
 
 CPU time rather than wall time, so a loaded host spreads the readings less than it
 spreads elapsed time; each exponent still compares sizes within one run. Pages, the

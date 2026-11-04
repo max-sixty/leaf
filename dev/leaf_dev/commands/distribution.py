@@ -14,7 +14,6 @@ layout. A prepared tree has no Git metadata, so `leaf-distribution.json` records
 producer its provenance names (`leaf.layer.payload_provenance`).
 """
 
-import os
 import shutil
 import subprocess
 from pathlib import Path
@@ -28,24 +27,18 @@ from leaf_dev import ROOT
 from leaf_dev.arms import PAYLOAD, extract_payload
 
 
-def compiler_root() -> Path:
-    """The developer checkout that launched a selected-runtime preview."""
-    return Path(os.environ.get("LEAF_PREVIEW_COMPILER_ROOT", ROOT)).resolve()
-
-
 def bundle_runtime(assets: Path, kernel: Path) -> None:
-    """Compile the browser runtime with the developer checkout's bundler."""
-    compiler = compiler_root()
-    if not (compiler / "node_modules").is_dir():
+    """Compile the browser runtime with this checkout's bundler."""
+    if not (ROOT / "node_modules").is_dir():
         # A fresh worktree's background setup may not have started or finished.
         # Setup installs browsers too, so run it by hand rather than from here.
         raise click.ClickException(
-            f"{compiler} has no node_modules, which the runtime bundle needs; "
+            f"{ROOT} has no node_modules, which the runtime bundle needs; "
             "run `uv run --frozen leaf-dev setup` (it waits for any install in progress)"
         )
     subprocess.run(
-        ["node", str(compiler / "build/runtime-bundle.mjs"), str(assets), str(kernel)],
-        cwd=compiler,
+        ["node", str(ROOT / "build/runtime-bundle.mjs"), str(assets), str(kernel)],
+        cwd=ROOT,
         check=True,
     )
 

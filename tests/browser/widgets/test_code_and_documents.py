@@ -551,7 +551,11 @@ def test_the_page_presents_without_waiting_for_a_closed_tab_s_document(browser, 
     """A document in a tab nobody opened draws once the page has presented, each in a
     task of its own, so presentation waits only for the document in view. Drawn first,
     30 tabs of 50,000 lines held presentation for 22 s in Firefox, which then restyled
-    every row of every closed tab as the page presented, a 2.6 s frame."""
+    every row of every closed tab as the page presented, a 2.6 s frame. The closed
+    tabs' documents announce their draws (`drawn`, which stamps their data's
+    provenance) together once the last has drawn, so the page reads itself again once:
+    announced one at a time, a comment anchored by its words made the page read every
+    element again after each, 3 to 5 s a document in Firefox."""
     tabs = "".join(
         f'<lf-tab id="tab-{at}" label="Doc {at}"><lf-text-document id="doc-{at}" '
         f'source="text-{at}"></lf-text-document></lf-tab>'
@@ -564,6 +568,8 @@ def test_the_page_presents_without_waiting_for_a_closed_tab_s_document(browser, 
         data_model.cmd_data_set(serve.page_dir, f"text-{at}", f"document {at}\n" * 40)
     order = """(() => {
       window.order = [];
+      document.addEventListener('drawn', ({target}) => order.push('announced ' + target.id),
+                                {capture: true});
       new MutationObserver((records) => {
         for (const {target, attributeName} of records)
           if (attributeName === 'data-lf-presented') order.push('presented');
@@ -575,7 +581,16 @@ def test_the_page_presents_without_waiting_for_a_closed_tab_s_document(browser, 
     })()"""
     page = open_page(browser, url, init_script=order)
     expect(page.locator("lf-text-document.lf-rendered")).to_have_count(3)
-    assert page.evaluate("order") == ["doc-0", "presented", "doc-1", "doc-2"]
+    expect(page.locator("#doc-2 figure")).to_have_attribute("data-lf-source", "text-2")
+    assert page.evaluate("order") == [
+        "announced doc-0",
+        "doc-0",
+        "presented",
+        "doc-1",
+        "doc-2",
+        "announced doc-1",
+        "announced doc-2",
+    ]
 
 
 def test_a_listing_s_scroll_mark_changes_nothing_its_rows_inherit(browser, serve):

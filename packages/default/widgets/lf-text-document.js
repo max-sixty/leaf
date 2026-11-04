@@ -522,6 +522,33 @@ class RunColours {
   }
 }
 
+// First draws the page doesn't show, as in a closed tab, made once it has presented, one
+// a task in the order their updates asked (`show`). A document drawn so announces its
+// draw (`drawn`), which stamps its data's provenance and has the page take a new reading,
+// once the queue is empty, together with the others, or as soon as it shows. Announced
+// one at a time, each sent the page through a pass that read every element in it again
+// to find a comment's words: 3 to 5 s a document in Firefox with one comment on the page.
+/** @type {{doc: TextDocument, value: string | null, rendering: number}[]} */
+const drawingLater = [];
+/** @type {Promise<void> | null} */
+let drawingAfterPresentation = null;
+/** @param {TextDocument} doc @param {string | null} value @param {number} rendering */
+function drawLater(doc, value, rendering) {
+  drawingLater.push({ doc, value, rendering });
+  drawingAfterPresentation ??= afterPresentation(async () => {
+    /** @type {Set<TextDocument>} */
+    const drawn = new Set();
+    for (let next; (next = drawingLater.shift());) {
+      await new Promise((resolve) => setTimeout(resolve));
+      if (next.rendering !== next.doc.rendering) continue;
+      await next.doc.show(next.value, true);
+      drawn.add(next.doc);
+    }
+    drawingAfterPresentation = null;
+    for (const doc of drawn) doc.announce();
+  });
+}
+
 class TextDocument extends LeafElement {
   rendering = 0;
   /** @type {(() => void) | null} */
@@ -608,7 +635,17 @@ class TextDocument extends LeafElement {
   list(listed) {
     if (listed === this.listed) return;
     this.listed = listed;
+    if (listed) this.announce();
     this.colourShown();
+  }
+  // The value of the draw the document has yet to announce (`drawLater`).
+  /** @type {{value: string | null} | null} */
+  unannounced = null;
+  announce() {
+    const drawing = this.unannounced;
+    if (!drawing || !this.isConnected) return;
+    this.unannounced = null;
+    this.dispatchEvent(new CustomEvent("drawn", { detail: { value: drawing.value } }));
   }
   colourShown() {
     const code = this.sourceView?.code;
@@ -630,6 +667,7 @@ class TextDocument extends LeafElement {
     // colour of the runs it drew, which a return draws again as they show.
     whileConnected(this, () => {
       this.showLone();
+      if (!drawingAfterPresentation) this.announce();
       return () => {
         this.rendering = this.rendering + 1;
         this.finishFrame?.();
@@ -710,22 +748,16 @@ class TextDocument extends LeafElement {
         if (!(await loadMarkdown((error) => (failure = error)))) throw failure;
       }
       // A document the page shows draws at once; one it doesn't, as in a closed tab,
-      // first draws once the page has presented, in a task of its own, so the page
-      // paints between them, and this update completes without it: the page counts
-      // the draw as an arrival. Drawn in page order, a reload on the 30th of 30 tabs of
-      // 4 MB showed its document only after the 29 before it: 2.8 s in Chromium, 33 s
-      // in Firefox. Drawn before presentation, they held it back, and Firefox, which
-      // styles a closed tab's rows too, restyled every one of them as the page
-      // presented: 2.6 s for 30 documents of 50,000 lines.
+      // first draws once the page has presented (`drawLater`), and this update
+      // completes without it: the page counts the draws as an arrival. Drawn in page
+      // order, a reload on the 30th of 30 tabs of 4 MB showed its document only after
+      // the 29 before it: 2.8 s in Chromium, 33 s in Firefox. Drawn before
+      // presentation, they held it back, and Firefox, which styles a closed tab's rows
+      // too, restyled every one of them as the page presented: 2.6 s for 30 documents
+      // of 50,000 lines.
       if (!this.sourceView) {
         this.listed = this.checkVisibility();
-        if (!this.listed && !presented) {
-          afterPresentation(async () => {
-            await new Promise((resolve) => setTimeout(resolve));
-            if (rendering === this.rendering) await this.show(value, true);
-          });
-          return;
-        }
+        if (!this.listed && !presented) return drawLater(this, value, rendering);
       }
       if (rendering !== this.rendering || !this.isConnected) return;
       const { pre: drawnPre, code: drawnCode, text } = listing(source);
@@ -817,7 +849,8 @@ class TextDocument extends LeafElement {
         mark(this.sourceView.pre, "source");
         mark(previewNode, "preview");
       } else mark(view.figure, "document");
-      this.dispatchEvent(new CustomEvent("drawn", { detail: { value } }));
+      this.unannounced = { value };
+      if (!presented || this.listed) this.announce();
       if (loaded) await loaded;
       if (rendering !== this.rendering || !this.isConnected) return;
       this.classList.toggle("lf-rendered", true);

@@ -120,12 +120,12 @@ import {
   upFrom,
 } from "./shadow.js";
 import {
+  alongClimb,
+  composedParentNode,
   isElement,
   isText,
   isHTML,
-  renderedOrder,
   renderedParent,
-  renderedUnder,
 } from "./shadow-tree.js";
 import { decisionFor, registry } from "./registry.js";
 import { PAGE_PAINT_ATTRIBUTE, pageUpgraded } from "./page-paint.js";
@@ -595,6 +595,9 @@ export const authored = (root) => {
 // walk passed keep the context they carried, and a node assigned from anywhere else (a
 // flattened fallback, a host above the root) is asked where it stands.
 // A visible <br> contributes a separator even though it has no text node of its own.
+//
+// `readingParent`, below, climbs the tree this walk comes down, so a root or a slot this
+// walk treats differently changes there too.
 /** @param {Node} root
  * @param {(node: Text, ctx: ReadingContext) => void} onText
  * @param {((element: Element) => boolean) | null} [skip]
@@ -659,6 +662,20 @@ function walk(root, onText, skip = null, onBreak = null, onElement = null) {
       : NO_CONTEXT;
   visit(root, start);
 }
+// The step up the tree `walk` comes down, from any node, read or not. A slot is that step
+// only in a declared root, the one kind of root `walk` crosses into. Another root's slots
+// can show its host's children out of their light order, and `walk` and a native Range
+// both still take them in light order, so the reading's segments are in `readingOrder`
+// where they need not be in `renderedOrder`. A boundary point inside such a root, where
+// Firefox puts a selection of words only that root shows, comes before all its host's
+// children (`alongClimb`), so a range with both ends in it covers none of them.
+/** @param {Node} node @returns {Node | null} */
+const readingParent = (node) => {
+  const slot = isElement(node) || isText(node) ? node.assignedSlot : null;
+  const host = slot && shadowHost(slot.getRootNode());
+  return host && declaredRoot(host) ? slot : composedParentNode(node);
+};
+const { order: readingOrder, under: readingUnder } = alongClimb(readingParent);
 // One named reading's segments under `root`, carrying their reading block (`blockAt`),
 // typographic text block and generated element (`gen`, the nearest `[data-lf-gen]`
 // in their tree).
@@ -831,26 +848,25 @@ export const pageQueryAll = (selector) =>
     return [...elements];
   });
 
-// A native Range compares one DOM tree. Its light-DOM endpoints can sit inside
-// slots, where retargeting every shadow word to its host also selects the host's
-// unrelated header. Compare boundary points in the rendered order instead, using
-// the same slot-aware ancestry as navigation and layout.
+// A native Range compares one DOM tree. Its light-DOM endpoints can sit inside a declared
+// root's slots, where retargeting every shadow word to its host also selects the host's
+// unrelated header. Compare boundary points in the reading's order instead, the order
+// `segmentsIn` searches.
 /** @param {Node} node @param {Node} container @param {number} offset */
 const beforePoint = (node, container, offset) => {
   if (node === container) return false;
   if (container.nodeType === Node.TEXT_NODE || offset === 0)
-    return renderedOrder(node, container) < 0;
+    return readingOrder(node, container) < 0;
   const next = container.childNodes[offset];
   return next
-    ? renderedOrder(node, next) < 0
-    : renderedUnder(node, container) || renderedOrder(node, container) < 0;
+    ? readingOrder(node, next) < 0
+    : readingUnder(node, container) || readingOrder(node, container) < 0;
 };
 // The first index from `from` whose segment passes `test`, where `test` fails for every
 // segment before that index and passes for every one after it. The reading holds its
-// segments in rendered order, so a test of whether a segment falls after a point in the
-// page has that form, and a binary search answers it in about twenty comparisons on a
-// page of two million segments. Asking each segment instead kept a triple click on such
-// a page busy for minutes.
+// segments in `readingOrder`, so a test of whether a segment falls after a point in that
+// order has this form, and a binary search answers it in about twenty comparisons on a
+// page of two million segments.
 /** @param {readonly IndexedSegment[]} segments
  * @param {(segment: IndexedSegment) => boolean} test @param {number} [from] */
 function firstPassing(segments, test, from = 0) {
@@ -1285,8 +1301,8 @@ const isPair = (raw, i) =>
 /** @param {PageReading} reading @param {Element} element @returns {PageReading} */
 export function fencedAt(reading, element) {
   const { segments } = reading;
-  let lo = firstPassing(segments, ({ node }) => renderedOrder(node, element) > 0);
-  let hi = firstPassing(segments, ({ node }) => !renderedUnder(node, element), lo);
+  let lo = firstPassing(segments, ({ node }) => readingOrder(node, element) > 0);
+  let hi = firstPassing(segments, ({ node }) => !readingUnder(node, element), lo);
   while (lo < hi && !under(segments[lo]?.node, element)) lo += 1;
   while (hi > lo && !under(segments[hi - 1]?.node, element)) hi -= 1;
   const first = segments[lo];

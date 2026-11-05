@@ -387,11 +387,107 @@ test("a selection in nested slots keeps exactly the rendered words it covers", (
   );
 });
 
+// A page script's own element whose slots show its children out of light order, with
+// words only its shadow root shows. The reading and a native Range both take its children
+// in light order, so a selection is compared in that order rather than the one on screen.
+test("a selection in an undeclared host that reorders its children keeps its words", () => {
+  Object.assign(registry, { $layer: { generation: "passage-undeclared-order" } });
+  document.body.innerHTML =
+    '<main><p id="before">Before</p><u-card><p slot="body" id="body">Body</p>' +
+    '<p slot="title" id="title">Title</p></u-card><p id="after">After</p></main>';
+  const root = document.querySelector("u-card").attachShadow({ mode: "open" });
+  root.innerHTML =
+    '<h3 id="own">Own</h3><div id="holder"><slot name="title"></slot></div>' +
+    '<slot name="body"></slot>';
+  assert.equal(quoteFrom(pageText().segments), "Before Body Title After");
+  const range = document.createRange();
+  const text = (id) => document.querySelector(`#${id}`).firstChild;
+  for (const id of ["before", "body", "title", "after"]) {
+    range.selectNodeContents(text(id));
+    assert.equal(quoteFrom(segmentsIn(range)), text(id).data, `text of ${id}`);
+    range.selectNodeContents(document.querySelector(`#${id}`));
+    assert.equal(quoteFrom(segmentsIn(range)), text(id).data, `contents of ${id}`);
+  }
+  range.setStart(text("body"), 0);
+  range.setEnd(text("title"), 5);
+  assert.equal(quoteFrom(segmentsIn(range)), "Body Title");
+  range.setStart(text("title"), 0);
+  range.setEnd(text("after"), 5);
+  assert.equal(quoteFrom(segmentsIn(range)), "Title After");
+  const reading = pageText();
+  const title = reading.raw.indexOf("Title");
+  const fences = fencedAt(reading, document.querySelector("#title")).fences;
+  assert.ok(fences.includes(title) && fences.includes(title + 5), `fences ${fences}`);
+  // Firefox keeps both ends of a selection of the root's own words inside the root, even
+  // around a slot, and comments can't quote those words.
+  range.selectNodeContents(root.querySelector("#own"));
+  assert.deepEqual(segmentsIn(range), []);
+  range.selectNodeContents(root.querySelector("#holder"));
+  assert.deepEqual(segmentsIn(range), []);
+  assert.equal(fencedAt(reading, root.querySelector("#holder")), reading);
+});
+
+// `segmentsIn` searches the reading, so every way the walk reaches a word has to agree
+// with the comparison the search asks: a declared root's slots, nested and out of light
+// order, an undeclared root's reordering slots, and a declared host's child no slot takes.
+// A range from any word to any later one covers exactly the reading's words between them.
+test("the reading's words stand in the order a selection is compared in", () => {
+  Object.assign(registry, {
+    "lf-staged": { "x-shadow": true },
+    $layer: { generation: "passage-reading-order" },
+  });
+  const nodes = (html) => {
+    const template = document.createElement("template");
+    template.innerHTML = html;
+    return [...template.content.childNodes];
+  };
+  document.body.innerHTML =
+    "<main><p>Lead</p><lf-staged id=outer></lf-staged><lf-staged id=named></lf-staged>" +
+    "<u-card><p slot=body>Card body</p><p slot=title>Card title</p></u-card>" +
+    "<p>Last</p></main>";
+  const outer = document.querySelector("#outer");
+  shadowStage(outer, nodes("<p>Outer</p><slot></slot><p>Outer tail</p>"));
+  const inner = document.createElement("lf-staged");
+  outer.append(inner);
+  shadowStage(inner, nodes("<p>Inner</p><div><slot></slot></div><p>Inner tail</p>"));
+  inner.innerHTML = "<p>Deep <b>bold</b> words</p>";
+  const named = document.querySelector("#named");
+  shadowStage(
+    named,
+    nodes('<slot name="b"></slot><p>Named middle</p><slot name="a"></slot>'),
+  );
+  named.innerHTML = '<p slot="a">Slot a</p><p>Unslotted</p><p slot="b">Slot b</p>';
+  document.querySelector("u-card").attachShadow({ mode: "open" }).innerHTML =
+    '<slot name="title"></slot><slot name="body"></slot>';
+  const { segments } = pageText();
+  assert.equal(
+    quoteFrom(segments),
+    "Lead Outer Inner Deep bold words Inner tail Outer tail Slot b Named middle Slot a " +
+      "Card body Card title Last",
+  );
+  segments.forEach(({ node: from }, start) => {
+    for (let stop = start; stop < segments.length; stop++) {
+      const to = segments[stop].node;
+      // A live Range collapses when its ends are in two trees, and a StaticRange doesn't.
+      const range = {
+        startContainer: from,
+        startOffset: 0,
+        endContainer: to,
+        endOffset: to.data.length,
+      };
+      assert.equal(
+        quoteFrom(segmentsIn(range)),
+        quoteFrom(segments.slice(start, stop + 1)),
+        `from "${from.data}" to "${to.data}"`,
+      );
+    }
+  });
+});
+
 // A selection covers one run of the page reading's segments, as do the words one element
 // holds, so each is found by searching for where its two ends fall rather than by testing
-// every segment. Testing all two million segments on a page of large text documents kept
-// a triple click busy for minutes. Every rendered-order comparison starts by asking a
-// text node for its slot, so counting those asks counts the comparisons.
+// every segment. Every comparison starts by asking a text node for its slot, so counting
+// those asks counts the comparisons.
 test("a selection's words are found from its ends, not by asking every word", () => {
   document.body.innerHTML = `<main>${Array.from(
     { length: 4096 },

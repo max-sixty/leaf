@@ -120,23 +120,65 @@ export const composedParentNode = (node) => node.parentNode ?? shadowHost(node);
 /** @param {Node} node @returns {Node | null} */
 const renderedParentNode = (node) =>
   (isSlottable(node) ? node.assignedSlot : null) ?? composedParentNode(node);
+// What one climb says about any two nodes, so its order and containment can't disagree.
+// `order` is which of them a reader coming down that tree reaches first: negative when
+// `a` is, positive when `b` is, 0 for one node. A node comes before what it holds, so a
+// section reaches the reader before the paragraph inside it. `compareDocumentPosition`
+// calls nodes in separate shadow trees disconnected, in an implementation-specific
+// order, and a host stands for its whole tree only by losing the order inside it, so the
+// two ancestries are compared from the top instead: the first nodes where they part
+// share a parent, and that parent's tree orders them. A host's shadow root and its other
+// children share a parent and no tree, and the root comes first. `under` is whether
+// `node` is inside `root`, or `root` itself.
+/** @param {(node: Node) => Node | null} parentOf */
+export function alongClimb(parentOf) {
+  /** @param {Node} node */
+  const chain = (node) => {
+    const nodes = [];
+    for (let at = /** @type {Node | null} */ (node); at; at = parentOf(at))
+      nodes.push(at);
+    return nodes.reverse();
+  };
+  return {
+    /** @param {Node} a @param {Node} b */
+    order(a, b) {
+      if (a === b) return 0;
+      const left = chain(a);
+      const right = chain(b);
+      let index = 0;
+      while (
+        index < left.length &&
+        index < right.length &&
+        left[index] === right[index]
+      )
+        index += 1;
+      const first = left[index];
+      const second = right[index];
+      if (!first || !second) return left.length - right.length;
+      if (isShadowRoot(first)) return -1;
+      if (isShadowRoot(second)) return 1;
+      return first.compareDocumentPosition(second) & first.DOCUMENT_POSITION_FOLLOWING
+        ? -1
+        : 1;
+    },
+    /** @param {Node | null | undefined} node @param {Node | null | undefined} root */
+    under(node, root) {
+      for (let at = node; at; at = parentOf(at)) if (at === root) return true;
+      return false;
+    },
+  };
+}
 // Is `node` inside `root`, or `root` itself? `Element.contains` stops at a shadow
 // boundary and these readings walk through one, so the climb is the same one
 // `closestAcross` makes. The boundary decides whether a quote is found at all: a section
 // holding an x-shadow widget does not `contains` the words that widget renders, so
 // narrowing a search to that section threw away every candidate inside it and the
 // passage resolved to nothing — the anchor captured, the mark never painted.
-/** @param {Node | null | undefined} node @param {Node | null | undefined} root */
-export const under = (node, root) => {
-  for (let at = node; at; at = composedParentNode(at)) if (at === root) return true;
-  return false;
-};
-// Containment in the rendered tree, which includes slots and their shadow ancestors.
-/** @param {Node | null | undefined} node @param {Node | null | undefined} root */
-export const renderedUnder = (node, root) => {
-  for (let at = node; at; at = renderedParentNode(at)) if (at === root) return true;
-  return false;
-};
+export const { under } = alongClimb(composedParentNode);
+// Which of two nodes the reader reaches first in the page as rendered, and containment in
+// the rendered tree, which includes slots and their shadow ancestors.
+export const { order: renderedOrder, under: renderedUnder } =
+  alongClimb(renderedParentNode);
 
 // Which layer a node stands in — the runtime's chrome, a declared label, or the
 // document — is asked by every reading that climbs out of a widget, so it is answered
@@ -181,35 +223,6 @@ export const uiInside = (el, within) => {
 /** @param {Node | null | undefined} node */
 export const inUi = (node) =>
   uiInside(isElement(node) ? node : node?.parentElement, null);
-
-// Which of two nodes the reader reaches first in the page as rendered: negative when `a`
-// is, positive when `b` is, 0 for one node. A node comes before what it holds, so a
-// section reaches the reader before the paragraph inside it. `compareDocumentPosition`
-// calls nodes in separate shadow trees disconnected, in an implementation-specific
-// order, and a host stands for its whole tree only by losing the order inside it, so
-// the two rendered ancestries are compared from the top instead: the first nodes where
-// they part share a parent, and that parent's tree orders them.
-/** @param {Node | null} node */
-const renderedChain = (node) => {
-  const chain = [];
-  for (let at = node; at; at = renderedParent(at)) chain.push(at);
-  return chain.reverse();
-};
-/** @param {Node} a @param {Node} b */
-export function renderedOrder(a, b) {
-  if (a === b) return 0;
-  const left = renderedChain(a);
-  const right = renderedChain(b);
-  let index = 0;
-  while (index < left.length && index < right.length && left[index] === right[index])
-    index += 1;
-  const first = left[index];
-  const second = right[index];
-  if (!first || !second) return left.length - right.length;
-  return first.compareDocumentPosition(second) & first.DOCUMENT_POSITION_FOLLOWING
-    ? -1
-    : 1;
-}
 
 // `items` in the page's rendered order of their places (`placeOfItem`), those with no
 // place after every placed one; items at one place, and the unplaced, keep their given

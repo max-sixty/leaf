@@ -461,20 +461,10 @@
     }
     /* The reading face's table is a block that scrolls its columns (reading.css), and a
    * breakout sizes that block. A page without the face keeps the browser's table,
-   * whose caption these rules would turn out of its caption box. */
+   * whose columns this minimum would spread. */
     @container style(--lf-reading-face: 1) {
       :is(.layout-column, .layout-flow, [data-lf-flow]) > table[data-lf-space] {
-        container-type: normal;
-        container-type: scroll-state;
         min-inline-size: min(100%, var(--col));
-        /* A native caption joins the anonymous table grid, whose width is the
-       * columns' full scrollable width. An inline block belongs to this scrollport
-       * instead, so its percentage limit and sticky position use the same box. */
-        > caption {
-          display: inline-block;
-          vertical-align: top;
-          max-inline-size: 100%;
-        }
       }
     }
     @media screen {
@@ -637,8 +627,13 @@
   .layout-sidebar > :is(header, footer) {
     flex: 1 0 100%;
   }
+  /* The row sizes its body, as it does the aside (a container, below), so a wide
+   * table in the body scrolls inside it rather than widening the row past a phone's
+   * window. The body is contained rather than given `min-inline-size: 0`, which in
+   * this tier would reset a minimum the body declares, such as a board's. */
   .layout-sidebar > :not(header, footer) {
     flex: 2 1 30rem;
+    contain: inline-size;
   }
   .layout-sidebar > aside {
     flex: 1 1 18rem;

@@ -1476,7 +1476,10 @@ function scheduleMarginLayout() {
 }
 
 // The column is read where the pass reads it rather than as each row registers: a
-// column read restyles the page, and a first paint registers every row.
+// column read restyles the page, and a first paint registers every row. The first row
+// still starts the watch, so its first deliveries come with the page's first paint:
+// started by a later pass, they land while the page settles, and the pass they run
+// resizes boxes the loop has already delivered (a ResizeObserver loop error).
 /** @param {Element} column */
 function observeLayout(column) {
   if (!observer) {
@@ -1503,6 +1506,7 @@ export function registerMarginRow(row, options) {
   };
   const was = registered.get(row);
   rows.set(row, options);
+  if (!observer) observeLayout(marginColumn());
   registered.set(row, named);
   if (
     was &&

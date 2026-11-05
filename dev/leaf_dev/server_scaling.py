@@ -63,6 +63,15 @@ BUDGET_MS = 100
 FITTED = 4
 
 
+def floors(rows: list[dict]) -> dict[str, float]:
+    """Each path's noise floor (`scaling.exponent`) in `rows`, one run's readings by
+    size from BASE: the BASE page's paths together, a reading of the same run, as the
+    browser's floors are shares of its load (`scaling.floors`), 7 to 15 ms on an
+    unloaded M5 Max."""
+    paths = [path for path in PATHS if path in rows[0]]
+    return dict.fromkeys(paths, sum(rows[0][path] for path in paths))
+
+
 @contextmanager
 def scratch_state(directory: Path) -> Generator[None]:
     """Point Leaf's state home into `directory` while the pages are built and read,
@@ -333,11 +342,9 @@ def failures(rows: list[dict]) -> dict[str, dict]:
     readings and why."""
     sizes = [row["n"] for row in rows]
     failed = {}
-    for path in PATHS:
-        if path not in rows[0]:
-            continue
+    for path, floor in floors(rows).items():
         readings = [row[path] for row in rows]
-        slope = exponent(path, sizes, readings, FITTED)
+        slope = exponent(sizes, readings, floor, FITTED)
         if slope is not None and slope > SUPERLINEAR:
             failed[path] = {
                 "by size": dict(zip(sizes, readings, strict=True)),

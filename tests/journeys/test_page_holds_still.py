@@ -30,6 +30,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 import pytest
+from browser.threads import append_agent_reply
 from click.testing import CliRunner
 from interact_support import append_carried_log_record
 from playwright.sync_api import expect
@@ -45,7 +46,6 @@ from render_harness import (
     wait_for_revision,
 )
 
-from browser.threads import append_agent_reply
 from leaf import cli as cli_model
 from leaf import data as data_model
 from leaf.render_checks import rendered

@@ -225,14 +225,21 @@ export function createStateFeed({
     // answer arriving while it is still unanswered queues a trailing read behind it instead
     // of opening a second one alongside.
     let reading = true;
-    let readQueued = false;
+    // What the trailing read is for: the news a look heard while the slot was held,
+    // null when a tick or a failed look asked for no reading in particular, and
+    // undefined while nothing waits.
+    /** @type {string | null | undefined} */
+    let queued;
     let applyingReads = 0;
     // Give the read slot back, and start the trailing read a tick or freshness answer
-    // queued behind the read that held it.
+    // queued behind the read that held it, unless the answer that read just handed in
+    // is the reading the look heard of. A read that began before a save can wait out
+    // the save's activation and answer with its revision.
     const releaseSlot = () => {
       reading = false;
-      if (!readQueued) return;
-      readQueued = false;
+      const asked = queued;
+      queued = undefined;
+      if (asked === undefined || (asked !== null && asked === readingInHand())) return;
       item();
     };
     // Nothing is being read or applied: what the page shows is the latest it holds.
@@ -283,9 +290,10 @@ export function createStateFeed({
         failed(error);
       }
     };
-    const item = () => {
+    /** @param {string | null} [observed] the news that asks, if a look heard it */
+    const item = (observed = null) => {
       if (reading) {
-        readQueued = true;
+        queued = queued === null || observed === null ? null : observed;
         return;
       }
       reading = true;
@@ -338,7 +346,7 @@ export function createStateFeed({
           if (listening === interval) {
             const held = readingInHand();
             crossed = observed === held ? null : { held };
-            if (observed !== freshness && observed !== held) item();
+            if (observed !== freshness && observed !== held) item(observed);
             else if (returned !== null && observed === runtime.reading && feedQuiet()) {
               // There is no newer state to ask for. Still present what this tab
               // held before the absence, then protect its new baseline again.

@@ -189,10 +189,12 @@ test("the page asks for no reading it already has in hand", async (t) => {
   });
   let news = "initial";
   const answers = [];
+  let answering = null;
   t.mock.method(globalThis, "fetch", async (url) => {
     const path = new URL(url).pathname;
     if (path === "/api/news") return new Response(news);
     assert.equal(path, "/api/state", `unexpected feed request: ${url}`);
+    await answering?.promise;
     return Response.json(state(answers.shift()));
   });
   const reads = () =>
@@ -262,6 +264,26 @@ test("the page asks for no reading it already has in hand", async (t) => {
   clock();
   await setImmediate();
   assert.equal(reads(), 3, "the clock left a crossed reading standing");
+
+  // A read still out when the next save lands can wait out its activation and answer
+  // with the newer revision, which the look heard of meanwhile.
+  answering = Promise.withResolvers();
+  answers.push("saved again");
+  news = "saved";
+  looks.at(-1)();
+  await setImmediate();
+  assert.equal(reads(), 4);
+  news = "saved again";
+  looks.at(-1)();
+  await setImmediate();
+  answering.resolve();
+  await setImmediate();
+  await setImmediate();
+  assert.equal(
+    reads(),
+    4,
+    "the page read again for the revision its read answered with",
+  );
 });
 
 test("a matching response completes from its held data after a newer admission", async (t) => {

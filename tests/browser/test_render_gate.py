@@ -221,7 +221,7 @@ def test_a_drawing_reports_its_height_where_its_first_box_differed(browser, serv
 
     The boxes before drawing: nothing stated, a stated height too small and one too
     large, beside a stated height that matches and an authored body that already
-    takes the drawing's height, as an inline diff's counted rows do.
+    takes the drawing's height, as an inline diff's source text can.
     """
     findings, _, completed = render_gate_scheme._render_scheme(
         browser,
@@ -234,7 +234,7 @@ def test_a_drawing_reports_its_height_where_its_first_box_differed(browser, serv
 <lf-sketch id="short" data-height="100"></lf-sketch>
 <lf-sketch id="tall" data-height="400"></lf-sketch>
 <lf-sketch id="exact" data-height="240"></lf-sketch>
-<lf-sketch id="counted"><div style="block-size: 240px"></div></lf-sketch>
+<lf-sketch id="authored"><div style="block-size: 240px"></div></lf-sketch>
 """,
                 head="<style>lf-sketch { display: block }"
                 " lf-sketch.lf-rendered"

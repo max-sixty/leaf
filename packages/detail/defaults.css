@@ -13,9 +13,10 @@ lf-dial {
 html[data-lf-interactive] lf-dial {
   min-block-size: calc(var(--lf-line) + var(--sp-2));
 }
-/* Measure the three labels in their actual face before the buttons arrive. Zero
-   width separators prevent kerning across button boundaries. The inset is the
-   three buttons' padding and borders, the row's frame, and its two gaps. */
+/* Measure the three labels in their radios' face before the radios arrive. Zero
+   width separators prevent kerning across radio boundaries. The inset is the three
+   radios' padding and borders (the word face, controls.css), the row's frame, and its
+   two gaps (webawesome.css). */
 html[data-lf-interactive] lf-dial:not(:defined)::before {
   content: "Skim\200b Read\200b Everything";
   display: block;
@@ -25,19 +26,13 @@ html[data-lf-interactive] lf-dial:not(:defined)::before {
   padding-inline: calc(3 * (10px + 1px) + 2px + 1px + var(--sp-1));
 }
 .lf-dial-depths {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-1);
+  display: block;
   padding: 2px;
   border: 1px solid var(--rule);
   border-radius: calc(var(--r) * 2);
-  background: var(--paper);
+  /* Opaque, since the page scrolls under it, in the ground it stands on. */
+  background: var(--lf-ground);
   font: var(--font-compact);
-}
-.lf-dial-depths > .lf-btn {
-  /* Selection changes the face, never the width of its words. */
-  font: var(--font-choice);
-  white-space: nowrap;
 }
 
 /* A block Skim folds takes no room. Until-found keeps it findable but keeps its

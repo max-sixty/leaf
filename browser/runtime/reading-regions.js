@@ -45,10 +45,13 @@
    `leaving` and then `showing`, so a continuity owner keeps the reader's place in each
    subject and returns them to it.
 
-   `onReadingInput` tells a reader where the user explicitly clicked or stepped by Tab.
-   It includes unfocusable words, which update the reading region without a focus
-   arrival. Mechanical returns, programmatic arrivals and scrolling are not choices
-   of another passage. Each consumer interprets that target in its own domain. */
+   `onReadingInput` tells a reader where the user explicitly clicked. It includes
+   unfocusable words, which update the reading region without a focus arrival, and a
+   control already holding focus, where the browser announces none. A step by Tab is
+   an arrival, which a reader hears from `onCurrentLocation` (focus.js) as it hears
+   every other. Mechanical returns, programmatic arrivals and scrolling are not
+   choices of another passage. Each consumer interprets that target in its own
+   domain. */
 import { scrollersOf, installScrollerLookup } from "./scroll-containers.js";
 export { scrollersOf } from "./scroll-containers.js";
 import { nextRender, sizeObserver } from "./rendering.js";
@@ -301,9 +304,8 @@ for (const type of ["pointerdown", "wheel", "touchstart", "click"])
     { capture: true, passive: true },
   );
 // An arrival, by whatever route, a move inside a widget's shadow tree included.
-onCurrentLocation((node, cause) => {
+onCurrentLocation((node) => {
   if (node) actedAt(node, true);
-  if (node && cause === "step") readingInput(node);
 });
 export const recentReadingRegion = () => readingRegion(recentRegionId);
 // A region hidden from layout — a closed panel's list, a pane in a tab not shown — is not
@@ -471,7 +473,7 @@ const pageGeometry = () => ({
   band: landingBand(pageScroller)?.top ?? 0,
 });
 // A band that moves with the window's width shifts the page. One that moves without
-// it, as a page tab strip arriving does (`--lf-root-headers`, page-layout.js), comes with
+// it, as a page tab strip arriving does (`--lf-root-headers`, root-headers.js), comes with
 // the content that moved it, whose owner keeps the reader's place across it, so it is
 // taken as seen wherever it is read: no size need change with it, and left unseen it
 // would read as unsettled, recording nothing, until the window next changed.

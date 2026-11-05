@@ -15,6 +15,7 @@ import {
   foldProjection,
   foldedValue,
   foldWidgetStates,
+  widgetStateReader,
   obligationValue,
   isProjectionEntry,
   stateCoordinate,
@@ -23,7 +24,7 @@ import { stampedState, sameStateDefinition } from "../registry-contract.js";
 import {
   discussed,
   foldThreads,
-  readThreadRecords,
+  threadRecordReader,
   threadNames,
 } from "../thread/model.js";
 import {
@@ -37,7 +38,6 @@ import {
   turnMessage,
 } from "../pending/model.js";
 import { PENDING } from "../thread/identity.js";
-import { queueOffers } from "../queues.js";
 
 /** @import {
  *   AuthoredMap, Thread, Event, Command, LocalMessage, LocalEdit, ThreadGesture,
@@ -210,28 +210,20 @@ function advance(entry, signal, admitted = null) {
 /** @typedef {PublishedWorkflow<ServedWorkflow>} Workflow
  */
 
-/** One to-do as the browser publishes it: as the server serves it, or ended by this
- * tab's Done, which the server has not dated yet.
- *
- * @typedef {Omit<ServedTodo, "outcome"> & {
- *   outcome: ServedTodo["outcome"] | { ts: null; detail: null };
- * }} WireTodo
- */
-
 /** One row of On me or On <agent>, as `served_state.queues` serves it or this tab
- * places it: `owner` names the list. A widget or to-do row names its record
- * by `id`. `also`, on a record's row, names the other records the user answers at
- * its place; `live` says whether the agent has it in hand now. `localQueues` joins
- * the current obligation or to-do record before publication (`CurrentQueueItem`).
+ * places it: `owner` names the list. A row names its record by `id`. `also`, on a
+ * record's row, names the other records the user answers at its place; `live` says
+ * whether the agent has it in hand now. `localQueues` joins the current obligation or
+ * to-do record before publication (`CurrentQueueItem`).
  *
  * @typedef {import("../../types/contract.js").CompleteUnion<ServedQueueRow>} QueueItem
  */
 
-/** The current record joined onto a queue row before publication. Only agent to-dos
- * read the to-do inventory; every other row names its canonical obligation record.
- * @typedef {Exclude<QueueItem, {kind: "todo", owner: "agent"}>} ObligationQueueItem
+/** The current record joined onto a queue row before publication. A to-do's row reads
+ * the to-do inventory; every other row names its canonical obligation record.
+ * @typedef {Exclude<QueueItem, {kind: "todo"}>} ObligationQueueItem
  * @typedef {(ObligationQueueItem & {obligation: ObligationRecord, todo?: never}) |
- * {kind: "todo", owner: "agent", todo: WireTodo, obligation?: never}} QueueRecord
+ * {kind: "todo", owner: "agent", todo: ServedTodo, obligation?: never}} QueueRecord
  * @typedef {QueueItem & QueueRecord} CurrentQueueItem
  */
 
@@ -363,42 +355,11 @@ const NO_OBLIGATIONS = {
  * @param {ReturnType<typeof foldWidgetStates>} widgets
  * @param {SemanticDocument} document
  * @param {ReturnType<typeof foldProjection>} projection
- * @param {ReturnType<typeof localTodos>} todos
  * @returns {ObligationLists}
  */
-function normalizedObligations(view, widgets, document, projection, todos) {
-  const todoRecords = new Map(
-    [...todos.open, ...todos.ended].map((todo) => [todo.id, todo]),
-  );
+function normalizedObligations(view, widgets, document, projection) {
   const all = (view?.obligations ?? []).map(
     /** @returns {ObligationRecord} */ (item) => {
-      // Done and its Undo decide the user's task directly. Reuse the pending to-do
-      // reading so the canonical inventory and its queue row show the same gesture.
-      if (hasObligationSource(item, "todo")) {
-        const todo = /** @type {NonNullable<ReturnType<typeof todoRecords.get>>} */ (
-          todoRecords.get(item.source.id)
-        );
-        if (todo.state === "open" && item.status !== "open")
-          return {
-            ...item,
-            answer: null,
-            status: "open",
-            next_actor: "user",
-            end: null,
-          };
-        if (
-          (todo.state === "done" || todo.state === "failed") &&
-          item.status === "open"
-        )
-          return {
-            ...item,
-            answer: { value: todo.state, event: null },
-            status: "answered",
-            next_actor: null,
-            end: null,
-          };
-        return item;
-      }
       if (!hasObligationSource(item, "widget")) return item;
       const sourceId = item.source.id;
       const sourceUnit = item.source.unit;
@@ -439,47 +400,6 @@ function normalizedObligations(view, widgets, document, projection, todos) {
     all,
     user: all.filter((item) => item.next_actor === "user"),
     unanswered: all.filter((item) => item.status === "open"),
-  };
-}
-
-/* To-dos, open and ended, including Done this tab is sending or undoing. A to-do the
- * user is ending stands ended in the gesture's own turn, and one whose Done they are
- * undoing stands open again; a refused gesture leaves the ledger and so puts the to-do
- * back as the log has it. */
-/** @param {AuthoritativeState | null} state @param {readonly LedgerEntry[]} local */
-function localTodos(state, local) {
-  const ending = new Set(
-    local.flatMap(({ event }) => (event.kind === "todo_end" ? [event.todo] : [])),
-  );
-  const undoing = new Set(
-    local.flatMap(({ event }) => (event.kind === "undo" ? [event.undoes] : [])),
-  );
-  const all = state?.browser.todos ?? [];
-  const served = all.filter((todo) => todo.state === "open");
-  const ended = all.filter((todo) => todo.state !== "open");
-  /** @param {ServedTodo} todo */
-  const reopened = (todo) => todo.outcome !== null && undoing.has(todo.outcome.id);
-  const open = [
-    ...served,
-    ...ended.filter(reopened).map((todo) => ({
-      ...todo,
-      state: /** @type {const} */ ("open"),
-      outcome: null,
-    })),
-  ];
-  /** @param {WireTodo} todo */
-  const locallyEnded = (todo) => ending.has(todo.id);
-  return {
-    open: open.filter((todo) => !locallyEnded(todo)),
-    ended: [
-      ...ended.filter((todo) => !reopened(todo)),
-      ...open.filter(locallyEnded).map((todo) => ({
-        ...todo,
-        state: /** @type {const} */ ("done"),
-        running: null,
-        outcome: { ts: null, detail: null },
-      })),
-    ],
   };
 }
 
@@ -548,28 +468,24 @@ function currentWidgetRelations(document, widgets, projection) {
 
 /* What is on the user (On me), what is on the agent (On <agent>), and what is done:
  * the view's served lists (`served_state.queues`), with this tab's unresolved sends
- * placed against them. Every row but a to-do names an obligation record, so a send moves
- * an item the server listed only where the record is its own subject: a Done or its
- * undo moves a to-do between its list and done. What a send leaves anything else, such
- * as which obligations in its thread it answers, waits for the server's reading of it. This adds only the
+ * placed against them. Every row but a to-do names an obligation record, and only the
+ * agent ends a to-do, so a send moves an item the server listed only where the record
+ * is its own subject. What a send leaves anything else, such as which obligations in
+ * its thread it answers, waits for the server's reading of it. This adds only the
  * records a send alone publishes (`localUpdates`): the answer it is owed, which stands
  * for every update the server listed open in its thread, and the resend a refused one
  * leaves. Nothing here selects a list again. */
 /**
  * @param {WireQueues} served
  * @param {readonly Workflow[]} workflows
- * @param {ReturnType<typeof localTodos>} todos
+ * @param {readonly ServedTodo[]} todos
  * @param {ObligationLists} items
  * @param {readonly ObligationRecord[]} local
  */
 function localQueues(served, workflows, todos, items, local) {
   const record = new Map(items.all.map((item) => [item.id, item]));
   const inventoryAt = new Map(items.all.map((item, at) => [item.id, at]));
-  const open = new Set(todos.open.map((todo) => todo.id));
-  const ended = new Set(todos.ended.map((todo) => todo.id));
-  const todoRecord = new Map(
-    [...todos.open, ...todos.ended].map((todo) => [todo.id, todo]),
-  );
+  const todoRecord = new Map(todos.map((todo) => [todo.id, todo]));
   // The threads holding a send this tab has in flight.
   const sentIn = new Set(
     workflows.flatMap((workflow) =>
@@ -591,7 +507,7 @@ function localQueues(served, workflows, todos, items, local) {
   // sent to since, whose own record stands for it.
   /** @param {QueueItem} item */
   const standsOpen = (item) => {
-    if (!namesRecord(item)) return open.has(item.id);
+    if (!namesRecord(item)) return true;
     const current = obligationOf(item);
     return (
       current.next_actor === item.owner &&
@@ -605,22 +521,20 @@ function localQueues(served, workflows, todos, items, local) {
   // Whether an item the server listed as done stands open again in this tab.
   /** @param {DoneItem} item */
   const reopened = (item) =>
-    namesRecord(item)
-      ? obligationOf(item).status === "open" &&
-        obligationOf(item).next_actor === item.owner
-      : open.has(item.id);
+    namesRecord(item) &&
+    obligationOf(item).status === "open" &&
+    obligationOf(item).next_actor === item.owner;
   // Whether an item the server listed as open has ended in this tab.
   /** @param {QueueItem} item */
-  const endedHere = (item) =>
-    namesRecord(item) ? obligationOf(item).status !== "open" : ended.has(item.id);
+  const endedHere = (item) => namesRecord(item) && obligationOf(item).status !== "open";
   /** @param {QueueItem} item */
   const todoOf = (item) => {
-    const local = todoRecord.get(item.id);
-    if (!local) throw new Error(`Queue item ${item.id} names no to-do`);
-    return local;
+    const todo = todoRecord.get(item.id);
+    if (!todo) throw new Error(`Queue item ${item.id} names no to-do`);
+    return todo;
   };
-  // A record's row carries this tab's record of its obligation, and a to-do's row
-  // this tab's record of the to-do.
+  // A record's row carries this tab's record of its obligation, and a to-do's row the
+  // served to-do.
   /** @template {QueueItem} T @param {T} item @returns {T & QueueRecord} */
   const current = (item) =>
     namesRecord(item)
@@ -733,16 +647,14 @@ function localUpdates(workflows) {
   return { workflows: named, records };
 }
 
-// The order the server lists On me in: widget obligations, to-dos, then updates to
-// send again; records of a kind among
-// themselves in the order the view's inventory holds them.
+// The order the server lists On me in: obligations, then updates to send again;
+// records of a kind among themselves in the order the view's inventory holds them.
 /** @param {QueueItem} item */
-const onUserRank = (item) =>
-  item.kind === "todo" ? 1 : item.kind === "update" ? 2 : 0;
+const onUserRank = (item) => (item.kind === "update" ? 1 : 0);
 
-// Every row but an agent-owned to-do names the canonical obligation inventory.
+// Every row but a to-do names the canonical obligation inventory.
 /** @param {QueueItem} item @returns {item is ObligationQueueItem} */
-const namesRecord = (item) => item.kind !== "todo" || item.owner === "user";
+const namesRecord = (item) => item.kind !== "todo";
 
 /** @typedef {ReturnType<ReturnType<typeof createSemanticApplication>["read"]>} SemanticRoot */
 /** @typedef {SemanticRoot["effective"]["projection"]} RootProjection */
@@ -903,6 +815,10 @@ function widgetReading(inputs, descriptor) {
 
 /** @param {{ presentation?: PresentationLifecycle }} [options] */
 export function createSemanticApplication({ presentation } = {}) {
+  // Each publication's widget states and thread records, read again only where what
+  // one reads changed (`kept.js`).
+  const widgetStates = widgetStateReader();
+  const threadRecords = threadRecordReader();
   const initial = {
     document: /** @type {SemanticDocument} */ ({
       revision: null,
@@ -1049,15 +965,15 @@ export function createSemanticApplication({ presentation } = {}) {
               : [],
     );
     const folded = foldThreads(view?.thread.threads ?? [], gestures);
-    const widgets = foldWidgetStates(document.authored, projection);
+    const widgets = widgetStates(document.authored, projection);
     const { parents: widgetParents, memberships } = currentWidgetRelations(
       document,
       widgets,
       projection,
     );
-    const todos = ready ? localTodos(state, local) : { open: [], ended: [] };
+    const todos = ready ? (state?.browser.todos ?? []) : [];
     const servedItems = ready
-      ? normalizedObligations(view, widgets, document, projection, todos)
+      ? normalizedObligations(view, widgets, document, projection)
       : NO_OBLIGATIONS;
     // Thread attention is the server's reading, and one local fact adjusts it: a
     // refused send hands a thread the server left with the agent back to the user,
@@ -1201,7 +1117,7 @@ export function createSemanticApplication({ presentation } = {}) {
         isTurnEvent(entry.event) ? (localWorkflow(entry, false) ?? []) : [],
       ),
       // A refused message or widget move has a destination to send again.
-      // Other gestures restore their own control or to-do when speculation ends.
+      // Other gestures restore their own control when speculation ends.
       ...refused.flatMap((entry) => localWorkflow(entry, true) ?? []),
     ]);
     const workflows = sends.workflows;
@@ -1217,12 +1133,12 @@ export function createSemanticApplication({ presentation } = {}) {
       ],
       unanswered: [...servedItems.unanswered, ...localRecords],
     };
-    const threads = readThreadRecords(
+    const threads = threadRecords(
       obligated,
       document,
       widgets,
       workflows,
-      todos.open,
+      todos.filter((todo) => todo.state === "open"),
       items.all,
       markingRead,
       ready,
@@ -1242,11 +1158,10 @@ export function createSemanticApplication({ presentation } = {}) {
       if (workflow.obligation !== null && !serving.has(workflow.obligation))
         serving.set(workflow.obligation, workflow);
     /** @template {{ id: string; kind: QueueItem["kind"] }} T @param {T[]} items */
-    const contextual = (items, onUser = false) =>
+    const contextual = (items) =>
       items.map((item) => ({
         ...item,
         workflow: serving.get(item.id) ?? null,
-        offers: queueOffers(item, ready, onUser),
       }));
     return {
       hostAvailable,
@@ -1270,7 +1185,7 @@ export function createSemanticApplication({ presentation } = {}) {
       // with this tab's sends placed against them (`localQueues`).
       queues: {
         phase,
-        on_user: contextual(selectedQueues.on_user, true),
+        on_user: contextual(selectedQueues.on_user),
         on_agent: contextual(selectedQueues.on_agent),
         done: contextual(selectedQueues.done),
       },
@@ -1293,6 +1208,10 @@ export function createSemanticApplication({ presentation } = {}) {
   function publish(changes) {
     const prior = publisher.peek();
     const next = /** @type {typeof initial} */ ({ ...prior, ...changes });
+    // The folds read the server's reading as the root holds it, so each record the new
+    // answer left alone is the very object they read last time, and the record readers
+    // that keep what they read (`threadRecordReader`) keep it too.
+    next.authoritative = share(prior.authoritative, next.authoritative);
     // Shared against the current reading, so a part whose contents did not move keeps
     // its identity: that is what an epoch and every selection compare.
     next.effective = share(

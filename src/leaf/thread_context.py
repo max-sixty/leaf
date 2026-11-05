@@ -344,6 +344,9 @@ MESSAGE_FIELDS = (
     # where its "this one" points once the batch that carried it is gone.
     "viewing",
     "edited",
+    # A message the user took back while something stood on it, which keeps its
+    # place with nothing in it (`events.build_threads`).
+    "withdrawn",
 )
 
 # How much of one thread a wait digest carries: the message that opened it,
@@ -555,18 +558,24 @@ def unsent_at_messages(
     for each widget, the coordinates whose winner records unsent work, updated at
     each step that moves a winner, so an input reads only the work it carries, in
     the order `InForce.winners` keeps it."""
+    spoken = [
+        event
+        for event in batch
+        if event["author"] == "user"
+        and (event["kind"] in kinds_declaring("message") or event["kind"] == "edit")
+    ]
+    if not spoken:
+        return {}
     names = thread_names(events)
     sent = {}
     for widget, holder in thread_widgets(thread_structure(events), names).items():
         sent.setdefault(holder, set()).add(widget)
-    inputs = {}
-    for event in batch:
-        if event["author"] != "user":
-            continue
-        if event["kind"] in kinds_declaring("message"):
-            inputs[event["id"]] = names.get(event["id"])
-        elif event["kind"] == "edit":
-            inputs[event["id"]] = names.get(event["message"])
+    inputs = {
+        event["id"]: names.get(
+            event["message"] if event["kind"] == "edit" else event["id"]
+        )
+        for event in spoken
+    }
     anchors = {}
     about = {}
     for event in events:

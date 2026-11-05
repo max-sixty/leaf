@@ -935,6 +935,41 @@ def test_the_reading_map_returns_when_a_hidden_sidebar_comes_back(browser, serve
     assert rows() == laid, "the map came back without its rows"
 
 
+def test_a_status_line_in_the_map_s_track_stands_clear_of_its_spine(browser, serve):
+    """`page-authoring.md` keeps a short status beside the contents in the track, but
+    the margin map stands over the track's start edge and reserves no room there: its
+    spine ran down the status's first letters, and a press on them opened the map
+    instead of reaching the words."""
+    source = leaf_page(
+        "status beside the map",
+        '<aside><div class="layout-track"><lf-toc id="contents"></lf-toc>'
+        '<p id="status">Two branches wait on review.</p></div></aside>'
+        '<div class="layout-column"><h1>A migration</h1>'
+        + "".join(
+            f'<section><h2 id="{name}">{name}</h2><div style="height: 900px"></div>'
+            "</section>"
+            for name in ("prepare", "move", "verify")
+        )
+        + "</div>",
+        layout="sidebar",
+    )
+    page = open_page(browser, serve(source))
+    resized(page, 1400, 900)
+    expect(page.locator("#contents")).to_have_css("position", "fixed")
+    pressed = page.locator("#status").evaluate(
+        """status => {
+            const range = document.createRange();
+            range.setStart(status.firstChild, 0);
+            range.setEnd(status.firstChild, 1);
+            const {left, top, height} = range.getBoundingClientRect();
+            return document.elementFromPoint(left + 1, top + height / 2)?.id;
+        }"""
+    )
+    assert pressed == "status", (
+        f"a press on the status's first letter reached {pressed!r}"
+    )
+
+
 def test_a_crowded_document_map_reveals_every_heading_on_one_fitted_scale(
     browser, serve
 ):
@@ -1128,8 +1163,11 @@ def test_the_current_entry_follows_the_document_from_a_sticking_track(
         expect(current).to_have_text(name)
 
 
-def test_a_route_taller_than_the_map_returns_to_an_open_outline(browser, serve):
-    """A route that cannot physically fit keeps every heading in one honest form."""
+def test_a_route_taller_than_the_map_returns_to_an_open_outline(
+    browser, serve, subtests
+):
+    """A route that cannot physically fit keeps every heading in one honest form, and
+    measuring it leaves the reader's own place in the outline where they put it."""
     sections = "\n".join(
         f"<section><h2 id='part-{index}'>Migration part {index}</h2></section>"
         for index in range(1, 81)
@@ -1168,6 +1206,20 @@ def test_a_route_taller_than_the_map_returns_to_an_open_outline(browser, serve):
     expect(links.last).to_be_focused()
     expect(links.last).to_be_in_viewport()
 
+    with subtests.test("measuring keeps the place the reader scrolled to"):
+        resized(page, 1400, 900)
+        links.last.focus()
+        nav.evaluate("node => { node.scrollTop = 0; }")
+        assert nav.evaluate("node => node.scrollTop") == 0
+        page.evaluate("""async () => {
+          window.dispatchEvent(new Event('resize'));
+          await new Promise(requestAnimationFrame);
+          await new Promise(requestAnimationFrame);
+        }""")
+        assert nav.evaluate("node => node.scrollTop") == 0
+        resized(page, 1400, 700)
+        assert nav.evaluate("node => node.scrollTop") == 0
+
     resized(page, 1188, 600)
     expect(toc).to_have_attribute("data-lf-outline", "")
     nav_box = nav.bounding_box()
@@ -1180,32 +1232,6 @@ def test_a_route_taller_than_the_map_returns_to_an_open_outline(browser, serve):
     assert nav.evaluate("node => getComputedStyle(node).backgroundColor") != (
         "rgba(0, 0, 0, 0)"
     )
-
-
-def test_outline_measurement_preserves_manual_reading_position(browser, serve):
-    sections = "\n".join(
-        f"<section><h2 id='part-{index}'>Migration part {index}</h2></section>"
-        for index in range(1, 81)
-    )
-    source = contents_page(
-        "long contents route",
-        f"<h1>Migration</h1>{sections}",
-    )
-    page = open_page(browser, serve(source))
-    resized(page, 1400, 900)
-    nav = page.get_by_role("navigation", name="On this page")
-    links = nav.locator("a")
-    links.last.focus()
-    nav.evaluate("node => { node.scrollTop = 0; }")
-    assert nav.evaluate("node => node.scrollTop") == 0
-    page.evaluate("""async () => {
-      window.dispatchEvent(new Event('resize'));
-      await new Promise(requestAnimationFrame);
-      await new Promise(requestAnimationFrame);
-    }""")
-    assert nav.evaluate("node => node.scrollTop") == 0
-    resized(page, 1400, 700)
-    assert nav.evaluate("node => node.scrollTop") == 0
 
 
 def test_the_document_map_remeasures_tab_swaps_and_skips_hidden_headings(

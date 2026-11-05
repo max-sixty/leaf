@@ -1,19 +1,27 @@
-"""Changes in place: what changed since a version the user compares with in Versions,
-marked with a bar and walked with `h`, and where the agent is at work while it works
-(change-walk.js, margin-bars.js)."""
+"""Changes in place: what changed since a version, which `v` or a Compare in Versions
+marks with a bar and `h` walks; how much changed since the user last saw the page,
+which coming back to it says; and where the agent is at work while it works
+(version.js, since-seen.js, change-walk.js, margin-bars.js).
+
+A revision is seen when it is on the page while the user is there: the tab visible and
+the window holding focus. Headless browsers report every tab visible and focused, so
+the tests of what the user saw set both through the platform's own readings
+(`visibility`, `attention`)."""
 
 import re
 from datetime import UTC, datetime, timedelta
 
 import pytest
-from interact_support import append_command
+from interact_support import append_command, wait_for
 from model_folds import leaf_page
 from playwright.sync_api import expect
 from render_cases_interaction import live_url
-from render_harness import compare_with, open_page, wait_for_revision
+from render_harness import compare_with, open_page, stamp_page, wait_for_revision
 
 from leaf import event_log as events_model
 from leaf import revisioning as revisioning_model
+from leaf.render_checks import rendered
+from leaf_dev.browser import scroll_settled
 
 PAGE = leaf_page(
     "Since",
@@ -46,6 +54,45 @@ def revise(page_dir, *edits):
 def marked_ids(page):
     return page.locator("main .lf-ins-block").evaluate_all(
         "blocks => blocks.map(b => b.id)"
+    )
+
+
+def visibility(page, state):
+    """Hide or show the tab (test_freshness.py does the same)."""
+    page.evaluate(
+        """state => {
+          window.__lfTestVisibility = state;
+          Object.defineProperty(document, 'visibilityState', {
+            configurable: true,
+            get: () => window.__lfTestVisibility,
+          });
+          document.dispatchEvent(new Event('visibilitychange'));
+        }""",
+        state,
+    )
+
+
+def attention(page, focused):
+    """Give the window's focus to another application, as typing in a terminal beside
+    the browser does, or take it back."""
+    page.evaluate(
+        """focused => {
+          document.hasFocus = () => focused;
+          window.dispatchEvent(new Event(focused ? 'focus' : 'blur'));
+        }""",
+        focused,
+    )
+
+
+def wait_for_seen(page_dir, revisions, failure):
+    wait_for(
+        lambda: [
+            event["revision"]
+            for event in events_model.read_events(page_dir)
+            if event["kind"] == "seen"
+        ],
+        lambda seen: seen == revisions,
+        failure=failure,
     )
 
 
@@ -100,6 +147,104 @@ def test_a_comparison_marks_each_change_with_a_bar_and_h_walks_them(browser, ser
         }"""
     )
     assert lanes, "the change bar and the at-work bar don't stand in lanes of their own"
+
+
+def test_v_marks_what_changed_since_the_latest_version_and_takes_marks_off(
+    browser, serve
+):
+    """`v` compares with the newest version older than the one being read, and takes
+    any comparison off again, one a Compare in Versions started included."""
+    url = live_url(serve(PAGE))
+    d = serve.page_dir
+    page = open_page(browser, url)
+    stamp_page(d, revised(PAGE, BETA), "rewrote Beta")
+    wait_for_revision(page, 2)
+    revise(d, DELTA)
+    wait_for_revision(page, 3)
+    marked = page.locator("main .lf-ins-block")
+    # Since v2, not v1: only Delta changed.
+    page.keyboard.press("v")
+    expect(page.locator('.lf-change-bar[data-lf-for="d"]')).to_have_count(1)
+    assert marked_ids(page) == ["d"]
+    page.keyboard.press("v")
+    expect(marked).to_have_count(0)
+    # A screen reader hears the marks go.
+    expect(page.locator(".lf-live")).to_have_text("Changes hidden")
+    compare_with(page, 1)
+    page.keyboard.press("Escape")
+    expect(marked).to_have_count(2)
+    page.keyboard.press("v")
+    expect(marked).to_have_count(0)
+
+
+def test_coming_back_says_how_much_changed_and_v_marks_it(browser, serve):
+    """Leaving says which revision the user saw. Coming back after the agent revised
+    says how much changed since the version they last saw and marks nothing, and `v`
+    marks those changes, though a newer version stands between."""
+    url = live_url(serve(PAGE))
+    d = serve.page_dir
+    page = open_page(browser, url)
+    marked = page.locator("main .lf-ins-block")
+    visibility(page, "hidden")
+    wait_for_seen(d, [1], "leaving the page named no revision it showed")
+    stamp_page(d, revised(PAGE, BETA), "rewrote Beta")
+    revise(d, DELTA)
+
+    visibility(page, "visible")
+    expect(page.locator(".lf-live")).to_have_text("2 changes since v1 — v shows them")
+    expect(marked).to_have_count(0)
+    page.keyboard.press("v")
+    expect(marked).to_have_count(2)
+    assert marked_ids(page) == ["b", "d"]
+
+
+def test_what_lands_while_the_user_works_elsewhere_counts_when_they_return(
+    browser, serve
+):
+    """The browser beside the terminal: visible, but the user is typing elsewhere. What
+    lands then is news when they come back, and `v` marks it."""
+    url = live_url(serve(PAGE))
+    d = serve.page_dir
+    page = open_page(browser, url)
+    # Watched as it lands, a version is seen.
+    stamp_page(d, revised(PAGE, BETA), "rewrote Beta")
+    wait_for_revision(page, 2)
+    attention(page, False)
+    wait_for_seen(d, [2], "losing focus named no revision the user saw")
+    # A version of its own, so counting it as seen would leave nothing to say.
+    stamp_page(d, revised(PAGE, BETA, DELTA), "rewrote Delta")
+    wait_for_revision(page, 3)
+
+    attention(page, True)
+    expect(page.locator(".lf-live")).to_have_text("1 change since v2 — v shows them")
+    page.keyboard.press("v")
+    expect(page.locator("main .lf-ins-block")).to_have_count(1)
+    assert marked_ids(page) == ["d"]
+
+
+def test_a_draft_the_user_watched_land_is_no_news_when_they_return(browser, serve):
+    """A draft after the version the user last saw differs from it, but once they
+    watched it land a return counts nothing; what lands while they are away is news.
+    The count asks the server for the version's reading, so its requests say whether a
+    return counted."""
+    url = live_url(serve(PAGE))
+    d = serve.page_dir
+    page = open_page(browser, url)
+    revise(d, BETA)
+    wait_for_revision(page, 2)
+    attention(page, False)
+    wait_for_seen(d, [2], "losing focus named no revision the user saw")
+    counts = []
+    page.on("request", lambda request: "api/view" in request.url and counts.append(1))
+    attention(page, True)
+
+    # The control: a revision that lands while the user is away is counted and said.
+    attention(page, False)
+    revise(d, DELTA)
+    wait_for_revision(page, 3)
+    attention(page, True)
+    expect(page.locator(".lf-live")).to_have_text("2 changes since v1 — v shows them")
+    assert len(counts) == 1, "a return to the draft the user watched counted changes"
 
 
 SECTION = "<h2>Routes</h2>\n<p>The old rule.</p>\n<p>The old reason.</p>"
@@ -170,8 +315,9 @@ def test_a_paragraph_removed_is_a_change_at_its_gap(browser, serve):
     """A paragraph removed with nothing in its place is a change like any other: its bar
     is the change bar at zero blocks' length, in the gap; its entry, a raised press,
     stands by the block after the gap and outlines the gap under the pointer; the walk
-    stops there; and its press opens a card over what follows holding the words it took
-    out, while the page under the card holds still."""
+    stops on the gap's stand-in rather than the unchanged block, ringing the gap, and
+    Enter there opens the change's card; and the entry's press opens a card over what
+    follows holding the words it took out, while the page under the card holds still."""
     url = live_url(serve(PAGE))
     d = serve.page_dir
     revise(
@@ -196,9 +342,28 @@ def test_a_paragraph_removed_is_a_change_at_its_gap(browser, serve):
     removal = page.locator('[data-lf-margin-for="d"] [data-lf-kinds~="change"]')
     expect(removal).to_have_css("border-top-width", "2px")
     expect(removal).not_to_have_css("box-shadow", "none")
-    for expected in ("#a", "#d", "#a"):
-        page.keyboard.press("h")
-        expect(page.locator(expected)).to_be_focused()
+    page.keyboard.press("h")
+    expect(page.locator("#a")).to_be_focused()
+    page.keyboard.press("h")
+    expect(
+        page.get_by_role("button", name="1 paragraph removed since v1", exact=True)
+    ).to_be_focused()
+    expect(page.locator(".lf-change-ring")).to_be_visible()
+    rendered(page)
+    expect(page.locator(".lf-proxy-ring")).to_be_hidden()
+    assert page.evaluate(
+        """() => {
+          const box = (s) => document.querySelector(s).getBoundingClientRect();
+          const [b, d, ring] = [box('#b'), box('#d'), box('.lf-change-ring')];
+          return ring.top <= b.bottom && ring.bottom >= d.top && ring.bottom < d.bottom;
+        }"""
+    ), "the walk's ring doesn't stand round the gap"
+    page.keyboard.press("Enter")
+    expect(page.locator("#lf-change-card del")).to_have_text("Gamma stays as it was.")
+    page.keyboard.press("Escape")
+    expect(page.locator("#lf-change-card")).to_have_count(0)
+    page.keyboard.press("h")
+    expect(page.locator("#a")).to_be_focused()
     page.keyboard.press("Escape")
 
     removal.hover()
@@ -224,6 +389,124 @@ def test_a_paragraph_removed_is_a_change_at_its_gap(browser, serve):
     assert page.locator("#d").bounding_box() == before
     page.keyboard.press("Escape")
     expect(card).to_have_count(0)
+
+
+LONG = " ".join(["Lambda runs long."] * 400)
+TALL = " ".join(["Mu runs on in its pane."] * 60)
+FOLDED = leaf_page(
+    "Since",
+    f"""
+<h1 id="t">Plan</h1>
+<p id="a">Alpha stays.</p>
+<p id="b">Beta goes.</p>
+<details id="more"><summary id="s">More</summary>
+<p id="first">The first goes.</p><p id="k">Kappa stays.</p><p id="last">The last goes.</p>
+</details>
+<p id="d">Delta reads one way.</p>
+<lf-tabs id="views"><lf-tab id="notes" label="Notes"><p id="note">The only note goes.</p>
+</lf-tab><lf-tab id="others" label="Others"><p id="other">Another stays.</p></lf-tab></lf-tabs>
+<div id="pane" class="scroll" style="max-height: 8rem; overflow-y: auto">
+<p id="lead">The lead goes.</p><p id="tall">{TALL}</p></div>
+<p id="long">{LONG}</p>
+<p id="end">The end goes.</p>
+""",
+)
+GAPS = """() => Object.fromEntries(
+  [...document.querySelectorAll('.lf-change-bar[data-lf-gap]')].map((bar) => {
+    const box = bar.getBoundingClientRect();
+    return [`${bar.dataset.lfGap} ${bar.dataset.lfFor}`, [box.top, box.bottom]];
+  }),
+)"""
+EDGES = """() => Object.fromEntries(['a', 'more', 's', 'k', 'notes'].map((id) => {
+  const box = document.getElementById(id).getBoundingClientRect();
+  return [id, [box.top, box.bottom]];
+}))"""
+RING = """() => {
+  const box = document.querySelector('.lf-change-ring').getBoundingClientRect();
+  return [box.top + scrollY, box.top >= 0 && box.bottom <= innerHeight];
+}"""
+
+
+def test_a_removal_stands_in_the_part_of_the_page_it_left(browser, serve):
+    """A block removed with nothing in its place stands in the gap it left, in the part
+    of the page it stood in: the paragraph before a `details` stands before the
+    `details`, not inside it; the last paragraph of the `details` stands inside it,
+    after the block it followed, even where the paragraph after the `details` was
+    rewritten and a new element wraps them both; and a tab's only paragraph stands in
+    that tab, which counts it. The walk stops on each gap's stand-in, two gaps beside
+    one block included, and rings the gap, bringing it into view past a block taller
+    than the window or inside a scroller, and opening a `details` only for a gap inside
+    it. Each of the two entries beside one block outlines its own gap."""
+    url = live_url(serve(FOLDED))
+    revise(
+        serve.page_dir,
+        ('<p id="b">Beta goes.</p>\n', ""),
+        ('<p id="first">The first goes.</p>', ""),
+        ('<p id="last">The last goes.</p>', ""),
+        ("Delta reads one way.</p>", "Delta reads another way.</p></div>"),
+        ('<details id="more">', '<div id="wrap"><details id="more">'),
+        ('<p id="note">The only note goes.</p>', ""),
+        ('<p id="lead">The lead goes.</p>', ""),
+        ('\n<p id="end">The end goes.</p>', ""),
+    )
+    page = open_page(browser, url)
+    compare_with(page, 1)
+    page.keyboard.press("Escape")
+    expect(page.locator('[aria-controls="notes"] .lf-tabdiff')).to_have_text("Δ1")
+    expect(page.locator('[aria-controls="others"] .lf-tabdiff')).to_have_text("")
+
+    pane = page.locator("#pane")
+    pane.evaluate("pane => { pane.scrollTop = pane.scrollHeight; }")
+    stops = []
+    for _ in range(8):
+        page.keyboard.press("h")
+        rendered(page)
+        scroll_settled(page)
+        on_block = page.evaluate("() => document.activeElement.id")
+        stops.append(on_block or page.evaluate(RING))
+        if len(stops) == 1:
+            expect(page.locator("#more")).not_to_have_attribute("open", "")
+        if len(stops) == 6:
+            assert pane.evaluate("pane => pane.scrollTop") < 20, "the pane kept its gap"
+    assert stops[3] == "d", stops
+    gaps_walked = [stop for stop in stops if stop != "d"]
+    tops = [top for top, _ in gaps_walked]
+    assert tops[:6] == sorted(tops[:6]) and len(set(tops[:6])) == 6, stops
+    assert tops[6] == tops[0], "the walk didn't come round to the first gap"
+    assert all(shown for _, shown in gaps_walked), (
+        f"a gap the walk is on is out of view: {stops}"
+    )
+    expect(page.locator("#more")).to_have_attribute("open", "")
+    page.keyboard.press("Escape")
+
+    # A bar stands only while its block is near the window.
+    page.evaluate("() => scrollTo(0, 0)")
+    near = ["after k", "before k", "before more", "in notes"]
+    for gap in near:
+        side, at = gap.split()
+        expect(
+            page.locator(f'[data-lf-gap="{side}"][data-lf-for="{at}"]')
+        ).to_be_attached()
+    gaps, edges = page.evaluate(GAPS), page.evaluate(EDGES)
+    assert set(near) <= set(gaps), gaps
+    a, more, summary, kappa, notes = (
+        edges[key] for key in ("a", "more", "s", "k", "notes")
+    )
+    # Each bar stands between the boxes on either side of its gap, or in its element.
+    assert a[1] - 1 <= gaps["before more"][0] and gaps["before more"][1] <= more[0] + 1
+    assert summary[1] - 1 <= gaps["before k"][0] and gaps["before k"][1] <= kappa[0] + 1
+    assert kappa[1] - 1 <= gaps["after k"][0] and gaps["after k"][1] <= more[1] + 1
+    assert notes[0] - 1 <= gaps["in notes"][0]
+
+    outline = page.locator(".lf-change-outline:not(.lf-change-ring)")
+    entries = page.locator('[data-lf-margin-for="k"] [data-lf-kinds~="change"]')
+    expect(entries).to_have_count(2)
+    tops = []
+    for index in range(2):
+        entries.nth(index).hover()
+        expect(outline).to_be_visible()
+        tops.append(outline.bounding_box()["y"])
+    assert tops[0] != tops[1], "both entries outline the same gap"
 
 
 def test_a_change_s_card_reads_it_in_order(browser, serve):
@@ -336,7 +619,6 @@ def test_a_to_do_running_on_an_element_marks_it(browser, serve):
             "kind": "todo",
             "author": "agent",
             "agent": "Claude",
-            "owner": "agent",
             "subject": {"kind": "element", "id": "c"},
             "title": "Rewrite Gamma",
         },

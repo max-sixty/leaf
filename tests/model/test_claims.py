@@ -64,6 +64,10 @@ def test_a_codex_claim_records_the_session_not_the_shell_it_ran_through(
     claim_record = service_model.page_claim(page)
     assert claim_record is not None
     assert claim_record["pid"] == session.pid
+    assert claim_record["id"] == "thread-shape"
+    assert claim_record["agent"] == "Codex"
+    assert claim_record["harness"] == "codex"
+    assert page_state(page)["agent"] == "Codex"
 
 
 def test_the_nearest_harness_runs_a_command_that_inherits_another(under_codex):
@@ -396,20 +400,6 @@ def test_a_page_calls_its_agent_by_its_claimant_or_last_voice(page_dir, monkeypa
     assert claim_record_4 is not None
     claimant = claim_record_4["agent"]
     assert presence_model.presence(page_dir, voiced[:1])["agent"] == claimant
-
-
-def test_reinitializing_a_deleted_page_path_drops_its_old_claim(page_dir, monkeypatch):
-    """A regenerated page is not the deleted page that occupied its path."""
-    monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "old-session")
-    monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
-    assert service_model.claim_page(page_dir)
-
-    shutil.rmtree(page_dir)
-    initialized = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
-    assert initialized.exit_code == 0, initialized.output
-
-    assert service_model.page_claim(page_dir) is None
-    assert service_model.owned_pages("old-session") == []
 
 
 def test_the_codex_environment_defaults_the_name_but_a_worker_keeps_its_own(

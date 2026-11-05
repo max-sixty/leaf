@@ -26,8 +26,9 @@
    first reads the mutations already made as a batch, so a decision made now never
    runs ahead of a departure made before it.
 
-   An element's connection lifetime is one such watch over every element:
-   `watchOwner(owner, {connect, disconnect})` connects while the owner stands and
+   An element's connection lifetime is one such watch over the elements a subscription
+   stands on, which can be any element: `watchOwner(owner, {connect, disconnect})`
+   connects while the owner stands and
    disconnects once a batch shows it gone, so a move within one batch keeps it. A new
    owner connects through `offer`, and a batch decides its departures before its
    arrivals, so whatever left before an owner connects has released first: a revision
@@ -42,25 +43,54 @@
    Present means in the document, the page's body and the chrome after it alike, or in
    a declared shadow stage whose host is connected. No observer crosses a shadow boundary on its own, so shadow-stage.js, the
    one door a stage is built through, hands each one it fills to `watchArrivalsIn`. No
-   scroll crosses one either, so `watchScrolls` hears the document's and every stage's.
+   scroll or scroll end crosses one either, so this module hears the document's and
+   every stage's, and those of any other tree a module enrolls (`hearScrollsIn`).
    This module is the stages' one registry (`liveStages`), held weakly: a stage outlives
    its widget only as garbage. A stage built while its host was detached arrives with the
    host. */
-import { isElement, under } from "./shadow-tree.js";
-import { cancelRender, nextRender } from "./rendering.js";
+import { isElement, shadowHost, under } from "./shadow-tree.js";
+import { cancelRender, nextFrame, nextRender } from "./rendering.js";
 
-/** @typedef {{selector: string, attributes: string[], observer: MutationObserver, offerMany: (elements: Iterable<Element>) => void}} ArrivalWatch
+/** The elements a watch holds: whether `is` one, and every one `within` a tree.
+ * @typedef {{is: (el: Element) => boolean, within: (root: Element | ShadowRoot) => Iterable<Element>}} Kind
+ * @typedef {{kind: Kind, attributes: string[], observer: MutationObserver, offerMany: (elements: Iterable<Element>) => void}} ArrivalWatch
  * @typedef {{connect(): void, disconnect(): void}} Connection */
 /** @type {Set<ArrivalWatch>} */
 const watches = new Set();
-/** @type {WeakSet<Node>} */
-const stages = new WeakSet();
 /** @type {Set<WeakRef<ShadowRoot>>} */
 const stageRefs = new Set();
+// Each stage by its host, closed ones included, which no host answers through
+// `shadowRoot`.
+/** @type {WeakMap<Element, ShadowRoot>} */
+const hostStages = new WeakMap();
+/** @param {Element} host */
+export const stageOf = (host) => hostStages.get(host) ?? null;
 /** @type {WeakMap<Element, Set<Connection>>} */
 const owners = new WeakMap();
 /** @type {((element: Element) => void) | undefined} */
 let offerOwner;
+
+/** @param {Element} element @param {keyof Connection} method */
+function notifyOwners(element, method) {
+  for (const subscription of owners.get(element) ?? []) {
+    try {
+      subscription[method]();
+    } catch (error) {
+      // A failed owner reports through the window's error channel while the
+      // remaining owners in this arrival batch still receive their transition.
+      queueMicrotask(() => {
+        throw error;
+      });
+    }
+  }
+}
+// The one watch every owner shares, made on first use. It is made here, not in the
+// first owner's call, whose scope its callbacks would otherwise keep alive.
+const ownerWatch = () =>
+  (offerOwner ??= watchKind(ownerKind, [], {
+    arrive: (element) => notifyOwners(element, "connect"),
+    leave: (element) => notifyOwners(element, "disconnect"),
+  }));
 
 // Independent subscriptions share their element's connection lifetime. The arrival
 // batch decides whether it actually left, so an in-document move retains them.
@@ -87,29 +117,10 @@ export function watchOwner(owner, lifecycle) {
       lifecycle.disconnect?.();
     },
   };
-  if (!offerOwner) {
-    /** @param {Element} element @param {keyof Connection} method */
-    const notify = (element, method) => {
-      for (const subscription of owners.get(element) ?? []) {
-        try {
-          subscription[method]();
-        } catch (error) {
-          // A failed owner reports through the window's error channel while the
-          // remaining owners in this arrival batch still receive their transition.
-          queueMicrotask(() => {
-            throw error;
-          });
-        }
-      }
-    };
-    offerOwner = watchArrivals("*", [], {
-      arrive: (element) => notify(element, "connect"),
-      leave: (element) => notify(element, "disconnect"),
-    });
-  }
+  const offer = ownerWatch();
   // A synchronous connection can begin and end before the first arrival batch.
   // Offer the owner before setup so that batch still knows its resources must leave.
-  if (owner.isConnected) offerOwner(owner);
+  if (owner.isConnected) offer(owner);
   subscriptions.add(subscription);
   const stop = () => {
     subscriptions.delete(subscription);
@@ -175,7 +186,10 @@ export function liveStages() {
 }
 
 /** @param {Node} root @returns {root is ShadowRoot} */
-export const isStage = (root) => stages.has(root);
+export const isStage = (root) => {
+  const host = shadowHost(root);
+  return host !== null && hostStages.get(host) === root;
+};
 
 /** @param {Element} el */
 const stands = (el) => {
@@ -183,32 +197,56 @@ const stands = (el) => {
   return root === document || (isStage(root) && root.host.isConnected);
 };
 
+// An owner (`watchOwner`) can be any element, so finding the owners in what a mutation
+// added visits every element there, and offers only the owners.
+/** @type {Kind} */
+const ownerKind = {
+  is: (el) => owners.has(el),
+  *within(root) {
+    for (const el of root.querySelectorAll("*")) if (owners.has(el)) yield el;
+  },
+};
+
 // Every match in what a record names, the stages inside it included.
-/** @param {Node | null} node @param {string} selector @returns {Generator<Element>} */
-function* matching(node, selector) {
+/** @param {Node | null} node @param {Kind} kind @returns {Generator<Element>} */
+function* matching(node, kind) {
   if (!isElement(node)) return;
-  if (node.matches(selector)) yield node;
-  yield* node.querySelectorAll(selector);
+  if (kind.is(node)) yield node;
+  yield* kind.within(node);
   for (const stage of liveStages())
-    if (under(stage.host, node)) yield* stage.querySelectorAll(selector);
+    if (under(stage.host, node)) yield* kind.within(stage);
 }
 
 /**
  * @param {string} selector
  * @param {string[]} attributes
- * @param {{
+ * @param {Watcher} watcher Each arrival goes to `arriveBatch` where there is one, else to `arrive`.
+ */
+export const watchArrivals = (selector, attributes, watcher) =>
+  watchKind(
+    {
+      is: (el) => el.matches(selector),
+      within: (root) => root.querySelectorAll(selector),
+    },
+    attributes,
+    watcher,
+  );
+
+/**
+ * @typedef {{
  *   leave: (element: Element) => void,
  * } & ({arrive: (element: Element) => void, arriveBatch?: never}
- * | {arrive?: never, arriveBatch: (elements: Element[]) => void})} watcher Each arrival goes to `arriveBatch` where there is one, else to `arrive`.
+ * | {arrive?: never, arriveBatch: (elements: Element[]) => void})} Watcher
+ * @param {Kind} kind @param {string[]} attributes @param {Watcher} watcher
  */
-export function watchArrivals(selector, attributes, { arrive, arriveBatch, leave }) {
+function watchKind(kind, attributes, { arrive, arriveBatch, leave }) {
   const arrived = new WeakSet();
   // Every departure a batch shows is decided before any arrival in it.
   /** @param {Iterable<Element>} elements */
   const offerMany = (elements) => {
     const present = [];
     for (const el of elements) {
-      if (stands(el) && el.matches(selector)) present.push(el);
+      if (stands(el) && kind.is(el)) present.push(el);
       else if (arrived.delete(el)) leave(el);
     }
     if (!arriveBatch) for (const el of present) offer(el);
@@ -219,7 +257,7 @@ export function watchArrivals(selector, attributes, { arrive, arriveBatch, leave
   };
   /** @param {Element} el */
   const offer = (el) => {
-    if (stands(el) && el.matches(selector)) {
+    if (stands(el) && kind.is(el)) {
       arrived.add(el);
       if (arriveBatch) arriveBatch([el]);
       else arrive(el);
@@ -227,7 +265,7 @@ export function watchArrivals(selector, attributes, { arrive, arriveBatch, leave
   };
   /** @param {Node | null} node */
   const beside = (node) =>
-    isElement(node) && (arrived.has(node) || node.matches(selector)) ? [node] : [];
+    isElement(node) && (arrived.has(node) || kind.is(node)) ? [node] : [];
   /** @param {MutationRecord[]} records */
   const read = (records) => {
     /** @type {Set<Element>} */
@@ -244,14 +282,14 @@ export function watchArrivals(selector, attributes, { arrive, arriveBatch, leave
       ])
         offered.add(el);
       for (const node of record.addedNodes)
-        for (const el of matching(node, selector)) offered.add(el);
+        for (const el of matching(node, kind)) offered.add(el);
       for (const node of record.removedNodes)
-        for (const el of matching(node, selector)) if (arrived.has(el)) offered.add(el);
+        for (const el of matching(node, kind)) if (arrived.has(el)) offered.add(el);
     }
     offerMany(offered);
   };
   const observer = new MutationObserver(read);
-  const watch = { selector, attributes, observer, offerMany };
+  const watch = { kind, attributes, observer, offerMany };
   watches.add(watch);
   for (const root of [document.documentElement, ...liveStages()]) enroll(watch, root);
   return (/** @type {Element} */ el) => {
@@ -261,37 +299,41 @@ export function watchArrivals(selector, attributes, { arrive, arriveBatch, leave
 }
 
 /** @param {ArrivalWatch} watch @param {Element | ShadowRoot} root */
-function enroll({ selector, attributes, observer, offerMany }, root) {
+function enroll({ kind, attributes, observer, offerMany }, root) {
   observer.observe(root, {
     childList: true,
     subtree: true,
     attributes: true,
     attributeFilter: attributes,
   });
-  offerMany(root.querySelectorAll(selector));
+  offerMany(kind.within(root));
 }
 
 /** @param {ShadowRoot} stage */
 export function watchArrivalsIn(stage) {
-  if (stages.has(stage)) return;
-  stages.add(stage);
+  if (hostStages.get(stage.host) === stage) return;
+  hostStages.set(stage.host, stage);
   stageRefs.add(new WeakRef(stage));
   for (const watch of watches) enroll(watch, stage);
-  stage.addEventListener("scroll", heardIn(stage), SCROLL);
+  hearScrollsIn(stage);
 }
 
-// Every scroll in the page, a stage's included: `scroll` is not composed, so a scroller
-// inside a shadow stage reaches no listener outside it. Each stage hears its own
-// scrollers for every listener, through one listener of its own that holds nothing but
-// the stage, and only its own, since one slotted into it from the document reaches the
-// document too. Listeners receive the scroller itself. Leaf's instant scroll writes
-// announce their completed position here too: a write in resize delivery paints before
-// the browser sends its scroll event, so dependent paint cannot wait on that event.
+// Every scroll in the page, a stage's included: `scroll` and `scrollend` are not
+// composed, so a scroller inside a shadow stage reaches no listener outside it. Each
+// tree hears its own scrollers for every listener, through one listener of its own that
+// holds nothing but the tree, and only its own, since one slotted into it from the
+// document reaches the document too. The document and every stage are heard from the
+// start; a module placing paint against the scrollers of another shadow tree, as the
+// margin does, enrolls that tree (`hearScrollsIn`). Listeners receive the scroller
+// itself. Leaf's instant scroll writes announce their completed position here too: a
+// write in resize delivery paints before the browser sends its scroll event, so
+// dependent paint cannot wait on that event.
 /** @type {Set<(box: Element | null) => void>} */
 const scrollListeners = new Set();
 const SCROLL = { capture: true, passive: true };
 /** @param {Element | null} box */
 function announceScroll(box) {
+  if (box) inSequence(box);
   for (const listener of scrollListeners) listener(box);
 }
 // Complete a scroll write and publish the position that will paint. Native scroll
@@ -301,76 +343,127 @@ export function setScroll(box, options) {
   const { scrollTop, scrollLeft } = box;
   const { behavior = "instant" } = options;
   box.scrollTo({ ...options, behavior });
-  if (
-    behavior === "instant" &&
-    (box.scrollTop !== scrollTop || box.scrollLeft !== scrollLeft)
-  )
-    announceScroll(box);
+  if (behavior !== "instant") return;
+  placed.set(box, { top: box.scrollTop, left: box.scrollLeft });
+  if (box.scrollTop !== scrollTop || box.scrollLeft !== scrollLeft) announceScroll(box);
 }
-/** @param {Document | ShadowRoot} stage */
-const heardIn = (stage) => /** @param {Event} event */ (event) => {
-  const target = event.target;
-  if (target === document) {
-    if (stage === document) announceScroll(document.scrollingElement);
-  } else if (isElement(target) && target.getRootNode() === stage)
-    announceScroll(target);
-};
-document.addEventListener("scroll", heardIn(document), SCROLL);
+/** @type {WeakSet<Document | ShadowRoot>} */
+const hearing = new WeakSet();
+/** @param {Document | ShadowRoot} root */
+export function hearScrollsIn(root) {
+  if (hearing.has(root)) return;
+  hearing.add(root);
+  /** @param {Event} event */
+  const heard = ({ type, target }) => {
+    const box =
+      target === document
+        ? root === document
+          ? document.scrollingElement
+          : null
+        : isElement(target) && target.getRootNode() === root
+          ? target
+          : null;
+    if (!box) return;
+    if (type === "scroll") announceScroll(box);
+    else endSequence(box);
+  };
+  root.addEventListener("scroll", heard, SCROLL);
+  root.addEventListener("scrollend", heard, SCROLL);
+}
+hearScrollsIn(document);
 /** @param {(box: Element | null) => void} listener */
 export function watchScrolls(listener) {
   scrollListeners.add(listener);
   return () => scrollListeners.delete(listener);
 }
 
-// Whether a scroll is in flight anywhere in the page, from its first frame until it
-// settles, and each settle as it comes: a `scrollend` where the browser sends one, else
-// a settle after the last scroll frame, since a scroll restoration that replaces what
-// was scrolling ends without one. A scroll the runtime writes a frame at a time
-// (scrolling.js, `glideTo`) sends a `scrollend` for each frame, so it holds the flight
-// until it lands (`scrollGlides`). What rides a scroll on an anchor is placed again once
-// it settles rather than on its frames, where a placement would trail the scroll a
-// frame behind.
+// Each box's scroll sequence, from its first scroll until it ends: at its `scrollend`,
+// or, since a scroll restoration that replaces what was scrolling ends without one,
+// after a quiet spell of SETTLE_MS and two rendering updates with no scroll in the box.
+// The spell needs both: Firefox's main thread hears its smooth scroll's frames late,
+// and a busy page delays the updates that carry a scroll's events past any clock.
+// WebKit ends a keyboard scroll on each of its frames (notes/browser-support.md), so
+// there one keypress makes several sequences. A script that moves a
+// box a frame at a time, as the runtime's glide does (scrolling.js, `glideTo`), gets a
+// `scrollend` for each frame, so it holds the box (`holdScroll`), and the sequence ends
+// once, after the hold is released. Every reader of a scroll's end hears it here, once
+// per sequence (`watchScrollEnds`): what rides a scroll on an anchor is placed again, a
+// reading place recorded and who chose the position decided once the scroll settles,
+// rather than on each frame, which would trail the scroll a frame behind and cost a
+// frame's work. Readers hear an end in the order they subscribed, and scrolling.js
+// subscribes as it loads, so who chose the position is decided before any later reader
+// asks (version.js reads it).
 const SETTLE_MS = 80;
-/** @type {Set<() => void>} */
-const settleListeners = new Set();
-let inFlight = false;
-let gliding = false;
-let settleTimer = 0;
-let trackingScrolls = false;
-function settle() {
-  if (!inFlight || gliding) return;
-  inFlight = false;
-  clearTimeout(settleTimer);
-  for (const listener of settleListeners) listener();
+/** @type {Set<(box: Element) => void>} */
+const endListeners = new Set();
+// Each box whose sequence runs, with how many of its scrolls have been heard and when
+// the last one was.
+/** @typedef {{heard: number, at: number}} Sequence */
+/** @type {Map<Element, Sequence>} */
+const sequences = new Map();
+/** @type {Map<Element, number>} */
+const holds = new Map();
+// Where a script last put each box (`setScroll`), until the box's sequence ends.
+/** @type {WeakMap<Element, {top: number, left: number}>} */
+const placed = new WeakMap();
+/** @param {Element} box @returns {Sequence} */
+function sequenceIn(box) {
+  let sequence = sequences.get(box);
+  if (!sequence) sequences.set(box, (sequence = { heard: 0, at: performance.now() }));
+  return sequence;
 }
-function trackScrolls() {
-  if (trackingScrolls) return;
-  trackingScrolls = true;
-  watchScrolls(() => {
-    inFlight = true;
-    clearTimeout(settleTimer);
-    settleTimer = setTimeout(settle, SETTLE_MS);
-  });
-  document.addEventListener("scrollend", settle, SCROLL);
+/** @param {Element} box */
+function inSequence(box) {
+  const sequence = sequenceIn(box);
+  const heard = ++sequence.heard;
+  sequence.at = performance.now();
+  const quiet = () => {
+    if (sequences.get(box) !== sequence || sequence.heard !== heard) return;
+    if (performance.now() - sequence.at < SETTLE_MS) nextFrame(quiet);
+    else endSequence(box);
+  };
+  nextFrame(() => nextFrame(quiet));
 }
-/** @param {boolean} on */
-export function scrollGlides(on) {
-  trackScrolls();
-  gliding = on;
-  if (on) inFlight = true;
-  // A glide stopped before it wrote sends nothing more to settle on.
-  else if (inFlight) {
-    clearTimeout(settleTimer);
-    settleTimer = setTimeout(settle, SETTLE_MS);
-  }
+/** @param {Element} box */
+function endSequence(box) {
+  if (!sequences.has(box) || holds.has(box)) return;
+  sequences.delete(box);
+  placed.delete(box);
+  for (const listener of endListeners) listener(box);
 }
-export function scrolling() {
-  trackScrolls();
-  return inFlight;
+// Hold `box`'s sequence open from now until the returned release, after which it ends
+// as a glide's last frame ends it.
+/** @param {Element} box @returns {() => void} */
+export function holdScroll(box) {
+  holds.set(box, (holds.get(box) ?? 0) + 1);
+  sequenceIn(box);
+  let held = true;
+  return () => {
+    if (!held) return;
+    held = false;
+    const left = (holds.get(box) ?? 1) - 1;
+    if (left) {
+      holds.set(box, left);
+      return;
+    }
+    holds.delete(box);
+    inSequence(box);
+  };
 }
-/** @param {() => void} listener */
+// Whether a scroll sequence is under way anywhere in the page.
+export const scrolling = () => sequences.size > 0;
+// Whether the browser moves `box`, rather than a script: a sequence under way in it that
+// no hold keeps open, and that has taken the box from where a script last put it. A
+// script's last write keeps the sequence open while it settles (`inSequence`), and that
+// settling is still the script's.
+/** @param {Element} box */
+export const browserScrolls = (box) => {
+  if (!sequences.has(box) || holds.has(box)) return false;
+  const at = placed.get(box);
+  return !at || at.top !== box.scrollTop || at.left !== box.scrollLeft;
+};
+/** @param {(box: Element) => void} listener */
 export function watchScrollEnds(listener) {
-  trackScrolls();
-  settleListeners.add(listener);
-  return () => settleListeners.delete(listener);
+  endListeners.add(listener);
+  return () => endListeners.delete(listener);
 }

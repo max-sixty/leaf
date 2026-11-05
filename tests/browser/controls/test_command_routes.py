@@ -11,7 +11,6 @@ from render_harness import leaf_page, open_page
 
 from browser.navigation import offered_routes
 from leaf.render_checks import rendered
-from leaf.schema import ELEMENT_ID
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -113,7 +112,7 @@ KEYBOARD_HINT_REGISTRY = {
         "description": "Exercises declared keyboard commands and their controls.",
         "type": "object",
         "properties": {
-            "id": {"type": "string", "pattern": f"^{ELEMENT_ID}$"},
+            "id": {"type": "string"},
             "asks": {"type": "boolean"},
             "restated": {"type": "boolean"},
         },

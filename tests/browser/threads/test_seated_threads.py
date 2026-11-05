@@ -10,7 +10,6 @@ from render_cases_interaction import OBLIGATION_PAGE, panel_comment
 from render_cases_navigation import source_revision
 from render_harness import (
     PANEL,
-    PANEL_THREAD,
     RELEASE_FOCUS,
     consume_browser_errors,
     http_error_console,
@@ -42,6 +41,7 @@ from browser.threads import (
 from leaf import data as data_model
 from leaf import event_log as events_model
 from leaf.render_checks import rendered, wait_until_ready
+from leaf_dev.browser import PANEL_THREAD
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -105,8 +105,9 @@ def test_a_resolution_from_elsewhere_moves_nothing_after_a_diff_thread(browser, 
         {"kind": "resolve", "author": "agent", "agent": "Codex", "parent": root},
     )
     told(page)
-    notice = thread.get_by_role("button", name="Resolved", exact=True)
+    notice = thread.get_by_role("button", name="1 new", exact=True)
     expect(notice).to_be_visible()
+    expect(notice).to_have_attribute("title", "Resolved")
     rendered(page)
     assert after.bounding_box() == before
     notice.click()
@@ -263,67 +264,6 @@ def test_an_agent_settling_a_diff_thread_above_the_screen_moves_nothing_below(
         assert read.bounding_box()["y"] == pytest.approx(before, abs=0.5), kind
 
 
-@pytest.mark.parametrize("disclosure", ["closed", "open"])
-def test_a_reopening_waits_where_the_reopened_thread_would_stand(
-    browser, serve, disclosure
-):
-    """A diff thread in its outlet's Resolved disclosure reopens ahead of the open
-    threads that came after it, not where the disclosure stands. With the disclosure
-    below the window, closed or open, and a later open thread on screen, an agent's
-    reply that reopened the earlier thread pushed the open one down under the reader.
-    It waits, and the disclosure's summary says so."""
-    url, first = long_diff_thread(serve)
-    append_carried_log_record(
-        serve.page_dir, {"kind": "resolve", "author": "user", "parent": first}
-    )
-    later = append_carried_log_record(
-        serve.page_dir,
-        {
-            "kind": "comment",
-            "author": "user",
-            "revision": 1,
-            "text": "And keep the old name working.",
-            "anchor": {
-                "section": "patch",
-                "datum": '["app.py","new",1]',
-                "source": "review-patch",
-                "source_revision": source_revision(serve.page_dir, "review-patch"),
-            },
-        },
-    )["id"]
-    for turn in range(8):
-        append_agent_reply(
-            serve.page_dir, later, f"Step {turn}: " + "the alias stays. " * 12
-        )
-    page = open_page(browser, url)
-    resized(page, 1280, 800)
-    open_thread = page.locator(f'lf-diff .lf-page-thread[data-lf-thread="{later}"]')
-    summary = page.locator("lf-diff .lf-resolved-summary")
-    expect(summary).to_have_text("Resolved · 1")
-    if disclosure == "open":
-        summary.click()
-        expect(
-            page.locator(f'lf-diff .lf-page-thread[data-lf-thread="{first}"]')
-        ).to_be_visible()
-    open_thread.evaluate(
-        "node => scrollBy({top: node.getBoundingClientRect().top - 200,"
-        " behavior: 'instant'})"
-    )
-    rendered(page)
-    assert summary.bounding_box()["y"] > 800
-    page.wait_for_function(
-        "at => performance.now() - at > 600", arg=page.evaluate("performance.now()")
-    )
-    before = open_thread.bounding_box()["y"]
-    append_agent_reply(serve.page_dir, first, "The check now covers both paths.")
-    told(page)
-    rendered(page)
-    expect(summary).to_have_text("Resolved · 1 · 2 new")
-    # The news is Leaf's, in its face, as the thread's own held news is.
-    expect(summary.locator('[data-lf-voice="leaf"]')).to_have_text("2 new")
-    assert open_thread.bounding_box()["y"] == pytest.approx(before, abs=0.5)
-
-
 def test_a_reaction_list_closes_once_its_trigger_is_out_of_sight(browser, serve):
     """An open reaction list hangs from its trigger, so it closes once none of the
     trigger is in front of the user: scrolled out of the window."""
@@ -447,24 +387,27 @@ def test_a_diff_thread_reply_grown_by_a_paste_keeps_its_send_above_the_panel(
     )
 
 
-@pytest.mark.parametrize("kind", ["task", "bounded"])
+@pytest.mark.parametrize(
+    ("kind", "engine"),
+    [("task", "browser"), ("bounded", "browser"), ("task", "firefox_browser")],
+)
 def test_an_agent_turn_arriving_holds_still_the_page_box_being_typed_in(
-    browser, serve, kind
+    request, serve, kind, engine
 ):
     """The new turn went in above the reply box the user was typing in and pushed it,
-    caret and all, below the fold. News moves no control under the user's hands: the
-    turn waits behind the thread's notice, since the thread's foot is on screen, and
-    the box stands where it was, in a bounded block as on the page."""
-    messages = 1 if kind == "bounded-short" else 3
+    caret and all, below the fold. The user in a thread reads its news as it comes, as
+    in a chat: the turn draws at once and the box stands where it was, what stood above
+    it moving up by the turn, in a bounded block as on the page, and in Firefox, whose
+    scroll anchoring differs from Chromium's."""
+    messages = 3
     url, root = seated_thread(serve, kind, messages)
-    page = open_page(browser, url)
+    page = open_page(request.getfixturevalue(engine), url)
     thread = page.locator(f'.lf-page-thread[data-lf-thread="{root}"]')
     box = thread.locator(":scope > .lf-thread-reply leaf-text")
     box.scroll_into_view_if_needed()
     write(box, "Half a thought")
     to_window_foot(page, box, 50)
     before = box.evaluate("box => box.getBoundingClientRect().top")
-    page_before = page.evaluate("() => document.scrollingElement.scrollTop")
     append_carried_log_record(
         serve.page_dir,
         {
@@ -478,15 +421,88 @@ def test_an_agent_turn_arriving_holds_still_the_page_box_being_typed_in(
         },
     )
     told(page)
-    expect(thread.get_by_role("button", name="1 new", exact=True)).to_be_visible()
+    expect(thread.locator(".lf-msg")).to_have_count(messages + 1)
     rendered(page)
-    expect(thread.locator(".lf-msg")).to_have_count(messages)
+    expect(thread.locator(".lf-thread-news")).to_have_count(0)
     expect(box).to_be_focused()
     assert box.evaluate("box => box.getBoundingClientRect().top") == pytest.approx(
         before, abs=1
     )
-    page_after = page.evaluate("() => document.scrollingElement.scrollTop")
-    assert page_after == pytest.approx(page_before, abs=1)
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+@pytest.mark.parametrize("first", ["above", "on screen"])
+def test_an_edit_above_the_paragraph_read_holds_it_with_the_reply_box_scrolled_away(
+    request, serve, first, engine
+):
+    """The user wrote in a thread's reply box, scrolled up out of it to read an earlier
+    message's second paragraph, and an edit from another tab grew that message's first
+    paragraph: the paragraph they read moved down by the 126px it grew. The redraw
+    replaced every paragraph of the message, the node the browser's scroll anchoring
+    held among them, and neither engine anchors again on a node that replaces its
+    anchor; it now keeps the paragraphs the edit leaves, so with the first paragraph
+    above the window anchoring holds the one read. With the first on screen, anchoring
+    holds that paragraph, the growth inside it, and the seat held nothing, its focus out
+    of view; the reading's hold keeps what stands at the reading line."""
+    url, host = seated_page(serve, "task")
+    second = "The second paragraph, being read. " + SEAT_WORDS * 3
+    root = append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "Opening remark.\n\n" + second,
+            "anchor": {"section": host[1:]},
+        },
+    )["id"]
+    for n in range(8):
+        append_carried_log_record(
+            serve.page_dir,
+            {
+                "kind": "reply",
+                "author": "agent",
+                "agent": "Codex",
+                "parent": root,
+                "revision": 1,
+                "text": f"Message {n + 2}. " + SEAT_WORDS * 2,
+            },
+        )
+    page = open_page(request.getfixturevalue(engine), url)
+    resized(page, 1440, 900)
+    thread = page.locator(f'.lf-page-thread[data-lf-thread="{root}"]')
+    box = thread.locator(":scope > .lf-thread-reply leaf-text")
+    box.scroll_into_view_if_needed()
+    write(box, "Half a thought")
+    read = thread.locator(".lf-msg p", has_text="The second paragraph")
+    page.evaluate(
+        """([node, at]) => document.scrollingElement.scrollBy({
+          top: node.getBoundingClientRect().top - at, behavior: 'instant'})""",
+        [read.element_handle(), 150 if first == "on screen" else -60],
+    )
+    scroll_settled(page)
+    expect(box).to_be_focused()
+    expect(box).not_to_be_in_viewport()
+    before = read.evaluate("p => p.getBoundingClientRect().top")
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "edit",
+            "author": "user",
+            "message": root,
+            "text": "Opening remark, grown by an edit in another tab. "
+            + SEAT_WORDS * 3
+            + "\n\n"
+            + second,
+        },
+    )
+    told(page)
+    expect(thread.locator(".lf-msg").first).to_contain_text("grown by an edit")
+    rendered(page)
+    expect(box).to_be_focused()
+    assert read.evaluate("p => p.getBoundingClientRect().top") == pytest.approx(
+        before, abs=1
+    )
 
 
 def test_resolving_a_long_page_thread_by_its_button_leaves_the_page_still(
@@ -906,8 +922,8 @@ def test_a_thread_resolved_while_its_reply_is_written_keeps_the_user_on_it(
         wait_until_ready(page)
         # A resolved thread the page draws nowhere opens in the panel.
         open_panel_thread(page, root)
-        settle = page.locator(".lf-fp-settle")
-        expect(settle).to_have_accessible_name("Reopen")
+        settle = page.locator(".lf-fp-thread-controls :is(.lf-resolve, .lf-reopen)")
+        expect(settle).to_have_accessible_name("✓ Resolved by Codex · Reopen")
         with sending(page, "reopen the thread with the saved reply"):
             settle.click()
         round_trip(page)
@@ -921,13 +937,12 @@ def test_a_thread_resolved_while_its_reply_is_written_keeps_the_user_on_it(
         expect(box).to_be_focused()
         expect(box).to_have_js_property("value", "")
         assert box.evaluate("box => [box.selectionStart, box.selectionEnd]") == [0, 0]
-        if kind == "margin":
-            expect(thread).to_have_attribute("data-lf-resolved", "true")
-        else:
-            # A seat in the flow holds the resolution behind its notice while the
-            # thread is on screen.
-            expect(thread.locator(".lf-thread-news")).to_contain_text("Resolved")
-            expect(thread).to_have_attribute("data-lf-resolved", "false")
+        # A seat in the flow holds the resolution behind its notice while the thread is
+        # on screen.
+        notice = thread.locator(".lf-thread-news")
+        expect(notice).to_have_text("1 new")
+        expect(notice).to_have_attribute("title", "Resolved")
+        expect(thread).to_have_attribute("data-lf-resolved", "false")
         return
     page.keyboard.type(" tr")
     expect(box).to_have_js_property("value", "Half tr a thought")
@@ -937,6 +952,38 @@ def test_a_thread_resolved_while_its_reply_is_written_keeps_the_user_on_it(
     told(page)
     expect(thread).to_have_attribute("data-lf-resolved", "false")
     expect(thread.locator(".lf-msg", has_text="Half tr a thought")).to_be_visible()
+
+
+def test_an_agent_resolving_the_thread_the_user_is_on_waits_behind_its_notice(
+    browser, serve
+):
+    """News in the thread the user stands on shows at once, but its resolution would
+    fold the thread into the seat's closed Resolved disclosure and take them to its
+    summary, out of the thread they were in. With nothing written in its box, the
+    thread stays open with the user on it and "1 new" saying the resolution waits, and
+    pressing the notice shows it, folding the thread into Resolved."""
+    url, root = seated_thread(serve, "task", 2)
+    page = open_page(browser, url)
+    thread = page.locator(f'.lf-page-thread[data-lf-thread="{root}"]')
+    thread.scroll_into_view_if_needed()
+    thread.focus()
+    expect(thread).to_be_focused()
+    append_carried_log_record(
+        serve.page_dir,
+        {"kind": "resolve", "author": "agent", "agent": "Codex", "parent": root},
+    )
+    told(page)
+    notice = thread.get_by_role("button", name="1 new", exact=True)
+    expect(notice).to_have_attribute("title", "Resolved")
+    rendered(page)
+    expect(thread).to_have_attribute("data-lf-resolved", "false")
+    expect(thread).to_be_visible()
+    expect(thread).to_be_focused()
+
+    notice.click()
+    expect(page.locator(".lf-resolved-summary")).to_have_text("Resolved · 1")
+    expect(thread).to_have_attribute("data-lf-resolved", "true")
+    expect(thread).to_be_hidden()
 
 
 def _seat_manifest(patch):

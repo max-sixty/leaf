@@ -5,7 +5,7 @@ import re
 
 import pytest
 from playwright.sync_api import expect
-from render_cases_layout import DRAFT_MARK
+from render_cases_layout import AIMED, DRAFT_MARK
 from render_cases_navigation import (
     TARGETS_PAGE,
     pending_text,
@@ -119,11 +119,11 @@ def test_desktop_target_picker_arms_the_page_as_alt_does(browser, serve):
     )
     link = page.get_by_role("link", name="Follow this link")
     link.hover()
-    expect(page.locator(".lf-aim[data-lf-for]")).to_have_count(0)
+    expect(page.locator("[data-lf-aimed]")).to_have_count(0)
     # Opened under a still mouse, the promise paints without waiting for a move.
     page.keyboard.press("s")
     expect(page.locator(".lf-target-picker-hint")).not_to_have_count(0)
-    expect(page.locator(".lf-aim")).to_have_attribute("data-lf-for", "link")
+    expect(page.locator("[data-lf-aimed]")).to_have_id("link")
     # A middle press is armed too: it opens no tab and chooses nothing, so the picker stands.
     link.click(button="middle")
     expect(page.locator(".lf-target-picker-hint")).not_to_have_count(0)
@@ -131,7 +131,7 @@ def test_desktop_target_picker_arms_the_page_as_alt_does(browser, serve):
     link.dblclick()
     expect(page.locator(".lf-fab-input")).to_be_focused()
     expect(page.locator(".lf-target-picker-hint")).to_have_count(0)
-    expect(page.locator(".lf-aim[data-lf-for]")).to_have_count(0)
+    expect(page.locator("[data-lf-aimed]")).to_have_count(0)
     assert not page.url.endswith("#elsewhere"), "the picker's press followed the link"
     assert page.context.pages == [page], "the picker's middle press opened the link"
 
@@ -140,11 +140,12 @@ def test_target_picker_takes_a_margin_press_as_the_target_it_stands_by(browser, 
     """Over a suggestion's ✓ Accept, the picker comments on the change, as Alt does."""
     page = open_page(browser, serve(named_source("release-notes")))
     before = len(events_model.read_events(serve.page_dir))
-    accept = page.locator(".lf-margin-cluster .lf-sug-accept").first
+    accept = page.locator(".lf-margin-cluster [data-lf-margin-entry-key=accept]").first
     accept.scroll_into_view_if_needed()
     accept.hover()
     page.keyboard.press("s")
-    promised = page.locator(".lf-aim").get_attribute("data-lf-for")
+    expect(page.locator("[data-lf-aimed]")).not_to_have_count(0)
+    promised = page.evaluate(AIMED)
     assert promised, "the picker painted no target over the margin row"
     accept.click()
     expect(page.locator(".lf-fab-input")).to_be_focused()
@@ -382,33 +383,6 @@ def test_the_panel_field_offers_selected_words_to_a_press_alone(browser, serve):
     expect(page.locator("#lf-composer-quote")).to_contain_text("A second passage")
 
 
-def test_a_passage_still_offers_suggest_when_the_layer_has_no_reactions(browser, serve):
-    """Tab means other responses rather than reactions specifically: removing the
-    reaction vocabulary must not strand Suggest for a selected passage."""
-    registry = json.loads((ROOT / "packages/default/registry.json").read_text())
-    tokens = {name: None for name in registry["$reactions"]["tokens"]}
-    page = open_page(
-        browser,
-        serve(TARGETS_PAGE, layer_registry={"$reactions": {"tokens": tokens}}),
-    )
-
-    prose = page.locator("#prose")
-    prose.select_text()
-    field = page.locator(".lf-fab-input")
-    expect(selection_field(page)).to_be_visible()
-    # The composer has not opened, so its field is not on the page to hold focus.
-    expect(page.locator(".lf-fab-input:focus")).to_have_count(0)
-    page.keyboard.press("c")
-    expect(field).to_be_focused()
-    expect(page.locator(".lf-fab-bar .lf-react")).to_have_count(0)
-    page.keyboard.press("Tab")
-
-    responses = page.locator(".lf-fab-bar")
-    expect(responses.locator(".lf-response-options")).to_be_visible()
-    expect(responses.locator(".lf-fab-suggest")).to_be_focused()
-    expect(responses.locator(".lf-react")).to_have_count(0)
-
-
 def test_dense_selection_hints_stay_short_and_reach_an_atomic_visual(browser, serve):
     """The hint alphabet is a prefix-free tree, so adding a twenty-seventh target does
     not turn every target into a two-key address. Many remain one key and only the tail
@@ -465,12 +439,11 @@ def test_dense_selection_hints_stay_short_and_reach_an_atomic_visual(browser, se
     expect(page.locator(".lf-composer")).to_be_visible()
 
 
-def test_nested_target_hints_show_containment_without_covering_each_other(
-    browser, serve
-):
+def test_nested_target_hints_show_containment_and_follow_it(browser, serve, subtests):
     """A container and its first child may paint the same box corner. Both remain
     reachable, with separate chips outside their targets and each other, and the
-    child's chip stands right of its container's, so the two read as an outline."""
+    child's chip stands right of its container's, so the two read as an outline. The
+    chip keeps its offset outside the target when layout moves it."""
     html = leaf_page(
         "nested targets",
         '<section id="outer"><p id="inner">The child fills its parent.</p></section>',
@@ -478,29 +451,60 @@ def test_nested_target_hints_show_containment_without_covering_each_other(
     )
     page = open_page(browser, serve(html))
     page.keyboard.press("s")
+    expect(page.locator(".lf-target-picker-hint")).to_have_count(2)
 
-    hints = page.locator(".lf-target-picker-hint")
-    expect(hints).to_have_count(2)
-    geometry = page.evaluate(
-        """() => ({
-          targetLefts: ['outer', 'inner'].map(id =>
-            document.getElementById(id).getBoundingClientRect().left),
-          hints: [...document.querySelectorAll('.lf-target-picker-hint')].map(node => {
-          const { left, top, right, bottom } = node.getBoundingClientRect();
-            return { left, top, right, bottom, centre: (left + right) / 2 };
-          }),
-        })"""
-    )
-    boxes = geometry["hints"]
-    assert abs(geometry["targetLefts"][0] - geometry["targetLefts"][1]) < 0.5
-    assert all(box["right"] <= geometry["targetLefts"][0] for box in boxes), geometry
-    assert boxes[1]["left"] >= boxes[0]["left"] + 8, geometry
-    assert not (
-        boxes[0]["left"] < boxes[1]["right"]
-        and boxes[1]["left"] < boxes[0]["right"]
-        and boxes[0]["top"] < boxes[1]["bottom"]
-        and boxes[1]["top"] < boxes[0]["bottom"]
-    ), geometry
+    with subtests.test(case="containment"):
+        geometry = page.evaluate(
+            """() => ({
+              targetLefts: ['outer', 'inner'].map(id =>
+                document.getElementById(id).getBoundingClientRect().left),
+              hints: [...document.querySelectorAll('.lf-target-picker-hint')].map(node => {
+              const { left, top, right, bottom } = node.getBoundingClientRect();
+                return { left, top, right, bottom, centre: (left + right) / 2 };
+              }),
+            })"""
+        )
+        boxes = geometry["hints"]
+        assert abs(geometry["targetLefts"][0] - geometry["targetLefts"][1]) < 0.5
+        assert all(box["right"] <= geometry["targetLefts"][0] for box in boxes), (
+            geometry
+        )
+        assert boxes[1]["left"] >= boxes[0]["left"] + 8, geometry
+        assert not (
+            boxes[0]["left"] < boxes[1]["right"]
+            and boxes[1]["left"] < boxes[0]["right"]
+            and boxes[0]["top"] < boxes[1]["bottom"]
+            and boxes[1]["top"] < boxes[0]["bottom"]
+        ), geometry
+
+    with subtests.test(case="layout moves the target"):
+        # The chip's own corner against the corner it names, so the step is the only
+        # thing that moves when the box does.
+        step = """() => {
+          const chip = [...document.querySelectorAll('.lf-target-picker-hint')]
+            .find(node => node.dataset.lfHintCode === 's');
+          return Math.round(chip.getBoundingClientRect().left
+                            - document.querySelector('#inner').getBoundingClientRect().left);
+        }"""
+        indented = page.evaluate(step)
+        chip_left = page.locator(
+            '.lf-target-picker-hint[data-lf-hint-code="s"]'
+        ).evaluate("chip => Math.round(chip.getBoundingClientRect().left)")
+
+        # Break the containment and ask for a frame, without scrolling or resizing the
+        # window.
+        page.evaluate(
+            """() => {
+              document.querySelector('#inner').style.marginLeft = '-60px';
+              document.querySelector('.lf-fp-row').style.height = '80px';
+            }"""
+        )
+        page.wait_for_function(
+            "left => Math.round(document.querySelector('[data-lf-hint-code=\"s\"]')"
+            ".getBoundingClientRect().left) === left - 60",
+            arg=chip_left,
+        )
+        assert page.evaluate(step) == indented
 
 
 def test_identical_nested_target_hints_choose_the_innermost_target(browser, serve):
@@ -935,20 +939,6 @@ def test_a_search_selection_keeps_the_response_bar_off_its_passage(browser, serv
     )
 
 
-def test_slash_stays_native_in_text_entry(browser, serve):
-    """An editable field owns slash as text."""
-    html = leaf_page(
-        "scoped slash",
-        '<label>Path <input id="path"></label><p>Searchable page words.</p>',
-    )
-    page = open_page(browser, serve(html))
-    path = page.locator("#path")
-    path.focus()
-    page.keyboard.type("/")
-    expect(path).to_have_value("/")
-    expect(page.locator(".lf-page-search")).to_be_hidden()
-
-
 def test_selection_search_announces_context_across_inline_node_boundaries(
     browser, serve
 ):
@@ -982,39 +972,6 @@ def test_selection_search_announces_context_across_inline_node_boundaries(
     assert {"alpha", "beta"} <= set(first.split() + second.split())
 
 
-def test_selection_search_brings_an_offscreen_match_into_view(browser, serve):
-    """A search result is a target, not only a count. When the query exists solely below
-    the fold, the first complete search moves that occurrence into view and paints it;
-    otherwise Enter would silently select words the user still could not see."""
-    html = leaf_page(
-        "offscreen search",
-        """
-<h1 id="title">Search the whole page</h1>
-<div style="height: 1400px" aria-hidden="true"></div>
-<p id="far">The distant phrase is the one this search should reveal.</p>
-""",
-    )
-    page = open_page(browser, serve(html))
-    page.keyboard.press("s")
-    page.keyboard.press("/")
-    page.keyboard.type("distant phrase")
-
-    page.wait_for_function(
-        """() => {
-          const box = document.querySelector('#far').getBoundingClientRect();
-          return box.bottom > 42 && box.top < innerHeight;
-        }"""
-    )
-    expect(page.locator(".lf-page-search-status")).to_have_text("1 of 1")
-    expect(page.locator(".lf-page-search-match")).not_to_have_count(0)
-    expect(page.get_by_role("searchbox", name="Search page text")).to_be_focused()
-
-    page.keyboard.press("Enter")
-    expect(page.locator(".lf-fab-input")).not_to_be_focused()
-    assert page.evaluate("() => getSelection().toString()") == "distant phrase"
-    assert pending_text(page) == "distant phrase"
-
-
 def test_selection_search_scrolls_to_the_match_inside_a_tall_text_block(browser, serve):
     """Whole-page find travels to the exact range, not merely to the block containing
     it. A match near the foot of a multi-screen pre is visible before Enter selects it."""
@@ -1046,30 +1003,6 @@ def test_selection_search_scrolls_to_the_match_inside_a_tall_text_block(browser,
     expect(page.locator(".lf-fab-input")).not_to_be_focused()
     assert page.evaluate("() => getSelection().toString()") == "copper needle"
     assert pending_text(page) == "copper needle"
-
-
-def test_hint_browsing_forgets_a_target_that_scrolls_out_of_the_map(browser, serve):
-    """Tab announces one visible target. If scrolling changes the viewport map before
-    Enter, that stale index cannot silently become a different target."""
-    html = leaf_page(
-        "changing hint map",
-        """
-<h1 id="first">The initially announced heading</h1>
-<div style="height: 1200px" aria-hidden="true"></div>
-<p id="later">A later visible target.</p>
-<div style="height: 600px" aria-hidden="true"></div>
-""",
-    )
-    page = open_page(browser, serve(html))
-    page.keyboard.press("s")
-    page.keyboard.press("Tab")
-    expect(page.locator(".lf-live")).to_contain_text("initially announced heading")
-    expect(page.locator(".lf-target-picker-hint.lf-current")).to_have_count(1)
-
-    page.evaluate("() => { document.scrollingElement.scrollTop = 1050; }")
-    expect(page.locator(".lf-target-picker-hint.lf-current")).to_have_count(0)
-    page.keyboard.press("Enter")
-    assert page.evaluate("() => getSelection().toString()") == ""
 
 
 def test_a_scroll_with_no_scrollend_still_refreshes_the_target_map(browser, serve):
@@ -1149,45 +1082,6 @@ def test_an_open_search_mark_follows_the_page_it_marks(browser, serve):
     page.evaluate("() => { document.scrollingElement.scrollTop += 60; }")
 
     page.wait_for_function(f"() => Math.abs(({gap})() - {seated}) < 6")
-
-
-def test_a_nested_target_hint_follows_when_the_nesting_changes(browser, serve):
-    """A nested target's chip keeps its offset outside the target when layout moves it."""
-    html = leaf_page(
-        "nested targets",
-        '<section id="outer"><p id="inner">The child fills its parent.</p></section>',
-        head="<style>section { padding-bottom: 5rem; } section, p { margin: 0; }</style>",
-    )
-    page = open_page(browser, serve(html))
-    # The chip's own corner against the corner it names, so the step is the only thing
-    # that moves when the box does.
-    step = """() => {
-      const chip = [...document.querySelectorAll('.lf-target-picker-hint')]
-        .find(node => node.dataset.lfHintCode === 's');
-      return Math.round(chip.getBoundingClientRect().left
-                        - document.querySelector('#inner').getBoundingClientRect().left);
-    }"""
-
-    page.keyboard.press("s")
-    expect(page.locator(".lf-target-picker-hint")).to_have_count(2)
-    indented = page.evaluate(step)
-    chip_left = page.locator('.lf-target-picker-hint[data-lf-hint-code="s"]').evaluate(
-        "chip => Math.round(chip.getBoundingClientRect().left)"
-    )
-
-    # Break the containment and ask for a frame, without scrolling or resizing the window.
-    page.evaluate(
-        """() => {
-          document.querySelector('#inner').style.marginLeft = '-60px';
-          document.querySelector('.lf-fp-row').style.height = '80px';
-        }"""
-    )
-    page.wait_for_function(
-        "left => Math.round(document.querySelector('[data-lf-hint-code=\"s\"]')"
-        ".getBoundingClientRect().left) === left - 60",
-        arg=chip_left,
-    )
-    assert page.evaluate(step) == indented
 
 
 def test_a_target_behind_a_page_sheet_is_offered_no_letter(browser, serve):
@@ -1341,52 +1235,59 @@ def test_scrolling_target_hints_does_not_measure_hidden_targets(browser, serve):
     assert reads["hiddenRectReads"] == 0, reads
 
 
-def test_cancelling_page_search_restores_the_control_that_opened_it(browser, serve):
-    """Direct search is one layer. A repeated slash cannot change that when focus has
-    left its box: Escape still closes search and returns to the original control."""
+def test_search_leaves_focus_with_whoever_holds_it(browser, serve, subtests):
+    """An editable field owns slash as text. Direct search is one layer, and a repeated
+    slash cannot change that when focus has left its box: Escape still closes search and
+    returns to the original control. The exact focused control opens the mode, even
+    across a shadow boundary: closing both selection layers returns to that control
+    rather than only to its host."""
     html = leaf_page(
-        "selection focus",
-        '<button id="opener">Starting control</button><p>A passage to select.</p>',
+        "search and focus",
+        '<label>Path <input id="path"></label>'
+        '<button id="opener">Starting control</button>'
+        '<div id="shadow-opener"></div><p>A passage to select.</p>',
     )
     page = open_page(browser, serve(html))
-    opener = page.locator("#opener")
-    opener.focus()
+    search = page.get_by_role("searchbox", name="Search page text")
 
-    page.keyboard.press("/")
-    expect(page.get_by_role("searchbox", name="Search page text")).to_be_focused()
-    page.locator("main p").click()
-    page.keyboard.press("/")
-    page.keyboard.press("Escape")
-    expect(opener).to_be_focused()
+    with subtests.test(case="text entry"):
+        path = page.locator("#path")
+        path.focus()
+        page.keyboard.type("/")
+        expect(path).to_have_value("/")
+        expect(page.locator(".lf-page-search")).to_be_hidden()
 
+    with subtests.test(case="opener"):
+        opener = page.locator("#opener")
+        opener.focus()
+        page.keyboard.press("/")
+        expect(search).to_be_focused()
+        page.locator("main p").click()
+        page.keyboard.press("/")
+        page.keyboard.press("Escape")
+        expect(opener).to_be_focused()
 
-def test_cancelling_selection_restores_an_opener_inside_shadow_dom(browser, serve):
-    """The exact focused control opens the mode, even across a shadow boundary. Closing
-    both selection layers returns to that control rather than only to its host."""
-    html = leaf_page(
-        "shadow selection focus",
-        '<div id="opener"></div><p>A passage to select.</p>',
-    )
-    page = open_page(browser, serve(html))
-    page.evaluate(
-        """() => {
-          const root = document.querySelector('#opener').attachShadow({ mode: 'open' });
-          root.innerHTML = '<button id="inside">Starting control</button>';
-          root.querySelector('#inside').focus();
-        }"""
-    )
-
-    page.keyboard.press("s")
-    page.keyboard.press("/")
-    expect(page.get_by_role("searchbox", name="Search page text")).to_be_focused()
-    page.keyboard.press("Escape")
-    page.keyboard.press("Escape")
-    assert (
+    with subtests.test(case="opener in a shadow tree"):
         page.evaluate(
-            "() => document.querySelector('#opener').shadowRoot.activeElement?.id"
+            """() => {
+              const root = document.querySelector('#shadow-opener')
+                .attachShadow({ mode: 'open' });
+              root.innerHTML = '<button id="inside">Starting control</button>';
+              root.querySelector('#inside').focus();
+            }"""
         )
-        == "inside"
-    )
+        page.keyboard.press("s")
+        page.keyboard.press("/")
+        expect(search).to_be_focused()
+        page.keyboard.press("Escape")
+        page.keyboard.press("Escape")
+        assert (
+            page.evaluate(
+                "() => document.querySelector('#shadow-opener')"
+                ".shadowRoot.activeElement?.id"
+            )
+            == "inside"
+        )
 
 
 def test_selection_search_opens_when_the_viewport_has_no_hint_targets(browser, serve):
@@ -1419,52 +1320,73 @@ def test_selection_search_opens_when_the_viewport_has_no_hint_targets(browser, s
     assert pending_text(page) == "phrase only appears"
 
 
-def test_a_partly_clipped_passage_keeps_its_hint_in_sight(browser, serve):
+def test_a_partly_clipped_target_keeps_its_hint_in_sight(browser, serve, subtests):
     """A line beginning above the window's head can still be visibly selectable below
     it, and one running under the panel's row above that. Its hint sits at the clipped
-    edge instead of putting half its key out of sight or under chrome."""
+    edge instead of putting half its key out of sight or under chrome. Atomic visuals
+    use element geometry rather than text ranges, but obey the same upper boundary, the
+    window's head, when only their lower edge is exposed."""
     html = leaf_page(
-        "top-edge target",
+        "clipped targets",
         """
 <div style="height: 300px" aria-hidden="true"></div>
 <p id="edge">This passage begins beyond the window's edge.</p>
 <div style="height: 1200px" aria-hidden="true"></div>
+<figure id="edge-visual"><svg viewBox="0 0 120 60" width="120" height="60"
+  role="img" aria-label="Edge visual"><rect width="120" height="60"></rect></svg></figure>
+<div style="height: 1200px" aria-hidden="true"></div>
 """,
     )
     page = open_page(browser, serve(html))
-    page.evaluate(
-        """() => {
-          const text = document.querySelector('#edge').firstChild;
-          const range = document.createRange();
-          range.selectNodeContents(text);
-          document.scrollingElement.scrollTop += range.getBoundingClientRect().top + 5;
-        }"""
-    )
-    page.keyboard.press("s")
-    expect(page.locator(".lf-target-picker-hint")).to_have_count(1)
+    hints = page.locator(".lf-target-picker-hint")
 
-    hint_top = page.locator(".lf-target-picker-hint").bounding_box()["y"]
-    assert hint_top >= 0, hint_top
+    with subtests.test(case="passage at the window's head"):
+        page.evaluate(
+            """() => {
+              const text = document.querySelector('#edge').firstChild;
+              const range = document.createRange();
+              range.selectNodeContents(text);
+              document.scrollingElement.scrollTop += range.getBoundingClientRect().top + 5;
+            }"""
+        )
+        page.keyboard.press("s")
+        expect(hints).to_have_count(1)
+        hint_top = hints.bounding_box()["y"]
+        assert hint_top >= 0, hint_top
+        page.keyboard.press("Escape")
 
-    page.keyboard.press("Escape")
-    page.evaluate(
-        """() => {
-          const text = document.querySelector('#edge').firstChild;
-          const range = document.createRange();
-          range.selectNodeContents(text);
-          const row = document.querySelector('.lf-fp-row').getBoundingClientRect();
-          document.scrollingElement.scrollTop += range.getBoundingClientRect().top - (row.top - 5);
-        }"""
-    )
-    page.keyboard.press("s")
-    expect(page.locator(".lf-target-picker-hint")).to_have_count(1)
-    geometry = page.evaluate(
-        """() => ({
-          rowTop: document.querySelector('.lf-fp-row').getBoundingClientRect().top,
-          hintBottom: document.querySelector('.lf-target-picker-hint').getBoundingClientRect().bottom,
-        })"""
-    )
-    assert geometry["hintBottom"] <= geometry["rowTop"], geometry
+    with subtests.test(case="passage at the panel's row"):
+        page.evaluate(
+            """() => {
+              const text = document.querySelector('#edge').firstChild;
+              const range = document.createRange();
+              range.selectNodeContents(text);
+              const row = document.querySelector('.lf-fp-row').getBoundingClientRect();
+              document.scrollingElement.scrollTop += range.getBoundingClientRect().top - (row.top - 5);
+            }"""
+        )
+        page.keyboard.press("s")
+        expect(hints).to_have_count(1)
+        geometry = page.evaluate(
+            """() => ({
+              rowTop: document.querySelector('.lf-fp-row').getBoundingClientRect().top,
+              hintBottom: document.querySelector('.lf-target-picker-hint').getBoundingClientRect().bottom,
+            })"""
+        )
+        assert geometry["hintBottom"] <= geometry["rowTop"], geometry
+        page.keyboard.press("Escape")
+
+    with subtests.test(case="visual at the window's head"):
+        page.evaluate(
+            """() => {
+              const visual = document.querySelector('#edge-visual').getBoundingClientRect();
+              document.scrollingElement.scrollTop += visual.top + 8;
+            }"""
+        )
+        page.keyboard.press("s")
+        expect(hints).to_have_count(1)
+        hint_top = hints.bounding_box()["y"]
+        assert hint_top >= 0, hint_top
 
 
 def test_the_panel_only_hides_targets_in_the_lane_it_paints(browser, serve):
@@ -1536,32 +1458,6 @@ def test_the_panel_only_hides_targets_in_the_lane_it_paints(browser, serve):
         and mark["top"] < line["bottom"]
         and line["top"] < mark["bottom"]
     ), (mark, line)
-
-
-def test_a_partly_clipped_atomic_element_keeps_its_hint_in_sight(browser, serve):
-    """Atomic visuals use element geometry rather than text ranges, but obey the same
-    upper boundary, the window's head, when only their lower edge is exposed."""
-    html = leaf_page(
-        "top-edge visual",
-        """
-<div style="height: 300px" aria-hidden="true"></div>
-<figure id="edge-visual"><svg viewBox="0 0 120 60" width="120" height="60"
-  role="img" aria-label="Edge visual"><rect width="120" height="60"></rect></svg></figure>
-<div style="height: 1200px" aria-hidden="true"></div>
-""",
-    )
-    page = open_page(browser, serve(html))
-    page.evaluate(
-        """() => {
-          const visual = document.querySelector('#edge-visual').getBoundingClientRect();
-          document.scrollingElement.scrollTop += visual.top + 8;
-        }"""
-    )
-    page.keyboard.press("s")
-    expect(page.locator(".lf-target-picker-hint")).to_have_count(1)
-
-    hint_top = page.locator(".lf-target-picker-hint").bounding_box()["y"]
-    assert hint_top >= 0, hint_top
 
 
 def test_page_search_skips_hidden_words_but_reaches_disclosures(browser, serve):

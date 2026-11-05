@@ -7,6 +7,7 @@ import assert from "node:assert/strict";
 import { setImmediate } from "node:timers/promises";
 import test from "node:test";
 import { applicationState } from "/runtime/semantic-state.js";
+import { servedState } from "../served.mjs";
 
 const canonical = document.createElement("link");
 canonical.rel = "canonical";
@@ -18,33 +19,7 @@ const { readingIsContinuous, readingReturn, completeReadingReturn } =
   await import("/runtime/reading-continuity.js");
 
 let taken = 0;
-const emptyProjection = () => ({ entries: [], actions: [], reports: [], desired: [] });
-const noObligations = () => ({ all: [], user: [], unanswered: [] });
-const state = (reading) => ({
-  taken: ++taken,
-  reading,
-  layer: { generation: "test" },
-  active: { revision: 1 },
-  data: { version: null, sources: {} },
-  events: [],
-  workflows: [],
-  activity: null,
-  browser: {
-    basis: { through_seq: 0 },
-    views: {
-      1: {
-        basis: { revision: 1, through_seq: 0 },
-        thread: {
-          threads: [],
-          projection: emptyProjection(),
-          obligations: noObligations(),
-        },
-        undo: [],
-        document: { obligations: noObligations(), projection: emptyProjection() },
-      },
-    },
-  },
-});
+const state = (reading) => servedState({ taken: ++taken, reading });
 
 test("an earlier return cannot close a later absence", (t) => {
   let visible = "visible";

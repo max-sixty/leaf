@@ -1,7 +1,7 @@
 /* A thread's messages as every reader of a whole thread draws them: a card on the page
-   or in the margin (thread-card.js), and the floating panel's view of a thread through
-   a primary reader's transcript part (primary-reader.js). The reader around it draws
-   the thread's head, controls and reply box; this owner draws only the transcript.
+   or in the margin, and the floating panel's view of a thread (thread-card.js). The
+   thread around it draws its head, controls and reply box; this owner draws only the
+   transcript.
 
    - Each turn is one MessageView, which shows whether its version is unread and
      reports its exposure to read tracking (read.js), so a reply counts as read the same
@@ -44,6 +44,7 @@
      reader finds a message by, until they have collapsed. Where no fold plays, under
      reduced motion, before presentation or in an engine without intrinsic-size
      interpolation, it goes in the same frame. */
+import { counted } from "../words.js";
 import { focusDestination, focused } from "../focus.js";
 import { html, render, nothing, repeat, ref } from "/runtime/framework.js";
 import { MessageView } from "./messages.js";
@@ -150,6 +151,8 @@ export class Transcript {
   #id = ++nextTranscriptId;
   // Counts the ids this transcript gives covered messages.
   #named = 0;
+  /** @type {unknown} */
+  #awaited = nothing;
 
   /**
    * @param {object} options
@@ -213,7 +216,11 @@ export class Transcript {
   // behind its run's face among them, stand in the transcript hidden, so the last
   // message alone may show nothing.
   get foot() {
-    return [...this.node.children].findLast((node) => showsContents(node)) ?? null;
+    return (
+      [...this.node.children].findLast(
+        (node) => !node.matches(".lf-awaited") && showsContents(node),
+      ) ?? null
+    );
   }
 
   // Whether the progress behind the working message stood open when last drawn, opened by
@@ -255,18 +262,16 @@ export class Transcript {
   }
 
   /**
-   * Draws `model`, a thread's reading (thread-card.js, `threadReading`). `appends`
-   * declares that it grows at its end inside the scroller holding it, as a margin
-   * card's does (`data-lf-reflow`, tests/shift_watch.js). `notice` is a node the reader
-   * stands at the head of the transcript's first message in sight, as a primary
-   * reader's thread notice (primary-reader.js). Returns the disclosure that took over
-   * the one the user was on, where this draw replaced it, as the answer's head takes
-   * progress over from the working message.
+   * Draws `model`, a thread's reading (thread-card.js, `threadReading`). Returns the
+   * disclosure that took over the one the user was on, where this draw replaced it, as
+   * the answer's head takes progress over from the working message.
    * @param {import("./thread-card.js").ThreadViewModel} model
-   * @param {{arrived?: boolean, appends?: boolean, notice?: Element | null}} [options]
+   * @param {{arrived?: boolean, awaited?: unknown}} [options] `awaited` is what the
+   *   reader says stands after the messages: New reply (thread-card.js).
    * @returns {HTMLElement | null}
    */
-  present(model, { arrived = false, appends = false, notice = null } = {}) {
+  present(model, { arrived = false, awaited = nothing } = {}) {
+    this.#awaited = awaited;
     const prior = this.#model;
     const currentLocation = focused();
     const priorSummaries = new Set(prior?.summaries.map(({ id }) => id) ?? []);
@@ -376,10 +381,6 @@ export class Transcript {
       .filter((range) => range.summary.pending);
     const spoke = model.messages.findLastIndex(({ author }) => author === "user");
     this.#pendingOpen = pendingRanges.some((range) => range.expanded);
-    // The first message no fold holds, else the first.
-    const lead =
-      rangeState.find((range) => range.kind === "message")?.message ??
-      model.messages[0];
     // The working message stands after the range holding the last message said before
     // its words: as the face of that range where it is a progress run, else as a face
     // of its own.
@@ -407,11 +408,7 @@ export class Transcript {
     }
     for (const message of drawnMessages) {
       const view = message.view;
-      view.present(message.reading, {
-        arrived,
-        dated: dated.has(message.key),
-        headerControls: notice && message.key === lead?.key ? notice : nothing,
-      });
+      view.present(message.reading, { arrived, dated: dated.has(message.key) });
       // A reply still streaming at the thread's end grows at its foot as its words
       // come, as the working message does with each step (shift_watch.js).
       keeps(
@@ -515,7 +512,6 @@ export class Transcript {
       if (foot) node.style.setProperty("--lf-fold-foot", foot);
       else node.style.removeProperty("--lf-fold-foot");
     }
-    keeps(this.node, "data-lf-reflow", appends ? "append" : null);
     for (const row of transcript) row.tail = row === transcript.at(-1);
     this.#rows = this.#withFolds(transcript);
     this.#stopWorkingExposure?.();
@@ -597,11 +593,11 @@ export class Transcript {
 
   #paint() {
     render(
-      repeat(
+      html`${repeat(
         this.#rows,
         (row) => row.key,
         (row) => (typeof row.body === "function" ? row.body(!!row.tail) : row.body),
-      ),
+      )}${this.#awaited}`,
       this.node,
     );
   }
@@ -657,7 +653,7 @@ export class Transcript {
     ];
     const expanded = ranges.every((range) => range.expanded);
     const count = ranges.reduce((total, range) => total + range.messages.length, 0);
-    const subject = `${count} ${progress ? "progress" : "earlier"} message${count === 1 ? "" : "s"}`;
+    const subject = counted(count, `${progress ? "progress" : "earlier"} message`);
     const label = `${expanded ? "Hide" : "Show"} ${subject}`;
     return html`<button
       type="button"
@@ -675,7 +671,7 @@ export class Transcript {
         .join(" ")}
       @click=${() => this.#setSummaryExpanded(ids, !expanded)}
     >
-      <span data-room=${`Show ${subject}`}><span>${label}</span></span>
+      <span data-lf-room=${`Show ${subject}`}><span>${label}</span></span>
     </button>`;
   }
 

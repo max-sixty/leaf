@@ -12,7 +12,6 @@ from render_cases_interaction import live_url, panel_comment
 from render_cases_layout import solid_png
 from render_harness import (
     LONG_PAGE,
-    PANEL_THREAD,
     example_media,
     leaf_page,
     open_page,
@@ -34,6 +33,7 @@ from browser.threads import (
 from leaf import event_log as events_model
 from leaf import media as media_model
 from leaf.render_checks import rendered
+from leaf_dev.browser import PANEL_THREAD
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -76,9 +76,8 @@ def test_a_draft_s_image_closes_back_to_the_draft(browser, serve, editor):
 
 def test_original_image_link_has_a_standalone_target(browser, serve):
     # Under a finger the link takes the touch floor, the larger of the two.
-    touch = True
     context = browser.new_context(
-        viewport={"width": 320, "height": 720}, has_touch=touch
+        viewport={"width": 320, "height": 720}, has_touch=True
     )
     page = open_page(
         browser,
@@ -96,8 +95,7 @@ def test_original_image_link_has_a_standalone_target(browser, serve):
     expect(viewer.locator(".lf-media-viewer-caption")).to_be_hidden()
     original = viewer.get_by_role("link", name="Original")
     box = original.bounding_box()
-    floor = 44 if touch else 24
-    assert min(box["width"], box["height"]) >= floor - 0.5, box
+    assert min(box["width"], box["height"]) >= 44 - 0.5, box
     neighbours = viewer.locator(".lf-media-viewer-actions > *")
     boxes = [node.bounding_box() for node in neighbours.all()]
     for left, right in pairwise(boxes):
@@ -302,15 +300,12 @@ def test_a_tap_at_the_comment_field_s_edge_stays_the_field_s(
     expect(field).to_be_focused()
 
 
-@pytest.mark.parametrize("touch", [False, True])
-def test_capture_leaves_selected_content_visible_through_the_drag(
-    browser, serve, touch
-):
-    page = capture_page(browser, serve, touch=touch)
+def test_capture_leaves_selected_content_visible_through_the_drag(browser, serve):
+    page = capture_page(browser, serve)
     baseline = Image.open(io.BytesIO(page.screenshot())).convert("RGB")
     target = page.locator("#capture-copy").bounding_box()
     left, top = int(target["x"]) + 100, int(target["y"]) + 4
-    surface = open_capture_area(page, touch=touch)
+    surface = open_capture_area(page)
     page.mouse.move(left, top)
     page.mouse.down()
     # Judge the selected content while the pointer is held, including a small

@@ -5,9 +5,10 @@ directory, with its versions activated in turn and then its log, and `measure` r
 the CPU each of the server's `PATHS` takes on each page, least of `RUNS`:
 
 - `state`: the served state a page server answers each read with
-  (`PageStateService.page_state`), read after an append has changed the log;
-- `append`: admitting one more event like the log's last, in the transaction every
-  writer takes (`event_contracts.append_admitted`);
+  (`PageStateService.page_state`), read after an append has changed the log, or
+  with nothing changed on a page with no log;
+- `append`: admitting one more event like the log's last, where it has one, in the
+  transaction every writer takes (`event_contracts.append_admitted`);
 - `delivery`: what `leaf wait` hands the agent of everything no receipt has passed,
   captured, frozen and read (`delivery.batch_data`);
 - `agent`: `leaf page state` for the page;
@@ -219,8 +220,8 @@ def cpu_ms(run: Callable[[], object]) -> float:
 
 
 def server_paths(page: Path, events: list[dict]) -> dict[str, Callable[[], object]]:
-    """Each of `PATHS` on `page`, whose log `events` built, as a call; `thread` only
-    where the log opens one."""
+    """Each of `PATHS` on `page`, whose log `events` built, as a call; `append` only
+    where the log holds an event to send again, and `thread` only where it opens one."""
     from leaf.agent_state import cmd_page_state
     from leaf.delivery import batch_data, deliverable, delivery_reading, freeze_delivery
     from leaf.event_contracts import append_admitted
@@ -228,16 +229,9 @@ def server_paths(page: Path, events: list[dict]) -> dict[str, Callable[[], objec
     from leaf.served_state.service import PageStateService
     from leaf.service import PageTransaction
 
-    # The event is sent again without the id its writer gave it, so admission gives
-    # each time its own.
-    again = {key: value for key, value in events[-1].items() if key != "id"}
     source = page / "index.html"
     authored = source.read_text()
     saves = iter(range(1, 1_000_000))
-
-    def append():
-        with PageTransaction(page) as transaction:
-            append_admitted(transaction, again)
 
     def delivery():
         with PageTransaction(page) as transaction:
@@ -252,12 +246,21 @@ def server_paths(page: Path, events: list[dict]) -> dict[str, Callable[[], objec
         assert activation.error is None, activation.error
 
     calls = {
-        "append": append,
         "state": lambda: PageStateService(page).page_state(),
         "delivery": delivery,
         "agent": lambda: cmd_page_state(page),
         "activate": activate,
     }
+    if events:
+        # The event is sent again without the id its writer gave it, so admission
+        # gives each time its own.
+        again = {key: value for key, value in events[-1].items() if key != "id"}
+
+        def append():
+            with PageTransaction(page) as transaction:
+                append_admitted(transaction, again)
+
+        calls["append"] = append
     if thread := next((e["id"] for e in events if e["kind"] == "comment"), None):
         calls["thread"] = lambda: cmd_page_state(page, thread)
     return calls
@@ -282,7 +285,7 @@ def measure(
     """Each path's least CPU over `RUNS` on `collection`'s page at each of `sizes`,
     built under `directory`, in ms, beside the events its log holds; with
     `profile`, the function times of one more run of each path on the smallest
-    page and the largest.
+    page and the largest, in the order the rounds take them.
 
     Each round runs every page once, so a burst of load on the host lands on one
     reading of each size rather than on every reading of one. In each round a page
@@ -295,10 +298,8 @@ def measure(
         held = {n: len(read_events(pages[n])) for n in sizes}
         calls = {n: server_paths(pages[n], collection.log(n)) for n in sizes}
         readings: dict[int, dict[str, list[float]]] = {n: {} for n in sizes}
-        for paths in (
-            ("append", "state", "delivery", "agent", "thread"),
-            ("activate",),
-        ):
+        order = (("append", "state", "delivery", "agent", "thread"), ("activate",))
+        for paths in order:
             for _ in range(RUNS):
                 for n in sizes:
                     for path in paths:
@@ -309,8 +310,12 @@ def measure(
         profiled: dict[str, list[dict]] = {}
         if profile:
             for n in (sizes[0], sizes[-1]):
-                for path, call in calls[n].items():
-                    profiled.setdefault(path, []).append(function_times(call))
+                for paths in order:
+                    for path in paths:
+                        if path in calls[n]:
+                            profiled.setdefault(path, []).append(
+                                function_times(calls[n][path])
+                            )
         rows = [
             {
                 "n": n,

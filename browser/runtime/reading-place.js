@@ -71,6 +71,7 @@ import { skipped, skipper } from "./shown-box.js";
 import {
   blockAt,
   closestAcross,
+  HEADING,
   inChrome,
   pageBlocks,
   pageDocument,
@@ -109,7 +110,7 @@ import { runtime } from "./context.js";
 import { retainUserIntent } from "./user-intent.js";
 import { recentPlaceInput, focused } from "./focus.js";
 import { focusedInView } from "./user-place.js";
-import { scrollIntoReadingBand } from "./landing-scroll.js";
+import { scrollIntoView } from "./landing-scroll.js";
 import { union } from "./rect.js";
 import { pointerAt } from "./pointer.js";
 
@@ -174,7 +175,6 @@ const draws = (element) => element.matches(DRAWING) || element.localName.include
 const LANDMARK_CAP = 160;
 // The shortest run of words that names a reading place (`capturePlace`).
 const QUOTABLE = 24;
-const HEADING = "h1, h2, h3, h4, h5, h6";
 
 // The page's own text blocks the user can see, in document order, with the rect of each
 // one's first line — one reading of what is in front of them, for the two questions that
@@ -866,6 +866,6 @@ export function restorePlace(view, region = null, currentIntent = retainUserInte
   // A restored passage or end can carry its focused control beyond the new
   // viewport. Nearest reveal changes nothing when the destination already fits.
   if (currentLocation)
-    scrollIntoReadingBand(currentLocation, currentLocation, "nearest", "instant");
+    scrollIntoView(currentLocation, { block: "nearest", behavior: "instant" });
   placeKept(box, ...(currentLocation ? scrollersOf(currentLocation) : []));
 }

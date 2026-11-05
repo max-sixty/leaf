@@ -1,5 +1,5 @@
-/** Compile the browser kernel: the readable build committed for installs, and the
- * website's minified rebundle of the layers pages vendor.
+/** Compile the browser kernel: the readable build a prepared installation serves, and
+ * the website's minified rebundle of the layers pages vendor.
  *
  * Entry URLs are delivery boundaries; every other private module can move into
  * shared chunks. Both builds keep vendor modules native, at their public URL however
@@ -12,14 +12,13 @@
  * kernel again with the widgets while preserving authored module locations. Neither
  * build runs on a user's machine.
  *
- * `build/browser/build.mjs` commits the kernel to `dist/kernel/`
- * (`kernelOutputs`) and checks it against a rebuild with every other committed
- * bundle, and an install serves it only while it matches the tree's modules
- * (`leaf.runtime_selection.read_runtime`). Its form is what keeps it committable: it is
- * unminified, so a runtime change moves the lines that compile from it rather than
- * the whole chunk. Rolldown names shared chunks from their modules, without content
- * hashes, and writes their references itself. A conflict is resolved by merging
- * the source and rebuilding.
+ * The tree commits no kernel, so an install from git serves the source modules, and
+ * two branches that change the runtime conflict only where their sources do. A
+ * prepared installation, which the website's build and container use, compiles its
+ * own into `dist/kernel/` (`leaf_dev.commands.distribution.prepare`) and serves it
+ * while it matches that tree's modules (`leaf.runtime_selection.read_runtime`).
+ * Rolldown names shared chunks from their modules, without content hashes, and writes
+ * their references itself.
  *
  * Shared chunks preserve one module instance across entry points, including the
  * runtime's public API and native packages. Compiling each entry independently
@@ -27,15 +26,7 @@
  */
 
 import { createHash } from "node:crypto";
-import {
-  mkdir,
-  readFile,
-  readdir,
-  realpath,
-  rm,
-  stat,
-  writeFile,
-} from "node:fs/promises";
+import { mkdir, readFile, readdir, realpath, rm, writeFile } from "node:fs/promises";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -57,8 +48,8 @@ export const runtimeEntries = [
   "runtime/check-api.js",
 ];
 
-// Historical comparison arms predate optional diagnostic capabilities. Compile
-// the entries a layer supplies; the required delivery boundaries above stay strict.
+// The diagnostic entries the kernel compiles beside the runtime's; a site's layer is
+// bundled from `runtimeEntries` alone (worker/bundle-runtime.mjs, `bundleLayer`).
 const diagnosticEntries = ["runtime/annotation-overlay/check-api.js"];
 
 function browserPath(path) {
@@ -371,10 +362,6 @@ async function layerModules(layerRoot) {
  * The record's `inputs` map every file the build reads, `leaf.js`, each `.js` under
  * `runtime/`, `vendor/` and `widgets/`, and each other file it compiles in, such as
  * the kernel registry `kernelFacts` inlines as values, to the SHA-256 of its bytes.
- * A blank line separates the entries, as prettier keeps them. Git merges two changes
- * cleanly only when an unchanged line lies between them, so branches that change
- * neighbouring modules merge without a conflict. Branches that change the same module
- * still conflict on its line, since the merged module is source no build has read.
  * The guard hashes each `.js` module and each other file the record names, so it
  * follows what this build read.
  * `replaces` lists the files compiled into the kernel, the kernel registry among them,
@@ -383,14 +370,7 @@ async function layerModules(layerRoot) {
  */
 export async function kernelOutputs(layerRoot) {
   layerRoot = await realpath(layerRoot);
-  const entries = [...runtimeEntries];
-  for (const entry of diagnosticEntries) {
-    try {
-      if ((await stat(join(layerRoot, entry))).isFile()) entries.push(entry);
-    } catch (error) {
-      if (error.code !== "ENOENT") throw error;
-    }
-  }
+  const entries = [...runtimeEntries, ...diagnosticEntries];
   const result = await compile(layerRoot, entries, null, false);
   const files = new Map(
     result.output.map((file) => [file.fileName, Buffer.from(file.code)]),
@@ -412,14 +392,8 @@ export async function kernelOutputs(layerRoot) {
     inputs[module] = createHash("sha256")
       .update(await readFile(join(layerRoot, module)))
       .digest("hex");
-  /** @param {string[]} items */
-  const spaced = (items) => `\n${items.map((item) => `    ${item}`).join(",\n\n")}\n  `;
-  const hashes = Object.entries(inputs).map(
-    ([path, hash]) => `${JSON.stringify(path)}: "${hash}"`,
-  );
-  const compiled = [...replaces].sort().map((path) => JSON.stringify(path));
-  const record = `{\n  "inputs": {${spaced(hashes)}},\n  "replaces": [${spaced(compiled)}]\n}\n`;
-  files.set("kernel.json", Buffer.from(record));
+  const record = { inputs, replaces: [...replaces].sort() };
+  files.set("kernel.json", Buffer.from(`${JSON.stringify(record, null, 2)}\n`));
   return files;
 }
 

@@ -1,11 +1,10 @@
 """Durable user acknowledgement through the rendered Thread surfaces."""
 
 import pytest
-from interact_support import append_carried_log_record, served_thread
+from interact_support import served_thread
 from playwright.sync_api import expect
 from render_cases_interaction import PANEL_PAGE, panel_comment
 from render_harness import (
-    PANEL_THREAD,
     Traffic,
     _traffic,
     leaf_page,
@@ -25,6 +24,7 @@ from leaf.render_checks import (
     SERVED_TIMEOUT_MS,
     rendered,
 )
+from leaf_dev.browser import PANEL_THREAD
 
 
 def _read_events(page_dir):
@@ -238,7 +238,7 @@ def _read_by_the_sample(page, child):
     state = page.request.get(f"{child.url}api/state").json()
     (thread,) = served_thread(state["browser"])["threads"]
     assert thread["id"] == SAMPLE_READER
-    assert thread["unread"] == []
+    assert thread["unread"] == {}
 
 
 def test_clipped_sample_cannot_acknowledge_child_viewport(browser, serve):
@@ -330,54 +330,6 @@ TASK_SEAT_PAGE = leaf_page(
     f"<strong>Which jobs are worth starting?</strong></lf-test-task></lf-test-plan>"
     f"{_seat_filler('tail')}",
 )
-
-
-# Scrolling the thread away releases held news the same way here as on a diff line,
-# whose case scrolls it.
-
-
-def _seat_comment(page_dir, author, text):
-    event = {
-        "kind": "comment",
-        "author": author,
-        "revision": 1,
-        "text": text,
-        "anchor": {"section": "jobs"},
-    }
-    if author == "agent":
-        event["agent"] = "Codex"
-    return append_carried_log_record(page_dir, event)["id"]
-
-
-def _agent_turn(page_dir, root, text):
-    return append_carried_log_record(
-        page_dir,
-        {
-            "kind": "reply",
-            "author": "agent",
-            "agent": "Codex",
-            "parent": root,
-            "revision": 1,
-            "text": text,
-        },
-    )["id"]
-
-
-def _to_upper_third(locator):
-    """Scroll the page, without input, so the element's top stands a third of the way
-    down the window and the page after it is on screen."""
-    locator.evaluate(
-        """node => document.scrollingElement.scrollBy({
-          top: node.getBoundingClientRect().top - innerHeight / 3,
-          behavior: 'instant'})"""
-    )
-
-
-# The keyboard's native summary activation, and a script setting `open` with no
-# summary press at all; Space and a pointer press reach the same native toggle.
-
-
-ROUTE_LINE = '["app/routes.py","new",201]'
 
 
 # Every element box in a card, keyed by the element itself, so a later reading

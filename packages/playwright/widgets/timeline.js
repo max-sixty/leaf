@@ -34,6 +34,10 @@ import {
   assignRows,
   axisTicks,
   textWidth as measure,
+  AXIS_EDGE as EDGE,
+  AXIS_LABEL_CHROME as LABEL_CHROME,
+  AXIS_LABEL_GAP as LABEL_GAP,
+  AXIS_TICK_SPACING as TICK_SPACING,
 } from "/runtime/widget-api.js";
 
 /** @typedef {{id: string, label: string, title: string, current: boolean}} NamedMark */
@@ -49,18 +53,7 @@ import {
 /** @typedef {{zoom: number, start: number}} TimelineView */
 /** @typedef {{target: Element, clientX: number}} MarkPoint */
 
-const LABEL_GAP = 6;
-const LABEL_CHROME = 12;
-const TICK_SPACING = 84;
-const EDGE = 12;
 const CLUSTER_WIDTH = 168;
-
-// Style writes the page did not change are still mutations; skip them.
-/** @param {HTMLElement | null} node @param {string} name @param {string} value */
-function keepVar(node, name, value) {
-  if (node && node.style.getPropertyValue(name) !== value)
-    node.style.setProperty(name, value);
-}
 
 export class RecordingTimeline {
   #host;
@@ -145,8 +138,7 @@ export class RecordingTimeline {
   /** @param {TimelineView | null} view */
   set view(view) {
     this.#zoom = view?.zoom ?? 1;
-    this.#applyZoom();
-    if (view) this.#scrollTo(this.#timeToPx(view.start));
+    this.#applyZoom(view ? this.#timeToPx(view.start) : null);
   }
 
   /** @param {TimelineModel} model */
@@ -174,11 +166,10 @@ export class RecordingTimeline {
   /** @param {number} time */
   setTime(time) {
     this.#time = time;
-    const track = this.#part(".lf-trace-track");
-    if (!track || !this.#model) return;
-    keepVar(track, "--lf-trace-time", String(this.#fraction(time)));
-    keepVar(
-      this.#part(".lf-trace-overview"),
+    const playhead = this.#part(".lf-trace-playhead");
+    if (!playhead || !this.#model) return;
+    playhead.style.setProperty("--lf-axis-at", String(this.#fraction(time)));
+    this.#part(".lf-trace-overview")?.style.setProperty(
       "--lf-trace-time",
       String(this.#fraction(time)),
     );
@@ -210,8 +201,7 @@ export class RecordingTimeline {
         1,
         Math.min(this.#maxZoom(), (this.#recording.duration * 0.6) / range),
       );
-      this.#applyZoom();
-      this.#scrollTo(this.#timeToPx((from + to) / 2) - scroller.clientWidth / 2);
+      this.#applyZoom(this.#timeToPx((from + to) / 2) - scroller.clientWidth / 2);
       return;
     }
     const time =
@@ -221,14 +211,12 @@ export class RecordingTimeline {
         : this.#pxToTime(scroller.scrollLeft + scroller.clientWidth / 2));
     const offset = this.#timeToPx(time) - scroller.scrollLeft;
     this.#zoom = Math.max(1, Math.min(this.#maxZoom(), this.#zoom * factor));
-    this.#applyZoom();
-    this.#scrollTo(this.#timeToPx(time) - offset);
+    this.#applyZoom(this.#timeToPx(time) - offset);
   }
 
   fit() {
     this.#zoom = 1;
-    this.#applyZoom();
-    this.#scrollTo(0);
+    this.#applyZoom(0);
   }
 
   get canZoomIn() {
@@ -294,12 +282,19 @@ export class RecordingTimeline {
     this.#expectedScroll = target;
     setScroll(scroller, { left: target });
   }
-  #applyZoom() {
+  // A new zoom or width moves the window, so the scroll goes to `left`, a pixel offset
+  // on the new track, before anything is drawn: the marks, the ruler and its grid are
+  // then drawn once (`#draw`), for the window they show. Drawn before the scroll as
+  // well, the ruler and grid were first drawn for a window the scroll then left, and
+  // drawn again in the same task, where a window that returned to the one before put
+  // back lines equal to those the first drawing took out.
+  /** @param {number | null} [left] */
+  #applyZoom(left = null) {
     const track = this.#part(".lf-trace-track");
     if (!track) return;
-    keepVar(track, "--lf-trace-zoom", String(this.#zoom));
+    track.style.setProperty("--lf-trace-zoom", String(this.#zoom));
+    if (left !== null) this.#scrollTo(left);
     this.#layoutLabels();
-    this.#drawRuler();
   }
   #resized() {
     const width = this.scroller?.clientWidth ?? 0;
@@ -311,9 +306,7 @@ export class RecordingTimeline {
       this.#zoom = this.#maxZoom();
       this.#options.onZoom?.();
     }
-    this.#applyZoom();
-    if (resized) this.#scrollTo(this.#timeToPx(this.#start));
-    this.#drawRuler();
+    this.#applyZoom(resized ? this.#timeToPx(this.#start) : null);
   }
 
   // Labels -----------------------------------------------------------------------
@@ -511,21 +504,22 @@ export class RecordingTimeline {
               @pointerover=${(/** @type {PointerEvent} */ event) => this.#hover(event)}
               @pointerout=${(/** @type {PointerEvent} */ event) => this.#hover(event, true)}
             >
-              <div class="lf-trace-ruler"></div>
+              <div class="lf-trace-ruler lf-axis-ruler"></div>
+              <div class="lf-trace-grid lf-axis-grid" aria-hidden="true"></div>
               ${
                 model.moments.length
                   ? html`<div class="lf-trace-lane lf-trace-lane-moments">
                       ${this.#labels.moments.map(
                         (cluster, index) =>
                           html`<span
-                            class="lf-trace-moment-pin"
+                            class="lf-trace-moment-pin lf-on-axis"
                             ?data-lf-flip=${cluster.flip}
                             data-lf-pick="moments"
                             data-lf-id=${cluster.items[0].id}
                             data-lf-cluster=${index}
                             data-lf-tip=${cluster.items.map((item) => item.title).join("\n")}
                             ?data-lf-current=${cluster.items.some((item) => item.current)}
-                            style="--t: ${fraction(cluster.items[0].at)}; max-inline-size: ${this.#labelRoom(
+                            style="--lf-axis-at: ${fraction(cluster.items[0].at)}; max-inline-size: ${this.#labelRoom(
                               this.#labels.moments,
                               index,
                               cluster,
@@ -544,13 +538,13 @@ export class RecordingTimeline {
                       ${this.#labels.input.map(
                         (cluster, index) =>
                           html`<span
-                            class="lf-trace-input-label"
+                            class="lf-trace-input-label lf-on-axis"
                             ?data-lf-flip=${cluster.flip}
                             data-lf-pick="input"
                             data-lf-id=${cluster.items[0].id}
                             data-lf-cluster=${index}
                             data-lf-tip=${cluster.items.map((item) => item.title).join("\n")}
-                            style="--t: ${fraction(cluster.items[0].at)}; max-inline-size: ${this.#labelRoom(
+                            style="--lf-axis-at: ${fraction(cluster.items[0].at)}; max-inline-size: ${this.#labelRoom(
                               this.#labels.input,
                               index,
                               cluster,
@@ -563,12 +557,12 @@ export class RecordingTimeline {
                         (input) => input.id,
                         (input) =>
                           html`<span
-                            class="lf-trace-input-send"
+                            class="lf-trace-input-send lf-on-axis"
                             data-lf-pick="input"
                             data-lf-id=${input.id}
                             data-lf-tip=${input.title}
                             ?data-lf-current=${input.current}
-                            style="--t: ${fraction(input.send)}"
+                            style="--lf-axis-at: ${fraction(input.send)}"
                           ></span>`,
                       )}
                       ${repeat(
@@ -576,13 +570,13 @@ export class RecordingTimeline {
                         (input) => input.id,
                         (input) =>
                           html`<span
-                            class="lf-trace-bar lf-trace-input-bar"
+                            class="lf-trace-bar lf-trace-input-bar lf-on-axis"
                             data-lf-pick="input"
                             data-lf-id=${input.id}
                             data-lf-tip=${input.title}
                             ?data-lf-current=${input.current}
                             ?data-lf-active=${input.active}
-                            style="--t: ${fraction(input.start)}; --d: ${length(
+                            style="--lf-axis-at: ${fraction(input.start)}; --d: ${length(
                               input.start,
                               input.end,
                             )}"
@@ -602,14 +596,14 @@ export class RecordingTimeline {
                         (call) => call.id,
                         (call) =>
                           html`<span
-                            class="lf-trace-bar lf-trace-call-bar"
+                            class="lf-trace-bar lf-trace-call-bar lf-on-axis"
                             data-lf-pick="calls"
                             data-lf-id=${call.id}
                             data-lf-tip=${call.title}
                             ?data-lf-current=${call.current}
                             ?data-lf-active=${call.active}
                             ?data-lf-error=${call.error}
-                            style="--t: ${fraction(call.start)}; --d: ${length(
+                            style="--lf-axis-at: ${fraction(call.start)}; --d: ${length(
                               call.start,
                               call.end,
                             )}; --row: ${this.#callRowOf.get(call.id) ?? 0}"
@@ -625,14 +619,14 @@ export class RecordingTimeline {
                   (capture) => capture.id,
                   (capture) =>
                     html`<span
-                      class="lf-trace-capture"
+                      class="lf-trace-capture lf-on-axis"
                       ?data-lf-image=${capture.image}
                       ?data-lf-current=${capture.current}
-                      style="--t: ${fraction(capture.time)}"
+                      style="--lf-axis-at: ${fraction(capture.time)}"
                     ></span>`,
                 )}
               </div>
-              <div class="lf-trace-playhead" aria-hidden="true">
+              <div class="lf-trace-playhead lf-on-axis" aria-hidden="true">
                 <span
                   class="lf-trace-playhead-handle"
                   title=${quoted ? "Selected recorded time" : "Drag to scrub the recording"}
@@ -653,9 +647,12 @@ export class RecordingTimeline {
       this.#host,
     );
     const track = this.#part(".lf-trace-track");
-    keepVar(track, "--lf-trace-zoom", String(this.#zoom));
-    keepVar(track, "--lf-trace-edge", `${EDGE}px`);
-    keepVar(track, "--lf-trace-time", String(this.#fraction(this.#time)));
+    track?.style.setProperty("--lf-trace-zoom", String(this.#zoom));
+    track?.style.setProperty("--lf-axis-edge", `${EDGE}px`);
+    this.#part(".lf-trace-playhead")?.style.setProperty(
+      "--lf-axis-at",
+      String(this.#fraction(this.#time)),
+    );
     this.#drawRuler();
   }
 
@@ -668,8 +665,14 @@ export class RecordingTimeline {
     const overview = this.#part(".lf-trace-overview");
     if (!scroller?.scrollWidth || !overview) return;
     const { scrollLeft, scrollWidth, clientWidth } = scroller;
-    keepVar(overview, "--lf-trace-window-start", String(scrollLeft / scrollWidth));
-    keepVar(overview, "--lf-trace-window-size", String(clientWidth / scrollWidth));
+    overview.style.setProperty(
+      "--lf-trace-window-start",
+      String(scrollLeft / scrollWidth),
+    );
+    overview.style.setProperty(
+      "--lf-trace-window-size",
+      String(clientWidth / scrollWidth),
+    );
     keeps(overview, "data-lf-zoomed", this.#zoom > 1 ? "" : null);
   }
 
@@ -699,18 +702,19 @@ export class RecordingTimeline {
     overview.addEventListener("pointercancel", end);
   }
 
-  // The ruler draws only ticks near the visible window, so deep zoom stays cheap.
+  // The ruler draws only ticks near the visible window, so deep zoom stays cheap; the
+  // grid below it, a line at each of their major times.
   #drawRuler() {
     this.#queueOverview();
     const ruler = this.#part(".lf-trace-ruler");
+    const grid = this.#part(".lf-trace-grid");
     const scroller = this.scroller;
-    if (!ruler || !scroller?.clientWidth || !this.#model) return;
-    const pxPerMs = this.#pxPerMs();
+    if (!ruler || !grid || !scroller?.clientWidth || !this.#model) return;
     const ticks = axisTicks(
       this.#pxToTime(scroller.scrollLeft - TICK_SPACING),
       this.#pxToTime(scroller.scrollLeft + scroller.clientWidth + TICK_SPACING),
       this.#recording.duration,
-      pxPerMs,
+      this.#pxPerMs(),
     );
     render(
       repeat(
@@ -718,13 +722,27 @@ export class RecordingTimeline {
         (tick) => `${tick.step}:${tick.time}`,
         (tick) =>
           html`<span
-            class="lf-trace-tick ${tick.major ? "lf-trace-tick-major" : ""}"
-            ?data-lf-flip=${tick.major && (this.#recording.duration - tick.time) * pxPerMs < 44}
-            style="--t: ${this.#fraction(tick.time)}"
+            class="lf-axis-tick"
+            ?data-lf-major=${tick.major}
+            ?data-lf-flip=${tick.flip}
+            style="--lf-axis-at: ${this.#fraction(tick.time)}"
             >${tick.label ?? nothing}</span
           >`,
       ),
       ruler,
+    );
+    render(
+      repeat(
+        ticks.filter((tick) => tick.major),
+        (tick) => `${tick.step}:${tick.time}`,
+        (tick) =>
+          html`<span
+            class="lf-axis-gridline"
+            ?data-lf-flip=${tick.flip}
+            style="--lf-axis-at: ${this.#fraction(tick.time)}"
+          ></span>`,
+      ),
+      grid,
     );
   }
 
@@ -785,9 +803,8 @@ export class RecordingTimeline {
         whole > this.#zoom * 1.05 ? Math.min(apart, whole) : apart,
       ),
     );
-    this.#applyZoom();
     const middle = (from + to) / 2;
-    this.#scrollTo(this.#timeToPx(middle) - scroller.clientWidth / 2);
+    this.#applyZoom(this.#timeToPx(middle) - scroller.clientWidth / 2);
   }
 
   // Chrome adjusts a tap's target, and its pointer and click events, toward a

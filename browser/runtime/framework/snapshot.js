@@ -93,10 +93,23 @@ const plain = (value) => {
   return proto === Object.prototype || proto === null;
 };
 
+// Give `object` its own data property `key`, defined rather than assigned: a JSON field
+// named `__proto__` is an own property, and assigning it would set the object's
+// prototype instead.
+/** @param {Record<string, unknown>} object @param {string} key @param {unknown} value */
+export const defineOwn = (object, key, value) =>
+  Object.defineProperty(object, key, {
+    value,
+    writable: true,
+    enumerable: true,
+    configurable: true,
+  });
+
 /**
  * `next`, with every subtree deep-equal to the matching one in `prior` replaced by
  * `prior`'s. Plain objects, arrays, Maps and Sets compare by contents (a Map or Set by
  * its entries in order, an object by its keys in any order); anything else by identity.
+ * An array's item that `prior`'s array holds at any index stays as it is.
  * Returns `prior` itself when the two are equal, and `next` itself when nothing in it
  * could be shared, so neither input is copied or mutated needlessly.
  *
@@ -116,7 +129,18 @@ export function share(prior, next) {
     return next;
   if (Array.isArray(next)) {
     if (!Array.isArray(prior)) return next;
-    const children = next.map((child, index) => share(prior[index], child));
+    // An item the prior list holds anywhere is already shared, so a list that gained,
+    // lost or reordered items compares each item that moved by identity, not contents.
+    /** @type {Set<unknown> | undefined} */
+    let held;
+    const children = next.map((child, index) =>
+      child !== prior[index] &&
+      child !== null &&
+      typeof child === "object" &&
+      (held ??= new Set(prior)).has(child)
+        ? child
+        : share(prior[index], child),
+    );
     if (
       prior.length === next.length &&
       children.every((child, index) => child === prior[index])
@@ -185,16 +209,7 @@ export function share(prior, next) {
   /** @type {Record<string, unknown>} */
   const copy =
     Object.getPrototypeOf(next) === null ? /* @__PURE__ */ Object.create(null) : {};
-  // Defined, not assigned: a JSON field named `__proto__` is an own property, and
-  // assigning it would set the copy's prototype instead.
-  keys.forEach((key, index) =>
-    Object.defineProperty(copy, key, {
-      value: children[index],
-      writable: true,
-      enumerable: true,
-      configurable: true,
-    }),
-  );
+  keys.forEach((key, index) => defineOwn(copy, key, children[index]));
   return /** @type {T} */ (copy);
 }
 

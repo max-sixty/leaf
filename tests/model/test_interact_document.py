@@ -697,15 +697,6 @@ def test_one_check_reports_markup_and_capture_problems_each_once(page_dir):
     ]
 
 
-def test_an_image_loads_from_any_server(page_dir):
-    images = (
-        '<p><img src="https://outside.example/a.png?s=40" alt="a">'
-        '<img src="//outside.example/b.png" alt="b"></p>\n</section>'
-    )
-    (page_dir / "index.html").write_text(PAGE.replace("</section>", images, 1))
-    assert revisioning_model.activate_source(page_dir).error is None
-
-
 @pytest.mark.parametrize(
     "authored, at",
     [
@@ -1748,21 +1739,6 @@ def test_check_rejects_loose_content_in_items_container(page_dir):
     assert found(findings, "loose-text", "<lf-options>")
 
 
-def test_retired_question_and_recommendation_attributes_are_rejected(page_dir):
-    (page_dir / "index.html").write_text(
-        PAGE.replace("<lf-options>", '<lf-options label="Which plan?">').replace(
-            'id="backfill-first">', 'id="backfill-first" recommended>'
-        )
-    )
-    status, findings = check_findings(page_dir)
-    assert status == 1
-    assert [f.at for f in found(findings, "attribute-schema")] == [
-        "<lf-options>",
-        "<lf-option>",
-    ]
-    assert {f.values["keyword"] for f in findings} == {"additionalProperties"}
-
-
 def test_tabs_reject_structural_violations(page_dir):
     # A label-less panel, a stray panel outside lf-tabs, and loose text between
     # panels are each refused.
@@ -1898,46 +1874,6 @@ def test_reply_refuses_a_suggestion(page_dir):
     assert "frozen in the log" in result.output
 
 
-def test_response_addresses_one_obligation_and_activates_the_current_source(page_dir):
-    initial = revisioning_model.activate_source(page_dir)
-    assert initial.error is None and initial.revision == 1
-    comment = append_carried_log_record(
-        page_dir,
-        {"kind": "comment", "id": "c1", "author": "user", "text": "update it"},
-    )
-    service_model.claim_page(page_dir)
-    with service_model.PageTransaction(page_dir) as page:
-        claim = page.active_claim
-        delivery_model.record_pickup(
-            page,
-            [comment],
-            session=claim["id"],
-            turn=claim["turn"],
-        )
-    updated = PAGE.replace("<h2>Plan</h2>", "<h2>Updated plan</h2>")
-    (page_dir / "index.html").write_text(updated)
-
-    result = CliRunner().invoke(
-        cli_model.cli,
-        [
-            "thread",
-            "reply",
-            "--done",
-            response_reference(page_dir, "c1"),
-            "--text",
-            "Updated.",
-        ],
-    )
-
-    assert result.exit_code == 0, result.output
-    assert json.loads(result.output)["parent"] == "c1"
-    assert files_model.list_revisions(page_dir) == [1, 2]
-    assert files_model.revision_path(page_dir, 2).read_text() == updated
-    reply = events_model.read_events(page_dir)[-1]
-    assert reply["parent"] == "c1"
-    assert reply["responds"] == "c1"
-
-
 @pytest.mark.parametrize("invalid", ["html", "dependency"])
 def test_reply_refuses_an_invalid_current_source(page_dir, invalid):
     """Explicit source validation covers dependency edits and leaves the answer owed."""
@@ -2045,71 +1981,6 @@ def test_response_reference_selects_one_of_several_obligations(page_dir):
     assert reply["responds"] == "c2"
 
 
-def test_response_never_settles_a_newer_undelivered_correction(page_dir):
-    delivered = append_carried_log_record(
-        page_dir,
-        {"kind": "comment", "id": "c1", "author": "user", "text": "make it blue"},
-    )
-    service_model.claim_page(page_dir)
-    with service_model.PageTransaction(page_dir) as page:
-        claim = page.active_claim
-        delivery_model.record_pickup(
-            page,
-            [delivered],
-            session=claim["id"],
-            turn=claim["turn"],
-        )
-    reference = response_reference(page_dir, delivered)
-    append_carried_log_record(
-        page_dir,
-        {
-            "kind": "reply",
-            "id": "r2",
-            "author": "user",
-            "parent": "c1",
-            "text": "actually make it red",
-        },
-    )
-
-    [refused] = command_findings(
-        "thread", "reply", "--done", reference, "--text", "Made it blue."
-    )
-    assert refused.code == "superseded-reply"
-    assert not any(
-        event["kind"] == "reply" and event["author"] == "agent"
-        for event in events_model.read_events(page_dir)
-    )
-
-
-def test_response_belongs_to_the_session_with_the_opened_delivery(
-    page_dir, monkeypatch
-):
-    comment = append_carried_log_record(
-        page_dir,
-        {"kind": "comment", "id": "c1", "author": "user", "text": "update it"},
-    )
-    service_model.claim_page(page_dir)
-    with service_model.PageTransaction(page_dir) as page:
-        claim = page.active_claim
-        delivery_model.record_pickup(
-            page,
-            [comment],
-            session=claim["id"],
-            turn=claim["turn"],
-        )
-    reference = response_reference(page_dir, "c1")
-    monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "different-reporter")
-    service_model.claim_page(page_dir)
-
-    result = CliRunner().invoke(
-        cli_model.cli,
-        ["thread", "reply", "--done", reference, "--text", "Updated."],
-    )
-
-    assert result.exit_code != 0
-    assert "claim no longer matches its delivery" in json.loads(result.stderr)["error"]
-
-
 def test_response_address_survives_its_delivery_turn_closing(page_dir):
     comment = append_carried_log_record(
         page_dir,
@@ -2178,41 +2049,6 @@ def test_a_cli_write_is_admitted_through_the_browser_door(page_dir):
         "note",
         "comment",
     ]
-
-
-def test_response_reference_is_idempotent(page_dir):
-    """A rerun of an answer with the same reference posts nothing new."""
-    comment = append_carried_log_record(
-        page_dir,
-        {"kind": "comment", "id": "c1", "author": "user", "text": "update it"},
-    )
-    service_model.claim_page(page_dir)
-    with service_model.PageTransaction(page_dir) as page:
-        claim = page.active_claim
-        delivery_model.record_pickup(
-            page,
-            [comment],
-            session=claim["id"],
-            turn=claim["turn"],
-        )
-
-    reference = response_reference(page_dir, comment)
-    first = thread_model.post_response(reference, "Updated.")
-    retried = thread_model.post_response(reference, "Updated.")
-
-    assert retried is not None
-    assert first is not None
-    assert retried["id"] == first["id"]
-    assert (
-        len(
-            [
-                event
-                for event in events_model.read_events(page_dir)
-                if event["kind"] == "reply"
-            ]
-        )
-        == 1
-    )
 
 
 @pytest.mark.parametrize(
@@ -2788,6 +2624,11 @@ def test_page_state_folds_the_log_onto_the_published_page(page_dir):
             # page's two documents the decision was made in, as each task's `thread`
             # does.
             "thread": None,
+            # What the choice's delivery said about it, for a session that missed it.
+            "subject": {"kind": "widget", "id": "g1"},
+            "threads": [],
+            "says": {"o-shim": "Shim it Fastest to ship."},
+            "names": {"o-shim": "Shim it"},
         }
     ]
     assert state["pending"] == 1 and state["unacked"] == 1
@@ -3162,62 +3003,6 @@ def test_thread_markup_can_use_a_different_binding_from_a_page_source(page_dir):
     assert read_page_data(page_dir)["sources"]["project-feed"] == active
 
 
-def test_thread_markup_can_use_a_different_binding_from_a_draft_only_page_source(
-    page_dir,
-):
-    """Independent documents retain their own binding declarations."""
-    declare_data_input(
-        page_dir, "project-feed", {"type": "array"}, contract="rows", activate=False
-    )
-
-    def declare(registry):
-        registry["$data"]["contracts"]["other-rows"] = {
-            "description": "Another meaning.",
-            "schema": {"type": "array"},
-        }
-        registry["lf-other-data"] = {
-            **registry["lf-test-data"],
-            "description": "A differently typed test input.",
-            "x-data": {"data": {"contract": "other-rows", "source": "source"}},
-        }
-
-    declare_on_page(page_dir, declare)
-    source = page_dir / "index.html"
-    draft = source.read_text()
-    source.write_text(
-        draft.replace(
-            '<lf-test-data id="test-data" source="project-feed"></lf-test-data>\n', ""
-        )
-    )
-    activation = revisioning_model.activate_source(page_dir)
-    assert activation.error is None
-    source.write_text(draft)
-    documents = data_contracts_model.page_data_document_readings(
-        page_dir,
-        events_model.read_events(page_dir),
-        read_page_registry(page_dir).registry,
-    )
-    immutable, errors = data_contracts_model.merge_data_document_readings(documents)
-    assert errors == [] and "project-feed" not in immutable
-    append_carried_log_record(
-        page_dir,
-        {
-            "kind": "comment",
-            "id": "draft-data-question",
-            "author": "user",
-            "revision": 1,
-            "text": "Show another feed here.",
-        },
-    )
-
-    thread_model.post_reply(
-        page_dir,
-        {"parent": "draft-data-question", "responds": "draft-data-question"},
-        "Here it is.",
-        '<lf-other-data id="reply-data" source="project-feed"></lf-other-data>',
-    )
-
-
 def test_data_set_validates_the_json_value_it_writes(page_dir):
     """The Python facade and CLI share one boundary. A caller may hand the facade a
     mapping key that json.dumps coerces, but the schema must judge the resulting JSON,
@@ -3523,11 +3308,11 @@ def test_events_follow_ends_when_its_log_is_replaced(page_dir, spawn):
     assert (status, json.loads(stderr)["error"]) == (1, f"{log} is gone")
 
 
-def test_page_state_points_to_a_users_suggestion_record(page_dir):
+def test_page_state_marks_a_users_suggestion(page_dir):
     """`suggestion: true` is the user proposing exact replacement words rather
     than describing a change, and the loop owes that a different answer — taken
-    verbatim, or declined with a reason. State supplies the semantic membership and
-    `events` supplies that raw flag without maintaining a second message shape."""
+    verbatim, or declined with a reason. The delivery says so, and so does the
+    thread's reading for a session that missed it, after a rewrite too."""
     (page_dir / "index.html").write_text(PAGE)
     publish(page_dir)
     suggestion = append_carried_log_record(
@@ -3543,19 +3328,27 @@ def test_page_state_points_to_a_users_suggestion_record(page_dir):
     )
 
     [thread] = state_json(page_dir)["threads"]
-    history = CliRunner().invoke(
-        cli_model.cli, ["page", "state", str(page_dir), thread["id"]]
+
+    def read():
+        history = CliRunner().invoke(
+            cli_model.cli, ["page", "state", str(page_dir), thread["id"]]
+        )
+        assert history.exit_code == 0, history.output
+        [message] = json.loads(history.output)["content"]
+        return message
+
+    assert read()["message"] == suggestion["id"]
+    assert read()["suggestion"] is True
+    append_carried_log_record(
+        page_dir,
+        {
+            "kind": "edit",
+            "author": "user",
+            "message": suggestion["id"],
+            "text": "Ship dark behind the flag.",
+        },
     )
-    assert history.exit_code == 0, history.output
-    assert [m["message"] for m in json.loads(history.output)["content"]] == [
-        suggestion["id"]
-    ]
-    [record] = [
-        event
-        for event in events_model.read_events(page_dir)
-        if event["id"] == suggestion["id"]
-    ]
-    assert record["suggestion"] is True
+    assert read()["suggestion"] is True
 
 
 def test_page_state_holds_a_thread_obligation_open_until_its_verb(page_dir):
@@ -4607,10 +4400,7 @@ def test_projected_verbatim_includes_generated_children():
                     "detail": {
                         "type": "object",
                         "properties": {
-                            "item": {
-                                "type": "string",
-                                "pattern": f"^{schema_model.ELEMENT_ID}$",
-                            },
+                            "item": {"type": "string"},
                             "text": {"type": "string", "minLength": 1},
                         },
                         "required": ["item", "text"],

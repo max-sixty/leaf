@@ -480,9 +480,18 @@ Pin the ids or count a sweep walks, before and after any reload, and assert that
 is non-empty and every expected kind was reached, rather than an assertion whose
 condition can vanish with the behavior.
 
+### Removing a test another covers
+
+One surviving test has to reach the same fixture state by the same route and make the
+same assertion. Several survivors that each hold one of those leave the combination
+unheld, and two routes into one command can differ in what happens around it, as a menu
+row closing over the thread it just opened. Read the survivor itself, since a name or
+docstring can claim a state its fixture never reaches.
+
 ## Failure messages
 
 Pair `capture_output=True` with `check=True` only when the exception is unpacked; a test
 that needs the streams asserts the return code and puts stdout and stderr in the
 message. Assert output by meaning: use `spoken` for the registry-backed reading, and
-match the attribute that carries a claim.
+match the attribute that carries a claim. A refusal test reads the refusal's words,
+since a nonzero exit also passes on a crash.

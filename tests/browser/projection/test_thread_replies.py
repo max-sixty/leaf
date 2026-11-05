@@ -9,7 +9,6 @@ from playwright.sync_api import expect
 from render_cases_interaction import MARKDOWN_REPLY, THREAD_OBLIGATIONS, live_url
 from render_cases_navigation import actions
 from render_harness import (
-    PANEL_THREAD,
     RELEASE_FOCUS,
     REPLY_HOST_PAGE,
     SAMPLE_MARKUP,
@@ -34,18 +33,25 @@ from render_harness import (
 from browser.threads import open_panel_thread
 from leaf import event_log as events_model
 from leaf.render_checks import one_frame
+from leaf_dev.browser import PANEL_THREAD
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
 
-def test_a_reply_renders_the_markdown_it_was_written_in(browser, serve):
+def test_a_reply_renders_its_markdown_and_a_suggestion_shows_its_characters(
+    browser, serve, subtests
+):
     """A message's text is Markdown, rendered here by the page's own vendored layer —
     the wire carries the log's words and nothing else. Every raw tag renders as the
     characters it was written in, a block of tags as much as prose saying Vec<T>, and
     swallowing it into an element would lose the words in front of the user with nothing saying so. What the
     panel adds is the page's own dress: the theme's element rules are at document level
     and reach in, a fenced block colors from the tokenizer a version's <pre><code>
-    uses, and a bare URL arrives as the link the user will want to follow."""
+    uses, and a bare URL arrives as the link the user will want to follow.
+
+    A suggestion's words are bound for the page verbatim, so the panel shows them
+    as typed. Rendering them would promise the user an italic where the next
+    version carries the asterisks they wrote."""
     url = serve(REPLY_HOST_PAGE)
     d = serve.page_dir
     append_carried_log_record(
@@ -68,45 +74,8 @@ def test_a_reply_renders_the_markdown_it_was_written_in(browser, serve):
             "text": MARKDOWN_REPLY,
         },
     )
-    page = open_page(browser, url)
-    view = open_panel_thread(page, "c-decision")
-    body = view.locator(".lf-msg[data-lf-author=agent] .lf-msg-body")
-    expect(body.locator("li")).to_have_count(2)
-    expect(body.locator("strong")).to_have_text("behind")
-    expect(body.locator("blockquote")).to_have_text("which one wins?")
-    expect(body.locator("pre code [data-lf-syn]").first).to_have_text("def")
-    # Tags are text in this dialect, a block of them as much as one in a sentence, so
-    # markup shown without a fence keeps the lines it was written in.
-    markup = body.locator("p", has_text="<lf-callout>")
-    assert markup.inner_text() == "<lf-callout>\n<div>a tile</div>\n</lf-callout>"
-    link = body.locator('a[href="https://example.com/notes"]')
-    expect(link).to_have_attribute("target", "_blank")
-    expect(link).to_have_attribute("rel", re.compile(r"(?:^| )noopener(?: |$)"))
-    expect(link).to_have_attribute("data-lf-external", "")
-    expect(
-        body.locator(
-            'a[href^="javascript:"], a[href^="data:"], '
-            'a[href^="file:"], a[href^="editor:"]'
-        )
-    ).to_have_count(0)
-    expect(body).to_contain_text(
-        "Unsafe destinations stay words: script, inline data, local file, "
-        "and custom handler."
-    )
-    # The paragraph's asterisks are gone from the words, not merely hidden, and the
-    # raw tag's characters are still among them: what the user can select is what
-    # the message says.
-    text = body.inner_text()
-    assert "**" not in text and "Vec<T>" in text
-
-
-def test_a_suggestion_shows_the_characters_it_proposes(browser, serve):
-    """A suggestion's words are bound for the page verbatim, so the panel shows them
-    as typed. Rendering them would promise the user an italic where the next
-    version carries the asterisks they wrote."""
-    url = serve(REPLY_HOST_PAGE)
     append_carried_log_record(
-        serve.page_dir,
+        d,
         {
             "kind": "comment",
             "id": "s1",
@@ -117,9 +86,40 @@ def test_a_suggestion_shows_the_characters_it_proposes(browser, serve):
         },
     )
     page = open_page(browser, url)
-    body = open_panel_thread(page, "s1").locator(".lf-msg-body.lf-suggest-body")
-    expect(body).to_have_text("Retry up to *five* times.")
-    expect(body.locator("em")).to_have_count(0)
+    with subtests.test("reply"):
+        view = open_panel_thread(page, "c-decision")
+        body = view.locator(".lf-msg[data-lf-author=agent] .lf-msg-body")
+        expect(body.locator("li")).to_have_count(2)
+        expect(body.locator("strong")).to_have_text("behind")
+        expect(body.locator("blockquote")).to_have_text("which one wins?")
+        expect(body.locator("pre code [data-lf-syn]").first).to_have_text("def")
+        # Tags are text in this dialect, a block of them as much as one in a sentence, so
+        # markup shown without a fence keeps the lines it was written in.
+        markup = body.locator("p", has_text="<lf-callout>")
+        assert markup.inner_text() == "<lf-callout>\n<div>a tile</div>\n</lf-callout>"
+        link = body.locator('a[href="https://example.com/notes"]')
+        expect(link).to_have_attribute("target", "_blank")
+        expect(link).to_have_attribute("rel", re.compile(r"(?:^| )noopener(?: |$)"))
+        expect(link).to_have_attribute("data-lf-external", "")
+        expect(
+            body.locator(
+                'a[href^="javascript:"], a[href^="data:"], '
+                'a[href^="file:"], a[href^="editor:"]'
+            )
+        ).to_have_count(0)
+        expect(body).to_contain_text(
+            "Unsafe destinations stay words: script, inline data, local file, "
+            "and custom handler."
+        )
+        # The paragraph's asterisks are gone from the words, not merely hidden, and the
+        # raw tag's characters are still among them: what the user can select is what
+        # the message says.
+        text = body.inner_text()
+        assert "**" not in text and "Vec<T>" in text
+    with subtests.test("suggestion"):
+        body = open_panel_thread(page, "s1").locator(".lf-msg-body.lf-suggest-body")
+        expect(body).to_have_text("Retry up to *five* times.")
+        expect(body.locator("em")).to_have_count(0)
 
 
 @pytest.mark.parametrize("asynchronous", [False, True], ids=["draft", "async-body"])

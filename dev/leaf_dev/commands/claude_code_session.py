@@ -21,16 +21,14 @@ import os
 import shutil
 import subprocess
 import tempfile
-import uuid
 from pathlib import Path
 
 import click
 
 from leaf.server import running_server
 from leaf_dev import ROOT
-from leaf_dev.arms import claude_environment, claude_home
 from leaf_dev.commands.journey import Isolation, stop_left_running
-from leaf_dev.journey_claude_code import ClaudeCode
+from leaf_dev.journey_claude_code import ClaudeCode, claude_code_environment
 from leaf_dev.review_scenario import prepare
 
 # The model answers only setup and the developer's turns, so a fast one does.
@@ -61,37 +59,13 @@ def claude_code_session(stopping: bool) -> None:
     # Outside any repository, so the session loads no project instructions; Claude
     # Code records trust by the resolved path.
     root = Path(tempfile.mkdtemp(prefix="leaf-claude-code-session-")).resolve()
-    place = Isolation(
-        root, root / "state", root / "work", root / "work" / "page", ROOT, root,
-    )  # fmt: skip
-    place.work.mkdir()
-    home = claude_home(root / "home")
-    (home / ".claude.json").write_text(
-        json.dumps(
-            {
-                "hasCompletedOnboarding": True,
-                "theme": "dark",
-                "projects": {str(place.work): {"hasTrustDialogAccepted": True}},
-            }
-        )
-    )
-    env = claude_environment(
-        home, XDG_STATE_HOME=str(place.state), TERM="tmux-256color"
-    )
+    place = Isolation.under(root, ROOT, root)
+    env = claude_code_environment(place)
     # This process reads the session's claim and Claude Code's record of its turns.
     os.environ.clear()
     os.environ.update(env)
     prepare(ROOT, place.state, place.page)
-    debug_log = root / "debug.log"
-    session = str(uuid.uuid4())
-    argv = [
-        "claude", "--session-id", session, "--model", MODEL,
-        "--plugin-dir", str(ROOT), "--strict-mcp-config",
-        "--permission-mode", "default", "--add-dir", str(ROOT),
-        "--allowedTools", "Bash Read Write Edit Glob Grep Skill",
-        "--debug-file", str(debug_log),
-    ]  # fmt: skip
-    cc = ClaudeCode(place, session, argv, env)
+    cc = ClaudeCode(place, env, model=MODEL)
     RECORD.parent.mkdir(exist_ok=True)
     RECORD.write_text(
         json.dumps({"pane": cc.pane, "root": str(root), "state": str(place.state)})
@@ -107,7 +81,7 @@ def claude_code_session(stopping: bool) -> None:
                 "page": str(place.page),
                 "url": server["url"],
                 "state_home": str(place.state),
-                "debug_log": str(debug_log),
+                "debug_log": str(cc.debug),
             },
             indent=2,
         )

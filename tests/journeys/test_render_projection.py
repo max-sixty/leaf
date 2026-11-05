@@ -34,7 +34,6 @@ from render_cases_navigation import (
 from render_harness import (
     EXAMPLE_PACKAGES,
     IMPORTER_CARD,
-    PANEL_THREAD,
     REPLAYED_PAGE,
     REPLY_HOST_PAGE,
     TOKEN,
@@ -70,6 +69,7 @@ from leaf.registry import storage as registry_storage
 from leaf.render_checks import rendered
 from leaf.render_gate import version as render_gate_model
 from leaf.render_gate.preview import preview_server
+from leaf_dev.browser import PANEL_THREAD
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -212,7 +212,7 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
     widget.locator(".lf-vr-case-button").nth(1).click()
     expect(first).to_be_hidden()
     expect(second).to_be_visible()
-    second.get_by_role("button", name="Slider").click()
+    second.get_by_role("radio", name="Slider").click()
 
     inserted = record["cases"][1] | {"id": "run-middle", "title": "Inserted run case"}
     changed: dict = record | {
@@ -237,8 +237,8 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
         "node => node === document.querySelector('.lf-vr-case[data-lf-datum=\"run-detail\"]')"
     )
     expect(second).to_be_visible()
-    expect(second.get_by_role("button", name="Slider")).to_have_attribute(
-        "aria-pressed", "true"
+    expect(second.get_by_role("radio", name="Slider")).to_have_attribute(
+        "aria-checked", "true"
     )
     expect(
         first.get_by_role("checkbox", name="Looks right", include_hidden=True)

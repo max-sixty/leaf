@@ -52,6 +52,13 @@ PROBE_SOURCES = {
 _DRIVER_PRESENT = "() => Boolean(globalThis.__leafRenderDriver)"
 # Null when this document has no driver yet: one opened before the driver was installed.
 _LOAD_PROBES = "route => globalThis.__leafRenderDriver?.load(route) ?? null"
+# Whether the probe load has settled, arrived or failed. A wait's predicate must not
+# throw: Playwright's poller then rejects a promise the page never handles, so the page
+# hears its own unhandled rejection, which the runtime reports as a page fault, and
+# that echo races the wait's rejection to the reader collecting the page's console.
+_PROBES_SETTLED = (
+    f"route => {{ try {{ return ({_LOAD_PROBES})(route); }} catch {{ return true; }} }}"
+)
 _PROBE = "call => globalThis.__leafRenderDriver.call(call)"
 _REQUEST_FRAME = "() => globalThis.__leafRenderDriver?.requestFrame() ?? null"
 _FRAME_PRESENTED = "asked => globalThis.__leafRenderDriver.framePresented(asked)"
@@ -184,14 +191,19 @@ def _load_probes(page, timeout_ms: int) -> None:
             # Probe readiness is independent of animation frames. A complete child
             # document in a closed disclosure or inactive tab still needs inspection,
             # but browsers suspend its requestAnimationFrame callbacks.
-            loaded = page.wait_for_function(
-                _LOAD_PROBES, arg=PROBE_ROUTE, timeout=timeout_ms, polling=PROBE_POLL_MS
-            ).json_value()
+            page.wait_for_function(
+                _PROBES_SETTLED,
+                arg=PROBE_ROUTE,
+                timeout=timeout_ms,
+                polling=PROBE_POLL_MS,
+            )
         except PlaywrightTimeout as error:
             raise PlaywrightError(
                 f"Leaf browser probes did not load from {PROBE_ROUTE} "
                 f"within {timeout_ms}ms"
             ) from error
+        # A failed load throws its own error here, from an evaluate the page never sees.
+        page.evaluate(_LOAD_PROBES, PROBE_ROUTE)
 
 
 def evaluate_probe(page, name: str, *args):

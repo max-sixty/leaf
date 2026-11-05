@@ -33,7 +33,6 @@ from playwright.sync_api import expect
 from render_harness import (
     FEATURE_GALLERY,
     OPEN_THREAD_COUNT,
-    PANEL_THREAD,
     compare_with,
     consume_browser_errors,
     displayed,
@@ -74,7 +73,7 @@ from leaf.render_gate import version as render_gate_model
 from leaf.revision_artifact import read_artifact
 from leaf.service import acknowledged
 from leaf.structure import SourceDocument
-from leaf_dev.browser import panel_tab, show_resolved
+from leaf_dev.browser import PANEL_THREAD, panel_tab, show_resolved
 from leaf_dev.commands import site as site_build
 from leaf_dev.docs import DOCS, product_sources
 from leaf_dev.example_data import (
@@ -1537,8 +1536,10 @@ def test_a_shipped_log_opens_its_example_on_its_thread(served_example, browser):
     expect(row).to_have_count(1)
     row.click()
     thread = page.locator(PANEL_THREAD)
-    expect(thread.locator(".lf-fp-quote")).to_have_text("“One reconnect in about 40”")
-    assert thread.locator(".lf-fp-quote[data-lf-detached]").count() == 0, (
+    expect(thread.locator(".lf-thread-quote")).to_have_text(
+        "“One reconnect in about 40”"
+    )
+    assert thread.locator(".lf-thread-quote[data-lf-detached]").count() == 0, (
         "the shipped anchor found nothing on the page it was captured from"
     )
     # Painted, not merely resolved: the mark is what puts the user at the passage.
@@ -1616,13 +1617,13 @@ def test_a_comment_persists_without_inventing_an_agent_reply(served_example, bro
     expect_open_threads(page, opened_with + 1)
     thread = written()
     expect(thread).to_contain_text("Can the migration fix ship first?")
-    expect(thread.locator(".lf-fp-quote")).to_contain_text(selected.strip()[:40])
+    expect(thread.locator(".lf-thread-quote")).to_contain_text(selected.strip()[:40])
     expect(thread.locator(".lf-msg[data-lf-author=agent]")).to_have_count(0)
     page.reload(wait_until="load")
     wait_until_ready(page)
     thread = written()
     expect(thread).to_contain_text("Can the migration fix ship first?")
-    expect(thread.locator(".lf-fp-quote")).to_contain_text(selected.strip()[:40])
+    expect(thread.locator(".lf-thread-quote")).to_contain_text(selected.strip()[:40])
     expect(thread.locator(".lf-msg[data-lf-author=agent]")).to_have_count(0)
 
 

@@ -203,14 +203,8 @@
     "x-instructions": "Write it empty with a stable id, and bind `source` to the visual run. To open a case on its changed area, give it a `focus` rectangle in the run. Tie each case's id to the run, not to the user's inspection choices.",
     "type": "object",
     "properties": {
-      "id": {
-        "type": "string",
-        "pattern": "^[a-z0-9][a-z0-9-]*$"
-      },
-      "source": {
-        "type": "string",
-        "pattern": "^[a-z][a-z0-9-]*$"
-      }
+      "id": { "type": "string" },
+      "source": { "type": "string" }
     },
     "required": ["id", "source"],
     "additionalProperties": false,

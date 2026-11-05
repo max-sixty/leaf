@@ -53,10 +53,11 @@
  * Travel into a hidden panel briefly highlights its selected name, without moving
  * focus from the destination or delaying it. Reduced motion keeps the selected state
  * without the highlight; switching again or disconnecting cancels an unfinished cue.
- * Adjacent pointer choices along a horizontal strip move only the selection underline
- * for 160ms. Content and accessible selection change at once; keyboard and vertical
- * navigation stay immediate. A reversed choice continues from the line's painted place,
- * and scrolling or resizing the strip ends the cue at its selected tab.
+ * Adjacent pointer choices along a horizontal strip move only the selection underline,
+ * in a mark's time (`--lf-motion-mark`). Content and accessible selection change at
+ * once; keyboard and vertical navigation stay immediate. A reversed choice continues
+ * from the line's painted place, and scrolling or resizing the strip ends the cue at
+ * its selected tab.
  * Every tab's accessible name is its label; what else the tab shows describes it. A
  * side list stands each run of neighbouring panels that share a `group` under a label
  * of that group, which each of their tabs' descriptions names. A side list's row adds
@@ -109,7 +110,6 @@ import {
   replaceEntry,
   restorePlace,
   scrollBehavior,
-  scrollIntoReadingBand,
   selectableOffered,
   sizeObserver,
   tabStore,
@@ -304,6 +304,8 @@ export class TabSet extends LeafElement {
     this.prepend(strip);
     this.#declareHeader();
     this.classList.add("lf-rendered"); // the upgraded marker every widget uses
+    // The set rings its open panel (surfaces.css, `.lf-ring-frame`).
+    this.classList.add("lf-ring-frame");
     // Open the tab the address names, or this
     // user's last, whose id resolves in later versions because check forbids
     // dropping ids. It opens here, during upgrade, so the runtime's view restore
@@ -555,7 +557,7 @@ export class TabSet extends LeafElement {
         if (name) this.#revealMotion = backgroundFlash(name, flashDuration());
       }
       if (switched) this.#open(active, from);
-      else if (pinnedBox) scrollIntoReadingBand(this, this, "start", "instant");
+      else if (pinnedBox) scrollIntoView(this, { block: "start", behavior: "instant" });
 
       for (const panel of previous ? [previous, active] : [active]) {
         const child = soleSubstantiveElement(panel);
@@ -691,9 +693,7 @@ export class TabSet extends LeafElement {
       const size = label.getBoundingClientRect().width;
       const apart = size + gap + btn.getBoundingClientRect().width > room;
       run.toggleAttribute("data-lf-group-apart", apart);
-      const measured = layoutPx(size);
-      if (run.style.getPropertyValue("--lf-tab-group-size") !== measured)
-        run.style.setProperty("--lf-tab-group-size", measured);
+      run.style.setProperty("--lf-tab-group-size", layoutPx(size));
       scrollIntoView(btn, { block: "nearest", within: strip });
       return;
     }

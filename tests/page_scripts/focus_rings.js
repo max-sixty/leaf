@@ -115,13 +115,23 @@
   // Both carriers of the band are read. Most of the layer's rules draw it as an outline;
   // two cast it as a shadow instead, and a reading that knew only the outline reported the
   // response bar and the browsed target hint as boxes with no ring on them at all.
-  // A box over the page drawing the ring for the focused element: the projected focus
-  // mark, or the location ring over a decision that holds focus itself, as an arrival
-  // leaves it.
+  // A box drawing the ring for the focused element as its own mark (surfaces.css,
+  // "Every mark on a box is drawn by the box itself"): the target painter's focus state,
+  // the proxy ring round what a focused stop stands for, or the location ring on a
+  // decision that holds focus itself, as an arrival leaves it, and on each box it shows
+  // through.
   const carriesFocus = (el, focused) =>
-    el.matches(".lf-visual-mark-focus, .lf-proxy-ring") ||
-    (el.matches(".lf-location") &&
-      Boolean(focused?.matches?.(".lf-projected-location")));
+    el.matches('[data-lf-mark~="focus"], [data-lf-proxied]') ||
+    (el.matches("[data-lf-projected-location]") &&
+      Boolean(focused?.matches?.("[data-lf-projected-location]")));
+
+  // A gesture's mark on a box: the aim, the margin trace or a comment's mark, which the
+  // box draws as its outline cut to brackets (surfaces.css, "A gesture's mark is
+  // brackets"). It shares the ring's ink and token, but its cut runs say which object
+  // is referenced, not where keyboard input goes.
+  const bracketed = (el) =>
+    el.matches("[data-lf-aimed], [data-lf-traced], [data-lf-mark]") &&
+    getComputedStyle(el).clipPath !== "none";
 
   function ringCandidates() {
     const { accent, mixed } = accentSwatch();
@@ -148,7 +158,7 @@
     //
     // An annotated source can also carry an authored contour in the same ink.
     // The rule reading keeps that contour out unless a ring rule or actual focus
-    // claims it. Projected target feedback is excluded by its state below.
+    // claims it. A gesture's mark is excluded by its brackets below (`bracketed`).
     //
     // The focused element joins them whatever paints its outline, since a visible ring
     // cut in half is a fault whoever drew it.
@@ -161,14 +171,7 @@
     for (const root of roots)
       for (const el of root.querySelectorAll("*")) {
         if (el.shadowRoot) roots.push(el.shadowRoot);
-        // Target feedback shares the ring's ink and token, but its clipped ends
-        // say which object is referenced, not where keyboard input goes.
-        if (
-          el.matches(
-            ".lf-aim, .lf-target-trace, .lf-visual-mark:not(.lf-visual-mark-focus)",
-          )
-        )
-          continue;
+        if (bracketed(el)) continue;
         const cs = getComputedStyle(el);
         if (isFocusRing(cs)) claimed.push({ el, cs });
         const after = getComputedStyle(el, "::after");
@@ -179,6 +182,7 @@
       focused &&
       focused !== document.body &&
       focused !== document.documentElement &&
+      !bracketed(focused) &&
       !claimed.some((claim) => claim.el === focused)
     )
       claimed.push({ el: focused, cs: getComputedStyle(focused) });
@@ -827,29 +831,24 @@
     overlaid(e);
     // The target painter's focus state names the current keyboard carrier even
     // when its source has no id, and so does a focused stop's ring round what it
-    // stands for. The painter's other states are reference brackets.
-    const projected = e.ownerDocument.querySelector(
-      ".lf-visual-mark-focus, .lf-proxy-ring",
-    );
-    if (projected?.checkVisibility({ visibilityProperty: true })) overlaid(projected);
-    // The location ring drawn over a decision is its focus cue too.
-    const location = e.ownerDocument.querySelector(".lf-location");
-    if (
-      e.matches(".lf-projected-location") &&
-      location?.checkVisibility({ visibilityProperty: true })
-    )
-      overlaid(location);
+    // stands for, and the location ring on a decision the stop is, on each box it
+    // shows through (`carriesFocus`). Each box draws it as its own outline. The
+    // painter's other states are reference brackets.
+    for (const box of e.ownerDocument.querySelectorAll(
+      '[data-lf-mark~="focus"], [data-lf-proxied], [data-lf-projected-location]',
+    ))
+      if (
+        carriesFocus(box, e) &&
+        box.checkVisibility({ visibilityProperty: true }) &&
+        ringed(getComputedStyle(box))
+      )
+        carriers.push([box, null]);
     // Tabs draw focus on their label inside the larger hit target.
     for (const child of e.querySelectorAll("*"))
       if (child.checkVisibility({ visibilityProperty: true, opacityProperty: true })) {
         if (ringed(getComputedStyle(child))) carriers.push([child, null]);
         overlaid(child);
       }
-    // A diff's scroller gives its ring to the following frame so its rows cannot
-    // paint over the band. The frame is outside the focused node's ancestry.
-    const frame = e.nextElementSibling;
-    if (frame?.matches(".lf-diff-frame") && ringed(getComputedStyle(frame)))
-      carriers.push([frame, null]);
     for (let el = flatParent(e); el; el = flatParent(el)) {
       const up = getComputedStyle(el);
       if (up.outlineStyle === "auto") return null;

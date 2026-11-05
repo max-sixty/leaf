@@ -9,6 +9,7 @@ from interact_support import append_carried_log_record, append_command
 from playwright.sync_api import expect
 from render_cases_interaction import live_url
 from render_cases_navigation import (
+    DRAFT_DRAWN,
     DRAFT_EDITED,
     DRAFT_TEXT,
     JOURNEY_V1,
@@ -88,7 +89,7 @@ def test_page_round_trip(browser, serve):
     # sends the whole new body. The text must have arrived without the source's
     # indentation.
     draft = page.locator("#draft-ops")
-    assert draft.locator(".lf-draft-body").inner_text() == DRAFT_TEXT
+    assert draft.locator(".lf-draft-body").inner_text() == DRAFT_DRAWN
     draft.locator(".lf-draft-body").dblclick()
     write(draft.locator("leaf-text"), DRAFT_EDITED)
     draft_control(page, "save", "draft-ops").click()
@@ -116,7 +117,7 @@ def test_page_round_trip(browser, serve):
     comment = next(
         e["id"] for e in events_model.read_events(d) if e["kind"] == "comment"
     )
-    quote = open_panel_thread(page, comment).locator(".lf-fp-quote")
+    quote = open_panel_thread(page, comment).locator(".lf-thread-quote")
     expect(quote).not_to_have_attribute("data-lf-detached", "")
     # v2's markup carries the original draft text — Claude hasn't honored the
     # edit — so the user's words must arrive by replay, not visibly revert.
@@ -451,6 +452,6 @@ def test_a_comment_written_on_an_edited_draft_lands_on_their_words(browser, serv
     comment = next(
         e["id"] for e in events_model.read_events(d) if e["kind"] == "comment"
     )
-    quote = open_panel_thread(page, comment).locator(".lf-fp-quote")
+    quote = open_panel_thread(page, comment).locator(".lf-thread-quote")
     expect(quote).not_to_have_attribute("data-lf-detached", "")
     assert painted(page, "lf-mark") == "It takes about a minute."

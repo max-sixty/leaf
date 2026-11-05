@@ -549,10 +549,7 @@ def test_widget_actions_withdrawals_reports_and_errors_remain_deliverable(page_d
     assert page_state(page_dir)["pending"] == 2
 
 
-@pytest.mark.parametrize("title", [None, "Workshop venue"])
-def test_first_delivery_carries_thread_title_without_repeating_messages(
-    page_dir, title
-):
+def test_first_delivery_carries_thread_title_without_repeating_messages(page_dir):
     publish(page_dir)
     serving(page_dir, 1)
     root = append_carried_log_record(
@@ -564,19 +561,18 @@ def test_first_delivery_carries_thread_title_without_repeating_messages(
             "text": "Which space will be easier for everyone to find?",
         },
     )
-    if title is not None:
-        named = CliRunner().invoke(
-            cli_model.cli,
-            [
-                "thread",
-                "edit",
-                str(page_dir),
-                root["id"],
-                "--title",
-                title,
-            ],
-        )
-        assert named.exit_code == 0, named.output
+    named = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "thread",
+            "edit",
+            str(page_dir),
+            root["id"],
+            "--title",
+            "Workshop venue",
+        ],
+    )
+    assert named.exit_code == 0, named.output
     assert service_model.claim_page(page_dir)
     waited = CliRunner().invoke(cli_model.cli, ["wait", str(page_dir)])
     assert waited.exit_code == 0, waited.output
@@ -585,7 +581,7 @@ def test_first_delivery_carries_thread_title_without_repeating_messages(
     assert header["threads"] == [
         {
             "id": root["id"],
-            "title": title,
+            "title": "Workshop venue",
             "anchor": None,
             "detached_from": None,
             "resolved": None,
@@ -835,6 +831,16 @@ def test_a_delivered_gesture_says_what_the_user_chose_on_their_version(
     assert chose["attention"] is False
     [chosen] = freeze_events(page_dir, [chose])["batches"][0]["events"]
     assert chosen["names"] == {"flag-first": "Flag first"}
+    # A session that missed the delivery reads the same facts on the choice in force.
+    read = CliRunner().invoke(cli_model.cli, ["page", "state", str(page_dir)])
+    assert read.exit_code == 0, read.output
+    [in_force] = [
+        entry
+        for entry in json.loads(read.output)["state"]
+        if entry["seq"] == chose["seq"]
+    ]
+    facts = ("subject", "threads", "says", "names")
+    assert {key: in_force[key] for key in facts} == {key: chosen[key] for key in facts}
     [(widget, whole)] = shown[0]["says"].items()
     assert widget == "plan-choice"
     assert "Ship behind the flag, reworded." in whole and "Backfill first" in whole
@@ -1335,7 +1341,8 @@ def test_a_message_on_a_playground_carries_the_settings_it_showed(
     as `unsent`, the work in force when the user wrote it: an undo before it takes a
     setting back and one after it doesn't, a thread later moved to another
     playground keeps what its earlier messages were about, a playground sent in a
-    thread counts for that thread, and a message elsewhere carries none."""
+    thread counts for that thread, and a message elsewhere carries none. `page state`
+    prints the same work on each message of a thread it reads."""
     page_dir = initialized_page(tmp_path / "page", ("playground",))
 
     def playground(ident, card):
@@ -1423,6 +1430,26 @@ def test_a_message_on_a_playground_carries_the_settings_it_showed(
         **on_page,
         answered["id"]: [{key: sent[key] for key in fields}],
     }
+
+    # A session that never got those deliveries reads the same work on each message
+    # of the thread, an edited message reading what stood at its latest edit.
+    def read(thread):
+        result = CliRunner().invoke(
+            cli_model.cli, ["page", "state", str(page_dir), thread]
+        )
+        assert result.exit_code == 0, result.output
+        return {
+            message["message"]: message.get("unsent")
+            for message in json.loads(result.output)["content"]
+            if message["author"] == "user"
+        }
+
+    assert read(opened["id"]) == {
+        opened["id"]: on_page[opened["id"]],
+        reply["id"]: on_page[edit["id"]],
+    }
+    assert read(asked["id"]) == {answered["id"]: [{key: sent[key] for key in fields}]}
+
     # The version the user wrote on says what its verbs recorded, so a later one
     # redeclaring the verb leaves what the earlier messages were about.
     declare_on_page(

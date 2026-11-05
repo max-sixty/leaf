@@ -24,7 +24,9 @@ markup in an agent's message, that message's own markup. `elementById(id, root)`
 or the whole document, including the shadow trees `getElementById` misses.
 `under(node, root)` says whether `node` is in `root` across shadow boundaries, and
 `inChrome(node)` whether it is in Leaf's own interface, as a widget in a Thread reply
-is.
+is. A widget that acts on the document around it, as a contents list or a depth dial
+does, reads it with `viewDocument(node)`: the view member holding the node (`x-views`,
+`module-authoring.md`), else the `main` holding it, else null.
 
 ### Naming elements
 
@@ -108,9 +110,12 @@ changing prose repaints then.
 
 ### Code
 
-`syntax(source, lang)` resolves to the code's tokens, `[{text, style}]`, coloured by the
-page's syntax theme. `synNodes(tokens)` turns them into nodes, and `tokenLines(tokens)`
-splits them by line. `lang` is a registry `$languages` name; `langForPath(path)` derives
+`syntax(source, lang)` resolves to `{tokens, state}`: the code's tokens,
+`[{text, style}]`, coloured by the page's syntax theme, and the grammar state its last
+line ends in. `synNodes(tokens)` turns the tokens into nodes, and `tokenLines(tokens)`
+splits them by line. To colour a long text a part at a time, pass each part the state
+the part before it ended in, `syntax(part, lang, state)`, and it is coloured as it would
+be in the whole text. `lang` is a registry `$languages` name; `langForPath(path)` derives
 one from a file name, and `ensureSyntaxLanguage(lang)` loads one ahead of time.
 `highlightBlocks(root)` colours each `pre > code` in `root` whose `language-…` class
 names a language and that wears the reading face
@@ -137,7 +142,9 @@ pass it as `trigger` instead. Set its `value` before it copies, and it reports
 
 `alignText(before, after)` aligns two texts by words and returns runs `{kind, text}`,
 with `kind` `same`, `delete` or `insert`. To align by sentences, pass an
-`Intl.Segmenter` with `granularity: "sentence"` as the third argument.
+`Intl.Segmenter` with `granularity: "sentence"` as the third argument. Its walk gives
+up after `MAX_EDIT_LENGTH` edits and returns the whole text replaced; a widget that
+walks its own units with jsdiff, such as a document's lines, passes the same cap.
 
 ### Media URLs
 
@@ -165,6 +172,29 @@ face, such as the second of two symbols a press swaps by CSS.
 
 For a Lit control, `actionClass(role, className)` supplies the same face classes as
 `offerAction`; `actionName(action)` supplies the action's accessible name.
+
+### Time axes
+
+`axisTicks(from, to, duration, pxPerMs)` returns `{time, major, label, flip, step}`
+ticks for a visible time span, clipped to the duration. Times and steps are
+milliseconds; major labels use seconds, and `flip` marks a label that reads back from
+its tick because it would run past the axis's end. Set `--lf-axis-edge` on the
+drawing to `AXIS_EDGE` pixels, the inset at each end of the axis's span; without it the
+axis has none. Whatever stands on the axis is absolutely positioned at its fraction of
+the axis, `--lf-axis-at` on the element, in a box as wide as the axis: each tick a
+`span.lf-axis-tick` inside an `.lf-axis-ruler`, with `data-lf-major` and `data-lf-flip`
+as the tick says; a `span.lf-axis-gridline` for each major tick, with its
+`data-lf-flip`, inside an `.lf-axis-grid` you place over the drawing below the ruler;
+and your own marks, labels and playhead with the class `lf-on-axis`.
+`AXIS_TICK_SPACING`, `AXIS_LABEL_CHROME` and `AXIS_LABEL_GAP` are the least room
+between major ticks, what a mark's label adds to its words, and the least room between
+two labels in one row. `seconds(ms, digits)` writes a time as seconds, with `digits`
+decimals, or rounded to the millisecond with as few as show it.
+`assignRows(items, start, end)` maps each item's `id` to a zero-based row, arranging
+the extents returned by `start(item)` and `end(item)` so overlapping extents use
+different rows. `textWidth(text, font)` measures text in pixels using a CSS font
+shorthand. These helpers support a drawing before widget upgrade as well as later
+updates.
 
 ## Page readings
 
@@ -245,14 +275,13 @@ through `answer`, so the view records nothing of its own.
 
 `readQueues()` returns the `{phase, on_user, on_agent, done}` lists Leaf's panel shows
 under On me and On <agent>. Each row has a `kind`, which is its obligation's
-`source.kind` (with the obligation as `obligation`) or `todo` (with the to-do as
-`todo`), and an `owner`, `user` or `agent`. An obligation's row lists in `also` the ids
-of the other obligations the user answers at the same place, such as the agent's answer
-in a thread about it. Rows not done carry `offers: {open, done}`.
+`source.kind` (with the obligation as `obligation`) or, on the agent's list, `todo`
+(with the to-do as `todo`), and an `owner`, `user` or `agent`, naming its list. An
+obligation's row lists in `also` the ids of the other obligations the user answers at
+the same place, such as the agent's answer in a thread about it.
 `queueItemKey(row)` names a row across moves between lists, and `queueTitle(row)` gives
-its title. `queueActions.open(key)` goes to a row. `queueActions.done(key)` ends a to-do
-the agent opened on the user, returning its admission promise, and returns `null` for
-any other row. Act on a collection only when its `phase` is `ready`.
+its title. `queueActions.open(key)` goes to a row; an obligation is answered only
+through its widget or thread. Act on a collection only when its `phase` is `ready`.
 
 ### Work hierarchies
 
@@ -264,8 +293,7 @@ names its recorded `state` attribute and lists the values under `done` and `stop
 attribute in `on`. `evidence` marks the element that shows observed data. The result
 lists `goals`, `workers`, `leaves`, `stopped` goals, `liveWorkers`, and `running` and
 `quiet` workers, each with its authored `element`, and `done` counts finished leaves.
-`workRole`, `workElements`, `directWorkElements` and `workAncestor` read the same
-declaration. Atlas in `examples/command-hub.page/` is the worked example.
+`workAncestor` reads the same declaration. Atlas in `examples/command-hub.page/` is the worked example.
 
 ### Page history and reports
 
@@ -295,9 +323,11 @@ rewritten section is, together with the blocks the earlier version had there. A
 paragraph removed with nothing in its place is a change too, with no elements. Each
 change is an object: `blocks`, its elements inside `owner` in page order; `removed`,
 what the earlier version's blocks said (`{id, tag, word, words}`); and `at`, the
-element it stands by, its first block or the block after its gap. The result's length
-counts changes as the reader does. Reading it during a `LeafElement` render subscribes
-that render to comparison changes.
+element it stands by: its first block, or for a removal the element beside its gap, or
+the element the removal emptied of every block. A removal's `at` is in the part of the
+page the blocks were taken from, so a paragraph removed from a tab counts in that tab.
+The result's length counts changes as the reader does. Reading it during a
+`LeafElement` render subscribes that render to comparison changes.
 
 `revisionLabel(event.revision)` is the page's name for the version an event was
 recorded in.

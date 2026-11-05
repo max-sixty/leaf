@@ -329,12 +329,14 @@ def test_open_page_map_uses_the_canonical_margin_entry_record_and_live_state(
     assert page.evaluate("() => window.lfCanonicalActivations") == ["inspect-source"]
 
 
-def test_page_map_preserves_opaque_contribution_identity_and_relation_targets(
+def test_opaque_contribution_identity_holds_in_the_margin_and_the_page_map(
     browser, serve
 ):
-    """Composite keys retain both controls and relations target unique stable hosts."""
+    """Owner and entry keys are a coordinate, not a delimiter-encoded string, so composite
+    keys retain both controls in the margin and the Map, and relations target unique
+    stable hosts."""
     page = open_page(browser, serve(PANEL_PAGE))
-    page.evaluate(
+    readings = page.evaluate(
         """async () => {
           const {contributionEntry, registerContribution} =
             await window.__lfWidgetApi();
@@ -347,7 +349,24 @@ def test_page_map_preserves_opaque_contribution_identity_and_relation_targets(
           });
           const first = register('a:b', 'c', 'First opaque action');
           const second = register('a', 'b:c', 'Second opaque action');
-          const related = registerContribution({
+          window.lfIdentityMargins = {first, second};
+          return {
+            first: Boolean(first.control('c', 'margin', true)),
+            second: Boolean(second.control('b:c', 'margin', true)),
+          };
+        }"""
+    )
+    assert readings == {"first": True, "second": True}
+    host = page.locator('[data-lf-margin-for="how-cap"]')
+    expect(host.get_by_role("button", name="First opaque action")).to_be_visible()
+    expect(host.get_by_role("button", name="Second opaque action")).to_be_visible()
+
+    page.evaluate(
+        """async () => {
+          const {contributionEntry, registerContribution} =
+            await window.__lfWidgetApi();
+          const target = document.querySelector('#how-cap');
+          window.lfIdentityMargins.related = registerContribution({
             key: 'relations', target,
             read: () => ({entries: [
               contributionEntry({key: 'open-colon', icon: 'more', label: 'Open colon',
@@ -360,7 +379,6 @@ def test_page_map_preserves_opaque_contribution_identity_and_relation_targets(
               contributionEntry({key: 'a/b', icon: 'dot', label: 'Slash target'}),
             ]}), activate: () => {},
           });
-          window.lfIdentityMargins = {first, second, related};
         }"""
     )
     page.keyboard.press("g")
@@ -570,73 +588,93 @@ def test_g_hints_address_the_visible_window_and_g_shift_m_opens_the_complete_pag
     assert page.evaluate("() => document.scrollingElement.scrollTop") == before_sheet
 
 
-# The phone's sheet and a window too short for the full list.
-@pytest.mark.parametrize("viewport", [(390, 844), (1440, 300)])
-def test_page_map_filtering_keeps_search_and_close_in_place(browser, serve, viewport):
+def test_the_page_map_search_filters_in_place_and_walks_its_rows(
+    browser, serve, subtests
+):
     """Filtering changes the list below the search, keeping the sheet's top and the
-    controls the user is operating fixed. A full list still reaches its final row."""
+    controls the user is operating fixed. A full list still reaches its final row. The
+    cases are the phone's sheet and a window too short for the full list.
+
+    The dialog is a list under a search: Down leaves the search for the first row,
+    Up and Down then step between rows rather than scrolling the page behind the modal,
+    and Enter in the search opens the first row it matches."""
     page = open_page(browser, serve(PAGE_MAP_PAGE, events=PAGE_MAP_EVENTS))
-    resized(page, *viewport)
-    page.keyboard.press("g")
-    page.keyboard.press("Shift+p")
     dialog = page.get_by_role("dialog", name="Page Map", exact=True)
     search = dialog.get_by_role(
         "searchbox", name="Find an action, status, or location in Page Map"
     )
     close = dialog.get_by_role("button", name="Close Page Map", exact=True)
     groups = dialog.locator(".lf-page-map-group:visible")
-    expect(groups).to_have_count(12)
-    expect(search).to_be_focused()
     search_field = dialog.locator(".lf-page-map-search")
-    before = {"search": search_field.bounding_box(), "close": close.bounding_box()}
-    top = dialog.bounding_box()["y"]
 
-    for query, count in [("Map note 12", 1), ("No such map entry", 0), ("", 12)]:
-        if query:
-            search.fill(query)
-        else:
-            search_field.get_by_role("button", name="Clear entry").click()
-            expect(search).to_have_value("")
+    def sheet_put_away():
+        """A case that failed can leave the sheet open and filtered for the next."""
+        if dialog.is_visible():
+            search.fill("")
+            close.click()
+            expect(dialog).to_be_hidden()
+
+    for viewport in [(390, 844), (1440, 300)]:
+        with subtests.test(viewport=viewport):
+            sheet_put_away()
+            resized(page, *viewport)
+            page.keyboard.press("g")
+            page.keyboard.press("Shift+p")
+            expect(groups).to_have_count(12)
             expect(search).to_be_focused()
-        expect(groups).to_have_count(count)
-        rendered(page)
-        assert search.get_attribute("aria-keyshortcuts") == (
-            "ArrowDown Enter" if count else None
-        )
-        assert search_field.bounding_box() == before["search"]
-        assert close.bounding_box() == before["close"]
-        assert dialog.bounding_box()["y"] == top
-        assert (
-            dialog.bounding_box()["y"] + dialog.bounding_box()["height"] <= viewport[1]
-        )
+            before = {
+                "search": search_field.bounding_box(),
+                "close": close.bounding_box(),
+            }
+            top = dialog.bounding_box()["y"]
 
-    page.keyboard.press("ArrowDown")
-    page.keyboard.press("End")
-    rows = dialog.locator("button.lf-page-map-action")
-    expect(rows.last).to_be_focused()
-    rendered(page)
-    list_box = dialog.locator(".lf-page-map-list").bounding_box()
-    last = rows.last.bounding_box()
-    assert last["y"] >= list_box["y"]
-    assert last["y"] + last["height"] <= list_box["y"] + list_box["height"] + 1
-    assert dialog.locator(".lf-page-map-list").evaluate("node => node.scrollTop") > 0
-    assert close.bounding_box() == before["close"]
+            for query, count in [
+                ("Map note 12", 1),
+                ("No such map entry", 0),
+                ("", 12),
+            ]:
+                if query:
+                    search.fill(query)
+                else:
+                    search_field.get_by_role("button", name="Clear entry").click()
+                    expect(search).to_have_value("")
+                    expect(search).to_be_focused()
+                expect(groups).to_have_count(count)
+                rendered(page)
+                assert search.get_attribute("aria-keyshortcuts") == (
+                    "ArrowDown Enter" if count else None
+                )
+                assert search_field.bounding_box() == before["search"]
+                assert close.bounding_box() == before["close"]
+                assert dialog.bounding_box()["y"] == top
+                assert (
+                    dialog.bounding_box()["y"] + dialog.bounding_box()["height"]
+                    <= viewport[1]
+                )
 
+            page.keyboard.press("ArrowDown")
+            page.keyboard.press("End")
+            rows = dialog.locator("button.lf-page-map-action")
+            expect(rows.last).to_be_focused()
+            rendered(page)
+            list_box = dialog.locator(".lf-page-map-list").bounding_box()
+            last = rows.last.bounding_box()
+            assert last["y"] >= list_box["y"]
+            assert last["y"] + last["height"] <= list_box["y"] + list_box["height"] + 1
+            assert (
+                dialog.locator(".lf-page-map-list").evaluate("node => node.scrollTop")
+                > 0
+            )
+            assert close.bounding_box() == before["close"]
+            close.click()
+            expect(dialog).to_be_hidden()
 
-def test_the_page_map_dialog_walks_its_rows_from_the_search(browser, serve):
-    """The dialog is a list under a search: Down leaves the search for the first row,
-    Up and Down then step between rows rather than scrolling the page behind the modal,
-    and Enter in the search opens the first row it matches."""
-    page = open_page(browser, serve(PAGE_MAP_PAGE, events=PAGE_MAP_EVENTS))
+    sheet_put_away()
     resized(page, 1440, 600)
     before = page.evaluate("() => document.scrollingElement.scrollTop")
     page.keyboard.press("g")
     page.keyboard.press("Shift+p")
-    dialog = page.get_by_role("dialog", name="Page Map", exact=True)
     rows = dialog.locator("button.lf-page-map-action")
-    search = dialog.get_by_role(
-        "searchbox", name="Find an action, status, or location in Page Map"
-    )
     expect(search).to_be_focused()
 
     page.keyboard.press("ArrowDown")
@@ -693,21 +731,6 @@ def test_the_chrome_names_an_obligation_by_its_question(browser, serve):
     )
     expect(group).to_have_count(1)
     expect(group.locator(".lf-page-map-action")).to_have_text(["Waiting on me"])
-
-
-def test_a_finger_opens_the_page_map_on_its_first_row(browser, serve):
-    """Focusing the search on a phone raises the soft keyboard over the list the finger
-    came to tap, so a coarse pointer opens the map on its first row instead."""
-    context = browser.new_context(
-        viewport={"width": 390, "height": 844}, has_touch=True, is_mobile=True
-    )
-    page = open_page(
-        browser, serve(PAGE_MAP_PAGE, events=PAGE_MAP_EVENTS), context=context
-    )
-    page.keyboard.press("g")
-    page.keyboard.press("Shift+p")
-    dialog = page.get_by_role("dialog", name="Page Map", exact=True)
-    expect(dialog.locator("button.lf-page-map-action").first).to_be_focused()
 
 
 def test_g_hints_reach_a_late_visible_action_only_location(browser, serve):
@@ -1117,6 +1140,14 @@ def test_the_small_screen_map_is_a_complete_accessible_sheet(browser, serve, ope
     assert page.evaluate("() => document.scrollingElement.scrollTop") == before
     expect(page.locator(PANEL)).not_to_have_attribute("data-lf-open", re.compile("."))
 
+    # A finger's keys, from a keyboard it has to hand, open it on the first row too:
+    # focusing the search would raise the soft keyboard over the list.
+    if opener == "finger":
+        page.evaluate(RELEASE_FOCUS)
+        page.keyboard.press("g")
+        page.keyboard.press("Shift+p")
+        expect(dialog.locator("button.lf-page-map-action").first).to_be_focused()
+
 
 def test_the_complete_page_map_survives_a_crossing_to_the_wide_screen(browser, serve):
     """The Page Map is one destination while its compact rail changes posture."""
@@ -1227,8 +1258,8 @@ def test_a_live_version_retargets_an_open_margin_preview(browser, serve):
     close.focus()
     expect(close).to_be_focused()
     # The card's thread, which the user is located in, marks its element.
-    mark = page.locator('.lf-visual-mark-here[data-lf-for="bracket"]')
-    expect(mark).to_be_visible()
+    marked, here = page.locator("#bracket"), re.compile(r"\bhere\b")
+    expect(marked).to_have_attribute("data-lf-mark", here)
 
     (serve.page_dir / "index.html").write_text(
         OBLIGATION_PAGE.replace("Three jobs", "Four jobs")
@@ -1237,7 +1268,7 @@ def test_a_live_version_retargets_an_open_margin_preview(browser, serve):
     expect(page.get_by_role("heading", name="Four jobs")).to_be_visible()
     expect(close).to_be_focused()
     expect(page.locator(".lf-margin-preview")).to_be_visible()
-    expect(mark).to_be_visible()
+    expect(marked).to_have_attribute("data-lf-mark", here)
 
 
 def test_a_version_comparison_joins_the_same_map_and_leaves_with_it(browser, serve):

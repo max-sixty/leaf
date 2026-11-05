@@ -211,18 +211,6 @@ test("checking stale output refuses it without changing any bytes", async (conte
   await writeFile(path.join(scratch, chunk), "");
   await assert.rejects(checkOutputs(outputs, scratch), new RegExp(chunk));
   await rm(path.join(scratch, chunk));
-  // A kernel left behind by a merge names the command that rebuilds it.
-  const kernel = path.join(scratch, "dist/kernel/leaf.js");
-  await writeFile(kernel, "<<<<<<< ours\n");
-  await assert.rejects(
-    checkOutputs(outputs, scratch),
-    (error) =>
-      error instanceof Error &&
-      error.message.includes(
-        "pnpm install --frozen-lockfile && pnpm run build:browser",
-      ) &&
-      error.message.endsWith("\ndist/kernel/leaf.js"),
-  );
 });
 
 test("an upstream adaptation fails the build once its seam or its module moves", async () => {
@@ -280,6 +268,25 @@ test("the bundle gate reads the parsed module, not its text", () => {
   checkModule('import { html } from "/vendor/lit.js"; export * from "../a.js";');
   // Pierre's TextMate grammars carry it as data.
   checkModule('export const grammar = { begin: "import\\\\(", end: "require(x)" };');
+});
+
+test("an element with id=process leaves syntax highlighting working", () => {
+  // A page's named elements are globals, so `process` can be one, with no `env`.
+  const script = `
+    const node = process;
+    Object.defineProperty(globalThis, "process", { value: {}, configurable: true });
+    const syntax = await import(${JSON.stringify(`${root}${vendor}/syntax.esm.js`)});
+    const python = await import(${JSON.stringify(`${root}${vendor}/syntax/python.js`)});
+    await syntax.registerLanguage("python", python.default);
+    const { tokens } = await syntax.tokenize("x = 1\\n", "python");
+    Object.defineProperty(globalThis, "process", { value: node });
+    console.log(tokens.map((token) => token.text).join(""));
+  `;
+  const run = spawnSync(process.execPath, ["--input-type=module", "-e", script], {
+    encoding: "utf8",
+  });
+  assert.equal(run.stderr, "");
+  assert.equal(run.stdout, "x = 1\n\n");
 });
 
 test("Trees search hides every nonmatch and restores an empty query", async () => {

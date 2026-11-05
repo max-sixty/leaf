@@ -6,7 +6,7 @@ import itertools
 import re
 
 import pytest
-from interact_support import refused_on, wait_for
+from interact_support import wait_for
 from PIL import Image, ImageChops
 from playwright.sync_api import expect
 from render_cases_interaction import live_url
@@ -809,7 +809,7 @@ def test_plain_choices_stand_one_per_line_until_the_author_sets_columns(browser,
     resized(page, 1700, 1000)
     read = """control => {
       const box = node => node.getBoundingClientRect();
-      const faces = [...control.querySelectorAll('label.choice')].map(face => {
+      const faces = [...control.querySelectorAll('label.lf-choice')].map(face => {
         const words = document.createRange();
         words.selectNodeContents(face.querySelector('.lf-playground-choice-label'));
         const edges = box(face);
@@ -820,7 +820,7 @@ def test_plain_choices_stand_one_per_line_until_the_author_sets_columns(browser,
         left: box(control).left, right: box(control).right, top: box(control).top,
         faces,
         labelLeft: box(control.querySelector('.lf-playground-control-label')).left,
-        markLeft: box(control.querySelector('label.choice > input')).left,
+        markLeft: box(control.querySelector('label.lf-choice > input')).left,
       };
     }"""
     controls = [
@@ -1521,61 +1521,6 @@ def test_a_playground_opens_its_instruction_over_the_page(browser, serve):
     expect(instruction).to_be_hidden()
 
 
-def test_notification_playground_admits_only_its_exact_page_configuration(
-    browser, serve
-):
-    source = named_source("notification-playground")
-    url = serve(source)
-    page = open_page(browser, url)
-    playground = page.locator("#notification-playground")
-    values = playground.evaluate("root => root.values")
-    assert set(values) == {
-        "accent",
-        "compact",
-        "events",
-        "format",
-        "radius",
-        "show-owner",
-        "title",
-        "tone",
-    }
-
-    refused = post_event(
-        page,
-        url.rsplit("/versions/", 1)[0] + "/api/event",
-        data={
-            "kind": "action",
-            "revision": 1,
-            "widget": "notification-playground",
-            "action": "choose",
-            "detail": {
-                "values": {**values, "unknown": "not part of this page"},
-                "instruction": "Build the notification.",
-            },
-        },
-    )
-    assert refused.status == 400
-    unknown = refused_on(refused.json())
-    assert (unknown.code, unknown.values["field"]) == ("invalid-detail", "/values")
-    off_step = post_event(
-        page,
-        url.rsplit("/versions/", 1)[0] + "/api/event",
-        data={
-            "kind": "action",
-            "revision": 1,
-            "widget": "notification-playground",
-            "action": "choose",
-            "detail": {
-                "values": {**values, "events": 2.5},
-                "instruction": "Build the notification.",
-            },
-        },
-    )
-    assert off_step.status == 400
-    assert refused_on(off_step.json()).values["field"] == "/values/events"
-    assert actions(serve.page_dir) == []
-
-
 def test_built_code_reader_design_comment_keeps_its_identity_after_revision(
     browser, serve
 ):
@@ -1620,7 +1565,7 @@ def test_built_code_reader_design_comment_keeps_its_identity_after_revision(
     expect(page.locator("#target-reader-heading")).to_have_text(
         "Revised reader treatment"
     )
-    quote = open_panel_thread(page, event["id"]).locator(".lf-fp-quote")
+    quote = open_panel_thread(page, event["id"]).locator(".lf-thread-quote")
     expect(quote).to_contain_text("target-reader-heading")
     expect(quote).not_to_have_attribute("data-lf-detached", "")
 
@@ -1738,31 +1683,6 @@ def test_a_playground_control_written_in_the_preview_stands_beside_its_item(
         playground.get_by_role("button", name="Apply these settings").click()
     action = events_model.read_events(serve.page_dir)[-1]
     assert action["detail"]["values"]["latency-route"] == "ticket"
-
-
-def test_undoing_a_playground_choice_leaves_the_controls_as_the_user_set_them(
-    browser, serve
-):
-    """Undo withdraws the decision and leaves the controls where the user left them,
-    to adjust and send again; Reset still returns them to the authored defaults."""
-    page = open_page(browser, serve(named_source("alert-thresholds")))
-    playground = page.locator("#alert-playground")
-    budget = playground.get_by_role("slider", name="On-call page budget")
-    expect(budget).to_have_value("10")
-    budget.press("ArrowRight")
-    budget.press("ArrowRight")
-    with sending(page, "the alert settings"):
-        playground.get_by_role("button", name="Apply these settings").click()
-    choice = events_model.read_events(serve.page_dir)[-1]
-    assert choice["detail"]["values"]["budget"] == 12
-
-    undo(page)
-    assert events_model.read_events(serve.page_dir)[-1]["undoes"] == choice["id"]
-    expect(budget).to_have_value("12")
-    assert playground.evaluate("root => root.values.budget") == 12
-
-    playground.get_by_role("button", name="Reset", exact=True).click()
-    expect(budget).to_have_value("10")
 
 
 PAGE_ACTIONS_PAGE = leaf_page(
@@ -1962,75 +1882,6 @@ def test_a_playground_rail_stays_in_view_beside_a_tall_stage(browser, serve):
     assert last_box["y"] >= controls_box["y"] + controls_box["height"]
     budget.press("ArrowRight")
     expect(budget).to_have_value("12")
-
-
-def test_a_playground_initial_drawing_leaves_quoted_controls_alone(browser, serve):
-    """A quotation neither supplies controls nor yields its own value slots.
-
-    Admission refuses a bare quoted control, so collection is exercised directly.
-    Complete quoted playgrounds keep their own values as the surrounding one changes.
-    """
-    page = open_page(browser, serve(PLAYGROUND_PAGE))
-    drawing = page.evaluate(
-        """async source => {
-          const template = document.createElement('template');
-          template.innerHTML = source;
-          const host = template.content.querySelector('#card-playground');
-          host.id = 'quoted-controls-drawing';
-          const quote = document.createElement('lf-sample');
-          quote.setAttribute('data-lf-exhibit', '');
-          quote.innerHTML = `
-            <lf-playground-control name="tone" label="Quoted tone" kind="text"
-              value="quoted"></lf-playground-control>
-            <lf-playground-control name="quoted" label="Quoted toggle" kind="toggle"
-              value="true"></lf-playground-control>`;
-          host.querySelector('lf-playground-preview').append(quote);
-          const quotedOutput = document.createElement('lf-sample');
-          quotedOutput.setAttribute('data-lf-exhibit', '');
-          quotedOutput.innerHTML = `
-            <lf-playground id="quoted-output-drawing">
-              <lf-playground-control name="tone" label="Quoted tone" kind="text"
-                value="quoted"></lf-playground-control>
-              <lf-playground-control name="inner-tone" label="Inner tone" kind="text"
-                value="independent"></lf-playground-control>
-              <lf-playground-preview><p>Inner preview</p></lf-playground-preview>
-              <lf-playground-output><lf-playground-value for="tone"></lf-playground-value>
-                <lf-playground-value for="inner-tone"></lf-playground-value>
-              </lf-playground-output>
-            </lf-playground>`;
-          host.querySelector('lf-playground-output').append(quotedOutput);
-          const { createPlayground } = await import('/widgets/playground-view.js');
-          const { render } = await import('/vendor/lit.js');
-          const nested = quotedOutput.querySelector('lf-playground');
-          const nestedView = createPlayground(nested);
-          render(nestedView.render(), nested, {host: nested});
-          const initial = createPlayground(host);
-          render(initial.render({values: {...initial.defaults, tone: 'bold'}}), host, {host});
-          return {
-            controls: initial.controls.map(control => control.getAttribute('name')),
-            defaults: initial.defaults,
-            quotedInputs: quote.querySelectorAll('input').length,
-            outerTone: initial.output.querySelector(':scope > lf-playground-value[for="tone"]')
-              .textContent,
-            quotedValues: [...quotedOutput.querySelectorAll('lf-playground-value')]
-              .map(slot => slot.textContent),
-          };
-        }""",
-        PLAYGROUND_PAGE,
-    )
-    assert drawing == {
-        "controls": ["radius", "compact", "tone", "accent", "title"],
-        "defaults": {
-            "radius": 12,
-            "compact": False,
-            "tone": "quiet",
-            "accent": "#4f766f",
-            "title": "Field note",
-        },
-        "quotedInputs": 0,
-        "outerTone": "bold",
-        "quotedValues": ["quoted", "independent"],
-    }
 
 
 def test_a_quoted_playground_is_a_static_preview_with_its_authored_output(

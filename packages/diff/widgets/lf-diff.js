@@ -67,7 +67,6 @@ import {
   reportFailure,
   retainUserIntent,
   scrollBehavior,
-  scrollIntoReadingBand,
   searchField,
   setChildren,
   shadowStage,
@@ -87,7 +86,8 @@ import {
   readDiffCoordinate,
 } from "./diff-coordinates.js";
 import { overflowFor } from "./overflow.js";
-import "/vendor/webawesome.esm.js";
+// The search field's `wa-input`, which a plain page has no chrome to define.
+import "/vendor/webawesome-chrome.js";
 import { pierre, markSyntax } from "/widgets/pierre.js";
 // Only a diff that is actually rendering has any use for Pierre's renderer —
 // an authored <lf-diff> bound to data
@@ -807,7 +807,10 @@ async function renderFile(file, overflow) {
     separator.classList.add("lf-ui");
   markSyntax(content, foreground);
   const lines = renderedLines(file, content);
+  // The block is its source's ring frame (surfaces.css, `.lf-ring-frame`): the ring
+  // stands over the rows the source scrolls, outside its scrollport.
   const pre = document.createElement("pre");
+  pre.className = "lf-ring-frame";
   pre.dataset.overflow = overflow;
   const viewport = document.createElement("code");
   viewport.dataset.code = "";
@@ -824,10 +827,7 @@ async function renderFile(file, overflow) {
   rows.style.setProperty("--lf-diff-gutter", `${String(largest).length + 3}ch`);
   rows.append(content);
   viewport.append(rows);
-  const frame = document.createElement("span");
-  frame.className = "lf-diff-frame";
-  frame.setAttribute("aria-hidden", "true");
-  pre.append(viewport, frame);
+  pre.append(viewport);
   return { pre, rows, lines };
 }
 
@@ -997,8 +997,6 @@ customElements.define(
     /** @type {import("../../../browser/types/contract.js").DataUnifiedDiff | null | undefined} */
     #shown;
     #showing = false;
-    /** @type {ReturnType<typeof threadSurface>["open"]} */
-    #opener = null;
     // The rendering the update under way started, which its `updateComplete` waits for.
     /** @type {Promise<void> | undefined} */
     #rendered;
@@ -1044,19 +1042,6 @@ customElements.define(
       super();
       /** @type {import("../../../browser/types/contract.js").DataUnifiedDiff | null} */
       this.value = null;
-    }
-
-    /** @param {import("lit").PropertyValues} changed */
-    shouldUpdate(changed) {
-      const ready = super.shouldUpdate(changed);
-      if (!ready) return false;
-      // Evidence and annotation availability are independent inputs. Other no-op
-      // updates must not clear a completed refusal.
-      return (
-        this.#shown === undefined ||
-        this.value !== this.#shown ||
-        threadSurface(this).open !== this.#opener
-      );
     }
 
     setup() {
@@ -1175,7 +1160,9 @@ customElements.define(
 
     render() {
       this.#delivered = this.value;
-      this.#opener = threadSurface(this).open;
+      // Drawn files offer Comment while a surface is registered; reading the opener
+      // here draws again when it changes, and `updated` reconciles the controls.
+      void threadSurface(this).open;
       return nothing;
     }
 
@@ -1374,8 +1361,11 @@ customElements.define(
         this.filesBody = null;
         this.classList.toggle("lf-rendered", false);
         // The failure box quotes a patch text; a manifest has none to quote. It takes
-        // the place of every outlet, which core's composer leaves first.
+        // the place of every outlet, which core's composer leaves first. It stands as
+        // the shadow stage, as files do, so it lasts until the next `show` stages
+        // another rendering; an update that leaves the source unchanged keeps it.
         releaseOutlets(this);
+        shadowStage(this, []);
         failSoft(this, err, typeof source === "string" ? source : undefined);
         this.markFiles(source);
       }
@@ -1917,7 +1907,7 @@ customElements.define(
       const all = `${total} file${total === 1 ? "" : "s"}`;
       const matching = `${shown.length} of ${total}`;
       // Filtering changes the count inside its room, never its containing field.
-      keeps(this.diffTools.progress, "data-room", `${all}\n${total} of ${total}`);
+      keeps(this.diffTools.progress, "data-lf-room", `${all}\n${total} of ${total}`);
       keepsText(this.diffTools.count, shown.length === total ? all : matching);
       this.paintFoldAll();
       commandsChanged(this);
@@ -2085,11 +2075,15 @@ customElements.define(
     // already is one, and writing a tabindex of -1 onto it would take it out of the
     // order a user tabs through.
     //
-    // The shared reading-region landing moves only vertically, including through
-    // the shadow host. Neither the file nor a region around it loses its sideways place.
+    // The landing moves only vertically, including through the shadow host, so neither
+    // the file nor a region around it loses its sideways place.
     /** @param {Element} box @param {Element} [node] */
     land(box, node = box) {
-      scrollIntoReadingBand(box, box, "start", scrollBehavior());
+      scrollIntoView(box, {
+        block: "start",
+        behavior: scrollBehavior(),
+        sideways: false,
+      });
       focusDestination(node, "move");
     }
 

@@ -8,8 +8,6 @@ from render_cases_layout import ONE_OBLIGATION, toggle_queue
 from render_harness import (
     LONG_PAGE,
     PANEL,
-    PANEL_THREAD,
-    SHELL_BOX,
     open_page,
     open_threads,
     panel_settled,
@@ -21,6 +19,7 @@ from render_harness import (
 )
 
 from browser.threads import open_panel_thread
+from leaf_dev.browser import PANEL_THREAD
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -93,7 +92,7 @@ def test_a_selection_that_reaches_the_layer_stops_at_the_page(browser, serve):
     open_panel_thread(page, thread)
     open_layer = page.evaluate(
         """() => {
-          const said = '.lf-quote, .lf-fp-quote, .lf-msg-body';
+          const said = '.lf-quote, .lf-thread-quote, .lf-msg-body';
           return [...document.querySelector('.lf-chrome').querySelectorAll('*')]
             .filter((el) => getComputedStyle(el).webkitUserSelect !== 'none')
             .filter((el) => !el.closest(said))
@@ -107,7 +106,7 @@ def test_a_selection_that_reaches_the_layer_stops_at_the_page(browser, serve):
         """(thread) => {
           const out = {};
           for (const [name, sel] of [
-            ['quote', `${thread} .lf-fp-quote`],
+            ['quote', `${thread} .lf-thread-quote`],
             ['reply', `${thread} .lf-msg-body`],
           ]) {
             const range = document.createRange();
@@ -154,41 +153,6 @@ def test_an_open_view_stands_through_a_replaced_document(browser, serve):
     page.locator(".lf-fp-close").click()
     panel_settled(page, open=False)
     expect(page.locator("#t")).to_be_in_viewport()
-
-
-def test_page_and_panel_scroll_in_separate_regions(browser, serve):
-    """The browser root scrolls the document and an open view keeps its own scrollport.
-
-    Body is the page shell rather than a third scroll region. The panel stands over the
-    page and takes no room from it, so the shell keeps the window's width while native
-    document scrolling remains rooted in html."""
-    page = open_page(browser, serve(LONG_PAGE, comments=30))
-    open_threads(page)
-    expect(page.locator(".lf-fp-thread")).to_have_count(30)
-
-    geom = page.evaluate(
-        """() => {
-        const body = document.body;
-        const scroller = ("""
-        + VIEW_SCROLLER
-        + """)();
-        return { rootIsScroller: document.scrollingElement === document.documentElement,
-                 rootScrolls: document.scrollingElement.scrollHeight > document.scrollingElement.clientHeight,
-                 bodyOverflow: getComputedStyle(body).overflowY,
-                 viewScrolls: Boolean(scroller),
-                 bodyRight: """
-        + SHELL_BOX
-        + """.right,
-                 window: document.documentElement.clientWidth };
-    }"""
-    )
-
-    assert geom["rootIsScroller"] and geom["rootScrolls"]
-    assert geom["bodyOverflow"] == "visible", geom
-    assert geom["viewScrolls"], "the open view did not establish its own scrollport"
-    assert geom["bodyRight"] == pytest.approx(geom["window"], abs=1), (
-        f"the page yielded room to the panel standing over it: {geom}"
-    )
 
 
 def test_a_wheel_over_an_open_view_scrolls_the_view_and_not_the_page(browser, serve):

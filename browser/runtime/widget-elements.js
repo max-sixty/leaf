@@ -17,7 +17,7 @@ export {
    (control-labels.js) when a control's label is also one of the page's words. A Lit template reaches the
    same writers through element directives built by `elementDirective`. A behavior module
    reads a box from inside `measure` (shown-box.js). A label
-   whose words change holds one room for all of them with `data-room`, which the
+   whose words change holds one room for all of them with `data-lf-room`, which the
    theme sizes without script and which cuts words past it (controls.css). A module that
    rearranges what it holds inside an unchanged box says so with `layoutChanged`
    (widget-upgrade.js).
@@ -311,7 +311,6 @@ export function responseAction(
 ) {
   if (Boolean(String(glyph ?? "").trim()) === Boolean(action))
     throw new TypeError("A response action needs exactly one glyph or action");
-  control.classList.toggle("lf-response-control", true);
   control.classList.toggle("lf-response-action", true);
   keeps(control, "data-lf-behavior", behavior);
   control.toggleAttribute("data-lf-collapse", collapse);

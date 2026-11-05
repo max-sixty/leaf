@@ -31,7 +31,6 @@ import {
   readThreads,
   threadActions,
   threadSummary,
-  showNativeLayer,
   closeNativeLayer,
   isNativeLayer,
   keeps,
@@ -53,16 +52,20 @@ import {
 /** @param {HTMLElement} article */
 function readCaseControls(article) {
   /** @type {HTMLElement | null} */
-  const popup = article.querySelector(".lf-vr-details");
-  /** @type {HTMLButtonElement | null} */
-  const source = article.querySelector(".lf-vr-inspect");
-  /** @type {HTMLElement | null} */
   const heading = article.querySelector(".lf-vr-title");
-  const close = popup?.querySelector("button");
-  if (!popup || !source || !heading || !close)
-    throw new Error("Visual case controls did not render");
-  return { popup, source, heading, close };
+  if (!heading) throw new Error("Visual case controls did not render");
+  return { heading };
 }
+
+// The capture details open on their close control, which Escape also presses.
+/** @param {ToggleEvent} event */
+const landOnClose = (event) => {
+  const close =
+    event.newState === "open" && event.currentTarget instanceof HTMLElement
+      ? event.currentTarget.querySelector("button")
+      : null;
+  if (close) focusDestination(close, "move");
+};
 
 // A popover's way out wears the face of every surface's close control in Leaf: the
 // cross, named for what it closes (runtime/widget-elements.js, `closeControl`).
@@ -200,7 +203,6 @@ customElements.define(
             keys: ["i"],
             control: selectedControl(".lf-vr-inspect"),
             when: () => Boolean(this.#selected),
-            run: () => this.#inspection(),
           },
           {
             id: "visual.next-remaining",
@@ -286,16 +288,6 @@ customElements.define(
       beginWalk("visual-case", "Case", () =>
         listWalkPosition(ids(), this.#selected?.record.id),
       );
-    }
-    #inspection() {
-      if (!this.#selected) return;
-      const { popup, source, close } = this.#selected.controls();
-      if (isNativeLayer(popup)) closeNativeLayer(popup);
-      else {
-        focusDestination(source, "press");
-        showNativeLayer(popup, { source });
-        focusDestination(close, "move");
-      }
     }
     /** @param {string | undefined} id @param {boolean} [land] */
     #select(id, land = false) {
@@ -502,7 +494,7 @@ customElements.define(
           </div>
           <div class="lf-vr-decision">
             <div class="lf-vr-review-actions">
-              <label class="choice lf-vr-approval"
+              <label class="lf-choice lf-vr-approval"
                 ><input
                   ${offered("lf-vr-approval-input")}
                   type="checkbox"
@@ -525,11 +517,12 @@ customElements.define(
                   ? html`<button
                         ${offeredAction("word", "lf-vr-open-threads")}
                         popovertarget=${`${this.id}-${record.id}-threads`}
+                        aria-expanded="false"
                       >
                         ${threads.length} ${threads.length === 1 ? "thread" : "threads"}
                       </button>
                       <div
-                        class="lf-vr-thread-list"
+                        class="lf-vr-thread-list lf-popover"
                         data-lf-scroll
                         id=${`${this.id}-${record.id}-threads`}
                         popover
@@ -583,14 +576,17 @@ customElements.define(
               <button
                 ${offeredAction("word", "lf-vr-inspect")}
                 aria-controls=${`${this.id}-${record.id}-inspection`}
+                popovertarget=${`${this.id}-${record.id}-inspection`}
+                aria-expanded="false"
               >
                 Capture details
               </button>
               <div
-                class="lf-vr-details"
+                class="lf-vr-details lf-popover"
                 data-lf-scroll
                 id=${`${this.id}-${record.id}-inspection`}
                 popover
+                @toggle=${landOnClose}
               >
                 <header class="lf-vr-inspection-heading">
                   <h4>Capture details</h4>

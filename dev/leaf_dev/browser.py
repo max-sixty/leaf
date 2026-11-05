@@ -196,8 +196,9 @@ def tab(
 ):
     """A fresh blank tab in `window` and `scheme`, with reduced motion so a still
     never catches a transition midway (pass motion="no-preference" for a journey),
-    drawing `scale` device pixels to a CSS pixel. A caller listens on it before it
-    `load`s."""
+    drawing `scale` device pixels to a CSS pixel. Each of its frames keeps where a
+    mouse last moved over it (`POINTER`), for `settle`. A caller listens on it before
+    it `load`s."""
     width, height = window.size
     context = browser.new_context(
         viewport={"width": width, "height": height},
@@ -207,6 +208,7 @@ def tab(
         has_touch=window.touch,
         is_mobile=window.touch,
     )
+    context.add_init_script(POINTER)
     try:
         page = context.new_page()
         page.set_default_timeout(15_000)
@@ -273,8 +275,8 @@ HELD = """:root { caret-animation: manual; }
 }"""
 
 
-def screenshot(page, path: Path) -> None:
-    """Screenshot the viewport of `page`, a tab `visits` brought to a state, to `path`.
+def screenshot(page) -> bytes:
+    """The PNG of `page`'s viewport, a tab brought to a state.
 
     A capture holds each animation the browser draws of its own accord in one state,
     so two captures of one state draw it alike whenever each is taken, however loaded
@@ -289,20 +291,20 @@ def screenshot(page, path: Path) -> None:
     - An overlay scrollbar, such as a Mac's, starts to fade half a second after its
       box scrolls. The Chromium shell `launch` opens keeps it shown until the pointer
       passes over it and leaves, as a reader sees it while scrolling; Playwright's
-      Firefox and WebKit draw no overlay bar, and a classic bar never fades.
+      Firefox and WebKit draw no overlay bar, `headless_shell` draws no bar at all, and
+      a classic bar never fades.
 
-    The page's own motion is the page's: `visits` waits for a Leaf page whose runtime
-    runs to settle, so no smooth scroll or finite transition is under way, and an
-    endless one, such as the sheen on work under way, follows the tab's `motion`.
-    Stills reduces motion, and probe shows what a user sees unless told to reduce it,
-    so a probe shot can catch that motion at any point.
+    The page's own motion is the page's, and follows the tab's `motion`. A `tab`
+    reduces it unless told otherwise, so Leaf's runtime and theme play none; probe
+    shows what a user sees unless told to reduce it, so a probe shot can catch that
+    motion at any point. `visits` also waits for a Leaf page whose runtime runs to
+    settle, so no smooth scroll or finite transition is under way.
 
     Safari on the iOS simulator takes no input, so it draws no caret or scrollbar to
     hold."""
     if isinstance(page, Page):
-        page.screenshot(path=path, caret="initial", style=HELD)
-    else:
-        page.screenshot(path=path)
+        return page.screenshot(caret="initial", style=HELD)
+    return page.screenshot()
 
 
 def slow_cpu(page: Page, rate: float) -> None:
@@ -321,11 +323,77 @@ def load(page: Page, address: str) -> None:
 
 
 def settle(page: Page) -> None:
-    """Wait until the page is ready, its fonts have loaded, and the runtime reports it
-    settled."""
+    """Wait until the page is ready, its fonts have loaded, the runtime reports it
+    settled, and its hover is on the element under the pointer (`catch_up_hover`)."""
     wait_until_ready(page)
     page.evaluate("() => document.fonts.ready")
     wait_for_probe(page, "pageSettled")
+    if catch_up_hover(page):
+        settle(page)
+
+
+# Where a mouse was last over a frame, in the frame's own viewport, which of its
+# buttons it held, and when: each frame of a `tab` keeps this. A native drag sends no
+# `pointerup`; it ends in `dragend` where it drops, with no button held. On 2026-11-04
+# its `pointercancel` read (0, 0) in Chromium and the button still held in Firefox,
+# and WebKit sent none.
+POINTER = """for (const type of ["pointermove", "pointerdown", "pointerup", "dragend"])
+  addEventListener(type, (event) => {
+    if ((event.pointerType ?? "mouse") === "mouse")
+      globalThis.__lfPointer = {
+        x: event.clientX, y: event.clientY, buttons: event.buttons, at: Date.now(),
+      };
+  }, {capture: true, passive: true});"""
+
+# Whether the hover ends at the deepest element under a resting mouse, through open
+# shadow roots, or no mouse rests here. A held button keeps the hover where the press
+# began.
+HOVER_CAUGHT_UP = """() => {
+  const at = globalThis.__lfPointer;
+  if (!at || at.buttons) return true;
+  let under = document.elementFromPoint(at.x, at.y);
+  for (let inner; (inner = under?.shadowRoot?.elementFromPoint(at.x, at.y)) &&
+    inner !== under; ) under = inner;
+  return !under || (under.matches(":hover") &&
+    ![under, under.shadowRoot].some((root) => root?.querySelector(":hover")));
+}"""
+
+
+def catch_up_hover(page: Page) -> bool:
+    """Wait until the hover is on the element under a resting pointer, and say whether
+    it had to move there.
+
+    Content that scrolls under a resting pointer keeps the old element hovered until
+    the engine hit-tests again on a timer of its own, dispatching `pointerover` as the
+    hover moves. On 2026-11-04 Playwright's Firefox (build 1555) took about 100 ms,
+    its WebKit (build 2370) 20 to 120 ms, and its Chromium about a frame, though on a
+    loaded host sometimes longer than the rest of `settle`, so a capture taken first
+    drew the button a state's driver had pressed still hovered. The page may answer
+    `pointerover`, so `settle` settles again after a hover moved.
+
+    Moving the pointer to where it already is would move the hover at once, but every
+    engine dispatches `pointermove` for the move, which a page answers as it would a
+    hand: the merge film closes the details its Inspect button opened. WebKit also
+    dispatches `pointermove` itself, about 100 ms after the scroll, which this wait
+    doesn't cover; a state whose driver presses and then scrolls can see a WebKit
+    capture change with it.
+
+    The top document can't tell where a pointer in a child frame rests, so a pointer
+    that last moved in one is left to the engine."""
+    if page.evaluate(HOVER_CAUGHT_UP):
+        return False
+    heard = "() => globalThis.__lfPointer?.at ?? 0"
+    own = page.evaluate(heard)
+    if any(frame.evaluate(heard) > own for frame in page.frames):
+        return False
+    try:
+        page.wait_for_function(HOVER_CAUGHT_UP)
+    except PlaywrightTimeout:
+        at = page.evaluate("() => globalThis.__lfPointer")
+        raise AssertionError(
+            f"the hover never reached the element under the pointer at {at}"
+        ) from None
+    return True
 
 
 # How long a scroller holds one position before its travel is over, counted in the
@@ -374,6 +442,25 @@ def scroll_settled(page, scroller=None, axis="y", frames=SCROLL_STILL_FRAMES):
 # ends a list's tabs or another view's head line instead.
 ON_ME_MARK = ".lf-fp-on-user"
 
+# The floating panel (runtime/floating-panel.js) is Leaf's one chrome: a row of the leaf,
+# the field and the On me and Threads marks, with a view opened above it, the leaf's
+# menu among them. Its state stands on its host as attributes: `data-lf-open` names the
+# open view (menu, versions, group, errors, threads, thread, queue, leaves) and
+# `data-lf-rest="mark"` the panel folded to the leaf.
+PANEL = ".lf-floating-panel"
+
+
+def panel_view(name: str) -> str:
+    """The selector of the panel's `name` view (`data-lf-open`'s values, above) that
+    stands open. A view put away keeps its node, marked `data-lf-leaving`, until its
+    exit motion ends, so this never matches one: a selector that did would find two
+    views mid-switch, or a view already on its way out."""
+    return f'.lf-fp-view[data-lf-route="{name}"]:not([data-lf-leaving])'
+
+
+# A view of one thread, which names the thread it shows by id in `data-lf-thread`.
+PANEL_THREAD = panel_view("thread")
+
 
 def panel_tab(page: Page | FrameLocator, name: str):
     """The On view's tab `name` at the foot of the menu, On and Threads, each one of
@@ -393,7 +480,7 @@ def threads_tab(page: Page | FrameLocator):
     rendered(
         page.locator("html").element_handle().owner_frame(), facts=("updatesSettled",)
     )
-    host = page.locator(".lf-floating-panel")
+    host = page.locator(PANEL)
     if host.get_attribute("data-lf-open") not in ("queue", "threads"):
         exit_control = page.locator(".lf-fp-exit")
         if exit_control.count():
@@ -412,7 +499,7 @@ def open_threads(page: Page | FrameLocator) -> None:
     thread opened over Threads by its way back, else by the Threads tab (`threads_tab`)
     unless the mark opened Threads itself. The view lists the open threads, then the
     resolved ones folded under a Resolved heading (`show_resolved`)."""
-    host = page.locator(".lf-floating-panel")
+    host = page.locator(PANEL)
     if host.get_attribute("data-lf-open") == "threads":
         return
     back = page.get_by_role("button", name="Back to Threads")
@@ -422,22 +509,31 @@ def open_threads(page: Page | FrameLocator) -> None:
         tab = threads_tab(page)
         if host.get_attribute("data-lf-open") != "threads":
             tab.click()
-    page.locator(
-        '.lf-fp-view[data-lf-route="threads"]:not([data-lf-leaving])'
-    ).wait_for()
+    page.locator(panel_view("threads")).wait_for()
 
 
 def show_resolved(page: Page | FrameLocator):
     """Unfold the resolved threads in the open Threads, which stand folded under their
     Resolved heading (`.lf-fp-settled`) until the user presses it, and return their
     rows."""
-    threads = page.locator(
-        '.lf-fp-view[data-lf-route="threads"]:not([data-lf-leaving])'
-    )
+    threads = page.locator(panel_view("threads"))
     heading = threads.locator(".lf-fp-settled")
     if heading.get_attribute("aria-expanded") != "true":
         heading.click()
     return threads.locator(".lf-fp-thread[data-lf-resolved]")
+
+
+def show_done(page: Page | FrameLocator):
+    """Unfold what left the open On list, On me's or the agent's, which stands folded
+    under its Done band (`.lf-fp-settled`) until the user presses it, and return its
+    items."""
+    view = page.locator('.lf-fp-view[data-lf-route="queue"]:not([data-lf-leaving])')
+    heading = view.locator(".lf-fp-settled")
+    if heading.get_attribute("aria-expanded") != "true":
+        heading.click()
+    return view.locator(
+        ".lf-fp-on-group:has(> .lf-rows-head > .lf-fp-settled) > .lf-fp-on-item"
+    )
 
 
 def go_to_threads(page: Page, frame: FrameLocator | None = None) -> None:
@@ -448,7 +544,7 @@ def go_to_threads(page: Page, frame: FrameLocator | None = None) -> None:
     route, which both share."""
     within = frame or page
     # Completing `g T` again closes the view (keyboard/go-to-sequence.js).
-    if within.locator(".lf-floating-panel").get_attribute("data-lf-open") == "threads":
+    if within.locator(PANEL).get_attribute("data-lf-open") == "threads":
         return
     # A press at the frame's top corner gives its document the keys; the page's own
     # only needs focus off any control.
@@ -458,6 +554,4 @@ def go_to_threads(page: Page, frame: FrameLocator | None = None) -> None:
         page.evaluate("() => document.activeElement?.blur()")
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
-    within.locator(
-        '.lf-fp-view[data-lf-route="threads"]:not([data-lf-leaving])'
-    ).wait_for()
+    within.locator(panel_view("threads")).wait_for()

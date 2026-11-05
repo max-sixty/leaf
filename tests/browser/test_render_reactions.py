@@ -13,7 +13,9 @@ from render_cases_interaction import (
     panel_comment,
 )
 from render_cases_layout import (
+    assert_drawn_in,
     button_radius,
+    token_colour,
 )
 from render_cases_navigation import (
     pending_text,
@@ -27,7 +29,6 @@ from render_cases_widgets import (
 )
 from render_harness import (
     PANEL,
-    PANEL_THREAD,
     RELEASE_FOCUS,
     ROOT,
     accessible_details,
@@ -61,20 +62,25 @@ from leaf import data as data_model
 from leaf import event_log as events_model
 from leaf import thread as thread_model
 from leaf.render_checks import rendered
+from leaf_dev.browser import PANEL_THREAD
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
 MARGIN_RESPONSES = '[data-lf-margin-entry-owner="responses"]'
+# The margin entry of a reaction in force, which discloses its removal.
+REACTION_MARK = (
+    '[data-lf-margin-entry-owner="reactions"][data-lf-behavior="disclosure"]'
+)
 
 # The wash and the glyphs a reaction in force paints, read off the page: the ranges in
 # the highlight registry (their words, whitespace dropped, the way the corpus reads a
 # comment's mark) and every seated glyph by its target and accessible action name.
 PAINTED = """() => ({
   washed: [...(CSS.highlights.get('lf-react') ?? [])].map(r => r.toString().replace(/\\s/g, '')).join(''),
-  glyphs: [...document.querySelectorAll('.lf-margin-cluster .lf-react-mark')]
+  glyphs: [...document.querySelectorAll('.lf-margin-cluster [data-lf-margin-entry-owner="reactions"][data-lf-behavior="disclosure"]')]
     .map(m => [m.closest('[data-lf-margin-for]').dataset.lfMarginFor,
                m.getAttribute('aria-label')]),
-  projected: [...document.querySelectorAll('.lf-visual-mark')].length,
+  projected: [...document.querySelectorAll('[data-lf-mark]')].length,
 })"""
 
 # Interaction state never adds a second mark to a margin entry; durable agent workflow
@@ -256,7 +262,7 @@ def test_a_token_press_marks_the_passage_and_its_revealed_remove_takes_it_back(
     level = page.evaluate(
         """() => {
           const p = document.querySelector('#how-store').getBoundingClientRect();
-          const receipt = document.querySelector('.lf-margin-cluster .lf-react-mark');
+          const receipt = document.querySelector('.lf-margin-cluster [data-lf-margin-entry-owner="reactions"][data-lf-behavior="disclosure"]');
           const item = receipt.closest('.lf-margin-cluster');
           const g = item.getBoundingClientRect();
           return { dy: g.top - p.top, right: g.left - p.right,
@@ -288,7 +294,7 @@ def test_a_token_press_marks_the_passage_and_its_revealed_remove_takes_it_back(
     page.keyboard.press("e")
     surface = bar
     expect(receipt_item).to_have_count(1)
-    expect(receipt_item.locator(".lf-react-mark")).to_have_count(1)
+    expect(receipt_item.locator(REACTION_MARK)).to_have_count(1)
     expect(receipt_item.locator(MARGIN_RESPONSES)).to_have_count(0)
     expect(surface.locator(".lf-react:visible")).to_have_count(6)
     expect(surface.locator('.lf-react[data-lf-token="shorten"]')).to_have_attribute(
@@ -299,7 +305,7 @@ def test_a_token_press_marks_the_passage_and_its_revealed_remove_takes_it_back(
     )
     page.mouse.click(40, 300)  # the bar down, the reaction's glyph remains
     expect(bar).to_be_hidden()
-    expect(receipt_item.locator(".lf-react-mark")).to_have_count(1)
+    expect(receipt_item.locator(REACTION_MARK)).to_have_count(1)
     mark = receipt_item.get_by_role(
         "button", name="shorten reaction actions", exact=True
     )
@@ -457,7 +463,7 @@ def test_selected_reactions_keep_neutral_button_furniture(browser, serve, scheme
     item = page.locator('.lf-margin-cluster[data-lf-margin-for="reaction-target"]')
 
     def open_margin_reactions():
-        item.locator(".lf-sug-accept").focus()
+        item.locator("[data-lf-margin-entry-key=accept]").focus()
         page.keyboard.press("e")
         expect(item.locator(f"{MARGIN_RESPONSES}:visible")).to_have_count(6)
 
@@ -638,7 +644,7 @@ def test_reactions_raised_from_a_folded_pin_s_toggle_take_the_focus(browser, ser
         page.keyboard.press("Tab")
         if row.evaluate("row => row.contains(document.activeElement)"):
             break
-    expect(row.locator(".lf-sug-accept")).to_be_focused()
+    expect(row.locator("[data-lf-margin-entry-key=accept]")).to_be_focused()
     page.keyboard.press("Escape")
     expect(toggle).to_be_focused()
     page.keyboard.press("e")
@@ -759,10 +765,11 @@ def test_the_fold_a_put_down_takes_back_does_not_take_the_users_focus(browser, s
     )
 
 
-@pytest.mark.parametrize("scheme", ["light", "dark"])
-def test_a_focused_response_choice_wears_the_layer_s_band(browser, serve, scheme):
-    """The response choice shares the comment field's solid accent focus ring."""
-    page = open_page(browser, serve(PANEL_PAGE), color_scheme=scheme)
+def test_a_focused_response_choice_wears_the_layer_s_band(browser, serve):
+    """The response choice shares the comment field's solid accent focus ring. Read in
+    the dark scheme, where a ring stated as a literal value rather than the token would
+    show: `--accent` states both schemes in one `light-dark()`."""
+    page = open_page(browser, serve(PANEL_PAGE), color_scheme="dark")
     select_paragraph(page, "#how-cap")
     expect(page.locator(".lf-fab-bar")).to_be_visible()
     page.keyboard.press("c")
@@ -986,7 +993,7 @@ def test_a_reaction_on_a_visual_part_names_that_part(browser, serve):
     assert shown["washed"] == "", shown
     # Keyboard return may project focus; the reaction itself adds no contour.
     rendered(page)
-    assert page.locator(".lf-visual-mark:not(.lf-visual-mark-focus)").count() == 0
+    assert page.locator('[data-lf-mark]:not([data-lf-mark~="focus"])').count() == 0
 
 
 def test_a_whole_visual_reaction_does_not_stand_on_one_of_its_parts(browser, serve):
@@ -1203,10 +1210,10 @@ def test_a_visual_fallback_yields_to_stable_targets_inside_the_picture(browser, 
     nested_picture = page.locator('#outer svg[aria-label="Nested picture"]')
     nested_picture.hover()
     page.keyboard.down("Alt")
-    expect(page.locator(".lf-aim")).to_have_attribute("data-lf-for", "outer")
-    assert page.locator(".lf-aim").bounding_box() == pytest.approx(
-        page.locator("#outer").bounding_box(), abs=1
-    ), "the aim promised the picture box while its anchor resolved to the section"
+    expect(
+        page.locator("[data-lf-aimed]"),
+        "the aim promised the picture box while its anchor resolved to the section",
+    ).to_have_id("outer")
     page.keyboard.up("Alt")
     nested_picture.click(modifiers=["Alt"])
     expect(page.locator("#outer")).to_have_class(re.compile(r"\blf-pending\b"))
@@ -1231,38 +1238,26 @@ def test_a_visual_fallback_yields_to_stable_targets_inside_the_picture(browser, 
     }
 
 
-def test_native_controls_keep_visual_gestures_they_already_own(browser, serve):
-    """A linked picture and a button icon retain their native activation. Leaf adds no
-    nested proxy and pointer activation does not raise the visual action bar."""
-    page_markup = leaf_page(
-        "interactive pictures",
-        """
-<h1 id="top">Interactive pictures</h1>
-<a id="visit" href="#after"><svg id="linked-picture" viewBox="0 0 20 20" width="40" height="40"><circle cx="10" cy="10" r="8" /></svg></a>
-<button id="native-button" type="button"><svg id="button-picture" viewBox="0 0 20 20" width="20" height="20"><circle cx="10" cy="10" r="8" /></svg>Run</button>
-<p id="after">Destination</p>
-""",
-    )
-    page = open_page(browser, serve(page_markup))
-
-    expect(page.locator(".lf-visual-action")).to_have_count(0)
-    page.locator("#linked-picture").click()
-    expect(page).to_have_url(re.compile(r"#after$"))
-    expect(page.locator(".lf-fab-bar")).to_be_hidden()
-    page.locator("#button-picture").click()
-    expect(page.locator(".lf-fab-bar")).to_be_hidden()
-
-
-def test_an_anchor_without_a_destination_keeps_its_picture_commentable(browser, serve):
-    """Only an actual link owns picture activation; historical anchors are content."""
+def test_a_picture_in_a_control_stays_the_controls_and_any_other_takes_a_comment(
+    browser, serve, subtests
+):
+    """A linked picture, a button icon and a picture in an ARIA widget retain their own
+    activation: the shared interaction boundary adds no nested proxy, no second
+    activation target, and a press does not raise the visual action bar. Only an actual
+    link owns picture activation, so an anchor without a destination is content, and its
+    picture takes a proxy and a comment."""
     page = open_page(
         browser,
         serve(
             leaf_page(
-                "Historical picture",
+                "Pictures and controls",
                 """
-<h1 id="top">Historical picture</h1>
+<h1 id="top">Pictures and controls</h1>
 <a id="visit" href="#after"><svg id="linked" viewBox="0 0 20 20" width="40" height="40"><circle cx="10" cy="10" r="8" /></svg></a>
+<button id="native-button" type="button"><svg id="button-picture" viewBox="0 0 20 20" width="20" height="20"><circle cx="10" cy="10" r="8" /></svg>Run</button>
+<div id="gain" role="slider" tabindex="0" aria-label="Gain" aria-valuemin="0" aria-valuemax="10" aria-valuenow="5">
+  <svg id="gain-picture" viewBox="0 0 100 20" width="200" height="40"><rect x="0" y="8" width="100" height="4" /></svg>
+</div>
 <a id="historical"><svg id="unlinked" viewBox="0 0 20 20" width="40" height="40" role="img" aria-label="Historical illustration"><circle cx="10" cy="10" r="8" /></svg></a>
 <p id="after">Destination</p>
 """,
@@ -1272,40 +1267,34 @@ def test_an_anchor_without_a_destination_keeps_its_picture_commentable(browser, 
     proxies = page.locator(".lf-visual-action")
     expect(proxies).to_have_count(1)
     assert proxies.evaluate("node => node.lfAnchor") == {"section": "unlinked"}
+    bar = page.locator(".lf-fab-bar")
     field = page.locator(".lf-fab-input")
-    page.locator("#linked").click()
-    expect(page).to_have_url(re.compile(r"#after$"))
-    expect(field).to_be_hidden()
-    page.locator("#unlinked").click()
-    expect(page).to_have_url(re.compile(r"#after$"))
-    expect(field).to_be_hidden()
-    page.locator("#unlinked").click(modifiers=["Alt"])
-    expect(field).to_be_focused()
-    with sending(page, "the comment on a historical illustration"):
-        write(field, "Keep this historical illustration.")
-        page.keyboard.press("ControlOrMeta+Enter")
-    assert events_model.read_events(serve.page_dir)[-1]["anchor"] == {
-        "section": "unlinked"
-    }
 
+    with subtests.test(picture="linked"):
+        page.locator("#linked").click()
+        expect(page).to_have_url(re.compile(r"#after$"))
+        expect(bar).to_be_hidden()
 
-def test_custom_controls_keep_visual_gestures_they_already_own(browser, serve):
-    """ARIA widgets are controls even when their implementation contains a picture.
-    The shared interaction boundary keeps Leaf from adding a second activation target."""
-    page_markup = leaf_page(
-        "custom control pictures",
-        """
-<h1 id="top">Custom control pictures</h1>
-<div id="gain" role="slider" tabindex="0" aria-label="Gain" aria-valuemin="0" aria-valuemax="10" aria-valuenow="5">
-  <svg id="gain-picture" viewBox="0 0 100 20" width="200" height="40"><rect x="0" y="8" width="100" height="4" /></svg>
-</div>
-""",
-    )
-    page = open_page(browser, serve(page_markup))
+    with subtests.test(picture="button icon"):
+        page.locator("#button-picture").click()
+        expect(bar).to_be_hidden()
 
-    expect(page.locator(".lf-visual-action")).to_have_count(0)
-    page.locator("#gain-picture").click()
-    expect(page.locator(".lf-fab-bar")).to_be_hidden()
+    with subtests.test(picture="in an ARIA widget"):
+        page.locator("#gain-picture").click()
+        expect(bar).to_be_hidden()
+
+    with subtests.test(picture="in an anchor without a destination"):
+        page.locator("#unlinked").click()
+        expect(page).to_have_url(re.compile(r"#after$"))
+        expect(field).to_be_hidden()
+        page.locator("#unlinked").click(modifiers=["Alt"])
+        expect(field).to_be_focused()
+        with sending(page, "the comment on a historical illustration"):
+            write(field, "Keep this historical illustration.")
+            page.keyboard.press("ControlOrMeta+Enter")
+        assert events_model.read_events(serve.page_dir)[-1]["anchor"] == {
+            "section": "unlinked"
+        }
 
 
 def test_a_focus_stop_leaves_the_pictures_it_holds_commentable(browser, serve):
@@ -1390,10 +1379,15 @@ def test_a_declared_visual_part_can_raise_the_same_bar_from_the_keyboard(
     expect(start).to_be_focused()
 
 
-@pytest.mark.parametrize("entry", ["keyboard", "aim"])
-def test_one_semantic_visual_target_gets_one_keyboard_proxy(browser, serve, entry):
-    """Sibling anonymous pictures under one authored item are one durable target.
-    Proxy and pointer entry share that item as their Escape parent."""
+def test_one_semantic_visual_target_takes_one_proxy_and_hands_back_its_subject(
+    browser, serve, subtests
+):
+    """Sibling anonymous pictures under one authored item are one durable target, with
+    one keyboard proxy, and proxy and pointer entry share that item as their Escape
+    parent. Opening the bar's other responses re-places it on the anchor already in
+    place. That is the same gesture continuing, not a fresh one that stood the user
+    nowhere, so the way out still ends on the bar's subject, as it does for a user who
+    goes straight back out."""
     page_markup = leaf_page(
         "picture gallery",
         """
@@ -1407,17 +1401,36 @@ def test_one_semantic_visual_target_gets_one_keyboard_proxy(browser, serve, entr
     )
     page = open_page(browser, serve(page_markup))
     controls = page.locator(".lf-visual-action")
-
+    bar = page.locator(".lf-fab-bar")
+    gallery = page.locator("#gallery")
     expect(controls).to_have_count(1)
-    control = controls.first
-    if entry == "keyboard":
-        control.focus()
-        page.keyboard.press("Enter")
-    else:
+
+    # Each entry starts away from the subject its Escape must hand back: the first from
+    # the page, the others from the proxy they press.
+    with subtests.test(entry="aim"):
         page.locator("#gallery svg").first.click(modifiers=["Alt"])
-    expect(page.locator(".lf-fab-bar")).to_be_visible()
-    page.keyboard.press("Escape")
-    expect(page.locator("#gallery")).to_be_focused()
+        expect(bar).to_be_visible()
+        page.keyboard.press("Escape")
+        expect(gallery).to_be_focused()
+
+    with subtests.test(entry="keyboard"):
+        controls.first.focus()
+        page.keyboard.press("Enter")
+        expect(bar).to_be_visible()
+        page.keyboard.press("Escape")
+        expect(gallery).to_be_focused()
+
+    with subtests.test(entry="keyboard, through the other responses"):
+        controls.first.focus()
+        page.keyboard.press("Enter")
+        expect(bar).to_be_visible()
+        page.keyboard.press("Tab")
+        expect(page.locator(".lf-response-options")).to_be_visible()
+        page.keyboard.press("Escape")
+        expect(bar).to_be_visible()
+        page.keyboard.press("Escape")
+        expect(bar).to_be_hidden()
+        expect(gallery).to_be_focused()
 
 
 def test_a_drawing_names_its_proxies_and_keeps_its_place_among_the_page(browser, serve):
@@ -1451,39 +1464,6 @@ def test_a_drawing_names_its_proxies_and_keeps_its_place_among_the_page(browser,
     assert control.evaluate(
         "button => button.closest('.lf-chrome') !== null && button.tabIndex === -1"
     )
-
-
-def test_a_bar_re_placed_by_its_own_controls_still_hands_back_its_subject(
-    browser, serve
-):
-    """Opening the bar's other responses re-places it on the anchor already in place. That
-    is the same gesture continuing, not a fresh one that stood the user nowhere, so the
-    way out still ends on the bar's subject — as it does for a user who goes straight
-    back out."""
-    page_markup = leaf_page(
-        "picture gallery",
-        """
-<h1 id="top">Picture gallery</h1>
-<section id="gallery">
-  <h2>Gallery</h2>
-  <svg viewBox="0 0 20 20" width="40" height="40"><circle cx="10" cy="10" r="8" /></svg>
-</section>
-""",
-    )
-    page = open_page(browser, serve(page_markup))
-    control = page.locator(".lf-visual-action").first
-    control.focus()
-    page.keyboard.press("Enter")
-    expect(page.locator(".lf-fab-bar")).to_be_visible()
-
-    page.keyboard.press("Tab")
-    expect(page.locator(".lf-response-options")).to_be_visible()
-    page.keyboard.press("Escape")
-    expect(page.locator(".lf-fab-bar")).to_be_visible()
-
-    page.keyboard.press("Escape")
-    expect(page.locator(".lf-fab-bar")).to_be_hidden()
-    expect(page.locator("#gallery")).to_be_focused()
 
 
 def test_a_visual_proxy_resolves_a_rebuilt_part_and_reveals_it_on_focus(browser, serve):
@@ -1524,19 +1504,12 @@ def test_a_visual_proxy_resolves_a_rebuilt_part_and_reveals_it_on_focus(browser,
     expect(control).to_be_focused()
     expect(page.locator("#folded")).to_have_attribute("open", "")
     expect(part).to_be_in_viewport()
-    # It shows nothing of its own: the part wears the focus ring, round its contour.
+    # It shows nothing of its own: the part wears the focus ring, whole, along the edge
+    # of what it draws.
     assert control.evaluate("control => getComputedStyle(control).opacity") == "0"
-    ring = page.locator(".lf-proxy-ring")
-    expect(ring).to_have_count(1)
-    held, drawn = ring.bounding_box(), part.bounding_box()
-    # The ring stands round the part, at its gap.
-    gaps = (
-        drawn["x"] - held["x"],
-        drawn["y"] - held["y"],
-        held["x"] + held["width"] - drawn["x"] - drawn["width"],
-        held["y"] + held["height"] - drawn["y"] - drawn["height"],
-    )
-    assert all(0 <= gap <= 4 for gap in gaps), (held, drawn)
+    expect(page.locator("[data-lf-proxied]")).to_have_count(1)
+    expect(part).to_have_attribute("data-lf-proxied", "")
+    assert_drawn_in(part, token_colour(page, "--accent"), 2)
 
 
 def test_a_visual_proxy_keeps_user_current_location_across_provider_updates(
@@ -2096,7 +2069,7 @@ def test_a_message_reaction_trigger_meets_its_header_and_covers_no_words(
           const metadata = [
             ...message.querySelectorAll('.lf-msg-head > :not(.lf-msg-control-room)'),
           ].map(node => node.getBoundingClientRect());
-          const resolve = document.querySelector('.lf-fp-settle');
+          const resolve = document.querySelector('.lf-fp-thread-controls :is(.lf-resolve, .lf-reopen)');
           const action = resolve.getBoundingClientRect();
           const range = document.createRange();
           range.selectNodeContents(message.querySelector('.lf-msg-text'));
@@ -2138,7 +2111,7 @@ def test_a_message_reaction_trigger_meets_its_header_and_covers_no_words(
         expect(message.locator(".lf-react-palette:popover-open")).to_have_count(0)
 
     with sending(page, "resolve beside the agent-root reaction"):
-        activate(page.locator(".lf-fp-settle"))
+        activate(page.locator(".lf-fp-thread-controls :is(.lf-resolve, .lf-reopen)"))
     expect(card).to_have_count(0)
 
 
@@ -2165,6 +2138,8 @@ def test_a_margin_card_offers_a_reply_s_reactions(browser, serve):
     message = card.locator(f'.lf-msg[data-lf-message="{reply}"]')
     strip = message.locator(":scope > .lf-react-strip")
     palette = strip.locator(".lf-react-palette:popover-open")
+    expect(card.locator("leaf-text")).to_be_focused()
+    page.keyboard.press("Escape")
     expect(card).to_be_focused()
     page.keyboard.press("e")
     expect(palette).to_have_count(1)
@@ -2473,7 +2448,9 @@ def test_a_remote_resolve_disarms_the_open_reply_list_it_takes_away(browser, ser
 
     thread_model.cmd_resolve(serve.page_dir, root)
     told(page)
-    expect(page.locator(".lf-fp-head .lf-thread-news")).to_have_text("Resolved")
+    news = page.locator(".lf-fp-head .lf-thread-news")
+    expect(news).to_have_text("1 new")
+    expect(news).to_have_attribute("title", "Resolved")
     expect(strip.locator(".lf-react-palette:popover-open")).to_have_count(1)
     count = len(events_model.read_events(serve.page_dir))
     page.keyboard.press("1")
@@ -2521,6 +2498,56 @@ def test_a_reply_to_a_reaction_opens_a_thread_and_resolve_is_its_floor(browser, 
     told(page)
     expect_open_threads(page, 0)
     assert page.evaluate("() => CSS.highlights.get('lf-mark').size") == 0
+
+
+def test_z_takes_back_a_reaction_the_agent_answered_into_its_place(browser, serve):
+    """A reaction someone has answered is the user's to take back, as one nobody has
+    answered is, where the log used to refuse it and `z` did nothing. Taking it back
+    draws its place in the thread Deleted in the press, before the log answers, above
+    the answer, which stays, as does the thread; the mark stays off the page."""
+    url = serve(PANEL_PAGE)
+    reaction = append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "token": "change",
+            "anchor": {"section": "merge-both", "quote": "one document offline"},
+        },
+    )
+    thread_model.post_reply(
+        serve.page_dir,
+        {"parent": reaction["id"]},
+        "Which part — the case, or the answer?",
+    )
+    page = open_page(browser, url)
+    thread = open_panel_thread(page, reaction["id"])
+    thread.focus()
+    root = thread.locator(f'.lf-msg[data-lf-event="{reaction["id"]}"]')
+    expect(root.locator(".lf-react-said")).to_have_text("❌ change")
+    undo_offered(page)
+
+    held = []
+    page.route("**/api/event", lambda route: held.append(route))
+    page.keyboard.press("z")
+    expect(root.locator(".lf-msg-deleted")).to_have_text("Deleted")
+    expect(root.locator(".lf-react-said")).to_have_count(0)
+    expect(thread).to_contain_text("Which part — the case, or the answer?")
+    page.unroute("**/api/event")
+    for route in held:
+        route.continue_()
+    round_trip(page)
+    taken = events_model.read_events(serve.page_dir)[-1]
+    assert (taken["kind"], taken["undoes"]) == ("undo", reaction["id"])
+
+    page.reload()
+    expect_open_threads(page, 1)
+    thread = open_panel_thread(page, reaction["id"])
+    root = thread.locator(f'.lf-msg[data-lf-event="{reaction["id"]}"]')
+    expect(root.locator(".lf-msg-deleted")).to_have_text("Deleted")
+    expect(thread).to_contain_text("Which part — the case, or the answer?")
+    assert painted(page, []) == {"washed": "", "glyphs": [], "projected": 0}
 
 
 def test_escape_clears_selection_and_keeps_actions_dismissed(browser, serve):

@@ -10,7 +10,6 @@ from playwright.sync_api import expect
 from render_cases_interaction import LIST_ORDER, PANEL_PAGE, live_url, panel_comment
 from render_harness import (
     EXAMPLE_PACKAGES,
-    PANEL_THREAD,
     any_owner_entry,
     leaf_page,
     open_page,
@@ -39,6 +38,7 @@ from leaf import data as data_model
 from leaf import event_log as events_model
 from leaf import service as service_model
 from leaf.render_checks import rendered
+from leaf_dev.browser import PANEL_THREAD
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -562,8 +562,7 @@ def test_a_long_quote_of_replaced_data_has_a_local_reading(browser, serve):
     )
     data_model.cmd_data_set(serve.page_dir, "document", old)
     page = open_page(browser, live_url(url))
-    # The code box's first child is the gutter; triple-click the rendered words.
-    select_words(page, "#source [data-content] [data-line] span")
+    select_words(page, "#source .lf-text-document-run > *")
     write(page.locator(".lf-composer leaf-text"), "Does the manual review still apply?")
     with sending(page, "the earlier data comment"):
         page.keyboard.press("ControlOrMeta+Enter")
@@ -666,7 +665,7 @@ customElements.define('lf-quote-subject', class extends LeafElement {
                 "properties": {
                     "id": {"type": "string"},
                     "data-words": {"type": "string"},
-                    "source": {"type": "string", "pattern": "^[a-z][a-z0-9-]*$"},
+                    "source": {"type": "string"},
                 },
                 "required": ["id"],
                 "additionalProperties": False,

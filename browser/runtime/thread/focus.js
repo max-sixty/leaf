@@ -5,16 +5,18 @@ import {
   holdCurrentLocation,
   focused,
   onPress,
+  pressLed,
 } from "../focus.js";
+import { coarsePointer } from "../pointer.js";
 import { shownBox } from "../geometry.js";
 import { restrictUserIntent, retainUserIntent } from "../user-intent.js";
 import { closestAcross } from "../passages.js";
 import { nextRender } from "../rendering.js";
 import { repaint } from "../repaint.js";
 import { drawnThreadId, threadPart, THREAD } from "./selectors.js";
-import { allThreads } from "./state.js";
-import { replyControlDestination, replyThreadKey } from "./replies.js";
+import { threadNamed } from "./state.js";
 import { threadKey } from "./model.js";
+import { replyControlDestination, replyIsEditing, replyThreadKey } from "./replies.js";
 
 /** @typedef {ReturnType<typeof retainUserIntent>} UserIntent */
 /** @typedef {ReturnType<typeof import("./destination.js").createThreadDestinations>["openPageThread"]} OpenThread */
@@ -25,6 +27,23 @@ import { threadKey } from "./model.js";
 export function focusThread(thread, cause) {
   focusDestination(thread, cause);
 }
+
+// Where opening a thread puts the user: a fine pointer's press puts the caret in its
+// reply, so what they type answers at once, and Escape stands them on the thread
+// (landing.js); a key puts them on the thread, where keys act, and so does a finger,
+// since the keyboard that a box takes would rise over what they opened to read. The user
+// chose this on 4 November 2026 over opening on the thread wherever a press opened it,
+// as the card did, where `r`, `t` and the other keys act at once and `c` starts a reply.
+// That choice was about clicks. A key that opens a thread in a walk, `t` or Enter on a
+// marker or Next, keeps the user on the thread to walk on. Enter on a row of Threads or
+// On me keeps the caret in the reply instead, as a press on one does, and the floating
+// panel owns that (`focusView`). It was kept on 4 November 2026 because what the user
+// types after picking a row is an answer. Stood on the thread, after `g T` and Enter,
+// "really?" resolves the thread with `r`, moves on and opens the Command reference with
+// `?`, and Escape closes the panel in one press rather than two.
+/** @returns {"reply" | "thread"} */
+export const openingPart = () =>
+  pressLed() && !coarsePointer.matches ? "reply" : "thread";
 
 /** @param {Element | null | undefined} thread */
 export const threadReplyInput = (thread) => {
@@ -95,12 +114,22 @@ onPress(
 export const currentLocationThreadId = () => heldThreadId() ?? pressed;
 
 // The intent restricted to the thread `id` still present: every thread takes a reply,
-// a resolved one too, which the reply reopens.
+// a resolved one too, which the reply reopens. A resolved thread takes the user's box
+// along only while a reply is being written in it (`replyIsEditing`): carrying the
+// caret would otherwise open a card that settlement closed again, over a box the user
+// had finished with or never began in, as the empty box a send or an opening leaves.
 /** @param {string} id @param {UserIntent} intent */
 const mayReplyTo = (id, intent) =>
-  restrictUserIntent(intent, () =>
-    allThreads().some((candidate) => candidate.id === id),
-  );
+  restrictUserIntent(intent, () => {
+    const thread = threadNamed(id);
+    return Boolean(thread && (!thread.resolved || replyIsEditing(threadKey(thread))));
+  });
+// Whether the thread `id` names stands open.
+/** @param {string} id */
+const standsOpen = (id) => {
+  const thread = threadNamed(id);
+  return Boolean(thread && !thread.resolved);
+};
 
 // A pass that redraws threads hands the user on a thread across itself, under
 // the thread's identity. A surface that stops drawing a thread takes what the user was
@@ -180,10 +209,7 @@ export const carryingThreadPlace = (node) => {
   return Boolean(
     place &&
     place.node === node &&
-    (place.reply
-      ? place.may()
-      : place.intent() &&
-        allThreads().some((thread) => thread.id === place.id && !thread.resolved)),
+    (place.reply ? place.may() : place.intent() && standsOpen(place.id)),
   );
 };
 /** @param {OpenThread} open
@@ -200,7 +226,7 @@ export function holdThreadPlace(open, { threadAt, seated }) {
   const key = destination && replyThreadKey(node);
   const thread = !destination && closestAcross(node, ".lf-page-thread");
   const id = key
-    ? allThreads().find((each) => threadKey(each) === key)?.id
+    ? threadNamed(key)?.id
     : thread
       ? drawnThreadId(thread)
       : threadAt(node);
@@ -211,11 +237,7 @@ export function holdThreadPlace(open, { threadAt, seated }) {
   // no card or panel for them.
   const may = destination
     ? mayReplyTo(id, intent)
-    : restrictUserIntent(
-        intent,
-        () =>
-          allThreads().some((each) => each.id === id && !each.resolved) && seated(id),
-      );
+    : restrictUserIntent(intent, () => standsOpen(id) && seated(id));
   const carry = { node, id, intent, may, reply: Boolean(destination) };
   carrying = carry;
   return async () => {

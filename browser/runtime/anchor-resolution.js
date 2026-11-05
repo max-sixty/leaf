@@ -7,6 +7,7 @@
  * its context identifies one occurrence.
  */
 
+import { labelWords } from "./words.js";
 import { anchorKey, fragmentId, fragmentKey } from "./anchor-coordinate.js";
 import { documentChanged } from "./semantic-state.js";
 import {
@@ -53,6 +54,7 @@ import {
   settledAway,
 } from "./passages.js";
 import { registry, tagsDeclaring } from "./registry.js";
+import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
 import { PRESSABLE } from "./widget-elements.js";
 import { PRESSES, WORKS } from "./control-selectors.js";
 import {
@@ -465,9 +467,8 @@ const controlName = (control) =>
     ? accessibleName(control)
     : ownName(control) ||
       (control.matches(PRESSES)
-        ? (control instanceof HTMLElement ? control.innerText : "")
-            ?.trim()
-            .replace(/\s+/g, " ") || addressableWord(control)
+        ? labelWords(control instanceof HTMLElement ? control.innerText : "") ||
+          addressableWord(control)
         : "");
 /** @param {Element & Partial<Pick<HTMLInputElement, "labels">>} control */
 const controlFaces = (control) => [control, ...(control.labels ?? [])];
@@ -769,6 +770,20 @@ export function resolveAnchor(anchor) {
           ? datums.length > 0 &&
             basis.getAttribute("data-lf-identity") === anchor.identity
           : basis.getAttribute("data-lf-source-revision") === anchor.source_revision));
+    // A widget that has yet to report a draw shows no revision at all, as a closed tab's
+    // document does until it draws after presentation (lf-text-document.js,
+    // `drawLater`), so an anchor on its data stands on the widget, not on earlier data.
+    if (
+      !basisMatches &&
+      source &&
+      !source.hasAttribute(PAGE_PAINT_ATTRIBUTE.drawReported)
+    )
+      return {
+        ...resolvedElement({ element: source }),
+        datumElement: null,
+        exact: false,
+        status: "fallback",
+      };
     if (!basisMatches) {
       const contextual = source?.lfDataDatum?.(anchor.datum, { outdated: true });
       const fallback =

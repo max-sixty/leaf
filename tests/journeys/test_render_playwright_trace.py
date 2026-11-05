@@ -1336,7 +1336,7 @@ def test_trace_inspection_survives_playback_gaps_and_scope_changes(browser, serv
           window.inspectionWindow = () => {
             const w = document.querySelector('lf-trace');
             const rail = w.querySelector('.lf-trace-scroller').getBoundingClientRect();
-            const ticks = [...w.querySelectorAll('.lf-trace-tick-major')]
+            const ticks = [...w.querySelectorAll('.lf-axis-tick[data-lf-major]')]
               .map(e => ({time: parseFloat(e.textContent), x: e.getBoundingClientRect().x}))
               .sort((a, b) => a.x - b.x);
             const unit = (ticks[1].time - ticks[0].time) / (ticks[1].x - ticks[0].x);
@@ -1589,12 +1589,14 @@ def test_trace_inspection_survives_playback_gaps_and_scope_changes(browser, serv
         widget.locator(".lf-trace-tree summary").click()
         rendered(user)
         assert user.evaluate("inspectionWindow()") == pytest.approx(panned, abs=0.005)
-        ticks = widget.locator(".lf-trace-tick-major").all_text_contents()
+        ticks = widget.locator(".lf-axis-tick[data-lf-major]").all_text_contents()
         widget.get_by_role("radio", name="Page 1", exact=True).click()
         widget.get_by_role("radio", name="All pages", exact=True).click()
         rendered(user)
         assert user.evaluate("inspectionView()") == pytest.approx(before, abs=0.003)
-        assert widget.locator(".lf-trace-tick-major").all_text_contents() == ticks
+        assert (
+            widget.locator(".lf-axis-tick[data-lf-major]").all_text_contents() == ticks
+        )
         assert user.evaluate("inspectionWindow()") == pytest.approx(panned, abs=0.005)
         timeline.focus()
         timeline.press("Home")
@@ -1658,7 +1660,7 @@ def test_trace_zoom_and_pan_stay_within_the_fitted_recording(browser, serve):
     assert moment_positions() == pytest.approx(first_overview, abs=0.5)
 
     def visible_ticks():
-        return widget.locator(".lf-trace-tick-major").evaluate_all(
+        return widget.locator(".lf-axis-tick[data-lf-major]").evaluate_all(
             """nodes => nodes.filter(node => {
                 const box = node.getBoundingClientRect();
                 const rail = node.closest('.lf-trace-scroller').getBoundingClientRect();
@@ -1676,7 +1678,9 @@ def test_trace_zoom_and_pan_stay_within_the_fitted_recording(browser, serve):
         rendered(user)
         expect(zoom_out).to_be_disabled()
         overview = visible_ticks()
-        overview_labels = widget.locator(".lf-trace-tick-major").all_text_contents()
+        overview_labels = widget.locator(
+            ".lf-axis-tick[data-lf-major]"
+        ).all_text_contents()
         assert len(overview) > 1
         assert min(overview) == 0, "The whole recording starts at zero"
         overview_span = max(overview) - min(overview)
@@ -1714,7 +1718,9 @@ def test_trace_zoom_and_pan_stay_within_the_fitted_recording(browser, serve):
         for _ in range(8):
             zoom_in.click()
             rendered(user)
-        close_labels = widget.locator(".lf-trace-tick-major").all_text_contents()
+        close_labels = widget.locator(
+            ".lf-axis-tick[data-lf-major]"
+        ).all_text_contents()
         assert len(close_labels) == len(set(close_labels)), (
             "Close zoom must distinguish millisecond ticks"
         )
@@ -1737,7 +1743,9 @@ def test_trace_zoom_and_pan_stay_within_the_fitted_recording(browser, serve):
         user.mouse.wheel(0, 10000)
         user.keyboard.up("Control")
         rendered(user)
-        expect(widget.locator(".lf-trace-tick-major")).to_have_text(overview_labels)
+        expect(widget.locator(".lf-axis-tick[data-lf-major]")).to_have_text(
+            overview_labels
+        )
         assert visible_ticks() == overview
 
         # Close moments share a flag at the overview; zoom separates them.
@@ -2012,7 +2020,9 @@ def test_trace_numbered_moments_share_a_recording_zero_without_a_zero_stop(
     timeline = widget.locator(".lf-trace-timeline")
     # Zero stands at the start of the time scale, inside a margin that keeps
     # its mark and the playhead clear of the edge; it is not a captured stop.
-    zero = widget.locator(".lf-trace-tick-major").filter(has_text=re.compile(r"^0 s$"))
+    zero = widget.locator(".lf-axis-tick[data-lf-major]").filter(
+        has_text=re.compile(r"^0 s$")
+    )
     expect(zero).to_have_count(1)
     zero_box = zero.bounding_box()
     axis_box = widget.locator(".lf-trace-scroller").bounding_box()
@@ -2176,7 +2186,7 @@ def test_trace_numbered_moments_share_a_recording_zero_without_a_zero_stop(
                 " return {top: r.top + parseFloat(after.top), height: parseFloat(after.height)}; }"
             )
             labels_clear = widget.evaluate(
-                """(node, mark) => [...node.querySelectorAll('.lf-trace-tick-major')]
+                """(node, mark) => [...node.querySelectorAll('.lf-axis-tick[data-lf-major]')]
                   .every(label => {
                     const text = document.createRange();
                     text.selectNodeContents(label);

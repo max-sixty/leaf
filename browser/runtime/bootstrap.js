@@ -188,6 +188,15 @@
   // keeps its own meaning. A chord never starts a run, and a modifier alone is half a
   // press, which neither starts nor ends one. After a beat the held keys are shown, so a
   // press visibly landed; a runtime that takes the run within the beat shows nothing.
+  //
+  // The hold ends when the runtime takes it, when the document reports it cannot start
+  // (`recover`, and the runtime's own `letHeldKeysGo` where it gives the document up),
+  // or when the user lets go as above, and never on a clock. The notice says the keys
+  // run when the page is ready, and a healthy page can take any time to get there on
+  // a loaded machine or a slow network. Rejected: ending the hold ten seconds in (#1213),
+  // on the reading that a page not upgraded by then had faulted, which dropped the keys
+  // of pages that upgraded fifteen seconds in on a loaded Mac. A page that hangs with no
+  // report keeps showing that it is still loading, which is then the truth.
   const { takesLetters } = /** @type {DocumentInputs} */ (
     Reflect.get(window, Symbol.for("leaf.inputs"))
   );
@@ -286,7 +295,6 @@
     const take = (event) => {
       ready = event.detail.ready;
       keep = event.detail.keep;
-      clearTimeout(limit);
       if (!held.length) {
         if (!keep?.()) stopHoldingKeys();
         return;
@@ -305,15 +313,10 @@
         if (!keep?.()) stopHoldingKeys();
       };
     };
-    // A page that has not upgraded by now is not loading but faulted, and a key held
-    // this long is one the user has given up on: the hold ends, what it held is
-    // dropped, and keys reach the runtime as they come.
-    const limit = setTimeout(() => stopHoldingKeys(), 10_000);
     stopHoldingKeys = () => {
       window.removeEventListener("keydown", hold, true);
       window.removeEventListener("pointerdown", pointed, true);
       document.removeEventListener("lf-held-keys", take);
-      clearTimeout(limit);
       letGo();
     };
     window.addEventListener("keydown", hold, true);
@@ -538,7 +541,10 @@
   window.addEventListener("lf-startup-fault", (event) =>
     recover(event.detail.reason, event.detail.incomplete, event.detail.page),
   );
-  holdEarlyKeys();
+  // A sample opened as a window of its own has no containing page to connect it, so its
+  // runtime never starts (leaf.js waits on `lfSample.ready`) and would take nothing held.
+  if (!(root.hasAttribute("data-lf-sample") && window.parent === window))
+    holdEarlyKeys();
   try {
     observePublicStartup();
   } catch {

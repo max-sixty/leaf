@@ -9,7 +9,7 @@ from interact_support import append_carried_log_record
 from PIL import Image, ImageChops
 from playwright.sync_api import expect
 from render_cases_interaction import HOLD_MOTION, live_url
-from render_cases_layout import page_at_rest
+from render_cases_layout import MARK, page_at_rest, token_colour
 from render_cases_navigation import (
     COMMENTED_LIST_PAGE,
     DIFF_PAGE,
@@ -334,9 +334,12 @@ def test_pressing_a_page_mark_stands_in_the_thread_it_opens(
     expect(page.locator(".lf-margin-preview")).to_be_visible()
     expect(page.locator(PANEL)).not_to_have_attribute("data-lf-open", re.compile("."))
 
-    expect(thread).to_be_focused()
+    # In its reply, and on the thread once Escape stands the user there.
+    expect(reply).to_be_focused()
     expect(reply).to_be_visible()
     wait_current_location(page, "bold text")
+    page.keyboard.press("Escape")
+    expect(thread).to_be_focused()
     page.keyboard.press("Enter")
     expect(reply).to_be_focused()
     expect(reply).to_be_visible()
@@ -627,10 +630,8 @@ def test_a_commented_block_says_so_to_a_screen_user(browser, serve):
     expect(note).to_be_focused()
     assert note.evaluate("el => getComputedStyle(el).opacity") == "0"
     expect(page.locator("#p1")).to_be_in_viewport()
-    ring = page.locator(".lf-proxy-ring")
-    expect(ring).to_have_count(1)
-    held, block = ring.bounding_box(), page.locator("#p1").bounding_box()
-    assert all(abs(held[side] - block[side]) < 1 for side in held), (held, block)
+    expect(page.locator("[data-lf-proxied]")).to_have_count(1)
+    assert _ring_round(page, "#p1")
     page.locator("#p1").evaluate("p => { p.style.marginTop = ''; }")
     note.press("Enter")
     expect(inline1).to_be_focused()
@@ -716,16 +717,19 @@ def test_a_commented_block_says_so_to_a_screen_user(browser, serve):
 
 
 def _ring_round(page, selector):
-    """Whether the proxy ring stands round the element `selector` names, at its gap."""
-    held = page.locator(".lf-proxy-ring").bounding_box()
-    block = page.locator(selector).bounding_box()
-    gaps = (
-        block["x"] - held["x"],
-        block["y"] - held["y"],
-        held["x"] + held["width"] - block["x"] - block["width"],
-        held["y"] + held["height"] - block["y"] - block["height"],
+    """Whether the element `selector` names wears the proxy ring (`data-lf-proxied`), which
+    it draws whole round itself in the accent, outside its edge at its gap
+    (surfaces.css)."""
+    block = page.locator(selector)
+    expect(block).to_have_attribute("data-lf-proxied", "")
+    mark = block.evaluate(MARK)
+    return (
+        mark is not None
+        and mark["style"] == "solid"
+        and not mark["brackets"]
+        and mark["offset"] > 0
+        and mark["color"] == token_colour(page, "--accent")
     )
-    return all(0 <= gap <= 4 for gap in gaps)
 
 
 def test_any_focus_on_a_note_rings_its_block_and_follows_it_redrawn(browser, serve):
@@ -751,19 +755,21 @@ def test_any_focus_on_a_note_rings_its_block_and_follows_it_redrawn(browser, ser
     note.evaluate("note => note.focus()")
     expect(note).to_be_focused()
     assert not note.evaluate("note => note.matches(':focus-visible')")
-    ring = page.locator(".lf-proxy-ring")
-    expect(ring).to_be_visible()
+    assert _ring_round(page, "#p1")
+    # From the keys, the block also wears the trace of the note's margin entry, whose
+    # grey the ring's accent outranks.
+    page.keyboard.press("Tab")
+    note.focus()
+    expect(page.locator("#p1")).to_have_attribute("data-lf-traced", "")
     assert _ring_round(page, "#p1")
 
+    # The copy leaves the ring's class behind, so the ring on it is the runtime's doing.
     page.locator("#p1").evaluate(
-        "p => { const copy = p.cloneNode(true); copy.dataset.redrawn = ''; p.replaceWith(copy); }"
+        "p => { const copy = p.cloneNode(true); copy.dataset.redrawn = '';"
+        " copy.removeAttribute('data-lf-proxied'); p.replaceWith(copy); }"
     )
     expect_comment_notes(page, "#p1[data-redrawn]", 1)
     expect(note).to_be_focused()
-    expect(ring).to_be_visible()
-    page.wait_for_function(
-        "() => document.querySelector('.lf-proxy-ring')?.getBoundingClientRect().height > 0"
-    )
     assert _ring_round(page, "#p1[data-redrawn]")
 
 
@@ -796,6 +802,8 @@ def test_notes_of_one_passage_across_two_blocks_each_follow_their_block_redrawn(
             const block = document.getElementById(id);
             const copy = block.cloneNode(true);
             copy.dataset.redrawn = "";
+            // Left behind, so the ring on the copy is the runtime's doing.
+            copy.removeAttribute("data-lf-proxied");
             block.replaceWith(copy);
           }
         }"""
@@ -812,9 +820,6 @@ def test_notes_of_one_passage_across_two_blocks_each_follow_their_block_redrawn(
     assert page.evaluate(
         """() => document.activeElement === window.__lfNote &&
           document.getElementById('p1').ariaDetailsElements.includes(window.__lfNote)"""
-    )
-    page.wait_for_function(
-        "() => document.querySelector('.lf-proxy-ring')?.getBoundingClientRect().height > 0"
     )
     assert _ring_round(page, "#p1[data-redrawn]")
 
@@ -842,12 +847,10 @@ def test_a_focused_note_rings_its_block_where_the_page_draws_its_own_annotations
     page.keyboard.press("Tab")
     note.focus()
     expect(note).to_be_focused()
-    ring = page.locator(".lf-proxy-ring")
-    expect(ring).to_be_visible()
     assert _ring_round(page, "#p1")
     # Leaving the note takes its ring down.
     note.evaluate("note => note.blur()")
-    expect(ring).to_be_hidden()
+    expect(page.locator("[data-lf-proxied]")).to_have_count(0)
 
 
 def test_a_revision_keeps_a_block_naming_its_comment_note(browser, serve):

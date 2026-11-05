@@ -39,7 +39,6 @@ from render_harness import (
     FEATURE_GALLERY,
     LONG_PAGE,
     PANEL,
-    PANEL_THREAD,
     RELEASE_FOCUS,
     Traffic,
     any_draft_control,
@@ -69,6 +68,7 @@ from render_harness import (
 
 from leaf import event_log as events_model
 from leaf.render_checks import rendered, wait_until_ready
+from leaf_dev.browser import PANEL_THREAD
 from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -244,12 +244,12 @@ CONTROL_ARCHETYPES = (
     {
         # Switching views must not move the buttons under the pointer.
         "name": "shot-view",
-        "target": "#stable-shot .lf-shot-views button:nth-child(2)",
+        "target": "#stable-shot .lf-shot-views wa-radio:nth-child(2)",
     },
     {
         "name": "visual-review-inspection",
         "source": VISUAL_REVIEW_GALLERY,
-        "target": ".lf-vr-case:not([hidden]) .lf-shot-views button:nth-child(2)",
+        "target": ".lf-vr-case:not([hidden]) .lf-shot-views wa-radio:nth-child(2)",
     },
     {
         "name": "visual-review-approval",
@@ -261,7 +261,9 @@ CONTROL_ARCHETYPES = (
 
 # The layer's focus floor (surfaces.css), which rings every box holding visible focus
 # where no carrier wears the ring for it: the panel's own controls and rows among them.
-FLOOR_RING = "[data-lf-focus-visible]:not(.lf-projected-mark, .lf-projected-location)"
+FLOOR_RING = (
+    "[data-lf-focus-visible]:not(.lf-projected-mark, [data-lf-projected-location])"
+)
 
 
 # The page the chrome's surfaces are sampled on: small, with a board's grips, and served
@@ -299,29 +301,26 @@ RING_CASES = (
             ),
             # A picture's response proxy, which a screen reader reaches from the
             # picture, rings the picture (details-shelf.js).
-            "heat-loss": ((".lf-visual-action", ".lf-proxy-ring"),),
+            "heat-loss": ((".lf-visual-action", "[data-lf-proxied]"),),
             # Working density, where a choice's gap is narrowest beside the next face.
             "notification-playground": (
-                ("lf-playground input[type=radio]", ".choice:has"),
+                ("lf-playground input[type=radio]", ":is(.lf-choice, .choice):has"),
             ),
             "pr-walkthrough": (
-                ("#pr-path-tree > summary", ".lf-visual-mark"),
-                (
-                    "#pr-flow-tab",
-                    "[data-lf-views]:has(> :is(lf-tab, lf-part)",
-                ),
+                ("#pr-path-tree > summary", "[data-lf-mark]"),
+                ("#pr-flow-tab", ".lf-ring-frame"),
                 ("lf-gloss:visible > .lf-gloss-mark", ".lf-gloss-mark"),
                 (".lf-diff-search input", "wa-input::part"),
                 ("lf-diff summary", FLOOR_RING),
-                ("lf-diff code", ".lf-diff-frame"),
+                ("lf-diff code", ".lf-ring-frame"),
             ),
             "release-notes": (
-                ("main p.lf-mark-el", ".lf-visual-mark"),
+                ("main p.lf-mark-el", "[data-lf-mark]"),
                 (
                     'lf-shot .lf-shotcomparison [part~="handle"]',
                     "wa-comparison::part(",
                 ),
-                (".lf-shot-views button", FLOOR_RING),
+                (".lf-shot-views wa-radio", FLOOR_RING),
             ),
             "wt-merge": (
                 (
@@ -347,7 +346,11 @@ RING_CASES = (
     (
         "a resolved thread",
         (),
-        {"ship-review": ((".lf-fp-head .lf-fp-settle", FLOOR_RING),)},
+        {
+            "ship-review": (
+                (".lf-fp-thread-controls :is(.lf-resolve, .lf-reopen)", FLOOR_RING),
+            )
+        },
     ),
     # The same walk with the panel shut lands in the margin's thread view, on the
     # thread itself rather than a control inside it.
@@ -487,7 +490,6 @@ RING_EXAMPLE_FILES = {
 # paint so an unrelated ring drawn by the same rule cannot credit the sample.
 RING_REMOTE_CARRIER = {
     ".lf-key-hint.lf-current": ".lf-target-picker-hint.lf-current",
-    ".lf-diff-frame": "lf-diff code[data-lf-focus-visible] + .lf-diff-frame",
     # A pane draws its focused body's band inset over the body's cell (base.css).
     "[data-lf-reading-role=pane]": '[data-lf-reading-role="pane"]:has(> [data-lf-focus])',
 }
@@ -547,7 +549,7 @@ RING_SCOPE_WIDTH = {
 # Scopes whose samples stand in a thread's view of the panel: the view of the first
 # thread whose view holds the selector (`open_panel_thread_holding`).
 RING_SCOPE_THREAD = {
-    "a resolved thread": ".lf-fp-head .lf-fp-settle.lf-reopen",
+    "a resolved thread": ".lf-fp-thread-controls .lf-reopen",
     "a reaction palette": ".lf-msg-controls > .lf-react-trigger",
     "message media": ".lf-message-media",
 }
@@ -644,7 +646,7 @@ AIM_BOXES = browser_function("aims.js", "offeredAims")
 # What the sweep has to have stood in front of before its answer means anything. Each is
 # on a surface the walk has to open, and each was under the floor.
 AIM_SURFACES = (
-    ".lf-fp-settle",
+    ".lf-fp-thread-controls :is(.lf-resolve, .lf-reopen)",
     '.lf-copyable-text:has(pre[aria-label="Preview diagnostics"]) wa-copy-button',
     ".lf-react-strip .lf-react",
     ".lf-fp-compare",
@@ -668,12 +670,12 @@ def _each_aim_surface(page, page_dir):
     # A resolved thread, which is the only state that has a Reopen to aim at. Resolving
     # moves the user on to the next open thread, so the resolved one is opened again.
     open_panel_thread(page, comment)
-    page.locator(".lf-fp-head .lf-fp-settle").click()
+    page.locator(".lf-fp-thread-controls :is(.lf-resolve, .lf-reopen)").click()
     round_trip(page)
     open_panel_thread(page, comment)
-    expect(page.locator(".lf-fp-head .lf-fp-settle")).to_have_class(
-        re.compile(r"\blf-reopen\b")
-    )
+    expect(
+        page.locator(".lf-fp-thread-controls :is(.lf-resolve, .lf-reopen)")
+    ).to_have_class(re.compile(r"\blf-reopen\b"))
     yield
     page.keyboard.press("Escape")
     page.keyboard.press("Escape")
@@ -1415,7 +1417,7 @@ def test_each_sampled_focus_ring_is_shown_whole_in_its_surface(
             expect(page.locator('#merge-steps-pane > [tabindex="0"]')).to_have_count(1)
         if name == "release-notes":
             page.locator("lf-shot").get_by_role(
-                "button", name="Slider", exact=True
+                "radio", name="Slider", exact=True
             ).click()
             # Ordinary element marks need a focusable sample for their conditional ring.
             page.locator("main p").first.evaluate(
@@ -1689,9 +1691,10 @@ def test_every_control_the_layer_offers_is_a_box_the_user_can_hit(
 
 from render_harness import (
     EXAMPLES,
-    PANEL_THREAD,
     leaf_page,
 )
+
+from leaf_dev.browser import PANEL_THREAD
 
 
 @pytest.mark.shifts_unsurveyed
@@ -1750,7 +1753,8 @@ def test_a_newer_wheel_supersedes_a_panel_resize_landing(browser, serve):
     page.keyboard.press("Shift+t")
     panel_settled(page, view="threads")
     threads = page.locator(panel_view("threads"))
-    for _ in range(6):
+    # `g T` stands on the first row, so five steps reach the sixth.
+    for _ in range(5):
         page.keyboard.press("ArrowDown")
     title = threads.locator(".lf-fp-thread").nth(5)
     rendered(page)

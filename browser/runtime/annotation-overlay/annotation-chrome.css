@@ -1,18 +1,17 @@
 /* Physical annotation overlays, adopted only by the overlay renderer.
- * Shared controls, Aim, target trace and drawing capture remain in chrome.css.
- * This sheet owns persistent target contours, smart margin rows, floating response
- * placement and the contextual Thread preview; importing page chrome needs none of it. */
+ * Shared controls and drawing capture remain in chrome.css, and every mark a box draws
+ * in surfaces.css. This sheet owns the hand over a marked element, smart margin rows,
+ * floating response placement and the contextual Thread preview; importing page chrome
+ * needs none of it. */
 
 body.lf-over-mark {
   cursor: pointer;
 }
 /* An element holding threads draws no contour at rest: its margin entry says so, and a
    box means "this, now". A contour appears for a moment — a draft on it, the pointer
-   on its row in Threads, the thread the user is in — and is one hollow line.
-   Unlike a text highlight, an element mark is projected above everything the target
-   draws, so any interior paint can obscure the target's own words or picture. The
-   target painter keeps the contour above those descendants. The element still takes
-   a press that opens its thread. */
+   on its row in Threads, the thread the user is in — and is one hollow line, the
+   element's own outline (surfaces.css). The element still takes a press that opens
+   its thread. */
 .lf-mark-el {
   cursor: pointer;
 }
@@ -37,13 +36,6 @@ body:is(.lf-aiming, [data-lf-design-mode]) ~ .lf-chrome .lf-mark-el {
 body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el,
 body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item ~ .lf-chrome .lf-mark-el {
   cursor: pointer;
-}
-/* Replace only the source focus cue, preserving authored outlines and obligations
-   while a reference is projected. Native visibility covers the return before the
-   focus owner has reflected its attribute. :root outranks field focus rules even
-   when their sheet arrives later. */
-:root .lf-projected-mark:is(:focus-visible, [data-lf-focus-visible]) {
-  outline: none;
 }
 
 @scope (.lf-chrome) {
@@ -251,40 +243,6 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item ~ .lf-chrome .lf-mark-el
     > * {
     pointer-events: auto;
   }
-  .lf-visual-marks {
-    display: contents;
-  }
-  /* Rectangles use the shared brackets in chrome.css; focus draws that perimeter
-     whole. SVG marks retain their actual contour instead of a rectangular frame. */
-  .lf-visual-mark {
-    position: absolute;
-    display: none;
-    pointer-events: none;
-    --lf-shape-ink: var(--mark-contour-ink);
-    --lf-shape-stroke: var(--mark-contour-w);
-    /* This layer is above the target's children, so its interior paints nothing over
-       them. */
-    background: none;
-  }
-  .lf-visual-mark.lf-visual-mark-focus {
-    --lf-shape-ink: var(--accent);
-    --lf-shape-stroke: var(--focus-ring-w);
-  }
-  .lf-visual-mark.lf-visual-mark-action:not(
-      .lf-visual-mark-pending,
-      .lf-visual-mark-hover,
-      .lf-visual-mark-focus,
-      .lf-visual-mark-here
-    ) {
-    --lf-shape-stroke: 1px;
-    --lf-target-outline: 1px solid var(--mark-contour-ink);
-  }
-  .lf-visual-mark-shape {
-    display: block;
-    width: 100%;
-    height: 100%;
-    overflow: hidden;
-  }
   /* thread-preview.js writes the width and height cap the card's placement gives it
      (comment-placement.js); these are the fallbacks for a card no placement has sized
      yet, so only they are held to the viewport. The selected thread's transcript is
@@ -472,6 +430,36 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item ~ .lf-chrome .lf-mark-el
   .lf-margin-preview-position {
     white-space: nowrap;
   }
+  .lf-margin-thread-controls .lf-next-unread {
+    min-height: max(var(--lf-line), var(--aim-floor));
+    padding-inline: 4px;
+    font: var(--font-fine);
+  }
+  /* Beside Previous and Next, on the line whose room a head's name and time share, the
+     press stands on its symbol, its words its tooltip and its name. Drawn whole it left
+     a two-thread card's heads "Me ju". Under a finger, where each press is a finger wide,
+     even its symbol left a head no name or time, so a card draws none there, and a finger
+     scrolls to the unread reply. */
+  .lf-margin-thread-controls:has(.lf-margin-preview-nav) .lf-next-unread {
+    justify-content: center;
+    gap: 0;
+    inline-size: var(--aim-floor);
+    padding-inline: 0;
+    font-size: 0;
+    @media (pointer: coarse) {
+      display: none;
+    }
+  }
+  /* Nothing on the line moves for the press, so a card keeps no seat for it. Nor do an
+     open rewrite's Discard and Save (below), which take the room beside the actions, and
+     which a narrow card under a finger can't also give it. */
+  .lf-margin-thread-controls .lf-next-unread[data-lf-unoffered],
+  .lf-margin-thread
+    .lf-page-thread:has(.lf-msg-edit-actions)
+    > .lf-margin-thread-controls
+    .lf-next-unread {
+    display: none;
+  }
   .lf-margin-preview-step:first-child > .lf-action-icon {
     inset-inline-start: 4px;
   }
@@ -495,7 +483,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item ~ .lf-chrome .lf-mark-el
     display: grid;
     grid-template-columns: minmax(0, 1fr) max-content;
     grid-template-rows:
-      auto minmax(auto, max-content) minmax(0, max-content)
+      minmax(auto, max-content) minmax(0, max-content)
       minmax(auto, max-content);
     min-height: 0;
     min-width: 0;
@@ -504,7 +492,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item ~ .lf-chrome .lf-mark-el
     grid-column: 1 / -1;
   }
   .lf-margin-thread .lf-thread-transcript {
-    grid-row: 2;
+    grid-row: 1;
     display: grid;
     grid-template-columns: subgrid;
     grid-auto-rows: max-content;
@@ -562,15 +550,11 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item ~ .lf-chrome .lf-mark-el
     > :is(.lf-thread-checkpoint, .lf-msg[data-lf-summary]) {
     margin-block-end: 0;
   }
-  /* A to-do on the user heads the card, over its transcript (thread-card.js). */
-  .lf-margin-thread .lf-thread-todos {
-    grid-row: 1;
-  }
   .lf-margin-thread .lf-reply-space {
-    grid-row: 3;
+    grid-row: 2;
   }
   .lf-margin-thread .lf-thread-reply {
-    grid-row: 4;
+    grid-row: 3;
   }
   /* The card accompanies a live page: scrolling continues there at either edge,
      including when all turns fit and the transcript has no scroll travel. */
@@ -615,6 +599,21 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item ~ .lf-chrome .lf-mark-el
   .lf-margin-thread .lf-thread-transcript[data-lf-overflows] {
     scrollbar-gutter: stable;
   }
+  /* New reply stands on the card's paper at the transcript's foot, from the card's
+     edge past the words' inset to the transcript's other edge, down over the room it
+     keeps past its foot (thread-card.js, `#fitAnswer`). Its ground fades what passes
+     under it, so the fade a scroller wears at its foot (controls.css) leaves it whole. */
+  .lf-margin-thread .lf-thread-transcript[data-lf-awaits] {
+    --lf-more-fade: 0px;
+  }
+  .lf-margin-thread .lf-awaited {
+    z-index: 1;
+    bottom: calc(-1 * var(--lf-transcript-room));
+    margin-inline: calc(-1 * (var(--lf-thread-text-inset) + var(--lf-transcript-room)))
+      calc(-1 * var(--lf-transcript-room));
+    margin-block-end: calc(-1 * var(--lf-transcript-room));
+    padding-block-end: var(--lf-transcript-room);
+  }
   /* The row holds paper in the actions' track that sticks on the heads' line, so
      words pass beneath the actions only where a message's head row paints over it
      (below). The transcript's mask makes it a stacking context, so paper on the
@@ -658,7 +657,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item ~ .lf-chrome .lf-mark-el
     position: absolute;
     inset: var(--lf-thread-fade-top, 0px) 0 auto;
     grid-column: 1 / -1;
-    grid-row: 2;
+    grid-row: 1;
     align-self: start;
     height: var(--lf-thread-fade-height, 0px);
     border-radius: 0;
@@ -746,15 +745,15 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item ~ .lf-chrome .lf-mark-el
      line (above), with the ground of the message whose head holds it, tinted while
      it arrives. Their padding keeps the head's own controls short of them, so a
      focused control's ring stays whole. A notice of held news stands first in the
-     row (thread-card.js); the card keeps its width while it holds news
-     (thread-preview.js), so the notice takes its room from the heads' track, and the
-     actions after it keep their places. */
+     row (thread-preview.js); the card keeps its width while it holds news, so the
+     notice takes its room from the heads' track, and the actions after it keep their
+     places. */
   /* The row is a message head's line, so Reopen taking Resolve's place is as tall as
      Resolve was. */
   .lf-margin-thread .lf-page-thread > .lf-margin-thread-controls {
     --lf-line: var(--lf-msg-head-height);
     grid-column: 2;
-    grid-row: 2;
+    grid-row: 1;
     align-self: start;
     z-index: 1;
     display: flex;
@@ -765,7 +764,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item ~ .lf-chrome .lf-mark-el
   }
   /* The notice takes at most a notice's room beside a head's words (`--lf-news-width`,
      surfaces.css), and no more than the heads leave beside each one's name and time
-     (`--lf-news-room`, thread-card.js, `#fitMarginNews`), and it says one count of
+     (`--lf-news-room`, thread-card.js, `#fitLineNews`), and it says one count of
      all that waits (held-news.js, `newsNotice`).
      A card's heads keep their names and times whole beside it under a fine pointer. A
      touch screen's card near its least width, whose three controls, notice and Edit
@@ -823,7 +822,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item ~ .lf-chrome .lf-mark-el
     outline: none;
   }
   /* A name cut to less than an em beside a notice of news shows none of itself
-     (thread-card.js, `#fitMarginNews`), rather than a sliver of its first letter. It
+     (thread-card.js, `#fitLineNews`), rather than a sliver of its first letter. It
      keeps its box, so hiding it changes nothing the fit measures, and its words stay
      for a screen reader. */
   .lf-margin-thread .lf-thread-transcript .lf-msg-head > b[data-lf-nameless] {
@@ -898,13 +897,4 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item ~ .lf-chrome .lf-mark-el
       forced-color-adjust: auto;
     }
   }
-}
-/* Floating editors stand above the chrome that the root's scroll padding clears.
-   Chromium carries a native caret reveal through a CSS-anchored fixed box and applies
-   that padding to it, moving the document beneath an already visible editor. */
-html:has(
-  .lf-margin-preview leaf-text:focus-within,
-  .lf-fab-bar:not([data-lf-presentation="inline"]) leaf-text:focus-within
-) {
-  scroll-padding: 0;
 }

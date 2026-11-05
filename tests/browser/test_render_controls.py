@@ -24,7 +24,6 @@ from render_cases_navigation import (
 )
 from render_harness import (
     LONG_PAGE,
-    PANEL_THREAD,
     CutOff,
     Traffic,
     _until,
@@ -52,6 +51,7 @@ from leaf import hosting as hosting_model
 from leaf import presence as presence_model
 from leaf.render_checks import rendered, wait_until_ready
 from leaf.schema import SERVICE_FILE
+from leaf_dev.browser import PANEL_THREAD
 from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -189,7 +189,7 @@ def test_sample_fixture_history_presents_before_ready_and_returns_on_reset(
     first_state = first.locator("body").evaluate(
         "new URL('api/state', document.baseURI).href"
     )
-    first.locator(".lf-fp-head .lf-fp-settle").click()
+    first.locator(".lf-fp-thread-controls :is(.lf-resolve, .lf-reopen)").click()
     wait_for(
         lambda: [e["kind"] for e in page.request.get(first_state).json()["events"]],
         lambda kinds: "resolve" in kinds,

@@ -448,7 +448,7 @@ def test_the_shipped_long_thread_keeps_the_margin_and_its_height(browser, serve)
     expect(thread.locator(".lf-msg[data-lf-author=user]").first).to_be_visible()
     # The card draws the reply's interactive widgets in place.
     expect(thread.locator("#off-slip-chase [role=checkbox]")).to_be_checked()
-    expect(thread.locator(".lf-page-thread")).to_be_focused()
+    expect(thread.locator("leaf-text")).to_be_focused()
     geometry = marker.evaluate(
         """markerNode => {
           const main = document.querySelector('main').getBoundingClientRect();
@@ -549,7 +549,7 @@ def test_the_shipped_long_thread_keeps_the_margin_and_its_height(browser, serve)
     expect(preview).to_be_hidden()
     marker.click()
     expect(preview).to_be_visible()
-    expect(thread.locator(".lf-page-thread")).to_be_focused()
+    expect(thread.locator("leaf-text")).to_be_focused()
 
     expect(thread.locator("#off-slip-chase [role=checkbox]")).to_be_checked()
 
@@ -588,6 +588,9 @@ def test_the_shipped_long_thread_keeps_the_margin_and_its_height(browser, serve)
     expect(marker).to_have_attribute("aria-controls", "lf-margin-preview")
     expect(marker).to_have_attribute("aria-expanded", "true")
     expect(page.locator(PANEL)).not_to_have_attribute("data-lf-open", re.compile(""))
+    # Out of the reply the click left the caret in, and out of the card.
+    expect(preview.locator("leaf-text")).to_be_focused()
+    page.keyboard.press("Escape")
     leave_card(page)
     marker.hover()
     expect(preview).to_be_hidden()
@@ -595,6 +598,8 @@ def test_the_shipped_long_thread_keeps_the_margin_and_its_height(browser, serve)
     expect(preview).to_be_visible()
     expect(page.locator(PANEL)).not_to_have_attribute("data-lf-open", re.compile(""))
 
+    expect(preview.locator("leaf-text")).to_be_focused()
+    page.keyboard.press("Escape")
     leave_card(page)
     resized(page, 1280, 600)
     marker.evaluate("node => scrollBy(0, node.getBoundingClientRect().top - 330)")
@@ -674,6 +679,9 @@ def test_widening_from_a_thread_in_the_panel_lands_in_its_card(browser, serve):
     resized(page, 390, 760)
     margins_laid_out(page)
     page.locator('.lf-margin-marker[data-lf-kinds~="comment"]').click()
+    # The click puts the caret in the reply (thread/focus.js, `openingPart`); Escape
+    # stands the user on the thread.
+    page.keyboard.press("Escape")
     expect(page.locator(".lf-fp-view:not([data-lf-leaving])")).to_be_focused()
 
     resized(page, 1440, 900)
@@ -1136,14 +1144,13 @@ def test_a_card_an_outer_panes_edge_holds_stands_in_that_panes_plane(browser, se
     assert page.evaluate(reading)["card"] == pytest.approx(before["card"], abs=0.5)
 
 
-def test_the_paint_over_a_target_in_panes_rides_each_panes_scroll(browser, serve):
-    """The trace and the mark drawn over an element inside nested scrolling panes stand
-    in frames cut to each pane's band, each carried by the scrolls around the pane holding
-    it (target-paint-geometry.js, `paintStand`). A scroll of either pane writes nothing to
-    them and leaves them over the element. Drawn in the document's plane from the
-    element's box as the panes cut it, they were rewritten on every scroll step, a frame
-    behind the words. The card's thread marks the element while the user is located in it,
-    and the trace while they stand on its marker."""
+def test_the_marks_on_a_target_in_panes_ride_each_panes_scroll(browser, serve):
+    """The card's thread marks an element inside nested scrolling panes while the user
+    is located in it, and the trace while they stand on its marker. The element draws
+    each as its own outline (surfaces.css), so a scroll of either pane carries it, and
+    writes nothing to the element: drawn in the document's plane from the element's box
+    as the panes cut it, the marks were rewritten on every scroll step, a frame behind
+    the words."""
     comment = {**COMMENT_ON_OBLIGATION, "anchor": {"section": "pane-sec"}}
     page = open_page(browser, serve(NESTED_PANE_PAGE, events=[comment]))
     resized(page, 1440, 900)
@@ -1160,48 +1167,24 @@ def test_the_paint_over_a_target_in_panes_rides_each_panes_scroll(browser, serve
     rendered(page)
     marker = page.locator('[data-lf-margin-for="pane-sec"] .lf-margin-marker')
     marker.click()
-    offsets = """(paint) => {
-      const target = document.getElementById('pane-sec').getBoundingClientRect();
-      const box = document.querySelector(paint).getBoundingClientRect();
-      return [box.left - target.left, box.top - target.top, box.width, box.height];
-    }"""
-    for paint, stand in (
-        (".lf-visual-mark-here", lambda: None),
-        (".lf-target-trace", marker.focus),
+    target = page.locator("#pane-sec")
+    for mark, stand in (
+        (("data-lf-mark", re.compile(r"\bhere\b")), lambda: None),
+        (("data-lf-traced", ""), marker.focus),
     ):
         stand()
-        expect(page.locator(paint)).to_be_visible()
-        at = page.evaluate(offsets, paint)
+        expect(target).to_have_attribute(*mark)
         for scroller in ("inner", "pane-body"):
             writes = scroll_writes(
                 page,
                 (5, 5, -5, 5),
                 scroller=f"document.getElementById('{scroller}')",
             )
-            painted = [
-                w
-                for w in writes
-                if any(
-                    re.search(r"lf-(target-trace|visual-mark|paint)", step)
-                    for step in w["target"]
-                )
+            marked = [
+                w for w in writes if any("#pane-sec" in step for step in w["target"])
             ]
-            assert painted == [], (paint, scroller, painted)
-            assert page.evaluate(offsets, paint) == pytest.approx(at, abs=0.5), (
-                paint,
-                scroller,
-            )
-    # Words arriving below the element lengthen what the inner block can scroll through,
-    # and tell the paint nothing, which stays on the element, as does the scroll that
-    # follows.
-    page.evaluate(
-        """() => document.getElementById('inner')
-          .insertAdjacentHTML('beforeend', '<p>Arrived.</p>'.repeat(30))"""
-    )
-    rendered(page)
-    assert page.evaluate(offsets, paint) == pytest.approx(at, abs=0.5)
-    scroll_writes(page, (5, 5), scroller="document.getElementById('inner')")
-    assert page.evaluate(offsets, paint) == pytest.approx(at, abs=0.5)
+            assert marked == [], (mark, scroller, marked)
+            expect(target).to_have_attribute(*mark)
 
 
 def test_a_scroll_that_carries_the_response_bar_writes_nothing(browser, serve):

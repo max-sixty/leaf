@@ -6,7 +6,7 @@ import {
   declaredName,
 } from "../addressable-names.js";
 import { sectionOf } from "../anchor-resolution.js";
-import { leafSurface, pageParts, pageReadingVersion } from "../passages.js";
+import { HEADING, leafSurface, pageParts, pageReadingVersion } from "../passages.js";
 import { documentChanged } from "../semantic-state.js";
 import { readingRegionFor } from "../reading-regions.js";
 import { byRenderedOrder, renderedOrder, upFrom } from "../shadow.js";
@@ -77,7 +77,7 @@ function readOutline() {
   if (outlined?.key.every((part, index) => part === key[index])) return outlined;
   const outline = Object.freeze(
     byRenderedOrder(
-      pageParts("h1, h2, h3, h4, h5, h6"),
+      pageParts(HEADING),
       /** @param {Element} heading */ (heading) => heading,
     ),
   );

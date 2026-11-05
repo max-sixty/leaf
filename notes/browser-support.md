@@ -29,6 +29,14 @@ movement that disrupts a gesture need a fix or an explicit support decision.
 An unsupported API alone does not justify blocking the whole browser: record
 what fails and what still works.
 
+Record a gap and leave it, rather than correcting it in Leaf's code, unless it
+shows on a path users take often or does one of the things above that need a
+fix. A correction is a second answer to a question the browser already answers,
+so every later change has to keep it working, and someone has to notice when the
+engine catches up and delete it. The entry's recheck says when that has
+happened. Where engines differ on a feature and another feature does the job the
+same way in every engine, use the second.
+
 ## Known gaps
 
 ### Native select keyboard input in the test engine
@@ -142,6 +150,20 @@ Revisit the fallback when supported engines provide it.
 `tests/browser/widgets/test_contents_and_glosses.py` checks the fallback against
 the native timeline with the API removed.
 
+### Sticky boxes' own place
+
+A margin pin's seat is read against the room around its target, with a sticky box
+counted at its own place, where it stands before sticking (`stuckShift` in
+`browser/runtime/geometry.js`). Only a view timeline reads that place without
+writing to the page. Installed Playwright Firefox 157.0, build 1555, had no
+`ViewTimeline` on 2026-11-05, so there a sticky box counts where it is drawn. A pass
+made while a header inside the target is stuck down the page can then seat the pin
+where the header stands once the user scrolls back, and a later unrelated pass moves
+the pin with no input. Playwright Chromium 156.0.8078.4 (build 1248) and WebKit 27.2
+(build 2370) read the place the same way. Recheck by adding `firefox_browser` to
+`test_a_pin_by_a_sticky_header_takes_one_seat_at_every_scroll` in
+`tests/browser/margin/test_scrollers.py`.
+
 ### Highlight style inheritance
 
 Playwright Firefox 155 accepted `:root::highlight()` and `:host::highlight()`
@@ -152,6 +174,20 @@ them in `browser/runtime/annotation-overlay/annotation-marks.css` and
 `test_highlight_paint_reaches_nested_syntax_in_the_widgets_theme` in
 `tests/browser/navigation/test_comment_marks.py` passes with them in supported
 engines. Chromium 153.0.8010.12 passed both forms in that check.
+
+### Font style in syntax highlights
+
+`lf-text-document` colours its source with CSS custom highlights
+(`packages/default/widgets/lf-text-document.js`, `RunColours`), and `::highlight()`
+carries only properties that don't change layout (css-highlight-api-1), so a token keeps
+its theme colour but not its font style: a comment, italic in a code block, `lf-code`
+and a diff, stands upright in a text document. This is the specification, not an engine
+gap. On 2026-11-03, Playwright's Chromium 156.0.8078.4 (build 1248), Firefox 157.0
+(build 1555) and WebKit 27.2 (build 2370) each painted a `StaticRange` highlight's
+colour, ignored its `font-style`, kept that colour under a higher-priority highlight
+that set only `background-color`, and painted one in a shadow root; Chromium's printed
+PDF kept the colour. Recheck when css-highlight-api allows `font-style`: a highlight
+rule setting it on a range of monospace text, read by eye or from a screenshot.
 
 ### Intrinsic block retirement motion
 
@@ -302,7 +338,7 @@ Chrome 155 trimmed block-flow margins but left flex and grid item margins;
 a generated child could prevent trimming the authored paragraph. Playwright
 Chromium 153.0.8010.12 and Firefox 155 did not accept the property.
 Recheck wrapper and row behavior, not just parser support, against
-`test_frame_edges_pass_through_whatever_stands_at_them` and
+`test_block_margins_follow_density_frames_and_the_column_on_one_page` and
 `test_a_row_at_a_frame_edge_holds_the_trim_by_declaring_it` in
 `tests/browser/test_render_gate.py`.
 
@@ -477,12 +513,20 @@ milestone, blocked on bugs 2055371, 2057633 and 2060883.
 
 `anchorBox` in `browser/runtime/css-anchors.js` measures that laid-out box from
 offsets wherever `anchorDropsTransforms()` finds the engine drops transforms, so
-pins, rows, key chips, the Alt outline and floating cards stand on a widened
+pins, rows, key chips, the design label and floating cards stand on a widened
 table (translated) and on a reveal.js slide (translated and scaled), and the
 block controls (`readInsets` in `browser/runtime/block-controls.js`) add the
 size difference to their far edges. An engine that keeps transforms, the
 Nightly pref included, fails that check, and none of this runs. Offsets are
-whole pixels, so a mark can stand up to a pixel off.
+whole pixels, so a mark can stand up to a pixel off. The walk runs when a box is
+placed, so a transform that changes afterwards, as an animation sliding the
+target does, leaves the box where it was placed until the next scroll, resize or
+layout signal: holding Alt over a paragraph slid 120px down by a 300ms animation,
+Playwright Firefox 157 (build 1555) kept the then-anchored aim at its start, after
+the slide too, on 2026-11-02. Marks round a box no longer stand in this layer
+(surfaces.css draws them on the box), so this reaches only boxes beside a target,
+such as pins and chips. Accepted, since no example page slides a target with one
+beside it.
 
 A scroll inside a scaled box is a separate gap. Firefox 157 and WebKit 27.2
 carry an anchored box by the scroll's layout pixels, not the smaller or larger
@@ -554,6 +598,23 @@ the gap is unconfirmed. The `right` form costs nothing else. Recheck by
 swapping in the `left` form and comparing the link's box after that resize with
 a fresh page's at the same width across the corpus; if none differ, drop this
 entry and the reason in the stylesheet.
+
+### A keyboard scroll's `scrollend` on every frame in WebKit
+
+On 2026-11-03, Playwright WebKit 27.2 (build 2370) sent a `scrollend` on each
+frame of a PageDown's or Space's animation, 12 for one PageDown, where Chromium
+156 and Firefox 157 send one as the scroll lands. So in WebKit one keypress makes
+a scroll sequence per frame (`arrivals.js`, `watchScrollEnds`), and each reader
+of a scroll's end runs on every frame of it. A Leaf step pressed during such a
+scroll waits for it to end (`scrolling.js`, `afterBrowserScroll`), which in
+WebKit is the first frame's end, so the step moves from where that frame left
+the page and the rest of the browser's move is lost, or the step is: Space and
+then `d` 40 ms later ended at 651 px, and PageDown and then `d` at 720, PageDown
+alone, where Chromium and Firefox end at 1246 and 1254, the landing plus the
+step. Waiting a rendering update past each end did not help, since WebKit's
+main thread hears its keyboard scroll's frames up to 110 ms apart. To recheck,
+count `scrollend` events on the document across one PageDown in WebKit; one
+means the gap has closed.
 
 ### Native reveal bounded to its scroller
 
@@ -677,6 +738,38 @@ short. To recheck, draw a `content-visibility: auto` box with
 `contain-intrinsic-size: auto 100px`, scroll it out of view, write
 `contain-intrinsic-size: 300px` and read its height a few frames later: 300 px is the
 specified behaviour.
+
+### Styling content Firefox skips
+
+Firefox 157 (Playwright build 1555, macOS) styles every element inside a box whose
+content it skips, a `content-visibility: auto` run out of view and a closed tab's
+`hidden="until-found"` panel included, on each restyle that reaches it. Chromium 156
+leaves skipped content unstyled until it is drawn. So in Firefox a restyle that
+reaches a long text document's listing styles every row and its line number. On
+2026-11-04 the Firefox Profiler's `Styles` marker counted 194,514 elements when the
+runtime's scroll mark changed three inherited values on a listing of 97,000 rows (250
+to 330 ms; 25 to 45 in Chromium), and 2.1 million when a page of 30 documents of
+50,000 lines presented (2.6 s).
+
+Leaf keeps its own writes off the rows while a page loads: a listing states its slot
+restart from the first paint (`text-document.css`), and a closed tab's document draws
+after the page presents (`lf-text-document.js`, `drawLater`). Two restyles still reach
+every row in Firefox. A newly started Firefox restyles every page on each
+`font-info-updated` in its first seconds, 1.4 s each on the page of 30 documents. And
+Gecko answers an insertion into an element whose children a `+`, `~` or
+`:nth-*(… of …)` selector has been matched against by restyling every later
+sibling's subtree. The frame-edge trims in `reading.css` are matched against every
+element, as are `.lf-inspection-body :is(h2, h3) + *` (`chrome.css`) and the reading
+theme's `.eyebrow + :is(h1, h2, h3)` against every heading, so a paragraph added at
+the top of `main` restyled the whole page: 280 to 310 ms over 97,000 rows, and 24 ms
+with the trims written as `:first-child` and `:last-child` and the two sibling rules
+taken out. The first is Firefox's to change; rewriting the rules is
+open (#4781).
+
+To recheck, build a `pre` of 97,000 `div` rows in runs of 128 with
+`content-visibility: auto`, each row numbered by a `::before` counter, let it paint,
+then set an inherited custom property on the `pre` and time the next frame: 70 to 77
+ms in Firefox, 17 to 19 in Chromium.
 
 ### A traversal's own scroll restoration under the Navigation API
 

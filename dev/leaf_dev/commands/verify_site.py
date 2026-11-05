@@ -46,9 +46,9 @@ import click
 import psutil
 from playwright.sync_api import APIRequestContext, APIResponse, BrowserContext, Page
 from playwright.sync_api import Error as PlaywrightError
-from playwright.sync_api import TimeoutError as PlaywrightTimeout
 
 from leaf.findings import Finding
+from leaf.render_checks import PageNotReady, wait_until_ready
 from leaf.render_gate.scheme import collect_page_errors
 from leaf_dev import ROOT
 from leaf_dev.arms import (
@@ -59,7 +59,7 @@ from leaf_dev.arms import (
     install_codex_plugin,
     run_directory,
 )
-from leaf_dev.browser import go_to_threads, headless_shell
+from leaf_dev.browser import go_to_threads, headless_shell, panel_view
 from leaf_dev.commands.site import asset_site, install_tree
 from leaf_dev.startup import observe_startup as record_startup
 from leaf_dev.startup import startup_reading
@@ -134,6 +134,13 @@ def answered[Response: HttpAnswer](response: Response, url: str) -> Response:
     return response
 
 
+# Playwright retries a connection reset after 250 ms, doubling each time, so five
+# retries keep one read going through about eight seconds of resets. The resets seen
+# on the hosted site came before the Worker recorded the request, and the GET is
+# idempotent besides.
+STATE_RESET_RETRIES = 5
+
+
 def read_state(
     request: APIRequestContext,
     url: str,
@@ -141,13 +148,16 @@ def read_state(
     headers: dict[str, str] | None = None,
     timeout: float | None = None,
 ) -> APIResponse:
-    """Read state with one native connection-reset retry, safe for this idempotent GET.
+    """Read state, retrying through connection resets (`STATE_RESET_RETRIES`).
 
     HTTP failures still surface through ``answered``. Publish-site's transport
     capture records failed attempts even when the retry succeeds.
     """
     return answered(
-        request.get(url, headers=headers, timeout=timeout, max_retries=1), url
+        request.get(
+            url, headers=headers, timeout=timeout, max_retries=STATE_RESET_RETRIES
+        ),
+        url,
     )
 
 
@@ -163,16 +173,14 @@ def observe_startup(page: Page) -> list[Finding]:
 def await_presentation(
     page, url: str, failures: list[Finding], timeout: int = 30_000
 ) -> None:
-    """Wait for presentation; a page that never presents names the startup stamps it
-    reached (none: upgrade stalled; `upgraded` alone: the first state read did)."""
+    """Wait until the page has presented the state it read (`wait_until_ready`
+    through `presented`); a page that never does names the readiness stage it
+    stopped at and the browser errors it raised on the way."""
     try:
-        page.locator("body[data-lf-presented]").wait_for(timeout=timeout)
-    except PlaywrightTimeout:
-        reached = page.evaluate("window.__leafStartup.milestones")
+        wait_until_ready(page, through="presented", timeout_ms=timeout)
+    except PageNotReady as error:
         raise RuntimeError(
-            f"{url} never presented, reaching "
-            f"{', '.join(reached) or 'no startup milestone'}; browser errors: "
-            + said(failures)
+            f"{url} never presented: {error}; browser errors: " + said(failures)
         ) from None
 
 
@@ -857,7 +865,7 @@ def verify_saved_state(browser, worker: LocalWorker) -> dict[str, dict]:
     page.locator("#heat-opt-window[chosen]").wait_for(state="visible")
     go_to_threads(page)
     page.locator(f'.lf-fp-thread[data-lf-key="{seeded["comment"]}"]').click()
-    page.locator(".lf-fp-view[data-lf-route=thread]").get_by_text(
+    page.locator(panel_view("thread")).get_by_text(
         "Saved before the container stopped.", exact=True
     ).wait_for(state="visible")
     state_response = read_state(context.request, state_url)

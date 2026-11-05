@@ -58,12 +58,52 @@ test("before-target chips stay outside the words, including when the window clam
     seat([
       { start: chip(100, 100), target: box(100, 100, 200, 20), placement: "before" },
     ]),
-    [{ left: 78, top: 100 }],
+    [{ left: 78, top: 102 }],
   );
   const target = box(0, 100, 200, 20);
   assert.deepEqual(seat([{ start: chip(0, 100), target, placement: "before" }]), [
     { left: 2, top: 82 },
   ]);
+});
+
+test("a before chip stands level with its target's first line, so each row in a list keeps its own", () => {
+  const rows = [100, 130].map((top) => box(100, top, 200, 30));
+  assert.deepEqual(
+    seat(
+      rows.map((target) => ({
+        start: chip(target.left, target.top),
+        target,
+        placement: "before",
+      })),
+    ),
+    [
+      { left: 78, top: 107 },
+      { left: 78, top: 137 },
+    ],
+  );
+  assert.deepEqual(
+    seat([
+      { start: chip(100, 100), target: box(100, 100, 200, 400), placement: "before" },
+    ]),
+    [{ left: 78, top: 108 }],
+  );
+});
+
+test("a before chip that would cover a neighbouring target keeps its own target's corner", () => {
+  const buttons = [box(100, 100, 100, 30), box(205, 100, 100, 30)];
+  assert.deepEqual(
+    seat(
+      buttons.map((target) => ({
+        start: chip(target.left, target.top),
+        target,
+        placement: "before",
+      })),
+    ),
+    [
+      { left: 78, top: 107 },
+      { left: 183, top: 100 },
+    ],
+  );
 });
 
 test("control chips sit above their own left edge", () => {
@@ -89,10 +129,10 @@ test("before chips of nested targets stand one step out per level, the deepest w
       })),
     ),
     [
-      { left: 168, top: 100 },
-      { left: 178, top: 118 },
-      { left: 178, top: 200 },
-      { left: 178, top: 420 },
+      { left: 168, top: 108 },
+      { left: 178, top: 126 },
+      { left: 178, top: 208 },
+      { left: 178, top: 427 },
     ],
   );
 });

@@ -277,11 +277,12 @@ lf-playground-control > input[type="range"] {
  * Rejected before it: equal grid cells, which wrapped every label longer than its
  * share. Columns the author sets replace the list (below). A focused face draws its
  * ring inside its own padding (`.lf-choice`, controls.css), so lines of faces need no
- * gap between them. */
+ * gap between them. Where the control is wider than its longest label, as in the rail,
+ * each face fills its line, so the option is one block for a press and for a comment
+ * rather than the width of its words. */
 .lf-playground-choices {
   display: flex;
   flex-direction: column;
-  align-items: start;
   gap: 0 var(--focus-ring-room);
 }
 /* A plain choice's label sits on its choices, closer than they stand to each other,
@@ -289,6 +290,7 @@ lf-playground-control > input[type="range"] {
 lf-playground-control:not(.lf-playground-candidates):has(> .lf-playground-choices) {
   row-gap: 0;
   > .lf-playground-choices > lf-playground-choice > .lf-choice {
+    justify-self: stretch;
     margin-inline-start: calc(-1 * var(--choice-pad));
   }
 }
@@ -306,9 +308,9 @@ lf-playground-choice {
 /* `--playground-choice-columns`, set on a choice control or its parent, arranges its
  * choices, plain or rich, in the author's grid columns. Authors set it on a row of
  * threshold choices, saw nothing change, and wrote rules against the generated class
- * instead (13 of 78 pages in 24 configuration samples). A plain face starts its cell
- * at its words' width (`.lf-choice`, controls.css), so its label wraps only where the
- * column is narrower. No `var()` fallback can turn the plain list's flex box into a
+ * instead (13 of 78 pages in 24 configuration samples). A plain face's label wraps
+ * only where the column is narrower than its words. No `var()` fallback can turn the
+ * plain list's flex box into a
  * grid, so a style query asks the group's parent, the control, whether the property is
  * set; naming the rich control's class weighs as much as the rich default above, and
  * the later rule wins. */

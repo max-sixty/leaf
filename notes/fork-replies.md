@@ -15,8 +15,9 @@ session's own conversation, as against the forks and subagents made from it.
 On 2026-11-05 the user took answering out of this fork. A `$.model.fork` fork can't
 call tools, so it now posts only the agent's working line and hands every message to
 the session, and the message reads On it from the moment the hold starts. Answering
-moves to a fork that can act ("A fork that takes the work"). The measurements below
-are of the fork that answered.
+moves to a fork that can act ("A fork that takes the work"), and the line's fork now
+also judges whether one could take the work. The measurements below are of the fork
+that answered.
 
 ## What a hooks module can fork
 
@@ -170,8 +171,14 @@ hand-overs miss a boundary, adding 42 s across all of them.
 
 ## A fork that takes the work
 
-A design not yet built: a fork that does a self-contained request itself rather than
-handing it over. What the session did next with the 27 hand-overs above:
+A design being built in steps: a fork that can act takes a thread message whose work
+is independent of the main thread's, owns it until it answers, and then tells the
+main thread what it did. The main thread stays in charge: it hears of each fork, and
+can steer or stop it.
+
+### What the session did with the hand-overs
+
+What the session did next with the 27 hand-overs above:
 
 | What the message needed                                                         | Messages | Could a fork take it?                                     |
 | ------------------------------------------------------------------------------- | -------: | --------------------------------------------------------- |
@@ -181,33 +188,84 @@ handing it over. What the session did next with the 27 hand-overs above:
 | recording a decision the user made on the session's question, then acting on it |        7 | no: it changes the session's plan                         |
 | work on the session's own tree, page or PRs                                     |        7 | no: it races the session's edits                          |
 
-So a fork with read-only tools, `leaf thread reply` and `/dispatch` could have taken 7 to
-13 of the 27. A forked subagent (`$.agent.spawn({ subagentType: "fork" })`) is the
-mechanism: it starts from the current transcript, so it also covers the sessions
-`$.model.fork` has nothing to fork in, and the module gates its tool calls at
-`tool.call`. Before building on it, a probe should check whether Claude Code tells
-the main thread when a subagent the module spawned finishes, since that would wake an
-idle session.
+So a fork with the session's tools, kept off what the session is changing, could have
+taken 7 to 13 of the 27.
 
-Coherence decides the design more than capability does:
+### What Claude Code gives the module
 
-- One reader for related messages. Today each held thread gets its own fork, so
-  twelve messages across twelve threads would get twelve independent workers. A
-  fork that takes work should see every held thread of the session at once and
-  decide them together, and a message arriving while it works goes to it
-  (`$.session.send` to its agent id) rather than to a new fork.
-- The session hears what the fork did. A reply already queues a clerk line; taken
-  work needs the same line saying what was done or dispatched and where, so the
-  session neither redoes nor contradicts it.
-- The fork writes nothing the session is changing: no edits to its tree, page source,
-  git state or PRs. Anything that would is handed over, as now.
+Probes in interactive Claude Code 2.1.318 on 2026-11-05, with a module that spawned a
+fork from a slash command (`$.agent.spawn({ prompt, subagentType: "fork", name })`):
+
+- The fork's first turn starts within 10–16 ms. It has the session's transcript,
+  model and tools, and runs beside the main thread, idle or busy.
+- Its shell commands run in the main session's environment (`CLAUDE_CODE_SESSION_ID`
+  and `CLAUDE_PID` are the session's), so a `leaf` command it runs acts for the
+  session, as any subagent's does (`harness.ClaudeCodeHarness`).
+- Every hook but the one that spawned it sees its turns and tool calls with its
+  `agentId`, so the module can deny one of its calls (`tool.call` returning `deny`,
+  which the fork reads and works around) or rewrite it.
+- `$.session.send({ to: { agentId } })` reaches it as a coordinator's message at its
+  next tool boundary, and it acts on it.
+- The main thread learns nothing of it: its transcript gets no row for the spawn, and
+  the fork's first completion sends it no notification and wakes no idle session. The
+  main thread finds it by name with ListAgents, and a SendMessage to that name resumes
+  it; that resumed run's completion does notify the main thread and starts a turn.
+- A module can't message its own main thread (`$.session.send` to its own session id
+  fails as "no live session"), so Leaf's own channels carry what the main thread must
+  hear: the clerk's queued lines, delivered at the next tool boundary or prompt.
+
+### The design
+
+- **Deciding.** The fork that writes the working line, which reads the message
+  against the conversation in about 3 s, also judges whether a fork of the session
+  could do the work beside it (`take`) or the work belongs with the main thread
+  (`hand_over`): take where the work needs nothing the session is changing (its
+  files and branch, the page's source, its pull requests), settles none of its open
+  questions, and waits on nothing it is running. The fork doing the work may still
+  hand the thread back once it learns more.
+- **Doing.** On `take`, the module spawns a fork with Leaf's prompt carrying the
+  thread as delivered, `answer.ref` included, so it answers with `leaf thread reply`
+  as the agent, as a command hub worker answers a forwarded ref.
+- **Owning.** A thread a fork has taken is in a third state beside held and with the
+  session: not deliverable to the session, read as On it, and outside the hold's
+  bound. A further message in it goes to the fork (`$.session.send`), which resumes it
+  if it has finished.
+- **Acting as itself.** Leaf ties work to the turn it runs in: a pickup or start names
+  the session's turn, and lapses when that turn ends. A fork runs in the session's
+  environment, so today its pickup and starts would name the main thread's turn, and
+  the update would read Stopped as soon as the main thread's turn ended. The fork's
+  run has to be a turn of its own: the module prefixes the fork's commands with its
+  `agentId`, and tells Leaf as the fork's turns open and close, so Leaf keeps a turn
+  per agent of the session rather than one per session.
+- **Joining.** As the fork's turn completes, the module tells Leaf. A thread the fork
+  answered is done; one it left unanswered goes to the main thread as a hand-over.
+  Either way the clerk queues a line for the main thread naming the fork, the thread
+  and what the fork did, so the session neither redoes nor contradicts it.
+- **The main thread in charge.** As a fork takes a thread, the clerk's line tells the
+  main thread which fork took what, by name, so it can steer or stop it with
+  SendMessage, or take the thread over.
+
+### Steps
+
+1. **The judgment** (built): the working-line fork answers `{"line", "work"}`; Leaf
+   records `work` in the page's diagnostics (`fork_reply`) and still hands every
+   thread over, and `fork-reply/*` scores the judgment against each case's label.
+   Real pages then show how often a fork would take a message, and what the session
+   did with those.
+2. **Doing, in the shadow**: on `take`, spawn the fork, with its writes and `leaf`
+   commands denied, and record what it would answer beside what the session
+   answered. This measures the fork's answers and cost before it writes anything.
+3. **A turn per agent**: the fork's commands carry its id; Leaf opens and closes its
+   turn from the module; pickups, starts and conditions read that turn.
+4. **Owning and joining**: the third thread state, follow-ups routed to the fork, the
+   join, and the clerk's lines to the main thread.
 
 Evals are viable at three levels, each on the harness `fork_eval.py` already has:
 
-- Decision (reply, take or hand over): constructed cases with a `take` label, plus a
-  replay set of the 33 recorded forks above, labelled by what the session did next.
+- Decision (take or hand over): the constructed cases' `work` labels, plus a replay
+  set of the 33 recorded forks above, labelled by what the session did next.
 - Outcome: for taken cases, a judge compares the fork's answer with the answer the
-  session actually gave. Replays need read-only tools on the repository at the
+  session actually gave. Replays need the session's tools on the repository at the
   session's commit; lookups that read GitHub or the web drift between runs.
 - Coherence: two-message cases (related messages in two threads, a message during
   a decision) scored on how many workers ran and whether their answers agree; and

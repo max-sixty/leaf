@@ -12,7 +12,9 @@ fork decided in a median 3 s. The user chose on 2026-10-31 a fork that answers o
 hands over. On 2026-11-05 they had a fork that hands over post the agent's working
 line, and then had the fork post only that line, always handing over: a fork can't
 call tools (`$.model.fork` denies every one), and answering is left to a fork that
-can act.
+can act. The fork also judges whether such a fork could do the work beside the
+session (`ANSWER`'s `work`), which Leaf records with the outcome and doesn't yet act
+on (`notes/fork-replies.md`, "A fork that takes the work").
 
 The line is the agent's progress message in the thread (`thread.post_reply`), which
 the thread shows until the session's own words replace it. From the moment the hold
@@ -133,6 +135,19 @@ LANE_START = Record(
 
 # The words that open the fork's question, which the transcript carries.
 OPENING = "<leaf-fork-reply>"
+
+# What a fork answers (`reply_prompt`): the agent's working line, and whether a fork
+# of the session could do the work beside it (`take`) or the work belongs with the
+# session (`hand_over`). Leaf records that judgment and hands every thread over.
+ANSWER = {
+    "type": "object",
+    "properties": {
+        "line": {"type": "string", "minLength": 1, "pattern": r"\S"},
+        "work": {"enum": ["take", "hand_over"]},
+    },
+    "required": ["line", "work"],
+    "additionalProperties": False,
+}
 
 
 class Held(NamedTuple):
@@ -437,7 +452,11 @@ This message comes from Leaf, not the user. The user just wrote in a thread on a
 The thread, as Leaf delivers it; "events" are the user's messages, oldest first:
 {json.dumps(thread, ensure_ascii=False, indent=1)}
 
-Leaf posts your reply in the thread at once as the agent's working line, until the main session's own words replace it. Write that one line: what the agent will do about the message, in a few of the user's words, as the agent would before starting ("reading the reconnect traces"; "recording your choice and making that change"). Leave the answer to the main session, even where the conversation above holds it. Reply with the line alone.
+Leaf posts your line in the thread at once as the agent's working line, until the main session's own words replace it. Write that one line: what the agent will do about the message, in a few of the user's words, as the agent would before starting ("reading the reconnect traces"; "recording your choice and making that change"). Leave the answer to the main session, even where the conversation above holds it.
+
+Then judge who should do what the message asks. "take": a fork of the session with the session's tools could do it start to finish beside the main session, because it needs nothing the main session is changing or about to change (its files and branch, the page's source, its pull requests), settles no question the main session is weighing, and waits on nothing the session is running; answering from reading, a lookup, or research that writes only its own scratch files are such work. "hand_over": it belongs with the main session.
+
+Reply with this JSON alone: {{"line": "<the line>", "work": "take" or "hand_over"}}
 </leaf-fork-reply>"""
 
 
@@ -452,17 +471,26 @@ def take(
     running: list[dict] | None = None,
     request: dict | None = None,
 ) -> dict:
-    """Post the fork's answer as the agent's working line and hand the thread to the
-    session, or hand it over bare where the fork failed (`failed`, its reason); what
-    came of it, recorded in the page's diagnostics."""
-    line = (answer or "").strip()
-    # TODO: where the message is self-contained, a fork that can act could do the
-    # work itself rather than hand it over ("A fork that takes the work" in
+    """Post the fork's line as the agent's working line and hand the thread to the
+    session, or hand it over bare where the fork failed (`failed`, its reason) or
+    its answer doesn't fit `ANSWER`; what came of it, with the fork's judgment of who
+    should do the work (`work`), recorded in the page's diagnostics."""
+    from .clerk import read_answer
+    from .refusals import Refused
+
+    read = None
+    if answer is not None:
+        try:
+            read = read_answer(answer, ANSWER)
+        except Refused as error:
+            failed = str(error)
+    # TODO: a thread the fork judges `take` goes to the session for now, until a fork
+    # that can act does the work itself ("A fork that takes the work" in
     # notes/fork-replies.md).
     outcome = (
-        _post(session_id, basis, line)
-        if line
-        else _hand_over(session_id, basis, f"the fork failed: {failed or 'no line'}")
+        {**_post(session_id, basis, read["line"].strip()), "work": read["work"]}
+        if read
+        else _hand_over(session_id, basis, f"the fork failed: {failed or 'no answer'}")
     )
     _record(
         session_id,

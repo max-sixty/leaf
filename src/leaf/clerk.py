@@ -402,9 +402,10 @@ def fork_prompt(pages: list[dict]) -> str:
     )
 
 
-def read_answer(text: str) -> dict:
-    """A fork's reply as an answer `ANSWER` takes, or `Refused` saying why not. A
-    fenced or prefaced object is read from its first `{` to its last `}`."""
+def read_answer(text: str, schema: dict = ANSWER) -> dict:
+    """A fork's reply as an answer `schema` takes, the clerk's `ANSWER` unless
+    another fork's, or `Refused` saying why not. A fenced or prefaced object is read
+    from its first `{` to its last `}`."""
     from .refusals import Refused
     from .registry.schema import json_validator
 
@@ -415,7 +416,7 @@ def read_answer(text: str) -> dict:
         answer = json.loads(text[start : end + 1])
     except json.JSONDecodeError as error:
         raise Refused(f"the fork's answer is not JSON ({error.msg})") from error
-    errors = sorted(json_validator(ANSWER).iter_errors(answer), key=str)
+    errors = sorted(json_validator(schema).iter_errors(answer), key=str)
     if errors:
         raise Refused(f"the fork's answer doesn't fit its schema: {errors[0].message}")
     return answer

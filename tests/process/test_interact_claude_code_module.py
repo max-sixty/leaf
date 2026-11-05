@@ -451,8 +451,10 @@ def test_a_held_thread_message_gets_the_agents_working_line_from_a_fork(
     new thread is held from the session, and the module forks the conversation with
     Leaf's prompt for it as it arrives and hands the line back: it goes in as the
     agent's working line, and the thread goes to the session."""
-    answer = "Checking why the poll is 2 s"
-    driven = ClaudeCode(spawn, "cc-reply", {"forkReply": answer})
+    said = "Checking why the poll is 2 s"
+    driven = ClaudeCode(
+        spawn, "cc-reply", {"forkReply": json.dumps({"line": said, "work": "take"})}
+    )
     holding_page(driven, page_dir, monkeypatch)
     server_id = read_record(page_dir / "service.json")["server_id"]
     server_rows_model.RowPublisher(page_dir, server_id).refresh()
@@ -483,7 +485,7 @@ def test_a_held_thread_message_gets_the_agents_working_line_from_a_fork(
     ]
     assert (line["parent"], line["text"], line["session"], line["ephemeral"]) == (
         asked["id"],
-        answer,
+        said,
         "cc-reply",
         True,
     )

@@ -346,15 +346,19 @@ runner and a host running other sessions' suites are both slower than an idle
 development machine. So no test asserts a duration. A check of cost compares readings
 taken in the same run, such as a cost on a large page over the same cost on a small
 one, or the exponent of a cost's growth across page sizes (`leaf-dev scaling`), so the
-machine's speed divides out of it.
+machine's speed divides out of it. Check a test against the rule with
+`--cpu-throttle 10` ("Races"). It slows only Chromium's renderer, not the server, Python
+or the driver, and doesn't reach a page from `browser.unwatched`.
 
 Control or advance the clock that decides an age, lease, grace period or timer; a fixed
 `Date.now()` doesn't stop timers, animation frames, paint or observer delivery. Bound a
-hang with a real deadline at least ten times the longest the bounded work takes on the
-machine it was set on, and on expiry report which completion is still missing. A time
-limit must never turn unfinished work into a pass. To test a race, hold and release the request, callback, frame or lock explicitly,
-check that the outcome holds with completion delayed tenfold, and keep a control that
-still fails.
+hang with a real deadline at least ten times the longest the bounded work takes on CI's
+runner, where a `test` job's junit results record each test's time
+(`leaf-dev suite-profile`), and on expiry report which completion is still missing.
+The per-test hang limit, `faulthandler_timeout` in `pyproject.toml`, is one such
+deadline. A time limit must never turn unfinished work into a pass. To test a race,
+hold and release the request, callback, frame or lock explicitly, check that the
+outcome holds with completion delayed tenfold, and keep a control that still fails.
 
 Wait for the operation's own completion signal. Elapsed time, matching samples, a fixed
 number of frames and network quiet look the same for an effect that hasn't started as
@@ -413,7 +417,7 @@ browser's record (`opened_tab`).
 A watch finding that CI reports and this machine doesn't is usually a frame that lands
 later on CI's slower runner, after the input window that credits it has closed. Load
 alone rarely shows it; a slower CPU does. `--cpu-throttle RATE`, given to pytest or
-`leaf-dev flake`, slows every Chromium page the browser fixtures open. Past findings
+`leaf-dev flake`, slows every Chromium page the `browser` fixture watches. Past findings
 reproduced at rates from 6 to 20, and one rate can miss a finding another reproduces,
 so try more than one. Run the merge base under the same rate to learn whether the
 change caused it. A test whose subject is a slow CPU slows its own page
@@ -476,7 +480,12 @@ or typed box joins its journey by its keys or route.
 
 An absence asserted before the runtime's deferred step passes on the frame before the
 decision. Read it once, after the step that would have caused the forbidden behavior,
-and keep a control that first produces it.
+and keep a control that first produces it. A fixed wait isn't that step, since a slower
+machine takes longer to reach it: wait for a later event ordered after the moment the
+forbidden behavior would have happened, then check that it is absent. The page's sends
+coming back (`round_trip`), the page taking in what the server holds (`told`) and the
+shared clock's next tick (`ticked`) are such events, and so is a later gesture of the
+same kind, whose result arrives behind anything the earlier one caused.
 
 ### Sweeps over controls
 

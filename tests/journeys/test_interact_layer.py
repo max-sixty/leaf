@@ -302,7 +302,8 @@ def test_a_wait_takes_the_suites_deadline():
     the deadline a thread, future, event or socket takes first, and a page's
     default deadline; and a deadline a local loop computes from `monotonic()`. A
     zero timeout asks without waiting and is left alone. A sleep
-    (`wait_for_timeout`) is a pause or an absence window, not a deadline.
+    (`wait_for_timeout`) bounds nothing, so this leaves it alone, and a test waits for
+    an absence on an ordered event instead (tests/AGENTS.md, "Absences").
     """
     deadline_names = {"timeout", "timeout_ms"}
     deadline_first = {

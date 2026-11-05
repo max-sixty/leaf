@@ -1513,12 +1513,14 @@ def test_a_key_at_a_control_out_of_sight_in_a_fixed_box_lets_go_of_it(
     lets_go(inside)
 
 
+@pytest.mark.parametrize("old", ["button", "input"])
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
 def test_tab_at_a_control_scrolled_away_goes_on_in_the_column_the_pointer_is_in(
-    request, serve, engine
+    request, serve, engine, old
 ):
     """A key pressed at focus scrolled away names no place, so the column the pointer
-    rests in stays the one the user reads, and Tab goes on from there."""
+    rests in stays the one the user reads, and Tab goes on from there, from a text field
+    too, since Tab types nothing."""
     column = (
         '<section id="{0}"><p id="{0}-reading">The {0} column has words enough to name '
         'a place on the page.</p><button id="{0}-next">Next</button></section>'
@@ -1528,7 +1530,8 @@ def test_tab_at_a_control_scrolled_away_goes_on_in_the_column_the_pointer_is_in(
         serve(
             leaf_page(
                 "Columns",
-                '<button id="old">Old</button><div style="height:2400px"></div>'
+                f'<{old} id="old">{"Old</button>" if old == "button" else ""}'
+                '<div style="height:2400px"></div>'
                 '<div id="cols" style="display:grid;grid-template-columns:1fr 1fr;'
                 'gap:40px">'
                 + column.format("left")

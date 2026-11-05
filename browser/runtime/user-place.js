@@ -60,6 +60,7 @@ import { inChrome } from "./shadow-tree.js";
 import { focused, inputCount, onCurrentLocation, recentPlaceInput } from "./focus.js";
 import { browserScrolls, watchScrollEnds } from "./arrivals.js";
 import { pointerAt } from "./pointer.js";
+import { nextAnimation } from "./rendering.js";
 
 // The focused control while it marks where the user is: while any of it is in front of
 // them (geometry.js, `seenRect`), and it is not riding in a stuck sticky box
@@ -112,10 +113,12 @@ export function focusScrolledAway() {
 const READING_LINE = 0.25;
 
 // What stands at the reading line in the middle of `column`'s span across the window:
-// the element holding the words nearest the line, so a gap between two paragraphs
-// names one of them, else the element drawn there. Leaf's chrome over the line names
-// nothing, and neither does a box stuck over the page, which rides along with every
-// scroll (geometry.js, `stuckBox`).
+// the block holding the words nearest the line, so a gap between two paragraphs names
+// one of them, else the element drawn there. A block, not the inline element the words
+// stand in: an `em`'s box starts below its line's top by the line's leading, so a gist
+// put where the em stood, as Skim's is, landed 2.6px under the line read. Leaf's
+// chrome over the line names nothing, and neither does a box stuck over the page,
+// which rides along with every scroll (geometry.js, `stuckBox`).
 /** @param {Element} column */
 export function readingAt(column) {
   const window = shownWindow();
@@ -127,8 +130,12 @@ export function readingAt(column) {
   const x = (left + right) / 2;
   const at = document.caretPositionFromPoint(x, line)?.offsetNode;
   // Words in a shadow tree answer for their host, as anything else under the line does.
-  const node =
-    at instanceof Text ? at.parentElement : document.elementFromPoint(x, line);
+  let node = at instanceof Text ? at.parentElement : document.elementFromPoint(x, line);
+  while (
+    node?.parentElement &&
+    /^(inline|contents)$/.test(getComputedStyle(node).display)
+  )
+    node = node.parentElement;
   return node && !inChrome(node) && !stuckBox(node) ? node : null;
 }
 
@@ -161,29 +168,33 @@ export function holdPlace(node, standIn = () => null) {
 // (state-application.js), or across a change a surface makes with no reading behind it,
 // as a widget's own contribution joining Page Map once its work finishes
 // (page-map-dialog.js). The place is what the user last named: the control under a
-// resting pointer, or the control holding focus, whichever input came last, and then
-// the other (focus.js, `recentPlaceInput`). Either names a place while any of it is
-// shown and it rides in a scroller, not stuck there, as a Page Map row or a message in
-// a margin card's transcript does, and a search field in a dialog's fixed head does
-// not. A container the user is on stands at the box a rule names for it (`standsAt`),
-// as a thread they sent from waits at its reply box. A user whose focus is scrolled
-// away reads something else, so what stands at the reading line in its column comes
-// last (`readingAt`). The keep puts back the first of these the change moved, so a
-// pointer resting on a rail of its own, which nothing here moves, leaves the reading
-// line to be kept; a place the change left still keeps the scroller it rides in, so a
-// later one there, below news that joined between them, moves nothing. An action
-// joining above a place inside the window, past the first box anchoring holds, would
-// push it down. Read after the whole presentation, a box Leaf positions, as Send in its
-// editor or a diff line's Comment, stands where its own layout put it, and is kept like
-// any other. A control the change replaced, or one focus left, has nothing to keep.
+// resting pointer, which rests on nothing once it has left the window (pointer.js), or
+// the control holding focus, whichever input came last, and then the other (focus.js,
+// `recentPlaceInput`). Either names a place while any of it is shown and it rides in a
+// scroller, not stuck there, as a Page Map row or a message in a margin card's
+// transcript does, and a search field in a dialog's fixed head does not. A container
+// the user is on stands at the box a rule names for it (`standsAt`), as a thread they
+// sent from waits at its reply box. A user whose focus is scrolled away reads something
+// else, so what stands at the reading line in its column comes last (`readingAt`). The
+// keep puts back the first of these the change moved, so a pointer resting on a rail of
+// its own, which nothing here moves, leaves the reading line to be kept; a place the
+// change left still keeps the scroller it rides in, so a later one there, below news
+// that joined between them, moves nothing. An action joining above a place inside the
+// window, past the first box anchoring holds, would push it down. Read after the whole
+// presentation, a box Leaf positions, as Send in its editor or a diff line's Comment,
+// stands where its own layout put it, and is kept like any other. A control the change
+// replaced, or one focus left, has nothing to keep.
 //
 // The keep yields to any scroll since the reading: a scroll the user or a landing chose
 // and ended (scrolling.js, `scrollChoices`), one the browser is still running, as a
 // smooth scroll or a wheel's glide (arrivals.js, `browserScrolls`), and any input
-// (focus.js, `inputCount`), so it never overrides a scroll under way. The user's own
-// gesture draws its result in its own task and places it there, so nothing here holds
-// against it. Where the boxes scrolling the place can't take all of a move, as on a
-// page shorter than its window, it moves by the rest.
+// (focus.js, `inputCount`), so it never overrides a scroll under way. A scroll the
+// browser runs moves the place only in a frame, so a keep in the frame the reading
+// arrived in, as every bundled presenter's is, has nothing of one to undo: it pays for
+// the change, and a wheel's glide goes on from there. The user's own gesture draws its
+// result in its own task and places it there, so nothing here holds against it. Where
+// the boxes scrolling the place can't take all of a move, as on a page shorter than its
+// window, it moves by the rest.
 //
 // A limit, for presenters a page or package adds: the keep waits for the whole
 // presentation, so one whose paint resolves frames after the reading arrived lets the
@@ -233,6 +244,8 @@ export function holdUserPlace() {
   if (!places.length) return () => {};
   const choices = scrollChoices();
   const inputs = inputCount();
+  let framed = false;
+  nextAnimation(() => (framed = true));
   const holds = places.map(({ place, focus }) => ({
     place,
     focus,
@@ -243,7 +256,7 @@ export function holdUserPlace() {
     const still = new Set();
     for (const { place, focus, hold } of holds) {
       const boxes = [...scrollersOf(place)];
-      if (boxes.some(browserScrolls)) return;
+      if (framed && boxes.some(browserScrolls)) return;
       if ((focus && focused() !== node) || still.has(boxes[0])) continue;
       if (hold()) return;
       still.add(boxes[0]);

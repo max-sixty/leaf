@@ -4,7 +4,8 @@
    away or riding in a stuck header names no place, and a hold puts the node it read
    back where it stood, or its stand-in where the change hid it, paying only for what
    the browser's own anchoring left. The user's place across a reading is the first the
-   change moved of those they named, and its keep yields to any scroll or input since. */
+   change moved of those they named, and its keep yields to input since and to a scroll
+   a frame has let move it. */
 
 import assert from "node:assert/strict";
 import test from "node:test";
@@ -92,6 +93,24 @@ test("a wheel leaves the precise pointer position intact", () => {
   document.dispatchEvent(movement);
   document.dispatchEvent(new Event("wheel"));
   assert.deepEqual(pointerAt(), { x: 120.5, y: 240.25 });
+});
+
+test("a mouse that leaves the window stands nowhere, and a lifted finger stays", () => {
+  /** @param {string} type @param {object} fields */
+  const send = (type, fields) => {
+    const event = new Event(type);
+    for (const [name, value] of Object.entries(fields))
+      Object.defineProperty(event, name, { value });
+    document.dispatchEvent(event);
+  };
+  send("pointermove", { clientX: 40, clientY: 50 });
+  // Out to another element of the page: the mouse is still over it.
+  send("pointerout", { pointerType: "mouse", relatedTarget: document.body });
+  assert.deepEqual(pointerAt(), { x: 40, y: 50 });
+  send("pointerout", { pointerType: "touch", relatedTarget: null });
+  assert.deepEqual(pointerAt(), { x: 40, y: 50 });
+  send("pointerout", { pointerType: "mouse", relatedTarget: null });
+  assert.deepEqual(pointerAt(), { x: -1, y: -1 });
 });
 
 test("a hold pays for the growth above its node that anchoring left", () => {
@@ -197,10 +216,19 @@ test("a place the change left still keeps its scroller", () => {
   restOn(null);
 });
 
-test("the keep yields to a scroll under way and to any input since the reading", () => {
-  for (const since of [
-    (/** @type {Element} */ box) => box.dispatchEvent(new Event("scroll")),
-    () => window.dispatchEvent(new Event("wheel")),
+test("the keep yields to a scroll a frame has moved and to any input since", async () => {
+  const frame = () => new Promise((done) => requestAnimationFrame(() => done()));
+  for (const [since, kept] of [
+    // A scroll under way that no frame has moved yet: the keep pays the change.
+    [(/** @type {Element} */ box) => box.dispatchEvent(new Event("scroll")), 1226],
+    [
+      async (/** @type {Element} */ box) => {
+        box.dispatchEvent(new Event("scroll"));
+        await frame();
+      },
+      1100,
+    ],
+    [() => window.dispatchEvent(new Event("wheel")), 1100],
   ]) {
     const { scroller, item, at, scrolled, scrollTo } = laidOut();
     const read = item("read", 1150);
@@ -210,9 +238,9 @@ test("the keep yields to a scroll under way and to any input since the reading",
     read.focus();
     const keep = holdUserPlace();
     at.set(read, 1276);
-    since(scroller);
+    await since(scroller);
     keep();
-    assert.equal(scrolled(), 1100, `the keep overrode ${since}`);
+    assert.equal(scrolled(), kept, `${since}`);
     scroller.remove();
   }
 });

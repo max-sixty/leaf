@@ -831,6 +831,26 @@ def test_a_document_on_a_dead_release_asks_for_one_replacement(served_example, b
     )
 
 
+# Counts the supervisor's probe rounds in the page: each one asked, and each one
+# handled, which a microtask queued from its answer marks once the round's own
+# continuation, which acts on the answer, has run.
+COUNT_PROBES = """
+window.__lfProbes = {asked: 0, handled: 0};
+const nativeFetch = window.fetch.bind(window);
+window.fetch = (...args) => {
+  const answer = nativeFetch(...args);
+  if (String(args[0]).includes("registry.json")) {
+    window.__lfProbes.asked += 1;
+    answer.then(
+      () => queueMicrotask(() => { window.__lfProbes.handled += 1; }),
+      () => {},
+    );
+  }
+  return answer;
+};
+"""
+
+
 def test_a_page_that_starts_after_a_fault_takes_its_notice_back(
     served_example, browser
 ):
@@ -843,22 +863,33 @@ def test_a_page_that_starts_after_a_fault_takes_its_notice_back(
     """
     _, url = served_example("triage-board")
     page = browser.new_page()
+    # The supervisor asks again on its clock, so the test runs that clock forward.
+    page.clock.install()
     # One uncaught error before presentation, which is every startup fault this
-    # supervisor watches for that the page can still come up without.
-    page.add_init_script("setTimeout(() => { throw new Error('planted fault'); }, 50);")
-    probes = []
-    page.on("request", lambda request: probes.append(request.url))
+    # supervisor watches for that the page can still come up without. A listener
+    # throws it, because a timer's callback under the installed clock throws without
+    # firing the page's `error` event, and the supervisor would never start.
+    page.add_init_script(
+        "document.addEventListener('DOMContentLoaded', () => {"
+        " throw new Error('planted fault'); });"
+    )
+    page.add_init_script(COUNT_PROBES)
 
     page.goto(url, wait_until="load")
     notice = page.get_by_text("Leaf couldn't start. Waiting for Leaf to update.")
     expect(page.locator("body")).to_have_attribute("data-lf-presented", "1")
+    # The supervisor took the fault, so its probe has been asking.
+    expect(page.locator("html")).to_have_attribute(
+        "data-lf-startup-error", re.compile("planted fault")
+    )
     expect(notice).to_have_count(0)
     expect(page.locator(".lf-fp-on-user")).to_be_visible()
 
-    # The probe stops with it: a page that started has nothing left to ask the source.
-    before = sum("registry.json" in probe for probe in probes)
-    page.wait_for_timeout(3000)
-    assert sum("registry.json" in probe for probe in probes) == before
+    # The probe stops with it: a page that started has nothing left to ask the source,
+    # through several rounds of its clock.
+    before = page.evaluate("window.__lfProbes.asked")
+    page.clock.run_for(3000)
+    assert page.evaluate("window.__lfProbes.asked") == before
     consume_browser_errors(page, "planted fault")
 
 
@@ -884,6 +915,7 @@ def test_a_probe_in_flight_leaves_a_page_that_started_alone(served_example, brow
         setTimeout(() => document.body?.setAttribute('data-lf-upgraded', '1'), 600);
         """
     )
+    page.add_init_script(COUNT_PROBES)
     documents = []
     page.on(
         "request",
@@ -911,9 +943,8 @@ def test_a_probe_in_flight_leaves_a_page_that_started_alone(served_example, brow
     answered = held[0].request.response()
     assert answered and answered.status == 404, "the held round's answer never landed"
     # The round acts on its answer as it lands, so a replacement would be a navigation
-    # starting now. Nothing states that the round declined one; this is the absence.
-    page.wait_for_timeout(2000)
-
+    # already starting once the page has handled the round.
+    page.wait_for_function("() => window.__lfProbes.handled >= 1")
     assert len(documents) == 1, documents
     expect(
         page.get_by_text("Leaf couldn't start. Waiting for Leaf to update.")

@@ -1315,7 +1315,10 @@ def test_data_written_during_fresh_revision_startup_waits_for_activation(
         if (path.startsWith('/revisions/r2-') && path.endsWith('/registry.json')) {
           window.__lfRevisionRegistryBlocked = true;
           return new Promise(resolve => {
-            window.__lfReleaseRevisionRegistry = () => resolve(nativeFetch(...args));
+            window.__lfReleaseRevisionRegistry = () => {
+              window.__lfRevisionRegistryBlocked = false;
+              resolve(nativeFetch(...args));
+            };
           });
         }
         return nativeFetch(...args);
@@ -1352,12 +1355,11 @@ def test_data_written_during_fresh_revision_startup_waits_for_activation(
             {"key": "worker", "value": "Ready"},
         ],
     )
-    page.wait_for_timeout(100)
-    assert not page.evaluate("() => window.__lfDataDuringStartup")
-    expect(page.locator('[data-lf-datum="api"]')).to_have_count(0)
-
     page.evaluate("() => window.__lfReleaseRevisionRegistry()")
     wait_until_ready(page)
     nudge(d)
     expect(page.locator('[data-lf-datum="api"]')).to_contain_text("Running")
+    # The probe's observer recorded any paint of the update while the registry was
+    # held, which was the whole of startup.
+    assert not page.evaluate("() => window.__lfDataDuringStartup")
     expect(page.locator("#lede")).to_have_text("Live status follows now.")

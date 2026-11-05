@@ -193,6 +193,18 @@ def test_a_presence_read_crossing_freshness_returns_to_the_current_lease(
         page.unroute_all(behavior="wait")
 
 
+def looked_since(page):
+    """Wait until the page has handled a freshness look asked after this call.
+
+    Playwright reports a request after the page makes it, so the first look this sees
+    may have been asked before the call. The page asks each look only once it has
+    handled the one before, so when a third look starts, the second, asked after the
+    call, has been handled."""
+    for _ in range(3):
+        with page.expect_request("**/api/news*"):
+            pass
+
+
 def test_status_changes_coalesce_behind_one_state_read(browser, serve):
     """Rapid starts do not build a queue of state requests.
 
@@ -218,7 +230,7 @@ def test_status_changes_coalesce_behind_one_state_read(browser, serve):
     older = first.fetch().json()
     declare("second")
     declare("third")
-    page.wait_for_timeout(500)
+    looked_since(page)
     assert len(held) == 1
 
     # The news the answer doesn't name earns exactly one follow-up read, not one read
@@ -232,7 +244,7 @@ def test_status_changes_coalesce_behind_one_state_read(browser, serve):
     trailing = held[1]
     trailing.fulfill(json=trailing.fetch().json())
     expect(status).to_have_attribute("placeholder", re.compile(r"third"))
-    page.wait_for_timeout(500)
+    looked_since(page)
     assert len(held) == 2
 
 

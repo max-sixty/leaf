@@ -6049,7 +6049,8 @@ def test_writing_reaches_the_field_however_the_panel_stands(browser, serve):
     expect(page.locator(panel_view("thread"))).to_be_visible()
     expect(field(page)).to_be_focused()
     expect(field(page)).to_have_js_property("value", "Make it the weekend.")
-    page.wait_for_timeout(300)
+    # The resume has drawn whatever it decided, an error included.
+    rendered(page)
     expect(page.get_by_text("That writing place is unavailable")).to_have_count(0)
 
 

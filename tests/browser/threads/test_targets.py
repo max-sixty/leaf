@@ -104,7 +104,9 @@ def test_the_hand_over_a_commented_section_spares_its_controls(browser, serve):
     source = leaf_page(
         "Commented form",
         '<section id="form"><p id="words">Fill this in, please.</p>'
-        '<textarea id="field">Notes</textarea></section>',
+        '<textarea id="field">Notes</textarea></section>'
+        '<p><button id="act" class="button">Act</button> '
+        '<button id="twin" class="button">Twin</button></p>',
     )
     page = open_page(
         browser,
@@ -118,7 +120,15 @@ def test_the_hand_over_a_commented_section_spares_its_controls(browser, serve):
                     "revision": 1,
                     "text": "About this form.",
                     "anchor": {"section": "form"},
-                }
+                },
+                {
+                    "kind": "comment",
+                    "id": "act-thread",
+                    "author": "user",
+                    "revision": 1,
+                    "text": "About this button.",
+                    "anchor": {"section": "act"},
+                },
             ],
         ),
     )
@@ -134,6 +144,20 @@ def test_the_hand_over_a_commented_section_spares_its_controls(browser, serve):
     words = page.locator("#words")
     words.hover()
     expect(words).to_have_css("cursor", "pointer")
+
+    # Armed, a press is the aim's, and a button keeps its own cursor whether or not a
+    # thread marks it: the same as its unmarked twin's.
+    expect(page.locator("#act")).to_have_class(re.compile(r"\blf-mark-el\b"))
+    armed = {}
+    for button in ("twin", "act"):
+        page.locator(f"#{button}").hover()
+        page.keyboard.down("Alt")
+        expect(page.locator("[data-lf-aimed]")).to_have_id(button)
+        armed[button] = page.locator(f"#{button}").evaluate(
+            "el => getComputedStyle(el).cursor"
+        )
+        page.keyboard.up("Alt")
+    assert armed["act"] == armed["twin"], armed
 
 
 def test_a_thread_on_words_a_widget_renders_stands_where_the_widget_does(

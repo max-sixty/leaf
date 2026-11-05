@@ -14,8 +14,10 @@
    box means "this, now". A contour appears for a moment — a draft on it, the pointer
    on its row in Threads, the thread the user is in — and is one hollow line, the
    element's own outline (surfaces.css). The element still takes a press that opens
-   its thread. */
-.lf-mark-el {
+   its thread. Armed, a press on it is the aim's, not the thread's, so the hand here
+   is the aim's answer (chrome.css) or a control's own cursor, and not the mark's own
+   "open this thread". */
+:where(body:not([data-lf-aiming], [data-lf-design-mode])) .lf-mark-el {
   cursor: pointer;
 }
 /* The annotation layer hidden (`o`): the element's threads are out of reach, so the
@@ -27,12 +29,8 @@
 .lf-mark-el.lf-pending {
   cursor: auto;
 }
-/* Armed, a press on a thread-marked element is the aim's, not the thread's, so the
-   hand here is the aim's answer rather than the thread's: the aim's own, which stands
-   over an item (chrome.css) at a weight this rule doesn't pass, and not the mark's
-   own "open this thread". The body carries the arm, and the chrome stands after
-   it, so a mark in the chrome reads it as a sibling's. */
-body:is([data-lf-aiming], [data-lf-design-mode]) .lf-mark-el,
+/* The chrome stands after the body, which carries the arm, so a mark in the chrome
+   reads it as a sibling's and draws the armed arrow. */
 body:is([data-lf-aiming], [data-lf-design-mode]) ~ .lf-chrome .lf-mark-el {
   cursor: default;
 }

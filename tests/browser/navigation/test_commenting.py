@@ -999,7 +999,6 @@ def test_c_enters_a_seated_reply_without_revealing_the_thread_heading(
     browser, serve, subtests
 ):
     """A visible reply keeps its place; a reply below the window, in a thread the user
-    """A visible reply keeps its place; a reply below the window, in a thread the user
     still sees, is revealed on entry. Each case leaves the reply it entered, so they
     share one page. A thread scrolled wholly away is no longer where `c` goes
     (`test_c_writes_where_the_user_reads_once_they_scroll_away_from_focus`)."""

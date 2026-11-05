@@ -59,8 +59,9 @@ a working page shows its leaf in the working tone and no words until the agent w
 a line. Rejected, on 28 and 30 October 2026: Leaf's inferences set in the agent's voice
 (“Got your comment”, “Working on it”, “Got it”), which put Leaf's words in its mouth.
 
-An empty comment box's words are Leaf's too (“Reply…”, “Comment…”), since the agent
-didn't write them. Words nobody says are the interface's, in its ordinary face: the
+An empty box's words are Leaf's too, since the agent didn't write them, and each ends
+in an ellipsis: a comment box's (“Reply…”, “Comment…”) and a search's prompt (“Find
+text…”, “Filter files…”). Words nobody says are the interface's, in its ordinary face: the
 name of a control, list or thing (“On me”, “Threads”, a thread's title, Draw mode), and
 where the user stands (“3 of 11”, a time).
 Neither they nor Leaf's italic words narrate the agent from outside (“Claude is

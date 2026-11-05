@@ -414,6 +414,15 @@ span[data-lf-voice] {
 span[data-lf-voice="leaf"] {
   font-style: italic;
 }
+/* An empty box's words are Leaf's when Leaf says them all (voice.js): a comment box's
+   Reply… or Comment…, the new-line hint with them, and a search's prompt. Each box
+   names its voice as a span does, and the face reaches the box's placeholder, whichever
+   tree draws it; a key keeps its own face. */
+leaf-text[data-lf-voice="leaf"]::part(placeholder),
+input[data-lf-voice="leaf"]::placeholder,
+wa-input[data-lf-voice="leaf"]::part(input)::placeholder {
+  font-style: italic;
+}
 .lf-msg-sending::before {
   content: "\00b7";
   margin-inline-end: 6px;

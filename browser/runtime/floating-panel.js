@@ -343,10 +343,11 @@ import { closestAcross } from "./passages.js";
 
 const prefs = () => window.lfChrome;
 
-// What the field's own search box asks for, in each list it searches.
+// What the field's own search box asks for, in each list it searches, in Leaf's words
+// as every search's prompt is (control-labels.js, `searchField`).
 const SEARCH_PROMPTS = Object.freeze({
-  menu: "Rows, threads, versions",
-  threads: "Find a thread or message",
+  menu: "Find a row, thread or version…",
+  threads: "Find a thread or message…",
 });
 // The menu's groups, each a list of the page's controls declaring it, in the menu's place.
 const GROUPS = Object.freeze([
@@ -655,7 +656,8 @@ export function createFloatingPanel({
                   class="lf-fp-search"
                   name="thread-search"
                   placeholder=${prompt}
-                  aria-label=${prompt}
+                  data-lf-voice="leaf"
+                  aria-label=${searchLabel}
                   .value=${live(initial ? "" : query)}
                   ?hidden=${searchMode !== "threads" && searchMode !== "menu"}
                   @input=${(

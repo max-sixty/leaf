@@ -4504,7 +4504,7 @@ def test_the_menu_s_search_finds_rows_threads_and_commands(browser, serve):
     url = serve(LONG_PAGE)
     panel_comment(serve.page_dir, "Is the window long enough?")
     page = floating(browser, url)
-    search = page.get_by_role("searchbox", name="Rows, threads, versions")
+    search = page.get_by_role("searchbox", name="Search menu")
     menu = panel_menu(page)
     expect(search).to_be_focused()
     expect(page.locator(".lf-floating-panel")).to_have_attribute(
@@ -5494,7 +5494,7 @@ def test_a_sample_shows_its_threads_in_its_panel(browser, serve):
     child.get_by_role("button", name="Back to Threads").click()
     expect(threads).to_be_visible()
     child.get_by_role("button", name="Find a thread or message", exact=True).click()
-    search = child.get_by_role("searchbox", name="Find a thread or message")
+    search = child.get_by_role("searchbox", name="Search threads")
     assert search.bounding_box()["width"] > 0
     search.fill("schedule")
     expect(child.locator(".lf-fp-thread")).to_have_count(1)

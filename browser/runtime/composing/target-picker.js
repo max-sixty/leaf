@@ -65,7 +65,7 @@ targetPickerHintLayer.append(hintRoot, markRoot);
 const pageSearchInput = searchField("lf-page-search-box", {
   name: "page-search",
   label: "Search page text",
-  placeholder: "Find text",
+  placeholder: "Find text…",
 });
 pageSearchInput.maxlength = 160;
 pageSearchInput.withClear = false;

@@ -338,17 +338,21 @@ widget by name. To measure a page before its runtime starts, call `displayed` fi
 
 ## Waits
 
-### Functional results do not depend on execution speed
+### Results do not depend on execution speed
 
-A functional test, fixtures and watches included, gives the same result and still
-exercises its situation when the system runs ten times slower. Test performance
-separately, under controlled conditions.
+Every test, fixtures and watches included, gives the same result and still exercises
+its situation on a machine ten times slower than the one it was written on, since CI's
+runner and a host running other sessions' suites are both slower than an idle
+development machine. So no test asserts a duration. A check of cost compares readings
+taken in the same run, such as a cost on a large page over the same cost on a small
+one, or the exponent of a cost's growth across page sizes (`leaf-dev scaling`), so the
+machine's speed divides out of it.
 
 Control or advance the clock that decides an age, lease, grace period or timer; a fixed
 `Date.now()` doesn't stop timers, animation frames, paint or observer delivery. Bound a
-hang with a real deadline that leaves room for slow execution, and on expiry report
-which completion is still missing. A time limit must never turn unfinished work into a
-pass. To test a race, hold and release the request, callback, frame or lock explicitly,
+hang with a real deadline at least ten times the longest the bounded work takes on the
+machine it was set on, and on expiry report which completion is still missing. A time
+limit must never turn unfinished work into a pass. To test a race, hold and release the request, callback, frame or lock explicitly,
 check that the outcome holds with completion delayed tenfold, and keep a control that
 still fails.
 

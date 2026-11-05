@@ -290,7 +290,7 @@ def test_a_wait_takes_the_suites_deadline():
 
     A literal deadline is sized to how long the work took where it was written, and
     a busy runner takes many times that, so a correct product fails the test there
-    (tests/AGENTS.md, "Functional results do not depend on execution speed").
+    (tests/AGENTS.md, "Results do not depend on execution speed").
     A Python-side wait takes `STATED_TIMEOUT`, or a constant derived from it. A
     browser wait takes `SERVED_TIMEOUT_MS`, which `render_harness` makes the default
     of every Playwright wait and `expect` that names none, or `HANDOVER_DEADLINE_MS`

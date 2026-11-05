@@ -97,6 +97,69 @@ def test_a_thread_mark_inside_a_tab_panel_opens_on_press(browser, serve):
     ).to_be_visible()
 
 
+def test_the_hand_over_a_commented_section_spares_its_controls(browser, serve):
+    """A press in a commented section opens its thread, but one on a field or button
+    inside it keeps its own meaning (composing/surface.js), so the hand stands over the
+    section's words and the field keeps its own cursor."""
+    source = leaf_page(
+        "Commented form",
+        '<section id="form"><p id="words">Fill this in, please.</p>'
+        '<textarea id="field">Notes</textarea></section>'
+        '<p><button id="act" class="button">Act</button> '
+        '<button id="twin" class="button">Twin</button></p>',
+    )
+    page = open_page(
+        browser,
+        serve(
+            source,
+            events=[
+                {
+                    "kind": "comment",
+                    "id": "form-thread",
+                    "author": "user",
+                    "revision": 1,
+                    "text": "About this form.",
+                    "anchor": {"section": "form"},
+                },
+                {
+                    "kind": "comment",
+                    "id": "act-thread",
+                    "author": "user",
+                    "revision": 1,
+                    "text": "About this button.",
+                    "anchor": {"section": "act"},
+                },
+            ],
+        ),
+    )
+    expect(page.locator("#form")).to_have_class(re.compile(r"\blf-mark-el\b"))
+    at_pointer = "([x, y]) => getComputedStyle(document.elementFromPoint(x, y)).cursor"
+    field = page.locator("#field")
+    field.hover()
+    box = field.bounding_box()
+    centre = [box["x"] + box["width"] / 2, box["y"] + box["height"] / 2]
+    rendered(page)
+    expect(field).not_to_have_attribute("data-lf-over-mark", re.compile(".*"))
+    assert page.evaluate(at_pointer, centre) != "pointer"
+    words = page.locator("#words")
+    words.hover()
+    expect(words).to_have_css("cursor", "pointer")
+
+    # Armed, a press is the aim's, and a button keeps its own cursor whether or not a
+    # thread marks it: the same as its unmarked twin's.
+    expect(page.locator("#act")).to_have_class(re.compile(r"\blf-mark-el\b"))
+    armed = {}
+    for button in ("twin", "act"):
+        page.locator(f"#{button}").hover()
+        page.keyboard.down("Alt")
+        expect(page.locator("[data-lf-aimed]")).to_have_id(button)
+        armed[button] = page.locator(f"#{button}").evaluate(
+            "el => getComputedStyle(el).cursor"
+        )
+        page.keyboard.up("Alt")
+    assert armed["act"] == armed["twin"], armed
+
+
 def test_a_thread_on_words_a_widget_renders_stands_where_the_widget_does(
     browser, serve
 ):

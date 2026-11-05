@@ -75,7 +75,7 @@ function step(dir) {
     : stepFrom(list, origin, dir, start);
   if (!change) return;
   // A gap's stand-in brings the gap into view as it takes focus (margin-bars.js).
-  if (change.blocks.length && !alreadyShown(change.at))
+  if (change.blocks.length && !alreadyShown(change.at, { block: "start" }))
     scrollIntoView(change.at, { behavior: scrollBehavior(), block: "start" });
   focusDestination(landing(change), "move");
   const said = beginWalk("change", "Change", position);

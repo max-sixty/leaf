@@ -83,13 +83,15 @@
 /* Holding ⌥ changes what a click means. The aim's mark (`[data-lf-aimed]`, surfaces.css)
    answers which item a press takes; the cursor answers whether it takes any: the hand over an item, the
    arrow elsewhere (claimPress). Derived at the paint from what refreshAim resolved, so
-   cursor and mark cannot disagree. A control stating its own cursor keeps it while
-   armed; covering that would need an important universal rule. One declaration on the
-   body, inherited; the chrome holds itself out from inside its own scope. */
-body:is(.lf-aiming, [data-lf-design-mode]) {
+   cursor and mark cannot disagree. The arrow is one declaration on the body, inherited,
+   which changes as the page arms; the hand stands on the element under the pointer
+   (page-geometry.js), so a crossing restyles only what that element holds. A control
+   keeps its own cursor while armed. The chrome holds itself out from inside its own
+   scope. */
+body:is([data-lf-aiming], [data-lf-design-mode]) {
   cursor: default;
 }
-body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item {
+body:is([data-lf-aiming], [data-lf-design-mode]) [data-lf-over-item] {
   cursor: pointer;
 }
 /* Region capture and draw mode take presses on the whole plane. Region capture's

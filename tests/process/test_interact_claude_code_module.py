@@ -444,14 +444,14 @@ def test_a_failed_fork_stays_out_of_the_conversation_and_the_next_turn_forks(
     driven.quit()
 
 
-def test_a_held_thread_message_is_answered_by_a_fork_of_the_conversation(
+def test_a_held_thread_message_gets_the_agents_working_line_from_a_fork(
     page_dir, monkeypatch, spawn, sessionless
 ):
     """The pages follower holds the session's forks lane, so the user's message in a
     new thread is held from the session, and the module forks the conversation with
-    Leaf's prompt for it as it arrives and hands the answer back: the reply goes in
-    as the agent's."""
-    answer = json.dumps({"reply": "Because 2 s is stale."})
+    Leaf's prompt for it as it arrives and hands the line back: it goes in as the
+    agent's working line, and the thread goes to the session."""
+    answer = "Checking why the poll is 2 s"
     driven = ClaudeCode(spawn, "cc-reply", {"forkReply": answer})
     holding_page(driven, page_dir, monkeypatch)
     server_id = read_record(page_dir / "service.json")["server_id"]
@@ -475,16 +475,17 @@ def test_a_held_thread_message_is_answered_by_a_fork_of_the_conversation(
         lambda line: line.startswith("Leaf: a fork took"),
         failure=lambda: f"the fork never reported: {list(driven.diagnostics.queue)}",
     )
-    assert told == f"Leaf: a fork took thread {asked['id']}: reply", told
-    [reply] = [
+    assert told == f"Leaf: a fork took thread {asked['id']}: hand_over", told
+    [line] = [
         event
         for event in events_model.read_events(page_dir)
         if event["kind"] == "reply" and event["author"] == "agent"
     ]
-    assert (reply["responds"], reply["text"], reply["session"]) == (
+    assert (line["parent"], line["text"], line["session"], line["ephemeral"]) == (
         asked["id"],
-        "Because 2 s is stale.",
+        answer,
         "cc-reply",
+        True,
     )
     [note] = read_interactions(page_dir, types=("fork_reply",))
     assert note["request"] == RESENT, note

@@ -16,7 +16,7 @@ from interact_support import append_command, wait_for
 from model_folds import leaf_page
 from playwright.sync_api import expect
 from render_cases_interaction import live_url
-from render_harness import compare_with, open_page, stamp_page, wait_for_revision
+from render_harness import compare_with, open_page, stamp_page, told, wait_for_revision
 
 from leaf import event_log as events_model
 from leaf import revisioning as revisioning_model
@@ -627,8 +627,8 @@ def test_a_to_do_running_on_an_element_marks_it(browser, serve):
         },
     )
     bars = page.locator(".lf-at-work-bar")
-    page.wait_for_timeout(300)
-    # Open, but nothing running on it yet.
+    # The page has taken in the to-do, which is open with nothing running on it yet.
+    told(page)
     expect(bars).to_have_count(0)
     _start(d, todo["id"], "Rewriting Gamma")
     expect(bars).to_have_count(1)

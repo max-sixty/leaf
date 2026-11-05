@@ -164,7 +164,9 @@ def test_reading_keys_follow_the_focused_pane_without_moving_its_sibling(
     page.wait_for_function(
         "() => document.querySelector('#left-reading > :not(header, footer)').scrollTop > 0"
     )
-    page.wait_for_timeout(250)
+    # The pane's scroll has ended, and any scroll of the document it led to after it.
+    scroll_settled(page, "#left-reading > :not(header, footer)")
+    scroll_settled(page)
     assert right.evaluate("el => el.scrollTop") == 0
     assert page.evaluate("document.scrollingElement.scrollTop") == 0
     left_position = left.evaluate("el => el.scrollTop")
@@ -174,7 +176,8 @@ def test_reading_keys_follow_the_focused_pane_without_moving_its_sibling(
     page.wait_for_function(
         "() => document.querySelector('#right-reading > :not(header, footer)').scrollTop > 0"
     )
-    page.wait_for_timeout(250)
+    scroll_settled(page, "#right-reading > :not(header, footer)")
+    scroll_settled(page)
     assert left.evaluate("el => el.scrollTop") == left_position
     assert page.evaluate("document.scrollingElement.scrollTop") == 0
 

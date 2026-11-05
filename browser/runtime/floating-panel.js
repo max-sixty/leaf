@@ -1957,9 +1957,6 @@ export function createFloatingPanel({
     }
     paint();
   });
-  // A list takes its room as it stands before the paint that would change it, once
-  // this opening has drawn it (`drawn`): what it holds then is what it fits, so taking
-  // it writes only the height the list already stands at.
   // The menu grows upward from the row, so news that adds a row to it, or takes one
   // away, would carry every row above up or down the window under the reader: a row a
   // revision offers, such as the newer version, or a status re-wrapping the head. So
@@ -1988,6 +1985,14 @@ export function createFloatingPanel({
     opening.menuLines = { summary: lines("summary"), explain: lines("explain") };
     return true;
   }
+  // A list takes its room as soon as it stands at what it fits: in the paint that
+  // first draws it (`paintPanel`), the frame after a refit settles (`refit`), or once
+  // Leaf's reader has drawn the messages its cards ask (`present`). Taking it then
+  // writes only the height the list already stands at, and before news can arrive:
+  // Chromium suspends the view's scroll anchoring for a layout in which the view's
+  // `height` changes, even to the height it stands at, so the room written in the paint
+  // that adds a row above the rows in sight would move every row in sight by the row's
+  // height.
   function holdRoom() {
     const top = trail.value.at(-1);
     if (!top || top.thread || opening.room !== null || refitting) return false;
@@ -1999,7 +2004,7 @@ export function createFloatingPanel({
   }
   // A tab, filter or search the user presses changes what the list shows, which it
   // then fits, moving as one opening does; each such press repaints. The list takes
-  // its room again from the next frame, once it stands at what it now fits.
+  // its room again in the next frame, once it stands at what it now fits.
   let refitting = false;
   // Each row standing Threads draws, by its thread's key, with its section
   // (`drawnSections`); null while no list stands, so the next paint draws every row
@@ -2019,6 +2024,7 @@ export function createFloatingPanel({
     refitting = true;
     nextRender(() => {
       refitting = false;
+      if (holdRoom()) paint();
     });
   }
   /** @param {PanelRoute | null | undefined} before @param {{focus?: boolean, handedOn?: boolean}} [options] */
@@ -4289,8 +4295,8 @@ export function createFloatingPanel({
       // with its thread, as a card does (margin-projection.js), whoever opened it.
       const top = trail.value.at(-1);
       if (top?.thread && !threadOf(top)) close();
-      holdRoom();
       paintNow();
+      if (holdRoom()) paintNow();
       if (holdMenu()) paintNow();
     } finally {
       painting = false;

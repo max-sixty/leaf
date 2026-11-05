@@ -169,11 +169,18 @@ the chat, answer it there, make the page stale or set work running that no page
 shows, or leave nothing, the low fork named all 19 planted items and nothing at any
 of the 13 quiet turns over five runs, as the session's effort did, with 0.45 times
 the output (95% interval 0.31–0.63, 32 turns matched across six runs) and 0.62 times
-the time. A real session's drift is subtler than those plants: in 23 forks of real
-sessions at xhigh on 2026-11-04, the fork wrote a median 871 tokens over 12.7 s, and
-whether low finds as much there is unmeasured. The fork runs off the turn's path,
-but the sooner it answers, the less often a turn opened meanwhile drops its asks
-(`basis`).
+the time.
+
+A real session's drift is subtler than those plants. The 18 forks that named items
+in real sessions at xhigh on 2026-11-04 were each replayed at low three times. The
+replays matched all of their unshown work and asks left in the chat, 54% of their
+stale passages and none of their offers of bolder work, which put no decision to the
+user. Replays vary even at xhigh. Two of those forks, replayed at xhigh as a control,
+matched their original findings half the time (7 of 14), and on the longest page the
+xhigh and low replays caught the same share of its stale passages. A low replay
+wrote a median 283 output tokens in 5.6 s, against 1,140 in 11.5 s at xhigh. The
+fork runs off the turn's path, but the sooner it answers, the less often a turn
+opened meanwhile drops its asks (`basis`).
 
 `leaf-dev eval 'turn-end-check*' --harness claude-code --base` scores a change to
 what the fork is asked, how hard it thinks or how Leaf takes its answer, on a short

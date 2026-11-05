@@ -68,6 +68,7 @@ import { registry } from "../registry.js";
 import { reachScrollers } from "../reach.js";
 import { composedParentNode, shadowRootsIn } from "../shadow.js";
 import { keeps } from "../keeps.js";
+import { PAGE_PAINT_ATTRIBUTE } from "../page-paint.js";
 
 // The nodes a projection stamped under its root, in the trees that hold the page's
 // words: the ones anchor resolution can find (`pageQueryAll`), so what a replacement
@@ -172,6 +173,7 @@ export function createDataProjection({ invalidateDom }) {
       keeps(node, "data-lf-source-revision", snapshot?.revision ?? null);
     };
     stampBasis(root);
+    keeps(root, PAGE_PAINT_ATTRIBUTE.drawReported, "");
     const projected = projectedDescendants(root);
     const keys = new Set();
     const identities = new Set();

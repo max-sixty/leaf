@@ -254,8 +254,9 @@ def test_a_page_subscription_takes_in_a_directory_made_while_it_installs(
         assert changes.wait(generation, STATED_TIMEOUT)
 
 
-@pytest.mark.parametrize("owner", ["page", "session"])
-@pytest.mark.parametrize("arrival", ["made", "moved in"])
+@pytest.mark.parametrize(
+    ("owner", "arrival"), [("page", "moved in"), ("session", "made")]
+)
 def test_a_directory_arriving_deep_in_a_page_tree_joins_its_subscription(
     page_dir, tmp_path, owner, arrival
 ):

@@ -93,12 +93,12 @@ and the anchor moves that depend on it land together.
 
 The user may withdraw a comment or reply, a reaction included, a resolve, unresolve,
 action or edit (the kinds `$events.kinds` marks `undoable`), however far the agent has
-got with it. A withdrawn message leaves every reading, except where a message or to-do
-still in force stands on it: there it keeps its place with no words and no mark,
-`withdrawn` naming the undo and the words or mark it was sent with, and the browser
-draws it as Deleted, so what answered it keeps its context (`events.build_threads`). It
-is no turn: nothing is owed it, it reopens no thread and its rewrites ask for nothing,
-while an answer to it still settles the messages before it. The undo key reaches a
+got with it. A withdrawn message leaves every reading, except where a message still in
+force, or any to-do on the thread it opened, stands on it: there it keeps its place with
+no words and no mark, `withdrawn` naming the undo and the words or mark it was sent with,
+and the browser draws it as Deleted, so what answered it keeps its context
+(`events.build_threads`). It is no turn: nothing is owed it, it reopens no thread and its
+rewrites ask for nothing, while an answer to it still settles the messages before it. The undo key reaches a
 message only while it is the user's newest gesture; the user deletes an older one by
 rewriting it to no words, which leaves it in place ("Messages"), and withdrawing that
 edit gives the message its words back. An undo cannot itself be undone. The door refuses
@@ -265,7 +265,7 @@ names it or the user acts in the thread after it; `read_state.py` owns which act
 count. The result is each thread's `unread`, in browser state and `page state`. A
 `seen` event does the same for the page: it names the newest live revision a tab showed
 the user while they were there (visible and focused), posted as they leave it, and the
-newest one named is the served state's `seen`. The browser posts none at present. A
+newest one named is the served state's `seen`. A
 hosted copy serves no `seen`, since its reader is not the page's
 user. Read records hold across tabs
 and revisions and never enter agent delivery. A page has one user for its lifetime, so

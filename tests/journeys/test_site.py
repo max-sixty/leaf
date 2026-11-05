@@ -1536,8 +1536,8 @@ def test_a_shipped_log_opens_its_example_on_its_thread(served_example, browser):
     expect(row).to_have_count(1)
     row.click()
     thread = page.locator(PANEL_THREAD)
-    expect(thread.locator(".lf-fp-quote")).to_have_text("“One reconnect in about 40”")
-    assert thread.locator(".lf-fp-quote[data-lf-detached]").count() == 0, (
+    expect(thread.locator(".lf-thread-quote")).to_have_text("One reconnect in about 40")
+    assert thread.locator(".lf-thread-quote[data-lf-detached]").count() == 0, (
         "the shipped anchor found nothing on the page it was captured from"
     )
     # Painted, not merely resolved: the mark is what puts the user at the passage.
@@ -1615,13 +1615,13 @@ def test_a_comment_persists_without_inventing_an_agent_reply(served_example, bro
     expect_open_threads(page, opened_with + 1)
     thread = written()
     expect(thread).to_contain_text("Can the migration fix ship first?")
-    expect(thread.locator(".lf-fp-quote")).to_contain_text(selected.strip()[:40])
+    expect(thread.locator(".lf-thread-quote")).to_contain_text(selected.strip()[:40])
     expect(thread.locator(".lf-msg[data-lf-author=agent]")).to_have_count(0)
     page.reload(wait_until="load")
     wait_until_ready(page)
     thread = written()
     expect(thread).to_contain_text("Can the migration fix ship first?")
-    expect(thread.locator(".lf-fp-quote")).to_contain_text(selected.strip()[:40])
+    expect(thread.locator(".lf-thread-quote")).to_contain_text(selected.strip()[:40])
     expect(thread.locator(".lf-msg[data-lf-author=agent]")).to_have_count(0)
 
 

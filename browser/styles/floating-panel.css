@@ -355,14 +355,13 @@
     > leaf-text {
     max-height: 75dvh;
   }
-  /* The field holds the page's editor, or the open thread's reply box, which Leaf's
-     reader draws in the panel's outlet there (floating-panel.js, `replyOutlet`). Both
-     stand alike: the frame, the inset and the focus wash a card gives its reply box are
-     the card's, so the panel leaves them out, matching the card's own selectors. */
+  /* The field holds the page's editor, or the open thread's reply box, which the
+     thread draws in the panel's place for it there (floating-panel.js, `replyOutlet`).
+     Both stand alike: the frame, the inset and the focus wash a card gives its reply box
+     are the card's, so the panel leaves them out, matching the card's own selectors. */
   .lf-fp-editors,
   .lf-fp-box,
   .lf-fp-reply-outlet,
-  .lf-fp-reply-outlet > .lf-primary-part,
   .lf-fp-reply-outlet .lf-thread-reply,
   .lf-fp-field .lf-compose-field {
     flex: 1;
@@ -889,8 +888,8 @@
   }
 
   /* ---------- an opened view: its head line over it, a list's tabs at its foot ---------- */
-  /* Drawn only while a view is open, since it stands over the page while it is
-     (geometry.js, `declareOccluder`). */
+  /* Drawn only while a view is open, since it covers the page while it is
+     (geometry.js, `declareCover`). */
   /* A symbol in a view stands as tall as the panel's other presses, a line under a
      finger (`--lf-fp-press`). */
   .lf-fp-opened {
@@ -1009,13 +1008,15 @@
     display: flex;
     min-width: 0;
   }
-  .lf-fp-news-outlet {
+  /* The thread's own places on its head line, its notice's and its Resolve's, which
+     the thread draws in (floating-panel.js, `headOutlets`), lay out as what they hold. */
+  :is(.lf-fp-news-outlet, .lf-fp-unread-outlet, .lf-fp-thread-controls) {
     display: contents;
   }
   /* The news qualifies the thread, so it takes the size of the head line's words. It
      stands at the height of its words, a line an em tall, so its arrival grows no line.
      The room a pointer aims at reaches above and below them, as tall as a control's. */
-  .lf-fp-news-outlet > .lf-thread-news {
+  .lf-fp-news-outlet .lf-thread-news {
     --lf-fp-news-reach: calc((max(var(--lf-fp-press), var(--aim-floor)) - 1lh) / 2);
     flex: 0 1 auto;
     min-width: 0;
@@ -1142,22 +1143,13 @@
   .lf-fp-chooser:has(> select[data-lf-focus-visible]) {
     outline: var(--focus-ring);
   }
-  :is(.lf-fp-on-page, .lf-fp-next-unread, .lf-fp-close)[data-lf-unoffered] {
+  :is(.lf-fp-on-page, .lf-fp-close)[data-lf-unoffered] {
     visibility: hidden;
   }
-  /* Next unread is an inline press (controls.css) after its symbol, standing in the
-     row at a panel press's height and padding. */
-  .lf-fp-next-unread {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
+  /* Next unread stands in the row at a panel press's height and padding. */
+  .lf-fp-head .lf-next-unread {
     min-height: var(--lf-fp-press);
     padding: 0 8px;
-    white-space: nowrap;
-  }
-  .lf-fp-next-unread .lf-action-icon {
-    width: 14px;
-    height: 14px;
   }
 
   /* The stage holds the view to its cap, and to what the box leaves it under a long
@@ -1222,37 +1214,40 @@
     inset-inline: 0;
     bottom: 0;
   }
-  /* A thread scrolled past its first lines fades out at its top edge rather than
-     cutting a line in half. */
+  /* A thread that continues past either edge of its view fades out there rather than
+     cutting a line in half. Each fade lies over the view's padding where the thread
+     ends, so it shows only where words run on; the lower padding is 4px deeper than
+     other views' for it. The user chose the top fade on 3 Nov 2026 and the lower one
+     on 4 Nov; rejected: the lower edge cut, and a fade a line tall, which read no
+     differently. New reply's foot stands at the lower edge on a ground of its own,
+     which fades what passes under it. */
   .lf-fp-view[data-lf-route="thread"] {
-    padding-top: 10px;
-    mask-image: linear-gradient(to bottom, transparent 0, #000 12px);
+    --lf-fp-fade-end: 12px;
+    --lf-fp-view-pad-end: 10px;
+    padding-block: 10px var(--lf-fp-view-pad-end);
+    mask-image: linear-gradient(
+      to bottom,
+      transparent 0,
+      #000 12px,
+      #000 calc(100% - var(--lf-fp-fade-end)),
+      transparent 100%
+    );
   }
-  /* An answer waiting below the fold (floating-panel.js, `fitAnswer`): a press at the
-     view's foot, where the answer begins, standing on the panel's ground, which fades
-     in above it so what passes under reads as under a layer. The ground runs down to
-     the view's edge through the view's padding, which the foot's margin gives back, so
-     at the view's end the foot stands where it stuck and the room it takes is the
-     press's alone. A sticky box sticks at its scroller's content edge, inside that
-     padding, so it sticks the padding's depth lower, or what scrolls under it would
-     show through the padding below the press. */
-  .lf-fp-foot {
-    position: sticky;
-    --lf-head-inset: 0px;
-    bottom: -6px;
-    margin: 0 -6px -6px;
-    padding: 10px 0 6px;
-    background: linear-gradient(transparent, var(--lf-fp-surface) 10px);
+  .lf-fp-view[data-lf-route="thread"][data-lf-awaits] {
+    --lf-fp-fade-end: 0px;
   }
-  /* New reply announces news waiting, an inline press in the accent the unread dot
-     wears (controls.css, `data-lf-news`), centred on the foot's ground a press tall. */
-  .lf-fp-new-reply {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    min-height: var(--lf-fp-press);
-    margin: 0 auto;
-    font: var(--font-small);
+  /* New reply (thread-card.js, `#fitAnswer`) on the panel's ground, which runs down to
+     the view's edge through the view's padding, which the foot's margin gives back, as
+     it does the transcript's inset, so at the view's end the foot stands where it stuck
+     and the room it takes is the press's alone. A sticky box sticks at its scroller's
+     content edge, inside that padding, so it sticks the padding's depth lower, or what
+     scrolls under it would show through the padding below the press. */
+  .lf-fp-view .lf-awaited {
+    --lf-awaited-ground: var(--lf-fp-surface);
+    bottom: calc(-1 * var(--lf-fp-view-pad-end));
+    margin-inline: calc(-6px - var(--lf-thread-text-inset)) calc(-14px - var(--sp-1));
+    margin-block-end: calc(-1 * var(--lf-fp-view-pad-end) - var(--sp-1));
+    padding-block: 10px 6px;
   }
 
   /* A list's rows lay out as every list's do (controls.css, `.lf-rows`). */
@@ -1347,43 +1342,6 @@
   }
   :is(.lf-fp-thread, .lf-fp-on-line)[data-lf-resolved] .lf-fp-label {
     color: var(--muted);
-  }
-  /* The words a thread in the panel is about, over its messages, as a card's head
-     quotes them (chrome.css, `.lf-quote`): three lines, the whole on Full quote, its
-     press above the words it grows (floating-panel.js, `quoteHead`). */
-  .lf-fp-quote-head {
-    display: grid;
-    justify-items: start;
-    gap: 4px;
-    margin: 0 0 12px;
-  }
-  /* The quote here only says what the thread is about: "Show on page" at the foot is the
-     way to the words, so it takes no press, no aim's room and no title naming a jump; a
-     detached quote's title still says where its words went. The head names it, so the
-     rule outranks a card's `.lf-quote` (chrome.css), which this file comes ahead of.
-     Its words start on the thread's edge, the 1px rule before them included. */
-  .lf-fp-quote-head > .lf-fp-quote {
-    margin: 0;
-    padding-inline-start: calc(var(--lf-fp-inset) - 1px);
-    min-width: 0;
-    min-height: 0;
-    cursor: default;
-    display: -webkit-box;
-    -webkit-box-orient: vertical;
-    -webkit-line-clamp: 3;
-    overflow: hidden;
-  }
-  .lf-fp-quote[data-lf-expanded="true"] {
-    display: block;
-    overflow: visible;
-  }
-  /* Full quote, an inline press (controls.css) at the quote's size. Its reach
-     (surfaces.css) lies inside the thread's view, which clips what passes its 8px top
-     padding, so under a finger it stands low enough for the reach above it. */
-  .lf-fp-quote-head > .lf-quote-expand {
-    margin-block-start: max(0px, (var(--aim-floor) - 1lh) / 2 - 8px);
-    min-height: 0;
-    padding: 0;
   }
   /* A page in All pages: its leaf in its agent's tone, its title, and what its agent is
      doing, which gives way to the title and is cut where the row ends; then the mark
@@ -1820,16 +1778,18 @@
     font: var(--font-small);
     margin-right: 4px;
   }
-  /* The thread's transcript, drawn and spaced as a card's (thread/transcript.js), its
-     first author 16px under the quote, the quote head's 12px included. Its box starts
-     at the view's padding, as the quote's rule does, and the transcript alone insets
-     its words onto the thread's edge. */
-  .lf-fp-messages {
-    padding-inline-end: 8px;
-  }
-  .lf-fp-messages > .lf-primary-part {
+  /* The thread, drawn as a card's (thread/thread-card.js), stands on the view's
+     padding, as the quote's rule does, and its to-dos and transcript inset their words
+     onto the thread's edge. The transcript keeps the room around it a card's box gives
+     its own, but on the side the quote's rule stands, its first author 16px under the
+     quote, the quote head's 12px included. */
+  .lf-fp-messages > .lf-page-thread {
     --lf-thread-text-inset: var(--lf-fp-inset);
-    padding-inline-start: 0;
+    padding: 0;
+  }
+  .lf-fp-messages .lf-thread-transcript {
+    padding-block: var(--sp-1);
+    padding-inline-end: calc(8px + var(--sp-1));
   }
   /* A rewrite in a thread's view stands where the message stood (response.css,
      `.lf-msg-editor`), at the height of the field below it, frame included, its frame

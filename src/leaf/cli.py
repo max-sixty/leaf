@@ -1358,7 +1358,9 @@ def thread_create(
     the work as a whole.
 
     Use --obligation when the next move is the user's: the message waits on
-    On me until their reply or settling reaction. Refuses a quote the active revision does not
+    On me until their reply or settling reaction. A question whose answers you
+    can list takes an `lf-options` choice in --markup instead, which waits on
+    the user until they pick. Refuses a quote the active revision does not
     hold, or holds more than once. The comment's id is the thread's.
     """
     from leaf.thread import cmd_comment
@@ -1419,8 +1421,9 @@ def thread_reply(
     """Answer a delivered update by its `answer.ref` alone, or post into the
     thread PAGE MESSAGE names, which is refused while that thread owes an answer.
 
-    An answer declares what it leaves with --done, --todo or --obligation,
-    or carries a widget in --markup that asks; --ephemeral progress declares nothing,
+    An answer declares what it leaves with --done, --todo or --obligation, or
+    carries a widget in --markup that asks, as an `lf-options` choice asks a
+    question whose answers you can list; --ephemeral progress declares nothing,
     and --done needs a reference. The reply
     publishes your saved page edits, checked as `page check` checks them without a
     browser. The Leaf skill's references/threads.md says which to use and what

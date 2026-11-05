@@ -498,6 +498,64 @@ def test_resolving_one_of_two_threads_leaves_the_user_in_the_card(browser, serve
     )
 
 
+def test_resolve_in_a_card_moves_on_to_the_next_thread_at_its_passage(browser, serve):
+    """Resolve in a card shows the thread after the resolved one at the same passage,
+    else the one before, standing the user on it, and the page doesn't move; `z` brings
+    the thread back where it was resolved (thread-preview.js, the user's choice of 4
+    November 2026)."""
+    comment = {
+        "kind": "comment",
+        "author": "user",
+        "revision": 1,
+        "anchor": {"section": "bracket"},
+    }
+    said = (
+        "First: can these jobs share one visit?",
+        "Second: does the second visit need a permit?",
+        "Third: who holds the keys?",
+    )
+    page = open_page(
+        browser,
+        serve(OBLIGATION_PAGE, events=[{**comment, "text": text} for text in said]),
+    )
+    resized(page, 1440, 900)
+    card = page.locator(".lf-margin-preview")
+    position = card.locator(".lf-margin-preview-position")
+    thread = card.locator(".lf-page-thread")
+    marker = page.locator('.lf-margin-marker[data-lf-kinds="comment"]')
+    marker.focus()
+    page.keyboard.press("Enter")
+    expect(thread).to_be_focused()
+    card.get_by_role("button", name="Next thread").focus()
+    page.keyboard.press("Enter")
+    expect(position).to_have_text("2/3")
+    expect(thread).to_be_focused()
+    scroll_settled(page)
+    scrolled = page.evaluate("scrollY")
+
+    with sending(page, "the resolve"):
+        page.keyboard.press("r")
+    expect(position).to_have_text("2/2")
+    expect(card).to_contain_text(said[2])
+    expect(thread).to_be_focused()
+    assert page.evaluate("scrollY") == scrolled
+
+    undo(page)
+    expect(position).to_have_text("2/3")
+    expect(card).to_contain_text(said[1])
+    expect(thread).to_be_focused()
+
+    # The last thread's place goes to the one before it, by a pointer's Resolve too.
+    card.get_by_role("button", name="Next thread").click()
+    expect(position).to_have_text("3/3")
+    with sending(page, "the second resolve"):
+        card.get_by_role("button", name="Resolve thread", exact=True).click()
+    expect(position).to_have_text("2/2")
+    expect(card).to_contain_text(said[1])
+    expect(thread).to_be_focused()
+    assert page.evaluate("scrollY") == scrolled
+
+
 def test_a_card_repaint_keeps_the_user_on_the_control_they_reached(browser, serve):
     """A repaint of an open card leaves the user's press where they aimed it.
 
@@ -631,7 +689,7 @@ def test_taking_back_a_resolve_is_the_users_own_gesture(browser, serve):
     page = open_page(browser, url)
     open_panel_thread(page, root)
     with sending(page, "the resolve"):
-        page.locator(".lf-fp-settle").click()
+        page.locator(".lf-fp-thread-controls :is(.lf-resolve, .lf-reopen)").click()
     expect_open_threads(page, 0)
     undo(page)
     told(page)
@@ -651,10 +709,10 @@ def test_a_resolved_thread_can_be_reopened(browser, serve):
     )
     open_panel_thread(page, comment)
     with sending(page, "the resolve"):
-        page.locator(".lf-fp-settle").click()
+        page.locator(".lf-fp-thread-controls :is(.lf-resolve, .lf-reopen)").click()
     expect_open_threads(page, 17)
     view = open_panel_thread(page, comment)
-    settle = page.locator(".lf-fp-settle")
+    settle = page.locator(".lf-fp-thread-controls :is(.lf-resolve, .lf-reopen)")
     expect(settle).to_have_accessible_name("Reopen")
     with sending(page, "the reopen"):
         settle.click()
@@ -683,13 +741,17 @@ def test_a_reply_in_a_resolved_thread_reopens_it(browser, serve):
     page = open_page(browser, url)
     expect_open_threads(page, 0)
     open_panel_thread(page, root)
-    expect(page.locator(".lf-fp-settle")).to_have_accessible_name("Reopen")
+    expect(
+        page.locator(".lf-fp-thread-controls :is(.lf-resolve, .lf-reopen)")
+    ).to_have_accessible_name("Reopen")
     reply = page.locator(PANEL_REPLY)
     reply.click()
     page.keyboard.type("One more thing.")
     with sending(page, "the reply"):
         page.keyboard.press("Enter")
-    expect(page.locator(".lf-fp-settle")).to_have_accessible_name("Resolve thread")
+    expect(
+        page.locator(".lf-fp-thread-controls :is(.lf-resolve, .lf-reopen)")
+    ).to_have_accessible_name("Resolve thread")
     expect_open_threads(page, 1)
     assert events_model.read_events(serve.page_dir)[-1]["kind"] == "reply"
 
@@ -764,7 +826,9 @@ def test_a_late_reply_reopens_its_resolved_thread(browser, serve):
     expect_open_threads(page, 1)
     view = open_panel_thread(page, root["id"])
     expect(view.locator(".lf-msg[data-lf-author=agent]")).to_be_visible()
-    expect(page.locator(".lf-fp-settle")).to_have_accessible_name("Resolve thread")
+    expect(
+        page.locator(".lf-fp-thread-controls :is(.lf-resolve, .lf-reopen)")
+    ).to_have_accessible_name("Resolve thread")
     page.reload()
     told(page)
     expect_open_threads(page, 1)
@@ -845,6 +909,8 @@ def test_r_leaves_a_thread_the_user_scrolled_away_from(browser, serve):
     page.locator('.lf-margin-marker[data-lf-kinds="comment"]').click()
     card = page.locator(".lf-margin-preview")
     thread = card.locator(".lf-page-thread")
+    expect(card.locator("leaf-text")).to_be_focused()
+    page.keyboard.press("Escape")
     expect(thread).to_be_focused()
 
     def scroll(down):

@@ -514,7 +514,7 @@ test("held news keeps a reaction taken back elsewhere as it was drawn", async ()
   assert.equal(mark?.withdrawn, undefined);
 });
 
-test("a transcript commits when drawn, and abandoned renders call nothing", async (t) => {
+test("a thread commits when drawn, and abandoned renders call nothing", async (t) => {
   const { createPrimaryReader } = await import("/runtime/thread/primary-reader.js");
   const { applicationState } = await import("/runtime/semantic-state.js");
   applicationState.identify(1);
@@ -549,13 +549,23 @@ test("a transcript commits when drawn, and abandoned renders call nothing", asyn
     owner,
     (reading, parts) => {
       const captured = intent;
-      parts.transcript(reading.threads[0].key, outlet, {
-        drawn: (answer) => drawn.push({ captured, answer, text: outlet.textContent }),
+      parts.thread(reading.threads[0].key, outlet, {
+        drawn: () => drawn.push({ captured, text: outlet.textContent }),
       });
       return deferred?.promise;
     },
     {
-      reply: {},
+      // Every thread draws its reply box; this stands in for the box's input wiring,
+      // which composing-input.test.mjs covers.
+      reply: {
+        wireInput: () =>
+          Object.assign(() => {}, {
+            value: () => "",
+            button: null,
+            load() {},
+            cancelDictation() {},
+          }),
+      },
       reaction: {},
       read: { observeMessage: () => () => {}, observeFeedback: () => () => {} },
     },
@@ -569,7 +579,6 @@ test("a transcript commits when drawn, and abandoned renders call nothing", asyn
   const never = new Promise(() => {});
   await reader.prepare(collection(), never).paint();
   assert.equal(drawn.length, 1);
-  assert.equal(drawn[0].answer, null);
 
   for (const abandoned of ["superseded", "cancelled"]) {
     intent = abandoned;
@@ -590,11 +599,6 @@ test("a transcript commits when drawn, and abandoned renders call nothing", asyn
     // The callback follows synchronous placement, before asynchronous preparation.
     assert.equal(drawn.at(-1).captured, "later navigation");
     assert.match(drawn.at(-1).text, /Drawn answer/);
-    assert.deepEqual(drawn.at(-1).answer, {
-      turn: collection().threads[0].msgs[0].key,
-      reply: collection("Drawn answer").threads[0].msgs[1].key,
-    });
-    assert.equal(Object.isFrozen(drawn.at(-1).answer), true);
     await painted;
     await reader.prepare(collection(), never).paint();
   }

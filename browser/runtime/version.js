@@ -10,15 +10,16 @@
  *
  * The picker owns the complete version list, where each version older than the one
  * shown offers a Compare that marks what changed since it; `v` marks what changed since
- * the newest of them. A lit Compare, or `v` again, clears the comparison. The
+ * the version the user last saw, or the newest older one (since-seen.js). A lit
+ * Compare, or `v` again, clears the comparison. The
  * comparison and the picker's presentation need no application capability, so they
  * live at module scope, one per document, and other surfaces import their readers
  * directly; the controller keeps travel and activation, which do. Block marks show
  * which blocks changed; a change is a hunk of the block diff as the page shows it, its
  * run of changed blocks and the base blocks it took out (`changeRuns`), which a reader
  * counts and visits; `changeCard` / `toggleChangeCard` open what one replaced on
- * request. A base is a stamped version, the one a Compare names or, for `v`, the newest
- * older one.
+ * request. A base is a stamped version, the one a Compare or `v` names.
+ * `changesSince` counts a comparison's changes without marking them.
  * `comparisonBase` names the current base.
  * `comparisonChanges(owner)` selects the changes inside `owner` from the same comparison
  * reading. Its signal advances after the marked DOM and comparison selection have
@@ -98,11 +99,11 @@ import { restrictUserIntent, retainUserIntent } from "./user-intent.js";
 import { focusedInView } from "./user-place.js";
 import { SourcePairs, patchTree, patchRetains } from "./dom-children.js";
 import { savedReadingSettled } from "./keyboard/bindings.js";
-import { pageCommand } from "./keyboard/register.js";
 import { commandSteps } from "./keyboard/control-keys.js";
 import { pruneScopedElements } from "./keyboard/scopes.js";
 import { repaint } from "./repaint.js";
 import { notice } from "./notifications.js";
+import { counted } from "./words.js";
 import { backgroundFlash, flashDuration } from "./motion.js";
 import {
   authored,
@@ -341,7 +342,7 @@ const stamped = (version) =>
 // A comparison's base, built from a stamped version's entry: the revision the page is
 // compared with, its document's address, and its name in what the comparison says.
 /** @param {import("../types/contract.js").ServedReading["versions"][number]} entry */
-const revisionBase = ({ revision, version, url }) =>
+export const revisionBase = ({ revision, version, url }) =>
   Object.freeze({ revision, url, name: `v${version}` });
 // The version picker: a press that says which version this is, and a menu that says
 // what each one was and what it changed. It was a <select>, and the two things that
@@ -624,7 +625,7 @@ const diffPaired = new Map();
 // so learning it costs no travel to the other version and back.
 //
 // Identity across versions is the id — the fact threads and reading position already
-// ride, and the same lookup the state half of applyDiff resolves its units by. A block
+// ride, and the same lookup the state half of `diffWith` resolves its units by. A block
 // with no id names nothing in the base document, so the comparison holds no earlier
 // words for it, and the block it replaced reads as taken out. An opaque widget holds
 // nothing either: what the user reads there is its module's rendering, not the source
@@ -1152,9 +1153,13 @@ export function servedElements() {
   }
   return served;
 }
+// What changed since a base, read from its document and the server's reading of it
+// (`loadBase`) without touching the page: the blocks a comparison marks, the earlier
+// readings its cards show, and its changes (`commitDiff` puts them on the page). A
+// count of the changes reads the same answer and marks nothing (`changesSince`).
 /** @param {Document} doc @param {Parameters<typeof foldWidgetStates>[0]} baseAuthored
  * @param {ComparisonBase} baseRevision @param {import("../types/contract.js").ServedViewAnswer["browser"]} baseReading */
-function applyDiff(doc, baseAuthored, baseRevision, baseReading) {
+function diffWith(doc, baseAuthored, baseRevision, baseReading) {
   const baseView = baseReading.views[String(baseRevision.revision)];
   if (!baseView)
     throw new Error("The comparison answer omitted its requested revision");
@@ -1181,11 +1186,9 @@ function applyDiff(doc, baseAuthored, baseRevision, baseReading) {
       [...baseProjection.desired].filter(([, entry]) => declaredAlike(entry)),
     ),
   });
-  const mark = (/** @type {Element} */ target) => {
-    if (diffMarked.has(target)) return;
-    target.classList.add("lf-ins-block");
-    diffMarked.add(target);
-  };
+  /** @type {Set<Element>} */
+  const marked = new Set();
+  const mark = (/** @type {Element} */ target) => marked.add(target);
   const source = pageDocument(doc);
   if (!source)
     throw new Error("A comparison revision must contain its authored document");
@@ -1261,12 +1264,16 @@ function applyDiff(doc, baseAuthored, baseRevision, baseReading) {
   // the two sources are in hand, and holding them open for a press that may never come
   // would keep two more documents alive for the life of the comparison.
   const opaque = diffOpaqueSel();
-  for (const block of diffMarked) {
-    const paired = block.id ? base.doc.getElementById(block.id) : null;
-    if (paired) diffPaired.set(block, order.get(paired) ?? null);
+  /** @type {Map<Element, number | null>} */
+  const paired = new Map();
+  /** @type {Map<Element, {was: string | null, is: string | null}>} */
+  const words = new Map();
+  for (const block of marked) {
+    const pair = block.id ? base.doc.getElementById(block.id) : null;
+    if (pair) paired.set(block, order.get(pair) ?? null);
     if (!block.matches(ADDRESSABLE) || block.closest(opaque)) continue;
     const [was, is] = [base, current].map(({ doc }) => doc.getElementById(block.id));
-    diffWordsOf.set(block, {
+    words.set(block, {
       was: was ? comparisonWords(was, opaque) : null,
       is: is ? comparisonWords(is, opaque) : null,
     });
@@ -1288,12 +1295,23 @@ function applyDiff(doc, baseAuthored, baseRevision, baseReading) {
     new Map(
       [...gaps].map(([block, { at, gone }]) => [block, { at, gone: takenOut(gone) }]),
     );
-  diffChanges = changeRuns(diffMarked, kept, {
+  const changes = changeRuns(marked, kept, {
     gapBefore: read(gapBefore),
     gapAfter: read(gapAfter),
     gapIn: read(gapIn),
   });
-  return diffChanges.length;
+  return { marked, paired, words, changes };
+}
+// Put a comparison's reading on the page, which `setDiff(false)` cleared before it.
+/** @param {ReturnType<typeof diffWith>} diff */
+function commitDiff({ marked, paired, words, changes }) {
+  for (const block of marked) {
+    block.classList.add("lf-ins-block");
+    diffMarked.add(block);
+  }
+  for (const [block, at] of paired) diffPaired.set(block, at);
+  for (const [block, readings] of words) diffWordsOf.set(block, readings);
+  diffChanges = changes;
 }
 // ---------- what a change replaced ----------
 // The change's card (margin-bars.js draws it) answers what a change replaced without
@@ -1451,7 +1469,7 @@ export function closeChangeCard() {
 // Whether a revision can be compared with the one being read: any earlier one, which
 // is which stamped rows the menu builds a press onto.
 /** @param {number} revision */
-const comparable = (revision) =>
+export const comparable = (revision) =>
   runtime.currentRevision !== null && revision < runtime.currentRevision;
 // Whether the comparison is active and what against, or which base a stopped one is
 // waiting on — the only thing that decides it, the marks and the paint being renderings
@@ -1483,7 +1501,7 @@ function setDiff(on, base = null, pendingBase = null) {
 // comparison faster than one arrives, and a marking pass that could interleave with the
 // next one's would leave two bases' marks in place under a picker naming one of them.
 /** @param {ComparisonBase} base */
-async function showComparison(base) {
+export async function showComparison(base) {
   // Selection is immediate even though its result needs two documents. Clear the prior
   // marks, move the menu's checked state to the requested base, and expose the wait as
   // busy. A fast walk then never leaves the last completed base highlighted under focus
@@ -1491,50 +1509,66 @@ async function showComparison(base) {
   // an unlit state it is about to leave.
   setDiff(false, null, base);
   const mine = ++diffRequest;
-  const baseRevision = base.revision;
-  const documentRequest = authoredDocument(base.url);
-  let doc;
-  let reading;
-  let baseAuthored;
+  const wanted = () => mine === diffRequest;
+  let loaded;
   try {
-    while (true) {
-      const throughSeq = runtime.lastEventSeq;
-      if (throughSeq === null)
-        throw new Error("A comparison requires an accepted log reading");
-      [doc, reading] = await Promise.all([
-        documentRequest,
-        baseReading(baseRevision, throughSeq),
-      ]);
-      if (mine !== diffRequest) return;
-      if (runtime.lastEventSeq === throughSeq) break;
-    }
-    if (mine !== diffRequest) return;
-    // Typed authored state reads the source, which formatting leaves alone: it formats
-    // a copy (`paintedSource`), with the renderer loaded here.
-    baseAuthored = stageAuthoredStates(doc, new Map());
-    const source = pageDocument(doc);
-    if (!source)
-      throw new Error("A comparison revision must contain its authored document");
-    await loadDeclaredMarkdown(source);
+    loaded = await loadBase(base, wanted);
   } catch {
-    if (mine === diffRequest) {
+    if (wanted()) {
       diffPendingBase.value = null;
       raiseError(`Couldn't load ${base.name}`);
     }
     return;
   }
-  if (mine !== diffRequest) return;
-  const n = applyDiff(doc, baseAuthored, base, reading);
+  if (!loaded || !wanted()) return;
+  const diff = diffWith(loaded.doc, loaded.baseAuthored, base, loaded.reading);
+  commitDiff(diff);
   setDiff(true, base);
+  const n = diff.changes.length;
   notice(
     n
-      ? `${n} change${n === 1 ? "" : "s"} since ${base.name}`
+      ? `${counted(n, "change")} since ${base.name}`
       : `No text changes since ${base.name}`,
   );
 }
+// A base's document and the server's reading of it at the log this tab has applied,
+// which `diffWith` reads. Null once `wanted` says a later press made it moot.
+/** @param {ComparisonBase} base @param {() => boolean} wanted */
+async function loadBase(base, wanted) {
+  const documentRequest = authoredDocument(base.url);
+  while (true) {
+    const throughSeq = runtime.lastEventSeq;
+    if (throughSeq === null)
+      throw new Error("A comparison requires an accepted log reading");
+    const [doc, reading] = await Promise.all([
+      documentRequest,
+      baseReading(base.revision, throughSeq),
+    ]);
+    if (!wanted()) return null;
+    if (runtime.lastEventSeq !== throughSeq) continue;
+    // Typed authored state reads the source, which formatting leaves alone: it formats
+    // a copy (`paintedSource`), with the renderer loaded here.
+    const baseAuthored = stageAuthoredStates(doc, new Map());
+    const source = pageDocument(doc);
+    if (!source)
+      throw new Error("A comparison revision must contain its authored document");
+    await loadDeclaredMarkdown(source);
+    return { doc, reading, baseAuthored };
+  }
+}
+/** How many changes a comparison with `base` would mark, read without marking any, or
+ * null where the revision being read moved on meanwhile.
+ * @param {ComparisonBase} base */
+export async function changesSince(base) {
+  const revision = runtime.currentRevision;
+  const wanted = () => runtime.currentRevision === revision;
+  const loaded = await loadBase(base, wanted);
+  if (!loaded || !wanted()) return null;
+  return diffWith(loaded.doc, loaded.baseAuthored, base, loaded.reading).changes.length;
+}
 // A press that ends a comparison says so, as `o` does when it hides annotations, so a
 // screen reader hears the marks go rather than keeping the comparison's count.
-const endComparison = () => {
+export const endComparison = () => {
   setDiff(false);
   notice("Changes hidden");
 };
@@ -1555,7 +1589,7 @@ const pressComparison = (version) => {
 export const comparisonBase = () => (diffOn.value ? diffBase.value : null);
 // Selection leads the documents it needs. Menu focus follows that immediate reading,
 // while the public projection above stays paired with the marks that have settled.
-const selectedBase = () => diffPendingBase.value ?? comparisonBase();
+export const selectedBase = () => diffPendingBase.value ?? comparisonBase();
 
 /** The element a change that only took blocks out stands in: the one its gap is in.
  * @param {Pick<Change, "at" | "gap">} change */
@@ -1668,32 +1702,6 @@ export function createVersionController({
     // way out is not live over. The walk being empty is the menu's business, not this key's.
     when: versionsOffered,
   };
-  // `v` marks what changed since the newest version older than the one being read, and
-  // takes any comparison off again, whichever press started it. The user chose on 3
-  // November to call the marks up with a key, rather than have a page arrive marked
-  // with what changed since their last visit (removed in #5014), and chose a toggle
-  // over a key that opens Versions and re-marks the page as its rows are walked. An
-  // older base stays with Versions, which `g V` opens.
-  const latestBase = () =>
-    runtime.versions.findLast((entry) => comparable(entry.revision)) ?? null;
-  const since = () => {
-    const latest = latestBase();
-    return latest ? ` since v${latest.version}` : "";
-  };
-  pageCommand({
-    id: "version.compare.latest",
-    ready: savedReadingSettled,
-    keys: ["v"],
-    title: () => (selectedBase() ? "hide changes" : `show changes${since()}`),
-    touch: () => (selectedBase() ? "Hide changes" : `Show changes${since()}`),
-    menu: "annotate",
-    when: () => selectedBase() !== null || latestBase() !== null,
-    run: () => {
-      const latest = latestBase();
-      if (selectedBase()) endComparison();
-      else if (latest) return showComparison(revisionBase(latest));
-    },
-  });
 
   // A stamped version is historical and always pins. The active working document owns
   // the live root, whether or not that revision has already received a stamp.
@@ -1903,6 +1911,7 @@ export function createVersionController({
       reaches: (before, after) => reachesMembers(before, after, arrivingRoot),
       same: (before, after) => sameAuthoredMarkup(before, after, arrivingRoot),
       sameValue: (held, value) => sameValue(held, value, arrivingRoot),
+      diffWork: Infinity,
     };
   }
 

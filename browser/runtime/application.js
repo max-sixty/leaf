@@ -3,6 +3,7 @@
    Importing this module is inert. leaf.js supplies the concrete feature views once and
    mounts the application before widget upgrade; exported functions are stable closures
    for the public widget API and fail clearly if invoked before that boundary. */
+import { effect, untracked } from "/runtime/framework.js";
 import { annotationMode, runtime } from "./context.js";
 import {
   applicationState,
@@ -38,6 +39,7 @@ import { createQueueActions } from "./queue-api.js";
 import { createPrimaryReader } from "./thread/primary-reader.js";
 import { nextRender } from "./rendering.js";
 import { createReadTracking } from "./thread/read.js";
+import { createSinceSeen } from "./since-seen.js";
 import { createMarginBars } from "./margin-bars.js";
 import { renderMarginThread } from "./thread/inline.js";
 import { showHeld } from "./thread/held-news.js";
@@ -248,6 +250,13 @@ function createApplication(dependencies) {
       applicationState.settleMarkRead(messages);
     }
   };
+  // The revision a visible tab showed, sent as the user leaves; the event door keeps a
+  // send alive past its document (layer-client.js, `postEvent`). Nothing draws it ahead
+  // of the answer.
+  createSinceSeen({
+    markSeen: (revision) =>
+      deliverBookkeeping({ kind: "seen", revision }, receiveState),
+  });
   const read = createReadTracking({
     markRead,
     openThread: openPageThread,
@@ -282,6 +291,8 @@ function createApplication(dependencies) {
     reply: replyView,
     settlement: settlementView,
     reaction: reactionView,
+    // Where the words a thread is about stand, which a thread quoting them reads.
+    placedAt: dependencies.anchorPlacement.placedAt,
     read,
     openThread: openPageThread,
     landInThread: dependencies.landInThread,
@@ -312,14 +323,41 @@ function createApplication(dependencies) {
     return entries;
   }
   // The margin's annotations, which the margin's own geometry and contributions also
-  // redraw directly. `refresh()` redraws them once they have been drawn.
+  // redraw directly, at once, since a contribution's control and the focus prepared on
+  // it must stand when the call returns (contributions.js). `refresh()` redraws them
+  // once they have been drawn.
   let annotationsDrawn = false;
-  const renderAnnotations = () => {
+  const paintAnnotations = () => {
     annotationsDrawn = true;
     if (!onPaper.matches) {
       const entries = refreshAnnotationInventory();
       overlay?.paint(entries);
     }
+  };
+  // A direct redraw can show what the presenter's last paint did not read, such as the
+  // age of a message in a card it just opened, so it follows its own reads until the
+  // presenter's next paint reads them all again, and a change to one, such as the
+  // clock, repaints through the presenter.
+  let following = () => {};
+  const forget = () => {
+    following();
+    following = () => {};
+  };
+  const renderAnnotations = () => {
+    forget();
+    let first = true;
+    const stop = effect(() => {
+      if (first) {
+        first = false;
+        paintAnnotations();
+      } else untracked(() => void marginPresentation?.present());
+    });
+    // The paint may itself have redrawn them directly, which follows its own reads.
+    const nested = following;
+    following = () => {
+      nested();
+      stop();
+    };
   };
   renderAnnotations.refresh = () => {
     if (annotationsDrawn) renderAnnotations();
@@ -327,7 +365,7 @@ function createApplication(dependencies) {
   // The inventory lists the marks the projection's chrome paints, reading their nodes,
   // which signals cannot track, so it reads the parts that move them itself, and
   // reads them once that region has committed. What the thread pass decides about
-  // each thread, where it is placed and whether a widget seats or holds it, and the
+  // each thread, where it is placed and whether a widget seats it, and the
   // ages the margin shows are followed with the rest of what this paint reads, so a
   // commit that moves one and the clock repaint them by the same proof.
   const annotationInputs = readPart(annotationSelection);
@@ -338,7 +376,10 @@ function createApplication(dependencies) {
       region: "annotations",
       after: PRESENTATION_DOM.obligations,
       reading: () => annotationInputs(),
-      paint: renderAnnotations,
+      paint: () => {
+        forget();
+        paintAnnotations();
+      },
     });
     marginPresentation = presentation;
     void presentation.present();
@@ -364,8 +405,8 @@ function createApplication(dependencies) {
     openPageMap: dependencies.annotationCommands.openPageMap,
     pageMapDialogContains: dependencies.annotationCommands.pageMapDialogContains,
     scrollThreadIntoView: dependencies.annotationCommands.scrollThreadIntoView,
-    renderMarginThread: (host, thread, controls) =>
-      renderMarginThread(host, thread, inlineView, controls),
+    renderMarginThread: (host, thread, outlets) =>
+      renderMarginThread(host, thread, inlineView, outlets),
     placedAt: dependencies.anchorPlacement.placedAt,
     marksFor: (id) => dependencies.anchorPaint?.marksFor(id) ?? [],
     currentLocationObligation:
@@ -682,7 +723,6 @@ function createApplication(dependencies) {
     consumeAnnotations,
     threadActions,
     queueActions,
-    settlement: settlementView,
     /** @param {string} id */
     openObligation(id) {
       const item = readObligations().all.find((item) => item.id === id);

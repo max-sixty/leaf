@@ -227,7 +227,7 @@ html[data-lf-region-capture]
      off the chrome (chrome-guard.css) but inheritance still reaches it; and user-select, because a
      drag that reaches any selectable part of the chrome extends the range through
      everything between, so the root answers for every surface and what may still be
-     copied says so itself (.lf-quote, .lf-msg-body). */
+     copied says so itself (.lf-thread-quote, .lf-msg-body). */
   :scope:not(:root > *),
   .lf-legend {
     position: static;
@@ -316,7 +316,7 @@ html[data-lf-region-capture]
      island still runs the range from the document through everything between
      (user-select: contain is unimplemented), so this bounds the accident; what reads a
      selection into a quote answers the rest. */
-  :is(.lf-quote, .lf-msg-body) {
+  :is(.lf-thread-quote, .lf-msg-body) {
     user-select: text;
     -webkit-user-select: text;
   }
@@ -325,43 +325,6 @@ html[data-lf-region-capture]
      box, so the fold starts from the box the user was looking at rather than from
      a second description of it. The retiring box says the outcome in paint without
      also stating that in metrics the fold is animating. */
-
-  .lf-quote-label {
-    min-width: 0;
-  }
-  .lf-anchor-status {
-    margin-inline-start: 7px;
-    color: var(--muted);
-    font: var(--font-status);
-  }
-
-  .lf-quote {
-    margin: 0 0 12px;
-    padding: 2px 8px 2px 10px;
-    border-inline-start: 1px solid var(--border-2);
-    color: var(--muted);
-    font: var(--font-compact);
-    cursor: pointer;
-    overflow-wrap: anywhere;
-  }
-  .lf-quote:is(:hover, [data-lf-focus]) {
-    color: var(--ink-2);
-  }
-
-  .lf-quote[data-lf-detached] {
-    border-inline-start-color: var(--border-2);
-    color: var(--muted);
-    cursor: default;
-  }
-  .lf-quote-expand {
-    display: flex;
-    align-items: center;
-    gap: 5px;
-  }
-  .lf-quote-expand::before {
-    inline-size: 1em;
-    text-align: center;
-  }
 
   /* The response bar and thread card are fixed and anchored to what they point at, and
      placed only while the visible boundary holds them (floating.js), so they never sit

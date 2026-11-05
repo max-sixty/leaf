@@ -1,10 +1,12 @@
 """A reply editor's native session: what typing, clicks, sends, resolution and a
 replaced outlet leave of its caret, focus, reading position and Send."""
 
+import re
+
 import pytest
 from interact_support import append_carried_log_record
 from playwright.sync_api import expect
-from render_cases_interaction import panel_comment
+from render_cases_interaction import OBLIGATION_PAGE, panel_comment
 from render_cases_navigation import source_revision
 from render_harness import (
     LONG_PAGE,
@@ -218,10 +220,13 @@ def open_reply(page, surface, root):
 
 def expect_resolved(page, surface, thread, resolved):
     """The thread reads resolved, or not: the panel's by its head's Resolve or Reopen,
-    a margin card by its own state."""
+    which names the agent that resolved it before Reopen, a margin card by its own
+    state."""
     if surface == "panel":
-        expect(page.locator(".lf-fp-settle")).to_have_accessible_name(
-            "Reopen" if resolved else "Resolve thread"
+        expect(
+            page.locator(".lf-fp-thread-controls :is(.lf-resolve, .lf-reopen)")
+        ).to_have_accessible_name(
+            re.compile(r"Reopen$") if resolved else "Resolve thread"
         )
     else:
         expect(thread).to_have_attribute("data-lf-resolved", str(resolved).lower())
@@ -310,6 +315,84 @@ def test_reply_admission_finishes_or_restores_its_native_session(
     assert stored_draft_text(page, "reply:" + root) == next_words
 
 
+def opened_by_a_click(browser, serve, threads):
+    """A passage of `threads` comments, its margin card opened by a click, which leaves
+    the caret in the first thread's empty box; return the page, the card, the box and
+    the threads' roots in their order at the passage."""
+    comment = {
+        "kind": "comment",
+        "author": "user",
+        "revision": 1,
+        "anchor": {"section": "bracket"},
+    }
+    said = ("First words.", "Second words.", "Third words.")[:threads]
+    page = open_page(
+        browser,
+        serve(OBLIGATION_PAGE, events=[{**comment, "text": text} for text in said]),
+    )
+    page.locator('.lf-margin-marker[data-lf-kinds="comment"]').click()
+    card = page.locator(".lf-margin-preview")
+    box = card.locator("leaf-text")
+    expect(box).to_be_focused()
+    rendered(page)
+    roots = [
+        event["id"]
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "comment"
+    ]
+    return page, card, box, roots
+
+
+@pytest.mark.parametrize("threads", [3, 1], ids=["three-threads", "solo"])
+def test_the_caret_an_opening_places_begins_no_reply(browser, serve, threads):
+    """The caret a click's opening leaves in an empty box is no reply being written, so
+    an agent's Resolve does what it does to a reader's card: at a passage of three the
+    card moves on to the next thread, and at a solo passage it closes. It used to stand
+    on the resolved thread over its empty box (replies.js)."""
+    page, card, _box, roots = opened_by_a_click(browser, serve, threads)
+    events_model.append_event(
+        serve.page_dir,
+        {"kind": "resolve", "author": "agent", "agent": "Codex", "parent": roots[0]},
+    )
+    told(page)
+    if threads == 1:
+        expect(card).to_be_hidden()
+        return
+    expect(card.locator(".lf-margin-preview-position")).to_have_text("1/2")
+    expect(card.locator(".lf-page-thread")).to_have_attribute(
+        "data-lf-thread", roots[1]
+    )
+
+
+@pytest.mark.parametrize("how", ["press", "type", "c", "tab"])
+def test_the_user_s_own_act_in_an_opened_box_begins_their_reply(browser, serve, how):
+    """A press in the box, words typed, `c` or a Tab into it begin the reply, so the
+    agent's Resolve retains the card and its box, as for any reply being written."""
+    page, card, box, roots = opened_by_a_click(browser, serve, 1)
+    thread = card.locator(".lf-page-thread")
+    if how == "press":
+        box.click()
+    elif how == "type":
+        page.keyboard.type("Words")
+    else:
+        page.keyboard.press("Escape")
+        expect(thread).to_be_focused()
+        if how == "c":
+            page.keyboard.press("c")
+        else:
+            while not box.evaluate("box => box.matches(':focus')"):
+                page.keyboard.press("Tab")
+    expect(box).to_be_focused()
+    events_model.append_event(
+        serve.page_dir,
+        {"kind": "resolve", "author": "agent", "agent": "Codex", "parent": roots[0]},
+    )
+    told(page)
+    rendered(page)
+    expect(thread).to_have_attribute("data-lf-resolved", "true")
+    expect(box).to_be_focused()
+
+
 def test_typing_in_the_box_a_send_left_keeps_its_reply_through_settlement(
     browser, serve
 ):
@@ -363,7 +446,7 @@ def test_reply_editing_and_saved_words_have_separate_resolution_lifetimes(
     field.evaluate("box => box.setSelectionRange(5, 5)")
     if resolution == "user":
         with sending(page, "the deliberate resolution"):
-            page.locator(".lf-fp-settle").click()
+            page.locator(".lf-fp-thread-controls :is(.lf-resolve, .lf-reopen)").click()
     else:
         if resolution == "inactive-agent":
             page.keyboard.press("Escape")
@@ -402,7 +485,7 @@ def test_reply_editing_and_saved_words_have_separate_resolution_lifetimes(
     recovered = open_panel_thread(page, root)
     expect(page.locator(PANEL_REPLY)).to_have_js_property("value", words)
     with sending(page, "reopen with the saved reply"):
-        page.locator(".lf-fp-settle").click()
+        page.locator(".lf-fp-thread-controls :is(.lf-resolve, .lf-reopen)").click()
     expect(recovered).to_be_visible()
     expect(page.locator(PANEL_REPLY)).to_be_visible()
     expect(page.locator(PANEL_REPLY)).to_have_js_property("value", words)

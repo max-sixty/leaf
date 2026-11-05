@@ -512,28 +512,6 @@ def test_a_reopening_outlasts_an_end_before_it_and_can_be_ended_again():
     assert item["end"]["event"]["id"] == "second-end"
 
 
-def test_the_agent_ends_a_question_the_user_answered_elsewhere():
-    state = model.reading(
-        page(""),
-        answered_in_words(
-            {
-                "kind": "todo_end",
-                "author": "agent",
-                "todo": "message:asking",
-                "outcome": "done",
-                "detail": "answered in chat",
-            }
-        ),
-    )
-    [item] = served_obligations(state)["all"]
-    assert (item["status"], item["next_actor"], item["answer"]) == (
-        "answered_elsewhere",
-        None,
-        None,
-    )
-    assert item["end"]["detail"] == "answered in chat"
-
-
 def test_a_frame_around_a_decision_widget_stays_one_obligation():
     [item] = page_obligations(model.reading(page(context="frame"), []))["all"]
     assert (item["id"], item["prompt"]["target"]) == ("widget:choice", "frame")

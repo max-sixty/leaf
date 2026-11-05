@@ -148,7 +148,7 @@ import { outlineChange } from "../margin-bars.js";
 import { threadNamed } from "../thread/state.js";
 import { carryingThreadPlace, currentLocationThreadId } from "../thread/focus.js";
 
-import { claimed, revealHeld } from "../thread/surfaces.js";
+import { claimed } from "../thread/surfaces.js";
 import { releaseReplies } from "../thread/replies.js";
 
 import { createMarginClusterViews } from "./margin-cluster-view.js";
@@ -1426,12 +1426,16 @@ export function createMarginProjection({
       },
     });
     previewChanged();
+    // The card's messages were drawn from this gesture, outside any paint that follows
+    // their ages; drawing the margin again reads them where it follows them.
+    renderAnnotations.refresh();
     return positioned;
   }
 
   // A press on a marker opens its card, or puts away the card it already shows. Where
   // no card stands, as on a window with no room for the rail (header), the thread opens
-  // where every other route opens it (thread/destination.js): the floating panel.
+  // where every other route opens it (thread/destination.js): the floating panel. Either
+  // way the user lands where every opening puts them (thread/focus.js, `openingPart`).
   /** @param {Entry} entry @param {ThreadChoice} choice @param {Element} button */
   function togglePinned(entry, choice, button) {
     const selected = card.selection();
@@ -1441,7 +1445,7 @@ export function createMarginProjection({
     }
     const positioned = showPreview(entry, choice, button);
     if (positioned) card.focusThread(positioned);
-    else void openPageThread(threadIdOf(choice), { part: "thread", travel: false });
+    else void openPageThread(threadIdOf(choice), { travel: false });
   }
 
   // Closing the card hands a user who was in it on (focus.js, `closeLayer`). A close
@@ -1664,22 +1668,6 @@ export function createMarginProjection({
     if (!choice) return;
     if (expandedOptionsKey && expandedOptionsKey !== entry.key)
       setOptionsOpen(entry, false);
-    // A thread a widget holds out of its flow, so as to move nothing the user reads,
-    // has this marker for its notice: pressing it shows the thread where the widget
-    // draws it, and lands the user there (thread/held-news.js).
-    const intent = retainUserIntent();
-    const held = revealHeld(choice.items.map((item) => item.thread.id));
-    if (held) {
-      intent.handoff(closePreview);
-      void held.presented.then(() =>
-        openPageThread(held.id, {
-          part: "thread",
-          travel: false,
-          intent,
-        }),
-      );
-      return;
-    }
     togglePinned(entry, choice, button);
   }
 

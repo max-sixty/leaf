@@ -124,11 +124,12 @@ def test_shot_controls_have_disjoint_targets_and_labels_stay_passive(
     assert_source_words()
     expect(shot).to_have_attribute("data-lf-shot-mode", "flip")
     assert_source_words()
+    # The classic track is on: its stable gutter takes both edges.
     assert (
         shot.locator(".lf-shotstage").evaluate(
             "node => node.offsetWidth - node.clientWidth"
         )
-        == 15
+        == 2 * 15
     )
     toolbar = shot.locator(".lf-shot-toolbar")
     toolbar.scroll_into_view_if_needed()
@@ -845,10 +846,13 @@ def test_a_shot_owns_cropped_inspection_and_preserves_choices_when_metadata_chan
     ).to_contain_text("Previous")
 
 
-def test_a_shot_narrower_than_its_box_keeps_its_labels_on_its_frames(browser, serve):
+def test_a_shot_narrower_than_its_box_keeps_its_labels_on_its_frames(
+    scrollbar_browser, serve
+):
     """A capture narrower than the shot's box stands centred in it, so the source labels
     stand on the frames' edges in each view rather than on the box's, hundreds of
-    pixels from what they name, and the tools hold the axis as the frames change."""
+    pixels from what they name, and the tools hold the axis as the frames change. A
+    classic scrollbar's gutter, as on Linux and Windows, moves neither."""
     data = {
         "before": solid_png(600, 300, (210, 220, 235)),
         "after": solid_png(600, 300, (235, 215, 205)),
@@ -863,8 +867,13 @@ def test_a_shot_narrower_than_its_box_keeps_its_labels_on_its_frames(browser, se
         before="{sources["before"]}" after="{sources["after"]}"></lf-shot>""",
     )
     page = open_page(
-        browser,
+        scrollbar_browser,
         serve(source, media={sources[state]: value for state, value in data.items()}),
+        init_script="""(() => {
+          const sheet = new CSSStyleSheet();
+          sheet.replaceSync('.lf-shotstage::-webkit-scrollbar { width: 15px; height: 15px; }');
+          document.adoptedStyleSheets = [...document.adoptedStyleSheets, sheet];
+        })()""",
     )
     resized(page, 1600, 900)
     shot = page.locator("#narrow")

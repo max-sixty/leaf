@@ -178,13 +178,14 @@ lf-shot {
      skills/leaf/references/module-scroll-and-motion.md): at 100%, sideways, and down
      too where the shot holds its height (below); in Pair each capture's window
      scrolls instead. Fit shows every capture whole, so there it clips, and the stable
-     gutter keeps its width the same at both scales. */
+     gutter keeps its width the same at both scales. The gutter takes both edges, so a
+     classic scrollbar's leaves the frames centred under the toolbar's labels. */
   overflow: hidden;
   /* Native chaining belongs to ordinary document evidence. A bounded parent or
      modal decides its own outer scrolling boundary. */
   overscroll-behavior: auto;
   --lf-top: 0px;
-  scrollbar-gutter: stable;
+  scrollbar-gutter: stable both-edges;
 }
 /* Each view is the screen's: paper prints every source whole (print, below). */
 @media screen {

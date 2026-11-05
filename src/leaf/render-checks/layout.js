@@ -82,10 +82,8 @@ function containedSpace() {
   if (!page) return [];
   return [...page.querySelectorAll("[data-lf-space]")].filter(inPage).flatMap((el) => {
     if (skipped(el) || !el.checkVisibility()) return [];
-    if (breaksOut(el))
-      return takesItsWords(el)
-        ? [{ code: "words-off-column", at: at(el), place: place(el) }]
-        : [];
+    if (breaksOut(el) && takesItsWords(el))
+      return [{ code: "words-off-column", at: at(el), place: place(el) }];
     const holders = [];
     for (let holder = el.parentElement; holder; holder = holder.parentElement) {
       if (holder.matches(".layout-column"))

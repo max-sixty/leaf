@@ -1427,6 +1427,9 @@ export function createMarginProjection({
       },
     });
     previewChanged();
+    // The card's messages were drawn from this gesture, outside any paint that follows
+    // their ages; drawing the margin again reads them where it follows them.
+    renderAnnotations.refresh();
     return positioned;
   }
 

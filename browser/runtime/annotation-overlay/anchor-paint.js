@@ -24,6 +24,7 @@ import { WORKS } from "../control-selectors.js";
 import { bareReaction } from "../thread/model.js";
 import { under } from "../shadow.js";
 import { RUNTIME_PAINT_ATTRIBUTE } from "../page-paint.js";
+import { keepsOnOne } from "../keeps.js";
 import { annotationsHidden } from "./annotation-layer.js";
 
 const MARK = "lf-mark";
@@ -244,15 +245,7 @@ export function createAnchorPaint({
   // A class on `body` ran a margin pass at each change and restyled the whole body. It
   // stands only where a press opens the thread: a control or editing region keeps its
   // own press there (composing/surface.js, the page's click), and so its own cursor.
-  /** @type {Element | null} */
-  let handOn = null;
-  /** @param {Element | null} element */
-  function paintHand(element) {
-    if (element === handOn) return;
-    handOn?.removeAttribute(RUNTIME_PAINT_ATTRIBUTE.overMark);
-    element?.setAttribute(RUNTIME_PAINT_ATTRIBUTE.overMark, "");
-    handOn = element;
-  }
+  const paintHand = keepsOnOne(RUNTIME_PAINT_ATTRIBUTE.overMark);
 
   // Hover reads the pointer, and the rows and margin entries it is on, inside the
   // scheduled frame. Capturing a node at event time would leave reconciliation able to

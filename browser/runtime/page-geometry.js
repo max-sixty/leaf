@@ -16,9 +16,10 @@ import { watchScrolls } from "./arrivals.js";
 import { cancelRender, nextRender } from "./rendering.js";
 import { coarsePointer } from "./pointer.js";
 import { LAYOUT } from "./widget-upgrade.js";
-import { keepsText } from "./keeps.js";
+import { keepsOnOne, keepsText } from "./keeps.js";
 import { RUNTIME_PAINT_ATTRIBUTE } from "./page-paint.js";
-import { setRuntimeRootAttribute } from "./root-state.js";
+import { closestAcross, elementFromPointAcross } from "./passages.js";
+import { WORKS } from "./control-selectors.js";
 
 /** @typedef {ReturnType<typeof import("./design.js").createDesignMode>} DesignMode */
 /** @param {{refreshAnchorHover?: (() => unknown) | undefined,
@@ -59,14 +60,16 @@ export function createPageGeometry({
 
   // Aim paint is synchronous: the keydown that arms the page and the press that follows
   // may be one gesture, so a scheduled frame could leave the visible promise behind it.
+  // The hand where an armed press takes an item stands on the element under the pointer
+  // (chrome.css), as a mark's does (anchor-paint.js), so a crossing restyles what that
+  // element holds rather than all `body` does; a control keeps its own cursor.
+  const paintItemHand = keepsOnOne(RUNTIME_PAINT_ATTRIBUTE.overItem);
   function refreshAim() {
     const target = aimTarget();
     const aimed = target?.element ?? null;
-    setRuntimeRootAttribute(
-      document.body,
-      RUNTIME_PAINT_ATTRIBUTE.overItem,
-      aimed ? "" : null,
-    );
+    const at = pointer();
+    const takes = aimed && !closestAcross(elementFromPointAcross(at.x, at.y), WORKS);
+    paintItemHand(takes ? document.elementFromPoint(at.x, at.y) : null);
     const shown = target && targetPaint.paintAim(target.element, target.surface);
     if (!shown) {
       targetPaint.clearAim();

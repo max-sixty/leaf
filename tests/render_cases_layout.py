@@ -945,7 +945,8 @@ PAGE_MARKUP = r"""() => [...document.body.children]
                 "lf-binding-seat",
             );
             for (const paint of ["data-lf-mark", "data-lf-aimed", "data-lf-traced",
-                "data-lf-proxied", "data-lf-projected-location"])
+                "data-lf-proxied", "data-lf-projected-location", "data-lf-over-mark",
+                "data-lf-over-item"])
                 el.removeAttribute?.(paint);
             // Anchor naming is presentation state. The layout may copy a name
             // from a stylesheet into inline style while positioning a comment.

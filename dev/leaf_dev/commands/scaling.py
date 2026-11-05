@@ -52,9 +52,10 @@ as the browser's do, until the pages that miss it are fixed.
 
 --base also measures the merge base with main (or REF), chosen as every A/B command
 chooses its arms (`arms.choose_arms`), so a change shows its exponents beside the
-base's. --profile records a V8 CPU profile (`leaf_dev.profiles`) of each transition at
-the smallest and largest size, in the first round, and lists the functions whose time
-grew superlinearly between them, which names the nested walk.
+base's. --profile records a V8 CPU profile (`leaf_dev.profiles`) of each span a
+transition's reading covers, and no more, at the smallest and largest size in the
+first round, and lists the functions whose time over a transition's spans grew
+superlinearly between them, which names the nested walk.
 
 --browser firefox measures Playwright's Firefox, on macOS. Firefox offers no count of
 its tasks, so there a transition's CPU is the page's main thread's as the OS counts it
@@ -80,7 +81,7 @@ efficiency cores: on 2026-11-05 `taskpolicy -c utility` read a click's `shown` a
 to 170 ms on pages the default policy showed in 30 to 35. Pages, the profiles and
 `results.json` land in a run directory under `.tmp/scaling/`. The daily suite fails
 growth well past linear on every axis with the same measurement, of every cost but
-Tab's (`tests/journeys/test_scaling.py`).
+those its `UNHELD` names (`tests/journeys/test_scaling.py`).
 """
 
 import ctypes
@@ -88,6 +89,7 @@ import json
 import math
 import statistics
 import time
+from collections import Counter
 from collections.abc import (
     Callable,
     Generator,
@@ -97,6 +99,7 @@ from collections.abc import (
     Sequence,
 )
 from contextlib import ExitStack, contextmanager, nullcontext, suppress
+from functools import partial
 from itertools import cycle
 from pathlib import Path
 from typing import NamedTuple
@@ -599,11 +602,18 @@ class ContentClock:
 
 
 def profiling(page: Page, directory: Path | None):
-    """What profiles a transition `name` into `directory` (`cpu_profile`) for the
-    life of a block, or nothing where there is no directory."""
+    """What profiles the next span of a transition `name` into `directory`
+    (`cpu_profile`) for the life of a block, each span to a file of its own
+    (`name-1.cpuprofile`, ...), or nothing where there is no directory."""
     if directory is None:
         return lambda _: nullcontext()
-    return lambda name: cpu_profile(page, directory / f"{name}.cpuprofile")
+    spans = Counter()
+
+    def profiled(name: str):
+        spans[name] += 1
+        return cpu_profile(page, directory / f"{name}-{spans[name]}.cpuprofile")
+
+    return profiled
 
 
 def measure(browser, served: ServedPage, profiles: Path | None = None) -> dict:
@@ -616,6 +626,14 @@ def measure(browser, served: ServedPage, profiles: Path | None = None) -> dict:
         tab_page.set_default_timeout(DEADLINE_MS)
         profiled = profiling(tab_page, profiles)
         quiet = tab_page.wait_for_timeout
+
+        def timed(name: str, act) -> tuple[float, float]:
+            """`act`'s main-thread CPU and elapsed time, in ms, read over the span a
+            profile of `name` covers, so the two leave out the same setup."""
+            with profiled(name):
+                start, began = clock(), time.monotonic()
+                act()
+                return clock() - start, (time.monotonic() - began) * 1000
 
         def idle_rate() -> float:
             """Wait for two quiet half seconds in a row, or QUIET_TRIES, and return
@@ -635,12 +653,15 @@ def measure(browser, served: ServedPage, profiles: Path | None = None) -> dict:
         # entries by default, and the runtime's own modules fill it before any click.
         tab_page.add_init_script("performance.setResourceTimingBufferSize(100_000)")
         tab_page.add_init_script(path=PAINTED)
-        start = clock()
-        with profiled("load"):
+        idle = 0.0
+
+        def load() -> None:
+            nonlocal idle
             tab_page.goto(served.address)
             settle(tab_page)
             idle = idle_rate()
-        costs = {"load": clock() - start}
+
+        costs = {"load": timed("load", load)[0]}
         if isinstance(clock, ContentClock):
             clock.confirm()
         elements = tab_page.evaluate("document.querySelectorAll('*').length")
@@ -651,18 +672,18 @@ def measure(browser, served: ServedPage, profiles: Path | None = None) -> dict:
             `ready` brings the page to where each input starts, a window over each,
             from `act` to its end, with `ready` outside it. A short window meets
             fewer of the page's own periodic tasks, which the idle rate leaves out."""
-            windows = [(count, 600)] if ready is None else [(1, 0)] * count
+
+            def run(inputs: int, after: int) -> None:
+                for _ in range(inputs):
+                    act()
+                quiet(after)
+
             spent = 0.0
-            with profiled(name):
-                for inputs, after in windows:
-                    if ready is not None:
-                        ready()
-                    start, began = clock(), time.monotonic()
-                    for _ in range(inputs):
-                        act()
-                    quiet(after)
-                    elapsed = (time.monotonic() - began) * 1000
-                    spent += clock() - start - idle * elapsed
+            for inputs, after in [(count, 600)] if ready is None else [(1, 0)] * count:
+                if ready is not None:
+                    ready()
+                cpu, elapsed = timed(name, partial(run, inputs, after))
+                spent += cpu - idle * elapsed
             return spent / count
 
         def aim_at_option() -> None:
@@ -761,15 +782,18 @@ def measure(browser, served: ServedPage, profiles: Path | None = None) -> dict:
         # diagnostics, which no reading after it should count.
         aim_at_option()
 
-        def shown() -> float:
-            """From a click to the first frame painted once the server's reading of
-            its event is presented (`painted.js`), in ms."""
-            tab_page.evaluate("goals => window.__leafBench.arm(goals)", SHOWN)
+        def click_until_shown() -> None:
             tab_page.mouse.down()
             tab_page.mouse.up()
             tab_page.wait_for_function(
                 "() => window.__leafBench.watch().goals.every(g => g.at !== null)"
             )
+
+        def shown() -> float:
+            """From a click to the first frame painted once the server's reading of
+            its event is presented (`painted.js`), in ms."""
+            tab_page.evaluate("goals => window.__leafBench.arm(goals)", SHOWN)
+            timed("shown", click_until_shown)
             ms = tab_page.evaluate(
                 "() => window.__leafBench.watch().goals[0].at"
                 " - window.__leafBench.input()"
@@ -778,9 +802,7 @@ def measure(browser, served: ServedPage, profiles: Path | None = None) -> dict:
             quiet(200)
             return ms
 
-        with profiled("shown"):
-            costs["shown"] = statistics.median(shown() for _ in range(CLICKS))
-
+        costs["shown"] = statistics.median(shown() for _ in range(CLICKS))
         return {"elements": elements, **costs}
 
 
@@ -932,9 +954,11 @@ def report_growth(title: str, profiles: dict, ratio: float) -> None:
             click.echo("\n".join(lines) + "\n")
 
 
-def inclusive_ms(path: Path) -> dict[str, float]:
-    """Each function's inclusive ms in the CPU profile at `path` (`Profile`)."""
-    _own, inclusive = Profile(path).functions()
+def inclusive_ms(directory: Path, transition: str) -> dict[str, float]:
+    """Each function's inclusive ms over every span of `transition` profiled into
+    `directory` (`profiling`)."""
+    spans = sorted(directory.glob(f"{transition}-*.cpuprofile"))
+    _own, inclusive = Profile(*spans).functions()
     return {name: us / 1000 for name, us in inclusive.items()}
 
 
@@ -1013,12 +1037,7 @@ def scaling(
                         f"{axis} ({arm})",
                         {
                             transition: tuple(
-                                inclusive_ms(
-                                    run
-                                    / axis
-                                    / f"{arm}-{n}"
-                                    / f"{transition}.cpuprofile"
-                                )
+                                inclusive_ms(run / axis / f"{arm}-{n}", transition)
                                 for n in ends
                             )
                             for transition in TRANSITIONS

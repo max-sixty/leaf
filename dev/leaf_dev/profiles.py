@@ -45,11 +45,15 @@ def cpu_profile(page: Page, path: Path):
 
 
 class Profile:
-    """One CPU profile, read from the file `cpu_profile` wrote: each sample's time and
-    the chain of frames above it."""
+    """The CPU profiles `cpu_profile` wrote to `paths`, read as one: each sample's time
+    and the chain of frames above it, so spans profiled apart read as their sum."""
 
-    def __init__(self, path: Path):
-        profile = json.loads(path.read_text())
+    def __init__(self, *paths: Path):
+        self.samples = []  # (timestamp µs, duration µs, frames leaf-first)
+        for path in paths:
+            self._read(json.loads(path.read_text()))
+
+    def _read(self, profile: dict) -> None:
         nodes = {n["id"]: n for n in profile["nodes"]}
         parent = {c: n["id"] for n in profile["nodes"] for c in n.get("children", ())}
 
@@ -60,7 +64,6 @@ class Profile:
                 f"{frame['functionName'] or '(anon)'} {where}:{frame['lineNumber'] + 1}"
             )
 
-        self.samples = []  # (timestamp µs, duration µs, frames leaf-first)
         at = profile["startTime"]
         deltas = profile["timeDeltas"]
         for sample, (delta, following) in zip(

@@ -4,10 +4,11 @@
  *
  * Installed before each document. The goals stay in sessionStorage so a revision
  * that reloads the page is sampled by the document that replaces it. Sampling
- * records the first painted frame that meets each goal, the trips the runtime's
- * ledger counted from arming through settlement, and, where `main_thread.js` is
- * installed too, the long animation frames this document ran since arming, with the
- * scripts that ran in each. The input a gesture's time counts from is its last Enter
+ * records the first painted frame that meets each goal, read as the frame renders
+ * and recorded once it has painted; the trips the runtime's ledger counted from
+ * arming through settlement; and, where `main_thread.js` is installed too, the long
+ * animation frames this document ran since arming, with the scripts that ran in
+ * each. The input a gesture's time counts from is its last Enter
  * or pointer click. Python drives the gestures and agent writes in the top tab, and
  * reads the requests from the browser. Embedded examples have their own semantic
  * document and share no measurement.
@@ -94,23 +95,32 @@
     sampling = true;
     const frame = () =>
       requestAnimationFrame(() => {
+        // The goals that hold as this frame renders, which its paint shows. Read
+        // after the paint instead, a reading the server's answer brought between
+        // the two would count before any frame had shown it.
+        const rendering = watched();
+        if (!rendering) return (sampling = false);
+        const painting = new Set(
+          rendering.goals
+            .filter(
+              (goal) => goal.at === null && facts[goal.fact](goal.arg, goal.attempt),
+            )
+            .map((goal) => goal.name),
+        );
         const channel = new MessageChannel();
+        // The first task after the frame, once it has painted.
         channel.port1.onmessage = () => {
           const watch = watched();
           if (!watch) return (sampling = false);
           const at = clock();
-          let open = false;
           for (const goal of watch.goals) {
-            if (goal.at !== null) continue;
-            const met = facts[goal.fact](goal.arg, goal.attempt);
-            if (met) {
-              goal.at = at;
-              // Where a trace of the page finds this frame (`bench-latency --profile`).
-              performance.mark(`lf-bench:${goal.name}`);
-            } else open = true;
+            if (goal.at !== null || !painting.has(goal.name)) continue;
+            goal.at = at;
+            // Where a trace of the page finds this frame (`bench-latency --profile`).
+            performance.mark(`lf-bench:${goal.name}`);
           }
           sessionStorage.setItem(WATCH, JSON.stringify(watch));
-          if (open) frame();
+          if (watch.goals.some((goal) => goal.at === null)) frame();
           else sampling = false;
         };
         channel.port2.postMessage(null);

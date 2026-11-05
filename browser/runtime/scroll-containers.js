@@ -43,10 +43,13 @@ export function* scrollersOf(node) {
 }
 
 // The element whose scrollers move `node`: the node itself, or for a range over
-// words, the element holding them.
-/** @param {Element | Range} node */
-export const holderOf = (node) =>
-  node instanceof Range ? node.startContainer.parentElement : node;
+// words, the element holding them, which for words straight in a shadow root is its host.
+/** @param {Element | Range} node @returns {Element | null} */
+export const holderOf = (node) => {
+  if (!(node instanceof Range)) return node;
+  const parent = node.startContainer.parentNode;
+  return parent instanceof ShadowRoot ? parent.host : node.startContainer.parentElement;
+};
 
 // Where `node`'s `edge` stands on screen, read as though each box scrolling it stood
 // where Leaf last aimed it (scrolling.js, `aimedTop`): a hold read after a hold then

@@ -109,10 +109,9 @@ import { inUi, renderedOrder, renderedParent, under, upFrom } from "./shadow.js"
 import { runtime } from "./context.js";
 import { retainUserIntent } from "./user-intent.js";
 import { recentPlaceInput, focused } from "./focus.js";
-import { focusedInView } from "./user-place.js";
+import { focusedInView, readerColumn } from "./user-place.js";
 import { scrollIntoView } from "./landing-scroll.js";
 import { union } from "./rect.js";
-import { pointerAt } from "./pointer.js";
 
 /** @typedef {import("./passages.js").Segment} Segment
  * @typedef {import("./reading-regions.js").ReadingRegion} ReadingRegion
@@ -428,25 +427,6 @@ export function landingPlace(from = null) {
   return pageReading({ bodies: true });
 }
 
-// Where across the box the reader works: their pointer, where it last named their place
-// over what they see of the box, else the focus they stand on in it, else null, which
-// leaves every column to count.
-/** @param {Box} bounds @param {Element} body */
-function readerColumn(bounds, body) {
-  if (recentPlaceInput() === "pointer") {
-    const { x, y } = pointerAt();
-    return x >= bounds.left &&
-      x <= bounds.right &&
-      y >= bounds.top &&
-      y <= bounds.bottom
-      ? x
-      : null;
-  }
-  const at = focusedInView();
-  if (!at || !under(at, body)) return null;
-  const rect = shownBox(at);
-  return (rect.left + rect.right) / 2;
-}
 // Whether a block stands across `column`: its own box where it draws one, else the box
 // its words make.
 /** @param {Element} block @param {Box} rect @param {number} column */

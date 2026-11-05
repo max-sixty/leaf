@@ -587,6 +587,31 @@ def put_disclosure(page, built):
     expect(page.locator("#note")).not_to_be_in_viewport()
 
 
+def nothing_focused(page):
+    """Rest the pointer aside, and check the reader holds nothing focused."""
+    page.mouse.move(*ASIDE)
+    assert page.evaluate("document.activeElement === document.body"), (
+        "something is focused"
+    )
+
+
+def put_reading_unfocused(page, built):
+    """Read the second paragraph of an earlier message at the reading line, having
+    focused nothing on the page."""
+    read = page.locator(f"{message(built, 'read')} p", has_text="being read")
+    scroll_to(page, read, READING_LINE)
+    nothing_focused(page)
+
+
+def put_diff_reading(page, built):
+    """Read the diff's twenty-eighth new line at the reading line, having focused
+    nothing on the page."""
+    line = page.locator(GUTTER).first
+    expect(line).to_be_visible()
+    scroll_to(page, line, READING_LINE)
+    nothing_focused(page)
+
+
 def put_gutter_focus(page, built):
     to_gutter(page).focus()
     page.mouse.move(*ASIDE)
@@ -598,6 +623,14 @@ def put_gutter_pointer(page, built):
     page.locator(GUTTER).first.locator("xpath=..").hover()
     comment.hover()
 
+
+# That line, found inside the diff's shadow root.
+GUTTER_LINE = f"""() => {{
+  const deep = (root) => root.querySelector({json.dumps(GUTTER)})
+    ?? [...root.querySelectorAll('*')].map(n => n.shadowRoot && deep(n.shadowRoot))
+      .find(Boolean) ?? null;
+  return deep(document);
+}}"""
 
 # That Comment, found inside the diff's shadow root.
 GUTTER_COMMENT = f"""() => {{
@@ -765,6 +798,13 @@ PLACES = [
         "send-words", "thread", put_send_words, Found(SEND), {"thread above": "jobs"}
     ),
     Place(
+        "reading-unfocused",
+        "thread",
+        put_reading_unfocused,
+        Found('.lf-msg[data-lf-event="$read"] p', "being read"),
+        {"paragraph above": "read"},
+    ),
+    Place(
         "reading-lines",
         "thread",
         put_reading_lines,
@@ -805,6 +845,7 @@ PLACES = [
         {"map row above": "place-14", "contribution above": "place-14"},
     ),
     Place("gutter", "diff", put_gutter_focus, GUTTER_COMMENT, {"lines above": 5}),
+    Place("diff-reading", "diff", put_diff_reading, GUTTER_LINE, {"lines above": 5}),
     Place(
         "disclosure",
         "diff",

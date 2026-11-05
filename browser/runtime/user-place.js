@@ -26,7 +26,8 @@
    - the reading line, a quarter of the way down the window the page shows, where
      growth starts below the box anchoring holds and above the line, as an edit growing
      the first paragraph of the message whose second the user reads, with the reply box
-     they wrote in scrolled away (`holdUserPlace`, `readingAt`);
+     they wrote in scrolled away, or diff rows joining above the line of a reader who
+     focused nothing (`holdUserPlace`, `readingAt`);
    - a place the change hides, as Skim folds the paragraph being read, where the node
      standing for it takes its place (lf-dial.js).
    `holdPlace(node, standIn)` reads where `node` stands and returns the step that,
@@ -53,10 +54,16 @@
    The module also owns when focus marks the user's place at all (`focusedInView`),
    and whether the user has scrolled away from the control focus stands on
    (`focusScrolledAway`), for the keys that act there. */
-import { seenRect, showsContents, shownWindow, stuckBox } from "./geometry.js";
+import {
+  seenRect,
+  showsContents,
+  shownBox,
+  shownWindow,
+  stuckBox,
+} from "./geometry.js";
 import { pageScroller, placeKept, scrollChoices } from "./scrolling.js";
 import { edgeAt, holderOf, returnTo, scrollersOf } from "./scroll-containers.js";
-import { inChrome } from "./shadow-tree.js";
+import { inChrome, under } from "./shadow-tree.js";
 import {
   focused,
   onCurrentLocation,
@@ -118,9 +125,32 @@ export function focusScrolledAway() {
 // taken to read where nothing they hold marks their place.
 const READING_LINE = 0.25;
 
-// What stands at the reading line in the middle of `column`'s span across the window:
-// a range over the letter of the words nearest the line, so a gap between two
-// paragraphs names one of them, else the element drawn there. The words, not the block
+// Where across the box the reader works: their pointer, where it last named their place
+// over what they see of the box, else the focus they stand on in it, else null, which
+// leaves every column to count. The reading place (reading-place.js, `capturePlace`)
+// and the reading line (`readingAt`) both read it.
+/** @param {{left: number, right: number, top: number, bottom: number}} bounds
+ * @param {Element} body */
+export function readerColumn(bounds, body) {
+  if (recentPlaceInput() === "pointer") {
+    const { x, y } = pointerAt();
+    return x >= bounds.left &&
+      x <= bounds.right &&
+      y >= bounds.top &&
+      y <= bounds.bottom
+      ? x
+      : null;
+  }
+  const at = focusedInView();
+  if (!at || !under(at, body)) return null;
+  const rect = shownBox(at);
+  return (rect.left + rect.right) / 2;
+}
+
+// What stands at the reading line in `column`'s span across the window, in the reader's
+// column where words stand there (`readerColumn`), else in the span's middle: a range
+// over the letter of the words nearest the line, so a gap between two paragraphs names
+// one of them, else the element drawn there. The words, not the block
 // holding them: anchoring holds words inside a tall block that grows above them, and
 // the block's top moves by what grew. Leaf's chrome over the line names nothing, and
 // neither does a box stuck over the page, which rides along with every scroll
@@ -133,30 +163,53 @@ export function readingAt(column) {
   const right = Math.min(box.right, window.right);
   const line = window.top + (window.bottom - window.top) * READING_LINE;
   if (right <= left) return null;
-  const x = (left + right) / 2;
-  // The document answers for words in a shadow tree with their host, which can be a
-  // tall block whose top moves by what grows above them, so each open tree under the
-  // line is asked for its own, as anchoring reaches into them.
+  const reader = readerColumn(window, column);
+  if (reader !== null && reader >= left && reader <= right) {
+    const { words } = standingAt(reader, line);
+    // Firefox answers a point beside the words with the nearest letter on its line, so
+    // the reader's column holds words only where they stand under it.
+    const letter = words?.getBoundingClientRect();
+    const width = letter ? letter.right - letter.left : 0;
+    if (letter && reader >= letter.left - width && reader <= letter.right + width)
+      return words;
+  }
+  const { words, drawn } = standingAt((left + right) / 2, line);
+  return words ?? drawn;
+}
+// What stands at (`x`, `line`) and names a place, outside Leaf's chrome and any box
+// stuck over the page (`stuckBox`): a range over the letter of the words nearest the
+// point, and the element drawn there. The document answers for words in a shadow tree
+// with their host, which can be a tall block whose top moves by what grows above them,
+// so each open tree under the line is asked for its own, as anchoring reaches into
+// them.
+/** @param {number} x @param {number} line */
+function standingAt(x, line) {
+  /** @param {Element | Range | null} node */
+  const names = (node) => {
+    const holder = node && holderOf(node);
+    return Boolean(holder && !inChrome(holder) && !stuckBox(holder));
+  };
   /** @type {ShadowRoot[]} */
   const shadowRoots = [];
-  /** @type {Range | Element | null} */
-  let reading = document.elementFromPoint(x, line);
-  while (reading?.shadowRoot) {
-    shadowRoots.push(reading.shadowRoot);
-    const inner = reading.shadowRoot.elementFromPoint(x, line);
-    if (!inner || inner === reading) break;
-    reading = inner;
+  let drawn = document.elementFromPoint(x, line);
+  while (drawn?.shadowRoot) {
+    shadowRoots.push(drawn.shadowRoot);
+    const inner = drawn.shadowRoot.elementFromPoint(x, line);
+    if (!inner || inner === drawn) break;
+    drawn = inner;
   }
   const caret = document.caretPositionFromPoint(x, line, { shadowRoots });
   const text = caret?.offsetNode;
+  /** @type {Range | null} */
+  let words = null;
   if (caret && text instanceof Text && text.length) {
     const at = Math.min(caret.offset, text.length - 1);
-    reading = document.createRange();
-    reading.setStart(text, at);
-    reading.setEnd(text, at + 1);
+    words = document.createRange();
+    words.setStart(text, at);
+    words.setEnd(text, at + 1);
+    if (!names(words)) words = null;
   }
-  const holder = reading && holderOf(reading);
-  return holder && !inChrome(holder) && !stuckBox(holder) ? reading : null;
+  return { words, drawn: names(drawn) ? drawn : null };
 }
 
 // Read where `node`, an element or words a range holds (`readingAt`), stands and
@@ -208,14 +261,15 @@ export function holdPlace(node, standIn = () => null) {
 // container the user is on stands at the box a rule names for it (`standsAt`), as a
 // thread they sent from waits at its reply box. A user whose focus is scrolled away
 // reads something else, so what stands at the reading line in its column comes last
-// (`readingAt`). The keep puts back the first of these the change moved, so a pointer
-// resting on a rail of its own, which nothing here moves, leaves the reading line to be
-// kept; a place the change left still keeps the scroller it rides in, so a later one
-// there, below news that joined between them, moves nothing. An action joining above a
-// place inside the window, past the first box anchoring holds, would push it down. Read
-// after the whole presentation, a box Leaf positions, as Send in its editor or a diff
-// line's Comment, stands where its own layout put it, and is kept like any other. A
-// control the change replaced, or one focus left, has nothing to keep.
+// (`readingAt`), and a reader focused on nothing reads in the page's own column. The
+// keep puts back the first of these the change moved, so a pointer resting on a rail of
+// its own, which nothing here moves, leaves the reading line to be kept; a place the
+// change left still keeps the scroller it rides in, so a later one there, below news
+// that joined between them, moves nothing. An action joining above a place inside the
+// window, past the first box anchoring holds, would push it down. Read after the whole
+// presentation, a box Leaf positions, as Send in its editor or a diff line's Comment,
+// stands where its own layout put it, and is kept like any other. A control the change
+// replaced, or one focus left, has nothing to keep.
 //
 // The keep yields to any scroll since the reading: a scroll the user or a landing chose
 // and ended (scrolling.js, `scrollChoices`), one the browser is still running, as a
@@ -225,10 +279,10 @@ export function holdPlace(node, standIn = () => null) {
 // to place: a disclosure the user opened while a diff waited on its syntax grammar
 // moved 140px when the keep put the line read back. Words typed into the field held
 // grow it where it stands, and leave it kept; focus leaving a place it named leaves
-// nothing of that place to keep. The user's own gesture draws its result in its own task and
-// places it there, so nothing here holds against it. Where the boxes scrolling the
-// place can't take all of a move, as on a page shorter than its window, it moves by the
-// rest.
+// nothing of that place to keep. The user's own gesture draws its result in its own
+// task and places it there, so nothing here holds against it. Where the boxes scrolling
+// the place can't take all of a move, as on a page shorter than its window, it moves by
+// the rest.
 //
 // A limit: the keep waits for the whole presentation, so a presenter whose paint
 // resolves frames after the reading arrived, as a diff waiting on a syntax grammar's
@@ -272,8 +326,9 @@ export function holdUserPlace() {
     if (place && !places.some((each) => each.place === place))
       places.push({ place, focus: candidate === node });
   }
-  if (node && node !== document.body && !places.some(({ focus }) => focus)) {
-    const reading = readingAt(node);
+  // A reader focused on nothing reads in the page's own column.
+  if (!places.some(({ focus }) => focus)) {
+    const reading = readingAt(node && node !== document.body ? node : document.body);
     if (reading) places.push({ place: reading, focus: false });
   }
   if (!places.length) return () => {};

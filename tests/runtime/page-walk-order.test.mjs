@@ -46,11 +46,16 @@ test("a host's shadow tree comes before a child no slot takes", () => {
   const { main, widget, innerA } = page();
   const loose = document.createElement("p");
   widget.append(loose);
-  for (const side of [
-    Node.DOCUMENT_POSITION_PRECEDING,
-    Node.DOCUMENT_POSITION_FOLLOWING,
+  const { DOCUMENT_POSITION_DISCONNECTED: apart } = Node;
+  const { DOCUMENT_POSITION_PRECEDING: before, DOCUMENT_POSITION_FOLLOWING: after } =
+    Node;
+  // Each side of a memory-address answer, given consistently by both nodes.
+  for (const [side, mirror] of [
+    [before, after],
+    [after, before],
   ]) {
-    loose.compareDocumentPosition = () => Node.DOCUMENT_POSITION_DISCONNECTED | side;
+    loose.compareDocumentPosition = () => apart | side;
+    widget.shadowRoot.compareDocumentPosition = () => apart | mirror;
     assert.ok(renderedOrder(loose, innerA) > 0);
     assert.ok(renderedOrder(innerA, loose) < 0);
   }

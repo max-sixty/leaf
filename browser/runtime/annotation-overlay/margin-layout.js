@@ -167,6 +167,11 @@ function withhold(row, on) {
 }
 /** @param {Element} target */
 const targetBox = (target) => shownParts(target)[0] ?? target;
+// The boxes whose size can move a row, which the layer's one observer (`layer.sizes`)
+// watches: each target's ancestors and their siblings, and, while the margin holds a
+// row, the body and the column. A resize several of them see arrives in one callback
+// and runs one pass; with an observer of their own, the body and the column ran a
+// second pass over the same layout.
 /** @type {Set<Element>} */
 let observedGeometry = new Set();
 let geometryObservation = 0;
@@ -214,10 +219,6 @@ export const THREAD_CARD = "lf-margin-preview";
 // `optionsOpen` includes ordinary inline peers; only a requested expansion holds a seat.
 const HELD = `:hover, :focus-within, :has([data-lf-held-word]), [data-lf-options-expanded], :has([aria-controls="${THREAD_CARD}"][aria-expanded="true"])`;
 let pending = 0;
-/** @type {ResizeObserver | null} */
-let observer = null;
-/** @type {Element | null} */
-let observedColumn = null;
 /** @type {Layer | null} */
 let layer = null;
 
@@ -1481,23 +1482,6 @@ function scheduleMarginLayout() {
   pending = nextRender(layoutMarginRows);
 }
 
-// The column is read where the pass reads it rather than as each row registers: a
-// column read restyles the page, and a first paint registers every row. The first row
-// still starts the watch, so its first deliveries come with the page's first paint:
-// started by a later pass, they land while the page settles, and the pass they run
-// resizes boxes the loop has already delivered (a ResizeObserver loop error).
-/** @param {Element} column */
-function observeLayout(column) {
-  if (!observer) {
-    observer = sizeObserver(layoutMarginRows);
-    observer.observe(document.body);
-  }
-  if (observedColumn === column) return;
-  if (observedColumn) observer.unobserve(observedColumn);
-  observedColumn = column;
-  observer.observe(observedColumn);
-}
-
 // Each row states its target (`anchor`), the row inside it it stands level with, if any
 // (`point`, pointed-place.js), and its place among the others in the layer (`order`).
 // The projection registers every row each time it renders, so a pass is asked for only
@@ -1512,7 +1496,16 @@ export function registerMarginRow(row, options) {
   };
   const was = registered.get(row);
   rows.set(row, options);
-  if (!observer) observeLayout(marginColumn());
+  // The first row starts the body's and the column's watch, so their first deliveries
+  // come with the page's first paint: started by a later pass, they land while the page
+  // settles, and the pass they run resizes boxes the loop has already delivered (a
+  // ResizeObserver loop error). The pass keeps the column watched as it changes, so the
+  // rows after the first read no column: a column read restyles the page, and a first
+  // paint registers every row.
+  if (layer && !observedGeometry.size && !geometryObservation) {
+    observedGeometry = new Set([document.body, marginColumn()]);
+    for (const node of observedGeometry) layer.sizes.observe(node);
+  }
   registered.set(row, named);
   if (
     was &&
@@ -1551,11 +1544,6 @@ export function unregisterMarginRow(row) {
   withheldRows.delete(row);
   pushes.delete(row);
   folded.delete(row);
-  if (!rows.size) {
-    observer?.disconnect();
-    observer = null;
-    observedColumn = null;
-  }
   scheduleMarginLayout();
 }
 
@@ -1705,7 +1693,6 @@ function layoutMountedRows(layer) {
   laidOutScrollX = scrollX;
   const present = [];
   const main = marginColumn();
-  if (rows.size) observeLayout(main);
   const columnRect = proseRect(main);
   const columnHeight = main.scrollHeight;
   const shell = shellRight();
@@ -2021,6 +2008,7 @@ function layoutMountedRows(layer) {
       if (rail) for (const level of levels.slice(-1)) level.axes = { x: true, y: true };
       regions.set(read.scroller, levels);
     }
+  if (rows.size) geometry.add(document.body).add(main);
   watchGeometry(geometry, layer);
 
   // Lanes, in the order the rows are given, moving only what is out of place; each lane

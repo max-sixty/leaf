@@ -726,6 +726,12 @@ async function bundle(spec) {
       format: "esm",
       minify: true,
       legalComments: "inline",
+      // A page runs every bundle, and an element with id="process" is a global, so
+      // `typeof process` there finds an object with no `env`. vscode-textmate reads
+      // `process.env` whenever `process` is defined, and highlighting threw. Defining
+      // `process` turns off esbuild's own `NODE_ENV` for minified browser builds, so
+      // that is stated too.
+      define: { process: "undefined", "process.env.NODE_ENV": '"production"' },
       metafile: true,
       write: false,
       logLevel: "warning",

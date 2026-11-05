@@ -21,7 +21,9 @@ adds a paragraph under the page's title by writing the page's source, as an agen
 does, and the next takes it away. Each input is one a user or agent makes, the same
 at every size. A click is the mouse's own press and release at the option's centre.
 A wheel step is one NOTCH, with the pointer over the page's content and the scroller
-beneath it halfway down. Tab starts from the first option's control. The wheel and
+beneath it halfway down. Tab starts from the first option's control, and a page with
+no option, such as a board, reads no click, Tab or `shown`, which its table names as
+missing. The wheel and
 Tab take RUN steps one way and RUN back, so they cross the same rows or stops at every
 size. An input's cost is the mean over several, less the page's idle CPU over the same
 time, which is read once the work the load leaves behind has run (`idle_rate`).
@@ -413,6 +415,8 @@ def exchange(m: int) -> list[dict]:
     summary = {
         "kind": "summary",
         "author": "agent",
+        "agent": "Codex",
+        "session": "scaling",
         "thread": "c0",
         "from": f"m{m - 3}",
         "through": f"m{m}",
@@ -701,23 +705,27 @@ def measure(browser, served: ServedPage, profiles: Path | None = None) -> dict:
             )
             quiet(600)
 
-        aim_at_option()
+        # A page with no option, such as a board, has no target for a click, the
+        # Tab's first stop or a click's reading, so it reads none of them.
+        options = tab_page.locator("lf-option").count() > 0
+        if options:
+            aim_at_option()
 
-        def click():
-            # Each click posts its event; the server's answer arrives before the
-            # quiet that lets the page apply it.
-            with tab_page.expect_response(
-                lambda response: response.url.endswith("/api/event")
-            ):
-                tab_page.mouse.down()
-                tab_page.mouse.up()
-            quiet(400)
+            def click():
+                # Each click posts its event; the server's answer arrives before the
+                # quiet that lets the page apply it.
+                with tab_page.expect_response(
+                    lambda response: response.url.endswith("/api/event")
+                ):
+                    tab_page.mouse.down()
+                    tab_page.mouse.up()
+                quiet(400)
 
-        posted = len(tab_page.evaluate(EVENT_POSTS))
-        costs["click"] = per_input("click", CLICKS, click)
-        posts = tab_page.evaluate(EVENT_POSTS)[posted:]
-        costs["event"] = statistics.median(post["ms"] for post in posts)
-        costs["event_kb"] = statistics.median(post["kb"] for post in posts)
+            posted = len(tab_page.evaluate(EVENT_POSTS))
+            costs["click"] = per_input("click", CLICKS, click)
+            posts = tab_page.evaluate(EVENT_POSTS)[posted:]
+            costs["event"] = statistics.median(post["ms"] for post in posts)
+            costs["event_kb"] = statistics.median(post["kb"] for post in posts)
 
         field = tab_page.locator(".lf-fp-field").first
         field.click()
@@ -743,17 +751,19 @@ def measure(browser, served: ServedPage, profiles: Path | None = None) -> dict:
 
         costs["leave"] = per_input("leave", LEAVES, leave, enter)
 
-        # From the first option's control, across the same stops at every size: its
-        # ask's other controls and, after a short ask, the first link or listing.
-        tab_page.locator("lf-option-control").first.focus()
-        quiet(600)
-        ways = cycle(WAYS)
+        if options:
+            # From the first option's control, across the same stops at every size:
+            # its ask's other controls and, after a short ask, the first link or
+            # listing.
+            tab_page.locator("lf-option-control").first.focus()
+            quiet(600)
+            ways = cycle(WAYS)
 
-        def step():
-            tab_page.keyboard.press("Tab" if next(ways) > 0 else "Shift+Tab")
-            quiet(100)
+            def step():
+                tab_page.keyboard.press("Tab" if next(ways) > 0 else "Shift+Tab")
+                quiet(100)
 
-        costs["tab"] = per_input("tab", TABS, step)
+            costs["tab"] = per_input("tab", TABS, step)
 
         tab_page.mouse.move(*tab_page.evaluate(HALFWAY, RUN * NOTCH))
         quiet(600)
@@ -779,32 +789,33 @@ def measure(browser, served: ServedPage, profiles: Path | None = None) -> dict:
             quiet(300)
 
         costs["revision"] = per_input("revision", REVISIONS, revise)
-        # Clicks of its own, after every CPU reading: sampling for its goal costs the
-        # page's main thread each frame, and arming it loads the runtime's
-        # diagnostics, which no reading after it should count.
-        aim_at_option()
+        if options:
+            # Clicks of its own, after every CPU reading: sampling for its goal costs
+            # the page's main thread each frame, and arming it loads the runtime's
+            # diagnostics, which no reading after it should count.
+            aim_at_option()
 
-        def click_until_shown() -> None:
-            tab_page.mouse.down()
-            tab_page.mouse.up()
-            tab_page.wait_for_function(
-                "() => window.__leafBench.watch().goals.every(g => g.at !== null)"
-            )
+            def click_until_shown() -> None:
+                tab_page.mouse.down()
+                tab_page.mouse.up()
+                tab_page.wait_for_function(
+                    "() => window.__leafBench.watch().goals.every(g => g.at !== null)"
+                )
 
-        def shown() -> float:
-            """From a click to the first frame painted once the server's reading of
-            its event is presented (`painted.js`), in ms."""
-            tab_page.evaluate("goals => window.__leafBench.arm(goals)", SHOWN)
-            timed("shown", click_until_shown)
-            ms = tab_page.evaluate(
-                "() => window.__leafBench.watch().goals[0].at"
-                " - window.__leafBench.input()"
-            )
-            tab_page.evaluate("() => window.__leafBench.disarm()")
-            quiet(200)
-            return ms
+            def shown() -> float:
+                """From a click to the first frame painted once the server's reading
+                of its event is presented (`painted.js`), in ms."""
+                tab_page.evaluate("goals => window.__leafBench.arm(goals)", SHOWN)
+                timed("shown", click_until_shown)
+                ms = tab_page.evaluate(
+                    "() => window.__leafBench.watch().goals[0].at"
+                    " - window.__leafBench.input()"
+                )
+                tab_page.evaluate("() => window.__leafBench.disarm()")
+                quiet(200)
+                return ms
 
-        costs["shown"] = statistics.median(shown() for _ in range(CLICKS))
+            costs["shown"] = statistics.median(shown() for _ in range(CLICKS))
         return {"elements": elements, **costs}
 
 
@@ -1027,8 +1038,15 @@ def scaling(
             results[axis] = by_arm
             for arm, rows in by_arm.items():
                 title = f"{axis} ({arm}, {engine})"
-                click.echo(table(title, rows, "elements", COLUMNS))
-                if (largest := rows[-1])["shown"] > BUDGET_MS:
+                read = {
+                    cost: label for cost, label in COLUMNS.items() if cost in rows[0]
+                }
+                click.echo(table(title, rows, "elements", read))
+                if missing := [cost for cost in COLUMNS if cost not in read]:
+                    click.echo(
+                        f"  missing, with no option to aim at: {', '.join(missing)}"
+                    )
+                if (largest := rows[-1]).get("shown", 0) > BUDGET_MS:
                     click.echo(
                         f"  shown: {largest['shown']:.0f} ms at {largest['n']}, "
                         f"over {BUDGET_MS} ms"

@@ -422,6 +422,10 @@ def test_where_c_goes_shows_before_the_press(browser, serve):
 
     expect(panel_key).to_have_text("c")
     expect(panel_key).to_be_visible()
+    # Its word stands with it, after the status, as Reply does in a thread.
+    expect(page.locator(".lf-fp-field .lf-compose-placeholder-enters")).to_have_text(
+        "Comment"
+    )
     expect(rest).to_be_hidden()
 
     page.keyboard.press("m")
@@ -994,8 +998,10 @@ def test_target_picker_comments_on_a_clipped_card_without_moving_the_board(
 def test_c_enters_a_seated_reply_without_revealing_the_thread_heading(
     browser, serve, subtests
 ):
-    """A visible reply keeps its place; an off-screen reply is revealed on entry. Each
-    case leaves the reply it entered, so they share one page."""
+    """A visible reply keeps its place; a reply below the window, in a thread the user
+    can still see, is revealed on entry. Each case leaves the reply it entered, so they
+    share one page. A thread scrolled wholly away is no longer where `c` goes
+    (`test_c_writes_where_the_user_reads_once_they_scroll_away_from_focus`)."""
     url = serve(
         leaf_page(
             "Reply without travel",
@@ -1026,7 +1032,7 @@ def test_c_enters_a_seated_reply_without_revealing_the_thread_heading(
                 """(thread, visible) => {
                   thread.focus({preventScroll: true});
                   const reply = thread.querySelector('leaf-text').getBoundingClientRect();
-                  scrollBy(0, reply.top - (visible ? 110 : 1000));
+                  scrollBy(0, reply.top - (visible ? 110 : 905));
                 }""",
                 reply_visible,
             )
@@ -1037,6 +1043,7 @@ def test_c_enters_a_seated_reply_without_revealing_the_thread_heading(
                 assert reply.bounding_box()["y"] >= 100
             else:
                 assert reply.bounding_box()["y"] >= 900
+                assert thread.bounding_box()["y"] < 900, "the thread left the window"
             page.keyboard.press("c")
             expect(reply).to_be_focused()
             scroll_settled(page)

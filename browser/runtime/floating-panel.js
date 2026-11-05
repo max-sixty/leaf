@@ -49,12 +49,12 @@
  *   "Comment"; in a stance, such as Draw mode, it names the stance, whose way out is
  *   the seat's ✕; in a thread it says the thread's word beside the leaf, in its
  *   speaker's face (voice.js), with a walk's position after it, and Reply with the key
- *   that enters the field at the field's end, in ink as the press it offers
- *   (`turnLead`). The user chose this on 27 October so the next action reads apart
- *   from the agent's words, over three others: the key beside Reply with the turn at
- *   the field's end in one face, Reply alone with the turn left to the thread's
- *   messages, and the agent's words in a lane of their own before the seat, at rest
- *   too. While words stand selected
+ *   that enters the field at the field's end (`turnLead`). The user chose this on 27
+ *   October so the next action reads apart from the agent's words, over three others:
+ *   the key beside Reply with the turn at the field's end in one face, Reply alone with
+ *   the turn left to the thread's messages, and the agent's words in a lane of their
+ *   own before the seat, at rest too. Reply was in ink until 5 November 2026, when the
+ *   user chose one dim face for every comment box's word. While words stand selected
  *   on the page, the page's field quotes them, inside a stance too, and a press there
  *   comments on them (`selectedWords`), the one route a finger has to them; the user
  *   chose that on 19 October over a worded step standing in the marks' place, which
@@ -153,9 +153,9 @@
  * under Navigate only where no keyboard is there to reach it (page-controls.js, the
  * `keys` group). The panel shows one key hint of its own, `c` at the field's end while
  * it enters the field, which says where `c` goes: beside Reply in an open thread, which
- * the user asked for on 22 October as a margin card's reply box shows it, and alone at
- * rest, which they chose on 4 November 2026 with the box that rests beside a target
- * (composing/surface.js, `restFab`). The menu's rows carry every other key and `?` opens
+ * the user asked for on 22 October as a margin card's reply box shows it, and beside
+ * Comment at rest, which they chose on 5 November 2026 after the box that rests beside
+ * a target (composing/surface.js, `restFab`). The menu's rows carry every other key and `?` opens
  * the full reference, which the user chose on 13 October over a hint or two in the line
  * over the field, to keep the panel quietest. The field the
  * user clicks in is the field they write in: a page
@@ -956,12 +956,14 @@ export function createFloatingPanel({
   // 11" in the field's place left nothing saying how to reply to the thread they were
   // reading.
   //
-  // A reading that offers a press (`offers`), the reply or the selected words, reads in
-  // ink with the key that makes it, in the interface's own words; every other reading,
-  // and the words standing before the reply, are said by the agent or by Leaf, each in
-  // its face (voice.js), and read dim (floating-panel.css). A stance's name is the
+  // A reading that offers a press (`offers`), the reply or the selected words, stands
+  // with the key that makes it, in the interface's own words; every other reading, and
+  // the words standing before the reply, are said by the agent or by Leaf, each in its
+  // face (voice.js). All of them read dim (floating-panel.css). A stance's name is the
   // interface's.
   const HIDDEN = "Annotations hidden";
+  // The page field's readings that say something other than a press there.
+  const SAYS_ELSE = new Set(["status", "stance", "notice"]);
   const hiddenLead = () => (annotationsHidden() ? [leafSays(`${HIDDEN} · `)] : []);
   // `drawn` is the thread as its view draws it, which the reply box's words read
   // (`replyOptionsFor`).
@@ -1038,15 +1040,14 @@ export function createFloatingPanel({
     if (!word) return position;
     return voiced([word, ...(position ? [` · ${position}`] : [])]);
   }
-  // Where the words go, as the focused field's placeholder says it; the thread's own
-  // name already heads its view. A reply to a resolved thread reopens it (events.md).
+  // What the focused field says: the word it says at rest, as every comment box does
+  // with the caret in, which the user chose on 5 November 2026 over naming where the
+  // words go, which a box beside its target or in its card repeats and cuts short. A
+  // reply to a resolved thread still says that it reopens it (events.md), since the
+  // Resolved that says so at rest goes with the caret.
   /** @param {{resolved: unknown} | null} thread */
   const whereTo = (thread) =>
-    !thread
-      ? "Comment on the page"
-      : thread.resolved
-        ? "Reply to reopen"
-        : "Reply in this thread";
+    !thread ? "Comment" : thread.resolved ? "Reply to reopen" : "Reply";
   // An editor's empty words, as its own paint draws them (composing/input.js, `hint`),
   // which marks the editor with whose reading they are, so the face the theme gives that
   // reading changes in the same paint as the words (floating-panel.css). Words all one
@@ -1094,6 +1095,14 @@ export function createFloatingPanel({
     const sync = wireInput(input, {
       hint: () => saying(null, input),
       hintParts: () => fieldHint(null, input),
+      // The agent's or Leaf's words at rest say nothing about the press, so the key
+      // that enters the field stands with its word (composing/input.js, `enters`). A
+      // notice offering a press stands over an empty reading (`rowNotice`), and that
+      // press is the one the row offers while it passes.
+      enters: () => {
+        const { says, words } = fieldReading(null, input);
+        return SAYS_ELSE.has(says) && wordsText(words) ? "Comment" : "";
+      },
       // Named for what a press there does, as the field's reading says it, once the
       // editor this builds is the one the reading reads.
       accessibleName: () =>

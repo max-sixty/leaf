@@ -1838,14 +1838,12 @@ def test_a_new_line_in_an_open_fence_starts_in_its_code(
             assert two == pytest.approx(one, abs=0.5), typed
 
 
-# Keys typed into a draft, Shift+Enter as `⏎`, Backspace as `⌫`, the arrows as `←`, `↑`
-# and `↓`, Tab as `⇥`, Shift+Tab as `⇤` and undo as `↶`, and the draft they leave.
+# Keys typed into a draft, Shift+Enter as `⏎`, Backspace as `⌫`, ArrowLeft as `←`, Tab
+# as `⇥`, Shift+Tab as `⇤` and undo as `↶`, and the draft they leave.
 KEYS = {
     "⏎": "Shift+Enter",
     "⌫": "Backspace",
     "←": "ArrowLeft",
-    "↑": "ArrowUp",
-    "↓": "ArrowDown",
     "⇥": "Tab",
     "⇤": "Shift+Tab",
     "↶": "ControlOrMeta+z",
@@ -1939,101 +1937,56 @@ def test_shift_enter_and_tab_keep_a_draft_in_the_containers_the_message_will_hol
             expect(field).to_have_js_property("value", typed)
 
 
-LEFT = "```\ncode\n```\nafter"
-LEAVING_A_FENCE = {
-    "marks ending the code's last line": ("```⏎code```after", LEFT),
-    "marks, then Shift+Enter": ("```⏎code```⏎after", LEFT),
-    "marks on their own line": ("```⏎code⏎```after", LEFT),
-    "Down from the code": ("```⏎code↓after", LEFT),
-    "Down from a blank line": ("```⏎code⏎↓after", LEFT),
-    "Down after moving up": ("```⏎x⏎code↑↓↓after", "```\nx\ncode\n```\nafter"),
-    "Down from the closing marks": ("```⏎code⏎```↓after", LEFT),
-    "marks in a quote": ("> ```⏎x```after", "> ```\n> x\n> ```\n> after"),
-    "Down in a quote": ("> ```⏎x↓after", "> ```\n> x\n> ```\n> after"),
-    "marks in an item": ("- a⏎⌫⌫  ```⏎x```b", "- a\n  ```\n  x\n  ```\n  b"),
-    "Down in an item": ("- a⏎⌫⌫  ```⏎x↓b", "- a\n  ```\n  x\n  ```\n  b"),
-    "a shorter run stays code": ("````⏎x```", "````\nx```"),
-    "blank lines stay in the code": ("```⏎a⏎⏎⏎b", "```\na\n\n\nb"),
-    "marks amid a closed fence stay code": (
-        "```⏎a⏎b⏎```↑↑```",
-        "```\na```\nb\n```",
-    ),
-    "going back through the closing marks": ("```⏎a```⌫", "```\na\n``"),
-    "one undo takes Down back": ("```⏎a↓↶", "```\na"),
-    "one undo takes the closing marks back": ("```⏎a```↶", "```\na``"),
-}
-
-PASTES = {
-    "after the opening marks": ("```", "one\ntwo", "```\none\ntwo"),
-    "after the opening marks, one word": ("```", "one", "```\none"),
-    "after a language": ("```python", "x = 1", "```python\nx = 1"),
-    "after the closing marks": ("```\ncode\n```", "after", "```\ncode\n```\nafter"),
-    "among the words on the opening line": ("```a b ", "c", "```a b c"),
-    "in the code": ("```\ncode", " more", "```\ncode more"),
-    "in a quote": ("> ```", "one\ntwo", "> ```\n> one\n> two"),
-    "in an item": ("- ```", "one\ntwo", "- ```\n  one\n  two"),
-    "from a line break, in a quote": ("> ```\n> a", "\nb", "> ```\n> a\n> b"),
-    "a whole fence, in a quote": ("> ", "```\na\n```", "> ```\n> a\n> ```"),
-    "a whole fence, in an item": ("- ", "```\na\n```", "- ```\n  a\n  ```"),
-    "prose, in an item": ("1. x", "\n2. y", "1. x\n2. y"),
-}
-
-
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
-def test_a_fence_is_left_by_the_ways_a_user_tries(engine, request, serve, subtests):
-    """A fence can be left as a code span is, by typing its marks, and by the keys that
-    leave a block elsewhere. The marks only closed it on a line of their own, words
-    after them went back into the code, and nothing below the code's last line could be
-    reached: a user pressed Down nine times and sent the fence open."""
+def test_a_pasted_fence_is_left_by_the_keys_a_user_tried(engine, request, serve):
+    """The keys a user pressed to get out of a fence they had pasted into, which left
+    it open: Up and Down, then their marks typed at the end of the code. The paste lost
+    its first line to the opening marks, Down reached no line below the code, and the
+    marks closed nothing. Each key now does what it says, and the closing marks stand
+    in the code's box with the words after them outside it. field-editor.test.mjs holds
+    the rest of the ways in and out."""
     page = open_page(
         request.getfixturevalue(engine), serve(LONG_PAGE), init_script=KEEP_ROOTS
     )
     field = page_comment(page)
-    left = type_drafts(page, field, LEAVING_A_FENCE)
-    assert left == {name: draft for name, (_, draft) in LEAVING_A_FENCE.items()}
-    # The closing marks stay in the code's box, and what follows reads outside it.
+    page.keyboard.type("it says:")
+    page.keyboard.press("Shift+Enter")
+    page.keyboard.press("Shift+Enter")
+    page.keyboard.type("```")
+    # A key puts the text on the clipboard, as a copy elsewhere would, without taking
+    # focus from the field: a page may copy only during a user's gesture.
+    page.evaluate(
+        """text => {
+          addEventListener('copy', event => {
+            event.clipboardData.setData('text/plain', text);
+            event.preventDefault();
+            event.stopImmediatePropagation();
+          }, {capture: true, once: true});
+          addEventListener('keydown', event => {
+            event.preventDefault();
+            document.execCommand('copy');
+          }, {capture: true, once: true});
+        }""",
+        "Read access\nRead and write",
+    )
+    page.keyboard.press("F9")
+    page.keyboard.press("ControlOrMeta+v")
+    code = "it says:\n\n```\nRead access\nRead and write"
+    expect(field).to_have_js_property("value", code)
+    for key in ["ArrowUp", "ArrowUp", "ArrowDown", "ArrowDown", "ArrowDown"]:
+        page.keyboard.press(key)
+    page.keyboard.type("is it admin?")
+    expect(field).to_have_js_property("value", f"{code}\n```\nis it admin?")
     page.keyboard.press("ControlOrMeta+a")
     page.keyboard.press("Backspace")
     write(field, "```\ncode")
     page.keyboard.type("```after")
+    expect(field).to_have_js_property("value", "```\ncode\n```\nafter")
     rendered(page)
     assert field.evaluate(
         """box => [...window.__lfRoots.get(box).querySelectorAll('.cm-line')].map(line =>
           [line.textContent, line.classList.contains('lf-md-code-block')])"""
     ) == [["```", True], ["code", True], ["```", True], ["after", False]]
-
-    def paste(draft, pasted, select=0):
-        page.evaluate(
-            """text => {
-              const copied = document.body.appendChild(document.createElement('textarea'));
-              copied.style.position = 'fixed';
-              copied.value = text;
-              copied.select();
-            }""",
-            pasted,
-        )
-        page.keyboard.press("ControlOrMeta+c")
-        page.evaluate("document.querySelector('body > textarea').remove()")
-        field.focus()
-        page.keyboard.press("ControlOrMeta+a")
-        page.keyboard.press("Backspace")
-        write(field, draft)
-        expect(field).to_have_js_property("value", draft)
-        for _ in range(select):
-            page.keyboard.press("Shift+ArrowLeft")
-        page.keyboard.press("ControlOrMeta+v")
-
-    for name, (draft, pasted, want) in PASTES.items():
-        with subtests.test("a paste", where=name):
-            paste(draft, pasted)
-            expect(field).to_have_js_property("value", want)
-    for name, (draft, selected, want) in {
-        "over a selection, in a quote": ("> ```\n> xxx", 3, "> ```\n> a\n> b"),
-        "over a whole draft": ("> ```\n> x", 9, "a\nb"),
-    }.items():
-        with subtests.test("a paste", where=name):
-            paste(draft, "a\nb", select=selected)
-            expect(field).to_have_js_property("value", want)
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])

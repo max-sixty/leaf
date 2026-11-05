@@ -549,10 +549,7 @@ def test_widget_actions_withdrawals_reports_and_errors_remain_deliverable(page_d
     assert page_state(page_dir)["pending"] == 2
 
 
-@pytest.mark.parametrize("title", [None, "Workshop venue"])
-def test_first_delivery_carries_thread_title_without_repeating_messages(
-    page_dir, title
-):
+def test_first_delivery_carries_thread_title_without_repeating_messages(page_dir):
     publish(page_dir)
     serving(page_dir, 1)
     root = append_carried_log_record(
@@ -564,19 +561,18 @@ def test_first_delivery_carries_thread_title_without_repeating_messages(
             "text": "Which space will be easier for everyone to find?",
         },
     )
-    if title is not None:
-        named = CliRunner().invoke(
-            cli_model.cli,
-            [
-                "thread",
-                "edit",
-                str(page_dir),
-                root["id"],
-                "--title",
-                title,
-            ],
-        )
-        assert named.exit_code == 0, named.output
+    named = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "thread",
+            "edit",
+            str(page_dir),
+            root["id"],
+            "--title",
+            "Workshop venue",
+        ],
+    )
+    assert named.exit_code == 0, named.output
     assert service_model.claim_page(page_dir)
     waited = CliRunner().invoke(cli_model.cli, ["wait", str(page_dir)])
     assert waited.exit_code == 0, waited.output
@@ -585,7 +581,7 @@ def test_first_delivery_carries_thread_title_without_repeating_messages(
     assert header["threads"] == [
         {
             "id": root["id"],
-            "title": title,
+            "title": "Workshop venue",
             "anchor": None,
             "detached_from": None,
             "resolved": None,

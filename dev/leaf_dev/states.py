@@ -837,12 +837,13 @@ def as_agent(command: str, verb: str, *args: str) -> None:
     served.leaf(command, verb, str(served.directory), *args)
 
 
-def held_news(page: Page, thread: Locator) -> None:
-    """News arriving in `thread` while the user drafts a reply there: the agent's reply
-    and the user's own message from another tab, which the thread holds behind its
-    notice (held-news.js)."""
-    thread.get_by_role("textbox", name="Reply", exact=True).click()
-    page.keyboard.insert_text("Drafting a reply while the news arrives")
+def held_news(page: Page, thread: Locator, *, drafting: bool = True) -> None:
+    """News arriving in `thread`, while the user drafts a reply there or reads beside it:
+    the agent's reply and the user's own message from another tab, which the thread
+    holds behind its notice (held-news.js)."""
+    if drafting:
+        thread.get_by_role("textbox", name="Reply", exact=True).click()
+        page.keyboard.insert_text("Drafting a reply while the news arrives")
     root = thread.get_attribute("data-lf-thread")
     assert root
     as_agent("thread", "reply", root, "--text", "That one goes first.")
@@ -917,15 +918,15 @@ def card_after_interjection(page: Page) -> None:
 
 def seat_held_news(page: Page) -> None:
     """A seat's thread holding a reply and a message from another tab while the user
-    drafts a reply in it: the agent's question on a goal, which a reload draws in
-    place."""
+    reads beside it: the agent's question on a goal, which a reload draws in place. A
+    thread the user drafts in draws its news at once (held-news.js)."""
     as_agent(
         "thread", "create", "--section", "goal-parser", "--text", "Which worker first?"
     )
     load(page, served_page.get().address)
     thread = page.locator("#goal-parser .lf-page-thread")
     thread.scroll_into_view_if_needed()
-    held_news(page, thread)
+    held_news(page, thread, drafting=False)
 
 
 def option_picked(page: Page) -> None:
@@ -1098,11 +1099,13 @@ def retained_quote(page: Page) -> None:
 
 
 def retained_quote_full(page: Page) -> None:
-    """The same original words opened locally. Full quote shows a frame after the
-    thread's messages, once the panel has measured the quotation as cut, so the click
-    waits for it."""
+    """The same original words opened locally. Full quote stands with the quote's first
+    paint, before the view has finished arriving; the click waits until the reply has
+    been read where it stood, as a reader's would, since opening the quote at once
+    pushes the reply out of view unread and offers Next unread."""
     retained_quote(page)
     child = page.locator("#bg-retained-quote-sample").frame_locator("iframe")
+    expect(child.locator(f"{panel_view('thread')} .lf-msg-new")).to_have_count(0)
     full = child.get_by_role("button", name="Full quote", exact=True)
     full.click()
     expect(full).to_have_attribute("aria-expanded", "true")
@@ -1125,7 +1128,7 @@ def screenshot_pair(page: Page) -> None:
     """Show both images inside the comparison's shared allocation."""
     screenshot_comparison(page)
     shot = page.locator("#bg-shot")
-    shot.get_by_role("button", name="Pair", exact=True).click()
+    shot.locator(".lf-shot-views").get_by_text("Pair", exact=True).click()
     shot.locator(".lf-shot-toolbar").evaluate(
         "node => node.scrollIntoView({block: 'start'})"
     )
@@ -1136,7 +1139,7 @@ def screenshot_slider_before(page: Page) -> None:
     screenshot_comparison(page)
     shot = page.locator("#bg-shot")
     shot.evaluate("async node => await node.difference")
-    shot.get_by_role("button", name="Slider", exact=True).click()
+    shot.locator(".lf-shot-views").get_by_text("Slider", exact=True).click()
     divider = shot.get_by_role("scrollbar")
     divider.focus()
     page.keyboard.press("End")
@@ -1148,7 +1151,24 @@ def screenshot_pixels(page: Page) -> None:
     """Pixel evidence occupies the image frame without a separate legend row."""
     screenshot_comparison(page)
     shot = page.locator("#bg-shot")
-    shot.get_by_role("button", name="Pixels", exact=True).click()
+    shot.locator(".lf-shot-views").get_by_text("Pixels", exact=True).click()
+
+
+def screenshot_views_keyboard(page: Page) -> None:
+    """The comparison's chosen view holding keyboard focus."""
+    screenshot_comparison(page)
+    page.locator("#bg-shot .lf-shot-views").get_by_text("Slider", exact=True).evaluate(
+        "node => node.focus({focusVisible: true})"
+    )
+    page.keyboard.press("Shift")  # keyboard modality, which Chromium's focus reads
+
+
+def dial_keyboard(page: Page) -> None:
+    """The detail dial's chosen depth holding keyboard focus."""
+    page.locator("lf-dial").get_by_text("Read", exact=True).evaluate(
+        "node => node.focus({focusVisible: true})"
+    )
+    page.keyboard.press("Shift")  # keyboard modality, which Chromium's focus reads
 
 
 def screenshot_options(page: Page) -> None:
@@ -2396,6 +2416,13 @@ STATES = (
         screenshot_options,
         region="#bg-shot",
     ),
+    State(
+        "screenshot-views-keyboard",
+        "feature-gallery",
+        screenshot_views_keyboard,
+        region="#bg-shot .lf-shot-toolbar",
+    ),
+    State("dial-keyboard", "detail", dial_keyboard, region="lf-dial"),
     State(
         "image-in-page",
         "feature-gallery",

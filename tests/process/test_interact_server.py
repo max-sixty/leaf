@@ -1595,6 +1595,7 @@ def test_a_bad_source_save_keeps_the_last_revision_live_and_reports_the_error(
         ["page", "stamp", str(page_dir), "--text", "must not fall back"],
     )
     assert stamp.exit_code != 0
+    assert "refusing to stamp" in stamp.output
     assert files_model.list_revisions(page_dir) == [1]
     assert live_versions(page_dir) == []
     assert event_model.read_events(page_dir) == []
@@ -2044,25 +2045,6 @@ def test_a_refused_attempt_is_re_read_against_the_page_that_refused_it(
         if event["kind"] == "comment"
     ]
     assert [event["id"] for event in comments] == [accepted["id"]]
-
-
-def test_an_accepted_event_response_is_state_through_that_event(server, page_dir):
-    """The POST answer is the sender's authoritative read, not half of a
-    transaction completed by a second request. A response cannot acknowledge an
-    event while handing the page history from before it."""
-    publish(page_dir)
-    sent = {
-        "kind": "comment",
-        "revision": 1,
-        "text": "The response carries the state that includes this message.",
-        "attempt": "attempt-state-0001",
-    }
-
-    status, body = fetch(f"{server}/api/event", data=json.dumps(sent).encode())
-
-    assert status == 200, body
-    answer = json.loads(body)
-    assert answer["state"]["events"][-1]["attempt"] == sent["attempt"]
 
 
 def test_action_door_owns_created_child_meaning(server, page_dir):

@@ -130,65 +130,6 @@ def select_cases(globs: tuple[str, ...]) -> list[str]:
     ]
 
 
-def preflight_formats(conditions: tuple[str, ...]) -> None:
-    """Fail before authoring if a format adapter or its dependencies cannot run."""
-    with tempfile.TemporaryDirectory(prefix="leaf-format-preflight-") as temporary:
-        work = Path(temporary)
-        if "json" in conditions:
-            source, target = work / "spec.json", work / "leaf.html"
-            source.write_text(
-                json.dumps(
-                    {
-                        "root": "page",
-                        "elements": {
-                            "page": {
-                                "type": "html",
-                                "props": {},
-                                "children": [],
-                            }
-                        },
-                    }
-                )
-            )
-            command = [
-                sys.executable,
-                str(ROOT / "evals/widget-formats/compile.py"),
-                str(source),
-                str(target),
-            ]
-            result = subprocess.run(
-                command, capture_output=True, text=True, check=False
-            )
-            if result.returncode or not target.is_file():
-                raise click.ClickException(
-                    f"JSON-to-Leaf compiler setup failed: {result.stdout}{result.stderr}"
-                )
-        if "adaptive" in conditions:
-            source, target = work / "card.json", work / "card.html"
-            source.write_text(
-                json.dumps(
-                    {
-                        "type": "AdaptiveCard",
-                        "version": "1.5",
-                        "body": [{"type": "TextBlock", "text": "Preflight"}],
-                    }
-                )
-            )
-            command = [
-                "node",
-                str(ROOT / "evals/widget-formats/adaptive-render.mjs"),
-                str(source),
-                str(target),
-            ]
-            result = subprocess.run(
-                command, capture_output=True, text=True, check=False
-            )
-            if result.returncode or not target.is_file():
-                raise click.ClickException(
-                    f"Adaptive Cards renderer setup failed: {result.stdout}{result.stderr}"
-                )
-
-
 def native_provider(
     harness: str, payload: Path, work: Path, model: str | None = None
 ) -> tuple[dict, Path | None]:
@@ -312,9 +253,7 @@ def workflow_provider(
     }
 
 
-def grading(
-    test: dict, address: str, condition: str, judge: Callable[[], dict]
-) -> dict:
+def grading(test: dict, condition: str, judge: Callable[[], dict]) -> dict:
     """A case's assertions and grading options under one condition, for a sample
     authored now or one saved earlier.
 
@@ -332,17 +271,7 @@ def grading(
             )
         )
     elif metadata.get("authoring"):
-        checks = [
-            "completed",
-            *(["format-valid"] if condition in {"json", "adaptive"} else []),
-            "page-valid",
-            *(
-                ["interaction-proven"]
-                if address.split("/")[-1] in {"choice", "form"}
-                and address.split("/", 1)[0] == "widget-formats"
-                else []
-            ),
-        ]
+        checks = ["completed", "page-valid"]
     else:
         checks = []
         options = {
@@ -468,7 +397,7 @@ def prepare(
                     labels.append(label)
             if not labels:
                 continue
-            sample = {**deepcopy(test), **grading(test, address, condition, judge)}
+            sample = {**deepcopy(test), **grading(test, condition, judge)}
             task = address.split("/", 1)[0]
             if executor:
                 sample["vars"] = {"prompt": address}
@@ -487,9 +416,7 @@ def prepare(
                 sample["vars"] = {
                     **sample["vars"],
                     "prompt": (
-                        ""
-                        if instructions or condition in {"adaptive", "html"}
-                        else SKILL_PREFIX
+                        "" if instructions or condition == "html" else SKILL_PREFIX
                     )
                     + prompt,
                 }
@@ -625,7 +552,6 @@ def saved_config(
                         metadata = test["metadata"]
                         graded = grading(
                             definitions[case],
-                            case,
                             metadata["condition"],
                             partial(judges, sample["shots"].parent),
                         )
@@ -720,7 +646,7 @@ def run_name(scope: str, globs: tuple[str, ...]) -> str:
 )
 @click.option(
     "--condition",
-    type=click.Choice(["leaf", "html", "json", "adaptive", "both", "formats"]),
+    type=click.Choice(["leaf", "html", "both"]),
     default="leaf",
     show_default=True,
 )
@@ -780,14 +706,7 @@ def eval(
             raise click.BadParameter(
                 "--model currently requires --harness codex", param_hint="--model"
             )
-        conditions = (
-            ("leaf", "html")
-            if condition == "both"
-            else ("leaf", "json", "adaptive")
-            if condition == "formats"
-            else (condition,)
-        )
-        preflight_formats(conditions)
+        conditions = ("leaf", "html") if condition == "both" else (condition,)
         # Only the Leaf condition runs on more than the working tree.
         if "leaf" not in conditions:
             base = None

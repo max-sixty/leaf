@@ -92,7 +92,7 @@ def test_a_selection_that_reaches_the_layer_stops_at_the_page(browser, serve):
     open_panel_thread(page, thread)
     open_layer = page.evaluate(
         """() => {
-          const said = '.lf-quote, .lf-thread-quote, .lf-msg-body';
+          const said = '.lf-thread-quote, .lf-msg-body';
           return [...document.querySelector('.lf-chrome').querySelectorAll('*')]
             .filter((el) => getComputedStyle(el).webkitUserSelect !== 'none')
             .filter((el) => !el.closest(said))

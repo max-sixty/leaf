@@ -93,7 +93,7 @@ import {
 import { randomId } from "../ids.js";
 import { turns, threadKey } from "./model.js";
 import {
-  anchorLabel,
+  anchorQuote,
   messageReading,
   threadPassage,
   threadSummary,
@@ -168,7 +168,7 @@ export function quoteReading(thread, anchors) {
   // (`rewritten_from`, events.md); the head still names those words, marked as changed.
   const rewritten = thread.rewritten_from;
   const quoted = threadPassage(thread);
-  const label = anchorLabel(quoted, thread.root.about);
+  const label = anchorQuote(quoted, thread.root.about);
   if (!label) return null;
   const anchored = Boolean(thread.anchor) || Boolean(thread.detached_from);
   const found = !thread.detached_from && placement != null;
@@ -178,7 +178,6 @@ export function quoteReading(thread, anchors) {
     Boolean(quoted?.quote && placement?.datumElement && !placement.exact);
   return Object.freeze({
     label,
-    words: quoted?.quote ?? null,
     anchored,
     found,
     outdated,
@@ -1313,7 +1312,7 @@ export class ThreadView {
       <blockquote
         ${ref(this.#watchQuote)}
         id=${this.#quoteId}
-        class="lf-quote lf-thread-quote"
+        class="lf-thread-quote"
         ?data-lf-detached=${quote.anchored && !quote.found}
         data-lf-expanded=${String(quote.localReading && expanded)}
         title=${(quote.anchored && !quote.found && quote.title) || nothing}

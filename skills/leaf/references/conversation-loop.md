@@ -231,11 +231,14 @@ Obligation ids are `message:<message>` for an explicit message request,
 `widget:<widget-id>` for a widget that asks,
 and `update:<event-id>` for an update
 the user handed over.
-The user's next message in a thread answers every conversational request before it.
-A clarification hands the conversation back to you, as does a question about an
-action, such as "where do I run it?"; if you still need input, or the action is still
-to do, make the next request with `--obligation`. Ask a dependent question only once
-its prerequisite is answered. An answer grants nothing its question did not ask.
+The user's next message in a thread answers every conversational request before it,
+whatever it says, so On me clears the moment they reply. Its delivery names those
+requests in `settled`, for you to read the message against. A clarification hands the
+conversation back to you, as does a question about an action, such as "where do I run
+it?"; if the request still stands, answer with `--obligation <id>`, which returns
+the same item to On me (`threads.md`). A new question takes `--obligation` alone. Ask a
+dependent question only once its prerequisite is answered. An answer grants nothing
+its question did not ask.
 
 Read the lists before a handoff, before waiting for the user, and after taking in an
 answer:

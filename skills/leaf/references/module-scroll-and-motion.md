@@ -135,7 +135,9 @@ readers before that position paints, including writes during resize delivery. Sm
 scrolling reports its positions through the browser's scroll events.
 
 `scrollLimit(box)` is how far a box scrolls down, and `atScrollEnd(box)` whether it is
-there. `landingInsets(scroller)` reads a scroller's `scroll-padding`.
+there. `landingInsets(scroller)` is how far a landing keeps from each edge of a
+scroller: its `scroll-padding`, and on the document the band Leaf states for its
+chrome, which holds while the user writes in a floating box.
 `shownWindow({within, gap, across})` is the window's visible rectangle clear of Leaf's
 fixed chrome, narrowed to `within` and inset by `gap`; with `across` (`{left, right}`),
 only chrome standing across those columns takes room.

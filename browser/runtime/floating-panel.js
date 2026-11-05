@@ -124,9 +124,9 @@
  *   open view, which read in Threads as a missing row. Rejected there: the line pushing
  *   the view up as it comes. The view's last words scroll clear of New reply
  *   (thread/thread-card.js), the one thing that stands over the row. It is as tall as
- *   what it holds, so a one-message thread opens one message tall, up to most of the window's
- *   height, the larger size a long thread or a long Threads list is read at; past that
- *   it scrolls. The user chose views that fit their content with a larger size for long
+ *   what it holds, so a one-message thread opens one message tall, up to most of the
+ *   window's height, the larger size a long thread or a long Threads list is read at;
+ *   past that it scrolls. The user chose views that fit their content with a larger size for long
  *   reading (2026-10-13); content alone reaches that size. Rejected: an Expand
  *   control at the view's head, which the growth it asks for would carry up from under
  *   the pointer, and a compact cap with the larger size behind a gesture, which leaves

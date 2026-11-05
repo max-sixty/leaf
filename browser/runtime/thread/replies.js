@@ -8,12 +8,12 @@
    on a thread; `beginReplyAt`, landing.js). A caret alone is not that act: the one an
    opening places (thread/focus.js, `openingPart`), a send leaves or a pass carries
    begins nothing, so a thread settled meanwhile leaves the margin as it would for a
-   reader. One that lands on the user's own words is theirs to go on with, and begins
-   as they would. Everything that asks whether the user is writing reads the session
-   (`replyIsEditing`), a card's anchor as a margin's entry. Rejected: beginning on every
-   `focusin`, which made an opening's caret a session nobody began and kept a resolved
-   thread's card standing over its empty box (the same class as the send's caret, #5364;
-   found on 4 November 2026).
+   reader. A caret landing on words the box already holds does begin one, since those
+   words are the user's draft. Everything that asks whether the user is writing reads
+   the session (`replyIsEditing`), a card's anchor as a margin's entry. Rejected:
+   beginning on every `focusin`, which made an opening's caret a session nobody began
+   and kept a resolved thread's card standing over its empty box (the same class as the
+   send's caret, #5364; found on 4 November 2026).
    The send preserves the panel's narrowing and, whichever control sent it, leaves the
    caret in the box for the next message, on a card or a seat as in the floating
    panel's field; Escape takes the user to the thread. The user chose this on 31
@@ -440,8 +440,8 @@ function wireReply(
   return composition;
 }
 
-// The user beginning a reply in this row, or going on with one from it: it owns the
-// thread's session from here.
+// Make this row the owner of its thread's session, opening the session where none
+// stands.
 /** @param {Composition} composition */
 function beginIn(composition) {
   adopt(composition.context, composition);

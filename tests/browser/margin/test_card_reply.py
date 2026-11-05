@@ -369,6 +369,59 @@ def test_news_shows_in_a_card_whose_opening_left_the_caret_in_its_box(browser, s
     expect(preview.locator(".lf-msg", has_text="One more thing")).to_have_count(0)
 
 
+def test_news_waits_once_the_user_begins_in_the_box_a_send_left(browser, serve):
+    """The box Send leaves the caret in lets the answer the user waits for show until
+    they begin a reply there (card-anchor.js, thread/replies.js): by typing, even words
+    they erase, or by coming back to it."""
+    page = open_page(browser, serve(LONG_THREAD_PAGE, events=[LONG_THREAD_ROOT]))
+    resized(page, 1440, 900)
+    page.locator('[data-lf-margin-for="open"] .lf-margin-marker').click()
+    preview = page.locator(".lf-margin-preview")
+    box = preview.locator(".lf-thread-reply leaf-text")
+    expect(box).to_be_focused()
+    news = preview.locator(".lf-thread-news")
+
+    def agent_says(words):
+        append_carried_log_record(
+            serve.page_dir,
+            {
+                "kind": "reply",
+                "author": "agent",
+                "agent": "Claude",
+                "parent": LONG_THREAD_ROOT["id"],
+                "revision": 1,
+                "text": words,
+            },
+        )
+        told(page)
+
+    def send(words):
+        page.keyboard.type(words)
+        with sending(page, "the turn"):
+            page.keyboard.press("ControlOrMeta+Enter")
+        rendered(page)
+        expect(box).to_be_focused()
+
+    send("First.")
+    agent_says("Shown beside the empty box.")
+    expect(preview.locator(".lf-msg", has_text="Shown beside")).to_be_visible()
+    page.keyboard.type("W")
+    page.keyboard.press("Backspace")
+    expect(box).to_have_js_property("value", "")
+    agent_says("Held once a word was typed.")
+    expect(news).to_have_text("1 new")
+
+    send("Second.")
+    agent_says("Shown again after the send.")
+    expect(preview.locator(".lf-msg", has_text="Shown again")).to_be_visible()
+    page.keyboard.press("Escape")
+    expect(preview.locator(".lf-page-thread")).to_be_focused()
+    page.keyboard.press("Enter")
+    expect(box).to_be_focused()
+    agent_says("Held once they came back.")
+    expect(news).to_have_text("1 new")
+
+
 def test_replying_on_a_long_margin_card_keeps_the_turn_being_read(browser, serve):
     """Entering the visible reply box preserves the earlier transcript reading."""
     page, preview, transcript = open_long_thread(browser, serve)
@@ -2168,6 +2221,38 @@ def test_a_card_offers_next_unread_for_a_reply_its_opening_left_unread(browser, 
     expect(press).to_be_hidden()
     expect(press).to_be_disabled()
     assert press.evaluate("press => getComputedStyle(press).display") == "none"
+
+
+@pytest.mark.parametrize("pointer", ["mouse", "finger"])
+def test_next_unread_beside_previous_and_next_leaves_a_head_its_words(
+    browser, serve, pointer
+):
+    """Beside Previous and Next, Next unread stands on its symbol, its words its name, so
+    the first head keeps its author and time, which its words cut to "Me ju". Under a
+    finger, where each press is a finger wide, a card draws none there (annotation-chrome.css)."""
+    second = {**LONG_THREAD_ROOT, "text": "A second question.", "id": "e" * 32}
+    url = serve(LONG_THREAD_PAGE, events=[LONG_THREAD_ROOT, LONG_THREAD[1], second])
+    context = browser.new_context(
+        viewport={"width": 1440, "height": 700}, has_touch=pointer == "finger"
+    )
+    page = open_page(browser, url, context=context)
+    marker = page.locator('[data-lf-margin-for="open"] .lf-margin-marker')
+    marker.tap() if pointer == "finger" else marker.click()
+    preview = page.locator(".lf-margin-preview")
+    expect(preview.locator(".lf-margin-preview-position")).to_have_text("1/2")
+    press = preview.locator(".lf-next-unread")
+    expect(press).to_be_attached()
+    rendered(page)
+    if pointer == "finger":
+        expect(press).to_be_hidden()
+        return
+    expect(
+        preview.get_by_role("button", name="Next unread", exact=True)
+    ).to_be_visible()
+    assert press.bounding_box()["width"] == 24
+    head = preview.locator(".lf-msg-head").first
+    for part in (head.locator(":scope > b"), head.locator(".lf-msg-meta > time")):
+        assert part.evaluate("part => part.scrollWidth <= part.clientWidth")
 
 
 def test_next_unread_never_shows_in_a_card_whose_opening_reads_its_reply(

@@ -8,7 +8,7 @@ import re
 import pytest
 from interact_support import append_command
 from playwright.sync_api import expect
-from render_cases_interaction import PANEL_PAGE
+from render_cases_interaction import PANEL_PAGE, live_url
 from render_cases_layout import token_colour
 from render_harness import (
     draft_control,
@@ -19,6 +19,7 @@ from render_harness import (
     panel_settled,
     resized,
     sending,
+    told,
 )
 
 from browser.margin import (
@@ -1132,3 +1133,25 @@ def test_draw_mode_leaves_page_annotation_controls_usable(browser, serve):
     expect(edit).to_be_visible()
     expect(page.locator("html")).to_have_attribute("data-lf-draw-mode", "")
     expect(page.locator(".lf-drawing-pending")).to_have_count(0)
+
+
+def test_a_row_leaving_renames_the_rows_after_it(browser, serve):
+    """A marker's name says where its row stands among the rows, so a listener's count
+    stays true when another row leaves, though nothing else about the marker changed."""
+    body = "<h1>Rows</h1>" + "".join(
+        f'<p id="line-{n}">Line {n}, with a thread on it.</p>' for n in range(1, 4)
+    )
+    url = serve(leaf_page("Rows", body), events=[])
+    roots = [
+        append_command(serve.page_dir, _comment_on(f"line-{n}")) for n in range(1, 4)
+    ]
+    page = open_page(browser, live_url(url))
+    resized(page, 1440, 900)
+    last = page.locator('[data-lf-margin-for="line-3"] > .lf-margin-marker')
+    expect(last).to_have_attribute("aria-label", re.compile(r"3 of 3"))
+    append_command(
+        serve.page_dir, {"kind": "resolve", "author": "user", "parent": roots[0]["id"]}
+    )
+    told(page)
+    expect(page.locator('[data-lf-margin-for="line-1"]')).to_have_count(0)
+    expect(last).to_have_attribute("aria-label", re.compile(r"2 of 2"))

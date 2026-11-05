@@ -1431,14 +1431,13 @@ export function createResponseSurface({
     const { rest } = commentDestination();
     return rest && seenRect(rest.element, new Map()) ? rest : null;
   };
-  function retireRest() {
+  // A move to another target places the box afresh and keeps whether it waits for room,
+  // which the new placement answers; only the box going away lets go of that.
+  function letGoOfRest() {
+    if (!resting) return;
     resting = null;
     placement?.stop({ reset: true });
     placement?.release();
-  }
-  function letGoOfRest() {
-    if (!resting) return;
-    retireRest();
     keeps(fabBar, "data-lf-rest", null);
   }
   // Read in each repaint, since where `c` goes follows focus, a scroll's end and the state.
@@ -1446,9 +1445,15 @@ export function createResponseSurface({
     const next = restingTarget();
     const key = next && activeCommandLabel(["comment.create"]);
     const target = key ? next : null;
-    if (resting && !sameAnchor(target?.anchor ?? null, resting.anchor)) retireRest();
-    keeps(fabBar, "data-lf-rest", target ? "" : null);
-    if (!target) return;
+    if (!target) {
+      letGoOfRest();
+      return;
+    }
+    if (resting && !sameAnchor(target.anchor, resting.anchor)) {
+      resting = null;
+      placement?.stop({ reset: true });
+    }
+    keeps(fabBar, "data-lf-rest", "");
     render(
       html`<span class="lf-compose-placeholder"
         ><span class="lf-compose-placeholder-words">${COMMENT_HINT}</span

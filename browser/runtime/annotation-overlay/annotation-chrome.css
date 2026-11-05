@@ -191,8 +191,11 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item ~ .lf-chrome .lf-mark-el
     justify-content: flex-start;
     padding-inline: calc(var(--lf-thread-text-inset) - 1px);
     font: var(--font-message);
-    color: var(--muted);
     cursor: text;
+  }
+  /* Its words in the empty field's ink. */
+  .lf-fab-rest > .lf-compose-placeholder {
+    color: var(--muted);
   }
   .lf-fab-bar[data-lf-rest] > .lf-surface-grip {
     display: none;

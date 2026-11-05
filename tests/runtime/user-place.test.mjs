@@ -4,8 +4,7 @@
    away or riding in a stuck header names no place, and a hold puts the node it read
    back where it stood, or its stand-in where the change hid it, paying only for what
    the browser's own anchoring left. The user's place across a reading is the first the
-   change moved of those they named, and its keep yields to input since and to a scroll
-   a frame has let move it. */
+   change moved of those they named, and its keep yields to any scroll or input since. */
 
 import assert from "node:assert/strict";
 import test from "node:test";
@@ -216,19 +215,10 @@ test("a place the change left still keeps its scroller", () => {
   restOn(null);
 });
 
-test("the keep yields to a scroll a frame has moved and to any input since", async () => {
-  const frame = () => new Promise((done) => requestAnimationFrame(() => done()));
-  for (const [since, kept] of [
-    // A scroll under way that no frame has moved yet: the keep pays the change.
-    [(/** @type {Element} */ box) => box.dispatchEvent(new Event("scroll")), 1226],
-    [
-      async (/** @type {Element} */ box) => {
-        box.dispatchEvent(new Event("scroll"));
-        await frame();
-      },
-      1100,
-    ],
-    [() => window.dispatchEvent(new Event("wheel")), 1100],
+test("the keep yields to a scroll under way and to any input since the reading", () => {
+  for (const since of [
+    (/** @type {Element} */ box) => box.dispatchEvent(new Event("scroll")),
+    () => window.dispatchEvent(new Event("wheel")),
   ]) {
     const { scroller, item, at, scrolled, scrollTo } = laidOut();
     const read = item("read", 1150);
@@ -238,9 +228,9 @@ test("the keep yields to a scroll a frame has moved and to any input since", asy
     read.focus();
     const keep = holdUserPlace();
     at.set(read, 1276);
-    await since(scroller);
+    since(scroller);
     keep();
-    assert.equal(scrolled(), kept, `${since}`);
+    assert.equal(scrolled(), 1100, `the keep overrode ${since}`);
     scroller.remove();
   }
 });

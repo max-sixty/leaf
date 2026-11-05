@@ -60,7 +60,6 @@ import { inChrome } from "./shadow-tree.js";
 import { focused, inputCount, onCurrentLocation, recentPlaceInput } from "./focus.js";
 import { browserScrolls, watchScrollEnds } from "./arrivals.js";
 import { pointerAt } from "./pointer.js";
-import { nextAnimation } from "./rendering.js";
 
 // The focused control while it marks where the user is: while any of it is in front of
 // them (geometry.js, `seenRect`), and it is not riding in a stuck sticky box
@@ -188,13 +187,10 @@ export function holdPlace(node, standIn = () => null) {
 // The keep yields to any scroll since the reading: a scroll the user or a landing chose
 // and ended (scrolling.js, `scrollChoices`), one the browser is still running, as a
 // smooth scroll or a wheel's glide (arrivals.js, `browserScrolls`), and any input
-// (focus.js, `inputCount`), so it never overrides a scroll under way. A scroll the
-// browser runs moves the place only in a frame, so a keep in the frame the reading
-// arrived in, as every bundled presenter's is, has nothing of one to undo: it pays for
-// the change, and a wheel's glide goes on from there. The user's own gesture draws its
-// result in its own task and places it there, so nothing here holds against it. Where
-// the boxes scrolling the place can't take all of a move, as on a page shorter than its
-// window, it moves by the rest.
+// (focus.js, `inputCount`), so it never overrides a scroll under way. The user's own
+// gesture draws its result in its own task and places it there, so nothing here holds
+// against it. Where the boxes scrolling the place can't take all of a move, as on a
+// page shorter than its window, it moves by the rest.
 //
 // A limit, for presenters a page or package adds: the keep waits for the whole
 // presentation, so one whose paint resolves frames after the reading arrived lets the
@@ -244,8 +240,6 @@ export function holdUserPlace() {
   if (!places.length) return () => {};
   const choices = scrollChoices();
   const inputs = inputCount();
-  let framed = false;
-  nextAnimation(() => (framed = true));
   const holds = places.map(({ place, focus }) => ({
     place,
     focus,
@@ -256,7 +250,7 @@ export function holdUserPlace() {
     const still = new Set();
     for (const { place, focus, hold } of holds) {
       const boxes = [...scrollersOf(place)];
-      if (framed && boxes.some(browserScrolls)) return;
+      if (boxes.some(browserScrolls)) return;
       if ((focus && focused() !== node) || still.has(boxes[0])) continue;
       if (hold()) return;
       still.add(boxes[0]);

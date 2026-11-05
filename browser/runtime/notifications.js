@@ -117,9 +117,9 @@ function retireNotice() {
 }
 // A notice offering a press stands until the user's next input rather than for its
 // time, and no longer than its press can act: a gesture the log refused, or one taken
-// back by any route, takes its notice away. The panel gives its press room beside the
-// field (floating-panel.js, `rowNotice`), so one leaving on a timer moved the field's
-// controls under nobody's hand. An input on the press itself, which carries
+// back by any route, takes its notice away. The panel says its press at the field's
+// end (floating-panel.js, `rowNotice`), so one leaving on a timer would take it from
+// under a hand on its way there. An input on the press itself, which carries
 // `NOTICE_PRESS`, keeps it.
 const NOTICE_PRESS = "data-lf-notice-press";
 onUserInput((event) => {

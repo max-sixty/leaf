@@ -82,7 +82,7 @@ import { offeredAction } from "../widget-elements.js";
  * @property {import("../keyboard/bindings.js").Cell<string>} hint
  * @property {(() => unknown) | null} [hintParts]
  * @property {() => unknown} [hintLead]
- * @property {() => string} [enters]
+ * @property {() => string | {word: string, keys: string}} [enters]
  * @property {import("../keyboard/bindings.js").Cell<string> | null} [accessibleName]
  * @property {(value: string) => unknown} save
  * @property {Sender} send
@@ -295,7 +295,11 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       // What entering the box does, said with the key that enters it, where the box's
       // own words at rest say something else, as the panel's status does. Those words
       // stay first, and this word and its key stand after them, in a part of its own,
-      // so the words never move between parts as focus comes and goes.
+      // so the words never move between parts as focus comes and goes. Or, as
+      // `{word, keys}`, the one press the box offers at rest in its place, such as a
+      // passing notice's Undo, said in the same part with its own keys, and said where
+      // no key is shown too, since its owner takes the press there (floating-panel.js,
+      // `rowNotice`).
       enters = () => "",
       accessibleName = null,
       save,
@@ -520,12 +524,16 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       const hasWords = hasContent(draftValue());
       const advertising = advertisesKeys();
       const sendKeys = advertising ? sendKey() : "";
+      const status = dictationStatus();
+      const offered = focusedHere.value || status ? "" : enters();
+      const press = typeof offered === "string" ? null : offered;
       const suffix = !advertising
         ? ""
         : focusedHere.value
           ? sendKeys
-          : enteringHint.value;
-      const status = dictationStatus();
+          : press
+            ? press.keys
+            : enteringHint.value;
       const word = status || label();
       // Where Return sends a box that holds lines, the box says which key makes one,
       // beside the key that sends, so a writer meets Shift+Return before Return sends
@@ -533,23 +541,30 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       const lineKey =
         sendKeys === spell("Enter") && !oneLine ? spell("Shift+Enter") : "";
       const lineHint = focusedHere.value && !status ? lineKey : "";
-      const entering = suffix && !focusedHere.value && !status ? enters() : "";
+      const entering = press
+        ? press.word
+        : suffix && typeof offered === "string"
+          ? offered
+          : "";
       const placeholder =
-        suffix && !status
-          ? `${word}${entering ? ` · ${entering}` : ""} ${suffix}${lineHint ? ` · ${NEW_LINE} ${lineHint}` : ""}`
+        (suffix || press) && !status
+          ? `${word}${entering ? ` · ${entering}` : ""}${suffix ? ` ${suffix}` : ""}${lineHint ? ` · ${NEW_LINE} ${lineHint}` : ""}`
           : word;
       if (ta.placeholder !== placeholder) ta.placeholder = placeholder;
       const ariaLabel = name();
       if (ariaLabel) keeps(ta, "aria-label", ariaLabel);
       const parts = status ? null : hintParts?.();
       const lead = status ? "" : hintLead();
-      const richHint = (suffix && !status) || parts != null || lead;
+      const richHint = ((suffix || press) && !status) || parts != null || lead;
       render(
         richHint
           ? html` <span class="lf-compose-placeholder" slot="placeholder">
               <span class="lf-compose-placeholder-lead">${lead}</span
               ><span class="lf-compose-placeholder-words">${parts ?? word}</span
-              ><span class="lf-compose-placeholder-enters">${entering}</span
+              ><span
+                class="lf-compose-placeholder-enters"
+                ?data-lf-offer=${Boolean(press)}
+                >${entering}</span
               ><kbd class="lf-key-badge">${suffix}</kbd>${
                 lineHint
                   ? html`<span class="lf-compose-placeholder-line"

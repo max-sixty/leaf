@@ -475,16 +475,19 @@ def test_resolving_a_thread_from_threads_moves_on_to_the_next(browser, serve):
     expect(page.locator(".lf-fp-field leaf-text")).to_have_attribute(
         "data-lf-says", "notice"
     )
-    notice = page.locator(".lf-fp-row-notice")
-    expect(notice).to_be_visible()
-    expect(notice).to_contain_text(f"Resolved “{first}” · Undo")
-    expect(notice.locator("kbd")).to_have_text("z")
-    # Its press is the one the row offers while it passes.
-    expect(page.locator(".lf-fp-field .lf-compose-placeholder > kbd")).to_be_hidden()
+    # The field says what was resolved, and its end the press that takes it back,
+    # Undo and its key, where Comment or Reply and c stand at rest.
+    hint = page.locator(".lf-fp-field .lf-compose-placeholder")
+    expect(hint.locator(".lf-compose-placeholder-words")).to_have_text(
+        f"Resolved “{first}”"
+    )
+    expect(hint.locator(".lf-compose-placeholder-enters")).to_have_text("Undo")
+    expect(hint.locator(":scope > kbd")).to_have_text("z")
+    undo = page.locator(".lf-fp-row-notice").get_by_role("button", name="Undo")
     second = page.locator(".lf-fp-head .lf-fp-title").inner_text()
     # Taking the first resolve back returns the user to the thread they resolved.
     with sending(page, "the undo"):
-        notice.get_by_role("button").click()
+        undo.click()
     assert events_model.read_events(serve.page_dir)[-1]["kind"] == "undo"
     expect(page.locator(".lf-fp-head .lf-fp-title")).to_have_text(first)
     expect(thread).to_be_focused()
@@ -505,7 +508,7 @@ def test_resolving_a_thread_from_threads_moves_on_to_the_next(browser, serve):
 
 
 def test_a_resolve_s_notice_stands_for_that_resolve_alone(browser, serve):
-    """The row's "Resolved “…” · Undo" names one gesture. The log refusing that
+    """The row's "Resolved “…”" and its Undo name one gesture. The log refusing that
     Resolve takes the notice away with it, and its press takes back that Resolve
     even once another gesture of the user's is the newest, the one `z` would take: a
     press that ran `z` took back an earlier gesture once its own was refused. The
@@ -528,6 +531,7 @@ def test_a_resolve_s_notice_stands_for_that_resolve_alone(browser, serve):
     expect(thread).to_be_visible()
     first = title.inner_text()
     notice = page.locator(".lf-fp-row-notice")
+    said = page.locator(".lf-fp-field .lf-compose-placeholder-words")
 
     held = []
     page.route(
@@ -541,7 +545,8 @@ def test_a_resolve_s_notice_stands_for_that_resolve_alone(browser, serve):
     thread.focus()
     page.keyboard.press("r")
     holding(page, held, 1, "the resolve")
-    expect(notice).to_contain_text(f"Resolved “{first}” · Undo")
+    expect(said).to_have_text(f"Resolved “{first}”")
+    expect(notice.get_by_role("button", name="Undo")).to_be_visible()
     held.pop().fulfill(json={"ok": False, "final": True, "error": "Please retry."})
     page.unroute("**/api/event")
     expect(title).to_have_text(first)
@@ -551,7 +556,8 @@ def test_a_resolve_s_notice_stands_for_that_resolve_alone(browser, serve):
     with sending(page, "the resolve"):
         page.keyboard.press("r")
     expect(title).not_to_have_text(first)
-    expect(notice).to_contain_text(f"Resolved “{first}” · Undo")
+    expect(said).to_have_text(f"Resolved “{first}”")
+    expect(notice.get_by_role("button", name="Undo")).to_be_visible()
     # Another tab of the user's resolves the thread left over, so `z` would take that.
     (other,) = set(roots) - {first, title.inner_text()}
     append_carried_log_record(

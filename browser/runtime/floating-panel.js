@@ -38,15 +38,16 @@
  *   the ✕ standing before both marks, which kept them still but stood it between the
  *   field and the marks. Beside the seat stands at most one small notice for a state
  *   the user should not miss, such as reading an older version, tinted by its tone and
- *   with at most one press (`olderVersion`), or, while it passes, a notice of the user's
- *   own gesture with the press that takes it back, as a Resolve's Undo (`rowNotice`),
- *   chosen on 31 October so a Resolve that moves the panel on says which thread it
- *   resolved and offers its undo there; the field gives it room, so the seat keeps
+ *   with at most one press (`olderVersion`); the field gives it room, so the seat keeps
  *   its place, but only while it holds no words, which a narrower field would rewrap
  *   under the reader; the notice waits while words stand there. The empty field says
  *   what the agent is doing or wants, in the status's words
  *   (`statusReading`), or what a passing notice says, where a placeholder would say
- *   "Comment"; in a stance, such as Draw mode, it names the stance, whose way out is
+ *   "Comment", and the field's end says the one press the row offers with its key,
+ *   Comment and c, or while it passes the press a notice of the user's own gesture
+ *   offers to take it back, as a Resolve's Undo and z (`rowNotice`), chosen on 31
+ *   October so a Resolve that moves the panel on says which thread it resolved and
+ *   offers its undo there; in a stance, such as Draw mode, it names the stance, whose way out is
  *   the seat's ✕; in a thread it says the thread's word beside the leaf, in its
  *   speaker's face (voice.js), with a walk's position after it, and Reply with the key
  *   that enters the field at the field's end (`turnLead`). The user chose this on 27
@@ -980,8 +981,13 @@ export function createFloatingPanel({
   /** @param {string | null} key @param {Element | null} input
    * @param {import("./thread/thread-card.js").DrawnThread | null} [drawn] */
   function fieldReading(key, input, drawn = null) {
+    // A notice offering the press that takes back the user's own gesture is newer than
+    // any error the field says, so it says its words over that error while it passes,
+    // and the error stands again once it has gone.
+    const notice = passing();
     const [error] = sayable();
-    if (error) return { says: "error", words: leafSays(error.message) };
+    if (error && !(notice.press && input !== focused()))
+      return { says: "error", words: leafSays(error.message) };
     const thread = key ? threadByKey(key) : null;
     // A retained field can repaint between a thread leaving the reading and its
     // route being retired. Its native row survives that interval, not its turn.
@@ -1002,18 +1008,18 @@ export function createFloatingPanel({
           .filter(Boolean)
           .join(" · "),
       };
-    // A notice offering a press stands over the empty field with it, in the words'
-    // place (`rowNotice`), so the field says nothing under it.
-    const notice = passing();
+    // A notice says its words in the empty field's, and the press it offers, such as
+    // a Resolve's Undo, is the one the field's end offers while it passes, said as
+    // Comment and its key are (`offer`, composing/input.js `enters`; `rowNotice`).
+    const press = notice.press ? noticePress(notice.press) : null;
     if (notice.visible)
       return {
         says: "notice",
-        words: notice.press
-          ? ""
-          : [
-              ...(stance ? [`${stance} · `] : []),
-              ...[noticeWords(notice.message)].flat(),
-            ],
+        words: [
+          ...(stance ? [`${stance} · `] : []),
+          ...[noticeWords(notice.message)].flat(),
+        ],
+        offer: press ? { word: press.label, keys: press.keys.join(" ") } : null,
       };
     if (stance)
       return {
@@ -1107,12 +1113,11 @@ export function createFloatingPanel({
       hint: () => saying(null, input),
       hintParts: () => fieldHint(null, input),
       // The agent's or Leaf's words at rest say nothing about the press, so the key
-      // that enters the field stands with its word (composing/input.js, `enters`). A
-      // notice offering a press stands over an empty reading (`rowNotice`), and that
-      // press is the one the row offers while it passes.
+      // that enters the field stands with its word (composing/input.js, `enters`),
+      // unless a notice offers a press of its own there while it passes.
       enters: () => {
-        const { says, words } = fieldReading(null, input);
-        return SAYS_ELSE.has(says) && wordsText(words) ? COMMENT_HINT : "";
+        const { says, words, offer } = fieldReading(null, input);
+        return offer ?? (SAYS_ELSE.has(says) && wordsText(words) ? COMMENT_HINT : "");
       },
       // Named for what a press there does, as the field's reading says it, once the
       // editor this builds is the one the reading reads.
@@ -1197,6 +1202,9 @@ export function createFloatingPanel({
           hint: (drawn) => saying(key, replyInput(), drawn),
           hintParts: (drawn) => fieldHint(key, replyInput(), drawn),
           hintLead: (drawn) => turnLead(key, replyInput(), drawn),
+          // A notice passing over the thread's field offers its press at the field's
+          // end, as over the page's (`fieldReading`, `offer`).
+          enters: () => fieldReading(key, replyInput()).offer ?? "",
           accessibleName: () => `Reply to ${threadTitle(key)}`,
           sending: streamSend,
           // A turn the log refuses takes its room back from the view, and the words it
@@ -4447,36 +4455,44 @@ export function createFloatingPanel({
 
   // ---------- the row's notice ----------
   // One small notice beside the seat, for a state the user should not miss while they
-  // read: a few words (`says`), a `tone` that tints it, and at most one `press`, with
-  // its word and the keys that make it from anywhere on the page (`keys`).
+  // read: a few words (`says`), a `tone` that tints it, and at most one `press`; the
+  // older version's notice, whose Latest has no key.
   // A passing notice offering the press that takes back what it reports, as a Resolve's
-  // offers Undo (notifications.js), stands in the seat its words would take, over the
-  // empty field's start, its press spelled with the key of the page command that makes
-  // it too, as the command reference spells it; else the older version's notice. It stands
-  // over the field rather than beside it (floating-panel.css), so its coming and going
-  // move nothing in the row, and it stands from the gesture's own paint to the
-  // notice's end, whether or not the command can act yet.
+  // offers Undo (notifications.js), says its words in the empty field's place and its
+  // press at the field's end, with the key of the page command that makes it, in the
+  // face Comment and its key wear there (`fieldReading`, `offer`). The user chose that
+  // on 5 November 2026, that the right side of the box is for shortcuts, over the
+  // notice's own line of words and an inked Undo standing over the field's start since
+  // 31 October, the one press in the row in a face of its own. The row's part here is
+  // the press itself, laid over the word and key the field says (floating-panel.css),
+  // so its coming and going move nothing in the row, and it stands from the gesture's
+  // own paint to the notice's end, whether or not the command can act yet.
   // Nothing that passes is said while the caret is in the field, this neither; and
   // the gesture it reports stood the user outside the field, so it stands through the
   // writing posture the field keeps until the user leaves the panel, though not over
   // a draft (floating-panel.css).
-  /** @typedef {{says: string | ReturnType<typeof voiced>, tone: string | null,
+  /** @typedef {{says?: string | ReturnType<typeof voiced>, tone: string | null,
    * passing?: boolean, press: {label: string, run: () => unknown, title?: string | null,
    * disabled?: boolean, keys?: readonly string[]} | null}} RowNotice */
   /** @returns {RowNotice | null} */
   function rowNotice() {
-    const { visible, message, press } = passing();
+    const { visible, press } = passing();
     const input = fieldInput();
     if (!visible || !press || (input && focused() === input)) return olderVersion();
     return {
-      says: voiced(noticeWords(message)),
       tone: null,
       passing: true,
-      press: {
-        label: actionName(press.action),
-        keys: commandSteps(press.command),
-        run: press.run,
-      },
+      press: noticePress(press),
+    };
+  }
+  // A notice's press as the row offers it: its word, the keys of the page command
+  // that makes it, as the command reference spells them, and what it does.
+  /** @param {NonNullable<ReturnType<typeof passing>["press"]>} press */
+  function noticePress(press) {
+    return {
+      label: actionName(press.action),
+      keys: commandSteps(press.command),
+      run: press.run,
     };
   }
   // The page shows an older version than the latest: the menu's row that opens the
@@ -4501,6 +4517,18 @@ export function createFloatingPanel({
   }
   /** @param {RowNotice} notice */
   function rowNoticeTemplate({ says, tone, press = null, passing = false }) {
+    // A passing notice's words and its press are the field's own words and the word
+    // and key at its end (`fieldReading`, `offer`), so this is the press alone, laid
+    // over the word and key the field says, which a pointer and a finger press there.
+    if (passing && press)
+      return html`<button
+        type="button"
+        ${offeredAction("inline", "lf-fp-row-notice-press")}
+        aria-label=${press.label}
+        aria-keyshortcuts=${press.keys?.join(" ") || nothing}
+        data-lf-notice-press
+        @click=${press.run}
+      ></button>`;
     return html`<span class="lf-fp-row-notice-face" data-lf-tone=${tone ?? nothing}
       ><span class="lf-fp-row-notice-says">${says}</span>${
         press
@@ -4510,14 +4538,9 @@ export function createFloatingPanel({
                 ${offeredAction("inline", "lf-fp-row-notice-press")}
                 title=${press.title ?? nothing}
                 ?disabled=${press.disabled}
-                ?data-lf-notice-press=${Boolean(passing)}
                 @click=${press.run}
               >
-                ${press.label}${
-                  press.keys?.length && advertisesKeys()
-                    ? html` ${keySequenceTemplate(keySequenceModel(neutralSteps(press.keys)))}`
-                    : nothing
-                }
+                ${press.label}
               </button>`
           : nothing
       }</span

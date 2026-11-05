@@ -6,20 +6,25 @@ The cases are generated from two lists, `PLACES` (where the user is, and the box
 marks it) and `CHANGES` (what arrives), crossed wherever the change can reach the
 place: a place names what stands around it (`Place.around`) and a change acts on one
 of those (`Change.on`). Each case, in Chromium and in Firefox, puts the user there,
-takes the box's top, makes the change, waits for the page to show it and settle, and
-reads the box again. Between those readings it reads the box after every frame
-renders, so a move the page paints and then takes back fails too.
+takes where the box stands, makes the change, waits for the page to show it and
+settle, and reads the box again. Between those readings it reads the box after every
+frame renders, so a move the page paints and then takes back fails too, and so does a
+frame without the box.
 
-Where the change's own result is to move the place, its descriptor says by how much:
-the user's own scroll (`Place.travel`), a new thread drawn at once above it (what
-`Change.make` returns), and the dial's glide, whose landing alone is held
-(`Change.glides`). Each case records what it measured (`moved`, `painted` and the
-rest) as JUnit properties, so a run's `--junitxml` holds the whole matrix.
+Where the user's own act or the change's own result moves the place, its descriptor
+says how, and frames are held to that alone: the user's own scroll keeps the place on
+its path to the scroll's goal (`Place.travel`), a new thread drawn at once above it
+moves it by what the thread adds (what `Change.make` returns), and the dial's glide
+is passed over until it ends (`turn`). A case marked as failing expects only `Moved`,
+the verdict on where the place stood. Each case records what it measured (`moved`,
+`painted` and the rest) as JUnit properties, so a run's `--junitxml` holds the whole
+matrix.
 
 The shift watch is off here: these cases measure the guarantee it watches directly, and
 a case marked as failing would otherwise fail its teardown a second time."""
 
 import json
+import re
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -81,13 +86,15 @@ def paragraphs(start, count, prefix="p"):
 
 @dataclass
 class Built:
-    """A served page, its source, and the ids its places and changes act on."""
+    """A served page, its source, the ids its places and changes act on, and what a
+    change notes about where it acted, which the case records."""
 
     url: str
     page_dir: Path
     source: str
     ids: dict = field(default_factory=dict)
     revision: int = 1
+    notes: dict = field(default_factory=dict)
 
 
 THREAD_PAGE = leaf_page(
@@ -553,8 +560,10 @@ PLACES = [
         {
             "thread above": "jobs",
             "message above": "early",
+            "shrink above": "early",
             "seat above": "fresh",
             "page above": None,
+            "removal above": None,
         },
     ),
     Place(
@@ -586,7 +595,9 @@ PLACES = [
             "thread above": "jobs",
             "thread below": "notes",
             "paragraph above": "read",
+            "shrink above": "read",
             "page above": None,
+            "removal above": None,
         },
     ),
     Place(
@@ -594,7 +605,12 @@ PLACES = [
         "thread",
         put_reading_page,
         Found("#p-40"),
-        {"thread above": "jobs", "page above": None, "on screen above": None},
+        {
+            "thread above": "jobs",
+            "page above": None,
+            "on screen above": None,
+            "removal above": None,
+        },
     ),
     Place(
         "pin",
@@ -678,29 +694,31 @@ class Change:
     """What arrives: the role around a place it acts on (`on`), and how it is made and
     seen to have arrived (`make`, given the page, the built page, the role's target and
     the place). `make` returns how far the change's own result may move the place, if
-    it may.
-
-    A change that `glides` is the user's own, whose result moves what it replaces with
-    motion the eye can follow (browser/AGENTS.md, "Controls stay where the user aims"),
-    so only where it lands is held to the place."""
+    it may."""
 
     name: str
     on: str
     make: Callable
-    glides: bool = False
 
 
-# Where the document's scroll stood when the change first grew it, which says whether
-# the user's scroll was still under way.
-SCROLL_AT_GROWTH = """() => {
-  const page = document.scrollingElement;
+# When the page's held read of a change may go: once the user's scroll has come `by`
+# px of its way, while it is short of its `goal` with `midway` true, and otherwise
+# once the scroll has ended: its `scrollend` has fired, or it has stood still ten
+# frames where the engine fires none. So whether the page has heard the end is never
+# left to timing.
+RELEASE = """async ([by, goal, midway]) => {
   const record = window.__lfPlaceRecord;
-  const observer = new MutationObserver(() => {
-    if (page.scrollHeight === record.height) return;
-    record.scrollAtGrowth = page.scrollTop;
-    observer.disconnect();
-  });
-  observer.observe(document.body, {childList: true, subtree: true, characterData: true});
+  const page = document.scrollingElement;
+  const frame = () => new Promise((then) => requestAnimationFrame(then));
+  const come = () => Math.abs(page.scrollTop - record.scroll);
+  while (come() < by) await frame();
+  if (midway && come() < goal - 1) return (record.release = 'under way');
+  for (let still = 0; still < 10 && !record.ended; ) {
+    const at = page.scrollTop;
+    await frame();
+    still = page.scrollTop === at ? still + 1 : 0;
+  }
+  return (record.release = record.ended ? 'ended' : 'ended unheard');
 }"""
 
 
@@ -708,9 +726,13 @@ def arriving(page, place, write, drawn):
     """Write a change behind the page and wait until the page shows it.
 
     Where the user scrolls, the scroll starts while the server holds the page's read of
-    the change, and the read goes once the scroll has begun to move, so the page takes
-    the change in while the scroll is under way. Chromium's headless shell finishes a
-    wheel or smooth scroll at once, so there the change lands on a finished scroll."""
+    the change, and the read goes once the scroll has come a tenth of its way
+    (`RELEASE`), so the page takes the change in mid-scroll, which the case confirms.
+    Two engine facts decide which case a scroll lands in. Playwright's wheel scrolls at
+    once in both engines, and in Firefox it never fires `scrollend`. While a smooth
+    scroll runs in Chromium, Playwright's calls answer some 250ms late, by when the
+    scroll has ended, so there the read waits for the end; in Firefox it goes
+    mid-scroll."""
     if place.during:
         held = []
 
@@ -720,13 +742,15 @@ def arriving(page, place, write, drawn):
         page.route("**/api/state*", hold)
         write()
         holding(page, held, 1, "the page's read of the change")
-        page.evaluate(SCROLL_AT_GROWTH)
         place.during(page)
-        page.wait_for_function(
-            "() => document.scrollingElement.scrollTop !== window.__lfPlaceRecord.scroll"
-        )
+        midway = page.context.browser.browser_type.name == "firefox"
+        page.evaluate(RELEASE, [SCROLL / 10, SCROLL, midway])
+        # The read goes before the route is taken down, which can take a while.
+        released = list(held)
+        for route in released:
+            route.continue_()
         page.unroute("**/api/state*", hold)
-        for route in held:
+        for route in held[len(released) :]:
             route.continue_()
     else:
         write()
@@ -769,8 +793,20 @@ def reply(side):
                 arg=[selector, count],
             ),
         )
+        note_news(page, built, selector)
 
     return make
+
+
+def note_news(page, built, inside):
+    """Note whether the thread holding `inside` drew the news or holds it behind its
+    notice, which says what reached the place."""
+    built.notes["news"] = page.evaluate(
+        """(selector) => document.querySelector(selector)
+          .closest('.lf-page-thread').querySelector('.lf-thread-news')
+          ? 'held' : 'drawn'""",
+        inside,
+    )
 
 
 def edit(page, built, target, place):
@@ -796,6 +832,41 @@ def edit(page, built, target, place):
             arg=selector,
         ),
     )
+    note_news(page, built, selector)
+
+
+def shrink(page, built, target, place):
+    """The agent rewrites a message of its own above the place shorter: the one read
+    loses the paragraph before the one read, and any other shrinks to a word."""
+    selector = message(built, target)
+    where = page.evaluate(WHERE, f"{selector} p")
+    assert where["above"], f"the message doesn't stand above the place: {where}"
+    if target == "read":
+        text, lost = "The paragraph being read. " + WORDS * 2, "A short first paragraph"
+    else:
+        text, lost = "Shortened.", WORDS[:20]
+    height = (
+        f"() => document.querySelector('{selector}').getBoundingClientRect().height"
+    )
+    before = page.evaluate(height)
+    arriving(
+        page,
+        place,
+        lambda: leaf(
+            "thread", "edit", built.page_dir, built.ids[target], "--text", text
+        ),
+        lambda: page.wait_for_function(
+            """([selector, lost]) => {
+              const message = document.querySelector(selector);
+              return message && !message.textContent.includes(lost)
+                || message?.closest('.lf-page-thread').querySelector('.lf-thread-news');
+            }""",
+            arg=[selector, lost],
+        ),
+    )
+    note_news(page, built, selector)
+    settle(page)
+    built.notes["message shrank"] = round(before - page.evaluate(height), 1)
 
 
 def new_thread(page, built, target, place):
@@ -845,9 +916,9 @@ def ask(page, built, target, place):
     )
 
 
-def revised(page, built, place, html, added):
-    """Publish `html` as the page's next revision, and wait until the page shows
-    `added`."""
+def revised(page, built, place, html, changed, count=1):
+    """Publish `html` as the page's next revision, and wait until the page holds
+    `count` of `changed`, what the revision added or took out."""
     built.revision += 1
     revision = built.revision
     arriving(
@@ -856,7 +927,7 @@ def revised(page, built, place, html, added):
         lambda: stamp_page(built.page_dir, html, f"Revision {revision}"),
         lambda: (
             wait_for_revision(page, revision),
-            expect(page.locator(added)).to_be_attached(),
+            expect(page.locator(changed)).to_have_count(count),
         ),
     )
 
@@ -892,6 +963,25 @@ def revision_on_screen(page, built, target, place):
     added = ADDED.format(n=0)
     html = built.source.replace(f'<p id="{before}">', added + f'<p id="{before}">')
     revised(page, built, place, html, "#added-0")
+
+
+def revision_removes(page, built, target, place):
+    """A revision takes out the last of the page's own paragraphs standing above the
+    place, on screen or above the window, as the case notes."""
+    last = page.evaluate(
+        """() => {
+          const place = window.__lfPlaceBox().getBoundingClientRect();
+          const above = [...document.querySelectorAll('main > p[id]')]
+            .filter(p => p.getBoundingClientRect().bottom <= place.top);
+          const p = above.at(-1);
+          return p && {id: p.id, shown: p.getBoundingClientRect().bottom > 0};
+        }"""
+    )
+    assert last, "no paragraph of the page stands above the place"
+    built.notes["removed"] = f"{last['id']} {'on screen' if last['shown'] else 'above'}"
+    html, taken = re.subn(rf'<p id="{last["id"]}">.*?</p>', "", built.source, count=1)
+    assert taken == 1, f"the source holds no {last['id']}"
+    revised(page, built, place, html, f"#{last['id']}", count=0)
 
 
 def revision_in_pane(page, built, target, place):
@@ -939,12 +1029,24 @@ def deletions(page, built, target, place):
 
 
 def turn(page, label):
-    """Press a depth with the pointer, as the reader does, and wait out its glide."""
+    """Press a depth with the pointer, as the reader does, and wait out its glide.
+
+    The glide is the turn's own result, motion the eye can follow (browser/AGENTS.md,
+    "Controls stay where the user aims"), so the frames until it ends are marked
+    `gliding` and the place's check passes over them; the frame it ends in and every
+    one after are held to the place."""
     depth = page.get_by_role("radio", name=label, exact=True)
     box = depth.bounding_box()
+    page.evaluate("() => { window.__lfPlaceRecord.gliding = true; }")
     page.mouse.click(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
     expect(depth).to_have_attribute("aria-checked", "true")
-    page.wait_for_function("() => document.getAnimations().length === 0")
+    page.wait_for_function(
+        """() => {
+          if (document.getAnimations().length) return false;
+          window.__lfPlaceRecord.gliding = false;
+          return true;
+        }"""
+    )
 
 
 def dial_turn(page, built, target, place):
@@ -996,45 +1098,61 @@ CHANGES = [
     Change("reply-below", "thread below", reply("below")),
     Change("edit-above", "message above", edit),
     Change("edit-paragraph", "paragraph above", edit),
+    Change("edit-shrinks", "shrink above", shrink),
     Change("revision-above", "page above", revision_above_window),
     Change("revision-on-screen", "on screen above", revision_on_screen),
+    Change("revision-removes", "removal above", revision_removes),
     Change("revision-in-pane", "pane above", revision_in_pane),
     Change("seat-thread", "seat above", new_thread),
     Change("map-thread", "map row above", new_thread),
     Change("map-entry", "contribution above", contribution),
     Change("ask", "ask above", ask),
     Change("deletions", "lines above", deletions),
-    Change("dial-turn", "dial", dial_turn, glides=True),
-    Change("grown-after-glide", "glided", grown_after_glide, glides=True),
+    Change("dial-turn", "dial", dial_turn),
+    Change("grown-after-glide", "glided", grown_after_glide),
 ]
 
 # ---------------------------------------------------------------------------------
 # The measure.
 
-# Read the place's box once after each frame renders, from before the change until the
-# page settles: a task posted from a frame callback runs once that frame has rendered.
+# Read where the place's box stands, its left and top, once after each frame renders,
+# from before the change until the page settles: a task posted from a frame callback
+# runs once that frame has rendered. A reading of null is a frame without the box, or
+# with a box of no size. Each frame says whether a turn's glide was under way.
+#
 # Beside it, where the document's scroll and height stood, which says whether the
-# change reached the page at all.
+# change reached the page at all; each scroll of the document; and how far the user's
+# scroll had come by the last of those before the change first grew the document.
 ARM = """() => {
   const frame = requestAnimationFrame.bind(window);
-  const top = () => {
+  const at = () => {
     const node = window.__lfPlaceBox();
     if (!node || (node instanceof Node && !node.isConnected)) return null;
     const box = node instanceof Range ? node.getClientRects()[0]
       : node.getBoundingClientRect();
-    return box && (box.width || box.height) ? box.top : null;
+    return box && (box.width || box.height) ? [box.left, box.top] : null;
   };
   const page = document.scrollingElement;
   const record = window.__lfPlaceRecord = {
-    start: top(), frames: [], marks: {}, top,
-    scroll: page.scrollTop, height: page.scrollHeight,
+    start: at(), frames: [], marks: {}, at, gliding: false,
+    scroll: page.scrollTop, height: page.scrollHeight, scrolls: [], atGrowth: null,
   };
-  if (record.start === null) throw new Error('the place has no box to read');
+  if (!record.start) throw new Error('the place has no box to read');
+  document.addEventListener('scroll', (event) => {
+    if (event.target === document) record.scrolls.push(page.scrollTop - record.scroll);
+  });
+  document.addEventListener('scrollend', () => { record.ended = true; });
+  const growth = new MutationObserver(() => {
+    if (page.scrollHeight === record.height) return;
+    record.atGrowth = record.scrolls.at(-1) ?? 0;
+    growth.disconnect();
+  });
+  growth.observe(document.body, {childList: true, subtree: true, characterData: true});
   const next = () => frame(() => {
     const {port1, port2} = new MessageChannel();
     port1.onmessage = () => {
       if (record.done) return;
-      record.frames.push(top());
+      record.frames.push({at: at(), gliding: record.gliding});
       next();
     };
     port2.postMessage(null);
@@ -1046,11 +1164,10 @@ READ = """() => {
   const record = window.__lfPlaceRecord;
   record.done = true;
   const page = document.scrollingElement;
-  return {start: record.start, end: record.top(), frames: record.frames,
+  return {start: record.start, end: record.at(), frames: record.frames,
           marks: record.marks, scrolled: page.scrollTop - record.scroll,
-          grew: page.scrollHeight - record.height,
-          scrolledAtGrowth: record.scrollAtGrowth === undefined ? null
-            : record.scrollAtGrowth - record.scroll};
+          grew: page.scrollHeight - record.height, release: record.release ?? null,
+          atGrowth: record.atGrowth};
 }"""
 
 
@@ -1058,8 +1175,19 @@ def checkpoint(page, name):
     """Read the place's box now, under `name`, for a change that passes through a
     state of its own on its way, as the dial's fold does before it unfolds again."""
     page.evaluate(
-        "name => { const r = window.__lfPlaceRecord; r.marks[name] = r.top(); }", name
+        "name => { const r = window.__lfPlaceRecord; r.marks[name] = r.at(); }", name
     )
+
+
+class Moved(AssertionError):
+    """The place moved, or left a painted frame, where neither the user's own act nor
+    the change's own result moves it. A case marked as failing expects only this, so a
+    setup or delivery that fails still fails it."""
+
+
+def held(still, message):
+    if not still:
+        raise Moved(message)
 
 
 ENGINES = {"browser": "chromium", "firefox_browser": "firefox"}
@@ -1071,6 +1199,11 @@ EDIT_PARAGRAPH = (
     "reply box focused off screen"
 )
 ON_SCREEN = "the paragraph read moves 67.4px down under the paragraph the revision adds"
+REMOVES = "the paragraph read moves 67.4px up into the paragraph the revision takes out"
+SHRINKS = (
+    "the paragraph read moves 42px up as the edit takes out the one above it, the "
+    "reply box focused off screen"
+)
 DELETIONS = "the diff's Comment moves 100px down as five deletions join above it"
 GROWN_AFTER_GLIDE = (
     "the gist read moves 199.7-199.8px down as the 200px image above it loads after "
@@ -1089,13 +1222,17 @@ MOVES_ON_MAIN = {
     "reading-page-revision-on-screen-chromium": ON_SCREEN,
     "reading-page-revision-on-screen-firefox": ON_SCREEN,
     "smooth-reply-above-firefox": (
-        "drawing the answer stops the smooth scroll under way: the box moves 1-16px "
-        "of its 300, by how far the scroll had come"
+        "drawing the answer stops the smooth scroll under way: the box moves only as "
+        "far as the scroll had come, 39-66px of its 300"
     ),
     "smooth-revision-above-firefox": (
-        "the revision's landing stops the smooth scroll under way: the box moves "
-        "12-43px of its 300, by how far the scroll had come"
+        "the revision's landing stops the smooth scroll under way: the box moves only "
+        "as far as the scroll had come, 59-95px of its 300"
     ),
+    "reading-edit-shrinks-chromium": SHRINKS,
+    "reading-edit-shrinks-firefox": SHRINKS,
+    "reading-page-revision-removes-chromium": REMOVES,
+    "reading-page-revision-removes-firefox": REMOVES,
     "gutter-deletions-chromium": DELETIONS,
     "gutter-deletions-firefox": DELETIONS,
     "shadow-pointer-deletions-chromium": DELETIONS,
@@ -1114,9 +1251,24 @@ def cases():
                 case = f"{place.name}-{change.name}-{engine}"
                 reason = MOVES_ON_MAIN.get(case)
                 marks = (
-                    [pytest.mark.xfail(strict=True, reason=reason)] if reason else []
+                    [pytest.mark.xfail(strict=True, raises=Moved, reason=reason)]
+                    if reason
+                    else []
                 )
                 yield pytest.param(place, change, fixture, marks=marks, id=case)
+
+
+def stray(start, at, travel, stands, furthest):
+    """How far a painted frame shows the place off where it may stand, and how far
+    along its scroll the place has come by then. A still place may stand only at one
+    of `stands`; a place the user scrolls may stand only on its path from the start to
+    the scroll's goal, and never back toward the start from the furthest it came."""
+    dx, dy = at[0] - start[0], at[1] - start[1]
+    if not travel:
+        return max(abs(dx), min(abs(dy - stand) for stand in stands)), furthest
+    along = dy / travel
+    beyond = max(-along, along - 1, furthest - along, 0) * abs(travel)
+    return max(abs(dx), beyond), max(furthest, along)
 
 
 @pytest.mark.parametrize(("place", "change", "engine"), list(cases()))
@@ -1138,45 +1290,67 @@ def test_the_page_holds_still_under_the_user(
     rendered(page)
     reading = page.evaluate(READ)
     start, end = reading["start"], reading["end"]
-    assert end is not None, "the place's box is gone"
     stands = [0, allowed] if allowed else [0]
-    moved = end - start
-    painted = max(
-        (
-            min(abs(top - start - stand) for stand in stands)
-            for top in reading["frames"]
-            if top is not None
-        ),
-        default=0,
-    )
-    marks = {name: top - start for name, top in reading["marks"].items()}
+
+    painted, gone, furthest = 0, 0, 0
+    for frame in reading["frames"]:
+        if frame["gliding"]:
+            continue
+        if frame["at"] is None:
+            gone += 1
+            continue
+        off, furthest = stray(start, frame["at"], place.travel, stands, furthest)
+        painted = max(painted, off)
+    moved = end[1] - start[1] if end else None
+    sideways = end[0] - start[0] if end else None
+    marks = {
+        name: at and [at[0] - start[0], at[1] - start[1]]
+        for name, at in reading["marks"].items()
+    }
     for name, value in {
         "moved": moved,
+        "sideways": sideways,
         "painted": painted,
+        "gone": gone,
         "allowed": allowed or 0,
         "scrolled": reading["scrolled"],
         "grew": reading["grew"],
-        **marks,
     }.items():
-        record_property(name, round(value, 1))
+        record_property(name, value if value is None else round(value, 1))
+    for name, mark in marks.items():
+        record_property(name, mark and [round(d, 1) for d in mark])
+    for name, note in built.notes.items():
+        record_property(name, note)
     if place.during:
-        record_property("scrolled at growth", reading["scrolledAtGrowth"])
+        record_property("scroll at release", reading["release"])
+        record_property("scrolled at growth", reading["atGrowth"])
 
-    assert any(
-        moved == pytest.approx(place.travel + stand, abs=TOLERANCE) for stand in stands
-    ), (
+    # A read released mid-scroll draws the change before the scroll ends, or the case
+    # measured something else.
+    if reading["release"] == "under way":
+        progress = reading["atGrowth"]
+        assert progress is not None and abs(progress) < SCROLL - TOLERANCE, (
+            f"the change drew after the scroll ended, at {progress}px of its {SCROLL}"
+        )
+
+    if end is None:
+        raise Moved("the place's box is gone")
+    sideways, moved = end[0] - start[0], end[1] - start[1]
+    held(abs(sideways) <= TOLERANCE, f"the place moved {sideways:.1f}px sideways")
+    held(
+        any(abs(moved - place.travel - stand) <= TOLERANCE for stand in stands),
         f"the place moved {moved:.1f}px, where the user's own act moves it "
         f"{place.travel}px"
-        + (f" and the change may move it {allowed:.1f}px" if allowed else "")
+        + (f" and the change may move it {allowed:.1f}px" if allowed else ""),
     )
     for name, mark in marks.items():
-        assert mark == pytest.approx(0, abs=TOLERANCE), (
-            f"the place stood {mark:.1f}px away once {name}"
+        held(
+            mark is not None and max(map(abs, mark)) <= TOLERANCE,
+            f"the place stood {mark} away once {name}",
         )
-    glided = change.glides and not page.evaluate(
-        "matchMedia('(prefers-reduced-motion: reduce)').matches"
+    held(not gone, f"the place's box was gone from {gone} painted frames")
+    held(
+        painted <= TOLERANCE,
+        f"a painted frame showed the place {painted:.1f}px off "
+        + ("its scroll's path" if place.travel else "where it stood"),
     )
-    if not place.travel and not glided:
-        assert painted <= TOLERANCE, (
-            f"a painted frame showed the place {painted:.1f}px away"
-        )

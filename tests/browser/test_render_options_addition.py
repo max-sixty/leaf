@@ -563,7 +563,7 @@ def test_another_option_becomes_a_real_option_without_starting_a_thread(browser,
         f"group={page.locator('#jobs').inner_html()}"
     )
     field = added.get_by_role("textbox", name="Another option", exact=True)
-    expect(field).to_have_attribute("placeholder", "Add another option")
+    expect(field).to_have_attribute("placeholder", "Add another option…")
     write(field, "Insulate the camera battery")
     add = added.get_by_role("button", name="Add and select option", exact=True)
     add.focus()

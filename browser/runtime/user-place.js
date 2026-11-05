@@ -57,7 +57,13 @@ import { seenRect, showsContents, shownWindow, stuckBox } from "./geometry.js";
 import { pageScroller, placeKept, scrollChoices } from "./scrolling.js";
 import { edgeAt, holderOf, returnTo, scrollersOf } from "./scroll-containers.js";
 import { inChrome } from "./shadow-tree.js";
-import { focused, onCurrentLocation, recentPlaceInput, typesText } from "./focus.js";
+import {
+  focused,
+  onCurrentLocation,
+  onUserInput,
+  recentPlaceInput,
+  typesText,
+} from "./focus.js";
 import { PRESSES } from "./control-selectors.js";
 import { browserScrolls, watchScrollEnds } from "./arrivals.js";
 import { pointerAt } from "./pointer.js";
@@ -128,25 +134,26 @@ export function readingAt(column) {
   const line = window.top + (window.bottom - window.top) * READING_LINE;
   if (right <= left) return null;
   const x = (left + right) / 2;
-  const caret = document.caretPositionFromPoint(x, line);
-  const text = caret?.offsetNode;
+  // The document answers for words in a shadow tree with their host, which can be a
+  // tall block whose top moves by what grows above them, so each open tree under the
+  // line is asked for its own, as anchoring reaches into them.
+  /** @type {ShadowRoot[]} */
+  const shadowRoots = [];
   /** @type {Range | Element | null} */
-  let reading;
+  let reading = document.elementFromPoint(x, line);
+  while (reading?.shadowRoot) {
+    shadowRoots.push(reading.shadowRoot);
+    const inner = reading.shadowRoot.elementFromPoint(x, line);
+    if (!inner || inner === reading) break;
+    reading = inner;
+  }
+  const caret = document.caretPositionFromPoint(x, line, { shadowRoots });
+  const text = caret?.offsetNode;
   if (caret && text instanceof Text && text.length) {
     const at = Math.min(caret.offset, text.length - 1);
     reading = document.createRange();
     reading.setStart(text, at);
     reading.setEnd(text, at + 1);
-  } else {
-    // The document answers for words in a shadow tree with their host, and a host can
-    // be a tall block whose top moves by what grows above the words; each open tree
-    // answers for its own, as anchoring reaches into them.
-    reading = document.elementFromPoint(x, line);
-    for (
-      let inner;
-      (inner = reading?.shadowRoot?.elementFromPoint(x, line)) && inner !== reading;
-    )
-      reading = inner;
   }
   const holder = reading && holderOf(reading);
   return holder && !inChrome(holder) && !stuckBox(holder) ? reading : null;
@@ -213,19 +220,21 @@ export function holdPlace(node, standIn = () => null) {
 // The keep yields to any scroll since the reading: a scroll the user or a landing chose
 // and ended (scrolling.js, `scrollChoices`), one the browser is still running, as a
 // smooth scroll or a wheel's glide (arrivals.js, `browserScrolls`), so it never
-// overrides a scroll under way. Other input moves no place: words typed into the field
-// held grow it where it stands, and focus leaving a place it named leaves nothing of
-// that place to keep. The user's own gesture draws its result in its own task and
+// overrides a scroll under way. It yields to the user's own act since too, a press or a
+// key anywhere but in the field held (focus.js, `onUserInput`), whose result is its own
+// to place: a disclosure the user opened while a diff waited on its syntax grammar
+// moved 140px when the keep put the line read back. Words typed into the field held
+// grow it where it stands, and leave it kept; focus leaving a place it named leaves
+// nothing of that place to keep. The user's own gesture draws its result in its own task and
 // places it there, so nothing here holds against it. Where the boxes scrolling the
 // place can't take all of a move, as on a page shorter than its window, it moves by the
 // rest.
 //
-// A limit, for presenters a page or package adds: the keep waits for the whole
-// presentation, so one whose paint resolves frames after the reading arrived lets the
-// frames between show the move before the keep puts it back, and a scroll the user's
-// own act chooses in them, as typing keeps its caret in view, ends the keep. Leaf's own present a
-// reading's change in the frame it arrives in, measured on 4 November 2026 for news in
-// a thread, an edit, a reply with a code block or a diagram, and a diff's new data.
+// A limit: the keep waits for the whole presentation, so a presenter whose paint
+// resolves frames after the reading arrived, as a diff waiting on a syntax grammar's
+// download does, lets the frames between show the move before the keep puts it back,
+// and a scroll the user's own act chooses in them, as typing keeps its caret in view,
+// ends the keep.
 /** @type {[string, (node: Element) => Element | null][]} */
 const standing = [];
 /** @param {string} selector @param {(node: Element) => Element | null} at */
@@ -269,13 +278,20 @@ export function holdUserPlace() {
   }
   if (!places.length) return () => {};
   const choices = scrollChoices();
+  const field = typesText(node) ? node : null;
+  let acted = false;
+  const unwatch = onUserInput((event) => {
+    if (event.type === "pointerdown" || event.type === "touchstart") acted = true;
+    else if (event.type === "keydown" && !(field && focused() === field)) acted = true;
+  });
   const holds = places.map(({ place, focus }) => ({
     place,
     focus,
     hold: holdPlace(place),
   }));
   return () => {
-    if (scrollChoices() !== choices) return;
+    unwatch();
+    if (acted || scrollChoices() !== choices) return;
     const still = new Set();
     for (const { place, focus, hold } of holds) {
       const boxes = [...scrollersOf(holderOf(place))];

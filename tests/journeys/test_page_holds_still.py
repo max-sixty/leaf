@@ -206,7 +206,11 @@ DIFF_PAGE = leaf_page(
     '<h1 id="title">Review</h1>'
     + paragraphs(0, 6)
     + '<lf-diff id="patch" source="review-patch"></lf-diff>'
-    + paragraphs(6, 20),
+    + paragraphs(6, 10)
+    + '<details id="context"><summary>Show context</summary>'
+    '<div style="height: 140px">Context the reader opens.</div></details>'
+    + paragraphs(16, 20)
+    + '<textarea id="note" aria-label="Note"></textarea>',
 )
 
 
@@ -573,6 +577,16 @@ def to_gutter(page):
     return line.locator("xpath=..").locator(COMMENT)
 
 
+def put_disclosure(page, built):
+    """Type a note at the page's foot, then scroll up away from it to read the paragraphs
+    after the diff, with the disclosure above them 80px down the window."""
+    page.locator("#note").click()
+    page.keyboard.type("Half a note")
+    page.mouse.move(*ASIDE)
+    scroll_to(page, "#context summary", 80)
+    expect(page.locator("#note")).not_to_be_in_viewport()
+
+
 def put_gutter_focus(page, built):
     to_gutter(page).focus()
     page.mouse.move(*ASIDE)
@@ -791,6 +805,13 @@ PLACES = [
         {"map row above": "place-14", "contribution above": "place-14"},
     ),
     Place("gutter", "diff", put_gutter_focus, GUTTER_COMMENT, {"lines above": 5}),
+    Place(
+        "disclosure",
+        "diff",
+        put_disclosure,
+        Found("#context summary"),
+        {"grammar pending": None},
+    ),
     Place(
         "shadow-pointer", "diff", put_gutter_pointer, GUTTER_COMMENT, {"lines above": 5}
     ),
@@ -1167,6 +1188,33 @@ def deletions(page, built, target, place):
     )
 
 
+def press_while_pending(page, built, target, place):
+    """The agent's new data brings the diff a Go file, whose syntax grammar the diff
+    waits on, and while it waits, so the page's showing of that reading is still under
+    way, the user opens the disclosure. Opening it is the user's own act, which moves
+    what follows the summary and not the summary."""
+    held = []
+
+    def hold(route):
+        held.append(route)
+
+    page.route("**/vendor/syntax/go.js", hold)
+    patch = (
+        "diff --git a/review.go b/review.go\n--- a/review.go\n+++ b/review.go\n"
+        "@@ -1 +1 @@\n-old\n+new\n"
+    )
+    data_model.cmd_data_set(built.page_dir, "review-patch", patch)
+    holding(page, held, 1, "the diff's request for the Go grammar")
+    summary = page.locator("#context summary")
+    box = summary.bounding_box()
+    page.mouse.click(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+    expect(page.locator("#context")).to_have_attribute("open", "")
+    page.unroute("**/vendor/syntax/go.js", hold)
+    for route in held:
+        route.continue_()
+    expect(page.locator("lf-diff#patch")).to_contain_text("review.go")
+
+
 def turn(page, label):
     """Press a depth with the pointer, as the reader does, and wait out its glide.
 
@@ -1276,6 +1324,7 @@ CHANGES = [
     Change("deletions", "lines above", deletions),
     Change("dial-turn", "dial", dial_turn),
     Change("grown-after-glide", "glided", grown_after_glide),
+    Change("press-while-pending", "grammar pending", press_while_pending),
     Change("lines-grow", "lines in the block", rewrite_lines(True)),
     Change("lines-shrink", "lines in the block", rewrite_lines(False)),
 ]

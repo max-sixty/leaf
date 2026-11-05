@@ -5,7 +5,8 @@
    back where it stood, or its stand-in where the change hid it, paying only for what
    the browser's own anchoring left. The user's place across a reading is the first the
    change moved of those they named, a field they type in before a resting pointer and
-   the pointer only on a control, and its keep yields to a scroll since, not to typing. */
+   the pointer only on a control, and its keep yields to a scroll since and to the user's
+   own press or key, but not to typing into the field it holds. */
 
 import assert from "node:assert/strict";
 import test from "node:test";
@@ -218,26 +219,48 @@ test("a place the change left still keeps its scroller", () => {
   restOn(null);
 });
 
-test("the keep yields to a scroll under way, and typing into the place leaves it kept", () => {
-  for (const [since, kept] of [
-    [(/** @type {Element} */ box) => box.dispatchEvent(new Event("scroll")), 1100],
+test("the keep yields to a scroll or the user's own act, and typing leaves it kept", () => {
+  /** @param {string} type @param {Element} at */
+  const key = (type, at) => at.dispatchEvent(new Event(type, { bubbles: true }));
+  for (const [act, typed, kept] of [
     [
-      (/** @type {Element} */ box) =>
-        box.firstElementChild?.dispatchEvent(new Event("input", { bubbles: true })),
+      "a scroll under way",
+      false,
+      (_, /** @type {Element} */ box) => box.dispatchEvent(new Event("scroll")),
+      1100,
+    ],
+    ["a press", false, (/** @type {Element} */ box) => key("pointerdown", box), 1100],
+    [
+      "a key at a control",
+      false,
+      (/** @type {Element} */ box) => key("keydown", box),
+      1100,
+    ],
+    [
+      "a key typed into the field",
+      true,
+      (/** @type {Element} */ box) => key("keydown", box),
       1226,
     ],
-  ]) {
+    [
+      "words typed into the field",
+      true,
+      (/** @type {Element} */ box) => key("input", box),
+      1226,
+    ],
+  ].map(([name, typed, since, kept]) => [{ name, since }, typed, kept])) {
     const { scroller, item, at, scrolled, scrollTo } = laidOut();
     const read = item("read", 1150);
     scroller.append(read);
     scrollTo(1100);
-    read.tabIndex = 0;
+    if (typed) read.contentEditable = "true";
+    else read.tabIndex = 0;
     read.focus();
     const keep = holdUserPlace();
     at.set(read, 1276);
-    since(scroller);
+    act.since(read, scroller);
     keep();
-    assert.equal(scrolled(), kept, `${since}`);
+    assert.equal(scrolled(), kept, act.name);
     scroller.remove();
   }
 });

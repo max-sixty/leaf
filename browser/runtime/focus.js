@@ -834,6 +834,20 @@ export function watchCurrentLocationIn(root) {
 }
 watchCurrentLocationIn(document);
 watchCurrentLocationAround(deepFocus());
+// Focus the document took before this module loaded, as `autofocus` gives it, fired no
+// event it heard, so its paint starts from it. The platform's `:focus-visible` says
+// whether an element wears its ring, but never a frame, whose ring follows the input
+// that put the user there (`visibleFocus`), which this module did not hear. A frame
+// starts as a press into it leaves it (`inputInFrame`), without a ring the user may
+// not have asked for, and its next reported input decides.
+{
+  const at = deepFocus();
+  if (at && at !== document.body) {
+    if (isHTML(at, "iframe")) pressedPath = [new WeakRef(at)];
+    paintDestination = new WeakRef(at);
+    queueFocusPaint();
+  }
+}
 // Leaving for nowhere from a node still drawn is the user's own move, and so a
 // placement: body holds no stop, so a press on the page's words takes focus off the
 // control and puts it nowhere with no `focusin` to count, and a hold still waiting
@@ -1259,8 +1273,8 @@ for (const type of ["keydown", "pointerdown", "wheel", "touchstart"])
 // rather than the control declares it there, `--lf-wears-ring: 1` (base.css), as a
 // playground's choice rings its radio and words together; the nearest such box around
 // the control is the one. Anything else wears its own. Those rules ring the face of the
-// control the focus paint marks, so only that control has one. A landing in the
-// focus task reads the carrier from native focus before Leaf paints. Reading the
+// control the focus paint marks, so only that control has one, and a landing made in the
+// focus task finds it only after the paint (`rowWalk`, walk-position.js). Reading the
 // ring must not paint an intermediate focus destination: a return in the same
 // task would otherwise remove and restore the previous focus marks.
 /** @template {Element | Range} T @param {T} node @returns {T | Element} */

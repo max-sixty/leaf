@@ -101,6 +101,7 @@ function patch(beforeMarkup, afterMarkup = beforeMarkup) {
     contains: under,
     declared: (node) => node.localName === "test-owner",
     reaches: () => false,
+    traversed: () => false,
     body: () => null,
     same: (held, wanted) => held.isEqualNode(wanted),
     sameValue: (held, wanted) => held === wanted,

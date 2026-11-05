@@ -6,6 +6,7 @@ import { capitalized } from "./words.js";
 import { scrollIntoView } from "./landing-scroll.js";
 import { clampedRow } from "./keyboard/bindings.js";
 import { holdStatus } from "./notifications.js";
+import { afterScript } from "./rendering.js";
 import { repaint } from "./repaint.js";
 import { focusDestination, focused } from "./focus.js";
 
@@ -75,7 +76,9 @@ export function rowWalk({
     const row = pick(rows());
     if (!row) return;
     focusDestination(row, "move");
-    if (scroll) scrollIntoView(row, { block: "nearest" });
+    // After the focus paint this move queued, since a landing measures the box wearing
+    // the row's ring, which that paint marks (focus.js, `ringBox`).
+    if (scroll) afterScript(() => scrollIntoView(row, { block: "nearest" }));
     beginWalk(id, noun, position);
     if (row !== was) landed?.(row);
   };

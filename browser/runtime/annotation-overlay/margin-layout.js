@@ -426,6 +426,12 @@ export const flowOf = (scroller) => {
 // rows pin wherever it stands.
 /** @param {Element} scroller */
 const railBeside = (scroller) => flowOf(scroller).flow === pageScroller;
+// Whether the rail stands beside `target`, so its rows stand in the rail rather than
+// as pins: the margin layer is mounted, the rail stands, and `target` flows in the
+// column it lies beside.
+/** @param {Element} target */
+export const railStandsBeside = (target) =>
+  Boolean(layer) && railStands(marginColumn()) && railBeside(scrollerFor(target));
 // Prospective placement measures the same primitive a first contribution will draw.
 // The native cascade resolves the entry's aim floor and the row's focus clearance,
 // including package or author overrides. No existing entry, cached size, or parsed
@@ -499,8 +505,8 @@ export function marginSpot(target, point = null, passage = null) {
       const { left, right } = row.getBoundingClientRect();
       return { left, right };
     }
+  if (!layer || !railStandsBeside(target)) return null;
   const main = marginColumn();
-  if (!layer || !railStands(main) || !railBeside(scrollerFor(target))) return null;
   const hang =
     parseFloat(
       getComputedStyle(document.documentElement).getPropertyValue("--rail-hang"),
@@ -747,8 +753,8 @@ function placeCarriedRows(box) {
   if (carries && scrollMisplacesAnchors(box)) scheduleMarginLayout();
 }
 
-// A row's face redrawn. The projection draws every row each time it renders, and a seat
-// reads a face only through its size and the controls it holds, so controls put in or
+// A row's face redrawn. The projection draws a row whenever what it shows changes, and a
+// seat reads a face only through its size and the controls it holds, so controls put in or
 // taken out bring a pass, and a changed attribute or text brings one only where the face
 // no longer measures the size the last pass seated it at (`seatedFaces`). A control's
 // label stands over the row, placed by its own pass (`placeMarginEntryLabel`), so what is
@@ -1476,7 +1482,10 @@ function scheduleMarginLayout() {
 }
 
 // The column is read where the pass reads it rather than as each row registers: a
-// column read restyles the page, and a first paint registers every row.
+// column read restyles the page, and a first paint registers every row. The first row
+// still starts the watch, so its first deliveries come with the page's first paint:
+// started by a later pass, they land while the page settles, and the pass they run
+// resizes boxes the loop has already delivered (a ResizeObserver loop error).
 /** @param {Element} column */
 function observeLayout(column) {
   if (!observer) {
@@ -1491,7 +1500,7 @@ function observeLayout(column) {
 
 // Each row states its target (`anchor`), the row inside it it stands level with, if any
 // (`point`, pointed-place.js), and its place among the others in the layer (`order`).
-// The projection registers every row each time it draws, so a pass is asked for only
+// The projection registers every row each time it renders, so a pass is asked for only
 // where a row is new or names another target, point, passage or place in the order.
 /** @param {HTMLElement} row @param {RowOptions} options */
 export function registerMarginRow(row, options) {
@@ -1503,6 +1512,7 @@ export function registerMarginRow(row, options) {
   };
   const was = registered.get(row);
   rows.set(row, options);
+  if (!observer) observeLayout(marginColumn());
   registered.set(row, named);
   if (
     was &&

@@ -788,31 +788,48 @@ export const pageDocument = (doc = document) => doc.body;
 export const inPage = (node) => under(node, pageDocument()) && !leafSurface(node);
 // Whether focus, standing at `at`, names the page: only on something in it. The body is
 // in the page, yet it is where a click on words and a let-go leave focus, which leaves
-// the answer to the place the user last acted in.
+// the answer to the place the user last acted in. A Leaf surface stands where its owner
+// seated it: a comment editor in a widget's outlet stands in the widget, so it is in the
+// page; the field Copy appends to the body stands on the body, and the chrome after it on
+// `html`, so neither is.
 /** @param {Element | null} at */
-export const focusInPage = (at) => at !== document.body && inPage(at);
+export const focusInPage = (at) => {
+  /** @type {Node | null} */
+  let seat = at;
+  for (let surface = leafSurface(seat); surface; surface = leafSurface(seat))
+    seat = composedParentNode(surface);
+  return seat !== document.body && inPage(seat);
+};
 // The box the page's Layout arranges: `main`, or the shown child of a `main` that carries
 // no Layout itself (layouts.css, `--lf-layout-box`). The margin, the rail and the
 // Layout's regions read this box; the authored content is still `pageDocument`.
 /** @param {Element} box */
 const isLayoutBox = (box) =>
   getComputedStyle(box).getPropertyValue("--lf-layout-box").trim() === "1";
-const PARTS = ':scope > [data-lf-views="parts"]';
+/** @param {Element} box */
+const isLayoutShell = (box) =>
+  getComputedStyle(box).getPropertyValue("--lf-layout-shell").trim() === "1";
+// Read off `main`'s children rather than by `:scope >`, which walks every element under
+// `main` to find one of its children, several times for each keystroke.
+/** @param {Element} main */
+const partsOf = (main) =>
+  [...main.children].find((child) => child.matches('[data-lf-views="parts"]')) ?? null;
 export const layoutBox = () => {
   const main = document.querySelector("body > main");
   if (!main || isLayoutBox(main)) return main;
-  const parts = main.querySelector(PARTS);
-  const boxes = [
-    ...main.children,
-    ...[...(parts?.children ?? [])].flatMap((part) => [...part.children]),
-  ];
+  const parts = partsOf(main);
+  // Only a shell holds a layout box, so a `main` of plain sections is read once, not once
+  // for each section (layouts.css, `--lf-layout-shell`).
+  const boxes = [main, ...(parts?.children ?? [])]
+    .filter(isLayoutShell)
+    .flatMap((shell) => [...shell.children]);
   return boxes.find((box) => box.checkVisibility() && isLayoutBox(box)) ?? main;
 };
 // A page of parts' views: the parts a `main` with no Layout of its own shows one at a
 // time (layouts.css, "A page of parts"), or null on any other page.
 export const layoutParts = () => {
   const main = document.querySelector("body > main");
-  return main && !isLayoutBox(main) ? main.querySelector(PARTS) : null;
+  return main && !isLayoutBox(main) ? partsOf(main) : null;
 };
 
 /** @param {Node} node */

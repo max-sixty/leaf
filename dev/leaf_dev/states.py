@@ -333,6 +333,32 @@ def diff_separator(page: Page) -> None:
     settle(page)
 
 
+def diff_file_comment(page: Page) -> None:
+    """A diff file's comment box, opened from the file's Comment once the walkthrough's
+    longest file is open beneath its row at the window's top, which leaves the file's
+    end, where its thread stands, below the window until the box's focus."""
+    files = page.locator("#pr-exact-patch .lf-diff-file")
+    longest = files.evaluate_all(
+        """files => {
+            const size = (file) => [...file.querySelector('.lf-diff-head').textContent
+                .matchAll(/[+\u2212-](\\d+)/g)].reduce((sum, [, n]) => sum + +n, 0);
+            return files.indexOf(files.reduce((a, b) => (size(b) > size(a) ? b : a)));
+        }"""
+    )
+    file = files.nth(longest)
+    file.locator(".lf-diff-head").click()
+    file.locator(".lf-diff-line").first.wait_for()
+    file.evaluate(
+        "file => scrollTo(0, scrollY + file.getBoundingClientRect().top - 80)"
+    )
+    scroll_settled(page)
+    file.locator(".lf-diff-file-comment").click()
+    expect(
+        page.locator(".lf-fab-bar .lf-composer[data-lf-open] leaf-text")
+    ).to_be_focused()
+    settle(page)
+
+
 def playground_text(page: Page) -> None:
     """A playground's native text control with the shared field face and focus."""
     field = page.get_by_role("textbox", name="Notification title", exact=True)
@@ -1301,7 +1327,9 @@ def screenshot_slider_before(page: Page) -> None:
     divider = shot.get_by_role("scrollbar")
     divider.focus()
     page.keyboard.press("End")
-    shot.get_by_role("button", name="Outline changes", exact=True).click()
+    shot.get_by_role("button", name="Image options").click()
+    shot.get_by_role("checkbox", name="Outline changes", exact=True).check()
+    page.keyboard.press("Escape")
     shot.scroll_into_view_if_needed()
 
 
@@ -1327,6 +1355,18 @@ def dial_keyboard(page: Page) -> None:
         "node => node.focus({focusVisible: true})"
     )
     page.keyboard.press("Shift")  # keyboard modality, which Chromium's focus reads
+
+
+def screenshot_view_hover(page: Page) -> None:
+    """An unchosen view under the pointer, beside the chosen one."""
+    screenshot_comparison(page)
+    page.locator("#bg-shot .lf-shot-views").get_by_text("Pair", exact=True).hover()
+
+
+def dial_press(page: Page) -> None:
+    """An unchosen depth held down under the pointer, before it is chosen."""
+    page.locator("lf-dial").get_by_text("Skim", exact=True).hover()
+    page.mouse.down()
 
 
 def screenshot_options(page: Page) -> None:
@@ -2597,6 +2637,7 @@ STATES = (
         diff_separator,
         region="#pr-key-hunk .lf-diff-rows",
     ),
+    State("diff-file-comment", "pr-walkthrough", diff_file_comment),
     State(
         "playground-text",
         "notification-playground",
@@ -2647,7 +2688,14 @@ STATES = (
         screenshot_views_keyboard,
         region="#bg-shot .lf-shot-toolbar",
     ),
+    State(
+        "screenshot-view-hover",
+        "feature-gallery",
+        screenshot_view_hover,
+        region="#bg-shot .lf-shot-toolbar",
+    ),
     State("dial-keyboard", "detail", dial_keyboard, region="lf-dial"),
+    State("dial-press", "detail", dial_press, region="lf-dial"),
     State(
         "image-in-page",
         "feature-gallery",

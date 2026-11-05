@@ -112,8 +112,22 @@ THREAD_PAGE = leaf_page(
     + '<lf-test-plan id="later" label="After the frost">'
     '<lf-test-task id="notes" status="active" talk><strong>What did we learn?'
     "</strong> The frost came early.</lf-test-task></lf-test-plan>"
-    + paragraphs(60, 30),
+    + paragraphs(60, 30)
+    + '<lf-test-plan id="last" label="In the spring">'
+    '<lf-test-task id="long" status="active" talk><strong>What changed?</strong>'
+    " The lines below.</lf-test-task></lf-test-plan>",
 )
+
+
+# A paragraph of `count` lines from `first`, each ending in a hard break.
+def line_list(first=0, count=80, word="Line"):
+    return "  \n".join(
+        f"{word} {n}: words that keep their place as the message changes around them."
+        for n in range(first, first + count)
+    )
+
+
+LINES = line_list()
 
 
 def thread_page(serve):
@@ -121,8 +135,10 @@ def thread_page(serve):
     thread of one message, `fresh` none, and `jobs` a short thread the user works in,
     whose agent messages `early` and `linked` stand among the user's; in the second,
     `notes` holds a long one whose agent message `read` (a short paragraph, then a long
-    one) stands a screen above its reply box. A user's comment on paragraph 31 puts a
-    pin in the margin."""
+    one) stands a screen above its reply box. A third, after the page's paragraphs, holds
+    `long`, whose agent message `lines` is one paragraph of eighty lines, each its own
+    words between line breaks. A user's comment on paragraph 31 puts a pin in the
+    margin."""
     url = serve(THREAD_PAGE, anchored=[("p-31", "Paragraph 31")])
     d = serve.page_dir
     upper = panel_comment(d, "Mounts or beds first?", {"section": "upper"}, "agent")
@@ -148,8 +164,11 @@ def thread_page(serve):
     for n in range(4):
         user(notes, f"And then {n}?")
         append_agent_reply(d, notes, f"Then step {n}. " + WORDS)
-    ids = {"upper": upper, "jobs": jobs, "notes": notes}
-    ids |= {"early": early, "linked": linked, "read": read}
+    long = panel_comment(d, "What changed?", {"section": "long"}, "agent")
+    user(long, "Show me the lines.")
+    lines = append_agent_reply(d, long, LINES)["id"]
+    ids = {"upper": upper, "jobs": jobs, "notes": notes, "long": long}
+    ids |= {"early": early, "linked": linked, "read": read, "lines": lines}
     return Built(live_url(url), d, THREAD_PAGE, ids)
 
 
@@ -402,6 +421,86 @@ def put_pin(page, built):
     page.locator(PIN).first.hover()
 
 
+# The pin the thread the user works in stands at in the margin, by its seat's head.
+JOBS_PIN = '[data-lf-margin-for="jobs"] .lf-margin-marker'
+
+
+def put_typing_pin(page, built):
+    """Type in the reply box, then rest the pointer on its thread's margin pin, in sight
+    above it, as a user glancing at the thread does; focus stays in the box."""
+    type_in_reply(page, built)
+    pin = page.locator(JOBS_PIN).first
+    assert pin.evaluate(
+        "(pin, box) => pin.getBoundingClientRect().bottom > 0"
+        " && pin.getBoundingClientRect().bottom < box.getBoundingClientRect().top",
+        page.locator(ids_in(reply_box("jobs"), built)).element_handle(),
+    ), "the pin doesn't stand in sight above the reply box"
+    pin.hover()
+
+
+# Over the page's right edge, past the column: its background, no control and no words.
+EDGE = (1440 - 1, 400)
+
+
+def put_typing_edge(page, built):
+    """Type in the reply box, then park the pointer on the page's background."""
+    type_in_reply(page, built)
+    page.mouse.move(*EDGE)
+
+
+def put_send_words(page, built):
+    """Tab to Send from the reply box, then rest the pointer on an earlier message's
+    words, which no press acts on, the last thing the user did."""
+    put_send(page, built)
+    page.locator(message(built, "early")).get_by_text("The beds first").hover()
+    expect(page.locator(ids_in(SEND, built))).to_be_focused()
+
+
+# The fortieth line of `lines`, read as the box of its first letter, so it is the words
+# and not the tall paragraph holding them.
+LINES_READING = """() => {
+  const walk = document.createTreeWalker(document.querySelector('main'),
+    NodeFilter.SHOW_TEXT);
+  for (let text; (text = walk.nextNode()); )
+    if (text.data.trimStart().startsWith('Line 40:')) {
+      const at = text.data.search(/\\S/);
+      const range = document.createRange();
+      range.setStart(text, at);
+      range.setEnd(text, at + 1);
+      return range;
+    }
+  return null;
+}"""
+
+
+def put_reading_lines(page, built):
+    """Type in the reply box under `lines`, then scroll up away from it to read the
+    fortieth line at the reading line, deep inside its paragraph."""
+    type_in_reply(page, built, "long")
+    page.mouse.move(*ASIDE)
+    paragraph = page.locator(f"{message(built, 'lines')} p").first
+    paragraph.evaluate(
+        """(p, at) => {
+          const walk = document.createTreeWalker(p, NodeFilter.SHOW_TEXT);
+          for (let text; (text = walk.nextNode()); )
+            if (text.data.trimStart().startsWith('Line 40:')) {
+              const range = document.createRange();
+              range.selectNodeContents(text);
+              document.scrollingElement.scrollBy({
+                top: range.getBoundingClientRect().top - at, behavior: 'instant'});
+              return;
+            }
+          throw new Error('no fortieth line');
+        }""",
+        READING_LINE,
+    )
+    scroll_settled(page)
+    assert paragraph.evaluate("p => p.getBoundingClientRect().top < 0"), (
+        "the paragraph's top stands in the window"
+    )
+    expect(page.locator(ids_in(reply_box("long"), built))).not_to_be_in_viewport()
+
+
 def put_left_window(page, built):
     """Type in the reply box, then hover an earlier message and leave the window."""
     type_in_reply(page, built)
@@ -633,6 +732,30 @@ PLACES = [
         put_left_window,
         Found(reply_box("jobs")),
         {"thread above": "jobs"},
+    ),
+    Place(
+        "typing-pin",
+        "thread",
+        put_typing_pin,
+        Found(reply_box("jobs")),
+        {"thread above": "jobs"},
+    ),
+    Place(
+        "typing-edge",
+        "thread",
+        put_typing_edge,
+        Found(reply_box("jobs")),
+        {"thread above": "jobs"},
+    ),
+    Place(
+        "send-words", "thread", put_send_words, Found(SEND), {"thread above": "jobs"}
+    ),
+    Place(
+        "reading-lines",
+        "thread",
+        put_reading_lines,
+        LINES_READING,
+        {"lines in the block": "lines"},
     ),
     Place(
         "wheel",
@@ -1105,6 +1228,37 @@ def grown_after_glide(page, built, target, place):
     )
 
 
+def rewrite_lines(grows):
+    def make(page, built, target, place):
+        """The agent rewrites the paragraph of lines, adding five lines at its start or
+        taking its first five away; the line read and those after it keep their words."""
+        selector = message(built, target)
+        text = (
+            (line_list(0, 5, "New line") + "  \n" + LINES)
+            if grows
+            else line_list(5, 75)
+        )
+        word = "New line 0" if grows else None
+        arriving(
+            page,
+            place,
+            lambda: leaf(
+                "thread", "edit", built.page_dir, built.ids[target], "--text", text
+            ),
+            lambda: page.wait_for_function(
+                """([selector, word]) => {
+                  const message = document.querySelector(selector);
+                  return word ? message?.textContent.includes(word)
+                    : !message?.textContent.includes('Line 0:');
+                }""",
+                arg=[selector, word],
+            ),
+        )
+        note_news(page, built, selector)
+
+    return make
+
+
 CHANGES = [
     Change("reply-above", "thread above", reply("above")),
     Change("reply-below", "thread below", reply("below")),
@@ -1122,6 +1276,8 @@ CHANGES = [
     Change("deletions", "lines above", deletions),
     Change("dial-turn", "dial", dial_turn),
     Change("grown-after-glide", "glided", grown_after_glide),
+    Change("lines-grow", "lines in the block", rewrite_lines(True)),
+    Change("lines-shrink", "lines in the block", rewrite_lines(False)),
 ]
 
 # ---------------------------------------------------------------------------------
@@ -1212,16 +1368,8 @@ ENGINES = {"browser": "chromium", "firefox_browser": "firefox"}
 
 REPLY_BELOW = "the message clicked scrolls 195px up as the answer joins below it"
 REVISION_LANDING = "the revision's landing moves the message clicked 96px up"
-EDIT_PARAGRAPH = (
-    "the paragraph read moves 84px down as the edit grows the one above it, the "
-    "reply box focused off screen"
-)
 ON_SCREEN = "the paragraph read moves 67.4px down under the paragraph the revision adds"
 REMOVES = "the paragraph read moves 67.4px up into the paragraph the revision takes out"
-SHRINKS = (
-    "the paragraph read moves 42px up as the edit takes out the one above it, the "
-    "reply box focused off screen"
-)
 DELETIONS = "the diff's Comment moves 100px down as five deletions join above it"
 GROWN_AFTER_GLIDE = (
     "the gist read moves 199.7-199.8px down as the 200px image above it loads after "
@@ -1235,8 +1383,6 @@ MOVES_ON_MAIN = {
     "message-reply-below-firefox": REPLY_BELOW,
     "message-revision-above-chromium": REVISION_LANDING,
     "message-revision-above-firefox": REVISION_LANDING,
-    "reading-edit-paragraph-chromium": EDIT_PARAGRAPH,
-    "reading-edit-paragraph-firefox": EDIT_PARAGRAPH,
     "reading-page-revision-on-screen-chromium": ON_SCREEN,
     "reading-page-revision-on-screen-firefox": ON_SCREEN,
     "smooth-reply-above-firefox": (
@@ -1247,12 +1393,8 @@ MOVES_ON_MAIN = {
         "the revision's landing stops the smooth scroll under way: the box moves only "
         "as far as the scroll had come, 59-102px of its 300"
     ),
-    "reading-edit-shrinks-chromium": SHRINKS,
-    "reading-edit-shrinks-firefox": SHRINKS,
     "reading-page-revision-removes-chromium": REMOVES,
     "reading-page-revision-removes-firefox": REMOVES,
-    "gutter-deletions-chromium": DELETIONS,
-    "gutter-deletions-firefox": DELETIONS,
     "shadow-pointer-deletions-chromium": DELETIONS,
     "shadow-pointer-deletions-firefox": DELETIONS,
     "dial-grown-after-glide-chromium": GROWN_AFTER_GLIDE,

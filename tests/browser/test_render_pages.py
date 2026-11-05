@@ -1802,6 +1802,30 @@ def test_a_scrolling_breakout_table_keeps_its_caption_in_its_scrollport(
     assert root_overflow(page) == 0
 
 
+def test_a_table_caption_reads_at_its_tables_size_and_colour(browser, serve):
+    """A caption names what its table covers, such as which case a table among
+    several shows, so it reads at least at the size and in the colour of the cells
+    it names. Set as apparatus, at the chip size in the muted colour, it was the
+    faintest text around the table, and a reader took three tables for one (#5403)."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Captions",
+                "<h1>Captions</h1><table><caption>Agents that set no working "
+                "directory</caption><thead><tr><th>Agent</th><th>Result</th></tr>"
+                "</thead><tbody><tr><td>Codex</td><td>Refused</td></tr></tbody>"
+                "</table>",
+            )
+        ),
+    )
+    face = "el => { const s = getComputedStyle(el); return [s.fontSize, s.color]; }"
+    caption_size, caption_colour = page.locator("caption").evaluate(face)
+    cell_size, cell_colour = page.locator("td").first.evaluate(face)
+    assert float(caption_size[:-2]) >= float(cell_size[:-2]), (caption_size, cell_size)
+    assert caption_colour == cell_colour
+
+
 @pytest.mark.parametrize("direction", ["ltr", "rtl"])
 def test_a_scrolling_table_keeps_its_row_names_in_view(browser, serve, direction):
     """A table whose rows open with a `<th scope="row">` keeps that column at its start

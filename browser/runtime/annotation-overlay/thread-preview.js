@@ -1062,7 +1062,7 @@ export function createThreadPreview({
     // would carry the card back to the thread it stood in. The step lands where every
     // opening of a thread does (thread/focus.js, `openingPart`).
     dismissReply(threadKey(session.item.thread));
-    void openPageThread(item.thread.id, { part: openingPart() });
+    void openPageThread(item.thread.id);
   }
   /** @param {Item} item @param {Session} session */
   function previewItemNode(item, session) {
@@ -1286,9 +1286,7 @@ export function createThreadPreview({
   function focusTarget(name, { part = null } = {}) {
     const id = threadIdNamed(name);
     const thread = drawnThreadsWithId(previewList, id)[0];
-    return thread
-      ? threadFocusDestination(thread, { part: part ?? "thread", message: name })
-      : null;
+    return thread ? threadFocusDestination(thread, { part, message: name }) : null;
   }
 
   /** @param {() => void} onDismiss */

@@ -146,11 +146,7 @@ import { paintTrace } from "../target-paint.js";
 import { outlineChange } from "../margin-bars.js";
 
 import { threadNamed } from "../thread/state.js";
-import {
-  carryingThreadPlace,
-  currentLocationThreadId,
-  openingPart,
-} from "../thread/focus.js";
+import { carryingThreadPlace, currentLocationThreadId } from "../thread/focus.js";
 
 import { claimed } from "../thread/surfaces.js";
 import { releaseReplies } from "../thread/replies.js";
@@ -1446,8 +1442,7 @@ export function createMarginProjection({
     }
     const positioned = showPreview(entry, choice, button);
     if (positioned) card.focusThread(positioned);
-    else
-      void openPageThread(threadIdOf(choice), { part: openingPart(), travel: false });
+    else void openPageThread(threadIdOf(choice), { travel: false });
   }
 
   // Closing the card hands a user who was in it on (focus.js, `closeLayer`). A close

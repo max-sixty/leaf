@@ -127,7 +127,8 @@ threadActions.setReaction(thread.key, agentMessage.key, token, true);
 margin mark would: the page's primary reader ("Owning the primary conversation
 presentation"), which is the Leaf panel unless a package registers one. `part` is
 `"thread"` for the card, `"reply"` for the reply editor, or `"message"` with
-`message: message.key` for one message. `travel: false` keeps the page where it is, and
+`message: message.key` for one message; with none it lands as opening a thread does, in
+the reply after a press and on the thread after a key. `travel: false` keeps the page where it is, and
 `focus: false` leaves focus alone. It resolves to the element it landed on, or `null` if
 the Thread is gone or the user has done something else. To act on that element
 afterwards, such as selecting the reply text, check it still has focus:

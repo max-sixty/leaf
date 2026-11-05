@@ -1549,13 +1549,14 @@ export function createFloatingPanel({
     if (route.thread) arriveAt(route.thread);
     transition(before, { focus });
   }
-  // Where the page's package draws its conversations, a thread opens in its reader,
-  // and the view it was chosen from goes, uncovering the page.
+  // Where the page's package draws its conversations, a thread opens in its reader, in
+  // its reply as a row's opening does (`focusView`), and the view it was chosen from
+  // goes, uncovering the page.
   /** @param {string} key @param {{focus?: boolean, message?: string | null}} [options] */
   function openInPackage(key, { focus = true, message = null } = {}) {
     if (trail.value.length) close();
     void threadActions.open(threadByKey(key)?.key ?? key, {
-      part: null,
+      part: "reply",
       focus,
       message,
     });
@@ -4194,10 +4195,10 @@ export function createFloatingPanel({
               if (place) reveal(place, intent);
               close();
               // The reply box the field drew goes back to the thread's drawing on
-              // the page once the reader has drawn the view gone, and the route
-              // lands in it there; where the page draws no view of the thread, as a
-              // window with no room for the rail does, on its place
-              // (thread/destination.js, `reader: "page"`).
+              // the page once the reader has drawn the view gone, and the route lands
+              // there where an opening does (thread/focus.js, `openingPart`); where the
+              // page draws no view of the thread, as a window with no room for the rail
+              // does, on its place (thread/destination.js, `reader: "page"`).
               void present({ release: true }).then(() =>
                 threadActions.open(thread.key, {
                   part: null,

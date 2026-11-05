@@ -2763,7 +2763,9 @@ STATES = (
     ),
     # The whole window, so where Resolve stands reads across the two.
     State("plan-card-tall-cluster", "review-a-plan", card_tall_cluster),
-    State("plan-card-tall-cluster-resolved", "review-a-plan", card_tall_cluster_resolved),
+    State(
+        "plan-card-tall-cluster-resolved", "review-a-plan", card_tall_cluster_resolved
+    ),
     State(
         "ship-card-next-unread",
         "ship-review",

@@ -111,11 +111,10 @@ def test_a_spilled_thread_opens_the_full_thread_without_a_hidden_anchor(browser,
     thread = page.locator(
         f'.lf-margin-preview .lf-page-thread[data-lf-thread="{thread_id}"]'
     )
-    expect(thread).to_be_focused()
+    # A press on its row opens it as a press on its marker does (thread/focus.js).
+    expect(thread.locator("leaf-text")).to_be_focused()
     expect(thread).to_contain_text(COMMENT_ON_SUGGESTION["text"])
     expect(page.locator(PANEL)).not_to_have_attribute("data-lf-open", re.compile(""))
-    page.keyboard.press("c")
-    expect(thread.locator("leaf-text")).to_be_focused()
 
 
 def test_page_map_opens_a_thread_anchored_to_a_drawn_zero_area_svg_line(browser, serve):
@@ -161,8 +160,36 @@ def test_page_map_opens_a_thread_anchored_to_a_drawn_zero_area_svg_line(browser,
         if event.get("text") == comment["text"]
     )
     thread = preview.locator(f'.lf-page-thread[data-lf-thread="{thread_id}"]')
-    expect(thread).to_be_focused()
+    expect(thread.locator("leaf-text")).to_be_focused()
     expect(thread).to_contain_text("Check this line.")
+
+
+@pytest.mark.parametrize("how", ["press", "key"])
+def test_a_page_map_row_opens_a_thread_where_every_opening_does(browser, serve, how):
+    """A route that names no part lands where opening a thread does (thread/focus.js,
+    `openingPart`): a press on a Page Map row in the thread's reply, and a key on the
+    thread, where keys act."""
+    comment = {
+        "kind": "comment",
+        "author": "user",
+        "revision": 1,
+        "text": "Worth a look.",
+        "anchor": {"section": "bracket"},
+    }
+    page = open_page(browser, serve(OBLIGATION_PAGE, events=[comment]))
+    margins_laid_out(page)
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+p")
+    dialog = page.get_by_role("dialog", name="Page Map", exact=True)
+    row = dialog.get_by_role("button", name="Open thread: Worth a look.", exact=True)
+    if how == "press":
+        row.click()
+    else:
+        row.focus()
+        page.keyboard.press("Enter")
+    thread = page.locator(".lf-margin-preview .lf-page-thread")
+    expect(thread).to_contain_text("Worth a look.")
+    expect(thread.locator("leaf-text") if how == "press" else thread).to_be_focused()
 
 
 def test_a_secondary_thread_keeps_card_ownership_through_membership_and_posture(

@@ -43,7 +43,6 @@ from contextlib import contextmanager
 from pathlib import Path
 
 from leaf_dev.commands.scaling import (
-    INPUT_CEILING,
     REFERENCE,
     SUPERLINEAR,
     Collection,
@@ -51,14 +50,12 @@ from leaf_dev.commands.scaling import (
 )
 
 PATHS = ("state", "append", "delivery", "agent", "thread", "activate")
-# A click's paths: admitting its event and the reading the server answers with. Root
-# `AGENTS.md`, "Responsiveness", puts that reading on screen within `BUDGET_MS`, and
-# holds the agent's paths only to growing no faster than the page.
+# A click's paths: admitting its event and computing the reading the server answers
+# with. Root `AGENTS.md`, "Responsiveness", puts that reading on screen within
+# `BUDGET_MS`, so the two together take no more at `REFERENCE` (`over_budget`); it
+# holds the agent's paths only to growing no faster than the page. Admission reads
+# the page as a reading does, so on the `events` page both may grow with the log.
 CLICK = ("append", "state")
-# Admitting the click's event: the input's own work, which doesn't grow with how long
-# the session has run. The reading it answers with may grow as a reading of the page
-# does, the events among what the page holds.
-INPUT = "append"
 RUNS = 3
 BUDGET_MS = 100
 # How many of the largest sizes an exponent is fitted over: 256 to 1,600, a ratio of
@@ -330,12 +327,10 @@ def measure(
     return rows, {path: (before, after) for path, (before, after) in profiled.items()}
 
 
-def failures(collection: Collection, rows: list[dict]) -> dict[str, dict]:
-    """Each path of `collection`'s `rows` that breaks root `AGENTS.md`,
-    "Responsiveness", with its readings and why: growth above the smallest page
-    fitting an exponent past `SUPERLINEAR`; a click's path taking more than
-    `BUDGET_MS` at `REFERENCE`; or, on the session's page, where only the session
-    grows, the input's own work growing past `INPUT_CEILING`."""
+def failures(rows: list[dict]) -> dict[str, dict]:
+    """Each path in `rows` whose growth above the smallest page fits an exponent past
+    `SUPERLINEAR`, which root `AGENTS.md`, "Responsiveness", rules out, with its
+    readings and why."""
     sizes = [row["n"] for row in rows]
     failed = {}
     for path in PATHS:
@@ -343,13 +338,25 @@ def failures(collection: Collection, rows: list[dict]) -> dict[str, dict]:
             continue
         readings = [row[path] for row in rows]
         slope = exponent(path, sizes, readings, FITTED)
-        at = dict(zip(sizes, readings, strict=True))
-        ceiling = INPUT_CEILING if collection.session and path == INPUT else SUPERLINEAR
-        why = []
-        if slope is not None and slope > ceiling:
-            why.append(f"growth fits exponent {slope:.2f}, past {ceiling}")
-        if path in CLICK and at.get(REFERENCE, 0) > BUDGET_MS:
-            why.append(f"{at[REFERENCE]:.0f} ms at {REFERENCE}, over {BUDGET_MS} ms")
-        if why:
-            failed[path] = {"by size": at, "exponent": slope, "why": "; ".join(why)}
+        if slope is not None and slope > SUPERLINEAR:
+            failed[path] = {
+                "by size": dict(zip(sizes, readings, strict=True)),
+                "exponent": slope,
+                "why": f"growth fits exponent {slope:.2f}, past {SUPERLINEAR}",
+            }
     return failed
+
+
+def over_budget(rows: list[dict]) -> str | None:
+    """Why a click's paths together take more than `BUDGET_MS` at `REFERENCE` in
+    `rows`, or None: on a page with no log, or where `rows` has no `REFERENCE`, there
+    is no click to time."""
+    at = next((row for row in rows if row["n"] == REFERENCE), None)
+    if at is None or not all(path in at for path in CLICK):
+        return None
+    click = sum(at[path] for path in CLICK)
+    if click <= BUDGET_MS:
+        return None
+    return (
+        f"{' + '.join(CLICK)} take {click:.0f} ms at {REFERENCE}, over {BUDGET_MS} ms"
+    )

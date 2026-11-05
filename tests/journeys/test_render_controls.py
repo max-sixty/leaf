@@ -651,7 +651,6 @@ AIM_SURFACES = (
     ".lf-react-strip .lf-react",
     ".lf-fp-compare",
     ".lf-command-reference-command",
-    ".lf-quote",
     ".lf-tab-btn",
     ".lf-grip",
 )

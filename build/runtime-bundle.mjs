@@ -26,15 +26,7 @@
  */
 
 import { createHash } from "node:crypto";
-import {
-  mkdir,
-  readFile,
-  readdir,
-  realpath,
-  rm,
-  stat,
-  writeFile,
-} from "node:fs/promises";
+import { mkdir, readFile, readdir, realpath, rm, writeFile } from "node:fs/promises";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -56,8 +48,8 @@ export const runtimeEntries = [
   "runtime/check-api.js",
 ];
 
-// Historical comparison arms predate optional diagnostic capabilities. Compile
-// the entries a layer supplies; the required delivery boundaries above stay strict.
+// The diagnostic entries the kernel compiles beside the runtime's; a site's layer is
+// bundled from `runtimeEntries` alone (worker/bundle-runtime.mjs, `bundleLayer`).
 const diagnosticEntries = ["runtime/annotation-overlay/check-api.js"];
 
 function browserPath(path) {
@@ -378,14 +370,7 @@ async function layerModules(layerRoot) {
  */
 export async function kernelOutputs(layerRoot) {
   layerRoot = await realpath(layerRoot);
-  const entries = [...runtimeEntries];
-  for (const entry of diagnosticEntries) {
-    try {
-      if ((await stat(join(layerRoot, entry))).isFile()) entries.push(entry);
-    } catch (error) {
-      if (error.code !== "ENOENT") throw error;
-    }
-  }
+  const entries = [...runtimeEntries, ...diagnosticEntries];
   const result = await compile(layerRoot, entries, null, false);
   const files = new Map(
     result.output.map((file) => [file.fileName, Buffer.from(file.code)]),

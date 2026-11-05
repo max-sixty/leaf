@@ -49,14 +49,15 @@ its scope to leave time for a change and its confirmation: saved-page probes and
 focused fresh-author tasks give faster feedback on a local hypothesis, while full
 multi-turn workflows test the whole exchange.
 
-For longer runs, keep the standard eval report current. Lead with what changed in
-Leaf and the matched before/after outputs supporting each retained change. Include
-revised and rejected candidates, and distinguish supporting tooling and experiments
-from improvements authors now receive. A current-state pass without a baseline
-doesn't establish improvement. Keep earlier experiments as supporting history and
-exploration distinct from scored comparisons; `evals/README.md`, "Render a report",
-owns the format and commands. At handoff, review each page the user can open, including
-linked demonstrations, through `/developing-leaf`, "Author or revise a page".
+For longer runs, keep the standard eval report current, with its review written in
+Leaf markup. Lead with what changed in Leaf and the matched before/after outputs
+supporting each retained change. Include revised and rejected candidates, and
+distinguish supporting tooling and experiments from improvements authors now receive.
+A current-state pass without a baseline doesn't establish improvement. Keep earlier
+experiments as supporting history and exploration distinct from scored comparisons;
+`evals/README.md`, "Render a report", owns the review's sections and commands. At
+handoff, review each page the user can open, including linked demonstrations, through
+`/developing-leaf`, "Author or revise a page".
 
 ## What the comparisons should reveal
 

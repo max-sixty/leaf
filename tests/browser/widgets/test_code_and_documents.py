@@ -652,9 +652,7 @@ def test_a_tab_opened_while_closed_documents_draw_reports_its_document_at_once(
     page.get_by_role("tab", name="Doc 2", exact=True).click()
     expect(page.locator("#doc-2 figure")).to_have_attribute("data-lf-source", "text-2")
     expect(last).not_to_have_class("lf-rendered")
-    expect(page.locator("#doc-3 figure")).to_have_attribute(
-        "data-lf-source", "text-3", timeout=15_000
-    )
+    expect(page.locator("#doc-3 figure")).to_have_attribute("data-lf-source", "text-3")
 
 
 def test_a_comment_on_a_closed_tab_s_document_never_reads_as_earlier_data(
@@ -695,9 +693,7 @@ def test_a_comment_on_a_closed_tab_s_document_never_reads_as_earlier_data(
     expect(quote).to_be_visible()
     expect(page.locator("#doc-2")).not_to_have_class("lf-rendered")
     expect(quote).not_to_contain_text("Earlier data")
-    expect(page.locator("#doc-2 figure")).to_have_attribute(
-        "data-lf-source", "text-2", timeout=15_000
-    )
+    expect(page.locator("#doc-2 figure")).to_have_attribute("data-lf-source", "text-2")
     assert not page.evaluate("window.earlier")
 
 

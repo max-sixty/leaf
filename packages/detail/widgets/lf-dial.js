@@ -322,7 +322,13 @@ customElements.define(
       for (const run of this.#runsIn(scope))
         for (const block of run.blocks) owner.set(block, run.after ?? run.container);
       for (const [marker, { after }] of this.#runs) if (after) owner.set(marker, after);
-      const hold = holdPlace(readingAt(scope), (node) => {
+      // The block holding the words at the line, since a fold replaces whole blocks:
+      // its gist lands where the block's top stood, line for line.
+      const words = readingAt(scope);
+      const at = words instanceof Range ? words.startContainer : words;
+      const reading =
+        at && [...this.#blocks(scope)].find((block) => block.contains(at));
+      const hold = holdPlace(reading ?? words, (node) => {
         const folded = node.closest(`[${FOLDED}], .lf-dial-more`);
         return folded && owner.get(folded);
       });

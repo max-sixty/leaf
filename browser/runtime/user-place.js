@@ -55,9 +55,10 @@
    (`focusScrolledAway`), for the keys that act there. */
 import { seenRect, showsContents, shownWindow, stuckBox } from "./geometry.js";
 import { pageScroller, placeKept, scrollChoices } from "./scrolling.js";
-import { edgeAt, returnTo, scrollersOf } from "./scroll-containers.js";
+import { edgeAt, holderOf, returnTo, scrollersOf } from "./scroll-containers.js";
 import { inChrome } from "./shadow-tree.js";
-import { focused, inputCount, onCurrentLocation, recentPlaceInput } from "./focus.js";
+import { focused, onCurrentLocation, recentPlaceInput, typesText } from "./focus.js";
+import { PRESSES } from "./control-selectors.js";
 import { browserScrolls, watchScrollEnds } from "./arrivals.js";
 import { pointerAt } from "./pointer.js";
 
@@ -112,13 +113,13 @@ export function focusScrolledAway() {
 const READING_LINE = 0.25;
 
 // What stands at the reading line in the middle of `column`'s span across the window:
-// the block holding the words nearest the line, so a gap between two paragraphs names
-// one of them, else the element drawn there. A block, not the inline element the words
-// stand in: an `em`'s box starts below its line's top by the line's leading, so a gist
-// put where the em stood, as Skim's is, landed 2.6px under the line read. Leaf's
-// chrome over the line names nothing, and neither does a box stuck over the page,
-// which rides along with every scroll (geometry.js, `stuckBox`).
-/** @param {Element} column */
+// a range over the letter of the words nearest the line, so a gap between two
+// paragraphs names one of them, else the element drawn there. The words, not the block
+// holding them: anchoring holds words inside a tall block that grows above them, and
+// the block's top moves by what grew. Leaf's chrome over the line names nothing, and
+// neither does a box stuck over the page, which rides along with every scroll
+// (geometry.js, `stuckBox`).
+/** @param {Element} column @returns {Range | Element | null} */
 export function readingAt(column) {
   const window = shownWindow();
   const box = column.getBoundingClientRect();
@@ -127,32 +128,54 @@ export function readingAt(column) {
   const line = window.top + (window.bottom - window.top) * READING_LINE;
   if (right <= left) return null;
   const x = (left + right) / 2;
-  const at = document.caretPositionFromPoint(x, line)?.offsetNode;
-  // Words in a shadow tree answer for their host, as anything else under the line does.
-  let node = at instanceof Text ? at.parentElement : document.elementFromPoint(x, line);
-  while (
-    node?.parentElement &&
-    /^(inline|contents)$/.test(getComputedStyle(node).display)
-  )
-    node = node.parentElement;
-  return node && !inChrome(node) && !stuckBox(node) ? node : null;
+  const caret = document.caretPositionFromPoint(x, line);
+  const text = caret?.offsetNode;
+  /** @type {Range | Element | null} */
+  let reading;
+  if (caret && text instanceof Text && text.length) {
+    const at = Math.min(caret.offset, text.length - 1);
+    reading = document.createRange();
+    reading.setStart(text, at);
+    reading.setEnd(text, at + 1);
+  } else {
+    // The document answers for words in a shadow tree with their host, and a host can
+    // be a tall block whose top moves by what grows above the words; each open tree
+    // answers for its own, as anchoring reaches into them.
+    reading = document.elementFromPoint(x, line);
+    for (
+      let inner;
+      (inner = reading?.shadowRoot?.elementFromPoint(x, line)) && inner !== reading;
+    )
+      reading = inner;
+  }
+  const holder = reading && holderOf(reading);
+  return holder && !inChrome(holder) && !stuckBox(holder) ? reading : null;
 }
 
-// Read where `node` stands and return the step that, once a change has drawn, scrolls
-// it back there, or, where the change hid or removed it, the node `standIn(node)` names,
-// as Skim's gist stands for the paragraph it folds. A node the change folded until
-// found holds nothing, whether it is the folded block or words inside it
-// (geometry.js, `showsContents`). The step says whether it moved anything.
-/** @param {Element | null | undefined} node
+// Read where `node`, an element or words a range holds (`readingAt`), stands and
+// return the step that, once a change has drawn, scrolls it back there, or, where the
+// change hid or removed it, the node `standIn` names for the element holding it, as
+// Skim's gist stands for the paragraph it folds. A node the change folded until found
+// holds nothing, whether it is the folded block or words inside it (geometry.js,
+// `showsContents`), and words the change rewrote have left the range. The step says
+// whether it moved anything.
+/** @param {Element | Range | null | undefined} node
  * @param {(node: Element) => Element | null | undefined} [standIn] */
 export function holdPlace(node, standIn = () => null) {
-  if (!node) return () => false;
+  const holder = node && holderOf(node);
+  if (!node || !holder) return () => false;
+  const words = node instanceof Range ? node.startContainer : null;
   const top = edgeAt(node, "top");
   return () => {
-    const drawn = node.isConnected && showsContents(node);
-    const held = drawn ? node : standIn(node);
-    if (!held?.isConnected) return false;
-    const boxes = [...scrollersOf(held)].map((box) => ({ box, was: box.scrollTop }));
+    // Words the change rewrote left the range, which the browser moved to their parent.
+    const kept = !words || /** @type {Range} */ (node).startContainer === words;
+    const drawn = kept && holder.isConnected && showsContents(holder);
+    const held = drawn ? node : standIn(holder);
+    if (!held || !holderOf(held)?.isConnected) return false;
+    const boxes = [...scrollersOf(holderOf(held))].map((box) => ({
+      box,
+      was: box.scrollTop,
+    }));
     returnTo(held, "top", top);
     const moved = boxes.filter(({ box, was }) => box.scrollTop !== was);
     // A place the reader had, not one they chose (scrolling.js, `placeKept`).
@@ -169,32 +192,38 @@ export function holdPlace(node, standIn = () => null) {
 // (page-map-dialog.js). The place is what the user last named: the control under a
 // resting pointer, which rests on nothing once it has left the window (pointer.js), or
 // the control holding focus, whichever input came last, and then the other (focus.js,
-// `recentPlaceInput`). Either names a place while any of it is shown and it rides in a
-// scroller, not stuck there, as a Page Map row or a message in a margin card's
-// transcript does, and a search field in a dialog's fixed head does not. A container
-// the user is on stands at the box a rule names for it (`standsAt`), as a thread they
-// sent from waits at its reply box. A user whose focus is scrolled away reads something
-// else, so what stands at the reading line in its column comes last (`readingAt`). The
-// keep puts back the first of these the change moved, so a pointer resting on a rail of
-// its own, which nothing here moves, leaves the reading line to be kept; a place the
-// change left still keeps the scroller it rides in, so a later one there, below news
-// that joined between them, moves nothing. An action joining above a place inside the
-// window, past the first box anchoring holds, would push it down. Read after the whole
-// presentation, a box Leaf positions, as Send in its editor or a diff line's Comment,
-// stands where its own layout put it, and is kept like any other. A control the change
-// replaced, or one focus left, has nothing to keep.
+// `recentPlaceInput`). A field the user types in comes first wherever the pointer
+// rests, since typing may grow a field but never moves it (browser/AGENTS.md), and the
+// pointer names a control a press acts on, never the page's background
+// (control-selectors.js, `PRESSES`). Either names a place while any of it is shown and
+// it rides in a scroller, not stuck there, as a Page Map row or a message in a margin
+// card's transcript does, and a search field in a dialog's fixed head does not. A
+// container the user is on stands at the box a rule names for it (`standsAt`), as a
+// thread they sent from waits at its reply box. A user whose focus is scrolled away
+// reads something else, so what stands at the reading line in its column comes last
+// (`readingAt`). The keep puts back the first of these the change moved, so a pointer
+// resting on a rail of its own, which nothing here moves, leaves the reading line to be
+// kept; a place the change left still keeps the scroller it rides in, so a later one
+// there, below news that joined between them, moves nothing. An action joining above a
+// place inside the window, past the first box anchoring holds, would push it down. Read
+// after the whole presentation, a box Leaf positions, as Send in its editor or a diff
+// line's Comment, stands where its own layout put it, and is kept like any other. A
+// control the change replaced, or one focus left, has nothing to keep.
 //
 // The keep yields to any scroll since the reading: a scroll the user or a landing chose
 // and ended (scrolling.js, `scrollChoices`), one the browser is still running, as a
-// smooth scroll or a wheel's glide (arrivals.js, `browserScrolls`), and any input
-// (focus.js, `inputCount`), so it never overrides a scroll under way. The user's own
-// gesture draws its result in its own task and places it there, so nothing here holds
-// against it. Where the boxes scrolling the place can't take all of a move, as on a
-// page shorter than its window, it moves by the rest.
+// smooth scroll or a wheel's glide (arrivals.js, `browserScrolls`), so it never
+// overrides a scroll under way. Other input moves no place: words typed into the field
+// held grow it where it stands, and focus leaving a place it named leaves nothing of
+// that place to keep. The user's own gesture draws its result in its own task and
+// places it there, so nothing here holds against it. Where the boxes scrolling the
+// place can't take all of a move, as on a page shorter than its window, it moves by the
+// rest.
 //
 // A limit, for presenters a page or package adds: the keep waits for the whole
 // presentation, so one whose paint resolves frames after the reading arrived lets the
-// frames between show the move before the keep puts it back. Leaf's own present a
+// frames between show the move before the keep puts it back, and a scroll the user's
+// own act chooses in them, as typing keeps its caret in view, ends the keep. Leaf's own present a
 // reading's change in the frame it arrives in, measured on 4 November 2026 for news in
 // a thread, an edit, a reply with a code block or a diagram, and a diff's new data.
 /** @type {[string, (node: Element) => Element | null][]} */
@@ -220,13 +249,14 @@ const pointed = () => {
   const window = shownWindow();
   if (x < window.left || x > window.right || y < window.top || y > window.bottom)
     return null;
-  return document.elementFromPoint(x, y);
+  return document.elementFromPoint(x, y)?.closest(PRESSES) ?? null;
 };
 export function holdUserPlace() {
   const node = focused();
   const pointer = pointed();
-  const named = recentPlaceInput() === "pointer" ? [pointer, node] : [node, pointer];
-  /** @type {{place: Element, focus: boolean}[]} */
+  const first = recentPlaceInput() === "pointer" && !typesText(node);
+  const named = first ? [pointer, node] : [node, pointer];
+  /** @type {{place: Element | Range, focus: boolean}[]} */
   const places = [];
   for (const candidate of named) {
     const place = placeOf(candidate);
@@ -239,17 +269,16 @@ export function holdUserPlace() {
   }
   if (!places.length) return () => {};
   const choices = scrollChoices();
-  const inputs = inputCount();
   const holds = places.map(({ place, focus }) => ({
     place,
     focus,
     hold: holdPlace(place),
   }));
   return () => {
-    if (scrollChoices() !== choices || inputCount() !== inputs) return;
+    if (scrollChoices() !== choices) return;
     const still = new Set();
     for (const { place, focus, hold } of holds) {
-      const boxes = [...scrollersOf(place)];
+      const boxes = [...scrollersOf(holderOf(place))];
       if (boxes.some(browserScrolls)) return;
       if ((focus && focused() !== node) || still.has(boxes[0])) continue;
       if (hold()) return;

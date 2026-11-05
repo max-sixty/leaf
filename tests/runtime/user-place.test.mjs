@@ -4,7 +4,8 @@
    away or riding in a stuck header names no place, and a hold puts the node it read
    back where it stood, or its stand-in where the change hid it, paying only for what
    the browser's own anchoring left. The user's place across a reading is the first the
-   change moved of those they named, and its keep yields to any scroll or input since. */
+   change moved of those they named, a field they type in before a resting pointer and
+   the pointer only on a control, and its keep yields to a scroll since, not to typing. */
 
 import assert from "node:assert/strict";
 import test from "node:test";
@@ -187,6 +188,7 @@ test("the keep puts back the first place the change moved", () => {
   const search = document.createElement("input");
   document.body.append(search);
   search.focus();
+  read.setAttribute("role", "button");
   restOn(read);
   const row = holdUserPlace();
   page.at.set(read, 1400);
@@ -203,6 +205,7 @@ test("a place the change left still keeps its scroller", () => {
   scrollTo(1100);
   // Focus arrives last on the upper block, with the pointer resting on the lower one;
   // news joins between them, and anchoring holds the upper block.
+  below.setAttribute("role", "button");
   restOn(below);
   above.tabIndex = 0;
   above.focus();
@@ -215,10 +218,14 @@ test("a place the change left still keeps its scroller", () => {
   restOn(null);
 });
 
-test("the keep yields to a scroll under way and to any input since the reading", () => {
-  for (const since of [
-    (/** @type {Element} */ box) => box.dispatchEvent(new Event("scroll")),
-    () => window.dispatchEvent(new Event("wheel")),
+test("the keep yields to a scroll under way, and typing into the place leaves it kept", () => {
+  for (const [since, kept] of [
+    [(/** @type {Element} */ box) => box.dispatchEvent(new Event("scroll")), 1100],
+    [
+      (/** @type {Element} */ box) =>
+        box.firstElementChild?.dispatchEvent(new Event("input", { bubbles: true })),
+      1226,
+    ],
   ]) {
     const { scroller, item, at, scrolled, scrollTo } = laidOut();
     const read = item("read", 1150);
@@ -230,9 +237,41 @@ test("the keep yields to a scroll under way and to any input since the reading",
     at.set(read, 1276);
     since(scroller);
     keep();
-    assert.equal(scrolled(), 1100, `the keep overrode ${since}`);
+    assert.equal(scrolled(), kept, `${since}`);
     scroller.remove();
   }
+});
+
+test("a field the user types in comes before a resting pointer, which names a control", () => {
+  const { scroller, item, at, scrolled, scrollTo } = laidOut();
+  const [control, field] = [item("control", 1120), item("field", 1150)];
+  control.setAttribute("role", "button");
+  field.contentEditable = "true";
+  scroller.append(control, field);
+  scrollTo(1100);
+  field.focus();
+  // The pointer, moved last, rests on a control the answer joining between them leaves
+  // still; the field being typed in is still the place kept.
+  restOn(control);
+  assert.equal(recentPlaceInput(), "pointer");
+  const typing = holdUserPlace();
+  at.set(field, 1276);
+  typing();
+  assert.equal(scrolled(), 1226);
+  // Resting on the page's background, a pointer names nothing, and focus on a control
+  // that types nothing is kept.
+  const background = item("background", 1200);
+  scroller.append(background);
+  field.contentEditable = "false";
+  field.tabIndex = 0;
+  field.focus();
+  restOn(background);
+  const pointed = holdUserPlace();
+  at.set(field, 1400);
+  pointed();
+  assert.equal(scrolled(), 1350);
+  scroller.remove();
+  restOn(null);
 });
 
 test("a block folded until found holds its stand-in, though it keeps a box", () => {

@@ -42,22 +42,28 @@ export function* scrollersOf(node) {
   }
 }
 
+// The element whose scrollers move `node`: the node itself, or for a range over
+// words, the element holding them.
+/** @param {Element | Range} node */
+export const holderOf = (node) =>
+  node instanceof Range ? node.startContainer.parentElement : node;
+
 // Where `node`'s `edge` stands on screen, read as though each box scrolling it stood
 // where Leaf last aimed it (scrolling.js, `aimedTop`): a hold read after a hold then
 // carries no rounding of the first.
-/** @param {Element} node @param {"top" | "bottom"} edge */
+/** @param {Element | Range} node @param {"top" | "bottom"} edge */
 export const edgeAt = (node, edge) => {
   let at = node.getBoundingClientRect()[edge];
-  for (const box of scrollersOf(node)) at += box.scrollTop - aimedTop(box);
+  for (const box of scrollersOf(holderOf(node))) at += box.scrollTop - aimedTop(box);
   return at;
 };
 
 // Put `node`'s `edge` at `at` (`edgeAt`). The box scrolling it takes the move first and
 // the boxes around it whatever it cannot: a bounded block not yet full grows in the
 // page instead.
-/** @param {Element} node @param {"top" | "bottom"} edge @param {number} at */
+/** @param {Element | Range} node @param {"top" | "bottom"} edge @param {number} at */
 export function returnTo(node, edge, at) {
-  for (const box of scrollersOf(node)) {
+  for (const box of scrollersOf(holderOf(node))) {
     const moved = edgeAt(node, edge) - at;
     if (Math.abs(moved) < 0.5) return;
     moveScrollerBy(box, moved);

@@ -90,8 +90,9 @@ hides what the reader is reading, as folding it does, anchoring can't hold it: r
 `const hold = holdPlace(node, standIn)` before the change and call `hold()` after it,
 in the same task, and `node`, or the node `standIn` names for it once the change hid
 or removed it, lands where `node` stood. `readingAt(column)` is what stands at the reading line, a
-quarter of the way down the window, in `column`'s middle, the node to hold where
-nothing the user holds marks their place. The change itself scrolls nothing.
+quarter of the way down the window, in `column`'s middle: a range over the words there,
+which `holdPlace` takes too, else the element drawn there. The change itself scrolls
+nothing.
 
 A widget that hides a view and shows it again later keeps the place as
 `capturePlace()`, a landmark in the page's words, and returns to it with

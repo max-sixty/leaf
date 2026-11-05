@@ -12,6 +12,7 @@ import { layoutWindow, shellRight } from "./geometry.js";
 import { union } from "./rect.js";
 import { syncLayoutRegion } from "./reading-regions.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
+import { readPageHead } from "./root-headers.js";
 
 let documentLayoutOpen = false;
 /** @type {((changed: boolean) => unknown) | null | undefined} */
@@ -26,6 +27,9 @@ let watchedHead = null;
 let railAvailable = null;
 function readDocumentLayout() {
   const { changed } = readDocumentHeaders();
+  // The page's own head, read once the Layout's header has passed its height on, so
+  // the one is never read as the other (root-headers.js).
+  readPageHead();
   syncLayoutRegion();
   const header = layoutBox()?.querySelector(":scope > header") ?? null;
   if (header !== watchedHead) {

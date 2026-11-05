@@ -765,10 +765,11 @@ def test_the_fold_a_put_down_takes_back_does_not_take_the_users_focus(browser, s
     )
 
 
-@pytest.mark.parametrize("scheme", ["light", "dark"])
-def test_a_focused_response_choice_wears_the_layer_s_band(browser, serve, scheme):
-    """The response choice shares the comment field's solid accent focus ring."""
-    page = open_page(browser, serve(PANEL_PAGE), color_scheme=scheme)
+def test_a_focused_response_choice_wears_the_layer_s_band(browser, serve):
+    """The response choice shares the comment field's solid accent focus ring. Read in
+    the dark scheme, where a ring stated as a literal value rather than the token would
+    show: `--accent` states both schemes in one `light-dark()`."""
+    page = open_page(browser, serve(PANEL_PAGE), color_scheme="dark")
     select_paragraph(page, "#how-cap")
     expect(page.locator(".lf-fab-bar")).to_be_visible()
     page.keyboard.press("c")
@@ -1237,38 +1238,26 @@ def test_a_visual_fallback_yields_to_stable_targets_inside_the_picture(browser, 
     }
 
 
-def test_native_controls_keep_visual_gestures_they_already_own(browser, serve):
-    """A linked picture and a button icon retain their native activation. Leaf adds no
-    nested proxy and pointer activation does not raise the visual action bar."""
-    page_markup = leaf_page(
-        "interactive pictures",
-        """
-<h1 id="top">Interactive pictures</h1>
-<a id="visit" href="#after"><svg id="linked-picture" viewBox="0 0 20 20" width="40" height="40"><circle cx="10" cy="10" r="8" /></svg></a>
-<button id="native-button" type="button"><svg id="button-picture" viewBox="0 0 20 20" width="20" height="20"><circle cx="10" cy="10" r="8" /></svg>Run</button>
-<p id="after">Destination</p>
-""",
-    )
-    page = open_page(browser, serve(page_markup))
-
-    expect(page.locator(".lf-visual-action")).to_have_count(0)
-    page.locator("#linked-picture").click()
-    expect(page).to_have_url(re.compile(r"#after$"))
-    expect(page.locator(".lf-fab-bar")).to_be_hidden()
-    page.locator("#button-picture").click()
-    expect(page.locator(".lf-fab-bar")).to_be_hidden()
-
-
-def test_an_anchor_without_a_destination_keeps_its_picture_commentable(browser, serve):
-    """Only an actual link owns picture activation; historical anchors are content."""
+def test_a_picture_in_a_control_stays_the_controls_and_any_other_takes_a_comment(
+    browser, serve, subtests
+):
+    """A linked picture, a button icon and a picture in an ARIA widget retain their own
+    activation: the shared interaction boundary adds no nested proxy, no second
+    activation target, and a press does not raise the visual action bar. Only an actual
+    link owns picture activation, so an anchor without a destination is content, and its
+    picture takes a proxy and a comment."""
     page = open_page(
         browser,
         serve(
             leaf_page(
-                "Historical picture",
+                "Pictures and controls",
                 """
-<h1 id="top">Historical picture</h1>
+<h1 id="top">Pictures and controls</h1>
 <a id="visit" href="#after"><svg id="linked" viewBox="0 0 20 20" width="40" height="40"><circle cx="10" cy="10" r="8" /></svg></a>
+<button id="native-button" type="button"><svg id="button-picture" viewBox="0 0 20 20" width="20" height="20"><circle cx="10" cy="10" r="8" /></svg>Run</button>
+<div id="gain" role="slider" tabindex="0" aria-label="Gain" aria-valuemin="0" aria-valuemax="10" aria-valuenow="5">
+  <svg id="gain-picture" viewBox="0 0 100 20" width="200" height="40"><rect x="0" y="8" width="100" height="4" /></svg>
+</div>
 <a id="historical"><svg id="unlinked" viewBox="0 0 20 20" width="40" height="40" role="img" aria-label="Historical illustration"><circle cx="10" cy="10" r="8" /></svg></a>
 <p id="after">Destination</p>
 """,
@@ -1278,40 +1267,34 @@ def test_an_anchor_without_a_destination_keeps_its_picture_commentable(browser, 
     proxies = page.locator(".lf-visual-action")
     expect(proxies).to_have_count(1)
     assert proxies.evaluate("node => node.lfAnchor") == {"section": "unlinked"}
+    bar = page.locator(".lf-fab-bar")
     field = page.locator(".lf-fab-input")
-    page.locator("#linked").click()
-    expect(page).to_have_url(re.compile(r"#after$"))
-    expect(field).to_be_hidden()
-    page.locator("#unlinked").click()
-    expect(page).to_have_url(re.compile(r"#after$"))
-    expect(field).to_be_hidden()
-    page.locator("#unlinked").click(modifiers=["Alt"])
-    expect(field).to_be_focused()
-    with sending(page, "the comment on a historical illustration"):
-        write(field, "Keep this historical illustration.")
-        page.keyboard.press("ControlOrMeta+Enter")
-    assert events_model.read_events(serve.page_dir)[-1]["anchor"] == {
-        "section": "unlinked"
-    }
 
+    with subtests.test(picture="linked"):
+        page.locator("#linked").click()
+        expect(page).to_have_url(re.compile(r"#after$"))
+        expect(bar).to_be_hidden()
 
-def test_custom_controls_keep_visual_gestures_they_already_own(browser, serve):
-    """ARIA widgets are controls even when their implementation contains a picture.
-    The shared interaction boundary keeps Leaf from adding a second activation target."""
-    page_markup = leaf_page(
-        "custom control pictures",
-        """
-<h1 id="top">Custom control pictures</h1>
-<div id="gain" role="slider" tabindex="0" aria-label="Gain" aria-valuemin="0" aria-valuemax="10" aria-valuenow="5">
-  <svg id="gain-picture" viewBox="0 0 100 20" width="200" height="40"><rect x="0" y="8" width="100" height="4" /></svg>
-</div>
-""",
-    )
-    page = open_page(browser, serve(page_markup))
+    with subtests.test(picture="button icon"):
+        page.locator("#button-picture").click()
+        expect(bar).to_be_hidden()
 
-    expect(page.locator(".lf-visual-action")).to_have_count(0)
-    page.locator("#gain-picture").click()
-    expect(page.locator(".lf-fab-bar")).to_be_hidden()
+    with subtests.test(picture="in an ARIA widget"):
+        page.locator("#gain-picture").click()
+        expect(bar).to_be_hidden()
+
+    with subtests.test(picture="in an anchor without a destination"):
+        page.locator("#unlinked").click()
+        expect(page).to_have_url(re.compile(r"#after$"))
+        expect(field).to_be_hidden()
+        page.locator("#unlinked").click(modifiers=["Alt"])
+        expect(field).to_be_focused()
+        with sending(page, "the comment on a historical illustration"):
+            write(field, "Keep this historical illustration.")
+            page.keyboard.press("ControlOrMeta+Enter")
+        assert events_model.read_events(serve.page_dir)[-1]["anchor"] == {
+            "section": "unlinked"
+        }
 
 
 def test_a_focus_stop_leaves_the_pictures_it_holds_commentable(browser, serve):
@@ -1396,10 +1379,15 @@ def test_a_declared_visual_part_can_raise_the_same_bar_from_the_keyboard(
     expect(start).to_be_focused()
 
 
-@pytest.mark.parametrize("entry", ["keyboard", "aim"])
-def test_one_semantic_visual_target_gets_one_keyboard_proxy(browser, serve, entry):
-    """Sibling anonymous pictures under one authored item are one durable target.
-    Proxy and pointer entry share that item as their Escape parent."""
+def test_one_semantic_visual_target_takes_one_proxy_and_hands_back_its_subject(
+    browser, serve, subtests
+):
+    """Sibling anonymous pictures under one authored item are one durable target, with
+    one keyboard proxy, and proxy and pointer entry share that item as their Escape
+    parent. Opening the bar's other responses re-places it on the anchor already in
+    place. That is the same gesture continuing, not a fresh one that stood the user
+    nowhere, so the way out still ends on the bar's subject, as it does for a user who
+    goes straight back out."""
     page_markup = leaf_page(
         "picture gallery",
         """
@@ -1413,17 +1401,36 @@ def test_one_semantic_visual_target_gets_one_keyboard_proxy(browser, serve, entr
     )
     page = open_page(browser, serve(page_markup))
     controls = page.locator(".lf-visual-action")
-
+    bar = page.locator(".lf-fab-bar")
+    gallery = page.locator("#gallery")
     expect(controls).to_have_count(1)
-    control = controls.first
-    if entry == "keyboard":
-        control.focus()
-        page.keyboard.press("Enter")
-    else:
+
+    # Each entry starts away from the subject its Escape must hand back: the first from
+    # the page, the others from the proxy they press.
+    with subtests.test(entry="aim"):
         page.locator("#gallery svg").first.click(modifiers=["Alt"])
-    expect(page.locator(".lf-fab-bar")).to_be_visible()
-    page.keyboard.press("Escape")
-    expect(page.locator("#gallery")).to_be_focused()
+        expect(bar).to_be_visible()
+        page.keyboard.press("Escape")
+        expect(gallery).to_be_focused()
+
+    with subtests.test(entry="keyboard"):
+        controls.first.focus()
+        page.keyboard.press("Enter")
+        expect(bar).to_be_visible()
+        page.keyboard.press("Escape")
+        expect(gallery).to_be_focused()
+
+    with subtests.test(entry="keyboard, through the other responses"):
+        controls.first.focus()
+        page.keyboard.press("Enter")
+        expect(bar).to_be_visible()
+        page.keyboard.press("Tab")
+        expect(page.locator(".lf-response-options")).to_be_visible()
+        page.keyboard.press("Escape")
+        expect(bar).to_be_visible()
+        page.keyboard.press("Escape")
+        expect(bar).to_be_hidden()
+        expect(gallery).to_be_focused()
 
 
 def test_a_drawing_names_its_proxies_and_keeps_its_place_among_the_page(browser, serve):
@@ -1457,39 +1464,6 @@ def test_a_drawing_names_its_proxies_and_keeps_its_place_among_the_page(browser,
     assert control.evaluate(
         "button => button.closest('.lf-chrome') !== null && button.tabIndex === -1"
     )
-
-
-def test_a_bar_re_placed_by_its_own_controls_still_hands_back_its_subject(
-    browser, serve
-):
-    """Opening the bar's other responses re-places it on the anchor already in place. That
-    is the same gesture continuing, not a fresh one that stood the user nowhere, so the
-    way out still ends on the bar's subject — as it does for a user who goes straight
-    back out."""
-    page_markup = leaf_page(
-        "picture gallery",
-        """
-<h1 id="top">Picture gallery</h1>
-<section id="gallery">
-  <h2>Gallery</h2>
-  <svg viewBox="0 0 20 20" width="40" height="40"><circle cx="10" cy="10" r="8" /></svg>
-</section>
-""",
-    )
-    page = open_page(browser, serve(page_markup))
-    control = page.locator(".lf-visual-action").first
-    control.focus()
-    page.keyboard.press("Enter")
-    expect(page.locator(".lf-fab-bar")).to_be_visible()
-
-    page.keyboard.press("Tab")
-    expect(page.locator(".lf-response-options")).to_be_visible()
-    page.keyboard.press("Escape")
-    expect(page.locator(".lf-fab-bar")).to_be_visible()
-
-    page.keyboard.press("Escape")
-    expect(page.locator(".lf-fab-bar")).to_be_hidden()
-    expect(page.locator("#gallery")).to_be_focused()
 
 
 def test_a_visual_proxy_resolves_a_rebuilt_part_and_reveals_it_on_focus(browser, serve):
@@ -2095,7 +2069,7 @@ def test_a_message_reaction_trigger_meets_its_header_and_covers_no_words(
           const metadata = [
             ...message.querySelectorAll('.lf-msg-head > :not(.lf-msg-control-room)'),
           ].map(node => node.getBoundingClientRect());
-          const resolve = document.querySelector('.lf-fp-settle');
+          const resolve = document.querySelector('.lf-fp-thread-controls :is(.lf-resolve, .lf-reopen)');
           const action = resolve.getBoundingClientRect();
           const range = document.createRange();
           range.selectNodeContents(message.querySelector('.lf-msg-text'));
@@ -2137,7 +2111,7 @@ def test_a_message_reaction_trigger_meets_its_header_and_covers_no_words(
         expect(message.locator(".lf-react-palette:popover-open")).to_have_count(0)
 
     with sending(page, "resolve beside the agent-root reaction"):
-        activate(page.locator(".lf-fp-settle"))
+        activate(page.locator(".lf-fp-thread-controls :is(.lf-resolve, .lf-reopen)"))
     expect(card).to_have_count(0)
 
 

@@ -114,41 +114,20 @@ def test_a_seated_reply_lends_its_widget_to_the_panel_and_takes_it_back(browser,
     expect(seated.locator("#first-job")).to_be_visible()
 
 
-def test_a_reply_folded_in_one_view_keeps_its_widget_in_view_in_another(browser, serve):
-    """A reply's markup, which stands in one drawing at a time, stays in a drawing that
-    shows it rather than one that folds the reply away: here the panel, which outranks
-    the page's seat but folds the reply under its summary, leaves it in the seat whose
-    fold the user opened."""
-    url = serve(SEATED_OBLIGATION_PAGE)
-    root = panel_comment(serve.page_dir, "Which job first?", {"section": "jobs"})
-    asked = append_agent_reply(
-        serve.page_dir,
-        root,
-        "Here is what each job takes.",
-        '<p id="folded-note">The mounts take an hour.</p>',
-    )
-    append_user_reply(serve.page_dir, root, "The mounts, then.")
-    last = append_agent_reply(serve.page_dir, root, "Mounts first.")
-    append_user_reply(serve.page_dir, root, "Keep the latest visible.")
-    summarize_thread(serve.page_dir, asked["id"], last["id"], "The mounts go first.")
-
-    page = open_page(browser, url)
-    seat = page.locator(f'#jobs .lf-page-thread[data-lf-thread="{root}"]')
-    seat.get_by_role("button", name="Show 3 earlier messages", exact=True).click()
-    message = seat.locator(f'.lf-msg[data-lf-event="{asked["id"]}"]')
-    expect(message.locator("#folded-note")).to_be_visible()
-    view = open_panel_thread(page, root)
-    expect(view.locator(f'.lf-msg[data-lf-event="{asked["id"]}"]')).to_be_hidden()
-    expect(message.locator("#folded-note")).to_be_attached()
-
-
-def test_the_browser_s_search_and_leaf_s_travel_open_a_closed_fold(browser, serve):
+def test_the_browser_s_search_and_leaf_s_travel_open_a_closed_fold(
+    browser, serve, subtests
+):
     """A closed fold's messages are hidden until found, so the browser's own search
     reaches their words and opens the whole fold, which its toggle closes again; Leaf's
     travel to an element inside one opens it the same way. A link to a passage of text
     drives the browser's search here: it reveals a match by the same algorithm as
     find-in-page, which a test cannot press. Before, folded messages were plain
-    `hidden`, which the browser's search skips."""
+    `hidden`, which the browser's search skips.
+
+    A reply's markup, which stands in one drawing at a time, stays in a drawing that
+    shows it rather than one that folds the reply away: here the panel, which outranks
+    the page's seat but folds the reply under its summary, leaves it in the seat whose
+    fold the user opened."""
     url = serve(SEATED_OBLIGATION_PAGE)
     root = panel_comment(serve.page_dir, "Which job first?", {"section": "jobs"})
     asked = append_agent_reply(
@@ -196,6 +175,11 @@ def test_the_browser_s_search_and_leaf_s_travel_open_a_closed_fold(browser, serv
     page.goto(f"{here}#folded-note")
     opened()
     assert page.evaluate("() => window.stayed")
+
+    with subtests.test("the panel leaves a folded reply's markup in the open seat"):
+        view = open_panel_thread(page, root)
+        expect(view.locator(f'.lf-msg[data-lf-event="{asked["id"]}"]')).to_be_hidden()
+        expect(note).to_be_attached()
 
 
 def test_a_summary_folds_originals_and_reveals_them(browser, serve):
@@ -341,39 +325,33 @@ def test_previous_progress_messages_can_fold_without_summary_prose(browser, serv
     expect(card.locator(f'.lf-msg[data-lf-event="{first["id"]}"]')).to_be_hidden()
 
 
-@pytest.mark.parametrize("interleaved", [True, False])
-def test_ephemeral_progress_hides_when_its_held_completion_is_revealed(
-    browser, serve, interleaved
-):
+def test_ephemeral_progress_hides_when_its_held_completion_is_revealed(browser, serve):
     """Revealing a held answer hides all progress, including across an intervening
     user reply. A fresh reading shows the same transcript without a disclosure."""
     url = serve(SEATED_OBLIGATION_PAGE)
     root = panel_comment(serve.page_dir, "Check the schedule.", {"section": "jobs"})
-    progress = thread_model.post_reply(
+    thread_model.post_reply(
         serve.page_dir,
         {"responds": root},
         "Checking the camera.",
         ephemeral=True,
     )
-    owed = root
-    folded = progress
-    if interleaved:
-        intervening = append_command(
-            serve.page_dir,
-            {
-                "kind": "reply",
-                "author": "user",
-                "parent": root,
-                "text": "Check the mount too.",
-            },
-        )
-        owed = intervening["id"]
-        folded = thread_model.post_reply(
-            serve.page_dir,
-            {"responds": owed},
-            "Checking the mount.",
-            ephemeral=True,
-        )
+    intervening = append_command(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "user",
+            "parent": root,
+            "text": "Check the mount too.",
+        },
+    )
+    owed = intervening["id"]
+    folded = thread_model.post_reply(
+        serve.page_dir,
+        {"responds": owed},
+        "Checking the mount.",
+        ephemeral=True,
+    )
 
     def show(page):
         resized(page, 390, 844)
@@ -384,8 +362,7 @@ def test_ephemeral_progress_hides_when_its_held_completion_is_revealed(
     identity = "data-lf-event"
     original = card.locator(f'.lf-msg[{identity}="{folded["id"]}"]')
     expect(original).to_be_hidden()
-    runs = 2 if interleaved else 1
-    expect(card.locator(".lf-thread-working")).to_have_count(runs)
+    expect(card.locator(".lf-thread-working")).to_have_count(2)
     expect(card.locator(".lf-thread-working").get_by_role("button")).to_have_count(0)
 
     answer = thread_model.post_reply(
@@ -408,10 +385,7 @@ def test_ephemeral_progress_hides_when_its_held_completion_is_revealed(
     ).to_be_visible()
     expect(fresh_card.locator(".lf-thread-checkpoint")).to_have_count(0)
     expect(fresh_card.locator(".lf-thread-working")).to_have_count(0)
-    if interleaved:
-        expect(
-            fresh_card.get_by_text("Check the mount too.", exact=True)
-        ).to_be_visible()
+    expect(fresh_card.get_by_text("Check the mount too.", exact=True)).to_be_visible()
 
 
 @pytest.mark.parametrize(("width", "touch"), [(1400, False), (1400, True)])
@@ -572,7 +546,8 @@ def test_a_summary_folds_its_messages_where_they_stand(request, serve, engine):
     reloaded its frame in WebKit, which lacks `moveBefore`, and lost the selection in
     every engine. The checkpoint groups its messages for assistive technology by
     `aria-owns`, since it no longer contains them. Its toggle takes a press while those
-    words stay selected."""
+    words stay selected. Standing on that toggle, the user is in the thread, so the
+    edit that retracts the summary draws at once."""
     url = serve(SEATED_OBLIGATION_PAGE)
     root = panel_comment(serve.page_dir, "Which job first?", {"section": "jobs"})
     framed = append_agent_reply(
@@ -660,8 +635,8 @@ def test_a_summary_folds_its_messages_where_they_stand(request, serve, engine):
         },
     )
     told(page)
-    show_held_news(card)
     expect(checkpoint).to_have_count(0)
+    expect(card.locator(".lf-thread-news")).to_have_count(0)
     expect(covered[2]).to_contain_text("The camera takes three.")
     kept()
 

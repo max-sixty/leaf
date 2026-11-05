@@ -515,7 +515,9 @@ COLLECTIONS: dict[str, Collection] = {
     ),
 }
 # The pages the browser measures; any other collection is one more name here.
-AXES = {name: COLLECTIONS[name] for name in ("asks", "document", "prose", "threads")}
+AXES = {
+    name: COLLECTIONS[name] for name in ("asks", "document", "prose", "rows", "threads")
+}
 
 
 @contextmanager

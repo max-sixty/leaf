@@ -128,10 +128,13 @@ window opens it. Ending that case needs an app that gives a chat an owner withou
 window, or a queue that takes non-user input (`thread/queue/add` takes only
 `UserInput`).
 
-The router is private and could change with any app release. Leaf falls back to the
-queue when it does, and the adapter's log (`sessions/<session>.codex.log`) says so for
-a start the app refused. A chat that quietly returns to queued messages is the sign to
-read that log and the app's method table, which lives in its `app.asar` beside
+The router is private and could change with any app release. A change that stops the
+start before it goes out falls back to the queue, and one that leaves its answer
+unreadable leaves the start to the chat's transcript, so neither sends input twice. The
+adapter's log (`sessions/<session>.codex.log`) gives the reason for each. A version
+bump the app doesn't know reads as `no-client-found`, the same as a chat with no owner,
+so a chat that returns to queued messages while a window shows it is the sign to read
+the app's method table, which lives in its `app.asar` beside
 `thread-follower-start-turn`.
 
 What running each route on 4 November 2026 showed, with the desktop app at

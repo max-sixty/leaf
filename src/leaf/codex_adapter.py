@@ -16,10 +16,10 @@ One of three transports carries the adapter's offer. A desktop chat a window of 
 Codex desktop app has opened takes it as a turn the app starts, with the complete
 delivery as a tool output and no message in the user's name (`codex_desktop.py`). The
 adapter sees nothing of that turn but its id, so the task answers with explicit
-commands, and a start that fails falls back to the queue, where a lost answer can run
-the same input twice. The `codex queue` command is the
-default for a task whose App Server Leaf cannot reach. It leaves a pointer for the
-task's next turn; the task reads that
+commands. Only a start the app refused before running it falls back to the queue; one
+it may have run waits for the chat's transcript to settle it. The `codex queue` command
+is the default for a task whose App Server Leaf cannot reach. It leaves a pointer for
+the task's next turn; the task reads that
 immutable input through `leaf delivery read` and answers with explicit commands, the
 reply included. On the macOS desktop, the adapter then wakes the queued chat through
 the app's background deep link: an external queue write alone waits for Codex's
@@ -90,7 +90,11 @@ from .codex import (
     retry_delay,
     start_app_server_delivery,
 )
-from .codex_desktop import DesktopStartFailed, start_desktop_turn
+from .codex_desktop import (
+    DesktopUnavailable,
+    settle_desktop_start,
+    start_desktop_delivery,
+)
 from .codex_state import (
     delivery_lock_path,
     delivery_turn,
@@ -189,20 +193,27 @@ def _in_desktop_chat() -> bool:
     return os.environ.get("CODEX_INTERNAL_ORIGINATOR_OVERRIDE") == "Codex Desktop"
 
 
-def _start_in_desktop_chat(thread_id: str, payload: dict) -> str | None:
-    """The turn the desktop app started for this delivery, or None to leave it to the
-    queue."""
+def _start_in_desktop_chat(thread_id: str, payload: dict) -> bool:
+    """Whether the desktop app took this delivery's start, confirmed or not. False
+    leaves it to the queue, with the reason in the adapter's log."""
     if not _in_desktop_chat():
-        return None
+        return False
     try:
-        return start_desktop_turn(thread_id, payload)
-    except DesktopStartFailed as error:
+        start_desktop_delivery(thread_id, payload)
+    except DesktopUnavailable as error:
         print(
-            f"Codex desktop start failed; queueing instead: {error}",
+            f"Codex desktop start not taken; queueing instead: {error}",
             file=sys.stderr,
             flush=True,
         )
-        return None
+        return False
+    except AppServerDeliveryUncertain as error:
+        print(
+            f"Codex desktop start unconfirmed; settling it from the chat's transcript: {error}",
+            file=sys.stderr,
+            flush=True,
+        )
+    return True
 
 
 def _wake_desktop_queue(thread_id: str) -> None:
@@ -852,6 +863,10 @@ def _offer_queued_delivery(
         # provider's lifecycle before reserving the idle queue, including while
         # the resumed turn is still executing its first tool.
         sync_transcript_turn(session_id)
+        # A start the desktop app may have run holds later input back until the
+        # chat's transcript settles it.
+        if _in_desktop_chat() and settle_desktop_start(session_id):
+            return False
     observed_hook_turn = hook_turn(session_id)
     if (
         connection is None
@@ -905,11 +920,7 @@ def _offer_queued_delivery(
         raise AppServerDeliveryUncertain(
             "the observed App Server delivery is awaiting reconciliation"
         )
-    expected = session_record(session_id)
-    turn = _start_in_desktop_chat(session_id, prepared.payload)
-    if turn is not None:
-        start_session_turn(session_id, turn, expected)
-        accept_codex_delivery(session_id, prepared.payload["id"], turn)
+    if _start_in_desktop_chat(session_id, prepared.payload):
         return True
     queue_delivery(codex_path, session_id, prepared.prompt)
     # `codex queue` takes no message id and lists nothing queued, so a failure

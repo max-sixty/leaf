@@ -108,6 +108,7 @@ from .codex_state import (
     delivery_dir,
     delivery_lock_path,
     hook_turn,
+    reverse_transcript_lines,
 )
 from .delivery import (
     DELIVERY,
@@ -131,6 +132,7 @@ from .delivery import (
 )
 from .harness import CodexHarness, Harness
 from .refusals import Refused
+from .registry.schema import aware_instant
 from .service import (
     PageTransaction,
     delivery_reply_attempt,
@@ -489,6 +491,45 @@ def app_server_delivery_id(message: dict) -> str | None:
         return None
     found = {identity for item in items if (identity := _item_delivery_id(item))}
     return next(iter(found)) if len(found) == 1 else None
+
+
+def transcript_delivery_turn(path: Path, delivery_id: str, since: float) -> str | None:
+    """The turn whose input carried delivery `delivery_id` as a `leaf_delivery` tool
+    output in the native Codex transcript at `path`, or None where none did.
+
+    The transcript records each item as it completes, `{"type": "event_msg",
+    "payload": {"type": "item_completed", "turn_id", "item"}}`, with the item in
+    App Server's fields under a capitalized type. It reads back from the end only to
+    the first record written before `since`, the time the delivery was captured,
+    since no turn written earlier can hold it.
+    """
+    try:
+        stream = path.open("rb")
+    except FileNotFoundError:
+        return None
+    with stream:
+        size = os.fstat(stream.fileno()).st_size
+        for _, line in reverse_transcript_lines(stream, size):
+            record = json.loads(line)
+            if not isinstance(record, dict):
+                continue
+            written = record.get("timestamp")
+            instant = aware_instant(written) if isinstance(written, str) else None
+            if instant is not None and instant.timestamp() < since:
+                return None
+            payload = record.get("payload")
+            if (
+                record.get("type") == "event_msg"
+                and isinstance(payload, dict)
+                and payload.get("type") == "item_completed"
+                and isinstance(item := payload.get("item"), dict)
+                and item.get("type") == "FunctionCallOutput"
+                and _item_delivery_id({**item, "type": "functionCallOutput"})
+                == delivery_id
+                and isinstance(turn := payload.get("turn_id"), str)
+            ):
+                return turn
+    return None
 
 
 def _item_delivery_id(item: dict) -> str | None:

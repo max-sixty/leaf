@@ -27,6 +27,39 @@ Before writing a mechanism, read the headers of the modules beside `cli.py`: `ar
 builds arms and isolated harness sessions, `page_fixtures.py` page directories, and
 `browser.py` the browser every command drives.
 
+## Experiments
+
+`leaf-dev eval` runs the catalog, the cases that score Leaf's shipped instructions on
+its arms; a new case is `evals/<task>/case.yaml` (`evals/README.md`). Any other
+question put to a model is an experiment. An experiment adds one folder under `evals/`,
+and a `pnpm run eval:<name>` script that runs its config:
+
+- `promptfooconfig.yaml` declares the arms as `providers`, the samples as `tests` and
+  the graders as assertions. Use `promptfooconfig.mjs` where those have to be computed,
+  as they are where providers name their models.
+- The folder holds the config's `provider.mjs`, `grade.mjs` and fixtures, and a README
+  saying how to run it and read the results.
+- What a run must set up or summarise for the tests the config declares goes in
+  Promptfoo's `beforeAll` and `afterAll` hooks, named under the config's `extensions`.
+  Promptfoo applies its filters before `beforeAll` and takes no providers from it, so
+  setup that produces the tests themselves runs before Promptfoo, in the script.
+- A new comparison is another provider in the config, since a `--condition` value or
+  option on `leaf-dev eval` would stay in the catalog's code after the experiment ends.
+  Promptfoo's own options choose what a run takes: `--filter-providers`,
+  `--filter-pattern`, `--repeat`.
+
+`evals/control-legibility/` produces its tests in its script, and
+`evals/ui-review-detection/` prepares them in its hooks.
+
+A `leaf-dev` command exists only for a mechanism two experiments share, so an experiment
+gets none of its own. A mechanism stays in the first experiment's folder until a second
+one needs it. It then moves into a module in `leaf_dev`, with a command if it is run on
+its own.
+
+Code names a model only through `MODELS`, `JUDGE_MODELS` and `COMPARED_MODELS` in
+`arms.py`, so moving a pin moves every experiment. Node code reads them through
+`leaf_dev/arms.mjs`, and a model new to a comparison goes in `COMPARED_MODELS`.
+
 ## Tests
 
 Developer-tool tests live in `dev/tests/` and run only when explicitly requested.

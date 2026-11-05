@@ -151,7 +151,8 @@ browser assets and the packages into a page's layer.
 - `hooks/`: each harness's registration of `leaf hook` (`hooks.json` for Claude
   Code, `codex.json` for Codex), the scripts they run, Claude Code's hooks
   module `claude-code.ts`, and the Pi extension `pi.ts`.
-- `evals/`: cases a headless agent answers, scoring the shipped instructions.
+- `evals/`: cases a headless agent answers, scoring the shipped instructions, and
+  experiments with their own Promptfoo configs (`dev/AGENTS.md`, "Experiments").
 - `examples/`: the pages the site publishes, also the render corpus
   (`examples/AGENTS.md`).
 - `tests/`: the suite, with the runtime's Node tests under `tests/runtime/`

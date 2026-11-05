@@ -12,17 +12,17 @@ test("a layout reading takes a cover's side from the layout viewport", (t) => {
   t.after(
     declareCover(surface, () => ({ left: 0, top: 500, right: 1000, bottom: 886 })),
   );
-  const restore = Object.getOwnPropertyDescriptors(visualViewport);
+  const restore = Object.getOwnPropertyDescriptors(window.visualViewport);
   t.after(() => {
     for (const name of ["offsetTop", "height"])
-      Object.defineProperty(visualViewport, name, restore[name]);
+      Object.defineProperty(window.visualViewport, name, restore[name]);
   });
   // A 900px layout viewport whose visual viewport is panned to show y=600-900.
-  Object.defineProperty(visualViewport, "offsetTop", {
+  Object.defineProperty(window.visualViewport, "offsetTop", {
     configurable: true,
     get: () => 600,
   });
-  Object.defineProperty(visualViewport, "height", {
+  Object.defineProperty(window.visualViewport, "height", {
     configurable: true,
     get: () => 300,
   });

@@ -29,7 +29,9 @@ Beside them stand the server's time to start answering each event the clicks pos
 whose answer carries the server's reading of the page, that answer's size, and
 `shown`: the time from a click to the first frame painted once that reading is
 presented (`leaf_dev.painted`), which root `AGENTS.md` holds to BUDGET_MS on the
-largest page and the table flags past it. Every run also measures a page of BASE,
+largest page and the table flags past it. It is an upper bound, at most a frame above
+that paint, since the probe reads the page before the frame's later callbacks run;
+its goal stays met once met, as the bound needs. Every run also measures a page of BASE,
 whose costs are mostly the runtime's fixed work. It prints each cost by size with the
 exponent of its growth above the BASE page, fitted over the largest sizes (least
 squares of log growth on log size), and marks an exponent above SUPERLINEAR, which is

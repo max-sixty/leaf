@@ -8,10 +8,20 @@
  * and recorded once it has painted; the trips the runtime's ledger counted from
  * arming through settlement; and, where `main_thread.js` is installed too, the long
  * animation frames this document ran since arming, with the scripts that ran in
- * each. The input a gesture's time counts from is its last Enter
- * or pointer click. Python drives the gestures and agent writes in the top tab, and
- * reads the requests from the browser. Embedded examples have their own semantic
- * document and share no measurement.
+ * each. The input a gesture's time counts from is its last Enter or pointer click.
+ * Python drives the gestures and agent writes in the top tab, and reads the requests
+ * from the browser. Embedded examples have their own semantic document and share no
+ * measurement.
+ *
+ * A goal is read in the probe's animation callback, before the frame's later
+ * callbacks, their microtasks and ResizeObserver delivery, so a goal that those make
+ * true counts at the next frame: each time is an upper bound, at most a frame above
+ * the paint that first showed its goal. That holds only for a goal that stays met
+ * once met, since a later callback in the same frame could otherwise undo it after it
+ * was read. `message`, `card` and `delivered`'s event stay once there, and
+ * `delivered` and `revision` also ask that presentation has finished, which a later
+ * reading can only delay. `status` stays only while nothing else sets the page's
+ * status, as in bench-latency's runs.
  */
 (() => {
   if (window !== window.top || location.protocol === "about:") return;

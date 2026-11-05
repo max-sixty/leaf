@@ -151,11 +151,13 @@
  * the `about` group). A
  * keyboard's convenience for where the reader stands, such as Resume writing, stands
  * under Navigate only where no keyboard is there to reach it (page-controls.js, the
- * `keys` group). The panel shows one key hint of its own, the key that enters an open
- * thread's reply, which the user asked for on 22 October as a margin card's reply box
- * shows it; otherwise the menu's rows carry their keys and `?` opens the full
- * reference, which the user chose on 13 October over a hint or two in the line over
- * the field, to keep the panel quietest. The field the
+ * `keys` group). The panel shows one key hint of its own, `c` at the field's end while
+ * it enters the field, which says where `c` goes: beside Reply in an open thread, which
+ * the user asked for on 22 October as a margin card's reply box shows it, and alone at
+ * rest, which they chose on 4 November 2026 with the box that rests beside a target
+ * (composing/surface.js, `restFab`). The menu's rows carry every other key and `?` opens
+ * the full reference, which the user chose on 13 October over a hint or two in the line
+ * over the field, to keep the panel quietest. The field the
  * user clicks in is the field they write in: a page
  * comment where no thread is open, a reply where one is: the reply box every view of a
  * thread draws (thread/replies.js), with its ↑ to the user's last message, which Leaf's
@@ -2697,21 +2699,19 @@ export function createFloatingPanel({
   // user unfolds, so a page whose conversations have all settled takes one row rather
   // than a row for each. The heading is a row of the list, which the arrows walk to and
   // Enter opens, and a section stays unfolded while the panel stays open (`unfolded`).
-  // It takes the list's group heading (controls.css, `.lf-rows-head`), and its
-  // disclosure arrow stands in the rows' first column, so its name starts where theirs
-  // do. The user chose the fold on 27 October over the newest three resolved with the
-  // rest behind a row, which put a second order in a list read in the page's, and over
-  // resolved threads only searched for, which left them nothing to browse.
-  // In an On list the heading is its group's band, and takes the band's ink
-  // (controls.css, `data-lf-band`).
-  /** @param {string} key @param {string} title @param {number} count @param {boolean} [band] */
-  function settledHeading(key, title, count, band = false) {
+  // It is its group's band (controls.css, `.lf-rows-group`, `data-lf-band`), its
+  // disclosure arrow hanging in the band's start padding, so its name starts where every
+  // band's does. The user chose the fold on 27 October over the newest three resolved
+  // with the rest behind a row, which put a second order in a list read in the page's,
+  // and over resolved threads only searched for, which left them nothing to browse.
+  /** @param {string} key @param {string} title @param {number} count */
+  function settledHeading(key, title, count) {
     const open = unfolded.has(key);
     return html`<h3 class="lf-rows-head">
       <button
         type="button"
         ${offeredAction("row", "lf-fp-settled lf-disclosure-marker")}
-        ?data-lf-band=${band}
+        data-lf-band
         aria-expanded=${open ? "true" : "false"}
         @click=${() => {
           if (open) unfolded.delete(key);
@@ -2720,7 +2720,7 @@ export function createFloatingPanel({
           paint();
         }}
       >
-        <span class="lf-fp-label lf-row-main">${title}</span
+        <span class="lf-row-main">${title}</span
         ><span class="lf-row-end">${count}</span>
       </button>
     </h3>`;
@@ -2752,28 +2752,36 @@ export function createFloatingPanel({
         <span class="lf-fp-label lf-row-main">${threadHeading(thread)}</span>
         <span class="lf-row-end">${threadStatus(thread)}</span>
       </button>`;
-    /** @param {ReturnType<typeof readThreads>["threads"]} threads */
-    const rowsOf = (threads) => repeat(threads, (thread) => thread.key, row);
+    // Every thread stands in a group, as every item does in On's lists (`groupedItems`).
+    // The open ones keep their group's box as a search narrows them to its matches, so
+    // the rows stay under the box they stood in.
+    // A band counts the threads the page holds in that state now, as the tab does, so
+    // it says the same number while the list holds a row in its old section or a new
+    // thread behind the notice; a search counts its matches.
+    const groups = [
+      {
+        key: "open",
+        title: searched ? "Matches" : "Open",
+        items: listed,
+        count: searched ? listed.length : threadCounts(threads()).open,
+      },
+      {
+        key: "resolved",
+        title: "Resolved",
+        items: resolved,
+        count: threads().filter((thread) => thread.resolved).length,
+        folds: true,
+      },
+    ].filter((group) => group.items.length);
     return html`<div class="lf-fp-list lf-rows">
       ${
-        listed.length
-          ? rowsOf(listed)
-          : inventoried()
-            ? html`<p class="lf-rows-empty">
-                ${
-                  searched
-                    ? "Nothing matches."
-                    : "No open threads. Comment below to start one."
-                }
-              </p>`
-            : nothing
+        listed.length || !inventoried()
+          ? nothing
+          : html`<p class="lf-rows-empty">
+              ${searched ? "Nothing matches." : "No open threads. Comment below to start one."}
+            </p>`
       }
-      ${
-        resolved.length
-          ? html`${settledHeading("resolved", "Resolved", resolved.length)}
-            ${unfolded.has("resolved") ? rowsOf(resolved) : nothing}`
-          : nothing
-      }
+      ${bandedGroups(groups, (thread) => thread.key, row)}
       ${
         // This tab's sends are listed, but the saved threads are still to come, which
         // the list says after the rows it has, so their arrival moves none of them.
@@ -3688,50 +3696,42 @@ export function createFloatingPanel({
       }
     </section>`;
   }
-  // Groups of items, each a box of its own opened by its band: the group's name and how
-  // many it counts (`count`, else all of its items), across the panel on a ground a
-  // shade off the panel's, which sticks at the view's top while its group passes under
-  // it until the next group's band pushes it off (floating-panel.css,
-  // `.lf-fp-on-group`). Every item down to the next band is the band's, so no rule or
-  // box parts one item from the next. A group that `folds` stands folded under its
-  // band, as Threads' Resolved does (`settledHeading`). `line` draws an item, given the
-  // group it stands in. A sticky box moves only inside its parent, so each group is a
-  // box of its own, keyed by the group, its items keyed inside it. An item that moves
-  // to another group, as one the agent starts or finishes does, is drawn afresh there,
-  // and the paint's hold puts focus back on the item carrying its key (`paintNow`,
-  // focus.js `holdFocus`). The user chose the bands on 3 November 2026, asking for a
-  // group heading that sticks as a thread's author line does. Rejected: a rule under
-  // each heading and faint rules between items, which tied the first item to the
-  // heading and not the rest; groups parted by space alone; each group in a bordered
-  // box, the closest but too noisy, and in a tinted well, the same box in other
-  // clothes; and every group folding under its band, which hid what the user still
-  // owes and which people seldom open.
+  // Groups of rows, each a box of its own opened by its band: the group's name and how
+  // many it counts (`count`, else all of its rows), which sticks while its group passes
+  // (controls.css, `.lf-rows-group`, which keeps the record of the design). A group that
+  // `folds` stands folded under its band (`settledHeading`). `keyOf` keys a row and
+  // `line` draws it, given the group it stands in. Each group is keyed by its own key,
+  // its rows keyed inside it. A row that moves to another group, as an item the agent
+  // starts or finishes does, is drawn afresh there, and the paint's hold puts focus back
+  // on the row carrying its key (`paintNow`, focus.js `holdFocus`).
+  /** @template T
+   * @template {{key: string | Element, title: string, items: readonly T[], count?: number, folds?: boolean}} G
+   * @param {readonly G[]} groups @param {(item: T) => unknown} keyOf @param {(item: T, group: G) => unknown} line */
+  function bandedGroups(groups, keyOf, line) {
+    return repeat(
+      groups,
+      (group) => group.key,
+      (group) => {
+        const count = group.count ?? group.items.length;
+        const folded = group.folds && !unfolded.has(String(group.key));
+        return html`<section class="lf-rows-group">
+          ${
+            group.folds
+              ? settledHeading(String(group.key), group.title, count)
+              : html`<h3 class="lf-rows-head">
+                  <span class="lf-row-main">${group.title}</span
+                  ><span class="lf-row-end">${count}</span>
+                </h3>`
+          }${folded ? nothing : repeat(group.items, keyOf, (item) => line(item, group))}
+        </section>`;
+      },
+    );
+  }
   /** @template {{key: string | Element, title: string, items: readonly PanelQueueItem[], count?: number, folds?: boolean}} G
    * @param {readonly G[]} groups @param {(item: PanelQueueItem, group: G) => unknown} line */
   function groupedItems(groups, line) {
     return html`<div class="lf-fp-on-list lf-rows">
-      ${repeat(
-        groups,
-        (group) => group.key,
-        (group) => {
-          const count = group.count ?? group.items.length;
-          const folded = group.folds && !unfolded.has(String(group.key));
-          return html`<section class="lf-fp-on-group lf-rows-group">
-            ${
-              group.folds
-                ? settledHeading(String(group.key), group.title, count, true)
-                : html`<h3 class="lf-rows-head">
-                    <span class="lf-fp-label">${group.title}</span
-                    ><span class="lf-row-end">${count}</span>
-                  </h3>`
-            }${
-              folded
-                ? nothing
-                : repeat(group.items, queueItemKey, (item) => line(item, group))
-            }
-          </section>`;
-        },
-      )}
+      ${bandedGroups(groups, queueItemKey, line)}
     </div>`;
   }
 

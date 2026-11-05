@@ -131,9 +131,14 @@ customElements.define('lf-source-stage', class extends HTMLElement {
 
 
 def library_select(browser, serve):
-    """Exercise the optional library's select without depending on a consumer's UI."""
+    """Exercise the optional library's select without depending on a consumer's UI.
+
+    No bundled widget loads the select, so the page imports the library as a
+    package's module would.
+    """
     page = _bound_diff(browser, serve)
     page.evaluate("""async () => {
+      await import('/vendor/webawesome.esm.js');
       const {offer} = await window.__lfWidgetApi();
       const select = offer('wa-select', 'library-select');
       select.label = 'Choose file';
@@ -275,6 +280,7 @@ def test_webawesome_typography_is_independent_of_surrounding_prose(browser, serv
     """
     page = _bound_diff(browser, serve)
     readings = page.evaluate("""async () => {
+      await import('/vendor/webawesome.esm.js');
       const {offer} = await window.__lfWidgetApi();
       const properties = ['fontFamily', 'fontStyle', 'fontVariant', 'fontStretch',
         'fontFeatureSettings', 'fontVariationSettings', 'letterSpacing',

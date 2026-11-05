@@ -1,12 +1,10 @@
-"Where an open margin thread card stands beside its target, and how it holds still\nthrough news, presses, reflows and scrolls, panes included."
+"Where an open margin thread card stands beside its target, and how it holds still\nthrough news, reflows and scrolls, panes included."
 
 import json
-from datetime import datetime, timedelta
 
 import pytest
-from interact_support import append_carried_log_record
 from playwright.sync_api import expect
-from render_cases_interaction import HOLD_MOTION, PANEL_PAGE, panel_comment
+from render_cases_interaction import PANEL_PAGE, panel_comment
 from render_harness import (
     ROOT,
     leaf_page,
@@ -14,7 +12,6 @@ from render_harness import (
     regions_side_by_side,
     resized,
     scroll_settled,
-    ticked,
     told,
 )
 
@@ -121,109 +118,6 @@ def test_an_open_card_takes_news_without_moving_its_controls(browser, serve):
     for name, control in controls.items():
         assert control.bounding_box() == pytest.approx(held[name], abs=0.5), name
     assert editor.bounding_box()["y"] > held["editor"]["y"] + 20
-
-
-@pytest.mark.watch_shifts
-@pytest.mark.parametrize("how", ["press", "key"])
-def test_a_press_in_the_card_keeps_the_pressed_spot_still(browser, serve, how):
-    """What a press shows grows the card from where the user pressed, as a seat on
-    the page grows: opening pending progress, by pointer or key, grows the card up
-    past the disclosure, which stays where it was pressed. The hold ends with that
-    input, so a draft typed next grows the card down from its head row."""
-    url = serve(PANEL_PAGE)
-    root = panel_comment(
-        serve.page_dir, "Make the banner quieter", {"section": "h-how"}
-    )
-    address = {"parent": root, "responds": root}
-    for words in ("Comparing the banner.", "Checking both schemes."):
-        thread_model.post_reply(serve.page_dir, address, words, ephemeral=True)
-    append_carried_log_record(
-        serve.page_dir,
-        {
-            "kind": "reply",
-            "author": "user",
-            "parent": root,
-            "text": "And check the dark scheme?",
-        },
-    )
-    page = open_page(browser, url)
-    resized(page, 1200, 900)
-    page.locator(".lf-margin-marker").first.click()
-    preview = page.locator(".lf-margin-preview")
-    disclosure = preview.locator(".lf-summary-expand")
-    expect(disclosure).to_have_text("Show 2 progress messages")
-    rendered(page)
-    pressed = disclosure.bounding_box()
-    compact = preview.bounding_box()
-    original_motion = page.evaluate_handle("() => Element.prototype.animate")
-    page.evaluate("() => {" + HOLD_MOTION + "}")
-
-    def expect_pressed_spot():
-        for progress in (0, 0.5, 1):
-            page.evaluate(
-                """progress => window.__lfHeld.forEach(m => {
-                  if (m.playState !== 'idle')
-                    m.currentTime = m.effect.getTiming().duration * progress;
-                })""",
-                progress,
-            )
-            box = disclosure.bounding_box()
-            assert (box["x"], box["y"]) == pytest.approx(
-                (pressed["x"], pressed["y"]), abs=0.5
-            ), progress
-        page.evaluate(
-            """() => window.__lfHeld.splice(0).forEach(m => {
-              if (m.playState !== 'idle') m.finish();
-            })"""
-        )
-
-    if how == "key":
-        disclosure.focus()
-        page.keyboard.press("Enter")
-    else:
-        disclosure.click()
-    expect(disclosure).to_have_text("Hide 2 progress messages")
-    expect(preview).to_contain_text("Checking both schemes")
-    rendered(page)
-    expect_pressed_spot()
-
-    expanded = preview.bounding_box()
-    assert expanded["height"] > compact["height"]
-    if how == "key":
-        page.keyboard.press("Enter")
-    else:
-        disclosure.click()
-    expect(disclosure).to_have_text("Show 2 progress messages")
-    rendered(page)
-    assert preview.bounding_box()["height"] == pytest.approx(compact["height"], abs=0.5)
-    expect(disclosure).to_be_focused()
-    expect_pressed_spot()
-    page.evaluate(
-        "original => { Element.prototype.animate = original; }", original_motion
-    )
-    original_motion.dispose()
-
-    close = preview.get_by_role("button", name="Dismiss thread view", exact=True)
-    head = close.bounding_box()
-    preview.get_by_role("textbox", name="Reply", exact=True).click()
-    page.keyboard.type("Also check the dark scheme, " * 6, delay=0)
-    rendered(page)
-    assert close.bounding_box() == pytest.approx(head, abs=0.5)
-
-    if how == "press":
-        age = preview.locator(".lf-msg-meta time").last
-        timestamp = datetime.fromisoformat(age.get_attribute("datetime"))
-        page.clock.set_fixed_time(timestamp + timedelta(seconds=30))
-        ticked(page)
-        expect(age).to_have_text("just now")
-        before_tick = disclosure.bounding_box()
-        page.clock.set_fixed_time(timestamp + timedelta(seconds=60))
-        ticked(page)
-        expect(age).to_have_text("1m ago")
-        rendered(page)
-        assert disclosure.bounding_box()["x"] == pytest.approx(
-            before_tick["x"], abs=0.5
-        )
 
 
 # The sweep: one card per kind of place a commented row can stand in, each read in the

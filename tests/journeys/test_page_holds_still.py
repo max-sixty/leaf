@@ -279,6 +279,27 @@ def queue_page(serve):
     return Built(live_url(url), serve.page_dir, QUEUE_PAGE)
 
 
+DECISIONS_PAGE = leaf_page(
+    "Decisions",
+    '<section id="ask-0"><h2>Part 0</h2>'
+    + paragraphs(0, 3)
+    + "</section>"
+    + "".join(
+        f'<section id="ask-{n}"><h2>Part {n}</h2>{paragraphs(n * 3, 2)}'
+        f'<lf-ask id="decide-{n}"><h3>Ask {n}: which way should part {n} go?</h3>'
+        f'<lf-options id="ways-{n}" choose><lf-option id="north-{n}">North</lf-option>'
+        f'<lf-option id="south-{n}">South</lf-option></lf-options></lf-ask></section>'
+        for n in range(1, ASKS + 1)
+    ),
+)
+
+
+def decisions_page(serve):
+    """Fourteen decisions the page itself asks, one on each part but the first, so On
+    me's cards hold widgets' questions and no message for Leaf's reader to draw."""
+    return Built(live_url(serve(DECISIONS_PAGE)), serve.page_dir, DECISIONS_PAGE)
+
+
 PAGES = {
     "thread": thread_page,
     "map": map_page,
@@ -287,6 +308,7 @@ PAGES = {
     "tall-dial": tall_dial_page,
     "pane": pane_page,
     "queue": queue_page,
+    "decisions": decisions_page,
 }
 
 # ---------------------------------------------------------------------------------
@@ -726,6 +748,30 @@ def put_on_me_row(page, built):
     page.mouse.move(*ASIDE)
 
 
+def put_on_me_turned_back(page, built):
+    """On me turned to On <agent> and back by its tabs, which fits the list afresh, then
+    scrolled with the wheel past its first cards, the pointer resting on one in sight.
+    Nothing the user does after the tab press repaints the panel, and no card holds a
+    message for Leaf's reader to draw, so the list's next paint is the news's."""
+    page.locator(".lf-fp-on-user").click()
+    cards = page.locator(".lf-fp-on-item")
+    expect(cards).to_have_count(ASKS)
+    tabs = page.locator(".lf-fp-controls .lf-fp-filters button")
+    tabs.filter(has_text=re.compile(r"^\s*On (?!me)")).click()
+    expect(cards).to_have_count(0)
+    tabs.filter(has_text="On me").click()
+    expect(cards).to_have_count(ASKS)
+    view = page.locator(".lf-floating-panel .lf-fp-view:not([data-lf-leaving])")
+    box = view.bounding_box()
+    page.mouse.move(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+    page.mouse.wheel(0, 3 * cards.first.bounding_box()["height"])
+    expect(view).not_to_have_js_property("scrollTop", 0)
+    scroll_settled(page, ".lf-floating-panel .lf-fp-view:not([data-lf-leaving])")
+    card = cards.filter(has_text="Ask 6:")
+    expect(card).to_be_in_viewport()
+    card.hover()
+
+
 PLACES = [
     Place(
         "typing",
@@ -902,6 +948,13 @@ PLACES = [
         "on-me-row",
         "queue",
         put_on_me_row,
+        Found(".lf-fp-on-item", "Ask 6:"),
+        {"ask above": "ask-0"},
+    ),
+    Place(
+        "on-me-turned-back",
+        "decisions",
+        put_on_me_turned_back,
         Found(".lf-fp-on-item", "Ask 6:"),
         {"ask above": "ask-0"},
     ),

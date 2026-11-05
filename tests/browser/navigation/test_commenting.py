@@ -424,7 +424,7 @@ def test_where_c_goes_shows_before_the_press(browser, serve):
     expect(panel_key).to_be_visible()
     # Its word stands with it, after the status, as Reply does in a thread.
     expect(page.locator(".lf-fp-field .lf-compose-placeholder-enters")).to_have_text(
-        "Comment"
+        "Comment…"
     )
     expect(rest).to_be_hidden()
 

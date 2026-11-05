@@ -56,7 +56,7 @@ import { scrollersOf, installScrollerLookup } from "./scroll-containers.js";
 export { scrollersOf } from "./scroll-containers.js";
 import { nextRender, sizeObserver } from "./rendering.js";
 import { landingBand, shownRect, userScrollport } from "./geometry.js";
-import { skipped } from "./shown-box.js";
+import { skipped } from "./shadow-tree.js";
 import { pageScroller } from "./scrolling.js";
 import { reachReadingScroller } from "./reach.js";
 import { under, renderedUnder, renderedParent } from "./shadow.js";

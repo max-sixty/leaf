@@ -1357,6 +1357,18 @@ def dial_keyboard(page: Page) -> None:
     page.keyboard.press("Shift")  # keyboard modality, which Chromium's focus reads
 
 
+def screenshot_view_hover(page: Page) -> None:
+    """An unchosen view under the pointer, beside the chosen one."""
+    screenshot_comparison(page)
+    page.locator("#bg-shot .lf-shot-views").get_by_text("Pair", exact=True).hover()
+
+
+def dial_press(page: Page) -> None:
+    """An unchosen depth held down under the pointer, before it is chosen."""
+    page.locator("lf-dial").get_by_text("Skim", exact=True).hover()
+    page.mouse.down()
+
+
 def screenshot_options(page: Page) -> None:
     """Image options keep the pixel color key beside the scale choices."""
     screenshot_comparison(page)
@@ -2676,7 +2688,14 @@ STATES = (
         screenshot_views_keyboard,
         region="#bg-shot .lf-shot-toolbar",
     ),
+    State(
+        "screenshot-view-hover",
+        "feature-gallery",
+        screenshot_view_hover,
+        region="#bg-shot .lf-shot-toolbar",
+    ),
     State("dial-keyboard", "detail", dial_keyboard, region="lf-dial"),
+    State("dial-press", "detail", dial_press, region="lf-dial"),
     State(
         "image-in-page",
         "feature-gallery",
@@ -2939,16 +2958,21 @@ STATES = (
         region=".lf-margin-preview",
     ),
     State("plan-card-aging", "review-a-plan", card_aging, region=".lf-margin-preview"),
+    # A window with no room beside the stop's words, so its card stands under them and
+    # holds what would move the reply the user drafts (thread-preview.js,
+    # `endNewsMoves`); beside them, it shows the news at once.
     State(
         "plan-card-held-news",
         "review-a-plan",
         card_held_news,
+        window=Window((1200, 900)),
         region=".lf-margin-preview",
     ),
     State(
         "plan-card-held-step",
         "review-a-plan",
         card_held_step,
+        window=Window((1200, 900)),
         region=".lf-margin-preview",
     ),
     State(

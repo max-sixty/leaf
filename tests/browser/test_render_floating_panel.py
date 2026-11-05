@@ -122,7 +122,7 @@ def test_one_field_starts_a_thread_takes_its_reply_and_settles_it(browser, serve
         "Could the rollback cover the weekend?"
     )
     expect(field(page)).to_be_focused()
-    expect(field(page)).to_have_attribute("placeholder", re.compile("^Reply ⏎"))
+    expect(field(page)).to_have_attribute("placeholder", re.compile("^Reply… ⏎"))
 
     write(field(page), "And the mobile cohort too.")
     with sending(page, "the reply"):
@@ -950,12 +950,12 @@ def test_news_in_an_open_thread_moves_none_of_its_controls(browser, serve):
     box = field(page)
     box.focus()
     words = page.locator(".lf-fp-field .lf-compose-placeholder-words")
-    expect(words).to_have_text("Reply")
+    expect(words).to_have_text("Reply…")
     agent({"kind": "resolve", "parent": root})
     notice = page.locator(".lf-fp-news-outlet .lf-thread-news")
     expect(notice).to_have_attribute("title", "Resolved")
     expect(page.locator(".lf-fp-head .lf-resolve")).to_be_visible()
-    expect(words).to_have_text("Reply")
+    expect(words).to_have_text("Reply…")
     # Off the field, it says the thread's word before Reply, which isn't Resolved yet.
     page.locator(panel_view("thread")).focus()
     expect(lead(page)).not_to_contain_text("Resolved")
@@ -967,7 +967,7 @@ def test_news_in_an_open_thread_moves_none_of_its_controls(browser, serve):
     # Who resolved it, which Reopen's name says only to a pointer resting on it.
     expect(lead(page)).to_contain_text(re.compile(r"Resolved by \w+"))
     box.focus()
-    expect(words).to_have_text("Reply to reopen")
+    expect(words).to_have_text("Reply to reopen…")
     settled(page)
     assert page.evaluate(SEATS) == seats
 
@@ -3113,7 +3113,7 @@ def test_the_empty_field_says_the_agent_s_status_until_the_caret_is_in(browser, 
     sheen(True)
 
     field(page).click()
-    expect(field(page)).to_have_attribute("placeholder", re.compile("^Comment ⏎"))
+    expect(field(page)).to_have_attribute("placeholder", re.compile("^Comment… ⏎"))
     sheen(False)
     page.keyboard.type("Could")
     page.keyboard.press("ControlOrMeta+a")
@@ -3185,7 +3185,7 @@ def test_nothing_passing_interrupts_the_user_writing(browser, serve):
         "placeholder", re.compile(r"^Saved for later")
     )
     field(page).click()
-    expect(field(page)).to_have_attribute("placeholder", re.compile(r"^Comment ⏎"))
+    expect(field(page)).to_have_attribute("placeholder", re.compile(r"^Comment… ⏎"))
     write(field(page), "Could the rollback cover the weekend?")
     page.evaluate(say, "Saved for later")
     page.mouse.click(5, 5)
@@ -3372,7 +3372,7 @@ def test_a_walk_says_its_position_in_the_panel(browser, serve):
     write(field(page), "Is this the one?")
     page.keyboard.press("Enter")
     expect(page.locator(panel_view("thread"))).to_be_visible()
-    expect(field(page)).to_have_attribute("placeholder", re.compile("^Reply ⏎"))
+    expect(field(page)).to_have_attribute("placeholder", re.compile("^Reply… ⏎"))
     expect(page.locator(".lf-fp-peek")).to_be_hidden()
 
 
@@ -4502,9 +4502,11 @@ def test_the_menu_s_search_finds_rows_threads_and_commands(browser, serve):
     puts the menu away. A thread found opens over the menu, its way back returning to
     the words."""
     url = serve(LONG_PAGE)
-    panel_comment(serve.page_dir, "Is the window long enough?")
+    # The agent's, since the menu's Undo row names the user's newest comment by its
+    # words, so a search for a thread of the user's finds that row first.
+    panel_comment(serve.page_dir, "Is the window long enough?", author="agent")
     page = floating(browser, url)
-    search = page.get_by_role("searchbox", name="Rows, threads, versions")
+    search = page.get_by_role("searchbox", name="Search menu")
     menu = panel_menu(page)
     expect(search).to_be_focused()
     expect(page.locator(".lf-floating-panel")).to_have_attribute(
@@ -5192,7 +5194,7 @@ def test_a_refused_page_comment_hands_its_words_back_to_the_field(browser, serve
 
 def test_a_thread_whose_words_are_gone_keeps_its_quotation_in_the_panel(browser, serve):
     """A thread about words the page no longer holds opens in the panel, where the
-    quotation it kept stands over its messages in three lines, led by the word that
+    quotation it kept stands over its messages in three lines, under the word that
     says the page has no place for it, which a finger reads as a pointer does; Full
     quote shows the rest, as a card's head does."""
     url = serve(LONG_PAGE)
@@ -5209,14 +5211,13 @@ def test_a_thread_whose_words_are_gone_keeps_its_quotation_in_the_panel(browser,
     expect(view.locator(".lf-msg")).to_contain_text("Does this still apply?")
     quote = view.locator(".lf-thread-quote")
     expect(quote).to_contain_text("FINAL WORDS")
-    expect(quote).to_have_attribute("data-lf-detached", "")
-    assert quote.evaluate("el => el.scrollHeight > el.clientHeight")
-    status = quote.locator(".lf-anchor-status")
-    expect(status).to_have_text("Not found")
-    assert status.evaluate(
-        "s => s.getBoundingClientRect().bottom"
-        " <= s.closest('.lf-thread-quote').getBoundingClientRect().bottom"
+    expect(view.locator(".lf-thread-quote-head")).to_have_attribute(
+        "data-lf-detached", ""
     )
+    assert quote.evaluate("el => el.scrollHeight > el.clientHeight")
+    status = view.locator(".lf-quote-label .lf-anchor-status")
+    expect(status).to_have_text("Not found")
+    expect(status).to_be_visible()
     disclosure = view.get_by_role("button", name="Full quote", exact=True)
     expect(disclosure).to_be_visible()
     disclosure.click()
@@ -5494,7 +5495,7 @@ def test_a_sample_shows_its_threads_in_its_panel(browser, serve):
     child.get_by_role("button", name="Back to Threads").click()
     expect(threads).to_be_visible()
     child.get_by_role("button", name="Find a thread or message", exact=True).click()
-    search = child.get_by_role("searchbox", name="Find a thread or message")
+    search = child.get_by_role("searchbox", name="Search threads")
     assert search.bounding_box()["width"] > 0
     search.fill("schedule")
     expect(child.locator(".lf-fp-thread")).to_have_count(1)
@@ -6049,7 +6050,8 @@ def test_writing_reaches_the_field_however_the_panel_stands(browser, serve):
     expect(page.locator(panel_view("thread"))).to_be_visible()
     expect(field(page)).to_be_focused()
     expect(field(page)).to_have_js_property("value", "Make it the weekend.")
-    page.wait_for_timeout(300)
+    # The resume has drawn whatever it decided, an error included.
+    rendered(page)
     expect(page.get_by_text("That writing place is unavailable")).to_have_count(0)
 
 

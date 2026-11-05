@@ -306,6 +306,24 @@ def screenshot(page) -> bytes:
     return page.screenshot()
 
 
+@contextmanager
+def chromium_metrics(page: Page, *, ticks: bool = False):
+    """Read Chromium's counts of `page`'s renderer work for the life of the block:
+    yield what returns them by name when called, from CDP's `Performance.getMetrics`,
+    such as `LayoutCount`, `RecalcStyleCount`, `Nodes` and `TaskDuration`, the
+    main thread's time in its tasks in seconds. With `ticks` its times are thread
+    ticks, the CPU the thread spent, rather than wall time."""
+    session = page.context.new_cdp_session(page)
+    session.send("Performance.enable", {"timeDomain": "threadTicks"} if ticks else {})
+    try:
+        yield lambda: {
+            metric["name"]: metric["value"]
+            for metric in session.send("Performance.getMetrics")["metrics"]
+        }
+    finally:
+        session.detach()
+
+
 def slow_cpu(page: Page, rate: float) -> None:
     """Run Chromium's CPU for `page` `rate` times slower, through CDP, as on a slower
     machine than this one. Set before the page navigates, the throttle holds through

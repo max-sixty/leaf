@@ -164,7 +164,9 @@ def test_reading_keys_follow_the_focused_pane_without_moving_its_sibling(
     page.wait_for_function(
         "() => document.querySelector('#left-reading > :not(header, footer)').scrollTop > 0"
     )
-    page.wait_for_timeout(250)
+    # The pane's scroll has ended, and any scroll of the document it led to after it.
+    scroll_settled(page, "#left-reading > :not(header, footer)")
+    scroll_settled(page)
     assert right.evaluate("el => el.scrollTop") == 0
     assert page.evaluate("document.scrollingElement.scrollTop") == 0
     left_position = left.evaluate("el => el.scrollTop")
@@ -174,7 +176,8 @@ def test_reading_keys_follow_the_focused_pane_without_moving_its_sibling(
     page.wait_for_function(
         "() => document.querySelector('#right-reading > :not(header, footer)').scrollTop > 0"
     )
-    page.wait_for_timeout(250)
+    scroll_settled(page, "#right-reading > :not(header, footer)")
+    scroll_settled(page)
     assert left.evaluate("el => el.scrollTop") == left_position
     assert page.evaluate("document.scrollingElement.scrollTop") == 0
 
@@ -228,6 +231,26 @@ def test_a_click_on_a_panes_words_makes_it_the_subject_of_every_scroll_key(
     assert page.evaluate(reading) == "left-reading"
     page.keyboard.press("u")
     page.wait_for_function(f"() => ({tops})()[0] < {left}")
+
+
+@pytest.mark.parametrize("commented", [False, True], ids=["empty", "commented"])
+def test_the_box_waits_for_the_press_beside_a_pane_the_rail_does_not_stand_by(
+    browser, serve, commented
+):
+    """A workspace keeps no rail, so the room beside a pane is the pane next to it, and
+    a box resting there would take the next click on that pane's words. It waits for `c`
+    whether or not the pane already shows a comment's row, whose pin is no margin."""
+    anchored = [("left-landmark", "stable semantic landmark")] if commented else []
+    page = open_page(browser, serve(READING_REGIONS_PAGE, anchored=anchored))
+    if commented:
+        expect(page.locator(".lf-margin-cluster")).to_have_attribute(
+            "data-lf-place", "pin"
+        )
+    page.locator("#left-start").click()
+    expect(page.locator(".lf-fab-bar[data-lf-rest][data-lf-withheld]")).to_have_count(1)
+    expect(page.locator(".lf-fab-rest")).to_be_hidden()
+    page.keyboard.press("c")
+    expect(page.locator(".lf-fab-input")).to_be_focused()
 
 
 def test_a_wheel_or_a_press_on_words_gives_a_pane_the_reading_keys_and_the_walk(

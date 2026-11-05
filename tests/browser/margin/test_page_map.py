@@ -486,7 +486,7 @@ def test_page_map_keyed_reconciliation_preserves_user_current_location(browser, 
     page.keyboard.press("Shift+p")
     dialog = page.get_by_role("dialog", name="Page Map", exact=True)
     search = dialog.get_by_role(
-        "searchbox", name="Find an action, status, or location in Page Map"
+        "searchbox", name="Find an action, status or location in Page Map"
     )
     search.fill("Action")
     retained = dialog.get_by_role("button", name="Action 12", exact=True)
@@ -577,7 +577,7 @@ def test_g_hints_address_the_visible_window_and_g_shift_m_opens_the_complete_pag
     expect(dialog.locator(".lf-page-map-group")).to_have_count(12)
     expect(dialog).to_contain_text("Map note 12")
     search = dialog.get_by_role(
-        "searchbox", name="Find an action, status, or location in Page Map"
+        "searchbox", name="Find an action, status or location in Page Map"
     )
     expect(search).to_be_focused()
     search.fill("Map note 12")
@@ -601,7 +601,7 @@ def test_the_page_map_search_filters_in_place_and_walks_its_rows(
     page = open_page(browser, serve(PAGE_MAP_PAGE, events=PAGE_MAP_EVENTS))
     dialog = page.get_by_role("dialog", name="Page Map", exact=True)
     search = dialog.get_by_role(
-        "searchbox", name="Find an action, status, or location in Page Map"
+        "searchbox", name="Find an action, status or location in Page Map"
     )
     close = dialog.get_by_role("button", name="Close Page Map", exact=True)
     groups = dialog.locator(".lf-page-map-group:visible")
@@ -866,7 +866,7 @@ def test_g_shift_m_exposes_dense_suggestion_verdicts_as_real_buttons(browser, se
         ).to_be_visible()
 
     search = dialog.get_by_role(
-        "searchbox", name="Find an action, status, or location in Page Map"
+        "searchbox", name="Find an action, status or location in Page Map"
     )
     search.fill("Pack")
     expect(dialog.locator(".lf-page-map-group:visible")).to_have_count(3)
@@ -889,7 +889,7 @@ def test_g_shift_m_exposes_dense_suggestion_verdicts_as_real_buttons(browser, se
     expect(search).to_be_focused()
     expect(dialog.locator(".lf-page-map-group:visible")).to_have_count(0)
     expect(
-        dialog.get_by_text("No matching actions, statuses, or locations")
+        dialog.get_by_text("No matching actions, statuses or locations")
     ).to_be_visible()
     page.evaluate(
         """() => {
@@ -1104,7 +1104,7 @@ def test_the_small_screen_map_is_a_complete_accessible_sheet(browser, serve, ope
         dialog.locator("button.lf-page-map-action").first
         if opener == "finger"
         else dialog.get_by_role(
-            "searchbox", name="Find an action, status, or location in Page Map"
+            "searchbox", name="Find an action, status or location in Page Map"
         )
     ).to_be_focused()
     expect(dialog.locator(".lf-page-map-action").first).to_have_css(
@@ -1326,7 +1326,7 @@ def test_page_map_disclosure_arrival_yields_to_newer_search(
     door = dialog.get_by_role("button", name="Expand choices", exact=True)
     child = dialog.get_by_role("button", name="Revealed choice", exact=True)
     search = dialog.get_by_role(
-        "searchbox", name="Find an action, status, or location in Page Map"
+        "searchbox", name="Find an action, status or location in Page Map"
     )
     expect(door).to_be_visible()
     with held_frames(page):

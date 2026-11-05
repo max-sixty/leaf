@@ -386,10 +386,11 @@ def test_a_page_calls_its_agent_by_its_claimant_or_last_voice(page_dir, monkeypa
     (`presence.page_agent`): its claimant's, else the voice that last wrote on it, else
     the unnamed agent's."""
     voiced = [
-        {"seq": 1, "kind": "comment", "author": "agent", "agent": "Codex"},
-        {"seq": 2, "kind": "reply", "author": "user"},
-        {"seq": 3, "kind": "reply", "author": "agent", "agent": "Claude"},
-        {"seq": 4, "kind": "reply", "author": "agent"},
+        {"id": "c", "seq": 1, "kind": "comment", "author": "agent", "agent": "Codex"},
+        {"id": "r1", "seq": 2, "kind": "reply", "parent": "c", "author": "user"},
+        {"id": "r2", "seq": 3, "kind": "reply", "parent": "c", "author": "agent"}
+        | {"agent": "Claude"},
+        {"id": "r3", "seq": 4, "kind": "reply", "parent": "c", "author": "agent"},
     ]
     assert presence_model.presence(page_dir, [])["agent"] == "Agent"
     assert presence_model.presence(page_dir, voiced)["agent"] == "Claude"

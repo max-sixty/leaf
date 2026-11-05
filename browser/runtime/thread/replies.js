@@ -10,7 +10,9 @@
    begins nothing, so a thread settled meanwhile leaves the margin as it would for a
    reader. A caret landing on words the box already holds does begin one, since those
    words are the user's draft. Everything that asks whether the user is writing reads
-   the session (`replyIsEditing`), a card's anchor as a margin's entry. Rejected:
+   the session (`replyIsEditing`), a margin card's news as a margin's entry
+   (annotation-overlay/thread-preview.js, `endNewsMoves`); the edge the card holds
+   asks only whether a text field in it has focus (`heldEdge`). Rejected:
    beginning on every `focusin`, which made an opening's caret a session nobody began
    and kept a resolved thread's card standing over its empty box (the same class as the
    send's caret, #5364; found on 4 November 2026).
@@ -38,6 +40,7 @@
    thread is still in the margin, and a hidden panel, keep their rows, since the user
    goes on there when they open again. Every view draws whichever row it holds, a
    primary reader's reply part (primary-reader.js) as a card does. */
+import { REPLY_HINT } from "../words.js";
 import {
   captureDraftEditing,
   loadDraft,
@@ -382,6 +385,7 @@ function wireReply(
   { hint, hintParts, hintLead, accessibleName, busy },
 ) {
   row.classList.add("lf-comment-box");
+  input.setAttribute("data-lf-voice", "leaf");
   const draftCtx = replyContext(key);
   input.value = loadDraft(draftCtx)?.text ?? "";
   const sync = commands.wireInput(input, {
@@ -568,7 +572,7 @@ export function createReplyView(
   {
     onChange = () => {},
     editLast = null,
-    hint = () => "Reply",
+    hint = () => REPLY_HINT,
     hintParts = null,
     hintLead = () => "",
     accessibleName = "Reply",

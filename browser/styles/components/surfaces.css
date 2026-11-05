@@ -318,7 +318,10 @@ a[data-lf-external]::after,
    box says (`--lf-ring-at`), or where a region's or a control's marks stand when it
    says nothing. The outline is important, so a rule of the page's or a widget's that
    sets the box's outline, as one turning off a focus ring does, leaves the mark
-   standing while it shows. */
+   standing while it shows. Focus alone (`data-lf-mark="focus"`) is the box's focus
+   ring rather than a mark, so it stands at no weight, as the focus floor above does:
+   the box's own focus treatment wins, an author's outline or a carrier's such as a
+   ring overlay. */
 :where(
   [data-lf-aimed],
   [data-lf-traced],
@@ -327,6 +330,16 @@ a[data-lf-external]::after,
   [data-lf-projected-location]
 ) {
   --lf-band-gap: var(--lf-ring-at, var(--focus-region-gap));
+  outline: var(--lf-band-w, var(--focus-ring-w)) solid var(--lf-band-ink, var(--accent));
+  outline-offset: var(--lf-band-gap);
+}
+:where(
+  [data-lf-aimed],
+  [data-lf-traced],
+  [data-lf-proxied],
+  [data-lf-mark]:not([data-lf-mark="focus"]),
+  [data-lf-projected-location]
+) {
   outline: var(--lf-band-w, var(--focus-ring-w)) solid var(--lf-band-ink, var(--accent)) !important;
   outline-offset: var(--lf-band-gap) !important;
 }
@@ -1301,27 +1314,24 @@ button.lf-thread-news {
 /* A quote of the words a thread is about, where its container asks for one, as the
    floating panel's view does (thread-card.js, `#drawQuote`). The panel stands in the
    chrome and a thread drawn by a package's reader stands in the page, so the face is
-   stated here, where every surface reads it. The rule and the quiet ink say its words
-   are quoted, so they take no marks. A status word leads them where the page no longer
-   reads as the quote does, such as a passage a revision took out of the latest
-   version, so the three lines never cut it and a finger reads it as a pointer does
-   (`quoteReading`). Where they stand (`anchorPlace`, thread/messages.js) comes next, in
-   the status's face, since both are Leaf's words about the quotation. The quote stands
-   over the thread's messages in three lines, the whole on Full quote, its press above
-   the words it grows. It only says what the thread is about, since the container's way
-   to the words, as the panel's Show on page, goes there: it takes no press, no aim's
-   room and no title. Its words start on the thread's edge, the 1px rule before them
-   included. */
+   stated here, where every surface reads it. Only the quoted words stand behind the
+   rule, which with the quiet ink says they are quoted, so they take no marks. Leaf's
+   words about them form a label over the rule in the status face: first a status word
+   in Leaf's italic (voice.js) where the page no longer reads as the quote does, such as
+   a passage a revision took out of the latest version, which a finger reads as a
+   pointer does (`quoteReading`), then where they stand (`anchorPlace`,
+   thread/messages.js). A thread on a place with no quoted words draws the label alone.
+   The words stand over the thread's messages in three lines, the whole on Full quote,
+   its press above the words it grows. The head only says what the thread is about,
+   since the container's way to the words, as the panel's Show on page, goes there: it
+   takes no press, no aim's room and no title. The rule stands on the thread's edge, and
+   the words and the label start on its text. */
 .lf-quote-label {
-  min-width: 0;
-}
-.lf-quote-place,
-.lf-anchor-status {
-  font: var(--font-status);
-}
-.lf-anchor-status {
-  margin-inline-end: 3px;
+  margin: 0;
+  padding-inline: var(--lf-thread-text-inset) 8px;
   color: var(--muted);
+  font: var(--font-status);
+  overflow-wrap: anywhere;
 }
 .lf-thread-quote-head:not([hidden]) {
   display: grid;

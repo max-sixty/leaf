@@ -93,15 +93,16 @@ export function orderChildren(parent, nodes) {
 // Replace a renderer-owned subtree using the same matching and text edits as an
 // authored revision. The caller owns every descendant's attributes and contents;
 // controls with independent state belong outside it. Current nodes pair to themselves,
-// so unchanged text and native Ranges stay in place without a source mirror. A list
-// whose diff would cost more than `RENDERED_DIFF_WORK` is replaced instead, as setting
-// `innerHTML` would, so an edit rewriting every paragraph costs the list's length.
-/** @param {Node & ParentNode} parent @param {Iterable<Node>} nodes */
-export function setRenderedChildren(parent, nodes) {
+// so unchanged text and native Ranges stay in place without a source mirror. A caller
+// that drew its subtree whole before, as setting `innerHTML` does, passes `bounded`: a
+// list whose diff would cost more than `BOUNDED_DIFF_WORK` is then replaced, so an
+// edit rewriting every paragraph costs the list's length rather than its square.
+/** @param {Node & ParentNode} parent @param {Iterable<Node>} nodes @param {{bounded?: boolean}} [options] */
+export function setRenderedChildren(parent, nodes, { bounded = false } = {}) {
   const after = document.createDocumentFragment();
   after.append(...nodes);
   patchChildren(parent, parent, after, {
-    diffWork: RENDERED_DIFF_WORK,
+    diffWork: bounded ? BOUNDED_DIFF_WORK : Infinity,
     pairs: selfPairs(parent),
     arrive: (node) => node,
     sameValue: (held, wanted) => held === wanted,
@@ -234,7 +235,8 @@ function staying(parent, nodes) {
      only placement walks live children; nothing here matches or removes on it.
    - `diffWork`: the most one sibling diff may cost, its lists' length times the edits
      between them, before it pairs nothing in that list and the patch replaces it. A
-     revision's is unbounded, since its nodes carry the user's state.
+     revision's is unbounded, since its nodes carry the user's state; so is a rendered
+     subtree's, unless its caller replaced it whole before (`setRenderedChildren`).
 
    Matching runs in three passes, narrowest first, and each pass only sees what the one
    before it left. An id is a name the author gave, so it wins outright. Then the siblings
@@ -566,7 +568,7 @@ function matchNodes(held, wanted, work) {
 
 // A sibling diff costs the lists' length times the edits between them: an edit that
 // rewrote every paragraph cost the square of the list's length.
-const RENDERED_DIFF_WORK = 2 ** 18;
+const BOUNDED_DIFF_WORK = 2 ** 18;
 /** @param {readonly unknown[]} held @param {readonly unknown[]} wanted @param {number} work */
 const editBudget = (held, wanted, work) =>
   Math.max(1, Math.floor(work / (held.length + wanted.length + 1)));

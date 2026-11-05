@@ -77,7 +77,9 @@ import { copyControl } from "../copy-control.js";
 // edit keeps every node it leaves alone and rewrites a changed paragraph's words in
 // place, so the browser's scroll anchoring still holds the paragraph a reader is in
 // when an edit grows one above it. A property binding to `innerHTML` replaced every
-// one, and neither engine anchors again on a node that replaces its anchor.
+// one, and neither engine anchors again on a node that replaces its anchor. An edit
+// rewriting nearly every paragraph of a long message is drawn whole again (`bounded`),
+// as that binding drew it, rather than diffed at the square of its length.
 const keptWords = directive(
   class extends Directive {
     /** @type {string | null} */
@@ -92,7 +94,7 @@ const keptWords = directive(
       this.#drawn = markup;
       const parsed = document.createElement("template");
       parsed.innerHTML = markup;
-      setRenderedChildren(part.element, parsed.content.childNodes);
+      setRenderedChildren(part.element, parsed.content.childNodes, { bounded: true });
       return noChange;
     }
   },

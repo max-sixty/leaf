@@ -390,17 +390,17 @@ test("rendered markup redrawn keeps the nodes an edit leaves and its rewritten w
   assert.deepEqual([...words.children], [first, third]);
 });
 
-test("rendered markup rewritten past the diff's bound is replaced", () => {
+test("bounded rendered markup rewritten past the diff's bound is replaced", () => {
   // Completing a Markdown reference definition turns a reference in every paragraph
-  // into a link. A diff over every paragraph costs the square of their number, so
-  // past its bound the list is replaced, as `innerHTML` would replace it.
+  // into a link. A diff over every paragraph costs the square of their number, so a
+  // bounded caller's list past the bound is replaced, as `innerHTML` would replace it.
   const words = document.createElement("div");
   document.body.replaceChildren(words);
   /** @param {string} markup */
   const draw = (markup) => {
     const parsed = document.createElement("template");
     parsed.innerHTML = markup;
-    setRenderedChildren(words, parsed.content.childNodes);
+    setRenderedChildren(words, parsed.content.childNodes, { bounded: true });
   };
   const said = Array.from({ length: 2000 }, (_, at) => at);
   draw(said.map((at) => `<p>Paragraph ${at} says [reference].</p>`).join("\n"));

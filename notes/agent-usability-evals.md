@@ -601,9 +601,12 @@ failures were lost and its final page failed.
 The handling clause holds failures and advice apart as the October measurement found.
 Every delivered failure was fixed on both arms. Base agents changed the chart for 15 of
 15 advice-only deliveries. Head agents changed it for 1 of 4, and Codex made that one
-change. The instruction change didn't measurably move when agents run the check: both
-arms ran it in all 10 quick sessions, and neither ran it when the user was waiting. With
-the user waiting, the pass finds what the agent skipped.
+change. The head arm also carried a `SKILL.md` line telling agents a quick page needs no
+browser review of their own, since Leaf checks it after the turn. It didn't measurably
+move when agents run the check: both arms ran it in all 10 quick sessions, and neither
+ran it when the user was waiting. So the change dropped it, which also keeps the skill
+from promising a reading on a host with no browser. With the user waiting, the pass
+finds what the agent skipped.
 
 On the October fixture agents no longer leave the failure for a reading to find. All 20
 Claude Code agents in the quick context ran `--render` before handing over. With the

@@ -204,14 +204,33 @@ aside.note {
   line-height: 1.45;
   color: var(--muted);
 }
-/* A list of facts takes Leaf's facts layout (reading.css, `dl.facts`). In the
-   column it keeps the prose's rhythm, and its labels step down to the apparatus size,
-   never above the size of the words around the list. */
+/* A list of facts, each label beside its value, laid out as Leaf lays out its own
+   (`dl.lf-facts`, browser/styles/components/reading.css), so a reader learns where a
+   value stands once. The labels take a column as wide as the longest of them, up to
+   two fifths of the list, and wrap past that; the values take the rest and line up on
+   one edge. A `div` may hold a label with its value, as HTML allows. In the column it
+   keeps the prose's rhythm, and its labels step down to the apparatus size, never
+   above the size of the words around the list. A page without this theme keeps its
+   own `.facts`. */
 dl.facts {
+  display: grid;
+  grid-template-columns: fit-content(40%) minmax(0, 1fr);
+  align-items: baseline;
+  gap: var(--sp-1) var(--sp-3);
   margin: 14px 0;
 }
+dl.facts > div {
+  display: contents;
+}
 dl.facts dt {
+  color: var(--muted);
+  font-weight: 400;
   font-size: min(var(--t-5), 1em);
+}
+dl.facts dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+  font-variant-numeric: tabular-nums;
 }
 /* A metric tile: one figure under the label naming it, with an optional change beside
    the figure, written as a one-term definition list. It is type and a hairline above,

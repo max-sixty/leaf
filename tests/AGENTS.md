@@ -166,7 +166,7 @@ which calls the server's own `served_records.py`. A fixture carries every field 
 server sends and changes only the fields the
 case is about. `fixtures/pages/` holds full-page regressions under
 `examples/AGENTS.md`'s rules, and `fixtures/plain/` ordinary web pages
-(`browser/test_plain_pages.py`).
+(`journeys/test_plain_pages.py`).
 A result that depends on a primitive Node and Chrome implement differently, such as
 `Intl.Segmenter`, is tested in the browser.
 

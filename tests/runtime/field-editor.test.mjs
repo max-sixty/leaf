@@ -219,12 +219,18 @@ test("a fence is left by typing its marks, or by Down from the draft's last line
   }
 });
 
-test("Down leaves the indented code a body reads, whose indent Return carries", async () => {
+test("Down leaves the indented code a body reads", async () => {
   assert.equal(await loadMarkdown(), true);
-  const field = await draftField("Run:\n\n    code", undefined, false);
-  assert.equal(field.type("↓after"), "Run:\n\n    code\n\nafter");
-  const quoted = await draftField("> Run:\n>\n>     code\n>     ", undefined, false);
-  assert.equal(quoted.type("↓after"), "> Run:\n>\n>     code\n> \n> after");
+  for (const [source, expected] of [
+    ["Run:\n\n    code", "Run:\n\n    code\n\nafter"],
+    ["> Run:\n>\n>     code\n>     ", "> Run:\n>\n>     code\n> \n> after"],
+    // Code of only spaces, as Shift+Enter and four spaces leave it.
+    ["Run:\n\n    ", "Run:\n\nafter"],
+    ["    ", "    \n\nafter"],
+  ]) {
+    const field = await draftField(source, undefined, false);
+    assert.equal(field.type("↓after"), expected, source);
+  }
 });
 
 test("a paste keeps a fence's marks and its containers", async () => {
@@ -261,64 +267,49 @@ test("a paste keeps a fence's marks and its containers", async () => {
   }
 });
 
-// What a user types into a draft, written as the blocks they mean the message to hold,
-// and the keys that write them: prose, and code entered by typing or a paste and left by
-// each way out. A run of seeded samples types each one and holds the sent message to the
-// blocks it meant. A failure names its seed and keys, the smallest sample that still
-// fails, so it can join one of the tables above.
-const WORDS = ["read", "write", "access", "admin", "repo", "x = 1", "echo hi", "a.b"];
-const LEAVE = ["marks", "marks then ⏎", "marks on their own line", "↓", "↑↓↓"];
-/** @param {number} seed */
-function sampleOf(seed) {
-  let state = seed;
-  // mulberry32, so a seed names one sample on every run.
-  const random = () => {
-    state = (state + 0x6d2b79f5) | 0;
-    let t = Math.imul(state ^ (state >>> 15), 1 | state);
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 2 ** 32;
-  };
-  /** @template T @param {readonly T[]} items @returns {T} */
-  const pick = (items) => /** @type {T} */ (items[Math.floor(random() * items.length)]);
-  const words = (n) => Array.from({ length: n }, () => pick(WORDS)).join(" ");
-  const blocks = Array.from({ length: 1 + Math.floor(random() * 4) }, () =>
-    random() < 0.4
-      ? { kind: "prose", text: words(1 + Math.floor(random() * 3)) }
-      : {
-          kind: "code",
-          lang: pick(["", "py"]),
-          lines: Array.from({ length: 1 + Math.floor(random() * 3) }, () => words(2)),
-          pasted: random() < 0.5,
-          leave: pick(LEAVE),
-        },
-  );
-  return { container: pick(["", "> ", "- "]), blocks };
-}
+// Every draft of one or two blocks built from these parts, written as the blocks a user
+// means the message to hold: prose, or code entered by typing or a paste and left by
+// each way out, in a quote, a list item or neither. Each is typed, and its sent message
+// held to the blocks it meant. Each way into code meets each way out and each block
+// after it, and a failure, named by its keys in the notation of the tables above, is
+// small enough to join one of them.
+const LEAVE = ["```", "```⏎", "⏎```⏎", "```↓", "↓", "⏎↓", "↑↓↓"];
+const PROSE = { kind: "prose", text: "it says:" };
+const CODE = [false, true].flatMap((pasted) =>
+  ["", "py"].flatMap((lang) =>
+    [["Read access to code"], ["Read access to code", "x = 1", "echo hi"]].map(
+      (lines) => ({ kind: "code", lang, lines, pasted }),
+    ),
+  ),
+);
+const DRAFTS = ["", "> ", "- "].flatMap((container) => {
+  const last = [PROSE, ...CODE];
+  const left = CODE.flatMap((code) => LEAVE.map((leave) => ({ ...code, leave })));
+  return [
+    ...last.map((block) => ({ container, blocks: [block] })),
+    ...[PROSE, ...left].flatMap((block) =>
+      last.map((next) => ({ container, blocks: [block, next] })),
+    ),
+  ];
+});
 
-/** The keys that write `sample` (`draftField`, `type`), and the pastes between them. */
+/** The keys that write `draft` (`draftField`, `type`), and the pastes between them. */
 function keysOf({ container, blocks }) {
   /** @type {({keys: string} | {paste: string})[]} */
   const steps = [{ keys: container }];
   blocks.forEach((block, at) => {
-    const last = at === blocks.length - 1;
+    const next = blocks[at + 1];
     if (block.kind === "prose") {
-      steps.push({ keys: `${block.text}${last ? "" : "⏎"}` });
+      steps.push({ keys: `${block.text}${next ? "⏎" : ""}` });
       return;
     }
     steps.push({ keys: `\`\`\`${block.lang}` });
     if (block.pasted) steps.push({ paste: block.lines.join("\n") });
     else steps.push({ keys: block.lines.map((line) => `⏎${line}`).join("") });
-    if (last) return;
-    const leave = {
-      marks: "```",
-      "marks then ⏎": "```⏎",
-      "marks on their own line": "⏎```⏎",
-      "↓": "↓",
-      "↑↓↓": "↑↓↓",
-    }[block.leave];
+    if (!next) return;
     // Backticks typed after closing marks lengthen them, so a new block starts a line.
-    const next = blocks[at + 1];
-    steps.push({ keys: leave === "```" && next?.kind === "code" ? "```⏎" : leave });
+    const leave = block.leave === "```" && next.kind === "code" ? "```⏎" : block.leave;
+    steps.push({ keys: leave });
   });
   return steps;
 }
@@ -353,41 +344,37 @@ function sentBlocks(source, renderMarkdown) {
   return joined(blocks);
 }
 
-/** Whether the message holds what `sample` meant, and the draft its keys left. */
-async function sends(sample, renderMarkdown) {
-  const field = await draftField("");
-  let source = "";
-  for (const step of keysOf(sample))
-    source = "paste" in step ? field.paste(step.paste) : field.type(step.keys);
-  const meant = joined(
-    sample.blocks.map((block) =>
-      block.kind === "code" ? { kind: "code", text: block.lines.join("\n") } : block,
-    ),
-  );
-  const sent = sentBlocks(source, renderMarkdown);
-  return { held: JSON.stringify(sent) === JSON.stringify(meant), source, sent, meant };
-}
-
 test("what a draft's keys meant is what its message holds", async () => {
   const { loadMarkdown, renderMarkdown } = await import("/runtime/markdown.js");
   assert.equal(await loadMarkdown(), true);
-  for (let seed = 1; seed <= 400; seed++) {
-    let sample = sampleOf(seed);
-    if ((await sends(sample, renderMarkdown)).held) continue;
-    // The smallest failing sample: drop blocks while it still fails.
-    for (let at = sample.blocks.length - 1; at >= 0; at--) {
-      const fewer = { ...sample, blocks: sample.blocks.toSpliced(at, 1) };
-      if (fewer.blocks.length && !(await sends(fewer, renderMarkdown)).held)
-        sample = fewer;
-    }
-    const { source, sent, meant } = await sends(sample, renderMarkdown);
-    const keys = keysOf(sample)
+  for (const draft of DRAFTS) {
+    const steps = keysOf(draft);
+    const keys = steps
       .map((step) =>
         "paste" in step ? `[paste ${JSON.stringify(step.paste)}]` : step.keys,
       )
       .join("");
-    assert.fail(
-      `seed ${seed}: ${keys}\nleft ${JSON.stringify(source)}\nsent ${JSON.stringify(sent)}\nmeant ${JSON.stringify(meant)}`,
+    const field = await draftField("");
+    let source = "";
+    try {
+      for (const step of steps)
+        source = "paste" in step ? field.paste(step.paste) : field.type(step.keys);
+    } catch (error) {
+      assert.fail(`${keys}\nthrew ${error.stack}`);
+    }
+    const sent = JSON.stringify(sentBlocks(source, renderMarkdown));
+    const meant = JSON.stringify(
+      joined(
+        draft.blocks.map((block) =>
+          block.kind === "code"
+            ? { kind: "code", text: block.lines.join("\n") }
+            : block,
+        ),
+      ),
     );
+    if (sent !== meant)
+      assert.fail(
+        `${keys}\nleft ${JSON.stringify(source)}\nsent ${sent}\nmeant ${meant}`,
+      );
   }
 });

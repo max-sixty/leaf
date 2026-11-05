@@ -1416,9 +1416,9 @@ function fieldEditor(
 
   // Down from the draft's last line begins a line below the code block that holds it, in
   // place of the blank lines ending its code: after the closing marks an open fence
-  // lacks, or after a blank line that ends an indented block's code, whose indent Return
-  // carries and the preview hides. Nothing else reaches a line below code the draft ends
-  // with. Rich editors leave a code block the same way.
+  // lacks, or after a blank line that ends an indented block's code, whose indent the
+  // preview hides and Return carries outside a quote or list item. Nothing else reaches
+  // a line below code the draft ends with. Rich editors leave a code block the same way.
   /** @param {EditorView} view */
   function leaveCode(view) {
     const { state } = view;
@@ -1427,7 +1427,8 @@ function fieldEditor(
     if (!at || state.readOnly) return false;
     const { line, fence, closing, begin, words } = at;
     let last = line;
-    while (!closing && !words(last)) last = state.doc.line(last.number - 1);
+    while (!closing && !words(last) && last.number > 1)
+      last = state.doc.line(last.number - 1);
     const change = closing
       ? { from: line.to, insert: begin }
       : { from: last.to, to: line.to, insert: begin + fence.token.markup + begin };
@@ -1608,7 +1609,7 @@ function fieldEditor(
           });
           if (!put) return tr;
           // Pasted code stays in the quotes and list items the caret stands in, as a
-          // line begun with Shift+Enter does, since a fence's lines don't continue them
+          // line begun with Shift+Enter does, since code's lines don't continue them
           // lazily as a paragraph's do. Pasted prose keeps its own markers, so a pasted
           // item stays the item it was.
           const begin = beginBelow(state, start);

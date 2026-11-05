@@ -34,7 +34,6 @@ lf-shot {
 .lf-shot-actions {
   grid-area: actions;
 }
-.lf-shot-tools > .lf-btn,
 .lf-shot-scale-options > .lf-btn {
   /* Selection changes the face, never the width of its words. */
   font: var(--font-choice);
@@ -78,6 +77,8 @@ lf-shot {
 .lf-shotchoice {
   display: flex;
   font: inherit;
+  /* Its mark stands on the scale choices' edge (controls.css, `--choice-pad`). */
+  margin-inline-start: calc(-1 * var(--choice-pad));
 }
 .lf-shotchoice[hidden] {
   display: none;
@@ -106,11 +107,16 @@ lf-shot {
   padding-block-start: var(--sp-2);
   display: flex;
   align-items: center;
-  gap: var(--sp-2);
+  gap: var(--sp-1);
 }
+.lf-shot-pixel-key > * {
+  font: inherit;
+}
+/* The swatch stands centred under a checkbox's mark, so the two rows' words line up. */
 .lf-shot-key-swatch {
   inline-size: 0.75em;
   block-size: 0.75em;
+  margin-inline: calc((var(--wa-form-control-toggle-size) - 0.75em) / 2);
   flex: none;
   border-radius: var(--r-s);
 }
@@ -397,9 +403,15 @@ lf-shot[data-lf-shot-focus="true"][data-lf-shot-crop="false"]
     display: block;
   }
 }
+/* The greyed image fades toward its own paper rather than the page's, so a light
+   screenshot on a dark page stays a pale sheet instead of turning a muddy grey. The
+   mask reads the amber of the paper's scheme, which `shot-view.js` states with it. */
+.lf-shotpixels .lf-shotplane {
+  background: var(--lf-shot-paper, transparent);
+}
 .lf-shotpixels .lf-shotplane > img {
   filter: grayscale(1);
-  opacity: 0.28;
+  opacity: 0.4;
 }
 .lf-shotpixels .lf-shotplane > span {
   position: absolute;

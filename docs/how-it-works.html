@@ -2477,10 +2477,20 @@ flowchart TD
               <li id="updates-written-question">
                 <strong><code>leaf thread reply … --obligation</code></strong>
                 Opens a question on On me and makes the thread read
-                <em>Your turn</em>. A reply or settling reaction answers it. A step the
-                user is to take, such as trying a build, is asked the same way. The
-                agent can end it with <code>leaf task end</code> as answered elsewhere
-                or withdrawn.
+                <em>Your turn</em>. A reply or settling reaction answers it at once, so
+                On me clears without waiting for the agent. A step the user is to take,
+                such as trying a build, is asked the same way. The agent can end it with
+                <code>leaf task end</code> as answered elsewhere or withdrawn.
+              </li>
+              <li id="updates-written-reopen">
+                <strong
+                  ><code
+                    >leaf thread reply … --obligation message:&lt;id&gt;</code
+                  ></strong
+                >
+                Puts a question the user's reply left standing back on On me, such as
+                when they asked something back. It keeps its id and words, so a plan
+                step naming it reads open again, and stands on this message.
               </li>
               <li id="updates-written-comment">
                 <strong

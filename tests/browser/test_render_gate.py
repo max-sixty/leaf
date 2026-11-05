@@ -191,10 +191,10 @@ def _panel(name: str) -> str:
 
 
 # Four drawings in the idiom. The first is drawn wider than the column holds, so the fit
-# takes its 11px labels to under half. The second is fitted by the same fraction, and its
-# 28px labels survive it. The third keeps its natural size, with the theme's 9px step
-# glyph on it. The fourth is fitted like the first, but none of its words is drawn: one
-# label sits in <defs>, and the other's only run is a tspan out of the layout.
+# takes its 11.5px labels to under half. The second is fitted by the same fraction, and
+# its 28px labels survive it. The third keeps its natural size, with a step glyph the
+# page sets at 9px. The fourth is fitted like the first, but none of its words is drawn:
+# one label sits in <defs>, and the other's only run is a tspan out of the layout.
 DRAWN_LABELS_PAGE = leaf_page(
     "drawn labels",
     """
@@ -215,7 +215,7 @@ DRAWN_LABELS_PAGE = leaf_page(
 <figure id="natural">
   <svg class="drawing" width="200" viewBox="0 0 200 40" role="img" aria-label="Step one">
     <circle class="mark" cx="20" cy="20" r="7" />
-    <text class="glyph" x="20" y="20">1</text>
+    <text class="glyph" style="font-size: 9px" x="20" y="20">1</text>
     <text class="small" x="40" y="24">note</text>
   </svg>
 </figure>
@@ -1969,10 +1969,13 @@ def surface_findings(page):
         # message read after Go-to announces its routes, so its next announcement
         # correctly has different words even though the closed page is unchanged.
         # The announcement is still part of the opening check above.
+        # The page's snapshot nests the region's lines deeper than its own does, so
+        # they match without their indentation.
         stable = reading.copy()
         for line in page.locator(".lf-live").aria_snapshot(boxes=True).splitlines():
-            if line in stable:
-                stable.remove(line)
+            said = next((kept for kept in stable if kept.strip() == line.strip()), None)
+            if said is not None:
+                stable.remove(said)
         return stable
 
     findings = []

@@ -160,9 +160,9 @@ Adds --dry-run to every mutating command.
 </lf-options></lf-ask>
 <lf-ask id="tone-ask"><h2>Which notification?</h2>
 <lf-playground id="tone">
-  <lf-playground-control name="format" label="Format" kind="choice" value="banner">
-    <lf-playground-choice value="banner" label="Banner"></lf-playground-choice>
-    <lf-playground-choice value="strip" label="Strip"></lf-playground-choice>
+  <lf-playground-control id="format" name="format" label="Format" kind="choice" value="banner">
+    <lf-playground-choice id="format-banner" value="banner" label="Banner"></lf-playground-choice>
+    <lf-playground-choice id="format-strip" value="strip" label="Strip"></lf-playground-choice>
   </lf-playground-control>
   <lf-playground-preview><p id="tone-preview">The notification.</p></lf-playground-preview>
   <lf-playground-output>Build the <lf-playground-value for="format"></lf-playground-value>
@@ -546,7 +546,7 @@ def test_the_chosen_grouping_orders_on_me_and_the_m_walk_alike(browser, serve):
     chooser = page.get_by_role("combobox", name="Group On me")
     expect(chooser).to_have_value("place")
     # Every group has its band, the card alone in its group included.
-    groups = view.locator(".lf-fp-on-group > .lf-rows-head")
+    groups = view.locator(".lf-fp-on-list > .lf-rows-group > .lf-rows-head")
     expect(groups).to_have_text(
         [
             re.compile(r"^\s*Implementation\s*2\s*$"),
@@ -650,7 +650,7 @@ def test_an_answer_in_on_me_keeps_its_groups_and_the_m_walk_in_one_order(
     exit_code.get_by_role("button", name="75").click()
     round_trip(page)
     expect(exit_code.locator(".lf-fp-said")).to_contain_text("Answered: 75")
-    groups = view.locator(".lf-fp-on-group > .lf-rows-head")
+    groups = view.locator(".lf-fp-on-list > .lf-rows-group > .lf-rows-head")
     expect(groups).to_have_text(
         [re.compile(r"^\s*Options\s*1\s*$"), re.compile(r"^\s*Reply\s*1\s*$")]
     )

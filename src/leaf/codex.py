@@ -214,6 +214,7 @@ _ConnectionOptions = TypedDict(  # noqa: UP013
         "close_timeout": float,
         "compression": None,
         "max_size": None,
+        "max_queue": None,
     },
 )
 
@@ -231,6 +232,12 @@ def app_server_connect(endpoint: str):
         # therefore exceed websockets' 1 MiB message default even though the local
         # protocol and the command both completed normally.
         "max_size": None,
+        # A follower folds each notification before receiving the next, so a burst
+        # of them can wait here. A bounded queue pauses socket reads once it fills,
+        # and the keepalive pongs behind the burst then go unread until the ping
+        # timeout closes a connection whose server answered. The App Server is
+        # local and trusted, so its backlog is buffered without bound instead.
+        "max_queue": None,
     }
     connection = (
         unix_connect(str(socket_path), uri="ws://localhost/rpc", **options)

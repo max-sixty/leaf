@@ -210,6 +210,8 @@ export class ShotView {
   pixels = false;
   /** @type {string | null} */
   pixelUrl = null;
+  /** @type {{color: string, scheme: string} | null} */
+  paper = null;
 
   /** @type {((view: string, label: string) => void) | undefined} */
   chooseView;
@@ -228,8 +230,6 @@ export class ShotView {
 
     this.choiceRef = (/** @type {Element | undefined} */ node) =>
       node && offerActionElement(node, "word");
-    this.outlineRef = (/** @type {Element | undefined} */ node) =>
-      node && offerActionElement(node, "word", "lf-shot-outline");
 
     let optionsId;
     do optionsId = `lf-shot-options-${++nextOptionsId}`;
@@ -411,18 +411,6 @@ export class ShotView {
               popovertarget=${optionsId}
               aria-expanded="false"
             ></button>
-            <button
-              ${ref(this.outlineRef)}
-              type="button"
-              aria-label="Outline changes"
-              title="Outline changes"
-              aria-pressed=${String(this.outlines)}
-              aria-description=${this.description ?? nothing}
-              ?disabled=${this.view === "pixels" || !this.reading?.regions.length}
-              @click=${this.toggleOutlines ?? null}
-            >
-              Outline
-            </button>
             <div
               ${offered("lf-shotoptions lf-popover")}
               id=${optionsId}
@@ -466,6 +454,16 @@ export class ShotView {
                 />
                 <span ${offered("")}>Full frame</span>
               </label>
+              <label ${offered("choice lf-shotchoice")}>
+                <input
+                  ${offered("lf-shot-outline")}
+                  type="checkbox"
+                  .checked=${this.outlines}
+                  ?disabled=${this.view === "pixels" || !this.reading?.regions.length}
+                  @change=${this.toggleOutlines ?? null}
+                />
+                <span ${offered("")}>Outline changes</span>
+              </label>
               <div ${offered("lf-shot-pixel-key")}>
                 <span ${offered("lf-shot-key-swatch")} aria-hidden="true"></span>
                 <span ${offered("")}>Changed pixels</span>
@@ -480,6 +478,7 @@ export class ShotView {
         tabindex="0"
         role="region"
         aria-label=${`Screenshot comparison — ${host.getAttribute("alt")}`}
+        aria-description=${this.description ?? nothing}
         ${box()}
       >
         <div class="lf-shotcanvas" ${box()}>
@@ -492,7 +491,14 @@ export class ShotView {
                   aria-label=${`changed pixels: ${host.getAttribute("alt")}`}
                   ${box()}
                 >
-                  <div class="lf-shotplane" ${box()}>
+                  <div
+                    class="lf-shotplane"
+                    style=${styleMap({
+                      "--lf-shot-paper": this.paper?.color,
+                      "color-scheme": this.paper?.scheme,
+                    })}
+                    ${box()}
+                  >
                     <img alt="" src=${this.images[1]?.src || nothing} />
                     <span class="lf-shot-pixel-mask" style=${pixelStyle}></span>
                   </div>

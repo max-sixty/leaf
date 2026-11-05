@@ -1,24 +1,25 @@
 # Internal UI review diagnostics
 
-These retained `leaf-dev` evals reconstruct failures missed during Leaf UI work:
+This experiment reconstructs failures missed during Leaf UI work:
 two from the recording viewer (unclear point-event time anchors, application-image
 movement during stepping) and three from a thread's per-message Copy (a later
 message's controls mid-card, covered by its head row, or left lit after a press).
 Each defective candidate has a corrected control.
 
-We generally do not keep model evals of maintainer development work. Diagnosing
-recurring CI issues has become such a drag on productivity that we are retaining
-this small internal diagnostic set. Its tasks measure whether models identify
-specific viewer defects and distinguish repaired controls. The ordinary
-`leaf-dev eval` catalog continues to score shipped instructions and agent loops;
-these diagnostics run separately with `leaf-dev eval-ui-review`.
+An experiment stays only while someone will run it again (`dev/AGENTS.md`,
+"Experiments"). This set stays because diagnosing recurring CI issues has become a drag
+on productivity, and because each new reviewer model or browser tool can be compared on
+the same frozen pairs. Its tasks measure whether models identify specific viewer defects
+and distinguish repaired controls. The ordinary
+`leaf-dev eval` catalog continues to score shipped instructions and agent loops.
 
-They use the same Promptfoo framework, results database and viewer as the standard
-suite. The separate launcher prepares the review-specific evidence conditions;
-`grade.mjs` is a JavaScript assertion using Promptfoo's native Codex provider and
-Leaf's standard isolated screenshot-judge configuration. A run includes candidate
-inference and automatic correctness grading; it needs neither the projects repo
-nor a supervising session.
+`promptfooconfig.mjs` is the whole experiment's Promptfoo config. A column is one model
+on one arm, and a row is one candidate. `hooks.mjs` is its setup and teardown: before
+the run it builds each candidate's evidence, and after the run it counts each column's
+grades. `grade.mjs` is a JavaScript assertion using Promptfoo's native Codex provider
+and Leaf's standard isolated screenshot-judge configuration. A run includes candidate
+inference and automatic correctness grading; it needs neither the projects repo nor a
+supervising session.
 
 `dev/leaf_dev/screenshot_judge.py` owns the native profile and login setup;
 its Promptfoo adapter retires each judge's home after the call. UI-review judges
@@ -28,47 +29,49 @@ to their run's screenshot tree.
 ## Run
 
 From the checkout, install the eval dependencies and check the fixtures without
-calling a model:
+calling a model. This runs the real setup, which stops on any candidate that no longer
+shows its frozen contrast:
 
 ```sh
 pnpm install --frozen-lockfile
-uv run leaf-dev eval-ui-review --prepare-only
+node --test dev/tests/node/test_ui_review_setup.cjs
 ```
 
-Start with Sol, then compare models on the same frozen cases:
+The columns are each harness's author and judge pins and the compared models in
+`arms.py`, each on every arm, labelled `MODEL/ARM`. Start with Sol, then compare
+models on the same frozen cases:
 
 ```sh
-uv run leaf-dev eval-ui-review --model sol --condition both --mode recognition
-uv run leaf-dev eval-ui-review \
-  --model sol --model opus --model fable --model astra \
-  --condition both --mode recognition
-uv run leaf-dev eval-ui-review \
-  --model sol --model opus --model fable --model astra \
-  --condition browser --mode discovery
-uv run leaf-dev eval-ui-review --model sol --condition code-only
-uv run leaf-dev eval-ui-review \
-  --model sol --model opus --model fable --model astra \
-  --condition code-only
+pnpm run eval:ui-review
+pnpm run eval:ui-review --filter-providers '/(no-tools|browser)$'
+pnpm run eval:ui-review --filter-providers '/discovery$'
+pnpm run eval:ui-review --filter-providers 'sol/code-only$'
+pnpm run eval:ui-review --filter-providers '/code-only$'
+pnpm run eval:view
 ```
 
-`--repeat 2` runs independent conversations. Every run needs a fresh `--output`
-directory; the default is under `.tmp/eval-ui-review/`. Models use the host's
-signed-in subscriptions. No dollar-cost estimate is reported.
+The script's default filter keeps a bare run to Sol on `no-tools` and `browser`. A
+`--filter-providers` you pass replaces it, and `--filter-providers .` takes every column,
+each model on each arm. `--filter-pattern cover` runs one pair, since a row's description
+is its variant, and `--repeat 2` runs independent conversations. Each
+run keeps its evidence in a fresh directory under `.tmp/ui-review-detection/`. Models
+use the host's signed-in subscriptions. No dollar-cost estimate is reported.
 Grading also uses the host's Codex login, with the Codex judge pinned in
 `JUDGE_MODELS` (`dev/leaf_dev/arms.py`).
 
-Recognition supplies the same labelled screenshot sequence to both arms. The
-browser arm additionally has one host-owned operation for snapshots, clicks,
-pointer hovers, keyboard input and scrolling. No-tools exposes no native tool definitions.
-Discovery supplies only the arrival screenshot, so the browser model must discover
-transitions. A transition-only defect is unobservable in no-tools discovery and
-must not be scored as a miss.
+## Arms
+
+- `no-tools` supplies the labelled screenshot sequence and exposes no native tool
+  definitions.
+- `browser` supplies the same sequence and adds one host-owned operation for snapshots,
+  clicks, pointer hovers, keyboard input and scrolling.
+- `discovery` supplies only the arrival screenshot and the same browser, so the model
+  must discover transitions.
+- `code-only` supplies the source described below.
 
 Code-only supplies the same review task plus the candidate's authored HTML/CSS,
 its local JavaScript and adapter, and SVG source text where used. It supplies no
-image content blocks, screenshots, browser capability or other tools. `both`
-continues to mean the two visual recognition arms; choose `code-only` separately.
-Code-only cannot be combined with arrival-only discovery.
+image content blocks, screenshots, browser capability or other tools.
 
 These are complete reconstructed fixture packets, not the full Leaf repository.
 The timing packet includes the complete pinned Timeline/DataSet bundle and its
@@ -122,14 +125,15 @@ they supplied identical evidence.
 
 ## Evidence and grading
 
-The runner freezes and hashes its source, provider, grader, prompts, rubric, public assets
-and candidate packets before inference. It retains the dependency lock, installed
-direct dependency versions, and Node/Python/Chrome and grader Codex CLI identities. Installed transitive
-bytes rely on `pnpm install --frozen-lockfile` rather than independent hashes. The private provenance
-records historical sources and reconstruction limits. Screenshots are generated
-from text fixtures; run captures and raw outputs stay under `.tmp/`.
+Git holds a run's inputs, and its Promptfoo description names the commit, marked
+`-dirty` when the tree held uncommitted changes. The lockfile pins the browser and every
+dependency but the judge's Codex CLI, which is the host's; each result's
+`graderProvider` records the CLI's resolved path. The private provenance records
+historical sources and reconstruction limits. Screenshots are generated from text fixtures; run captures and raw outputs stay
+under `.tmp/`.
 
-The server exposes only public assets. Candidate models receive no diagnosis,
+The browser answers a candidate's requests from a copy of `fixtures/public`, with no
+server, so nothing private is reachable. Candidate models receive no diagnosis,
 variant label or prior complaints; visual arms also withhold source code.
 Codex uses pi-ai's native OAuth
 Responses transport; Claude uses its Agent SDK with built-ins disabled and an
@@ -142,8 +146,8 @@ wire-level byte equality or exclude SDK transformations.
 
 Each sample retains its request, any supplied images, native trace, browser captures,
 answer, observed assistant identity and usage, or an execution-error record.
-The automatic judge grades each completed answer against the run's frozen
-`rubric.json` and that answer's actual evidence:
+The automatic judge grades each completed answer against `rubric.json`, whose
+hash each grade's audit records, and that answer's actual evidence:
 
 - On defective cases, score specific target detection and supporting evidence.
 - On controls, score allegations of the repaired target separately. Other valid
@@ -157,18 +161,19 @@ native reasoning and other candidates' evidence are withheld. Screenshots are
 copied into that sample's allowed evidence tree; its login home is temporary and
 outside the retained evidence. Grading has no runner-imposed wall-clock cap.
 
-`results.json` and Promptfoo's viewer contain assertion reasons and named metrics:
+The run's `results.json` and Promptfoo's viewer contain assertion reasons and named metrics:
 `target_detection` (0–2, defective cases), `target_false_alarm` (0–1, controls),
 and `unsupported_observations` (count). Inapplicable metrics are omitted from the
 named scores; structured grades retain nulls. A full pass requires full target
 detection or no control alarm, and no unsupported observations.
 
-`grading-summary.json` separates scored samples from execution failures, judge
-failures and unobservable targets. Each sample's `grade.json` retains the structured
-grade and audit; anonymous grading inputs and native judge responses are under
-`grading/`. Invalid judge output stays unscored. A valid miss is an assertion
-failure, not an infrastructure failure. The command follows Promptfoo's exit
-convention: 0 for all passes and 100 for assertion failures or unscored samples.
+`grading-summary.json` counts each column's grades, separating scored samples from
+execution and judge failures, and the run prints the same counts. Each sample's
+`grade.json` retains the structured grade and audit; anonymous grading inputs and
+native judge responses are under `grading/`. Invalid judge output stays unscored. A
+valid miss is an assertion failure, not an infrastructure failure. A run follows
+Promptfoo's exit convention: 0 for all passes and 100 for assertion failures or
+unscored samples.
 
 Automated scores are model judgments, not proof of UI correctness. The frozen
 rubric and evidence remain available for inspection and regrading. Historical
@@ -187,8 +192,8 @@ in the study evidence.
 A fresh end-to-end Sol recognition run then completed all eight reviews and
 automatic grades: both timing defects missed, both movement defects detected,
 zero target alarms on four controls, zero unsupported observations and zero
-unscored samples. Frozen inputs were unchanged. This verifies the complete
-Leaf-only command, including actual browser traces, rather than replay alone.
+unscored samples. This verified the complete run, including actual browser traces,
+rather than replay alone.
 
 ## Browser tool experiments
 

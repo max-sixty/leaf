@@ -154,6 +154,7 @@ import { onCurrentLocation, focused } from "../focus.js";
 import { onReadingInterrupted, readingIsContinuous } from "../reading-continuity.js";
 import { pagePresented } from "../page-paint.js";
 import { watchOwner } from "../arrivals.js";
+import { holdUserPlace } from "../user-place.js";
 
 /** @typedef {import("./thread-card.js").ThreadReading} ThreadReading */
 /** @typedef {import("./thread-card.js").ThreadRecord} ThreadRecord */
@@ -528,7 +529,13 @@ export function showHeld(id) {
 
 // The thread the user is in, and their arrivals at another. A move or a step there shows
 // what it holds. A press there puts the user in it, so each seat holding it draws again
-// and the seat's rule for a user in it decides (inline.js).
+// and the seat's rule for a user in it decides (inline.js). No reading brings either
+// draw, so an arrival on a control in the thread, as a press into its reply box or a Tab
+// into its reply row, takes the hold a reading takes, which keeps that control where it
+// stood (user-place.js, `holdUserPlace`). An arrival on the thread itself, by a walk or
+// a press on one of its messages, takes none: the hold would keep its reply box still,
+// as it does for a user standing on the thread when news comes, and so move what they
+// arrived on up by the news, where the growth below the thread's head leaves it put.
 /** @type {string | null} */
 let currentLocation = null;
 onCurrentLocation(
@@ -539,17 +546,18 @@ onCurrentLocation(
     const id = drawnThreadId(thread);
     const arrived = id !== null && id !== currentLocation;
     currentLocation = id;
-    if (!arrived) return;
-    if (cause === "move" || cause === "step") showHeld(id);
-    else if (cause === "press") for (const held of holders) held.redraw(id);
+    if (!arrived || cause === "return") return;
+    const keep = node === thread ? () => {} : holdUserPlace();
+    if (cause === "press") for (const held of holders) held.redraw(id);
+    else showHeld(id);
+    keep();
   },
 );
 
 /** @typedef {NonNullable<ReturnType<typeof threadChange>>} ThreadChange */
 /** @typedef {ThreadReading & {visible?: boolean, folding?: boolean}} DrawableThread */
 /** @typedef {Omit<DrawableThread, "settlement"> & {
- * settlement: ThreadReading["settlement"] | null, news: NewsNotice | null,
- * change: ThreadChange | null}} HeldThread */
+ * settlement: ThreadReading["settlement"] | null, news: NewsNotice | null}} HeldThread */
 /** @typedef {{threads: readonly HeldThread[]}} HeldCollection */
 /** @typedef {{node: Element, progressOpen?: boolean,
  * newsMoves: (change: ThreadChange) => boolean}} NewsView */
@@ -640,13 +648,13 @@ export class HeldNews {
         // nothing for news to move.
         const shown = thread.visible !== false && !thread.folding;
         if (!was || !shown || this.#released.has(thread.key))
-          return { ...thread, news: null, change: null };
+          return { ...thread, news: null };
         const view = this.#view(thread.key);
         const held = threadChange(was, thread, {
           progressOpen: view?.progressOpen ?? false,
         });
         if (!held || gestured(thread.key) || !view?.newsMoves(held))
-          return { ...thread, news: null, change: held };
+          return { ...thread, news: null };
         this.#holds.add(thread.key);
         const notice = said(held.news);
         // What the news changes stands as drawn.
@@ -664,7 +672,6 @@ export class HeldNews {
                 },
               }
             : null,
-          change: null,
         };
       },
     );

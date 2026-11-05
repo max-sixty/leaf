@@ -398,6 +398,151 @@ def test_c_comments_on_what_the_user_is_located_in(browser, serve):
     expect(page.locator(".lf-composer")).to_contain_text("paragraph")
 
 
+# A window whose reading column leaves a comment box's width beside it.
+ROOM_IN_THE_MARGIN = (1440, 900)
+AN_ASK_THEN_READING = leaf_page(
+    "An ask, then reading",
+    '<h1>An ask, then reading</h1><lf-ask id="route"><h2>Which route?</h2>'
+    '<lf-options id="routes" choose>'
+    '<lf-option id="left">Take the left route</lf-option>'
+    '<lf-option id="right">Take the right route</lf-option>'
+    '</lf-options></lf-ask><div style="height:4000px">Reading on</div>',
+)
+
+
+def test_where_c_goes_shows_before_the_press(browser, serve):
+    """Nothing held, the panel's row wears the key. On a target, the row loses it and the
+    box stands beside the target with it, in the field's own place, so the press moves
+    nothing. The box at rest goes with the focus that raised it and takes no Escape step:
+    the field's Escape returns to the target, and the target's lets go of everything."""
+    page = open_page(browser, serve(AN_ASK_THEN_READING))
+    resized(page, *ROOM_IN_THE_MARGIN)
+    rest = page.locator(".lf-fab-rest")
+    panel_key = page.locator(".lf-fp-field .lf-compose-placeholder > kbd")
+
+    expect(panel_key).to_have_text("c")
+    expect(panel_key).to_be_visible()
+    # Its word stands with it, after the status, as Reply does in a thread.
+    expect(page.locator(".lf-fp-field .lf-compose-placeholder-enters")).to_have_text(
+        "Comment"
+    )
+    expect(rest).to_be_hidden()
+
+    page.keyboard.press("m")
+    expect(rest).to_be_visible()
+    expect(rest.locator("kbd")).to_have_text("c")
+    expect(panel_key).to_have_count(0)
+    expect(page.locator(".lf-composer[data-lf-open]")).to_have_count(0)
+    resting = rest.bounding_box()
+
+    page.keyboard.press("c")
+    field = page.locator(".lf-fab-input")
+    expect(field).to_be_focused()
+    expect(rest).to_be_hidden()
+    assert page.locator(".lf-fab-bar .lf-compose-field").bounding_box() == resting
+
+    page.keyboard.press("Escape")
+    expect(page.locator("#route")).to_be_focused()
+    expect(rest).to_be_visible()
+    assert rest.bounding_box() == resting
+
+    page.keyboard.press("Escape")
+    expect(page.locator("#route")).not_to_be_focused()
+    expect(rest).to_be_hidden()
+    expect(panel_key).to_have_text("c")
+
+
+def test_a_press_on_the_box_at_rest_opens_it_beside_its_target(browser, serve):
+    """The press leaves focus on the target until the field takes it, since that focus is
+    what holds the box up."""
+    page = open_page(browser, serve(AN_ASK_THEN_READING))
+    resized(page, *ROOM_IN_THE_MARGIN)
+    page.keyboard.press("m")
+    page.locator(".lf-fab-rest").click()
+    expect(page.locator(".lf-fab-input")).to_be_focused()
+    expect(page.locator(".lf-composer")).to_contain_text("Which route?")
+
+
+def test_the_box_waits_for_the_press_with_no_room_beside_its_target(browser, serve):
+    """Without a margin the box at rest would lie on the page's own controls, where the
+    next press would open it, so it waits for `c`, which opens it as ever."""
+    page = open_page(browser, serve(AN_ASK_THEN_READING))
+    resized(page, 700, 800)
+    page.keyboard.press("m")
+    expect(page.locator("#route")).to_be_focused()
+    expect(page.locator(".lf-fab-bar[data-lf-withheld]")).to_have_count(1)
+    expect(page.locator(".lf-fab-rest")).to_be_hidden()
+    page.keyboard.press("c")
+    expect(page.locator(".lf-fab-input")).to_be_focused()
+
+
+def test_a_live_sample_holding_the_keys_raises_no_box_around_it(browser, serve):
+    """While focus is in a sample's frame, `c` goes to the sample's page, so that page
+    raises the box and the page around it, with its margin, raises none."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "A sample",
+                '<h1>A sample</h1><lf-sample id="practice" label="Practice" window>'
+                '<template id="practice-page" data-sample><h1>Practice</h1>'
+                '<lf-ask id="route"><h2>Which route?</h2><lf-options id="routes" choose>'
+                '<lf-option id="left">Take the left route</lf-option>'
+                '<lf-option id="right">Take the right route</lf-option>'
+                "</lf-options></lf-ask></template></lf-sample>",
+            )
+        ),
+    )
+    resized(page, *ROOM_IN_THE_MARGIN)
+    frame = page.frame_locator("#practice iframe")
+    frame.locator("h1").click()
+    page.keyboard.press("m")
+    expect(frame.locator(".lf-fab-bar[data-lf-rest]")).to_have_count(1)
+    expect(page.locator(".lf-fab-bar[data-lf-rest]")).to_have_count(0)
+
+
+def test_c_writes_where_the_user_reads_once_they_scroll_away_from_focus(browser, serve):
+    """Focus stays on the stop, but `c` no longer takes the reader back to it. Out of
+    sight, the box goes, the row wears the key again and `c` enters the panel's field
+    where the page stands, and backing out of the field leaves the page there. A scroll
+    back to the stop, with focus still on it, returns the box."""
+    page = open_page(browser, serve(AN_ASK_THEN_READING))
+    resized(page, *ROOM_IN_THE_MARGIN)
+    rest = page.locator(".lf-fab-rest")
+    panel_key = page.locator(".lf-fp-field .lf-compose-placeholder > kbd")
+    comment = page.locator('.lf-fp-field leaf-text[name="comment"]')
+
+    def scroll(down):
+        page.mouse.move(400, 400)
+        page.mouse.wheel(0, 3000 if down else -3000)
+        page.wait_for_function(
+            "(down) => (down ? scrollY > 2000 : scrollY === 0)", arg=down
+        )
+        scroll_settled(page)
+
+    page.keyboard.press("m")
+    expect(rest).to_be_visible()
+    scroll(down=True)
+    expect(page.locator("#route")).not_to_be_in_viewport()
+    expect(page.locator("#route")).to_be_focused()
+    expect(rest).to_be_hidden()
+    expect(panel_key).to_have_text("c")
+
+    scroll(down=False)
+    expect(rest).to_be_visible()
+    expect(panel_key).to_have_count(0)
+
+    scroll(down=True)
+    away = page.evaluate("scrollY")
+    page.keyboard.press("c")
+    expect(comment).to_be_focused()
+    assert page.evaluate("scrollY") == away
+    page.keyboard.press("Escape")
+    expect(comment).not_to_be_focused()
+    rendered(page)
+    assert page.evaluate("scrollY") == away
+
+
 def test_the_ring_holds_on_a_seat_the_agent_has_still_to_answer(browser, serve):
     """Where the user is located and what the user still owes are two facts, and a
     widget whose seat holds a thread waiting on the agent is where they part. Its seat holds the words
@@ -853,8 +998,10 @@ def test_target_picker_comments_on_a_clipped_card_without_moving_the_board(
 def test_c_enters_a_seated_reply_without_revealing_the_thread_heading(
     browser, serve, subtests
 ):
-    """A visible reply keeps its place; an off-screen reply is revealed on entry. Each
-    case leaves the reply it entered, so they share one page."""
+    """A visible reply keeps its place; a reply below the window, in a thread the user
+    still sees, is revealed on entry. Each case leaves the reply it entered, so they
+    share one page. A thread scrolled wholly away is no longer where `c` goes
+    (`test_c_writes_where_the_user_reads_once_they_scroll_away_from_focus`)."""
     url = serve(
         leaf_page(
             "Reply without travel",
@@ -870,7 +1017,8 @@ def test_c_enters_a_seated_reply_without_revealing_the_thread_heading(
             "kind": "comment",
             "author": "user",
             "revision": 1,
-            "text": "A short thread beside the task.",
+            "text": "A thread beside the task, whose head stands well above its reply. "
+            * 12,
             "anchor": {"section": "fitting"},
         },
     )
@@ -885,7 +1033,7 @@ def test_c_enters_a_seated_reply_without_revealing_the_thread_heading(
                 """(thread, visible) => {
                   thread.focus({preventScroll: true});
                   const reply = thread.querySelector('leaf-text').getBoundingClientRect();
-                  scrollBy(0, reply.top - (visible ? 110 : 1000));
+                  scrollBy(0, reply.top - (visible ? 110 : 905));
                 }""",
                 reply_visible,
             )
@@ -896,6 +1044,7 @@ def test_c_enters_a_seated_reply_without_revealing_the_thread_heading(
                 assert reply.bounding_box()["y"] >= 100
             else:
                 assert reply.bounding_box()["y"] >= 900
+                assert thread.bounding_box()["y"] < 900, "the thread left the window"
             page.keyboard.press("c")
             expect(reply).to_be_focused()
             scroll_settled(page)

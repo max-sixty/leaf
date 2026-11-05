@@ -41,6 +41,7 @@ from render_harness import (
     panel_view,
     resized,
     round_trip,
+    scroll_settled,
     select_words,
     told,
     write,
@@ -252,15 +253,17 @@ def test_a_layer_is_left_the_same_way_however_it_was_reached(browser, serve):
     # element that thread is about: the marker the card hangs from is not a landing.
     marker.click()
     expect(preview).to_be_visible()
-    expect(threads[0]).to_be_focused()
+    expect(preview.locator("leaf-text")).to_be_focused()
     rendered(page)
-    # The pointer route keeps keyboard standing without showing a keyboard ring.
+    # The pointer route shows no keyboard ring around the card.
     assert (
         preview.locator(".lf-margin-preview-card").evaluate(
             "node => getComputedStyle(node).outlineStyle"
         )
         == "none"
     )
+    page.keyboard.press("Escape")
+    expect(threads[0]).to_be_focused()
     page.keyboard.press("t")
     expect(threads[1]).to_be_focused()
     out()
@@ -268,6 +271,8 @@ def test_a_layer_is_left_the_same_way_however_it_was_reached(browser, serve):
     # The mark on the page is the same door and the same way out.
     page.mouse.click(*mark_point(page, "lf-mark"))
     expect(preview).to_be_visible()
+    expect(preview.locator("leaf-text")).to_be_focused()
+    page.keyboard.press("Escape")
     expect(threads[0]).to_be_focused()
     out()
 
@@ -1388,6 +1393,165 @@ def test_holding_a_key_repeats_only_where_the_press_is_a_walk(
     expect(leaves).to_be_hidden()
     page.evaluate(press, ["l", False, True])  # the same event, answered
     expect(leaves).to_be_visible()
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_key_at_a_control_scrolled_away_acts_from_what_the_user_reads(
+    request, serve, engine
+):
+    """Focus stays on a control the user scrolls away from, but a key they press there
+    lets go of it first and acts from what they read: Enter follows no link, an arrow
+    moves no radio's choice, End steps no select, Space checks no radio and pages on,
+    and Tab goes on from the paragraph on screen, from a text field too, which keeps
+    only the keys that type. Chromium would move the radio's choice at the control the
+    arrow was aimed at (notes/browser-support.md)."""
+    page = open_page(
+        request.getfixturevalue(engine),
+        serve(
+            leaf_page(
+                "Controls scrolled away",
+                '<h1>Controls scrolled away</h1><p><a id="link" href="#far">Far</a></p>'
+                "<fieldset><legend>Route</legend>"
+                '<label><input type="radio" name="route" id="left" checked> Left</label>'
+                '<label><input type="radio" name="route" id="right"> Right</label>'
+                '</fieldset><select id="pick" size="3"><option selected>One</option>'
+                "<option>Two</option><option>Three</option></select>"
+                '<textarea id="notes"></textarea>'
+                '<div style="height:2400px"></div><p id="reading">The '
+                "paragraph the reader scrolls to and reads, with words enough to name a "
+                'place on the page.</p><p><button id="next">Next</button></p>'
+                '<div style="height:2400px"></div><h2 id="far">Far below</h2>',
+            )
+        ),
+    )
+    left = page.locator("#left")
+
+    def away(control, key):
+        page.locator(control).focus()
+        page.evaluate(
+            """() => scrollTo({behavior: 'instant',
+              top: document.getElementById('reading').offsetTop - 200})"""
+        )
+        scroll_settled(page)
+        scrolled = page.evaluate("scrollY")
+        page.keyboard.press(key)
+        rendered(page)
+        expect(page.locator(control)).not_to_be_focused()
+        return scrolled
+
+    away("#link", "Enter")
+    assert page.evaluate("location.hash") == ""
+    away("#left", "ArrowDown")
+    expect(left).to_be_checked()
+    away("#pick", "End")
+    expect(page.locator("#pick")).to_have_value("One")
+    scrolled = away("#right", " ")
+    expect(left).to_be_checked()
+    page.wait_for_function("(at) => scrollY > at", arg=scrolled)
+    scroll_settled(page)
+    away("#link", "Tab")
+    expect(page.locator("#next")).to_be_focused()
+    away("#notes", "Tab")
+    expect(page.locator("#next")).to_be_focused()
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_key_at_a_control_out_of_sight_in_a_fixed_box_lets_go_of_it(
+    request, serve, engine
+):
+    """A fixed box stands in front of the user whatever the page scrolls, so a key at a
+    control in it acts there. One the box's own scroller has taken out of sight, or one
+    a narrower window has left beside it, is a control they can't see, and a key lets go
+    of it, in a modal dialog too, whose inert page takes no landing."""
+    press = "onclick=\"this.dataset.pressed = 'yes'\""
+    scroller = "width:300px;height:120px;overflow:auto"
+    page = open_page(
+        request.getfixturevalue(engine),
+        serve(
+            leaf_page(
+                "Fixed boxes",
+                f'<div id="box" style="position:fixed;top:300px;left:40px;{scroller}">'
+                f'<button id="control" {press}>Press</button>'
+                '<div style="height:1000px"></div></div>'
+                f'<button id="beside" {press} style="position:fixed;top:40px;'
+                'left:1000px">Beside</button>'
+                f'<dialog id="modal" style="{scroller}">'
+                f'<button id="inside" {press}>Inside</button>'
+                '<div style="height:1000px"></div></dialog><p>Words on the page.</p>',
+            )
+        ),
+    )
+    resized(page, 1440, 900)
+
+    def lets_go(control):
+        page.keyboard.press("Enter")
+        rendered(page)
+        expect(control).not_to_be_focused()
+        expect(control).not_to_have_attribute("data-pressed", "yes")
+
+    control = page.locator("#control")
+    control.focus()
+    page.keyboard.press("Enter")
+    expect(control).to_have_attribute("data-pressed", "yes")
+    control.evaluate("node => node.removeAttribute('data-pressed')")
+    page.locator("#box").evaluate("box => { box.scrollTop = 500; }")
+    scroll_settled(page, "#box")
+    lets_go(control)
+
+    beside = page.locator("#beside")
+    beside.focus()
+    resized(page, 800, 900)
+    lets_go(beside)
+    resized(page, 1440, 900)
+
+    modal = page.locator("#modal")
+    modal.evaluate("dialog => dialog.showModal()")
+    inside = page.locator("#inside")
+    expect(inside).to_be_focused()
+    modal.evaluate("dialog => { dialog.scrollTop = 500; }")
+    scroll_settled(page, "#modal")
+    lets_go(inside)
+
+
+@pytest.mark.parametrize("old", ["button", "input"])
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_tab_at_a_control_scrolled_away_goes_on_in_the_column_the_pointer_is_in(
+    request, serve, engine, old
+):
+    """A key pressed at focus scrolled away names no place, so the column the pointer
+    rests in stays the one the user reads, and Tab goes on from there, from a text field
+    too, since Tab types nothing."""
+    column = (
+        '<section id="{0}"><p id="{0}-reading">The {0} column has words enough to name '
+        'a place on the page.</p><button id="{0}-next">Next</button></section>'
+    )
+    page = open_page(
+        request.getfixturevalue(engine),
+        serve(
+            leaf_page(
+                "Columns",
+                f'<{old} id="old">{"Old</button>" if old == "button" else ""}'
+                '<div style="height:2400px"></div>'
+                '<div id="cols" style="display:grid;grid-template-columns:1fr 1fr;'
+                'gap:40px">'
+                + column.format("left")
+                + column.format("right")
+                + '</div><div style="height:2400px"></div>',
+                head="<style>main { max-width: none !important; }</style>",
+            )
+        ),
+    )
+    resized(page, 1200, 800)
+    page.locator("#old").focus()
+    page.evaluate(
+        """() => scrollTo({behavior: 'instant',
+          top: document.getElementById('cols').offsetTop - 100})"""
+    )
+    scroll_settled(page)
+    box = page.locator("#right-reading").bounding_box()
+    page.mouse.move(box["x"] + box["width"] / 2, box["y"] + 5)
+    page.keyboard.press("Tab")
+    expect(page.locator("#right-next")).to_be_focused()
 
 
 # The browser's own back: a close watcher standing before any of the page's, which

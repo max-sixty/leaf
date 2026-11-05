@@ -29,6 +29,8 @@ import { HeldNews } from "./held-news.js";
 import { releaseReplies, replyIsEditing } from "./replies.js";
 import { passOn } from "../user-intent.js";
 import { foldBlock } from "../motion.js";
+import { closestAcross } from "../passages.js";
+import { drawnThreadsWithId } from "./selectors.js";
 
 /** @typedef {import("./thread-card.js").ThreadCommands} ThreadCommands */
 /** @typedef {import("./thread-card.js").ThreadRecord} ThreadRecord */
@@ -405,6 +407,14 @@ export function mountFirstMessage(host, editor) {
   setChildren(host, [editor]);
 }
 
+// The card a page-owned seat (`renderSeats`) draws for the thread `id`, open or in its
+// Resolved disclosure, or null.
+/** @param {string} id @returns {Element | null} */
+export const pageSeatThread = (id) =>
+  [...drawnThreadsWithId(document, id)].find((thread) =>
+    closestAcross(thread, ".lf-thread-seat[data-lf-thread-seat]"),
+  ) ?? null;
+
 /** @param {readonly ThreadRecord[]} threads @param {ThreadCommands} commands */
 export function renderSeats(threads, commands) {
   /** @type {NodeListOf<HTMLElement & {lfThreadSeatOwner: Element}>} */
@@ -426,7 +436,12 @@ export function renderMarginThread(host, thread, commands, outlets) {
   return seatFor(host, commands, () => null, outlets)
     .present(seatReading([thread], "margin", commands, false))
     .filter(({ descriptor }) => descriptor.key === threadKey(thread))
-    .map(({ view }) => ({ thread: view.node, transcript: view.transcript }));
+    .map(({ view }) => ({
+      thread: view.node,
+      transcript: view.transcript,
+      settled: () => view.settled(),
+      answering: () => view.answering,
+    }));
 }
 
 export function beginThreadSeats() {

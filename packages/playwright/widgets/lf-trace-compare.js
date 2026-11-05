@@ -85,7 +85,8 @@ customElements.define(
           true,
         );
         choice.value = String(index);
-        choice.appearance = "button";
+        // An attribute, so the theme seats it as a chooser from its first paint.
+        choice.setAttribute("appearance", "button");
         choice.disabled = quoted(this);
         choices.append(choice);
       }

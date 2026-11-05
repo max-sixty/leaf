@@ -532,10 +532,11 @@ lf-roomy > section { min-height: 80px; border: 1px solid currentColor; }
       const children = [...el.children].map(node => node.getBoundingClientRect().width);
       return {
         left: box.left, right: box.right, width: box.width, children,
+        // The room an available block takes: the shell's width less a gutter each side.
         room: (() => {
-          const parent = el.parentElement, style = getComputedStyle(parent);
-          return parent.clientWidth - parseFloat(style.paddingLeft)
-            - parseFloat(style.paddingRight);
+          const style = getComputedStyle(el.parentElement);
+          return parseFloat(style.getPropertyValue('--lf-shell-width'))
+            - 2 * parseFloat(style.getPropertyValue('--col-pad'));
         })(),
       };
     }""")

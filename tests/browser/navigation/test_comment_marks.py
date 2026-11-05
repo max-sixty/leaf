@@ -334,9 +334,12 @@ def test_pressing_a_page_mark_stands_in_the_thread_it_opens(
     expect(page.locator(".lf-margin-preview")).to_be_visible()
     expect(page.locator(PANEL)).not_to_have_attribute("data-lf-open", re.compile("."))
 
-    expect(thread).to_be_focused()
+    # In its reply, and on the thread once Escape stands the user there.
+    expect(reply).to_be_focused()
     expect(reply).to_be_visible()
     wait_current_location(page, "bold text")
+    page.keyboard.press("Escape")
+    expect(thread).to_be_focused()
     page.keyboard.press("Enter")
     expect(reply).to_be_focused()
     expect(reply).to_be_visible()

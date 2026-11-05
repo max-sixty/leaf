@@ -122,7 +122,7 @@ def test_one_field_starts_a_thread_takes_its_reply_and_settles_it(browser, serve
         "Could the rollback cover the weekend?"
     )
     expect(field(page)).to_be_focused()
-    expect(field(page)).to_have_attribute("placeholder", re.compile("^Reply ⏎"))
+    expect(field(page)).to_have_attribute("placeholder", re.compile("^Reply… ⏎"))
 
     write(field(page), "And the mobile cohort too.")
     with sending(page, "the reply"):
@@ -950,12 +950,12 @@ def test_news_in_an_open_thread_moves_none_of_its_controls(browser, serve):
     box = field(page)
     box.focus()
     words = page.locator(".lf-fp-field .lf-compose-placeholder-words")
-    expect(words).to_have_text("Reply")
+    expect(words).to_have_text("Reply…")
     agent({"kind": "resolve", "parent": root})
     notice = page.locator(".lf-fp-news-outlet .lf-thread-news")
     expect(notice).to_have_attribute("title", "Resolved")
     expect(page.locator(".lf-fp-head .lf-resolve")).to_be_visible()
-    expect(words).to_have_text("Reply")
+    expect(words).to_have_text("Reply…")
     # Off the field, it says the thread's word before Reply, which isn't Resolved yet.
     page.locator(panel_view("thread")).focus()
     expect(lead(page)).not_to_contain_text("Resolved")
@@ -967,7 +967,7 @@ def test_news_in_an_open_thread_moves_none_of_its_controls(browser, serve):
     # Who resolved it, which Reopen's name says only to a pointer resting on it.
     expect(lead(page)).to_contain_text(re.compile(r"Resolved by \w+"))
     box.focus()
-    expect(words).to_have_text("Reply to reopen")
+    expect(words).to_have_text("Reply to reopen…")
     settled(page)
     assert page.evaluate(SEATS) == seats
 
@@ -3113,7 +3113,7 @@ def test_the_empty_field_says_the_agent_s_status_until_the_caret_is_in(browser, 
     sheen(True)
 
     field(page).click()
-    expect(field(page)).to_have_attribute("placeholder", re.compile("^Comment ⏎"))
+    expect(field(page)).to_have_attribute("placeholder", re.compile("^Comment… ⏎"))
     sheen(False)
     page.keyboard.type("Could")
     page.keyboard.press("ControlOrMeta+a")
@@ -3185,7 +3185,7 @@ def test_nothing_passing_interrupts_the_user_writing(browser, serve):
         "placeholder", re.compile(r"^Saved for later")
     )
     field(page).click()
-    expect(field(page)).to_have_attribute("placeholder", re.compile(r"^Comment ⏎"))
+    expect(field(page)).to_have_attribute("placeholder", re.compile(r"^Comment… ⏎"))
     write(field(page), "Could the rollback cover the weekend?")
     page.evaluate(say, "Saved for later")
     page.mouse.click(5, 5)
@@ -3372,7 +3372,7 @@ def test_a_walk_says_its_position_in_the_panel(browser, serve):
     write(field(page), "Is this the one?")
     page.keyboard.press("Enter")
     expect(page.locator(panel_view("thread"))).to_be_visible()
-    expect(field(page)).to_have_attribute("placeholder", re.compile("^Reply ⏎"))
+    expect(field(page)).to_have_attribute("placeholder", re.compile("^Reply… ⏎"))
     expect(page.locator(".lf-fp-peek")).to_be_hidden()
 
 
@@ -4506,7 +4506,7 @@ def test_the_menu_s_search_finds_rows_threads_and_commands(browser, serve):
     # words, so a search for a thread of the user's finds that row first.
     panel_comment(serve.page_dir, "Is the window long enough?", author="agent")
     page = floating(browser, url)
-    search = page.get_by_role("searchbox", name="Rows, threads, versions")
+    search = page.get_by_role("searchbox", name="Search menu")
     menu = panel_menu(page)
     expect(search).to_be_focused()
     expect(page.locator(".lf-floating-panel")).to_have_attribute(
@@ -5496,7 +5496,7 @@ def test_a_sample_shows_its_threads_in_its_panel(browser, serve):
     child.get_by_role("button", name="Back to Threads").click()
     expect(threads).to_be_visible()
     child.get_by_role("button", name="Find a thread or message", exact=True).click()
-    search = child.get_by_role("searchbox", name="Find a thread or message")
+    search = child.get_by_role("searchbox", name="Search threads")
     assert search.bounding_box()["width"] > 0
     search.fill("schedule")
     expect(child.locator(".lf-fp-thread")).to_have_count(1)

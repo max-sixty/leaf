@@ -193,9 +193,10 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item ~ .lf-chrome .lf-mark-el
     font: var(--font-message);
     cursor: text;
   }
-  /* Its words in the empty field's ink. */
+  /* Its words in the empty field's ink and Leaf's italic. */
   .lf-fab-rest > .lf-compose-placeholder {
     color: var(--muted);
+    font-style: italic;
   }
   .lf-fab-bar[data-lf-rest] > .lf-surface-grip {
     display: none;

@@ -608,11 +608,21 @@ EDGE_CONTROLS = {
         '<lf-options id="op" choose><lf-option id="op-a">Alpha</lf-option>'
         '<lf-option id="op-b">Beta, the second choice</lf-option></lf-options>'
     ),
+    "filter": (
+        '<lf-diff id="patch"><pre>'
+        + "".join(
+            f"diff --git a/{name} b/{name}\n--- a/{name}\n+++ b/{name}\n"
+            "@@ -1,1 +1,1 @@\n-old\n+new\n"
+            for name in ("one.py", "two.py")
+        )
+        + "</pre></lf-diff>"
+    ),
 }
 EDGE_TARGETS = {
     "radio": "#at",
     "playground": "#pg input:checked",
     "options": "#op-b .lf-pick",
+    "filter": "#patch .lf-diff-search input",
     "table": "#wide td:nth-child(11) a",
 }
 
@@ -646,6 +656,7 @@ def edges_page(control):
                 ("radio", -2, "inside", "Tab"),
                 ("options", 6, "past", "Tab"),
                 ("options", 6, "past", "End"),
+                ("filter", 3, "past", "Tab"),
                 ("table", 6, "past", "Tab"),
             ]
             for engine in ["browser", "firefox_browser"]
@@ -666,8 +677,10 @@ def test_a_key_onto_a_control_at_a_scrollers_edge_shows_its_ring(
     it kept its ring cut; a link 6px past a wide table's end stayed cut in both
     engines; and a joined option group's row and a playground choice's face, each
     wearing its control's ring, stayed cut in both, the face once its radio stood 7px
-    inside, the row whether Tab or End reached it. `past` is how far beyond the edge
-    the box wearing the ring stood before the key; each now shows its ring."""
+    inside, the row whether Tab or End reached it; and a diff's file filter, holding
+    focus in its own shadow tree, stayed cut in both and under the log's fade. `past` is
+    how far beyond the edge the box wearing the ring stood before the key; each now
+    shows its ring, unfaded."""
     page = open_page(request.getfixturevalue(engine), serve(edges_page(control)))
     resized(page, 1280, 560)
     side = "right" if control == "table" else "bottom"
@@ -679,7 +692,7 @@ def test_a_key_onto_a_control_at_a_scrollers_edge_shows_its_ring(
     target.evaluate(
         """(el) => {
           const w = getComputedStyle(el).getPropertyValue('--focus-ring-w').trim();
-          for (let n = el; n; n = n.parentElement) {
+          for (let n = el; n; n = n.parentElement ?? n.getRootNode().host) {
             const cs = getComputedStyle(n);
             if (cs.outlineStyle === 'solid' && cs.outlineWidth === w)
               return void (window.ringed = n);
@@ -692,7 +705,7 @@ def test_a_key_onto_a_control_at_a_scrollers_edge_shows_its_ring(
         page.locator("#op-a .lf-pick").evaluate("el => el.focus({preventScroll: true})")
     page.evaluate(
         """([side, past]) => {
-          const box = window.ringed.closest(side === 'bottom' ? '#log' : '#wide');
+          const box = document.querySelector(side === 'bottom' ? '#log' : '#wide');
           const port = box.getBoundingClientRect();
           const at = window.ringed.getBoundingClientRect();
           if (side === 'bottom')
@@ -711,7 +724,7 @@ def test_a_key_onto_a_control_at_a_scrollers_edge_shows_its_ring(
     read = page.evaluate(
         """(side) => {
           const el = window.ringed;
-          const box = el.closest(side === 'bottom' ? '#log' : '#wide');
+          const box = document.querySelector(side === 'bottom' ? '#log' : '#wide');
           const port = box.getBoundingClientRect();
           const at = el.getBoundingClientRect();
           const style = getComputedStyle(el);
@@ -720,11 +733,13 @@ def test_a_key_onto_a_control_at_a_scrollers_edge_shows_its_ring(
               ? port.top + box.clientTop + box.clientHeight - at.bottom
               : port.left + box.clientLeft + box.clientWidth - at.right,
             ring: parseFloat(style.outlineWidth) + parseFloat(style.outlineOffset),
+            fade: getComputedStyle(box).maskImage,
           };
         }""",
         side,
     )
     assert read["room"] >= read["ring"], read
+    assert read["fade"] == "none", read
 
 
 GROUPED_SIDE_LIST = leaf_page(

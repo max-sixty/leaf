@@ -688,9 +688,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item ~ .lf-chrome .lf-mark-el
     z-index: 0;
   }
   .lf-margin-thread
-    .lf-page-thread:has(
-      > .lf-thread-transcript:is([data-lf-focus], :has([data-lf-focus]))
-    )::after {
+    .lf-page-thread:has(> .lf-thread-transcript[data-lf-focus-within])::after {
     display: none;
   }
   @media (forced-colors: active) {

@@ -3699,6 +3699,44 @@ def test_declared_space_names_containing_holders_as_advice(browser, serve):
     assert "put data-width on the frame" in str(advice[0])
 
 
+def test_a_widened_wrapper_that_takes_its_words_off_the_column_is_advised(
+    browser, serve
+):
+    """A text block starts at its holder's edge, so a wrapper reaching before the prose
+    moves its words off the column, on a page the rest of which stands on it. A wide
+    wrapper keeps the prose's start edge, a caption belongs to its figure, and a
+    question takes no width at all."""
+    source = leaf_page(
+        "Words off the column",
+        """<h1>Words off the column</h1><p>Prose sets the column.</p>
+        <section id="words" data-width="available"><h2>Off</h2><p>Words.</p></section>
+        <details id="more" data-width="available" open><summary>More</summary>
+          <p>Words.</p></details>
+        <section id="flowing" class="layout-flow"><section id="inner" data-width="available">
+          <p>Words.</p></section></section>
+        <section id="wide" data-width="wide"><p>Keeps its start edge.</p></section>
+        <figure id="pictured" data-width="available"><div>Picture.</div>
+          <figcaption>Caption.</figcaption></figure>
+        <div id="exhibit" data-width="available"><table><tr><td>Cell</td></tr></table></div>
+        <lf-ask id="asked" data-width="available"><h2>Ship it?</h2><p>Words.</p>
+          <lf-options id="choice" choose><lf-option id="yes">Yes</lf-option></lf-options>
+        </lf-ask>""",
+    )
+    page = open_page(browser, serve(source))
+    resized(page, 1440, 900)
+    reading = render_checks_model.evaluate_probe(page, "geometryReading", [])
+    found = [
+        finding["at"]
+        for finding in reading["contained"]
+        if finding["code"] == "words-off-column"
+    ]
+    assert found == ["<section id=words>", "<details id=more>", "<section id=inner>"]
+    advice = render_gate_readings.swept_faults([(1440, reading)])
+    worded = [finding for finding in advice if finding.code == "words-off-column"]
+    assert all(finding.severity == "advice" for finding in worded) and len(worded) == 3
+    assert 'class="layout-flow"' in str(worded[0])
+
+
 def test_the_sweep_reads_each_width_as_a_load_there_shows_it(browser, serve):
     """A width the sweep steps to is read as it settles, not partway through a
     transition the step started, which no load at that width shows. A sidebar's

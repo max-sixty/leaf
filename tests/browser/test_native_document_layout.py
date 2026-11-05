@@ -70,6 +70,11 @@ def test_a_questions_words_keep_the_column_beside_a_wider_block(browser, serve):
         + question.format(id="plain", width="", held="")
         + question.format(id="stated", width=' data-width="available"', held="")
         + question.format(id="holds", width="", held=evidence.format(id="holds"))
+        + question.format(
+            id="wrapped",
+            width="",
+            held="<section>" + evidence.format(id="wrapped") + "</section>",
+        )
         + "</section><section>"
         + question.format(id="kept", width="", held=evidence.format(id="kept"))
         + "</section>",
@@ -84,15 +89,17 @@ def test_a_questions_words_keep_the_column_beside_a_wider_block(browser, serve):
         }))""")
     column = boxes["prose"]
     assert column == [504, 1224]
-    for question_id in ("plain", "stated", "holds", "kept"):
+    for question_id in ("plain", "stated", "holds", "wrapped", "kept"):
         for part in ("head", "premise", "options"):
             assert boxes[f"{question_id}-{part}"] == column, (question_id, part, boxes)
     assert boxes["plain"] == boxes["stated"] == column, boxes
     # The block takes the room and the question's box, which its marks stand on, holds it.
     assert boxes["holds-evidence"][0] < 100 and boxes["holds-evidence"][1] > 1628, boxes
     assert boxes["holds"] == boxes["holds-evidence"], boxes
-    # A plain section keeps what it holds, as it does outside a question.
-    assert boxes["kept-evidence"] == boxes["kept"] == column, boxes
+    # A plain section keeps what it holds, as it does outside a question, and the
+    # question's box keeps to the column with it.
+    for question_id in ("wrapped", "kept"):
+        assert boxes[f"{question_id}-evidence"] == boxes[question_id] == column, boxes
     # What the question asks stands by its words, not at the edge of the evidence.
     marker = page.locator("[data-lf-margin-for='holds']")
     expect(marker).to_have_attribute("data-lf-place", "rail")
@@ -113,7 +120,9 @@ def test_a_block_in_a_workspace_question_fills_its_region(browser, serve):
     )
     page = open_page(browser, serve(source))
     resized(page, 1728, 900)
-    width = page.evaluate("""id => document.getElementById(id).getBoundingClientRect().width""", "region")
+    width = page.evaluate(
+        """id => document.getElementById(id).getBoundingClientRect().width""", "region"
+    )
     for block in ("asked", "wide-evidence"):
         box = page.locator(f"#{block}").bounding_box()
         assert box["width"] == pytest.approx(width, abs=1), block

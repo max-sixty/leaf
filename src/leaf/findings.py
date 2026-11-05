@@ -689,6 +689,11 @@ _TEXT = {
         ' the unframed wrappers class="layout-flow"; to widen a frame around it, put'
         " data-width on the frame"
     ),
+    "words-off-column": lambda at, v: (
+        f"{at} reaches past the column's start edge and takes its words with it, so"
+        " they no longer line up with the page's; put data-width on the block inside"
+        ' that needs the room, and give this wrapper class="layout-flow"'
+    ),
     "squeezed-table": _squeezed,
     "shrunk-labels": lambda at, v: (
         f"{at} draws labels below {v['threshold']}px, {v['labels']} at"

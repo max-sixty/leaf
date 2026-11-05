@@ -514,7 +514,10 @@
      * the box and an equal negative margin keeps the content box at the prose, so the
      * blocks in it resolve their room as before. A note row and a wide block each
      * reach a width from the prose's start edge, and the flow takes the larger, within
-     * the room. A table's reach is its whole room, since its columns set its width. */
+     * the room. A table's reach is its whole room, since its columns set its width. A
+     * block breaks out only where it stands directly in a flow, so a flow counts its
+     * own children and those of the flows in it, and not a block a plain wrapper keeps
+     * in the column. */
       :is(.layout-column, .layout-flow, [data-lf-flow])
         > :is(.layout-flow, [data-lf-flow]) {
         --lf-note-reach: 0px;
@@ -524,17 +527,28 @@
           max(var(--lf-note-reach), var(--lf-wide-reach)) - 100%,
           var(--lf-free-end)
         );
-        &:has(.layout-note) {
+        &:has(> .layout-note, :is(.layout-flow, [data-lf-flow]) > .layout-note) {
           --lf-note-reach: calc(var(--col) + var(--note));
         }
-        &:has([data-lf-space="wide"]) {
+        &:has(
+          > [data-lf-space="wide"],
+          :is(.layout-flow, [data-lf-flow]) > [data-lf-space="wide"]
+        ) {
           --lf-wide-reach: var(--wide);
         }
-        &:has(:is([data-lf-space="available"], .layout-sidebar)) {
+        &:has(
+          > :is([data-lf-space="available"], .layout-sidebar),
+          :is(.layout-flow, [data-lf-flow])
+            > :is([data-lf-space="available"], .layout-sidebar)
+        ) {
           --lf-reach-start: var(--lf-free-start);
           --lf-reach-end: var(--lf-free-end);
         }
-        &:has(:is([data-lf-space], .layout-note, .layout-sidebar)) {
+        &:has(
+          > :is([data-lf-space], .layout-note, .layout-sidebar),
+          :is(.layout-flow, [data-lf-flow])
+            > :is([data-lf-space], .layout-note, .layout-sidebar)
+        ) {
           margin-inline: calc(-1 * max(0px, var(--lf-reach-start)))
             calc(-1 * max(0px, var(--lf-reach-end)));
           padding-inline: max(0px, var(--lf-reach-start)) max(0px, var(--lf-reach-end));

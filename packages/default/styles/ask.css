@@ -10,7 +10,9 @@ lf-ask {
   display: block;
 }
 @media screen {
-  lf-ask:not(:has([data-lf-space])) {
+  lf-ask:not(
+    :has(> [data-lf-space], :is(.layout-flow, [data-lf-flow]) > [data-lf-space])
+  ) {
     box-sizing: border-box;
     max-inline-size: var(--lf-measure);
   }

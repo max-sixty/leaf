@@ -149,9 +149,10 @@ def test_a_held_question_is_answered_by_its_fork_and_the_session_hears_it(
 def test_a_hand_over_or_a_failed_fork_gives_the_thread_to_the_session_at_once(
     claimed, lane
 ):
-    """The fork hands over what needs tools or work, and a fork that failed or gave
-    an answer Leaf can't read hands over too. Each is recorded where the watch's
-    reading stamps it, and the thread is deliverable at once."""
+    """The fork hands over what needs tools or work, posting the agent's working line
+    in the thread first, and a fork that failed or gave an answer Leaf can't read
+    hands over with no line. Each is recorded where the watch's reading stamps it,
+    and the thread is deliverable at once, still owing the session's answer."""
     work = said(claimed, "Make it 1 second")
     broken = said(claimed, "What does the follower print?")
     failed = said(claimed, "And the lane?")
@@ -161,12 +162,28 @@ def test_a_hand_over_or_a_failed_fork_gives_the_thread_to_the_session_at_once(
         failed["id"],
     }
 
-    assert forks_model.take(
+    handed = forks_model.take(
         "s1",
         basis(claimed, work["id"], work["id"]),
-        answer=json.dumps({"hand_over": "asks for a change"}),
+        answer=json.dumps({"hand_over": "making the delay 1 second"}),
         failed=None,
-    ) == {"outcome": "hand_over", "why": "asks for a change"}
+    )
+    assert handed["outcome"] == "hand_over"
+    [line] = [
+        event for event in events_model.read_events(claimed) if event["kind"] == "reply"
+    ]
+    assert line["id"] == handed["line"]
+    assert (
+        line["text"],
+        line["session"],
+        line["ephemeral"],
+        line["start"]["item"],
+    ) == (
+        "making the delay 1 second",
+        "s1",
+        True,
+        work["id"],
+    )
     assert forks_model.take(
         "s1",
         basis(claimed, broken["id"], broken["id"]),
@@ -182,9 +199,14 @@ def test_a_hand_over_or_a_failed_fork_gives_the_thread_to_the_session_at_once(
     assert session_file("s1", forks_model.HANDED.kind).resolve() in outside_inputs(
         claimed
     )
-    assert not any(
-        event["kind"] == "reply" for event in events_model.read_events(claimed)
-    )
+    assert [
+        event["id"]
+        for event in events_model.read_events(claimed)
+        if event["kind"] == "reply"
+    ] == [line["id"]]
+    with PageTransaction(claimed) as page:
+        owed = delivery_model.current_responses(claimed, page.events)
+    assert owed[work["id"]]["kind"] == "reply"
 
 
 def test_a_hold_ends_with_its_bound_or_its_lane(claimed, lane, monkeypatch):

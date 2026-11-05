@@ -10,7 +10,16 @@ recorded thread messages a fork answered in a median 12 s and handed over in 6 s
 most of it thinking at the session's effort (`notes/fork-replies.md` has the
 measurements). The user chose on 2026-10-31 a fork that answers or hands over, over
 keeping every reply with the session and over a fork that also says the work will
-follow, which would commit the session to work it hasn't seen.
+follow. On 2026-11-05 they reversed the second part: a fork that hands over posts the
+agent's working line. Forks had handed over 27 of 40 thread messages, and the thread
+showed nothing from the agent for a median 35 s after each, until the session's first
+model call ended ("Forks on real pages" in the note).
+
+The line is progress at the newest message's response address (`thread.post_reply`),
+so it takes the message in hand as the session's own first line would, and the
+session's next words replace it. It is posted before the hand-over, so its start
+comes before the session's pickup and lets no turn end over the message
+(`activity.started_in_turn`): the session still owes the answer.
 
 A thread's waiting messages are the user's messages since the agent's last answer in
 it, the newest of which owes the thread's answer. Each thread with waiting messages
@@ -22,7 +31,7 @@ stores the state itself:
 | --- | --- | --- |
 | held | Leaf keeps the thread's waiting messages from the session while a fork decides | a user message in a thread none of whose waiting messages the session has received or been handed, while the session's lane is live and has been since the first of them arrived |
 | answered | the fork's reply is posted as the agent's, and the thread owes nothing | the fork's `reply` |
-| with the session | delivered as any input is | a hand-over: the fork's `hand_over`, a failed fork, or the lane's once `BOUND_S` has passed since the newest waiting message (`look`); or the lane going down |
+| with the session | delivered as any input is | a hand-over: the fork's `hand_over`, posting its line, a failed fork, or the lane's once `BOUND_S` has passed since the newest waiting message (`look`); or the lane going down |
 
 Another message while the thread is held keeps it held, with a fork for the new
 set, and drops the earlier fork's answer (`take`); a follow-up after an answer makes
@@ -103,7 +112,7 @@ ANSWER = {
         },
         {
             "type": "object",
-            "properties": {"hand_over": {"type": "string"}},
+            "properties": {"hand_over": {"type": "string", "pattern": r"\S"}},
             "required": ["hand_over"],
             "additionalProperties": False,
         },
@@ -406,12 +415,25 @@ This message comes from Leaf, not the user. The user just wrote in a thread on a
 The thread, as Leaf delivers it; "events" are the user's messages your reply answers, oldest first:
 {json.dumps(thread, ensure_ascii=False, indent=1)}
 
-Answer the user yourself only when the conversation above already holds the answer, as when they ask what the session did, found, decided or plans, why, or what something means. Hand the thread to the main session when you would have to work the answer out, from code or details the conversation shows or from how you expect something to behave, for a case the session never looked at. Hand it over too when an answer needs anything you can't see from here: a look at a file or the page, a command's output, or the result of work still running; when the user asks for work or a change, however small; when the user answers or decides something the session asked them, since the main session records it and acts on it; and when the answer would settle something the main session is still deciding. Don't promise work, since only the main session can do it.
+Answer the user yourself only when the conversation above already holds the answer, as when they ask what the session did, found, decided or plans, why, or what something means. Hand the thread to the main session when you would have to work the answer out, from code or details the conversation shows or from how you expect something to behave, for a case the session never looked at. Hand it over too when an answer needs anything you can't see from here: a look at a file or the page, a command's output, or the result of work still running; when the user asks for work or a change, however small; when the user answers or decides something the session asked them, since the main session records it and acts on it; and when the answer would settle something the main session is still deciding. A reply settles the thread, so it promises no work, since only the main session can do it.
 
 Write a reply as the agent would answer in the thread: Markdown for a narrow column, short paragraphs, plain words, answering the message directly.
 
-Reply with only one JSON object, no code fence: {{"reply": "<the reply, in Markdown>"}} to answer, or {{"hand_over": "<why, in one line>"}} to hand the thread to the main session.
+When you hand the thread over, Leaf posts one line of yours in it at once as the agent's working line, until the main session's own words replace it. Say in that line what the agent will do about the message, in a few of the user's words, as the agent would before starting ("reading the reconnect traces"; "recording your choice and making that change").{_waiting_clause(running)}
+
+Reply with only one JSON object, no code fence: {{"reply": "<the reply, in Markdown>"}} to answer, or {{"hand_over": "<the working line>"}} to hand the thread to the main session.
 </leaf-fork-reply>"""
+
+
+def _waiting_clause(running: list[dict]) -> str:
+    """What the working line says of the session's running call, which it finishes
+    before it reads the message."""
+    if not running:
+        return ""
+    return (
+        " The session reads the message only once its running tool call returns, so "
+        'open the line with that wait ("once this command finishes, …").'
+    )
 
 
 def take(
@@ -431,21 +453,22 @@ def take(
     from .clerk import read_answer
     from .refusals import Refused
 
-    decided: dict
     refused = None
+    outcome: dict
     if answer is None:
-        decided = {"hand_over": f"the fork failed: {failed}"}
+        outcome = _hand_over(session_id, basis, f"the fork failed: {failed}")
     else:
         try:
             decided = read_answer(answer, ANSWER)
         except Refused as error:
             refused = str(error)
-            decided = {"hand_over": refused}
-    outcome: dict
-    if "reply" in decided:
-        outcome = _post(session_id, basis, decided["reply"])
-    else:
-        outcome = _hand_over(session_id, basis, decided["hand_over"])
+            outcome = _hand_over(session_id, basis, refused)
+        else:
+            outcome = (
+                _post(session_id, basis, decided["reply"])
+                if "reply" in decided
+                else _post(session_id, basis, decided["hand_over"], working=True)
+            )
     _record(
         session_id,
         basis,
@@ -481,9 +504,11 @@ def _record(session_id: str, basis: dict, outcome: dict) -> None:
         pass
 
 
-def _post(session_id: str, basis: dict, text: str) -> dict:
+def _post(session_id: str, basis: dict, text: str, *, working: bool = False) -> dict:
     """The fork's reply, posted as the agent's while the thread is still held as
-    `basis` has it, and the clerk's line telling the session; or why nothing was."""
+    `basis` has it, and the clerk's line telling the session; with `working`, the
+    fork's working line posted the same way, and the thread handed to the session
+    after it; or why nothing was."""
     from .clerk import queue
     from .delivery import ReceiptRefused
     from .findings import Rejected
@@ -498,16 +523,23 @@ def _post(session_id: str, basis: dict, text: str) -> dict:
             text,
             settlement=Receipt(fence=lambda page: _still_held(page, session_id, basis)),
             claimed_session=session_id,
+            ephemeral=working,
         )
     except (FileNotFoundError, ReceiptRefused):
         return {"outcome": "dropped", "text": text}
     except (Rejected, Refused) as error:
         # The reply's own checks refused it, so the session answers instead, and the
         # note says why, as it does for an answer `take` refused.
-        why = f"the reply was refused: {error}"
+        why = f"the {'line' if working else 'reply'} was refused: {error}"
         return {**_hand_over(session_id, basis, why), "text": text, "refused": why}
     if record is None:
         return {"outcome": "dropped", "text": text}
+    if working:
+        return {
+            **_hand_over(session_id, basis, None),
+            "text": text,
+            "line": record["id"],
+        }
     queue(
         session_id,
         [
@@ -521,17 +553,19 @@ def _post(session_id: str, basis: dict, text: str) -> dict:
     return {"outcome": "reply", "text": text, "reply": record["id"]}
 
 
-def _hand_over(session_id: str, basis: dict, why: str) -> dict:
+def _hand_over(session_id: str, basis: dict, why: str | None) -> dict:
     """Hand the thread `basis` names to the session, while it is still held as
-    `basis` has it (`_hand_over_held`)."""
+    `basis` has it (`_hand_over_held`); `why` is Leaf's reason, where the fork
+    didn't choose it."""
+    reason = {} if why is None else {"why": why}
     try:
         with PageTransaction(Path(basis["page"])) as page:
             if not _still_held(page, session_id, basis):
-                return {"outcome": "dropped", "why": why}
+                return {"outcome": "dropped", **reason}
             _hand_over_held(page, session_id, basis["inputs"])
     except FileNotFoundError:
-        return {"outcome": "dropped", "why": why}
-    return {"outcome": "hand_over", "why": why}
+        return {"outcome": "dropped", **reason}
+    return {"outcome": "hand_over", **reason}
 
 
 def _hand_over_held(page: PageTransaction, session_id: str, inputs) -> None:

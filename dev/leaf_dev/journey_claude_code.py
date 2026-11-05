@@ -78,8 +78,8 @@ diagnostics (`fork_reply`):
   boundary hands it the settled comment with Leaf's line saying a fork answered
   it, and its prompt handed it `fork-idle`'s the same way;
 - `fork-work`: a request for a change to the page, sent during another such
-  command, is handed over by its fork, and the session picks it up and answers it
-  in that turn or the next.
+  command, is handed over by its fork, whose working line is the comment's first
+  reply, and the session picks it up and answers it in that turn or the next.
 
 Then `quit`, by `/exit`.
 
@@ -751,6 +751,7 @@ def steps(cc: ClaudeCode, user: User, place: Isolation, *, forks: bool) -> None:
             lambda: user.fork("fork-work"), "fork-work: no fork decided on the comment"
         )
         decided("fork-work", "hand_over")
+        line = require(user.fork("fork-work"), "fork-work: no fork").get("line")
         cc.until(answered("fork-work"), "fork-work: the session did not answer it")
         # The session's turn once it answered, which is the user's own or the next.
         last = claimed(page)["turn"]
@@ -759,7 +760,12 @@ def steps(cc: ClaudeCode, user: User, place: Isolation, *, forks: bool) -> None:
             bool(took) and took[0] in (turn, last),
             "fork-work: neither the user's turn nor the next picked the request up",
         )
-        first = user.end.timings()[work]["milestones"]["first_reply"]["elapsed_s"]
+        first_reply = user.end.timings()[work]["milestones"]["first_reply"]
+        require(
+            line is not None and first_reply["event_id"] == line,
+            "fork-work: the fork's working line was not the comment's first reply",
+        )
+        first = first_reply["elapsed_s"]
         where = "the user's turn" if took[0] == turn else "the next turn"
         step(
             "fork-work",

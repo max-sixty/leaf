@@ -53,7 +53,7 @@ findings) matching an `absent` label fails the case, since it names what the cas
 guardrail leaves out. Every item and change goes to the text judge
 (`metadata.texts.judge`), which reads whether each says the right thing and whether
 an unlabelled one is real. A reply is scored on its decision, and a posted reply's
-words on the judge.
+words, or a hand-over's working line, on the judge.
 
 Cost is priced from the result's `usage` at the fork model's list prices (`PRICES`).
 Its `total_cost_usd` prices the same call, since the rendered records carry no
@@ -743,6 +743,10 @@ def score_reply(leaf: Leaf, page: Path, scenario: dict, turns: list) -> dict:
     if note.get("refused") or not note:
         return {"checks": {"answered": False}, "refused": note.get("refused")}
     thread = json.dumps(scenario["waiting"], indent=1, ensure_ascii=False)
+    conversation = f"<conversation>\n{conversation_text(turns)}\n</conversation>\n\n"
+    running = json.dumps(scenario.get("running", []), indent=1, ensure_ascii=False)
+    # A hand-over's working line, which Leaf posts as it hands the thread over.
+    line = note.get("text") if "line" in note else None
     return {
         "checks": {
             "answered": True,
@@ -751,8 +755,9 @@ def score_reply(leaf: Leaf, page: Path, scenario: dict, turns: list) -> dict:
         "outcome": note["outcome"],
         "note": note,
         "texts": {
-            "reply": f"<conversation>\n{conversation_text(turns)}\n</conversation>\n\n"
-            f"<thread>\n{thread}\n</thread>\n\n"
-            f"<reply>\n{note.get('text', '(handed over)')}\n</reply>"
+            "reply": f"{conversation}<thread>\n{thread}\n</thread>\n\n"
+            f"<reply>\n{note.get('text', '(handed over)')}\n</reply>",
+            "line": f"{conversation}<running>\n{running}\n</running>\n\n"
+            f"<thread>\n{thread}\n</thread>\n\n<line>\n{line or '(no line)'}\n</line>",
         },
     }

@@ -10,7 +10,7 @@
 # shares its words with its positive case. A stale label's `edit` is the words its
 # fix must remove, or null where the turn-end check's prompt asks for no edit
 # (skills/leaf/references/turn-end-check.md). A reply case's `decision` is `reply`
-# or `hand_over`.
+# or `hand_over`; a hand-over case judges the working line the fork posted.
 
 # When each conversation starts; its records follow seven seconds apart.
 start: "2026-11-03T09:00:00+00:00"
@@ -60,6 +60,21 @@ rubrics:
       output shows one. An explanation the reply offers passes where it is
       consistent with what the conversation shows, even if the conversation never
       states it.
+  line: &line
+    type: llm-rubric
+    metric: line-right
+    transform: context.metadata.texts?.line || 'The fork gave no usable answer.'
+    value: >-
+      The input is the line "The fork gave no usable answer.", which fails, or a
+      conversation between a user and a coding agent, the tool call the agent is
+      running now (an empty list when none), the user's message in a thread on the
+      agent's page, and the one line a fork of the conversation posted in the thread
+      as the agent's working line while it handed the message to the agent, which
+      reads "(no line)" when it posted none, which fails. Pass only if the line says
+      in a few plain words what the agent will do about the message, in the way the
+      conversation makes likely, as an agent says it before starting; claims no
+      result, answer or finished work; and, where a tool call is running, says the
+      work follows it.
 
 # The words a guardrail and its positive case share.
 words:
@@ -621,7 +636,8 @@ cases:
           section: ft-cause
           quote: Cause
     decision: hand_over
-    assert: []
+    assert:
+      - *line
   user-decides:
     fork: reply
     page: fork-reply/pages/flaky-test.html
@@ -661,7 +677,8 @@ cases:
         id: w1
         text: Await it. 200 ms at startup doesn't matter for us.
     decision: hand_over
-    assert: []
+    assert:
+      - *line
   still-running:
     fork: reply
     page: fork-reply/pages/flaky-test.html
@@ -691,7 +708,8 @@ cases:
           section: ft-fix-await
           quote: Await the warmup in
     decision: hand_over
-    assert: []
+    assert:
+      - *line
   work-out:
     fork: reply
     page: fork-reply/pages/flaky-test.html
@@ -709,7 +727,8 @@ cases:
           section: ft-cause-body
           quote: the first request can arrive before the cache is filled
     decision: hand_over
-    assert: []
+    assert:
+      - *line
   still-deciding:
     fork: reply
     page: fork-reply/pages/flaky-test.html
@@ -732,4 +751,5 @@ cases:
           section: ft-fixes
           quote: Two fixes
     decision: hand_over
-    assert: []
+    assert:
+      - *line

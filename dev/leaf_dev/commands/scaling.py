@@ -43,16 +43,12 @@ over 64-256, and its growth fits 2.0.
 
 --rounds measures every page N times and reports each cost's lowest reading
 (`lowest`). The rounds are interleaved (`interleaved`): each takes every size in turn
-and every arm at each size, so a burst of load lands on one reading of each page. The
-daily suite reads the browser's pages as this does (`measure_rounds`), and the
-server's (`server_scaling.measure`), with the same rounds.
+and every arm at each size, so a burst of load lands on one reading of each page.
 
 --server times the server's paths on each page instead, in this process with no
 browser (`leaf_dev.server_scaling` names the paths and how it reads them), and names
 each path that breaks the rule: growth fitting an exponent above SUPERLINEAR
 (`failures`), or a click's paths together taking more than their budget at REFERENCE.
-The daily `tests/journeys/test_server_scaling.py` fails the growth; the budget waits,
-as the browser's do, until the pages that miss it are fixed.
 
 --base also measures the merge base with main (or REF), chosen as every A/B command
 chooses its arms (`arms.choose_arms`), so a change shows its exponents beside the
@@ -83,9 +79,12 @@ spreads elapsed time; each exponent still compares sizes within one run. `shown`
 `event` are elapsed time, which a busy host stretches, and so does a run held to the
 efficiency cores: on 2026-11-05 `taskpolicy -c utility` read a click's `shown` at 110
 to 170 ms on pages the default policy showed in 30 to 35. Pages, the profiles and
-`results.json` land in a run directory under `.tmp/scaling/`. The daily suite fails
-growth well past linear on every axis with the same measurement, of every cost but
-those its `UNHELD` names (`tests/journeys/test_scaling.py`).
+`results.json` land in a run directory under `.tmp/scaling/`.
+
+The daily CI run measures the browser's pages at 64 to 256 sections over two rounds,
+and the server's at its default sizes, and charts the browser's readings at 64
+(`.github/workflows/ci.yaml`, `scaling`). Its `!` marks gate nothing
+(tests/AGENTS.md, "Results do not depend on execution speed").
 """
 
 import ctypes

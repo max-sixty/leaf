@@ -1051,7 +1051,7 @@ function fieldEditor(
       selection.mainIndex,
     );
     // A step that moves no caret leaves the press to the keys after this one, as Down
-    // on the last line leaves a fence (`leaveFence`), though it would drop the goal
+    // on the last line leaves a code block (`leaveCode`), though it would drop the goal
     // column a vertical step carries.
     if (
       moved.ranges.every(
@@ -1387,18 +1387,18 @@ function fieldEditor(
     return `\n${containers.map(carried).join("")}`;
   }
 
-  // The fence the line holding `at` stands in, as the preview reads the draft, and what
-  // of the fence that line holds, or null where no fence holds it.
+  // The code block, fenced or indented, that the line holding `at` stands in, as the
+  // preview reads the draft, and which of its fence's lines that line is, or null where
+  // no code holds it.
   /** @param {EditorState} state @param {number} at */
-  function fenceAt(state, at) {
+  function codeAt(state, at) {
     const { placed } = state.field(reading);
     const line = state.doc.lineAt(at);
     const holds = holding(placed, line);
-    const fence = placed.find((c) => c.token.type === "fence" && holds(c));
-    if (!fence?.markers) return null;
-    const [opening, closing] = fence.markers.map(
-      ([a]) => a >= line.from && a <= line.to,
-    );
+    const fence = placed.find((c) => isCode(c.token) && holds(c));
+    if (!fence) return null;
+    const markers = fence.markers ?? [];
+    const [opening, closing] = markers.map(([a]) => a >= line.from && a <= line.to);
     const containers = placed.filter(container).filter(holds);
     return {
       line,
@@ -1406,7 +1406,7 @@ function fieldEditor(
       opening,
       closing,
       // No marks close it, and this line is the last it holds.
-      open: fence.markers.length < 2 && line.to + 1 >= fence.to,
+      open: markers.length < 2 && line.to + 1 >= fence.to,
       begin: beginBelow(state, line.to) ?? "\n",
       // The words on a line up to `to`, past its containers' markers.
       /** @param {import("@codemirror/state").Line} l @param {number} [to] */
@@ -1414,15 +1414,16 @@ function fieldEditor(
     };
   }
 
-  // Down from the draft's last line begins a line below the fence that holds it, writing
-  // the closing marks an open fence lacks in place of the blank lines ending its code.
-  // Nothing else reaches a line below a fence the draft ends with. Rich editors leave a
-  // code block the same way.
+  // Down from the draft's last line begins a line below the code block that holds it, in
+  // place of the blank lines ending its code: after the closing marks an open fence
+  // lacks, or after a blank line that ends an indented block's code, whose indent Return
+  // carries and the preview hides. Nothing else reaches a line below code the draft ends
+  // with. Rich editors leave a code block the same way.
   /** @param {EditorView} view */
-  function leaveFence(view) {
+  function leaveCode(view) {
     const { state } = view;
     const { main } = state.selection;
-    const at = main.empty ? fenceAt(state, main.head) : null;
+    const at = main.empty ? codeAt(state, main.head) : null;
     if (!at || state.readOnly) return false;
     const { line, fence, closing, begin, words } = at;
     let last = line;
@@ -1456,7 +1457,7 @@ function fieldEditor(
   /** @param {EditorState} state @param {string} put @param {boolean} pasted */
   function fenceBreak(state, put, pasted) {
     const { head: caret, empty } = state.selection.main;
-    const at = empty ? fenceAt(state, caret) : null;
+    const at = empty ? codeAt(state, caret) : null;
     if (!at || caret !== at.line.to) return null;
     const { fence, line, opening, closing, open, words } = at;
     const { markup } = fence.token;
@@ -1612,7 +1613,7 @@ function fieldEditor(
           // item stays the item it was.
           const begin = beginBelow(state, start);
           const code =
-            fenceAt(state, start) !== null || /^ {0,3}(`{3,}|~{3,})/m.test(put);
+            codeAt(state, start) !== null || /^ {0,3}(`{3,}|~{3,})/m.test(put);
           const lines =
             pasted && code && begin && begin !== "\n"
               ? [...put.matchAll(/\n/g)].map(({ index }) => ({
@@ -1674,7 +1675,7 @@ function fieldEditor(
             ),
           },
           // Down reaches here only where the caret has no line below (`lineStep`).
-          { key: "ArrowDown", run: (view) => !field.oneLine() && leaveFence(view) },
+          { key: "ArrowDown", run: (view) => !field.oneLine() && leaveCode(view) },
           ...standardKeymap.filter(
             ({ key }) => key !== "Escape" && key !== "Enter" && key !== "Mod-Enter",
           ),

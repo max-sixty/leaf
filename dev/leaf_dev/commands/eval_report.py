@@ -88,7 +88,6 @@ STYLE = """
 .pair-shots img { display: block; box-sizing: border-box; max-width: 100%; height: auto; border: 1px solid var(--rule, #ccc); }
 .pair-shots > figure > figcaption { display: flex; align-items: baseline; align-content: start; flex-wrap: wrap; gap: .35rem 1rem; margin-block: 0 .5rem; font-weight: 600; }
 .capture-actions { display: inline-flex; flex-wrap: wrap; gap: .35rem .8rem; font-weight: 400; }
-.comparison-summary { margin-block: .25rem .75rem; font-family: var(--sans); font-size: .875rem; }
 .comparison-views > details { margin-block: 1rem; }
 .comparison-views > details > summary { font-weight: 600; }
 .comparison-views > section > h4 { margin-block: .75rem; }
@@ -106,8 +105,7 @@ STYLE = """
   .sample-table td { display: block; border: 0; min-width: 0; }
   .sample-table td::before { content: attr(data-label); display: block; font-size: .75rem; color: var(--muted); }
 }
-#review-views, #report-views { border-radius: 0; }
-#review-views > lf-tab:not([hidden]) { padding-block-start: 0; }
+main > lf-tabs, #report-views { border-radius: 0; }
 .result-list { margin-block: .5rem; }
 .result-list > div { display: flex; justify-content: space-between; gap: 1rem; padding-block: .35rem; border-bottom: 1px solid var(--border-2); }
 .result-list dt { font-weight: 500; }
@@ -117,7 +115,7 @@ STYLE = """
 .report-metadata dd { margin: 0; }
 .output-status { color: var(--muted); font-size: .875rem; }
 .report-meta { color: var(--muted); font-size: .875rem; }
-#review-views > lf-tab:not(#all-results) :is(p, ul, ol, dl) { max-width: 82ch; }
+main > lf-tabs > lf-tab:not(#all-results) :is(p, ul, ol, dl) { max-width: 82ch; }
 """
 
 
@@ -1362,6 +1360,8 @@ def citations(review: str) -> list[tuple[dict[str, str], slice]]:
     for cite in turbohtml.parse_fragment(
         review, context="main", source_locations=True
     ).find_all(CITATION):
+        if cite.text.strip() or cite.find(True):
+            raise click.ClickException(f"A citation holds nothing: {cite.html}")
         location = cite.source_location
         assert location is not None
         end = location.end_tag or location.start_tag
@@ -1429,13 +1429,27 @@ def cited_outputs(
 
 
 def output_links(sample: dict, phase: str) -> str:
-    """A cited revision's saved page, its place in the browser and who authored it."""
+    """A cited revision's saved page, its place in the browser, and what it is: its
+    condition, author model and revision."""
     author = sample["execution_metadata"]["author"]
+    saved = sample["diagnostics"].get("phases", {}).get(phase, {}).get("page")
+    role = phase_label(sample, phase) if saved else "No saved page"
+    provenance = " · ".join(
+        [
+            {"html": "Plain HTML", "leaf": "Leaf"}.get(
+                sample["diagnostics"].get("condition"), "Generated page"
+            ),
+            author["model"]
+            or f"{author['harness']} · model unavailable in retained run",
+            role,
+        ]
+    )
+    details = sample_anchor(sample) + (f"-p{phase}" if saved else "")
     return (
         '<span class="capture-actions">'
         + sample.get("exports", {}).get(phase, "Saved output unavailable")
-        + f'<a href="#{sample_anchor(sample)}">Inspect results</a>'
-        + f"<small>{escape(author['model'] or author['harness'] + ' · model unavailable in retained run')}</small></span>"
+        + f'<a href="#{details}">{escape(role if saved else "Attempt")} and details</a></span>'
+        + f'<small class="output-status">{escape(provenance)}</small>'
     )
 
 
@@ -1443,18 +1457,19 @@ def cite_outputs(page: Path, attributes: dict[str, str], samples: dict) -> str:
     """A cited output's captures at each recorded viewport, or a pair's side by side,
     or only its links where the review already shows what it needs."""
     outputs = cited_outputs(attributes, samples)
+    anchor = escape(citation_anchor(attributes))
     if "links" in attributes:
-        label, sample, phase = outputs[0]
-        return f"<strong>{escape(label)}</strong>: {output_links(sample, phase)}"
-    conditions = {sample["diagnostics"].get("condition") for _, sample, _ in outputs}
-    return (
-        '<p class="comparison-summary"><strong>Reference evidence:</strong> '
-        "Plain HTML compared with Leaf.</p>"
-        if conditions == {"html", "leaf"}
-        else ""
-    ) + comparison_screens(
+        return (
+            f'<span id="{anchor}">'
+            + " · ".join(
+                f"<strong>{escape(label)}</strong>: {output_links(sample, phase)}"
+                for label, sample, phase in outputs
+            )
+            + "</span>"
+        )
+    screens = comparison_screens(
         page,
-        citation_anchor(attributes),
+        anchor,
         [(label, sample) for label, sample, _ in outputs],
         [
             output_links(sample, phase) + capture_errors(sample, phase)
@@ -1463,6 +1478,7 @@ def cite_outputs(page: Path, attributes: dict[str, str], samples: dict) -> str:
         aligned="aligned" in attributes,
         phases=[phase for _, _, phase in outputs],
     )
+    return f'<div id="{anchor}">{screens}</div>'
 
 
 def cite_file(page: Path, attributes: dict[str, str], output_url: str | None) -> str:
@@ -1470,22 +1486,21 @@ def cite_file(page: Path, attributes: dict[str, str], output_url: str | None) ->
     source link, and anything else a link, as is any file cited with `links`."""
     path = Path(attributes["file"])
     label = attributes.get("label", path.name)
-    anchor = citation_anchor(attributes)
+    anchor = escape(citation_anchor(attributes))
     link = linked_file(page, path, output_url, label)
-    if "links" in attributes:
-        return link
-    if MEDIA_TYPES.get(path.suffix.lower(), "").startswith("image/"):
+    image = MEDIA_TYPES.get(path.suffix.lower(), "").startswith("image/")
+    if "links" in attributes or not (image or path.suffix == ".diff"):
+        return f'<span id="{anchor}">{link}</span>'
+    if image:
         return (
-            f'<figure id="{escape(anchor)}"><figcaption>{escape(label)}</figcaption>'
+            f'<figure id="{anchor}"><figcaption>{escape(label)}</figcaption>'
             + shot(page, media_paths(page, [path])[path], label)
             + "</figure>"
         )
-    if path.suffix != ".diff":
-        return link
     # The widget owns parsing and per-file disclosure. Preserve every patch character,
     # including space-only context lines.
     patch = escape(path.read_text()).replace("\n ", "\n&#32;")
-    return f'<p>{link}</p><lf-diff id="{escape(anchor)}" collapsed><pre>{patch}</pre></lf-diff>'
+    return f'<p>{link}</p><lf-diff id="{anchor}" collapsed><pre>{patch}</pre></lf-diff>'
 
 
 def resolved(page: Path, review: str, samples: dict, output_url: str | None) -> str:
@@ -1543,6 +1558,8 @@ def eval_report(
                 for argument in ("--package", name)
             ],
         )
+    if len({run.name for run in runs}) < len(runs):
+        raise click.ClickException("Each run directory needs a distinct name to cite.")
     found = run_samples(runs)
     samples = {
         (run.name, sample["sample"]): sample
@@ -1600,7 +1617,7 @@ def eval_report(
     # Each task's section exports its saved pages, which the review's citations link.
     browser = (
         '<lf-tabs id="report-views" data-width="available">'
-        + judge_preferences(page, records, found, output_url)
+        + (judge_preferences(page, records, found, output_url) if records else "")
         + '<lf-tab id="scores" label="Output index" group="Overview">'
         + f'<p class="report-meta">{len(found)} cases · {count} saved result records</p>'
         + overview(found)
@@ -1624,17 +1641,15 @@ def eval_report(
     )
     written = resolved(page, source, samples, output_url)
     fragment = turbohtml.parse_fragment(written, context="main", source_locations=True)
-    # What stands before the review's first tab is its title and lede. Its tabs come
-    # first, and the browser is the last of them.
-    first_tab = fragment.select_one(":scope > lf-tab")
-    at = len(written)
-    if first_tab:
-        assert first_tab.source_location is not None
-        at = first_tab.source_location.start_tag.start_offset
-        browser = (
-            f'<lf-tabs id="review-views" data-width="available">{written[at:]}'
-            f'<lf-tab id="all-results" label="Outputs">{browser}</lf-tab></lf-tabs>'
-        )
+    # What stands before the review's tab set is its title and lede, the page's
+    # header. The browser is the set's last tab, or follows a review that has none.
+    views = fragment.select_one(":scope > lf-tabs")
+    at = end = len(written)
+    if views:
+        assert views.source_location and views.source_location.end_tag
+        at = views.source_location.start_tag.start_offset
+        end = views.source_location.end_tag.start_offset
+        browser = f'<lf-tab id="all-results" label="Outputs">{browser}</lf-tab>'
     (page / "index.html").write_text(
         f"""<!doctype html>
 <html lang="en">
@@ -1646,7 +1661,7 @@ def eval_report(
 <body>
 <main class="layout-workspace density-working">
 <header>{written[:at]}</header>
-{browser}
+{written[at:end]}{browser}{written[end:]}
 </main>
 </body>
 </html>

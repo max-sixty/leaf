@@ -214,45 +214,46 @@ captured sizes beneath it.
 
 For a hill-climbing journey, write a review and pass it with `--review FILE`. It is
 ordinary Leaf markup (`skills/leaf/SKILL.md`): the report's `<h1>` and any lede, then
-an `lf-tab` for each view. The report adds the browser as a last tab, **Outputs**.
-`leaf page check PAGE` validates the regenerated report as it does any page. Reports
-stay comparable across a campaign when they keep the same sections, so keep these,
-leaving out one only where the campaign has nothing for it:
+an `lf-tabs` of its views, to which the report adds the browser as a last tab,
+**Outputs**. `leaf page check PAGE` validates the regenerated report as it does any
+page. Reports stay comparable across a campaign when they keep the same sections, so
+keep these, leaving out one only where the campaign has nothing for it:
 
 ```html
 <h1 id="title">Keyboard judgment follows each control</h1>
 
-<lf-tab id="report-introduction" label="Introduction">
-  <section id="latest-run">
-    <h2>Latest validation</h2>
-    <p>What this journey establishes and what it cannot establish.</p>
-    <table id="score-summary">
-      <thead>
-        <tr>
-          <th scope="col">Comparison</th>
-          <th scope="col">Scope / baseline</th>
-          <th scope="col">Observed result</th>
-          <th scope="col">Interpretation</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <th scope="row"><a href="#experiment-keyboard">Approval trial</a></th>
-          <td>0 of 2 passed</td>
-          <td>2 of 2 passed</td>
-          <td>Two authors per arm; not a population success rate.</td>
-        </tr>
-      </tbody>
-    </table>
-    <h3>Remaining defects and limits</h3>
-    <ul>
-      <li>What the evidence does not establish.</li>
-    </ul>
-  </section>
-  <section id="campaign-journey">
-    <h2>Campaign journey</h2>
-    <lf-diagram id="campaign-flow" parts="all">
-      <pre>
+<lf-tabs id="review-views">
+  <lf-tab id="report-introduction" label="Introduction">
+    <section id="latest-run">
+      <h2>Latest validation</h2>
+      <p>What this journey establishes and what it cannot establish.</p>
+      <table id="score-summary">
+        <thead>
+          <tr>
+            <th scope="col">Comparison</th>
+            <th scope="col">Scope / baseline</th>
+            <th scope="col">Observed result</th>
+            <th scope="col">Interpretation</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <th scope="row"><a href="#experiment-keyboard">Approval trial</a></th>
+            <td>0 of 2 passed</td>
+            <td>2 of 2 passed</td>
+            <td>Two authors per arm; not a population success rate.</td>
+          </tr>
+        </tbody>
+      </table>
+      <h3>Remaining defects and limits</h3>
+      <ul>
+        <li>What the evidence does not establish.</li>
+      </ul>
+    </section>
+    <section id="campaign-journey">
+      <h2>Campaign journey</h2>
+      <lf-diagram id="campaign-flow" parts="all">
+        <pre>
 flowchart TD
   accTitle: Campaign study
   accDescr: The baseline split into a candidate and a control, then a comparison decided.
@@ -261,71 +262,75 @@ flowchart TD
   candidate --> decide["Judging · Compare and decide"]
   control --> decide
 </pre>
-    </lf-diagram>
-  </section>
-</lf-tab>
-
-<lf-tab id="cases" label="Cases">
-  <section id="case-navigation">
-    <h2>Patch navigation</h2>
-    <p>The task given to the authors.</p>
-    <section id="case-navigation-baseline">
-      <h3>Baseline outputs</h3>
-      <p>What we observed, tried, learned and chose to do next.</p>
-      <lf-eval-cite
-        before="RUN/leaf-sample@1"
-        before-label="Leaf baseline"
-        after="RUN/html-sample@1"
-        after-label="Plain HTML control"
-      ></lf-eval-cite>
+      </lf-diagram>
     </section>
-  </section>
-</lf-tab>
+  </lf-tab>
 
-<lf-tab id="changes-tested" label="Changes to Leaf">
-  <section id="experiments-retained">
-    <h2>Retained changes</h2>
-    <section id="experiment-keyboard">
-      <h3>Keyboard judgment follows each control</h3>
-      <p>Keep: the after arm passed 2 of 2 approval trials, against 0 of 2.</p>
-      <p>
-        The intervention, what improved or regressed, and the limits of this evidence.
-      </p>
-      <lf-eval-cite before="RUN/before-sample" after="RUN/after-sample"></lf-eval-cite>
-      <lf-eval-cite
-        file="/absolute/path/to/change.diff"
-        label="Exact retained change"
-      ></lf-eval-cite>
-      <lf-ask id="keyboard-review">
-        <h4>Keep the keyboard change?</h4>
-        <lf-options id="keyboard" choose>
-          <lf-option id="keyboard-approve"><strong>Approve change</strong></lf-option>
-          <lf-option id="keyboard-revisit"><strong>Revisit change</strong></lf-option>
-        </lf-options>
-      </lf-ask>
+  <lf-tab id="cases" label="Cases">
+    <section id="case-navigation">
+      <h2>Patch navigation</h2>
+      <p>The task given to the authors.</p>
+      <section id="case-navigation-baseline">
+        <h3>Baseline outputs</h3>
+        <p>What we observed, tried, learned and chose to do next.</p>
+        <lf-eval-cite
+          before="RUN/leaf-sample@1"
+          before-label="Leaf baseline"
+          after="RUN/html-sample@1"
+          after-label="Plain HTML control"
+        ></lf-eval-cite>
+      </section>
     </section>
-  </section>
-  <section id="experiments-rejected"><h2>Rejected trials</h2></section>
-  <section id="experiments-evaluation"><h2>Evaluation corrections</h2></section>
-  <section id="experiments-exploration">
-    <h2>Exploration and supporting evidence</h2>
-  </section>
-  <section id="implementation">
-    <h2>What the current code changes</h2>
-    <p>The retained code's size and interfaces, and how it was validated.</p>
-    <h3>For your review</h3>
-    <p>What each change means before and after, and why it deserves attention.</p>
-    <h3>Weaknesses</h3>
-    <p>Material limitations and where the assessment is least certain.</p>
-    <h3>What merging would leave undone</h3>
-    <p>What remains within the stated scope.</p>
-  </section>
-</lf-tab>
+  </lf-tab>
+
+  <lf-tab id="changes-tested" label="Changes to Leaf">
+    <section id="experiments-retained">
+      <h2>Retained changes</h2>
+      <section id="experiment-keyboard">
+        <h3>Keyboard judgment follows each control</h3>
+        <p>Keep: the after arm passed 2 of 2 approval trials, against 0 of 2.</p>
+        <p>
+          The intervention, what improved or regressed, and the limits of this evidence.
+        </p>
+        <lf-eval-cite
+          before="RUN/before-sample"
+          after="RUN/after-sample"
+        ></lf-eval-cite>
+        <lf-eval-cite
+          file="/absolute/path/to/change.diff"
+          label="Exact retained change"
+        ></lf-eval-cite>
+        <lf-ask id="keyboard-review">
+          <h4>Keep the keyboard change?</h4>
+          <lf-options id="keyboard" choose>
+            <lf-option id="keyboard-approve"><strong>Approve change</strong></lf-option>
+            <lf-option id="keyboard-revisit"><strong>Revisit change</strong></lf-option>
+          </lf-options>
+        </lf-ask>
+      </section>
+    </section>
+    <section id="experiments-rejected"><h2>Rejected trials</h2></section>
+    <section id="experiments-evaluation"><h2>Evaluation corrections</h2></section>
+    <section id="experiments-exploration">
+      <h2>Exploration and supporting evidence</h2>
+    </section>
+    <section id="implementation">
+      <h2>What the current code changes</h2>
+      <p>The retained code's size and interfaces, and how it was validated.</p>
+      <h3>For your review</h3>
+      <p>What each change means before and after, and why it deserves attention.</p>
+      <h3>Weaknesses</h3>
+      <p>Material limitations and where the assessment is least certain.</p>
+      <h3>What merging would leave undone</h3>
+      <p>What remains within the stated scope.</p>
+    </section>
+  </lf-tab>
+</lf-tabs>
 ```
 
 `lf-eval-cite` reaches what an author can't write by hand, and the report replaces it
 with elements Leaf ships, so the served page holds none. A citation that names an
-output or file the report can't find stops the report.
+output, revision or file the report can't find stops the report.
 
 - `output="RUN/SAMPLE"`, with an optional `label`, draws the output's captures at each
   recorded viewport, its saved-page link and the author's model.
@@ -337,17 +342,17 @@ output or file the report can't find stops the report.
 - `file="/absolute/path"`, with an optional `label`, copies a retained file into the
   report's evidence: an image draws in place, a `.diff` draws in `lf-diff` beside its
   source link, and any other file is a link.
-- `links`, added to `output` or `file`, draws only the links, for a long list. A
+- `links`, added to any citation, draws only its links, for a long list. A
   citation that draws anything else stands where a block can, outside a `<p>`.
 
 `RUN` is the name of a run directory given to `eval-report`. `SAMPLE` is the directory
 `metadata.work` names, which an output's run details show as its Output ID. `SAMPLE@1`
-selects a saved revision and otherwise the citation shows the final one, so choose the
-state the change affects, such as the page before a later user request corrects its
-layout, or the controls before a decision is recorded. An `id` is optional, and needed
-where a review links to a citation or cites one thing twice. The cited sample's checks
-in the browser link back to the citation, and the browser's tasks follow the order the
-review first cites them.
+selects saved revision 1, and without it the citation shows the final revision. Choose
+the state the change affects, such as the page before a later user request corrects its
+layout, or the controls before a decision is recorded. Give a citation an `id` where
+the review links to it or cites the same thing twice. The cited sample's checks in the
+browser link back to the citation, and the browser's tasks follow the order the review
+first cites them.
 
 Each section keeps what its reader needs to judge it:
 
@@ -358,8 +363,8 @@ Each section keeps what its reader needs to judge it:
   sequential repairs state that scope.
 - A score row states its denominator and meaning, keeping an experiment's pass counts
   separate from ordinal pair preferences. Qualifications that apply to the recorded
-  reviews belong beside the scores, and arms take the reader's names here while the
-  browser keeps the recorded ones.
+  reviews go beside the scores. Name the arms for the reader in the review; the browser
+  keeps their recorded labels.
 - A title names concrete behavior, so a reader can tell what changed without the
   campaign's terminology. The diagram's edges state observed dependencies or decisions,
   rather than inferring causality from timestamps. Keep the original grades when

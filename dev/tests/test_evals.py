@@ -682,8 +682,9 @@ def test_judgments_of_saved_samples_reach_the_report(tmp_path, monkeypatch):
 
 
 def test_review_citations_become_leaf_elements_the_page_check_accepts(tmp_path):
-    """The review's tabs come before the browser's, and each citation reaches its saved
-    captures, while one that names nothing stops the report."""
+    """The browser is the last of the review's tabs, and each citation draws its saved
+    captures and links that land, while one that names nothing stops the report."""
+    import turbohtml
     from PIL import Image
 
     from leaf_dev.commands import eval_report
@@ -705,14 +706,17 @@ def test_review_citations_become_leaf_elements_the_page_check_accepts(tmp_path):
     review = tmp_path / "review.html"
     review.write_text(
         f"""<h1 id="title">Keeping the “change”</h1>
-<lf-tab id="report-introduction" label="Introduction">
-  <p>A review’s own words.</p>
-  <lf-eval-cite before="saved/document-base-0" after="saved/document-head-1@3"
-    before-label="Base" aligned></lf-eval-cite>
-  <p><lf-eval-cite file="{patch}" label="The change" links></lf-eval-cite></p>
-  <lf-eval-cite id="patch" file="{patch}" label="The patch"></lf-eval-cite>
-  <p><lf-eval-cite output="saved/document-head-1" links></lf-eval-cite></p>
-</lf-tab>
+<lf-tabs id="review-views">
+  <lf-tab id="report-introduction" label="Introduction">
+    <p>A review’s own words.</p>
+    <lf-eval-cite before="saved/document-base-0" after="saved/document-head-1@3"
+      before-label="Base" aligned></lf-eval-cite>
+    <p><lf-eval-cite file="{patch}" label="The change" links></lf-eval-cite></p>
+    <lf-eval-cite id="patch" file="{patch}" label="The patch"></lf-eval-cite>
+    <p><lf-eval-cite id="head" output="saved/document-head-1" links></lf-eval-cite>
+      <a href="#head">again</a></p>
+  </lf-tab>
+</lf-tabs>
 """
     )
     page = tmp_path / "report"
@@ -724,11 +728,18 @@ def test_review_citations_become_leaf_elements_the_page_check_accepts(tmp_path):
     written = (page / "index.html").read_text()
     assert "lf-eval-cite" not in written
     assert "<title>Keeping the “change”</title>" in written
-    assert written.index("A review’s own words.") < written.index('id="scores"')
+    document = turbohtml.parse(written)
+    assert [tab.attrs["id"] for tab in document.select("#review-views > lf-tab")] == [
+        "report-introduction",
+        "all-results",
+    ]
     assert written.count("<lf-shot ") == 1
     assert written.count('<lf-diff id="patch" collapsed>') == 1
     assert "\n&#32;\n-old" in written
-    # A cited sample's checks link back to the citation that draws it.
+    # Every link the citations write lands, a sample's link back to its citation too.
+    ids = {element.attrs["id"] for element in document.select("[id]")}
+    hrefs = {str(link.attrs["href"])[1:] for link in document.select('a[href^="#"]')}
+    assert hrefs and hrefs <= ids
     assert "Base and After · " in written
     eval_report.leaf("page", "check", str(page))
 
@@ -742,11 +753,13 @@ def test_review_citations_become_leaf_elements_the_page_check_accepts(tmp_path):
         )
         result = CliRunner().invoke(eval_report.eval_report, arguments)
         assert result.exit_code != 0 and missing in result.output
-    review.write_text(
-        '<h1>Report</h1><lf-eval-cite file="/absent.json"></lf-eval-cite>'
-    )
-    result = CliRunner().invoke(eval_report.eval_report, arguments)
-    assert result.exit_code != 0 and "/absent.json" in result.output
+    for refused, said in (
+        ('<lf-eval-cite file="/absent.json"></lf-eval-cite>', "/absent.json"),
+        (f'<lf-eval-cite file="{patch}">Words</lf-eval-cite>', "holds nothing"),
+    ):
+        review.write_text(f"<h1>Report</h1>{refused}")
+        result = CliRunner().invoke(eval_report.eval_report, arguments)
+        assert result.exit_code != 0 and said in result.output
     assert (page / "index.html").read_text() == written
 
 

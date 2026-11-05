@@ -269,8 +269,10 @@ class Place:
     that marks it, as a page function that finds it afresh at each reading (`box`), and
     what stands around it that a change can grow (`around`, a role to its target).
 
-    `during` is the user's own act, a scroll, under way as the change arrives, and
-    `travel` how far it moves the box."""
+    `during` is the user's own act, a scroll, made as the change arrives, and `travel`
+    how far it moves the box. A scroll that glides is `midway`: the change draws while
+    it is still under way, where the engine lets the case hand it over then (`midway`
+    in `arriving`)."""
 
     name: str
     page: str
@@ -279,6 +281,7 @@ class Place:
     around: dict
     travel: float = 0
     during: Callable | None = None
+    midway: bool = False
 
 
 def ids_in(selector, built):
@@ -648,6 +651,7 @@ PLACES = [
         {"thread above": "jobs", "page above": None},
         travel=-SCROLL,
         during=smooth,
+        midway=True,
     ),
     Place(
         "map-row",
@@ -702,24 +706,37 @@ class Change:
 
 
 # When the page's held read of a change may go: once the user's scroll has come `by`
-# px of its way, while it is short of its `goal` with `midway` true, and otherwise
-# once the scroll has ended: its `scrollend` has fired, or it has stood still ten
-# frames where the engine fires none. So whether the page has heard the end is never
-# left to timing.
-RELEASE = """async ([by, goal, midway]) => {
+# px of its way. With `midway` true it goes then, while the scroll is short of its
+# `goal`, and a scroll already there is a case that missed what it means to measure.
+# Otherwise it goes once the scroll has ended: its `scrollend` has fired, or, where the
+# engine fires none, the scroll has stood still `quiet` ms over two frames or more,
+# longer than the runtime's own rule for an end it doesn't hear (`SETTLE_MS` in
+# browser/runtime/arrivals.js). So whether the page has heard the end is never left
+# to timing.
+RELEASE = """async ([by, goal, midway, quiet]) => {
   const record = window.__lfPlaceRecord;
   const page = document.scrollingElement;
   const frame = () => new Promise((then) => requestAnimationFrame(then));
   const come = () => Math.abs(page.scrollTop - record.scroll);
   while (come() < by) await frame();
-  if (midway && come() < goal - 1) return (record.release = 'under way');
-  for (let still = 0; still < 10 && !record.ended; ) {
-    const at = page.scrollTop;
+  if (midway) return (record.release = come() < goal - 1 ? 'under way' : 'missed');
+  let at = page.scrollTop, since = performance.now(), frames = 0;
+  while (!record.ended && (frames < 2 || performance.now() - since < quiet)) {
     await frame();
-    still = page.scrollTop === at ? still + 1 : 0;
+    if (page.scrollTop === at) frames++;
+    else [at, since, frames] = [page.scrollTop, performance.now(), 0];
   }
   return (record.release = record.ended ? 'ended' : 'ended unheard');
 }"""
+
+# How long a scroll whose end the engine never announces stands still before the page
+# may read the change: past the runtime's 80ms rule, with room for a busy frame.
+QUIET_MS = 160
+
+
+def midway(page, place):
+    """Whether this case takes the change in while the user's scroll is under way."""
+    return place.midway and page.context.browser.browser_type.name == "firefox"
 
 
 def arriving(page, place, write, drawn):
@@ -727,12 +744,12 @@ def arriving(page, place, write, drawn):
 
     Where the user scrolls, the scroll starts while the server holds the page's read of
     the change, and the read goes once the scroll has come a tenth of its way
-    (`RELEASE`), so the page takes the change in mid-scroll, which the case confirms.
-    Two engine facts decide which case a scroll lands in. Playwright's wheel scrolls at
+    (`RELEASE`). A place `midway` means the change to draw mid-scroll, which the case
+    confirms, and two engine facts say where it can. Playwright's wheel scrolls at
     once in both engines, and in Firefox it never fires `scrollend`. While a smooth
     scroll runs in Chromium, Playwright's calls answer some 250ms late, by when the
-    scroll has ended, so there the read waits for the end; in Firefox it goes
-    mid-scroll."""
+    scroll has ended, so there the read waits for the end, and only Firefox takes a
+    change mid-scroll."""
     if place.during:
         held = []
 
@@ -743,8 +760,7 @@ def arriving(page, place, write, drawn):
         write()
         holding(page, held, 1, "the page's read of the change")
         place.during(page)
-        midway = page.context.browser.browser_type.name == "firefox"
-        page.evaluate(RELEASE, [SCROLL / 10, SCROLL, midway])
+        page.evaluate(RELEASE, [SCROLL / 10, SCROLL, midway(page, place), QUIET_MS])
         # The read goes before the route is taken down, which can take a while.
         released = list(held)
         for route in released:
@@ -1032,20 +1048,16 @@ def turn(page, label):
     """Press a depth with the pointer, as the reader does, and wait out its glide.
 
     The glide is the turn's own result, motion the eye can follow (browser/AGENTS.md,
-    "Controls stay where the user aims"), so the frames until it ends are marked
-    `gliding` and the place's check passes over them; the frame it ends in and every
-    one after are held to the place."""
+    "Controls stay where the user aims"), so the frames from the press until it ends
+    are marked `gliding` (`ARM`) and the place's check passes over them; the frame it
+    ends in and every one after are held to the place."""
     depth = page.get_by_role("radio", name=label, exact=True)
     box = depth.bounding_box()
-    page.evaluate("() => { window.__lfPlaceRecord.gliding = true; }")
+    page.evaluate("() => { window.__lfPlaceRecord.turning = true; }")
     page.mouse.click(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
     expect(depth).to_have_attribute("aria-checked", "true")
     page.wait_for_function(
-        """() => {
-          if (document.getAnimations().length) return false;
-          window.__lfPlaceRecord.gliding = false;
-          return true;
-        }"""
+        "() => !window.__lfPlaceRecord.gliding && !document.getAnimations().length"
     )
 
 
@@ -1118,7 +1130,9 @@ CHANGES = [
 # Read where the place's box stands, its left and top, once after each frame renders,
 # from before the change until the page settles: a task posted from a frame callback
 # runs once that frame has rendered. A reading of null is a frame without the box, or
-# with a box of no size. Each frame says whether a turn's glide was under way.
+# with a box of no width or no height. Each frame says whether a turn's glide was under
+# way: from the press of a turn (`gliding`) until the first frame in which no animation
+# runs, which is held to the place.
 #
 # Beside it, where the document's scroll and height stood, which says whether the
 # change reached the page at all; each scroll of the document; and how far the user's
@@ -1130,14 +1144,17 @@ ARM = """() => {
     if (!node || (node instanceof Node && !node.isConnected)) return null;
     const box = node instanceof Range ? node.getClientRects()[0]
       : node.getBoundingClientRect();
-    return box && (box.width || box.height) ? [box.left, box.top] : null;
+    return box && box.width && box.height ? [box.left, box.top] : null;
   };
   const page = document.scrollingElement;
   const record = window.__lfPlaceRecord = {
-    start: at(), frames: [], marks: {}, at, gliding: false,
+    start: at(), frames: [], marks: {}, at, turning: false, gliding: false,
     scroll: page.scrollTop, height: page.scrollHeight, scrolls: [], atGrowth: null,
   };
   if (!record.start) throw new Error('the place has no box to read');
+  document.addEventListener('click', () => {
+    if (record.turning) [record.turning, record.gliding] = [false, true];
+  }, {capture: true});
   document.addEventListener('scroll', (event) => {
     if (event.target === document) record.scrolls.push(page.scrollTop - record.scroll);
   });
@@ -1152,6 +1169,7 @@ ARM = """() => {
     const {port1, port2} = new MessageChannel();
     port1.onmessage = () => {
       if (record.done) return;
+      if (record.gliding && !document.getAnimations().length) record.gliding = false;
       record.frames.push({at: at(), gliding: record.gliding});
       next();
     };
@@ -1223,11 +1241,11 @@ MOVES_ON_MAIN = {
     "reading-page-revision-on-screen-firefox": ON_SCREEN,
     "smooth-reply-above-firefox": (
         "drawing the answer stops the smooth scroll under way: the box moves only as "
-        "far as the scroll had come, 39-66px of its 300"
+        "far as the scroll had come, 34-66px of its 300"
     ),
     "smooth-revision-above-firefox": (
         "the revision's landing stops the smooth scroll under way: the box moves only "
-        "as far as the scroll had come, 59-95px of its 300"
+        "as far as the scroll had come, 59-102px of its 300"
     ),
     "reading-edit-shrinks-chromium": SHRINKS,
     "reading-edit-shrinks-firefox": SHRINKS,
@@ -1325,9 +1343,13 @@ def test_the_page_holds_still_under_the_user(
         record_property("scroll at release", reading["release"])
         record_property("scrolled at growth", reading["atGrowth"])
 
-    # A read released mid-scroll draws the change before the scroll ends, or the case
+    # A case that means the change to draw mid-scroll released the read while the
+    # scroll was under way, and the change drew before the scroll ended, or the case
     # measured something else.
-    if reading["release"] == "under way":
+    if midway(page, place):
+        assert reading["release"] == "under way", (
+            "the scroll had ended before the page's read of the change could go"
+        )
         progress = reading["atGrowth"]
         assert progress is not None and abs(progress) < SCROLL - TOLERANCE, (
             f"the change drew after the scroll ended, at {progress}px of its {SCROLL}"

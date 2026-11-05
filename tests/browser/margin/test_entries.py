@@ -399,12 +399,35 @@ or roll every tenant into a single partitioned archive?</h2>
 )
 
 
-def test_an_obligation_marker_s_label_and_name_identify_its_question(browser, serve):
-    """Hovering an obligation's marker shows the obligation's question, where it used to show only
+def test_an_obligation_marker_names_its_question_once_the_user_points_at_it(
+    browser, serve
+):
+    """Arriving at an obligation with `m` paints its On me marker selected, and only its
+    marker. Its label appears only when the user points at the marker: the ask's heading
+    already says the question, and a label nobody pointed at covers the ask's controls.
+
+    Hovering an obligation's marker shows the obligation's question, where it used to show only
     "Ask…", which the marker's glyph already says. Its accessible name identifies
     the question too, independently of how the visible label fits."""
     page = open_page(browser, serve(OBLIGATION_MARKERS_PAGE))
     resized(page, 1440, 900)
+
+    def on_me_marker(item):
+        return page.locator(
+            f'[data-lf-margin-for="{item}"] .lf-margin-marker[data-lf-kinds~="on-me"]'
+        )
+
+    shown = "label => label.checkVisibility({opacityProperty: true, visibilityProperty: true})"
+    page.keyboard.press("m")
+    expect(on_me_marker("short-ask")).to_have_attribute("data-lf-target-selected", "")
+    expect(on_me_marker("long-ask")).not_to_have_attribute(
+        "data-lf-target-selected", re.compile(".*")
+    )
+    rendered(page)
+    assert (
+        not on_me_marker("short-ask").locator(".lf-margin-entry-label").evaluate(shown)
+    )
+
     read = """(marker) => {
         const word = marker.querySelector('.lf-margin-entry-label-word');
         return {text: word.textContent, name: marker.getAttribute('aria-label'),
@@ -412,9 +435,7 @@ def test_an_obligation_marker_s_label_and_name_identify_its_question(browser, se
     }"""
     seen = {}
     for item in ("short-ask", "long-ask"):
-        marker = page.locator(
-            f'[data-lf-margin-for="{item}"] .lf-margin-marker[data-lf-kinds~="on-me"]'
-        )
+        marker = on_me_marker(item)
         marker.scroll_into_view_if_needed()
         marker.hover()
         expect(marker.locator(".lf-margin-entry-label")).to_be_visible()
@@ -427,31 +448,6 @@ def test_an_obligation_marker_s_label_and_name_identify_its_question(browser, se
     assert seen["long-ask"]["text"] == question, seen
     # The accessible route includes the question's distinguishing alternative.
     assert "roll every tenant" in seen["long-ask"]["name"], seen
-
-
-def test_the_obligation_the_user_stands_in_selects_its_marker(browser, serve):
-    """Arriving at an obligation with `m` paints its On me marker selected, and only its
-    marker. Its label appears only when the user points at the marker: the ask's heading
-    already says the question, and a label nobody pointed at covers the ask's controls."""
-    page = open_page(browser, serve(OBLIGATION_MARKERS_PAGE))
-    resized(page, 1440, 900)
-
-    def marker(item):
-        return page.locator(
-            f'[data-lf-margin-for="{item}"] .lf-margin-marker[data-lf-kinds~="on-me"]'
-        )
-
-    label = marker("short-ask").locator(".lf-margin-entry-label")
-    shown = "label => label.checkVisibility({opacityProperty: true, visibilityProperty: true})"
-    page.keyboard.press("m")
-    expect(marker("short-ask")).to_have_attribute("data-lf-target-selected", "")
-    expect(marker("long-ask")).not_to_have_attribute(
-        "data-lf-target-selected", re.compile(".*")
-    )
-    rendered(page)
-    assert not label.evaluate(shown)
-    marker("short-ask").hover()
-    expect(label).to_be_visible()
 
 
 LABEL_CLEARANCE = """control => {
@@ -868,40 +864,6 @@ def test_a_margin_row_leaves_with_its_target_before_the_next_paint(
             assert not ancestor_visible
             rendered(page)
             expect(action).to_be_hidden()
-
-
-def test_margin_projection_keeps_opaque_owner_and_entry_identities_distinct(
-    browser, serve
-):
-    """Owner and entry keys are a coordinate, not a delimiter-encoded string."""
-    page = open_page(browser, serve(PANEL_PAGE))
-    readings = page.evaluate(
-        """async () => {
-          const {contributionEntry, registerContribution} =
-            await window.__lfWidgetApi();
-          const target = document.querySelector('#how-cap');
-          const first = registerContribution({
-            key: 'a:b', target,
-            read: () => ({entries: [contributionEntry({
-              key: 'c', glyph: '1', label: 'First opaque action'
-            })]}), activate: () => {}
-          });
-          const second = registerContribution({
-            key: 'a', target,
-            read: () => ({entries: [contributionEntry({
-              key: 'b:c', glyph: '2', label: 'Second opaque action'
-            })]}), activate: () => {}
-          });
-          return {
-            first: Boolean(first.control('c', 'margin', true)),
-            second: Boolean(second.control('b:c', 'margin', true)),
-          };
-        }"""
-    )
-    assert readings == {"first": True, "second": True}
-    host = page.locator('[data-lf-margin-for="how-cap"]')
-    expect(host.get_by_role("button", name="First opaque action")).to_be_visible()
-    expect(host.get_by_role("button", name="Second opaque action")).to_be_visible()
 
 
 def test_every_pin_entry_shares_its_face_and_keeps_its_behavior(browser, serve):

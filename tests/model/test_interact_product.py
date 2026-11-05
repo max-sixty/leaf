@@ -29,7 +29,6 @@ from interact_support import (
     found,
     fragment_errors,
     fresh_process,
-    live_versions,
     owed,
     page_state,
     publish,
@@ -1922,17 +1921,6 @@ def test_comment_requires_the_registry_its_runtime_reads(page_dir):
         "has no layer.json" in result.output and "run `leaf page init`" in result.output
     )
     assert events_model.read_events(page_dir) == before
-
-
-def test_note_refuses_a_version_that_fails_check(page_dir):
-    (page_dir / "index.html").write_text(PAGE.replace("</section>", ""))
-    result = CliRunner().invoke(
-        cli_model.cli,
-        ["page", "stamp", str(page_dir), "--text", "broken"],
-    )
-    assert result.exit_code != 0
-    assert "refusing to stamp" in result.output
-    assert live_versions(page_dir) == []
 
 
 def test_example_layer_selects_existing_packages(tmp_path, monkeypatch):

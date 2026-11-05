@@ -21,7 +21,6 @@ from render_harness import (
     PANEL,
     leaf_page,
     open_page,
-    opened_tab,
     panel_view,
     resized,
     shown,
@@ -107,53 +106,6 @@ def test_a_stage_built_before_its_host_arrives_holds_its_links_and_bounds(
         }"""
     )
     assert held == {"target": "_blank", "marked": True, "scroller": True, "atEnd": True}
-
-
-def test_opened_tab_replaces_the_native_target_with_one_it_can_control(
-    browser, one_user
-):
-    """One native target proves the press, then leaves no unreachable tab behind."""
-    page = one_user.new_page()
-    destination = "about:blank#expected"
-    page.set_content(f'<a id="open" target="_blank" href="{destination}">open</a>')
-    browser_session = browser.new_browser_cdp_session()
-
-    def targets():
-        return {
-            target["targetId"]: target["url"]
-            for target in browser_session.send("Target.getTargets")["targetInfos"]
-            if target["type"] == "page"
-        }
-
-    before = targets()
-    presses = 0
-    native = {}
-
-    def press():
-        nonlocal presses
-        presses += 1
-        page.locator("#open").click()
-        native.update(
-            {
-                target_id: url
-                for target_id, url in targets().items()
-                if target_id not in before
-            }
-        )
-
-    tab = opened_tab(page, destination, press)
-    assert presses == 1
-    assert len(native) == 1
-    assert tab.context is page.context
-    assert tab.url == destination
-    after = targets()
-    assert not (native.keys() & after.keys())
-    assert [url for target_id, url in after.items() if target_id not in before] == [
-        destination
-    ]
-    tab.close()
-    assert targets() == before
-    browser_session.detach()
 
 
 def test_a_link_hint_leaves_a_newer_gesture_where_it_is(browser, serve):

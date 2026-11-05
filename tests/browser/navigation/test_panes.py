@@ -322,29 +322,6 @@ def test_a_pane_bodys_ring_is_drawn_whole_against_the_workspace_edges(browser, s
     assert not ring_faults(drawn, "the focused pane body")
 
 
-def test_workspace_scroll_behavior_changes_keep_each_panes_reading(browser, serve):
-    page = open_page(browser, serve(READING_REGIONS_PAGE))
-    left = page.locator("#left-reading > :not(header, footer)")
-    right = page.locator("#right-reading > :not(header, footer)")
-    pane_scroll_behavior(page, page.locator("#left-reading"), "bounded")
-    left.evaluate("el => el.scrollTop = 180")
-    right.evaluate("el => el.scrollTop = 380")
-    page.locator("#right-subject").focus()
-
-    resized(page, 520, 900)
-    pane_scroll_behavior(page, page.locator("#left-reading"), "flow")
-    expect(page.locator("#right-subject")).to_be_focused()
-    resized(page, 1200, 900)
-    pane_scroll_behavior(page, page.locator("#left-reading"), "bounded")
-    readings = [
-        left.evaluate("el => el.scrollTop"),
-        right.evaluate("el => el.scrollTop"),
-    ]
-    assert readings[0] > 100 and readings[1] > 250, readings
-    assert abs(readings[0] - readings[1]) > 100, readings
-    expect(page.locator("#right-subject")).to_be_focused()
-
-
 CUT_SHORT_PAGE = READING_REGIONS_PAGE.replace(
     "<header><h1>Reading workspace</h1></header>",
     "<header><h1>Reading workspace</h1><p>"
@@ -385,54 +362,60 @@ def cut_short(page):
     return read
 
 
-def test_a_restore_cut_short_by_a_pane_keeps_the_readers_place_for_the_return(
-    browser, serve
+def test_a_restored_place_holds_for_the_return_until_someone_else_moves_the_box(
+    browser, serve, subtests
 ):
     """Widened, the pane cannot lower the reader's line to where it stood. That is the
     runtime's move, not the reader's, so narrowing again returns the line to where they
-    left it."""
-    page = open_page(browser, serve(CUT_SHORT_PAGE))
-    read = cut_short(page)
-    resized(page, 520, 900)
-    pane_scroll_behavior(page, page.locator("#left-reading"), "flow")
-    rendered(page)
-    assert page.evaluate(LEFT_START_BELOW) == pytest.approx(read, abs=2)
+    left it.
 
-
-@pytest.mark.parametrize("move", ["script", "fragment", "back"])
-def test_a_box_holding_a_restored_place_still_follows_the_reader(browser, serve, move):
-    """A place the runtime restored holds only until someone else moves the box: a
-    page's script, fragment travel, or Back.
-    The box keeps that move through the next layout change, and the next narrowing
-    starts from it rather than from the place the runtime held."""
+    A place the runtime restored holds only until someone else moves the box: a page's
+    script, fragment travel, or Back. The box keeps that move through the next layout
+    change, and the next narrowing starts from it rather than from the place the runtime
+    held. Each case cuts the pane short afresh, so the cases share one page."""
     page = open_page(browser, serve(CUT_SHORT_PAGE))
-    read = cut_short(page)
     body = page.locator("#left-reading > :not(header, footer)")
-    if move == "script":
-        body.evaluate("body => { body.scrollTop += 300; }")
-        moved = body.evaluate("body => body.scrollTop")
-        scroll_settled(page)
+
+    def narrowed():
+        resized(page, 520, 900)
+        pane_scroll_behavior(page, page.locator("#left-reading"), "flow")
         rendered(page)
-        # A later layout change applies no held place over the move.
-        page.evaluate(
-            "document.querySelector('#right-reading > div').append("
-            "Object.assign(document.createElement('p'), {textContent: 'More.'}))"
-        )
-        rendered(page)
-        assert body.evaluate("body => body.scrollTop") == pytest.approx(moved, abs=2)
-    else:
-        page.evaluate("location.hash = 'left-landmark'")
-        rendered(page)
-        expect(page.locator("#left-landmark")).to_be_in_viewport()
-        if move == "back":
-            page.evaluate("location.hash = 'left-end'")
-            rendered(page)
-            page.go_back()
-            rendered(page)
-    resized(page, 520, 900)
-    pane_scroll_behavior(page, page.locator("#left-reading"), "flow")
-    rendered(page)
-    assert page.evaluate(LEFT_START_BELOW) < read - 100, "the held place came back"
+
+    with subtests.test(move="none"):
+        read = cut_short(page)
+        narrowed()
+        assert page.evaluate(LEFT_START_BELOW) == pytest.approx(read, abs=2)
+
+    for move in ("script", "fragment", "back"):
+        with subtests.test(move=move):
+            read = cut_short(page)
+            if move == "script":
+                body.evaluate("body => { body.scrollTop += 300; }")
+                moved = body.evaluate("body => body.scrollTop")
+                scroll_settled(page)
+                rendered(page)
+                # A later layout change applies no held place over the move.
+                page.evaluate(
+                    "document.querySelector('#right-reading > div').append("
+                    "Object.assign(document.createElement('p'), {textContent: 'More.'}))"
+                )
+                rendered(page)
+                assert body.evaluate("body => body.scrollTop") == pytest.approx(
+                    moved, abs=2
+                )
+            else:
+                page.evaluate("location.hash = 'left-landmark'")
+                rendered(page)
+                expect(page.locator("#left-landmark")).to_be_in_viewport()
+                if move == "back":
+                    page.evaluate("location.hash = 'left-end'")
+                    rendered(page)
+                    page.go_back()
+                    rendered(page)
+            narrowed()
+            assert page.evaluate(LEFT_START_BELOW) < read - 100, (
+                "the held place came back"
+            )
 
 
 @pytest.mark.parametrize("engine", ["browser", "webkit_browser"])
@@ -598,6 +581,29 @@ def test_a_wheel_in_a_box_is_no_choice_of_the_page_around_it(
     resized(page, 390, 800)
     rendered(page)
     expect(page.locator(f"#{read}")).to_be_in_viewport()
+
+
+def test_workspace_scroll_behavior_changes_keep_each_panes_reading(browser, serve):
+    page = open_page(browser, serve(READING_REGIONS_PAGE))
+    left = page.locator("#left-reading > :not(header, footer)")
+    right = page.locator("#right-reading > :not(header, footer)")
+    pane_scroll_behavior(page, page.locator("#left-reading"), "bounded")
+    left.evaluate("el => el.scrollTop = 180")
+    right.evaluate("el => el.scrollTop = 380")
+    page.locator("#right-subject").focus()
+
+    resized(page, 520, 900)
+    pane_scroll_behavior(page, page.locator("#left-reading"), "flow")
+    expect(page.locator("#right-subject")).to_be_focused()
+    resized(page, 1200, 900)
+    pane_scroll_behavior(page, page.locator("#left-reading"), "bounded")
+    readings = [
+        left.evaluate("el => el.scrollTop"),
+        right.evaluate("el => el.scrollTop"),
+    ]
+    assert readings[0] > 100 and readings[1] > 250, readings
+    assert abs(readings[0] - readings[1]) > 100, readings
+    expect(page.locator("#right-subject")).to_be_focused()
 
 
 def test_a_tall_local_comment_survives_its_panes_scroll_behavior_and_return(

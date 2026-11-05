@@ -68,6 +68,7 @@
 import {
   clippedPlace,
   inFront,
+  layoutWindow,
   seenRect,
   showsContents,
   shownWindow,
@@ -130,13 +131,19 @@ export function focusPlace() {
   const left =
     stuck &&
     clippedPlace(node, new Map(), undefined, renderedParent(stuck) ?? undefined);
-  return left && inFront(left, node) ? node : null;
+  // The walk stops short of the window, and `inFront` cuts only its top and foot.
+  return left &&
+    left.left < layoutWindow().right &&
+    left.right > 0 &&
+    inFront(left, node)
+    ? node
+    : null;
 }
 declareFocusPlace(focusPlace);
 // Whether a motion under way carries `node`: a glide in one of the `boxes` scrolling it
 // (scrolling.js, `scrollGoal`), or a finite animation moving a box holding it, as the
-// slide a moved card makes from where it stood. The sheen's endless one, a fade and one
-// held paused bring the user nowhere.
+// slide a moved card makes from where it stood. The sheen's endless one, a fade, one held
+// paused and one on a box's pseudo-element bring the user nowhere.
 /** @param {Element} node @param {Element[]} boxes */
 const carried = (node, boxes) =>
   boxes.some((box) => scrollGoal(box) !== box.scrollTop) ||
@@ -145,6 +152,7 @@ const carried = (node, boxes) =>
     return (
       animation.playState === "running" &&
       effect?.target != null &&
+      !effect.pseudoElement &&
       effect.getComputedTiming().endTime !== Infinity &&
       effect.getKeyframes().some((key) => "transform" in key || "translate" in key) &&
       under(node, effect.target)

@@ -1402,8 +1402,9 @@ def test_a_key_at_a_control_scrolled_away_acts_from_what_the_user_reads(
     """Focus stays on a control the user scrolls away from, but a key they press there
     lets go of it first and acts from what they read: Enter follows no link, an arrow
     moves no radio's choice, End steps no select, Space checks no radio and pages on,
-    and Tab goes on from the paragraph on screen. Chromium would move the radio's choice
-    at the control the arrow was aimed at (notes/browser-support.md)."""
+    and Tab goes on from the paragraph on screen, from a text field too, which keeps
+    only the keys that type. Chromium would move the radio's choice at the control the
+    arrow was aimed at (notes/browser-support.md)."""
     page = open_page(
         request.getfixturevalue(engine),
         serve(
@@ -1415,6 +1416,7 @@ def test_a_key_at_a_control_scrolled_away_acts_from_what_the_user_reads(
                 '<label><input type="radio" name="route" id="right"> Right</label>'
                 '</fieldset><select id="pick" size="3"><option selected>One</option>'
                 "<option>Two</option><option>Three</option></select>"
+                '<textarea id="notes"></textarea>'
                 '<div style="height:2400px"></div><p id="reading">The '
                 "paragraph the reader scrolls to and reads, with words enough to name a "
                 'place on the page.</p><p><button id="next">Next</button></p>'
@@ -1449,27 +1451,44 @@ def test_a_key_at_a_control_scrolled_away_acts_from_what_the_user_reads(
     scroll_settled(page)
     away("#link", "Tab")
     expect(page.locator("#next")).to_be_focused()
+    away("#notes", "Tab")
+    expect(page.locator("#next")).to_be_focused()
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
-def test_a_key_at_a_control_scrolled_out_of_a_fixed_box_lets_go_of_it(
+def test_a_key_at_a_control_out_of_sight_in_a_fixed_box_lets_go_of_it(
     request, serve, engine
 ):
     """A fixed box stands in front of the user whatever the page scrolls, so a key at a
-    control in it acts there, but one the box's own scroller has taken out of sight is
-    a control they can't see, and a key lets go of it."""
+    control in it acts there. One the box's own scroller has taken out of sight, or one
+    a narrower window has left beside it, is a control they can't see, and a key lets go
+    of it, in a modal dialog too, whose inert page takes no landing."""
+    press = "onclick=\"this.dataset.pressed = 'yes'\""
+    scroller = "width:300px;height:120px;overflow:auto"
     page = open_page(
         request.getfixturevalue(engine),
         serve(
             leaf_page(
-                "A fixed box's scroller",
-                '<div id="box" style="position:fixed;top:300px;left:40px;width:300px;'
-                'height:120px;overflow:auto"><button id="control" '
-                "onclick=\"this.dataset.pressed = 'yes'\">Press</button>"
-                '<div style="height:1000px"></div></div><p>Words on the page.</p>',
+                "Fixed boxes",
+                f'<div id="box" style="position:fixed;top:300px;left:40px;{scroller}">'
+                f'<button id="control" {press}>Press</button>'
+                '<div style="height:1000px"></div></div>'
+                f'<button id="beside" {press} style="position:fixed;top:40px;'
+                'left:1000px">Beside</button>'
+                f'<dialog id="modal" style="{scroller}">'
+                f'<button id="inside" {press}>Inside</button>'
+                '<div style="height:1000px"></div></dialog><p>Words on the page.</p>',
             )
         ),
     )
+    resized(page, 1440, 900)
+
+    def lets_go(control):
+        page.keyboard.press("Enter")
+        rendered(page)
+        expect(control).not_to_be_focused()
+        expect(control).not_to_have_attribute("data-pressed", "yes")
+
     control = page.locator("#control")
     control.focus()
     page.keyboard.press("Enter")
@@ -1477,10 +1496,21 @@ def test_a_key_at_a_control_scrolled_out_of_a_fixed_box_lets_go_of_it(
     control.evaluate("node => node.removeAttribute('data-pressed')")
     page.locator("#box").evaluate("box => { box.scrollTop = 500; }")
     scroll_settled(page, "#box")
-    page.keyboard.press("Enter")
-    rendered(page)
-    expect(control).not_to_be_focused()
-    expect(control).not_to_have_attribute("data-pressed", "yes")
+    lets_go(control)
+
+    beside = page.locator("#beside")
+    beside.focus()
+    resized(page, 800, 900)
+    lets_go(beside)
+    resized(page, 1440, 900)
+
+    modal = page.locator("#modal")
+    modal.evaluate("dialog => dialog.showModal()")
+    inside = page.locator("#inside")
+    expect(inside).to_be_focused()
+    modal.evaluate("dialog => { dialog.scrollTop = 500; }")
+    scroll_settled(page, "#modal")
+    lets_go(inside)
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])

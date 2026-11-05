@@ -85,16 +85,22 @@ test("focus is where the user is while they see it or a glide carries them to it
   stopGlide(scroller);
   assert.equal(focusPlace(), null);
   // Nor is a key pressed while a card it moved slides from where it stood, though a box
-  // clips it meanwhile; an endless animation, as the sheen's, a fade and a slide held
-  // paused bring the user nowhere.
+  // clips it meanwhile; an endless animation, as the sheen's, a fade, a slide held paused
+  // and one on a pseudo-element bring the user nowhere.
   const sliding =
-    ({ endTime = 150, playState = "running", property = "transform" } = {}) =>
+    ({
+      endTime = 150,
+      playState = "running",
+      property = "transform",
+      pseudoElement = null,
+    } = {}) =>
     () => [
       /** @type {Animation} */ (
         /** @type {unknown} */ ({
           playState,
           effect: {
             target: first,
+            pseudoElement,
             getComputedTiming: () => ({ endTime }),
             getKeyframes: () => [{ [property]: "none" }],
           },
@@ -111,6 +117,8 @@ test("focus is where the user is while they see it or a glide carries them to it
     assert.equal(focusPlace(), null, "a fade kept focus the place");
     document.getAnimations = sliding({ playState: "paused" });
     assert.equal(focusPlace(), null, "a slide held paused kept focus the place");
+    document.getAnimations = sliding({ pseudoElement: "::before" });
+    assert.equal(focusPlace(), null, "a pseudo-element's slide kept focus the place");
   } finally {
     document.getAnimations = animations;
   }

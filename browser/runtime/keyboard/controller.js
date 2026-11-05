@@ -17,7 +17,8 @@
    in capture. Leaf's own command for the key still runs, and the browser's default runs
    from where focus landed unless that command prevents it. Escape takes its own
    step, a key typed into a text field keeps the field, since typing brings its box back
-   (off-flow.js), and a modifier alone is half a press. A select's letters let go, since
+   (off-flow.js), and a modifier alone is half a press. Tab types nothing, so it goes on
+   from what they read. A select's letters let go, since
    they choose an option the user can't see. */
 import { dispatchKey, keyReady } from "./dispatch.js";
 import { MODIFIER_KEYS } from "../control-selectors.js";
@@ -90,7 +91,8 @@ export function mountKeyboard({
       if (ev.isComposing || ev.key === "Escape" || MODIFIER_KEYS.includes(ev.key))
         return;
       const at = focused();
-      if (!at || at === document.body || typesText(at) || focusPlace()) return;
+      if (!at || at === document.body || focusPlace()) return;
+      if (typesText(at) && ev.key !== "Tab") return;
       if (controlNavigationKeys(at).includes(ev.key)) ev.preventDefault();
       letGo();
       ev.stopPropagation();

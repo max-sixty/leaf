@@ -1682,12 +1682,15 @@ export const onLetGo = (read) => {
 /** @param {Element | null} [from] */
 export function letGo(from = focused()) {
   letGoes++;
+  const held = /** @type {HTMLElement | null} */ (focused());
   const block = readingBlock(from);
   if (!block?.isConnected) releaseFocus();
   else {
     focusDestination(block, "move");
     block.blur();
   }
+  // A page an open modal holds inert takes no focus, so the landing above moved nothing.
+  held?.blur();
   if (from && from !== document.body) for (const read of letGoReaders) read(from);
 }
 

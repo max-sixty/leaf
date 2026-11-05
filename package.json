@@ -107,7 +107,8 @@
     "overrides": {
       "@anthropic-ai/claude-agent-sdk": "$@anthropic-ai/claude-agent-sdk",
       "lit-html": "$lit-html",
-      "get-uri>basic-ftp": "6.2.1"
+      "get-uri>basic-ftp": "6.2.1",
+      "minimatch@<11.0.1": "^11.0.4"
     },
     "patchedDependencies": {
       "@floating-ui/dom": "build/@floating-ui__dom.patch",

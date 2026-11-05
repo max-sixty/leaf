@@ -476,7 +476,8 @@ span[data-lf-voice="leaf"] {
  * complete ring and controls painted outside its box remain visible, and so does a
  * control focused at the edge: Tab left a playground's radio 3px past its region's end
  * in Firefox, faded to nothing. The user there already has the platform's
- * scroll affordance.
+ * scroll affordance. The focus-within mark reads it, since it follows focus out of a
+ * vendor control's tree, which `:has()` can't see into.
  *
  * Neither the mask nor its attributes affect layout, so observing the scroller cannot
  * feed the measurement back into itself. Screen only, because a mark whose whole
@@ -539,10 +540,11 @@ span[data-lf-voice="leaf"] {
       linear-gradient(var(--lf-more-down, #000, #000));
     mask-composite: intersect;
   }
-  :is([data-lf-more-before], [data-lf-more-after], [data-lf-more-below]):is(
-    [data-lf-focus],
-    :has([data-lf-focus])
-  ) {
+  :is(
+    [data-lf-more-before],
+    [data-lf-more-after],
+    [data-lf-more-below]
+  )[data-lf-focus-within] {
     mask-image: none;
   }
 }
@@ -737,10 +739,10 @@ summary,
     appearance: auto;
   }
 }
-:is(.lf-choice, .choice) > input:is(:focus-visible, [data-lf-focus-visible]) {
+:is(.lf-choice, .choice) > input[data-lf-focus-visible] {
   outline: none;
 }
-:is(.lf-choice, .choice):has(> input:is(:focus-visible, [data-lf-focus-visible])) {
+:is(.lf-choice, .choice):has(> input[data-lf-focus-visible]) {
   outline: var(--focus-ring);
   --lf-wears-ring: 1;
 }

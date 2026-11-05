@@ -1969,10 +1969,13 @@ def surface_findings(page):
         # message read after Go-to announces its routes, so its next announcement
         # correctly has different words even though the closed page is unchanged.
         # The announcement is still part of the opening check above.
+        # The page's snapshot nests the region's lines deeper than its own does, so
+        # they match without their indentation.
         stable = reading.copy()
         for line in page.locator(".lf-live").aria_snapshot(boxes=True).splitlines():
-            if line in stable:
-                stable.remove(line)
+            said = next((kept for kept in stable if kept.strip() == line.strip()), None)
+            if said is not None:
+                stable.remove(said)
         return stable
 
     findings = []

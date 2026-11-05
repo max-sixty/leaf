@@ -82,7 +82,7 @@ import {
 import { sameAnchor } from "../anchor-coordinate.js";
 import { CARET_KEYS, selectsAll, WORKS } from "../control-selectors.js";
 import { bringBackSurfaceOf } from "../off-flow.js";
-import { seenRect } from "../geometry.js";
+import { covered, placeBox, seenRect } from "../geometry.js";
 import { scrollIntoView } from "../landing-scroll.js";
 import { cancelRender, nextRender } from "../rendering.js";
 import {
@@ -135,7 +135,7 @@ import { commandScope, projectCommandScope } from "../keyboard/scopes.js";
 import { under, upFrom } from "../shadow.js";
 import { nativeLayers } from "../keyboard/layer-stack.js";
 import { heldObligation } from "../current-target.js";
-import { focusScrolledAway } from "../user-place.js";
+import { focusPlace } from "../user-place.js";
 
 import {
   coarsePointer,
@@ -291,14 +291,16 @@ export function createResponseSurface({
   /** @param {Element} outlet */
   function seatFab(outlet) {
     if (!(outlet instanceof Element) || !fabAnchor.value || !composerOpen) return false;
-    // A seat the user can't see, as under the room a panel takes, cannot take the user
-    // even where it paints, so the editor stays at its home instead. The seat is
+    // A seat the chrome covers, as under the room a panel takes, cannot take the user
+    // even where it paints, so the editor stays at its home instead. A seat merely
+    // scrolled out of the window can, as a file's comment below a long hunk: the
+    // editor's focus brings it in, and it stays beside its subject. The seat is
     // judged, not the editor moved into it, which measures no width until the outlet
     // renders it; a boxless outlet is judged by the box that lays out what it holds.
     /** @type {Element | null} */
     let seat = outlet;
     while (seat && !(seat.getBoundingClientRect().width > 0)) seat = upFrom(seat);
-    if (seat && !seenRect(seat, new Map())) return false;
+    if (seat && covered(placeBox(seat), seat)) return false;
     // Admit the actual editor after its native move: an empty or display:contents
     // outlet has no visibility of its own. A rejected nomination leaves the previous
     // seat, geometry and held typing place intact so the cohort can try its fallback.
@@ -1313,10 +1315,12 @@ export function createResponseSurface({
   // The element and threads where focus puts the user. Focus they have scrolled out of
   // sight puts them nowhere in the page, so `c` writes where they are reading rather than
   // taking them back to it: a walk's stop scrolled away from took the page back 1949 px
-  // at the median, and they backed out of 4 presses in 7 (dispatch.js says the same of
-  // that control's own keys).
+  // at the median, and they backed out of 4 presses in 7 (keyboard/controller.js lets go
+  // of it on any key).
   function focusedPlace() {
-    if (focusScrolledAway()) return { here: null, threadId: null, said: null };
+    const at = focused();
+    if (at && at !== document.body && !focusPlace())
+      return { here: null, threadId: null, said: null };
     const inline = threadHere();
     const inlineBox = inline && threadInput(inline);
     return {
@@ -1410,11 +1414,14 @@ export function createResponseSurface({
 
   // The destination's box is the identity chrome uses to place a contextual binding badge,
   // and the label is whichever Comment route dispatch would answer from here. Dispatch
-  // still decides whether either row can be reached from the current scope.
-  const commentHint = () => ({
-    box: commentDestination().box,
-    label: activeCommandLabel(["comment.create"]),
-  });
+  // still decides whether either row can be reached from the current scope. A repaint
+  // asks for this hint and then rests the box (repaint.js), so the walk answers both.
+  let commentKey = "";
+  const commentHint = () => {
+    const { box } = commentDestination();
+    commentKey = activeCommandLabel(["comment.create"]);
+    return { box, label: commentKey };
+  };
 
   // The target the box rests beside: the one `c` would open it on, while the user can see
   // it. A finger is shown no keys, so it is shown no box waiting for one, and a frame
@@ -1443,7 +1450,7 @@ export function createResponseSurface({
   // Read in each repaint, since where `c` goes follows focus, a scroll's end and the state.
   function restFab() {
     const next = restingTarget();
-    const key = next && activeCommandLabel(["comment.create"]);
+    const key = next && commentKey;
     const target = key ? next : null;
     if (!target) {
       letGoOfRest();

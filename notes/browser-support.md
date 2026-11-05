@@ -470,10 +470,26 @@ types, so nothing marks the card the thread keys act on. Playwright Chromium
 156.0.8078.4 matched `:focus-visible` on the clicked thread at the next key, Shift
 included; Playwright Firefox 157.0 never did, on 2026-11-02. `focus.js`
 (`visibleFocus`) follows the browser's answer, and the open card is the only thread
-keys reach, and only while the user hasn't scrolled it away (`keyboard/dispatch.js`).
+keys reach; a key pressed after scrolling it away lets go of it
+(`keyboard/controller.js`).
 Recheck with a probe on
 `review-a-plan`: click the first margin marker, press Shift, and read whether the
 card's `.lf-page-thread` matches `:focus-visible`.
+
+### A control's own arrows after focus leaves it in Chromium
+
+A key pressed at a control the user has scrolled away from lets go of it first
+(`keyboard/controller.js`), and Chromium still applies a radio's, slider's or
+select's own arrows at the control the key was aimed at: a radio's ArrowDown checked
+the next radio and scrolled the page back to it, a slider's ArrowRight stepped its
+value, and a closed select's ArrowDown kept focus and scrolled the page back to it.
+Playwright Chromium 156.0.8078.4 did each of these, and Playwright Firefox 157.0 did
+none, scrolling the page by the arrow from where focus had gone, on 2026-11-04. The
+controller withholds those arrows in every engine (focus.js,
+`controlNavigationKeys`), so the arrow that lets go scrolls nothing. Recheck on a
+plain page holding two radios of one name, the first checked and focused, whose
+capturing `keydown` listener on the document blurs the focused element: the gap is
+closed when ArrowDown leaves the first radio checked.
 
 ### A stuck sticky anchor in Firefox
 

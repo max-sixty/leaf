@@ -392,9 +392,13 @@ body {
   }
 }
 /* Declared Markdown is the readable first paint, with its exact authored pre
-   retained for semantic capture until the formatter adopts these same nodes. */
-:has(> .lf-markdown-body[data-lf-prepaint]) > pre {
-  display: none;
+   retained for semantic capture until the formatter adopts these same nodes. The
+   rendering's parent is the rule's scope, so the browser asks about it once rather
+   than once for each `pre` beside it (AGENTS.md, "Runtime ownership"). */
+@scope (:has(> .lf-markdown-body[data-lf-prepaint])) {
+  :scope > pre {
+    display: none;
+  }
 }
 /* Suppress startup transitions while keeping the document readable. Native hidden
  * remains authoritative across component styling.

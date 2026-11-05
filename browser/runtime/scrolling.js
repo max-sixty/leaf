@@ -17,7 +17,9 @@
    layout's, and the reader's input aimed at the box, which continuity records itself
    (version.js, `inputSince`), settles those. The browser's travel into hidden content,
    as find-in-page opening a fold onto its match, fires `beforematch` first, so its end
-   is a choice whatever the opening did to the layout. An end that leaves the box where
+   is a choice whatever the opening did to the layout. Opening a closed `<details>`
+   fires none, so a disclosure that opens without its summary's click marks the same
+   travel, for its own box and those inside it. An end that leaves the box where
    its last one did, as Firefox sends after a layout move, chose nothing. A place
    keeper's write returns the reader to a place they already had (reading-place.js,
    `restorePlace`; user-place.js, `holdPlace`; continuity's move of the page with its
@@ -227,6 +229,44 @@ document.addEventListener(
   },
   { capture: true },
 );
+// Opening a closed `<details>` onto its match fires no `beforematch`, and its `toggle`
+// follows in a task of its own. A disclosure the reader opens activates its summary,
+// which dispatches a click first; one that opens without that, as find-in-page opens
+// one, travels into it, until the sequence the travel starts has ended. That travel
+// counts only for the disclosure and the boxes inside it, since Leaf itself opens
+// disclosures too, carrying one open across a revision (carry.js) while layout moves
+// the page around it.
+/** @type {Element | null} */
+let activated = null;
+/** @type {Element | null} */
+let opened = null;
+document.addEventListener(
+  "click",
+  ({ target }) => {
+    const summary = target instanceof Element ? target.closest("summary") : null;
+    const disclosure = summary?.parentElement;
+    if (disclosure instanceof HTMLDetailsElement && !disclosure.open)
+      activated = disclosure;
+  },
+  { capture: true },
+);
+document.addEventListener(
+  "toggle",
+  ({ target }) => {
+    if (!(target instanceof HTMLDetailsElement) || !target.open) return;
+    if (activated === target) {
+      activated = null;
+      return;
+    }
+    opened = target;
+    nextFrame(() =>
+      nextFrame(() => {
+        if (opened === target) opened = null;
+      }),
+    );
+  },
+  { capture: true },
+);
 /** @param {EventTarget | null} target */
 const eventScroller = (target) =>
   target === document ? pageScroller : target instanceof Element ? target : null;
@@ -266,6 +306,7 @@ watchScrollEnds((box) => {
     leafStarted ||
     repeated ||
     travel !== null ||
+    opened?.contains(box) ||
     (ended.get(box) !== box.scrollTop &&
       !layoutMoved.has(box) &&
       !changedExtent(extents.get(box), extent));

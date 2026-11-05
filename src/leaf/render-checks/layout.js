@@ -18,6 +18,8 @@ import { scrollbarClearance } from "./scrollbars.js";
 import { coveredWords, shrunkLabelReading } from "./words.js";
 
 export const rootOverflow = () => pageScroller.scrollWidth - pageScroller.clientWidth;
+// The mark `misplacedBoxes` gives one item at a time to read it without a minimum width.
+const MINIMUM_PROBE = "data-lf-minimum-probe";
 /** @param {Element} el */
 const at = (el) => (el === pageScroller ? "<root scrollport>" : element(el));
 // A direct document child granted a wider track by its own declared width.
@@ -29,10 +31,12 @@ const breaksOut = (el) =>
 // One settled-size geometry sample: every reading that moves with the window, which the
 // gate takes only as these samples, across its sweep and at each render's own size
 // (render_gate/version.py), each field read by its own consumer in readings.py. These readers are synchronous: taking them in one browser turn
-// preserves their findings while removing the protocol round trips between fields. All
-// but `squeezedTables` are read-only; it adds and removes a wrapping rule, so it reads
-// last and the others read the page as laid out. Resize and rendering completion belong
-// to the caller, so a sample neither advances the page nor waits for a different layout.
+// preserves their findings while removing the protocol round trips between fields. Each
+// leaves the page as it found it. `squeezedTables` adds and removes a wrapping rule that
+// changes every table, so it reads last and the others read the page as laid out;
+// `misplacedBoxes` takes one finding's minimum width away for a reading and gives it
+// back before it reads the next. Resize and rendering completion belong to the caller,
+// so a sample neither advances the page nor waits for a different layout.
 /** @param {string[]} open */
 export function geometryReading(open) {
   return {
@@ -482,11 +486,39 @@ export function misplacedBoxes() {
     }
     if (past > 1) over.set(el, [past, wide, frame, host]);
   }
+  // A flex or grid item is by default no narrower than its content's minimum
+  // (`min-width: auto`), so a table or a box that scrolls sideways widens the item, and
+  // the page, as far as its own content asks. Which kind of item an element is, where
+  // giving it no minimum for one reading puts it, and everything it holds, back inside
+  // the column: asked of that remedy rather than read from the style, since a fixed
+  // track or a width of the page's own holds the item out whatever its minimum is. The
+  // reading marks one item at a time for a rule of its own rather than writing the
+  // item's style, which the margin watches (margin-layout.js) and Chromium leaves
+  // behind as `style=""`.
+  /** @type {HTMLStyleElement | null} */
+  let minimumProbe = null;
+  /** @param {Element} el @returns {{item?: string}} */
+  const heldOutByItsContent = (el) => {
+    const display = el.parentElement ? getComputedStyle(el.parentElement).display : "";
+    const item = ["flex", "grid"].find((kind) => display.includes(kind));
+    if (!item || getComputedStyle(el).minInlineSize !== "auto") return {};
+    if (!minimumProbe) {
+      minimumProbe = document.createElement("style");
+      minimumProbe.textContent = `[${MINIMUM_PROBE}] { min-inline-size: 0 !important }`;
+      document.head.append(minimumProbe);
+    }
+    el.setAttribute(MINIMUM_PROBE, "");
+    const fits =
+      outside(el.getBoundingClientRect(), left, right) <= 1 &&
+      el.scrollWidth - el.clientWidth <= 1;
+    el.removeAttribute(MINIMUM_PROBE);
+    return fits ? { item } : {};
+  };
   // Each finding is a record (findings.py) carrying its element's place
   // (locate.js) beside its code, so a reader that takes this pass at several widths
   // (the gate's sweep) can tell one fault met again from a new one by those two,
   // whatever pixel count the width gives it.
-  /** @typedef {{past: number, host?: string, frame?: string, container?: string} | {marginContent: string} | {across: number, down: number}} Misplacement */
+  /** @typedef {{past: number, item?: string, host?: string, frame?: string, container?: string} | {marginContent: string} | {across: number, down: number}} Misplacement */
   /** @type {(Misplacement & {code: string, at: string, place: ReturnType<typeof place>})[]} */
   const found = [];
   /** @param {Element} el @param {string} code @param {Misplacement} values */
@@ -495,10 +527,11 @@ export function misplacedBoxes() {
   for (const [el, [past, wide, frame, host]] of over) {
     if ([...over.keys()].some((other) => other !== el && other.contains(el))) continue;
     if (host) report(el, "outside-part", { past, host: at(host) });
-    else if (!wide) report(el, "past-column", { past });
+    else if (!wide) report(el, "past-column", { past, ...heldOutByItsContent(el) });
     else if (frame) report(el, "outside-frame", { past, frame: at(frame) });
     else report(el, "past-room", { past });
   }
+  minimumProbe?.remove();
   // Authored furniture may occupy room outside its parent, as an absolutely
   // positioned label does. Report a wide exhibit that crosses that occupied room.
   // Notes and sidebars in the document's native flow already own their boxes;

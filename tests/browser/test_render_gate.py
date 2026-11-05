@@ -3815,6 +3815,49 @@ def test_an_obligation_spanning_its_block_is_a_breakout(browser, serve):
     ], misplaced
 
 
+def test_an_item_its_content_holds_past_the_column_is_told_to_drop_its_minimum(
+    browser, serve
+):
+    """A flex or grid item is no narrower than its content by default, so a box that
+    scrolls sideways inside one widens it past a phone's column, and the box beside it
+    with it. The finding on the item names `min-width: 0`, the remedy that keeps it to
+    the column; where that remedy wouldn't bring it back, as for a box the page sized,
+    one in a fixed track, or the neighbour the item pushed, the finding keeps its
+    other remedies. The item's own style stands as it was after the reading."""
+    line = '<div style="overflow-x: auto"><span style="white-space: nowrap">' + (
+        "2026-11-05T13:04:22Z INFO worker-7 shipped batch 4412 to the export bucket"
+        "</span></div>"
+    )
+    source = leaf_page(
+        "Held out by their content",
+        f"""<h1>Held out by their content</h1>
+<div class="row"><div id="flexed"><h2>Log</h2>{line}</div><p id="beside">Beside it.</p></div>
+<div class="tracks"><div id="tracked">{line}</div><p id="track-beside">Beside it.</p></div>
+<div class="fixed"><div id="fixed-track">In a track as wide as the page set it.</div></div>
+<div id="sized" style="width: 600px">A box the page sized past the column.</div>""",
+        head="<style>.row { display: flex; gap: 16px; }"
+        " .tracks { display: grid; grid-template-columns: auto 1fr; gap: 16px; }"
+        " .fixed { display: grid; grid-template-columns: 600px; }</style>",
+    )
+    page = open_page(browser, serve(source))
+    resized(page, 390, 844)
+    styles = "() => ['flexed', 'tracked'].map(id => document.getElementById(id).getAttribute('style'))"
+    before = page.evaluate(styles)
+    misplaced = render_checks_model.evaluate_probe(page, "misplacedBoxes")
+    past = {m["at"]: m for m in misplaced if m["code"] == "past-column"}
+    assert {at: m.get("item") for at, m in past.items()} == {
+        "<div id=flexed>": "flex",
+        "<p id=beside>": None,
+        "<div id=tracked>": "grid",
+        "<p id=track-beside>": None,
+        "<div id=fixed-track>": None,
+        "<div id=sized>": None,
+    }, misplaced
+    assert "min-width: 0" in str(Finding.read(past["<div id=flexed>"]))
+    assert "min-width: 0" not in str(Finding.read(past["<div id=sized>"]))
+    assert page.evaluate(styles) == before, before
+
+
 def test_a_change_level_with_a_note_is_decided_on_the_change(browser, serve):
     """Both elements in the right margin stand level with what they belong to — the
     controls with the change they decide, the note with the block it annotates — so the

@@ -44,6 +44,16 @@ test("a key at a control the user scrolled away from lets go of it first", () =>
   keys(field, "A field", [
     { id: "probe.send", keys: ["Enter"], title: "send", run: () => runs.push("send") },
   ]);
+  keys(document.body, "The page", [
+    { id: "probe.page", keys: ["Enter"], title: "page", run: () => runs.push("page") },
+  ]);
+  // What a widget's own listener on its control, and a page's on the document, hear.
+  /** @type {string[]} */
+  const heard = [];
+  widget.addEventListener("keydown", (ev) => heard.push(`widget ${ev.key}`));
+  /** @param {KeyboardEvent} ev */
+  const pageHears = (ev) => heard.push(`page ${ev.key}`);
+  document.addEventListener("keydown", pageHears);
   try {
     widget.focus();
     standAt(widget, 0);
@@ -55,6 +65,13 @@ test("a key at a control the user scrolled away from lets go of it first", () =>
     assert.equal(focused(), widget);
     press(widget, "2");
     assert.notEqual(focused(), widget, "a key acted at a control out of sight");
+    // The key that lets go reaches no listener past the document's capture, and Leaf's
+    // own command for a key that is not a character still runs.
+    widget.focus();
+    press(widget, "Enter");
+    assert.deepEqual(heard, ["widget Escape", "page Escape"]);
+    press(document.body, "Enter");
+    assert.deepEqual(heard.slice(2), ["page Enter"]);
     // Back in view, the control is no longer where the user is.
     standAt(widget, 0);
     press(document.body, "2");
@@ -69,8 +86,9 @@ test("a key at a control the user scrolled away from lets go of it first", () =>
     standAt(field, away);
     press(field, "Enter");
     assert.equal(focused(), field);
-    assert.deepEqual(runs, ["2", "Esc", "send"]);
+    assert.deepEqual(runs, ["2", "Esc", "page", "page", "send"]);
   } finally {
+    document.removeEventListener("keydown", pageHears);
     widget.remove();
     radio.remove();
     field.remove();

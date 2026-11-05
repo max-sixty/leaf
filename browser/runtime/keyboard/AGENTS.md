@@ -31,8 +31,8 @@ characters, composition, caret movement and deletion, and a native control keeps
 activation press, ahead of any widget or page scope around it (`dispatch.js`). A key
 other than typing or Escape, pressed while the user has scrolled the focused control
 out of sight, lets go of it first, without closing what stands beside it, and then
-acts from what they see, so neither a Leaf command nor the browser acts on what they
-can't see (`controller.js`). A key
+acts from what they see, so no Leaf command, listener on the control or browser
+default acts on what they can't see (`controller.js`). A key
 typed into one of Leaf's fields, a `leaf-text` or a search box, stops at the field once
 the field and the dispatcher have read it there (`field-keys.js`), so the page never
 hears it bubble, and any other Leaf listener that needs keys typed into a field listens

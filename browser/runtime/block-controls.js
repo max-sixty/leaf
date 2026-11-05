@@ -32,7 +32,7 @@ import {
   refreshAnchorView,
 } from "./css-anchors.js";
 import { chromeRoot } from "./chrome.js";
-import { currentLocationIn, focusDestination, onCurrentLocation } from "./focus.js";
+import { focusDestination, onCurrentLocation } from "./focus.js";
 import { move } from "./dom-move.js";
 import { keepsHidden, layoutPx } from "./keeps.js";
 import { nextRender } from "./rendering.js";
@@ -221,16 +221,13 @@ export function revealControl(control, block) {
 }
 
 /** Let Tab from a document control continue from its block's place in the document,
- * rather than from the control's later place in chrome, until `signal` aborts. A Tab
- * that let go of the control, scrolled away, goes on from what the user reads instead
- * (keyboard/controller.js). */
+ * rather than from the control's later place in chrome, until `signal` aborts. */
 /** @param {HTMLElement} control @param {Element} block @param {AbortSignal} signal */
 export function tabFromBlock(control, block, signal) {
   control.addEventListener(
     "keydown",
     (event) => {
-      if (event.key === "Tab" && currentLocationIn(control))
-        focusDestination(block, "step");
+      if (event.key === "Tab") focusDestination(block, "step");
     },
     { signal },
   );

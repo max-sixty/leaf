@@ -119,9 +119,9 @@ different meaning further out; an unavailable Escape, though, passes on to the n
 Escape. Text fields keep their editing keys ahead of every widget scope. A key other
 than typing or Escape, pressed while the user has scrolled the focused control out of
 sight, lets go of the control first and goes to the page, so neither a widget's command
-nor the browser's own Enter and Space acts on what the user can't see. A listener the
-widget puts on the control itself still hears that key, so declare the widget's keys
-as rows.
+nor the browser's own Enter and Space acts on what the user can't see. That key stops at
+the document, so a listener on the control or the widget doesn't hear it, and a script's
+own listener on the document or window hears it only in capture.
 
 A menu or other scope that covers the page gives `allButCommandReference` as its
 declaration's `claims`, so the page's keys wait while the user is in it and only the

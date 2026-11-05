@@ -12,8 +12,10 @@
    open where it rides. Chromium still applies a radio's, slider's or select's own arrows
    at the control the key was aimed at, wherever focus has gone
    (notes/browser-support.md), so those are withheld, and that arrow scrolls nothing. The
-   key's path stays as the browser fixed it, so a listener a widget put on the control
-   still hears it, as a page's own listener on the document does. Escape takes its own
+   key stops at the document once it lets go, so no listener on the control or a widget
+   around it hears it, and a page's own listener on the document or window hears it only
+   in capture. Leaf's own command for the key still runs, and the browser's default runs
+   from where focus landed unless that command prevents it. Escape takes its own
    step, a key typed into a text field keeps the field, since typing brings its box back
    (off-flow.js), and a modifier alone is half a press. A select's letters let go, since
    they choose an option the user can't see. */
@@ -80,7 +82,8 @@ export function mountKeyboard({
     }
   };
   // Registered ahead of the listeners below, so each reads the key from where the user
-  // is (see the header).
+  // is (see the header). The stop leaves the capture listener below, on this same node,
+  // and skips `afterControl`'s bubble pass, so that runs from here.
   document.addEventListener(
     "keydown",
     (ev) => {
@@ -90,6 +93,8 @@ export function mountKeyboard({
       if (!at || at === document.body || typesText(at) || focusPlace()) return;
       if (controlNavigationKeys(at).includes(ev.key)) ev.preventDefault();
       letGo();
+      ev.stopPropagation();
+      afterControl(ev);
     },
     { capture: true },
   );

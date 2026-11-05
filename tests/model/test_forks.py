@@ -150,9 +150,10 @@ def test_a_hand_over_or_a_failed_fork_gives_the_thread_to_the_session_at_once(
     claimed, lane
 ):
     """The fork hands over what needs tools or work, posting the agent's working line
-    in the thread first, and a fork that failed or gave an answer Leaf can't read
-    hands over with no line. Each is recorded where the watch's reading stamps it,
-    and the thread is deliverable at once, still owing the session's answer."""
+    in the thread first without taking the message in hand, and a fork that failed or
+    gave an answer Leaf can't read hands over with no line. Each is recorded where the
+    watch's reading stamps it, and the thread is deliverable at once, still owing the
+    session's answer."""
     work = said(claimed, "Make it 1 second")
     broken = said(claimed, "What does the follower print?")
     failed = said(claimed, "And the lane?")
@@ -173,17 +174,15 @@ def test_a_hand_over_or_a_failed_fork_gives_the_thread_to_the_session_at_once(
         event for event in events_model.read_events(claimed) if event["kind"] == "reply"
     ]
     assert line["id"] == handed["line"]
-    assert (
-        line["text"],
-        line["session"],
-        line["ephemeral"],
-        line["start"]["item"],
-    ) == (
+    assert (line["text"], line["session"], line["ephemeral"], line["parent"]) == (
         "making the delay 1 second",
         "s1",
         True,
         work["id"],
     )
+    # The line is the agent's words, not the session's start: the message stays
+    # where its delivery is until the session takes it in hand.
+    assert "start" not in line
     assert forks_model.take(
         "s1",
         basis(claimed, broken["id"], broken["id"]),

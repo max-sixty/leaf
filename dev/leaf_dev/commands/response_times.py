@@ -62,11 +62,13 @@ to. A survey of every page touched in a week:
         sed 's:/events.jsonl$::')
 
 Each input also carries the fork that decided it (`fork`: its outcome and seconds),
-the last whose inputs name its message. The summary's `delivered` row is how long an
-update read Delivered, from its opened pickup to the agent's first words, over the
-inputs no fork answered; `fork_reply` and `fork_hand_over` time the first reply over
-the inputs a fork answered or handed to the session, so a survey shows whether forks
-bring the agent's first words sooner.
+the last whose inputs name its message, and a fork's working line, posted as it
+handed the thread over, is the progress and first reply of the thread's newest
+waiting message. The summary's `delivered` row is how long an update read Delivered,
+from its opened pickup to the session starting or answering it, over the inputs no
+fork answered; `fork_reply` and `fork_hand_over` time the first reply over the inputs
+a fork answered or handed to the session, so a survey shows whether forks bring the
+agent's first words sooner.
 
 `prompted` waits are where nothing of Leaf's woke an idle session before the user
 typed. The watch record says whether a watch ran and the protocol its Leaf spoke,
@@ -239,6 +241,14 @@ def page_timings(
     input_attempts = {}
     reply_inputs = {}
     unlinked = []
+    # The working line each fork posted as it handed its thread over, by the line's
+    # id: progress on the thread's newest waiting message, which takes nothing in
+    # hand and so names no input of its own (`leaf.forks`).
+    fork_lines = {
+        row["line"]: row["inputs"][-1]
+        for row in observations
+        if row["type"] == "fork_reply" and "line" in row
+    }
     messages = kinds_declaring("message")
     threads = thread_names([observation["event"] for observation in semantic])
     titled: set[str] = set()
@@ -294,6 +304,9 @@ def page_timings(
         if kind == "pickup":
             phase = "failure" if event["phase"] == "failed" else event["phase"]
             marks = dict.fromkeys(event["events"], (phase,))
+        elif identity in fork_lines:
+            marks[fork_lines[identity]] = ("progress", "first_reply")
+            reply_kind = "progress"
         elif start is not None:
             marks[start["item"]] = ("started",)
             if kind == "reply" and event.get("ephemeral"):
@@ -638,7 +651,7 @@ def response_times(
         )
     }
     # How long each update read Delivered: from the harness opening it into a turn
-    # to the agent's first words, over the inputs no fork answered.
+    # to the session starting or answering it, over the inputs no fork answered.
     delivered = [
         row
         for row in rows
@@ -648,10 +661,14 @@ def response_times(
     summary["delivered"] = spread(
         delivered,
         [
-            row["milestones"]["first_reply"]["elapsed_s"]
+            min(
+                row["milestones"][name]["elapsed_s"]
+                for name in ("started", "answered")
+                if name in row["milestones"]
+            )
             - row["milestones"]["opened"]["elapsed_s"]
             for row in delivered
-            if "first_reply" in row["milestones"]
+            if {"started", "answered"} & row["milestones"].keys()
         ],
     )
     for outcome in ("reply", "hand_over"):
@@ -712,7 +729,7 @@ def response_times(
         f"Unlinked agent replies: {sum(len(reading['unlinked_agent_replies']) for reading in readings)}; missing means no exact-linked observation."
     )
     click.echo(
-        "delivered runs from opened to first_reply, over inputs no fork answered; fork_reply and fork_hand_over are first_reply over the inputs a fork answered or handed to the session."
+        "delivered runs from opened to the session's start or answer, over inputs no fork answered; fork_reply and fork_hand_over are first_reply over the inputs a fork answered or handed to the session, a hand-over's working line included."
     )
     click.echo(
         "leaf_commands reads each command's own record on any harness; whole_* and leaf_share_* read Claude Code transcripts, so their missing includes every other input and those a fork answered."

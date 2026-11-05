@@ -15,11 +15,12 @@ agent's working line. Forks had handed over 27 of 40 thread messages, and the th
 showed nothing from the agent for a median 35 s after each, until the session's first
 model call ended ("Forks on real pages" in the note).
 
-The line is progress at the newest message's response address (`thread.post_reply`),
-so it takes the message in hand as the session's own first line would, and the
-session's next words replace it. It is posted before the hand-over, so its start
-comes before the session's pickup and lets no turn end over the message
-(`activity.started_in_turn`): the session still owes the answer.
+The line is the agent's progress message in the thread (`thread.post_reply`), which
+the thread shows until the session's own words replace it. As a receipt's progress it
+takes nothing in hand (`thread.Receipt`): the message reads Queued or Delivered, as
+its delivery stands, until the session starts it. A start would read as the
+session's turn, renewing it after an interrupt and holding the message at Working
+before the session had it, which hid it from the nudge and the overdue count.
 
 A thread's waiting messages are the user's messages since the agent's last answer in
 it, the newest of which owes the thread's answer. Each thread with waiting messages

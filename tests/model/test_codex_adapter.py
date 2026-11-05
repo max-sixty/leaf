@@ -1963,7 +1963,7 @@ def desktop_router(monkeypatch, answers: dict):
             server = threading.Thread(target=serve, args=(listener,), daemon=True)
             server.start()
             yield requests
-            server.join(timeout=10)
+            server.join(timeout=STATED_TIMEOUT)
 
 
 OWNED = {

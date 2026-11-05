@@ -642,9 +642,16 @@ _TEXT = {
         f"{at} stands {v['past']}px outside the {v['host']} it is part of"
     ),
     "past-column": lambda at, v: (
-        f"{at} is set {v['past']}px past the column, out in the margin; to give it"
-        ' more room, mark it data-width="wide" or "available" rather than sizing it'
-        " past the column, or scroll it sideways in a box of its own with"
+        f"{at} is set {v['past']}px past the column, out in the margin; "
+        + (
+            f"as a {v['item']} item it is by default no narrower than its content, so"
+            " first give it min-width: 0, which keeps a wide table or scrolling box in"
+            " it scrolling inside the column; or, "
+            if v.get("item")
+            else ""
+        )
+        + 'to give it more room, mark it data-width="wide" or "available" rather than'
+        " sizing it past the column, or scroll it sideways in a box of its own with"
         ' overflow-x: auto and class="scroll"'
     ),
     "outside-frame": lambda at, v: (

@@ -1,7 +1,8 @@
-"""Document geometry is complete before runtime modules activate."""
+"""Document geometry the Layouts give natively: complete before runtime modules
+activate, and keeping the browser's own behavior, such as scroll anchoring."""
 
 import pytest
-from render_harness import displayed, leaf_page, open_page, wait_until_ready
+from render_harness import displayed, leaf_page, open_page, resized, wait_until_ready
 
 DOCUMENT = """
 <aside id="route"><div class="layout-track">
@@ -47,6 +48,78 @@ def test_native_sidebar_and_note_are_placed_before_widget_activation(browser, se
         assert page.evaluate(read) == before
 
 
+def test_growth_above_the_window_moves_nothing_read_in_a_sidebar_body(browser, serve):
+    """The browser's scroll anchoring takes growth above the window into what was
+    scrolled past, so the line read in a sidebar page's body stays put, as a thread's
+    new reply above the screen relies on (held-news.js). The aside stands first in the
+    tree and stretches along the body, holding only a sticky track, so anchoring must
+    pass over it to the body: anchored on the aside, the line moved by the growth."""
+    paragraphs = "".join(
+        f'<p id="p{number}">Paragraph {number} of the evidence.</p>'
+        for number in range(80)
+    )
+    source = leaf_page(
+        "sidebar anchoring",
+        '<aside id="route"><div class="layout-track"><p>The route.</p></div></aside>'
+        f'<div class="layout-column" id="body">{paragraphs}</div>',
+        layout="sidebar",
+    )
+    page = open_page(browser, serve(source))
+    resized(page, 1280, 800)
+    moved = page.evaluate("""async () => {
+      const frame = () => new Promise(requestAnimationFrame);
+      const grown = document.getElementById('p20');
+      const read = document.getElementById('p26');
+      scrollBy({top: grown.getBoundingClientRect().bottom + 100, behavior: 'instant'});
+      await frame();
+      const before = read.getBoundingClientRect().top;
+      const growth = document.createElement('div');
+      growth.style.blockSize = '90px';
+      grown.after(growth);
+      await frame();
+      return {before, moved: read.getBoundingClientRect().top - before};
+    }""")
+    assert 0 < moved["before"] < 800, moved
+    assert moved["moved"] == pytest.approx(0, abs=0.5), moved
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_growth_above_the_window_moves_nothing_read_in_a_sidebar_track(
+    request, serve, engine
+):
+    """A sticky track scrolls its own blocks, and the browser's scroll anchoring holds
+    the line read there while a block above it grows, as a widget drawing late does.
+    The track set `overflow-anchor: none` on itself, and the line moved by the growth,
+    200px in both engines. The aside before the body keeps the property, which keeps
+    the page's anchoring off the track."""
+    follow_ups = "".join(f'<p id="f{n}">Follow-up {n} to check.</p>' for n in range(60))
+    body = "".join(f"<p>Body paragraph {n} of the review.</p>" for n in range(200))
+    source = leaf_page(
+        "sidebar track anchoring",
+        f'<aside id="route"><div class="layout-track" id="track"><div id="grown"></div>'
+        f'{follow_ups}</div></aside><div id="body">{body}</div>',
+        layout="sidebar",
+    )
+    page = open_page(request.getfixturevalue(engine), serve(source))
+    resized(page, 900, 600)
+    moved = page.evaluate("""async () => {
+      const frame = () => new Promise(requestAnimationFrame);
+      const track = document.getElementById('track');
+      const read = document.getElementById('f30');
+      scrollTo(0, 1500);
+      track.scrollTop += read.getBoundingClientRect().top
+        - track.getBoundingClientRect().top - 120;
+      await frame();
+      const before = read.getBoundingClientRect().top;
+      document.getElementById('grown').style.blockSize = '200px';
+      await frame();
+      return {scrolls: track.scrollHeight > track.clientHeight, before,
+              moved: read.getBoundingClientRect().top - before};
+    }""")
+    assert moved["scrolls"], moved
+    assert moved["moved"] == pytest.approx(0, abs=0.5), moved
+
+
 @pytest.mark.parametrize("direction", ["ltr", "rtl"])
 def test_annotations_read_the_native_prose_track_with_authored_geometry(
     browser, serve, direction
@@ -60,7 +133,7 @@ def test_annotations_read_the_native_prose_track_with_authored_geometry(
     )
     page = open_page(browser, serve(source))
     reading = page.evaluate("""async () => {
-      const {proseRect}=await import('/runtime/bundle-content-layout.js');
+      const {proseRect}=await import('/runtime/content-layout.js');
       const prose=document.querySelector('#prose').getBoundingClientRect();
       return {computed:proseRect(),actual:{left:prose.left,right:prose.right}};
     }""")

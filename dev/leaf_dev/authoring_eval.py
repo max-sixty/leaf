@@ -24,7 +24,6 @@ import json
 import shutil
 import subprocess
 import sys
-import tempfile
 import time
 from pathlib import Path
 
@@ -37,10 +36,10 @@ from leaf_dev.arms import (
     completed,
     environment,
     instruction_context,
+    live_copies,
     run_agent,
     run_leaf,
     scratch,
-    serving,
     trace_summary,
 )
 from leaf_dev.arrangement_eval import Run, capture_phase, preference
@@ -135,34 +134,23 @@ def check_log(trace: list[dict]) -> list[dict]:
 
 
 def operated_interaction(
-    case: str, condition: str, page: Path, payload: Path, evidence: Path
+    case: str, page: Path, payload: Path, evidence: Path, *, plain: bool
 ) -> dict:
     """Probe a disposable live copy; the author's page remains the saved artifact."""
-    from leaf_dev.arrangement_plain import serving as serve_plain
-
-    with tempfile.TemporaryDirectory(prefix="leaf-format-probe-") as temporary:
-        temporary = Path(temporary)
-        copy = temporary / "page"
-        shutil.copytree(page, copy)
-        server = (
-            serve_plain(copy)
-            if condition == "adaptive"
-            else serving(payload, temporary / "state", copy)
+    with live_copies([page], payload, plain=plain) as [served]:
+        probe = subprocess.run(
+            [
+                "node",
+                str(ROOT / "evals/widget-formats/interaction.mjs"),
+                case,
+                served.address,
+                str(evidence / "interaction"),
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=120,
         )
-        with server as url:
-            probe = subprocess.run(
-                [
-                    "node",
-                    str(ROOT / "evals/widget-formats/interaction.mjs"),
-                    case,
-                    url,
-                    str(evidence / "interaction"),
-                ],
-                capture_output=True,
-                text=True,
-                check=False,
-                timeout=120,
-            )
     if probe.returncode:
         return {
             "status": "insufficient_evidence",
@@ -320,8 +308,8 @@ def execute(
             operable = False
             if format_valid:
                 if not leaf:
-                    from leaf_dev.arrangement_plain import load, serving
                     from leaf_dev.browser import headless_shell, tab
+                    from leaf_dev.plain_html import load, serving
 
                     errors = []
                     with (
@@ -365,7 +353,11 @@ def execute(
             interaction = None
             if operable and metadata["case"].split("/")[-1] in {"choice", "form"}:
                 interaction = operated_interaction(
-                    metadata["case"], condition, page, payload, evidence
+                    metadata["case"],
+                    page,
+                    payload,
+                    evidence,
+                    plain=not run.leaf_condition,
                 )
             (evidence / "check-plain.txt").write_text(plain_output)
             (evidence / "check.txt").write_text(render_output)
@@ -405,8 +397,8 @@ def execute(
                             "phases": {"": "1"},
                             "author_phases": [1],
                             "widths": {
-                                name: list(viewport)
-                                for name, (viewport, _) in run.widths.items()
+                                name: list(window.size)
+                                for name, window in run.windows.items()
                             },
                         },
                         "phases": {

@@ -6,6 +6,7 @@ import {
   servedGestureSequence,
   servedObligationRow,
   servedReading,
+  servedState,
   servedThread,
   servedWorkflow,
 } from "../served.mjs";
@@ -55,7 +56,6 @@ const descriptor = {
   ancestors: [],
   quoted: false,
 };
-const empty = () => ({ entries: [], actions: [], reports: [], desired: [] });
 const wireObligation = (
   target,
   tag,
@@ -97,57 +97,45 @@ const action = (attempt, outcome = "accept") => ({
   revision: 1,
   attempt,
 });
-const state = (taken, events = []) => ({
-  taken,
-  layer: { generation: "test" },
-  active: { revision: 1 },
-  revision_labels: {},
-  events,
-  workflows: [],
-  activity: { phase: "user", held: false },
-  reading: `reading-${taken}`,
-  browser: {
-    basis: { through_seq: events.length },
-    receipts: events,
-    thread_memberships: {},
-    todos: [],
-    views: {
-      1: {
-        basis: { revision: 1, through_seq: events.length },
-        thread: { threads: [], projection: empty() },
-        items: [],
-        coverage: [],
-        undo: [],
-        reports: [],
-        published_at: null,
-        queues: { on_user: [], on_agent: [], done: [] },
-        document: {
-          projection: {
-            entries: events.map((event) => ({
-              event: {
-                ...event,
-                meaning: {
-                  ...event.meaning,
-                  state: event.meaning?.state ?? definition("lf-choice", spec),
+// The answer taken at `taken` whose log holds `events`, each an action in force;
+// `changes` set its other fields, as `servedState` takes them.
+const state = (taken, events = [], changes = {}) =>
+  servedState({
+    ...changes,
+    taken,
+    reading: `reading-${taken}`,
+    events,
+    browser: {
+      basis: { through_seq: events.length },
+      views: {
+        1: {
+          basis: { through_seq: events.length },
+          document: {
+            projection: {
+              entries: events.map((event) => ({
+                event: {
+                  ...event,
+                  meaning: {
+                    ...event.meaning,
+                    state: event.meaning?.state ?? definition("lf-choice", spec),
+                  },
                 },
-              },
-              coordinate: [event.widget, event.widget, event.action],
-              spec,
-              scope: "page",
-              value: event.action,
-              restated: [],
-              absorbed: false,
-              stands: true,
-            })),
-            actions: events.map((event) => event.id),
-            reports: [],
-            desired: events.slice(-1).map((event) => event.id),
+                coordinate: [event.widget, event.widget, event.action],
+                spec,
+                scope: "page",
+                value: event.action,
+                restated: [],
+                absorbed: false,
+                stands: true,
+              })),
+              actions: events.map((event) => event.id),
+              desired: events.slice(-1).map((event) => event.id),
+            },
           },
         },
       },
     },
-  },
-});
+  });
 // A served workflow for one input to `thread`, its opening message unless named.
 const threadWorkflow = (id, { thread = "root", input = thread, ...changes } = {}) =>
   servedWorkflow({
@@ -363,13 +351,17 @@ test("widget undo candidates name only exact attempts currently in force", () =>
   assert.deepEqual(selected.read().actions.decide.undo, []);
 });
 
-test("widget action history excludes terminal coverage records", () => {
+test("widget action history excludes an action the view classifies nowhere", () => {
   const app = setup();
   const terminal = { ...action("old"), id: "e-old", seq: 1 };
   const read = state(2);
-  read.browser.views[1].coverage = [{ event: terminal, coordinate: null }];
+  read.events = [terminal];
   app.adopt(read);
   assert.deepEqual(app.selectWidget(descriptor).read().actions.decide.history, []);
+  // The log's widget events count toward the applied stamp all the same.
+  assert.deepEqual(app.read().effective.coverage, [
+    { event: terminal, coordinate: null },
+  ]);
 });
 
 test("the selected revision keeps carried action history from earlier revisions", () => {
@@ -410,8 +402,7 @@ test("an adopted live revision retains its stamp while a newer revision waits", 
       [descriptor.id, { ...descriptor, document: { kind: "page", revision: 2 } }],
     ]),
   };
-  const read = state(2);
-  read.active = { revision: 2, version: 2 };
+  const read = state(2, [], { active: { revision: 2, version: 2 } });
   read.browser.views[2] = read.browser.views[1];
   read.browser.views[2].basis.revision = 2;
   delete read.browser.views[1];
@@ -428,8 +419,7 @@ test("a frozen descriptor capture cannot relabel the shown document", () => {
     ...app.read().document,
     descriptors: new Map([[descriptor.id, descriptor]]),
   };
-  const read = state(2);
-  read.active = { revision: 1, version: 2 };
+  const read = state(2, [], { active: { revision: 1, version: 2 } });
 
   assert.equal(app.adopt(read, capture), true);
   assert.equal(app.read().document.revision, 1);
@@ -443,8 +433,7 @@ test("message capture preserves a deferred document's identity and immutable fie
     const shown = app.read().document;
     const body = { text: "A newly read message" };
     const messageBodies = new Map([["message", body]]);
-    const read = state(2);
-    read.active = { revision: 2, version: 2 };
+    const read = state(2, [], { active: { revision: 2, version: 2 } });
 
     assert.equal(app.adopt(read, { ...shown, messageBodies }), true);
     const admitted = app.read().document;
@@ -495,16 +484,11 @@ test("document capture and its matching admitted reading publish atomically", ()
     ]),
     descriptors: new Map([[nextDescriptor.id, nextDescriptor]]),
   };
-  const read = state(2, [
-    {
-      ...action("next-action"),
-      id: "e-next",
-      seq: 1,
-      revision: 2,
-      widget: "next",
-    },
-  ]);
-  read.active = { revision: 2, version: 2 };
+  const read = state(
+    2,
+    [{ ...action("next-action"), id: "e-next", seq: 1, revision: 2, widget: "next" }],
+    { active: { revision: 2, version: 2 } },
+  );
   read.browser.views[2] = read.browser.views[1];
   read.browser.views[2].basis.revision = 2;
   delete read.browser.views[1];
@@ -523,7 +507,8 @@ test("document capture and its matching admitted reading publish atomically", ()
 
 test("accepted reading order includes non-event activity and data taken in order", () => {
   const app = setup();
-  const newer = { ...state(3), activity: { phase: "agent", held: true } };
+  const newer = state(3);
+  newer.activity.kind = "working";
   assert.equal(app.adopt(newer), true);
   // Transport asks the same question before preparing anything for an answer.
   assert.equal(app.overtaken(state(2)), true);
@@ -775,9 +760,7 @@ test("a version being marked read reads read, outside the gesture ledger", () =>
     text: "Answer",
   };
   reading.browser.views[1].thread.threads = [
-    servedThread([root], {
-      unread: [{ message: "agent-root", version: "agent-root" }],
-    }),
+    servedThread([root], { unread: { "agent-root": "agent-root" } }),
   ];
   app.adopt(reading);
   const thread = () => app.read().effective.thread.all[0];
@@ -796,9 +779,7 @@ test("a version being marked read reads read, outside the gesture ledger", () =>
 
   // Marking read names one exact version; an edit's version is not it.
   const edited = structuredClone(reading);
-  edited.browser.views[1].thread.threads[0].unread = [
-    { message: "agent-root", version: "edit-2" },
-  ];
+  edited.browser.views[1].thread.threads[0].unread = { "agent-root": "edit-2" };
   app.adopt(edited);
   app.markRead(original);
   assert.equal(thread().msgs[0].unread, true);
@@ -1080,7 +1061,7 @@ for (const { name, event, steps } of lifecycle)
     const app = setup();
     const logged = { ...event, id: "e1", seq: 1, author: "user", ts: "now" };
     const reading = state(2, event.kind === "action" ? [logged] : []);
-    reading.browser.receipts = [logged];
+    reading.events = [logged];
     if (event.kind === "comment")
       reading.browser.views[1].thread.threads = [servedThread([logged])];
     // Where the page draws the gesture from: its own entry, the log, or nowhere.
@@ -1166,7 +1147,7 @@ test("a comment the log holds leaves the ledger once its POST accepts it", () =>
   assert.equal(app.read().effective.thread.collection.threads.length, 1);
   const accepted = { ...comment, id: "e1", author: "user", ts: "now" };
   const read = state(2);
-  read.browser.receipts = [accepted];
+  read.events = [accepted];
   read.browser.views[1].thread.threads = [servedThread([accepted])];
   app.adopt(read);
   assert.equal(app.read().effective.thread.all.length, 1);
@@ -1184,7 +1165,7 @@ test("the reading that logs an accepted comment retires it in its own publicatio
   const logged = { ...comment, id: "e1", seq: 1, author: "user", ts: "now" };
   app.accept("note", logged);
   const reading = state(2);
-  reading.browser.receipts = [logged];
+  reading.events = [logged];
   reading.browser.views[1].thread.threads = [servedThread([logged])];
   app.adopt(reading);
   assert.deepEqual(app.read().unresolved, []);
@@ -1229,7 +1210,7 @@ for (const { name, steps, gestured } of settling)
       accept: () => app.accept("note", logged),
       log: () => {
         const reading = state(++taken);
-        reading.browser.receipts = [logged];
+        reading.events = [logged];
         reading.browser.views[1].thread.threads = [servedThread([logged])];
         app.adopt(reading);
       },
@@ -1331,7 +1312,7 @@ for (const resolved of [null, { author: "user" }]) {
     const answer = { kind: "reply", attempt: "answer", id: "e-answer" };
     app.accept("answer", answer);
     const logged = state(3);
-    logged.browser.receipts = [answer];
+    logged.events = [answer];
     logged.browser.views[1].thread.threads = accepted.browser.views[1].thread.threads;
     app.adopt(logged);
     assert.deepEqual(app.read().unresolved, []);
@@ -1503,7 +1484,6 @@ test("an unsettled report supplies desired widget state", () => {
   };
   accepted.events = [report];
   accepted.browser.basis.through_seq = 1;
-  accepted.browser.receipts = [report];
   accepted.browser.views[1].basis.through_seq = 1;
   accepted.browser.views[1].document.projection = {
     entries: [

@@ -12,9 +12,9 @@ import { closestAcross } from "../passages.js";
 import { nextRender } from "../rendering.js";
 import { repaint } from "../repaint.js";
 import { drawnThreadId, threadPart, THREAD } from "./selectors.js";
-import { allThreads } from "./state.js";
-import { replyControlDestination, replyThreadKey } from "./replies.js";
+import { threadNamed } from "./state.js";
 import { threadKey } from "./model.js";
+import { replyControlDestination, replyIsEditing, replyThreadKey } from "./replies.js";
 
 /** @typedef {ReturnType<typeof retainUserIntent>} UserIntent */
 /** @typedef {ReturnType<typeof import("./destination.js").createThreadDestinations>["openPageThread"]} OpenThread */
@@ -38,7 +38,9 @@ export const threadReplyInput = (thread) => {
  * @param {{part?: "thread" | "reply" | "message" | null, message: string} | {part?: "thread" | "reply" | null, message?: null}} [options] */
 export function threadFocusDestination(thread, options = {}) {
   if (options.part === "message")
-    return thread.querySelector(`.lf-msg[data-event="${CSS.escape(options.message)}"]`);
+    return thread.querySelector(
+      `.lf-msg[data-lf-event="${CSS.escape(options.message)}"]`,
+    );
   return (
     (options.part === "thread" ? thread : null) ?? threadReplyInput(thread) ?? thread
   );
@@ -93,12 +95,22 @@ onPress(
 export const currentLocationThreadId = () => heldThreadId() ?? pressed;
 
 // The intent restricted to the thread `id` still present: every thread takes a reply,
-// a resolved one too, which the reply reopens.
+// a resolved one too, which the reply reopens. A resolved thread takes the user's box
+// along only while a reply is being written in it (`replyIsEditing`): carrying the
+// caret would otherwise start that session itself, and keep a card that settlement
+// closed open over a box the user had finished with, as the empty box Send leaves.
 /** @param {string} id @param {UserIntent} intent */
 const mayReplyTo = (id, intent) =>
-  restrictUserIntent(intent, () =>
-    allThreads().some((candidate) => candidate.id === id),
-  );
+  restrictUserIntent(intent, () => {
+    const thread = threadNamed(id);
+    return Boolean(thread && (!thread.resolved || replyIsEditing(threadKey(thread))));
+  });
+// Whether the thread `id` names stands open.
+/** @param {string} id */
+const standsOpen = (id) => {
+  const thread = threadNamed(id);
+  return Boolean(thread && !thread.resolved);
+};
 
 // A pass that redraws threads hands the user on a thread across itself, under
 // the thread's identity. A surface that stops drawing a thread takes what the user was
@@ -178,10 +190,7 @@ export const carryingThreadPlace = (node) => {
   return Boolean(
     place &&
     place.node === node &&
-    (place.reply
-      ? place.may()
-      : place.intent() &&
-        allThreads().some((thread) => thread.id === place.id && !thread.resolved)),
+    (place.reply ? place.may() : place.intent() && standsOpen(place.id)),
   );
 };
 /** @param {OpenThread} open
@@ -198,7 +207,7 @@ export function holdThreadPlace(open, { threadAt, seated }) {
   const key = destination && replyThreadKey(node);
   const thread = !destination && closestAcross(node, ".lf-page-thread");
   const id = key
-    ? allThreads().find((each) => threadKey(each) === key)?.id
+    ? threadNamed(key)?.id
     : thread
       ? drawnThreadId(thread)
       : threadAt(node);
@@ -209,11 +218,7 @@ export function holdThreadPlace(open, { threadAt, seated }) {
   // no card or panel for them.
   const may = destination
     ? mayReplyTo(id, intent)
-    : restrictUserIntent(
-        intent,
-        () =>
-          allThreads().some((each) => each.id === id && !each.resolved) && seated(id),
-      );
+    : restrictUserIntent(intent, () => standsOpen(id) && seated(id));
   const carry = { node, id, intent, may, reply: Boolean(destination) };
   carrying = carry;
   return async () => {

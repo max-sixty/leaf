@@ -18,12 +18,13 @@ a replacement prepared against other inputs.
 
 import hashlib
 import json
+from contextlib import contextmanager
 from pathlib import Path
 
 from leaf.event_log import read_events
 from leaf.files import stamped_version
 from leaf.leases import contract_writer
-from leaf.projection import folded_value, markup_value, page_reading
+from leaf.projection import attribute_marks, folded_value, markup_value, page_reading
 from leaf.refusals import Refused
 from leaf.revisioning import (
     hold_published,
@@ -92,6 +93,25 @@ def write_authored_files(
             target.write_bytes(data)
 
 
+@contextmanager
+def replaced_authored_files(
+    page: Path, incoming: dict[str, bytes], previous: dict[str, bytes]
+):
+    """Install `incoming` over `previous`, the authored inputs the caller read, for
+    the block, which checks and publishes them under the caller's page transaction;
+    a block that raises leaves the inputs as they were."""
+    try:
+        write_authored_files(page, incoming, previous)
+        yield
+    except BaseException:
+        write_authored_files(
+            page,
+            previous,
+            authored_files(page / "index.html", page / "page"),
+        )
+        raise
+
+
 def _stamp_reading(events: list, checked, revision: int):
     if existing := stamped_version(events, revision):
         raise Refused(f"revision r{revision} is already stamped as v{existing}")
@@ -148,10 +168,12 @@ def _completed_tasks(
 
 def _settled_reports(projection, parser, spk: dict, registry: dict) -> list[str]:
     settled = []
+    byid = parser.by_id
+    marks = attribute_marks(byid, spk, registry)
     for (_widget, unit, _verb), reports in projection.reports.items():
         last, spec = reports[-1]
         if unit in parser.overruled or markup_value(
-            unit, spec, parser.by_id, spk, registry
+            unit, spec, byid, marks
         ) == folded_value(last, spec):
             settled.extend(report["id"] for report, _ in reports)
     return settled
@@ -254,14 +276,6 @@ def cmd_stamp(
         previous = authored_files(page_dir / "index.html", page_dir / "page")
         if authored_digest(previous) != digest:
             raise Refused("authored inputs changed; reconcile them before retrying")
-        try:
-            write_authored_files(page_dir, incoming, previous)
+        with replaced_authored_files(page_dir, incoming, previous):
             readings, checked = _checked(page_dir, page.events)
             return _stamp_locked(page_dir, page, readings, checked, body, completes)
-        except BaseException:
-            write_authored_files(
-                page_dir,
-                previous,
-                authored_files(page_dir / "index.html", page_dir / "page"),
-            )
-            raise

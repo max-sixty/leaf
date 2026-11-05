@@ -30,6 +30,7 @@ from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 from copy import deepcopy
 from functools import cache
+from importlib.metadata import packages_distributions, requires
 from pathlib import Path
 
 import psutil
@@ -37,6 +38,8 @@ import pytest
 import yaml
 from click.testing import CliRunner
 from conftest import CLAUDE_IDENTITY, LEAF_COMMAND, collect_app_server_error
+from packaging.requirements import Requirement
+from packaging.utils import canonicalize_name
 from pytest_regtest.snapshot_handler import (
     BaseSnapshotHandler,
     SnapshotHandlerRegistry,
@@ -730,8 +733,8 @@ def declare_data_input(
         "description": "A test widget with one external-data input.",
         "type": "object",
         "properties": {
-            "id": {"type": "string", "pattern": f"^{schema_model.ELEMENT_ID}$"},
-            "source": {"type": "string", "pattern": "^[a-z][a-z0-9-]*$"},
+            "id": {"type": "string"},
+            "source": {"type": "string"},
         },
         "required": ["id", "source"],
         "additionalProperties": False,
@@ -1095,13 +1098,6 @@ def fragment_errors(html, registry):
     return validation_model.fragment_errors(parser, registry)
 
 
-def case_alias(path):
-    alias = path.with_name(path.name.swapcase())
-    if not alias.exists() or not path.samefile(alias):
-        pytest.skip("requires a case-insensitive filesystem")
-    return alias
-
-
 SUGGESTION = """<lf-suggestion id="sug-refill">
   <lf-old><p id="refill-rule">Refill every feeder each morning.</p></lf-old>
   <lf-new><p id="refill-camera">Refill when the camera shows it half-empty.</p></lf-new>
@@ -1462,8 +1458,6 @@ TRIAL_LOG = """<lf-trial id="trial-log">
 PILOT_PURGE = """<lf-pilot id="pilot-purge">
   <lf-proposed><p id="purge-weekly">Purge the dead-letter queue weekly.</p></lf-proposed>
 </lf-pilot>"""
-ADOPTED = '<p id="cache-hourly">Rebuild the cache each hour.</p>'
-SHELVED = '<p id="log-daily">Logs roll over at midnight.</p>'
 
 
 def deciding_verb(outcomes):
@@ -1913,7 +1907,6 @@ def declare_work(page_dir, line, *, item=None, ts=None, **voice):
                 {
                     "kind": "todo",
                     "author": "agent",
-                    "owner": "agent",
                     "subject": {"kind": "page"},
                     "title": "Work on the page",
                     **({"ts": ts} if ts else {}),
@@ -2055,9 +2048,10 @@ def comment_once_served():
 
 
 class ContextRecord:
-    """Claude Code's transcript, as tests stand it in (`Harness.entered_context`):
-    every inline handover a hook printed reached the model's context, except those
-    into the turns a test has `dropped`, as Escape during a prompt hook drops them."""
+    """Claude Code's transcript, as tests stand it in (`Harness.entered_context`,
+    `Harness.prompt_dropped`): every prompt and every inline handover a hook printed
+    reached the model's context, except the turns a test has `dropped`, as Escape
+    during a prompt hook drops them."""
 
     def __init__(self):
         self.dropped: set[str] = set()
@@ -2083,6 +2077,11 @@ def context_record(monkeypatch):
         harness_model.ClaudeCodeHarness,
         "entered_context",
         lambda harness, payload: record.entered(harness),
+    )
+    monkeypatch.setattr(
+        harness_model.ClaudeCodeHarness,
+        "prompt_dropped",
+        lambda harness, payload, turn: turn in record.dropped,
     )
     return record
 
@@ -3014,3 +3013,116 @@ def adapter_lease(session_id, app_server):
     lease.write(codex_adapter_model.ADAPTER.encode({"app_server": app_server}))
     lease.flush()
     return lease
+
+
+EVERY_TURN_DEPENDENCIES = frozenset({"click"})
+"""The runtime dependencies (`[project.dependencies]`) a Leaf process may load where a
+harness starts it at every turn of every session it is installed in: a hook in a
+session holding no page, and a tool hook with nothing new to deliver. Importing any
+other dependency costs each such process milliseconds to tens of milliseconds."""
+
+READING_DEPENDENCIES = EVERY_TURN_DEPENDENCIES | {
+    "linkify-it-py",
+    "markdown-it-py",
+    "mdit-py-plugins",
+    "psutil",
+    "pywhatwgurl",
+    "turbohtml",
+}
+"""What a hook that reads a page its session holds may load as well: the parsers of
+the page's markup, URLs and messages, and psutil, which reads the harness's processes.
+It loads no schema validator: `page init` validated the page's layer, and `page check`
+and serving validate it again (`layer-registry.md`)."""
+
+ADMITTING_DEPENDENCIES = READING_DEPENDENCIES | {"jsonschema", "referencing", "regress"}
+"""What a process that writes an event or delivers one to the agent may load as well:
+the schema validator, which admits each event (`event_contracts.append_admitted`) and
+picks the handling clauses whose `when` a delivered event matches
+(`registry.contract.event_clauses`)."""
+
+_IMPORTERS = """\
+import json, sys
+
+_importers = {}
+
+
+class _Importers:
+    def find_spec(self, name, path=None, target=None):
+        if name in _importers:
+            return None
+        chain, frame = [], sys._getframe(1)
+        while frame:
+            _, leaf, source = frame.f_code.co_filename.rpartition("/src/leaf/")
+            if leaf:
+                chain.insert(0, f"leaf/{source}:{frame.f_lineno}")
+                if frame.f_code.co_name != "<module>":
+                    break
+            frame = frame.f_back
+        _importers[name] = " -> ".join(chain)
+
+
+sys.meta_path.insert(0, _Importers())
+"""
+
+_IMPORTED = """
+print("\\n" + json.dumps({name: _importers.get(name, "") for name in sys.modules}))
+"""
+
+
+def fresh_imports(program: str) -> tuple[str, dict[str, str]]:
+    """Run `program` in a fresh interpreter, whose `sys.modules` is the process's own,
+    and return what it printed and each module it imported, mapped to the Leaf lines
+    that first imported it: the innermost Leaf function on the stack, then each Leaf
+    module whose import led there (empty where no Leaf code did)."""
+    done = subprocess.run(
+        [sys.executable, "-c", _IMPORTERS + program + _IMPORTED],
+        capture_output=True,
+        text=True,
+        timeout=STATED_TIMEOUT,
+    )
+    assert done.returncode == 0, done.stdout + done.stderr
+    printed, _, imported = done.stdout.rstrip("\n").rpartition("\n")
+    return printed, json.loads(imported)
+
+
+def leaf_main(*args: str, stdin: str = "") -> str:
+    """A program for `fresh_imports` that runs `leaf *args` on `stdin`, as a harness
+    or an agent runs it, and fails on a nonzero exit."""
+    return f"""
+import io, runpy, sys
+sys.argv = ["leaf", *{list(args)!r}]
+sys.stdin = io.StringIO({stdin!r})
+try:
+    runpy.run_module("leaf", run_name="__main__")
+except SystemExit as error:
+    assert not error.code, error.code
+"""
+
+
+def unlisted_dependencies(
+    imported: dict[str, str], listed: frozenset[str]
+) -> dict[str, str]:
+    """Each runtime dependency (`[project.dependencies]`) among the modules
+    `fresh_imports` returned that `listed` doesn't name, with the Leaf lines that first
+    imported it."""
+    dependency_of = _runtime_dependency_of()
+    return {
+        dependency_of[module]: importer
+        for module, importer in imported.items()
+        if module in dependency_of and dependency_of[module] not in listed
+    }
+
+
+@cache
+def _runtime_dependency_of() -> dict[str, str]:
+    """Each top-level module of Leaf's runtime dependencies, mapped to the name its
+    distribution has in `[project.dependencies]`."""
+    runtime = {
+        canonicalize_name(Requirement(line).name) for line in requires("leaf") or ()
+    }
+    return {
+        module: canonicalize_name(name)
+        for module, names in packages_distributions().items()
+        for name in names
+        if canonicalize_name(name) in runtime
+    }

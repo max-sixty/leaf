@@ -69,9 +69,9 @@
    Use `inChrome` when the question is whether an element belongs to the runtime's
    document layer. Use `.lf-ui` when the question is whether words or styling are
    runtime apparatus. Use `data-lf-offer` when the question is whether something is an
-   injected control. These markers are not interchangeable; `pageWords` is the
-   conjunction of the first two, and the comment over it says which hole each half
-   alone leaves.
+   injected control. These markers are not interchangeable; `pageWords` excludes
+   runtime-owned surfaces and widget apparatus, and its comment says which hole
+   each half alone leaves.
 
    The search pattern uses only a bounded lead (`LEAD_CAP`) to locate candidates.
    `confirmRest` walks the remainder against passage text. Do not truncate the stored
@@ -103,7 +103,7 @@
    It also catches a module that replaces declared words after the shared render
    passes. */
 
-import { isNode, closestAcross, inChrome } from "./shadow-tree.js";
+import { isNode, closestAcross } from "./shadow-tree.js";
 export { closestAcross, inChrome } from "./shadow-tree.js";
 import {
   SAID,
@@ -287,7 +287,9 @@ export function settledAway(el) {
     )
   );
 }
-const GENERATED = ".lf-ui, [data-lf-gen]";
+export const GENERATED = ".lf-ui, [data-lf-gen]";
+// Every heading, which names the part of the page under it.
+export const HEADING = "h1, h2, h3, h4, h5, h6";
 export const DATUM = "[data-lf-projection][data-lf-datum]";
 // Whether the user can see a block's words, for a reading or a landing chosen among the
 // page's blocks. A box is no answer: what content-visibility hides keeps its boxes where
@@ -316,7 +318,7 @@ export const leafSurface = (node) =>
 // log, naming a section no version holds. `leaf thread create --section` refuses exactly that
 // from the file side, and file capture is the reading that is supposed to promise less.
 /** @param {Node | null} node */
-export const pageWords = (node) => Boolean(node) && !inChrome(node) && !inUi(node);
+export const pageWords = (node) => inPage(node) && !inUi(node);
 // The two readings, each one predicate over a text node and named for the question it
 // answers. Anchoring reads what the user can point at: not the runtime's own words —
 // `inUi`, which a declared label answers for itself — and nothing behind a wall no label
@@ -702,7 +704,10 @@ export function textNodesUnder(
         lineBefore = "";
       }
     },
-    boundary && ((child) => boundary(child, segments.length)),
+    (child) =>
+      ((root === document || root === root.ownerDocument?.body) &&
+        child.matches(LEAF_SURFACE)) ||
+      (boundary?.(child, segments.length) ?? false),
     (ctx) => {
       if (keeps(ctx)) {
         breakBefore = true;
@@ -740,44 +745,57 @@ export function textNodesUnder(
 /** @param {string | null | undefined} id @param {Document | Element | null} [root] */
 export const elementById = (id, root = document) => {
   if (id == null || root === null) return null;
+  const page = root === root.ownerDocument?.body;
+  /** @param {Element | null | undefined} node */
+  const accepts = (node) =>
+    node && (!page || (!leafSurface(node) && authoredScope(node) === root));
   const found =
     root === document
       ? document.getElementById(id)
-      : root.querySelector(`[id="${CSS.escape(id)}"]`);
-  if (found) return found;
+      : [...root.querySelectorAll(`[id="${CSS.escape(id)}"]`)].find(accepts);
+  if (found && accepts(found)) return found;
   for (const shadow of shadowRootsIn(root)) {
     const inside = shadow.getElementById(id);
-    if (inside) return inside;
+    if (accepts(inside)) return inside;
   }
   return null;
 };
 
 // The root of the authored document a node stands in. A message's widget markup is a
-// document of its own, placed in that message's body; everything else is the page's
-// `main`. A widget resolving a reference among its own document's elements searches
-// here, so markup a message quotes neither answers for the page nor reaches into it.
-// `doc` is a parsed revision's document, where a version reads its authored `main`.
-export const pageDocument = (doc = document) => doc.querySelector("body > main");
+// document of its own, placed in that message's body; the page owns the authored body.
+// Runtime surfaces share that body, so page-scoped identity and membership exclude
+// LEAF_SURFACE. Geometry separately reads `layoutBox`, the semantic main's Layout.
+// `doc` may be a parsed revision whose body holds its authored source.
+export const pageDocument = (doc = document) => doc.body;
+/** @param {Node | null | undefined} node */
+export const inPage = (node) => under(node, pageDocument()) && !leafSurface(node);
 // The box the page's Layout arranges: `main`, or the shown child of a `main` that carries
 // no Layout itself (layouts.css, `--lf-layout-box`). The margin, the rail and the
 // Layout's regions read this box; the authored content is still `pageDocument`.
 /** @param {Element} box */
 const isLayoutBox = (box) =>
   getComputedStyle(box).getPropertyValue("--lf-layout-box").trim() === "1";
+const PARTS = ':scope > [data-lf-views="parts"]';
 export const layoutBox = () => {
   const main = document.querySelector("body > main");
   if (!main || isLayoutBox(main)) return main;
-  const parts = main.querySelector(':scope > [data-lf-views="parts"]');
+  const parts = main.querySelector(PARTS);
   const boxes = [
     ...main.children,
     ...[...(parts?.children ?? [])].flatMap((part) => [...part.children]),
   ];
   return boxes.find((box) => box.checkVisibility() && isLayoutBox(box)) ?? main;
 };
+// A page of parts' views: the parts a `main` with no Layout of its own shows one at a
+// time (layouts.css, "A page of parts"), or null on any other page.
+export const layoutParts = () => {
+  const main = document.querySelector("body > main");
+  return main && !isLayoutBox(main) ? main.querySelector(PARTS) : null;
+};
 
 /** @param {Node} node */
 export const authoredScope = (node) =>
-  closestAcross(node, ".lf-msg-body") ?? pageDocument();
+  closestAcross(node, ".lf-msg-body") ?? pageDocument(node?.ownerDocument ?? document);
 
 // elementFromPoint retargets to the host for a point over a shadow tree, so it names the
 // widget rather than the thing in it, and each root answers for its own. Mark hit testing
@@ -884,12 +902,19 @@ const COLLAPSIBLE = new RegExp(`^(?:${COLLAPSE.source})$`, "u");
 // authored whitespace, mapped to the start of the segment after it. Text and its DOM
 // route come from this one walk,
 // so a consumer that paints a reading cannot disagree with `quoteFrom` about its words.
+// `visit` hears where each character stands and how much text precedes it, before the
+// character is read: a space a collapsed run or a block's edge leaves goes in ahead of the
+// next word, so it falls after that word's place. `after` continues a reading past the
+// segment it names: the first segment's edge is weighed against it, and whitespace at the
+// start owes a space as it would with words behind it. Where none stand behind, that space
+// is at the reading's start, which a reader of a span drops.
 /** @typedef {{node: Text, offset: number}} TextPoint
- * @typedef {{text: string, start: TextPoint, end: TextPoint}} TextUnit */
-/** @overload @param {readonly Segment[]} segments @param {false} mapCharacters @returns {string} */
+ * @typedef {{text: string, start: TextPoint, end: TextPoint}} TextUnit
+ * @typedef {(node: Text, offset: number, length: number) => void} Visit */
+/** @overload @param {readonly Segment[]} segments @param {false} mapCharacters @param {Visit} [visit] @param {Segment} [after] @returns {string} */
 /** @overload @param {readonly Segment[]} segments @param {true} mapCharacters @returns {{text: string, units: TextUnit[]}} */
-/** @param {readonly Segment[]} segments @param {boolean} mapCharacters */
-function readSegments(segments, mapCharacters) {
+/** @param {readonly Segment[]} segments @param {boolean} mapCharacters @param {Visit} [visit] @param {Segment} [after] */
+function readSegments(segments, mapCharacters, visit, after) {
   let text = "";
   /** @type {TextUnit[]} */
   const units = [];
@@ -898,7 +923,7 @@ function readSegments(segments, mapCharacters) {
   /** @param {string} character @param {TextPoint} start @param {TextPoint} end */
   const push = (character, start, end) => {
     if (COLLAPSIBLE.test(character)) {
-      if (text)
+      if (text || after)
         pendingSpace = pendingSpace
           ? { start: pendingSpace.start, end }
           : { start, end };
@@ -912,8 +937,7 @@ function readSegments(segments, mapCharacters) {
     text += character;
     if (mapCharacters) units.push({ text: character, start, end });
   };
-  /** @type {Segment | undefined} */
-  let previous;
+  let previous = after;
   for (const seg of segments) {
     if (
       previous &&
@@ -925,6 +949,7 @@ function readSegments(segments, mapCharacters) {
     let offset = seg.start;
     for (const character of seg.node.data.slice(seg.start, seg.end)) {
       const end = offset + character.length;
+      visit?.(seg.node, offset, text.length);
       push(character, { node: seg.node, offset }, { node: seg.node, offset: end });
       offset = end;
     }
@@ -1107,14 +1132,42 @@ function spanOf(reading, lo, hi) {
 // not a missing constraint but the tightest one there is, and it is checkable — a candidate
 // confirms it by also having nothing there, which exactly one occurrence does. Refusing to
 // read it that way handed the last copy's mark to the first.
+//
+// A side is read from the words the reading keeps (`wordsBetween`), the words a fresh read
+// of the span gives, until it holds as many code units as `want` — the unit endsWith
+// compares in. Only copies that need telling apart are asked about, but a capture asks
+// about every copy at each width it tries, and the copies of a repeated paragraph agree
+// for thousands of characters before one differs.
 /** @param {PageReading} reading @param {number} at @param {string} want @param {boolean} before */
 const holds = (reading, at, want, before) => {
+  const edge = fenceEdge(reading, at, before);
   // One character is all it takes to refute an empty side, and asking for none would answer
   // with none: doubling zero never grows.
-  const there = neighbourhood(reading, at, want.length || 1, before);
-  if (!want) return there === "";
-  return before ? there.endsWith(want) : there.startsWith(want);
+  const enough = want.length || 1;
+  for (let raw = 2 * enough; ; raw *= 2) {
+    const lo = before ? Math.max(edge, at - raw) : at;
+    const hi = before ? at : Math.min(edge, at + raw);
+    const there = wordsBetween(reading, lo, hi);
+    if (there.length >= enough || (before ? lo === edge : hi === edge)) {
+      if (!want) return there === "";
+      return before ? there.endsWith(want) : there.startsWith(want);
+    }
+  }
 };
+// The fence a neighbourhood of `at` stops at: the last at or before it, else the reading's
+// start, or the first at or after it, else its end. Fences stand in reading order.
+/** @param {PageReading} reading @param {number} at @param {boolean} before */
+function fenceEdge({ fences, raw }, at, before) {
+  let low = 0;
+  let high = fences.length;
+  while (low < high) {
+    const middle = (low + high) >> 1;
+    if (/** @type {number} */ (fences[middle]) < at) low = middle + 1;
+    else high = middle;
+  }
+  if (!before) return fences[low] ?? raw.length;
+  return fences[low] === at ? at : (fences[low - 1] ?? 0);
+}
 // As much collapsed text as the caller asked for, however much raw text that takes.
 // A fixed raw budget reads less than the capture wrote wherever whitespace runs dense — an
 // indented line inside a <pre> — and the right occurrence then confirms none of its own
@@ -1126,22 +1179,100 @@ const holds = (reading, at, want, before) => {
 // early on any neighbourhood holding an emoji — the window reached 24 of them while
 // holding 23 characters — so the browser stored a prefix a character short of the one the
 // file's reading stores for that same passage, and the two captures wrote different
-// anchors for one passage. `holds` asks in the other unit (`want.length`, the stored
-// string's own, which is what its endsWith compares in), and that is an over-decision this can
-// only over-satisfy: reaching N code points takes at least N code units, so its window is
-// never the one short of confirming that a repeated anchor would detach over.
+// anchors for one passage.
 /** @param {PageReading} reading @param {number} at @param {number} want @param {boolean} before */
 export function neighbourhood(reading, at, want, before) {
-  const { fences } = reading;
-  const edge = before
-    ? (fences.filter((f) => f <= at).at(-1) ?? 0)
-    : (fences.find((f) => f >= at) ?? reading.raw.length);
+  const edge = fenceEdge(reading, at, before);
   for (let raw = want * 2; ; raw *= 2) {
     const lo = before ? Math.max(edge, at - raw) : at;
     const hi = before ? at : Math.min(edge, at + raw);
     const text = quoteFrom(spanOf(reading, lo, hi));
     if ([...text].length >= want || (before ? lo === edge : hi === edge)) return text;
   }
+}
+// The words of raw[lo..hi) as `quoteFrom` reads its span: the whole reading's words
+// between the two places, less the space ahead of the first.
+/** @param {PageReading} reading @param {number} lo @param {number} hi */
+function wordsBetween(reading, lo, hi) {
+  let words = "";
+  for (let k = Math.floor(lo / PIECE); k * PIECE < hi; k++) {
+    const { text, places } = wordsPiece(reading, k);
+    const start = k * PIECE;
+    const from = /** @type {number} */ (places[Math.max(lo, start) - start]);
+    const to = /** @type {number} */ (places[Math.min(hi, start + PIECE) - start]);
+    words += text.slice(from, to);
+  }
+  return words.startsWith(" ") ? words.slice(1) : words;
+}
+// The reading's words are kept in pieces of this much raw text, each read the first time
+// something asks for words in it, so a question about a few places reads only around them.
+const PIECE = 4096;
+/** @type {WeakMap<readonly IndexedSegment[], Map<number, {text: string, places: Int32Array}>>} */
+const readPieces = new WeakMap();
+// Piece `k`: the words the whole reading has for raw[k·PIECE..(k+1)·PIECE), read from a
+// little before it, and where each raw place in it falls among them, as `visit` hears it.
+/** @param {PageReading} reading @param {number} k */
+function wordsPiece(reading, k) {
+  const { segments, raw } = reading;
+  let pieces = readPieces.get(segments);
+  if (!pieces) readPieces.set(segments, (pieces = new Map()));
+  const kept = pieces.get(k);
+  if (kept) return kept;
+  const lo = k * PIECE;
+  const hi = Math.min(raw.length, lo + PIECE);
+  // The read starts at the last character before the piece and continues the whole reading
+  // after the segment that reading read before it, so it reaches the piece as that reading
+  // does: owing a space or not, after the same block.
+  let held = segmentAt(reading, lo - 1);
+  let last;
+  while ((last = segments[held]) && last.end === last.start) held--;
+  let from = last ? Math.min(lo, last.rawStart + last.end - last.start) - 1 : lo;
+  if (isPair(raw, from - 1)) from -= 1;
+  // A pair the piece's end divides is read whole here, and its second half is the next
+  // piece's start, where the words after the pair begin.
+  const end = isPair(raw, hi - 1) ? hi + 1 : hi;
+  const places = new Int32Array(hi - lo + 1).fill(-1);
+  /** @type {Text | undefined} */
+  let node;
+  let base = 0;
+  /** @param {Text} at @param {number} offset @param {number} length */
+  const visit = (at, offset, length) => {
+    if (at !== node) base = /** @type {number} */ (reading.positions.get((node = at)));
+    const place = base + offset - lo;
+    if (place >= 0 && place < places.length) places[place] = length;
+  };
+  const after = segments[segmentAt(reading, from - 1)];
+  const text = readSegments(spanOf(reading, from, end), false, visit, after);
+  // A place that holds no character — an edge between segments, a pair's second half, the
+  // piece's end — falls where the next character does.
+  let next = text.length;
+  for (let i = hi - lo; i >= 0; i--) {
+    const place = /** @type {number} */ (places[i]);
+    places[i] = next = place < 0 ? next : place;
+  }
+  const piece = { text, places };
+  pieces.set(k, piece);
+  return piece;
+}
+// Whether raw[i] and raw[i + 1] are the two halves of one character.
+/** @param {string} raw @param {number} i */
+const isPair = (raw, i) =>
+  i >= 0 &&
+  /[\uD800-\uDBFF]/.test(raw.charAt(i)) &&
+  /[\uDC00-\uDFFF]/.test(raw.charAt(i + 1));
+// `reading` with fences at the edges of the words `element` holds, so a neighbourhood
+// read from inside it stops there.
+/** @param {PageReading} reading @param {Element} element @returns {PageReading} */
+export function fencedAt(reading, element) {
+  const inside = reading.segments.filter(({ node }) => under(node, element));
+  const first = inside[0];
+  const last = inside.at(-1);
+  if (!first || !last) return reading;
+  const edges = [first.rawStart, last.rawStart + last.end - last.start];
+  return {
+    ...reading,
+    fences: [...new Set([...reading.fences, ...edges])].sort((a, b) => a - b),
+  };
 }
 // The reading is a function of the document and the user's settlements, so those are
 // what say when it may change. Everything it is built out of is here: the page's words
@@ -1197,12 +1328,15 @@ let watcher = null;
 // over-forgetting costs a walk and under-forgetting costs a mark on words the page no
 // longer says.
 /** @param {Node | null} over */
-const pageReads = (over) => !isElement(over) || READINGS.says(contextAt(over, null));
-// A declared label is the page's words wherever it stands, chrome included, so a subtree
-// holding one is read whatever its place says.
+const pageReads = (over) =>
+  !isElement(over) || (!leafSurface(over) && READINGS.says(contextAt(over, null)));
+// A declared label belongs to the page even inside generated widget apparatus.
+// Runtime surfaces remain separate documents, including the messages they hold.
 /** @param {Node} node */
 const holdsSaid = (node) =>
-  isElement(node) && (node.matches(SAID) || node.querySelector(SAID) !== null);
+  isElement(node) &&
+  !leafSurface(node) &&
+  (node.matches(SAID) || node.querySelector(SAID) !== null);
 // Whether a node can put words in the reading, standing where `read` says the page reads
 // (`pageReads` of its parent). A node that starts chrome (`chromeMark`) and holds no
 // label is silent wherever it goes, which is what the panel's re-rendered rows are.
@@ -1344,7 +1478,7 @@ function readPage() {
       breakBefore = false;
       cellChains.push(ctx.cells);
     },
-    null,
+    (child) => child.matches(LEAF_SURFACE),
     (ctx) => {
       if (keeps(ctx)) breakBefore = true;
     },
@@ -1467,6 +1601,20 @@ function confirmRest(raw, at, words) {
 const withinCell = (text, from, to) =>
   !text.fences.some((fence) => from < fence && fence < to);
 
+/** @typedef {{from: number, to: number}} Occurrence */
+/** @type {WeakMap<PageReading, Map<Element | null, Map<string, Occurrence[]>>>} */
+const occurrenceIndexes = new WeakMap();
+// A quote's occurrences in a reading, found once by `find` and kept with the reading.
+/** @param {PageReading} text @param {string} quote @param {Element | null} within @param {() => Occurrence[]} find */
+function occurrences(text, quote, within, find) {
+  let byWithin = occurrenceIndexes.get(text);
+  if (!byWithin) occurrenceIndexes.set(text, (byWithin = new Map()));
+  let byQuote = byWithin.get(within);
+  if (!byQuote) byWithin.set(within, (byQuote = new Map()));
+  let found = byQuote.get(quote);
+  if (!found) byQuote.set(quote, (found = find()));
+  return found;
+}
 /** @param {PageReading} text @param {string} quote @param {{prefix?: string, suffix?: string}} anchor @param {Element | null} [within] */
 export function findQuote(text, quote, anchor, within) {
   const { raw } = text;
@@ -1475,6 +1623,7 @@ export function findQuote(text, quote, anchor, within) {
   // Whole words up to the cap, and never none: a single word longer than it is still
   // the only lead there is, and one that spent the cap exactly is not worth a term
   // the walk would take anyway.
+  /** @type {string[]} */
   const lead = [];
   let spent = 0;
   for (const next of words) {
@@ -1483,41 +1632,47 @@ export function findQuote(text, quote, anchor, within) {
     spent += next.length + 1;
   }
   const rest = words.slice(lead.length);
-  const pattern = new RegExp(
-    lead.map((w) => [...w].map(escape).join(`${EDGE}*`)).join(`[\\s${EDGE}]+`),
-    "g",
-  );
   // A unique exact-context occurrence wins. If no context survives, a sole quote
   // occurrence is still identifiable; two are not. Document order is not identity:
   // guessing the first copy after the intended one's neighbours changed quietly moves
   // a comment to words it was never made on. matchAll steps past each lead, so two
   // occurrences overlapping within it are one candidate — which is the lead's own
   // repetition and not the passage's, since the walk still has to confirm the rest.
+  // The occurrences are kept with the reading, since a capture resolves one quote at
+  // each width of context it tries. Context is read only to tell copies apart: a sole
+  // candidate is the answer whatever its neighbours say, and a second exact one settles
+  // that none is unique.
   const [pre, post] = [anchor.prefix ?? "", anchor.suffix ?? ""];
-  const candidates = [];
-  const exact = [];
-  for (const at of raw.matchAll(pattern)) {
-    const stop = confirmRest(raw, at.index + at[0].length, rest);
-    if (stop === -1 || !withinCell(text, at.index, stop)) continue;
-    if (
-      within &&
-      !(
-        under(pointAt(text, at.index)?.node, within) &&
-        under(pointAt(text, stop - 1)?.node, within)
+  const candidates = occurrences(text, quote, within ?? null, () => {
+    const pattern = new RegExp(
+      lead.map((w) => [...w].map(escape).join(`${EDGE}*`)).join(`[\\s${EDGE}]+`),
+      "g",
+    );
+    const found = [];
+    for (const at of raw.matchAll(pattern)) {
+      const stop = confirmRest(raw, at.index + at[0].length, rest);
+      if (stop === -1 || !withinCell(text, at.index, stop)) continue;
+      if (
+        within &&
+        !(
+          under(pointAt(text, at.index)?.node, within) &&
+          under(pointAt(text, stop - 1)?.node, within)
+        )
       )
-    )
+        continue;
+      found.push({ from: at.index, to: stop });
+    }
+    return found;
+  });
+  const exact = [];
+  for (const hit of candidates.length > 1 ? candidates : []) {
+    if (!holds(text, hit.from, pre, true) || !holds(text, hit.to, post, false))
       continue;
-    const hit = { from: at.index, to: stop };
-    candidates.push(hit);
-    if (holds(text, hit.from, pre, true) && holds(text, hit.to, post, false))
-      exact.push(hit);
+    exact.push(hit);
+    if (exact.length > 1) break;
   }
   const found =
-    exact.length === 1
-      ? exact[0]
-      : exact.length === 0 && candidates.length === 1
-        ? candidates[0]
-        : null;
+    candidates.length === 1 ? candidates[0] : exact.length === 1 ? exact[0] : null;
   // The characters the match covers, cut out of the index the same way a neighbourhood is —
   // walking the segments a second time to rebuild the span would be a second answer to
   // "which text is this", and the two disagree wherever an edge falls inside the match.
@@ -1633,5 +1788,5 @@ export function contextAround(text, segments, { before = 28, after = 28 } = {}) 
 export function pageParts(sel) {
   /** @type {E[]} */
   const elements = pageQueryAll(sel);
-  return elements.filter((el) => !inChrome(el));
+  return elements.filter(inPage);
 }

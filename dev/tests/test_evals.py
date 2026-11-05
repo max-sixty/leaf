@@ -20,6 +20,7 @@ from leaf_dev import arms
 from leaf_dev.arms import LiveSession, private_program
 from leaf_dev.commands import eval as module
 from leaf_dev.eval_codex import records_for
+from leaf_dev.eval_records import run_samples
 
 
 def test_live_session_drains_output_while_observing_the_page(tmp_path, monkeypatch):
@@ -205,6 +206,58 @@ def test_codex_trace_keeps_subagent_activity_without_inventing_tool_calls():
     assert trace == activities
 
 
+def test_fork_replay_hands_the_answer_through_the_arms_leaf(tmp_path, monkeypatch):
+    # No model runs: a stand-in for Claude Code reads the turn-end check's prompt
+    # and answers it, so this shows the question reaching the fork and the answer
+    # reaching the grader through the arm's Leaf, its edit landing on the page.
+    import os
+
+    from leaf_dev import ROOT, fork_eval
+
+    work = tmp_path / "work"
+    asked = tmp_path / "prompt"
+    answer = {
+        "asks": [],
+        "findings": [
+            {
+                "kind": "stale",
+                "page": str(work / "page"),
+                "summary": "The lede still says 2 of 5 shards are rebuilt.",
+                "quote": "all 5 shards rebuilt; alias search -> search-v7",
+                "edit": {
+                    "words": "2 of 5 shards are rebuilt",
+                    "replacement": "all 5 shards are rebuilt",
+                },
+            }
+        ],
+    }
+    result = {"type": "result", "subtype": "success", "result": json.dumps(answer)}
+    program = (
+        f"import sys; open({str(asked)!r}, 'w').write(sys.stdin.read()); "
+        f"print({json.dumps(result)!r})"
+    )
+
+    def child(cwd, *args, **kwargs):
+        home = cwd.with_name("home")
+        return {
+            "args": [sys.executable, "-c", program],
+            "cwd": cwd,
+            "env": {**os.environ, "HOME": str(home)},
+        }
+
+    monkeypatch.setattr(fork_eval, "claude_child", child)
+    response = fork_eval.execute_scenario("stale-edit", ROOT, work)
+    metadata = response["metadata"]
+    assert metadata["checks"] == {
+        "answered": True,
+        "labels-found": True,
+        "edits-land": True,
+    }
+    assert "<leaf-fork-check>" in asked.read_text()
+    assert (work / "transcript.jsonl").is_file()
+    assert "all 5 shards are rebuilt" in metadata["texts"]["judge"]
+
+
 def test_catalog_builds_native_and_workflow_promptfoo_tests(tmp_path, monkeypatch):
     # Configuration shares the external login; no native provider is invoked.
     login = tmp_path / "login"
@@ -231,7 +284,7 @@ def test_catalog_builds_native_and_workflow_promptfoo_tests(tmp_path, monkeypatc
             "parent-keeps-leaf-responsive/during-work",
             "page-reads-at-every-width/queue",
         ],
-        {"candidate": tmp_path / "arm"},
+        {"head": tmp_path / "arm"},
         tmp_path / "scratch",
         ("claude-code",),
         ("leaf", "html"),
@@ -273,8 +326,6 @@ def test_catalog_builds_native_and_workflow_promptfoo_tests(tmp_path, monkeypatc
 
     # A saved run can contain the same Python provider on different models. The
     # report must join labels and keep the saved model, even after pins change.
-    from leaf_dev.commands.eval_report import report_samples
-
     providers = [
         provider
         for provider in config["providers"]
@@ -318,7 +369,7 @@ def test_catalog_builds_native_and_workflow_promptfoo_tests(tmp_path, monkeypatc
     (run / "results.json").write_text(
         json.dumps({"config": config, "results": {"results": records}})
     )
-    reported = report_samples((run,))
+    reported = run_samples((run,))
     native_execution = reported["todo-outlasts-the-turn"][native["label"]][0][
         "execution_metadata"
     ]
@@ -339,7 +390,7 @@ def test_catalog_builds_native_and_workflow_promptfoo_tests(tmp_path, monkeypatc
 def test_widget_format_matrix_uses_one_model_and_separate_checks(tmp_path):
     config = module.prepare(
         ["widget-formats/choice"],
-        {"candidate": tmp_path / "arm"},
+        {"head": tmp_path / "arm"},
         tmp_path / "scratch",
         ("codex",),
         ("leaf", "json", "adaptive"),
@@ -377,19 +428,22 @@ def test_eval_command_delegates_configuration_and_status_to_promptfoo(
     promptfoo.write_text(f'#!/bin/sh\necho "$*" > {calls}\nexit 100\n')
     promptfoo.chmod(0o755)
 
-    def build_arm(ref, destination):
+    def build_arm(ref, destination, *, paths=arms.PAYLOAD):
+        assert paths == arms.PAYLOAD
         (destination / "skills" / "leaf").mkdir(parents=True)
         return "0123456789abcdef"
 
     monkeypatch.setattr(module, "PROMPTFOO", promptfoo)
     monkeypatch.setattr(module, "RUNS", tmp_path / "runs")
-    monkeypatch.setattr(module, "build_arm", build_arm)
+    monkeypatch.setattr(arms, "build_arm", build_arm)
     result = CliRunner().invoke(
         module.eval,
         [
             "--harness",
             "claude-code",
             "patch-review",
+            "--base",
+            "HEAD",
             "--viewport",
             "phone",
             "--viewport",
@@ -400,13 +454,231 @@ def test_eval_command_delegates_configuration_and_status_to_promptfoo(
     )
     assert result.exit_code == 100, result.output
     assert calls.read_text().strip().endswith("--repeat 3")
+    (run,) = (tmp_path / "runs").iterdir()
+    config = json.loads((run / "promptfooconfig.json").read_text())
+    assert len(config["tests"]) == 1
+    # Each arm is its own payload copy, kept with the run for grading again.
+    assert {
+        provider["label"]: provider["config"]["payload"]
+        for provider in config["providers"]
+    } == {
+        f"claude-code/{arm}/workflow": str(run / "arms" / arm)
+        for arm in ("base", "head")
+    }
+    assert config["providers"][0]["config"]["viewports"] == ["phone", "desktop"]
+    assert "--viewport" not in calls.read_text()
+
+
+def saved_run(run: Path) -> Path:
+    """A retained run of one complete task: two saved samples in each of two
+    columns, the last from an author that did not complete."""
+    from leaf_dev.arrangement_eval import comparison_inputs
+
+    comparison = comparison_inputs("document-live-status", ("phone",))
+    providers, results = [], []
+    for arm in ("base", "head", "base", "head"):
+        label = f"codex:app-server/{arm}/workflow"
+        providers.append(
+            {
+                "id": "file://provider.py",
+                "label": label,
+                "config": {"harness": "codex", "model": arm},
+            }
+        )
+        work = run / "samples" / f"document-{arm}-{len(results)}"
+        response = {
+            "output": f"{arm} summary",
+            "metadata": {
+                "work": str(work),
+                "checks": {"completed": True},
+                "diagnostics": {
+                    "subject": "document-live-status",
+                    "comparison": comparison,
+                    "payload": f"/original/{arm}",
+                    "condition": "leaf",
+                    "phases": {
+                        version: {
+                            "page": str(work / f"page-phase{version}"),
+                            "trace": {"reply": f"{arm} phase {version}"},
+                        }
+                        for version in comparison["phases"].values()
+                    },
+                },
+            },
+        }
+        results.append(
+            {
+                "id": f"result-{len(results)}",
+                "provider": {"id": "file://provider.py", "label": label},
+                "testCase": {
+                    "description": "Live status document",
+                    "vars": {"prompt": "configuration"},
+                    "metadata": {"case": "configuration", "condition": "leaf"},
+                },
+                "response": response
+                | ({"error": "Author did not complete"} if len(results) == 3 else {}),
+            }
+        )
+    run.mkdir(parents=True)
+    (run / "results.json").write_text(
+        json.dumps(
+            {"config": {"providers": providers}, "results": {"results": results}}
+        )
+    )
+    return run
+
+
+def test_from_replays_saved_outputs_under_current_grading(tmp_path, monkeypatch):
+    """`--from` builds Promptfoo tests that replay saved results, with no author."""
+    from leaf_dev import regrade
+
+    login = tmp_path / "login"
+    login.mkdir()
+    (login / "auth.json").write_text("{}")
+    monkeypatch.setenv("CODEX_HOME", str(login))
+    promptfoo = tmp_path / "promptfoo"
+    promptfoo.write_text("#!/bin/sh\nexit 0\n")
+    promptfoo.chmod(0o755)
+    monkeypatch.setattr(module, "PROMPTFOO", promptfoo)
+    monkeypatch.setattr(module, "RUNS", tmp_path / "runs")
+    run = saved_run(tmp_path / "saved")
+    original = (run / "results.json").read_bytes()
+
+    # Each saved output is graded by its case's current assertions in its own
+    # column, and a failed response fails again without being graded.
+    result = CliRunner().invoke(module.eval, ["--from", str(run)])
+    assert result.exit_code == 0, result.output
     config = json.loads(
         next((tmp_path / "runs").glob("*/promptfooconfig.json")).read_text()
     )
-    assert config["providers"] and len(config["tests"]) == 1
-    assert len(config["providers"]) == 1
-    assert config["providers"][0]["config"]["viewports"] == ["phone", "desktop"]
-    assert "--viewport" not in calls.read_text()
+    assert [p["label"] for p in config["providers"]] == [
+        "codex:app-server/base/workflow",
+        "codex:app-server/head/workflow",
+    ]
+    assert {p["id"] for p in config["providers"]} == {regrade.REPLAY}
+    current = module.grading(
+        module.catalog()["configuration"], "configuration", "leaf", lambda: {}
+    )
+    for test in config["tests"]:
+        assert test["assert"] == current["assert"]
+        assert test["vars"] == {"prompt": "configuration"}
+        (reference,) = test["metadata"]["saved"]
+        replayed = regrade.replay("", {}, {"test": test})
+        assert replayed["output"] == f"{reference['sample'].split('-')[1]} summary"
+        assert replayed["metadata"]["work"].endswith(reference["sample"])
+    assert [
+        regrade.replay("", {}, {"test": t}).get("error") for t in config["tests"]
+    ] == [
+        None,
+        None,
+        None,
+        "Author did not complete",
+    ]
+
+    result = CliRunner().invoke(module.eval, ["--from", str(run), "--harness", "codex"])
+    assert result.exit_code != 0 and "--harness" in result.output
+    assert (run / "results.json").read_bytes() == original
+
+
+def test_judgments_of_saved_samples_reach_the_report(tmp_path, monkeypatch):
+    """Only the live judge is replaced: the tests, their replayed samples, page
+    roles, evidence and the report's reading of both orders are real."""
+    from leaf_dev import regrade
+    from leaf_dev.commands import eval_report
+
+    run = saved_run(tmp_path / "saved")
+    base, head = (
+        "codex:app-server/base/workflow",
+        "codex:app-server/head/workflow",
+    )
+    judged = []
+
+    def judge(pages, widths, prompt, schema, evidence, *, handovers):
+        assert evidence.parent == tmp_path / "out" / "judgments"
+        judged.append((set(pages), prompt))
+        if "overall" not in schema["properties"]:
+            return {
+                "output": {
+                    "status": "complete",
+                    "explored": "Desktop navigation.",
+                    "observations": [],
+                    "unverified": [],
+                },
+                "metadata": {"evidence": str(evidence)},
+            }
+        # The judge prefers the head's page in whichever position it stands.
+        better = "A" if pages["A"]["payload"].name == "head" else "B"
+        worse = {"A": "B", "B": "A"}[better]
+        return {
+            "output": {
+                "status": "complete",
+                **{aspect: better for aspect in (*regrade.ASPECTS, "overall")},
+                "margin": "clear",
+                f"defects_{worse}": ["Clipped table"],
+                f"defects_{better}": [],
+                "reason": "The head keeps the table readable.",
+            },
+            "metadata": {"evidence": str(evidence)},
+        }
+
+    monkeypatch.setattr(regrade, "judge_pages", judge)
+
+    def graded(name: str, variables: dict) -> tuple[Path, list[dict]]:
+        """Run the named judgment's tests as Promptfoo would, and save the run."""
+        config = module.saved_config((run,), (), name, tmp_path / "out", tmp_path)
+        results = []
+        for index, test in enumerate(config["tests"]):
+            result = {"id": f"{name}-{index}", "testCase": test}
+            response = regrade.replay("", {}, {"test": test})
+            # Promptfoo grades no response that failed.
+            if "error" not in response:
+                (assertion,) = test["assert"]
+                outcome = getattr(regrade, name)(
+                    None,
+                    {
+                        "providerResponse": response,
+                        "test": test,
+                        "vars": {**test["vars"], **variables},
+                        "config": assertion["config"],
+                    },
+                )
+                assert outcome["pass"], outcome["reason"]
+                result["gradingResult"] = {"componentResults": [outcome]}
+            results.append(result)
+        judging = tmp_path / name
+        judging.mkdir()
+        (judging / "results.json").write_text(
+            json.dumps({"config": config, "results": {"results": results}})
+        )
+        return judging, results
+
+    # Each pair is judged in both presentation orders, and the report counts a
+    # winner both orders name, by column. The author that did not complete keeps
+    # its place, and its pair is unscored.
+    judging, results = graded("pair", {})
+    assert [
+        [reference["column"] for reference in result["testCase"]["metadata"]["saved"]]
+        for result in results
+    ] == [[base, head], [head, base]] * 2
+    assert head in results[1]["gradingResult"]["componentResults"][0]["reason"]
+    assert judged[0][0] == {
+        f"{position}{suffix}"
+        for position in "AB"
+        for suffix in ("", "_before_decision", "_before_revision")
+    }
+    (source, pair), (_, unscored) = eval_report.pair_records((judging,))
+    assert source == judging / "results.json"
+    assert pair["status"] == "complete" and pair["winner"] == head
+    assert pair["orders"][1]["defects"] == {base: ["Clipped table"], head: []}
+    assert unscored["status"] == "unscored" and unscored["orders"] == [None, None]
+    assert eval_report.run_samples((judging,)) == {}
+
+    judging, _ = graded("discovery", {"focus": "Investigate long decision premises"})
+    pages, prompt = judged[-1]
+    assert pages == {"page", "page_before_decision", "page_before_revision"}
+    assert "Investigate long decision premises" in prompt
+    section = eval_report.discovery_section(tmp_path / "report", (judging,))
+    assert section.count("Desktop navigation.") == 3
 
 
 def test_arrangement_retains_linked_pages_per_phase(tmp_path, monkeypatch):

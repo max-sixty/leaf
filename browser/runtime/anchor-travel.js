@@ -24,11 +24,14 @@
  * user's original intent while data loads, the target opens and the page paints;
  * newer input or another navigation step cancels its landing, but not the loading. Each navigation step
  * records where the user is before it moves anything, then checks whether the user is
- * already there. Only an arrival that succeeds adds that departure to history, so Back
- * returns the user to where they were reading. A navigation group, a run of navigation steps each leaving
- * from the last one's landing, is one history entry. Pressing or tabbing to another
- * authored passage ends the navigation group, even while its landing still shows; a press on a
- * control or chrome, or a focus move the runtime makes, does not. A fragment link's
+ * already there. Every arrival that succeeds and moves the page adds that departure to
+ * history, so Back returns the user to the item they were on, one step at a time, as
+ * Back does after a followed link. Leaf once let a run of steps share one entry while
+ * the last landing still showed, so one Back undid a whole `t` or `m` walk. That skipped
+ * the item a step left: after `t` then `m`, Back passed over the thread, and once the
+ * user answered an obligation, which takes it out of On me, neither Back nor Shift+m
+ * returned to it. Limiting the sharing to one walk still missed the second case, so no
+ * steps share an entry. A fragment link's
  * navigation step (`followFragment`) uses the history entry the browser added for the link as
  * its departure, and Back or Forward to a place the page has since hidden
  * (`returnToFragment`) is a navigation step that adds no entry.
@@ -48,38 +51,21 @@ import {
   revealAddressed,
   sectionOf,
 } from "./anchor-resolution.js";
-import {
-  clippedPlace,
-  landingBand,
-  placeBox,
-  placeHolder,
-  showsContents,
-  shownBox,
-} from "./geometry.js";
+import { placeHolder, showsContents } from "./geometry.js";
 import { scrollBehavior } from "./motion.js";
 import { renderedParent } from "./shadow-tree.js";
 import { nextFrame } from "./rendering.js";
-import {
-  onReadingInput,
-  scrollersOf,
-  unconcealedReadingRegions,
-} from "./reading-regions.js";
+import { unconcealedReadingRegions } from "./reading-regions.js";
 import { prepareEntry, replaceEntry } from "./history.js";
 import { pageScroller, stopScroll } from "./scrolling.js";
-import { landedBox, scrollIntoView } from "./landing-scroll.js";
-import { PRESSABLE, reveal } from "./widget-elements.js";
+import { alreadyShown, landedBox, scrollIntoView } from "./landing-scroll.js";
+import { reveal } from "./widget-elements.js";
 import { threadNamed } from "./thread/state.js";
 import { restrictUserIntent, retainUserIntent } from "./user-intent.js";
 import { targetElement, targetPlace, targetSegments } from "./resolved-target.js";
-import { closestAcross, rangeOf } from "./passages.js";
+import { rangeOf } from "./passages.js";
 import { livePoint } from "./pointed-place.js";
-import { PRESSES } from "./control-selectors.js";
-import { typesText } from "./focus.js";
-import { openingPassage, passageBlock } from "./reading-place.js";
 import { notice } from "./notifications.js";
-
-/** @param {Element} element */
-const scrollingBoxFor = (element) => scrollersOf(element).next().value ?? null;
 
 // The browser's rule for landing the element a fragment names: its start at its
 // scroller's landing edge, which a sticky header's stated height keeps clear. Travel
@@ -106,7 +92,6 @@ export const fragmentShown = (address) =>
  * @typedef {{at: Destination, align?: Destination, block?: ScrollLogicalPosition | "fragment", behavior?: ScrollBehavior, when?: () => boolean}} ScrollPlacement
  * @typedef {{where: Destination, focus?: Element | null | false, caret?: Caret | null,
  * selection?: {range: Range, backward: boolean}, reveal?: readonly Element[], scroll: readonly ScrollPlacement[]}} Arrival
- * @typedef {{token: string, landing: () => Destination | null | undefined, passage: () => Element | null}} NavigationGroup
  * @typedef {{plan: (where: Destination | null | undefined, options?: {there?: (readable: (where: Destination) => boolean) => boolean}) => boolean, commit: () => void}} NavigationStep
  * @typedef {{intent: UserIntent, present?: (() => unknown) | null, departure?: NavigationStep | null}} ArrivalOptions
  * @typedef {{anchors: Pick<ReturnType<typeof import("./anchor-placement.js").createAnchorPlacement>, "placedAt">,
@@ -128,44 +113,6 @@ export function createAnchorTravel({
     const intent = ++travelIntent;
     return restrictUserIntent(retained, () => intent === travelIntent);
   };
-
-  // A navigation step saves where the user is reading before it moves anything, and history.js
-  // commits that only once the navigation step arrives. A destination the user can already read
-  // where they are is no departure. A navigation step that names its `landing` while part of the
-  // last navigation step's landing still shows continues that navigation group, whether it goes to a
-  // thread or On me, and replaces the navigation group's entry, which already holds
-  // where the navigation group began. Choosing another authored passage by pointer or Tab, or
-  // moving off the landing, ends the navigation group, and the next navigation step saves the new place.
-  // A navigation group is not a walk: steps of the thread walk, of the queue walk and presses
-  // on margin markers can all be navigation steps of one navigation group. The landing is kept as a lookup
-  // rather than a node because the thread pass repaints marks, and the entry carries
-  // a token for this load's navigation group because only this load holds the lookup.
-  const navigationGroupPrefix = `${performance.timeOrigin}:`;
-  let navigationSteps = 0;
-  /** @type {NavigationGroup | null} */
-  let navigationGroup = null;
-
-  onReadingInput(
-    /** @param {Node} node */ (node) => {
-      if (
-        !navigationGroup ||
-        closestAcross(node, `${PRESSES},${PRESSABLE}`) ||
-        typesText(node)
-      )
-        return;
-      const passage = passageBlock(node);
-      if (!passage) return;
-      if (passage !== navigationGroup.passage()) navigationGroup = null;
-    },
-  );
-
-  function stillLanded() {
-    const where =
-      navigationGroup &&
-      history.state?.lfNavigationGroup === navigationGroup.token &&
-      navigationGroup.landing();
-    return Boolean(where && seenOf(where));
-  }
 
   // Resolve fresh after exposure, presentation and focus. A replaced view lands
   // immediately so it never paints at the old view's offset; final placement alone
@@ -263,10 +210,7 @@ export function createAnchorTravel({
     const datum = anchor.datum;
     const source = datum ? sectionOf(anchor) : null;
     if (!destination && !source) return false;
-    const departure = prepareNavigationStep({
-      intent: mayArrive,
-      landing: () => resolve()?.where,
-    });
+    const departure = prepareNavigationStep();
     departure.plan(destination?.where ?? source, {
       there: (readable) => Boolean(destination && readable(destination.where)),
     });
@@ -290,10 +234,7 @@ export function createAnchorTravel({
     const mayArrive = retainTravel(intent);
     const destination = resolve();
     if (!destination?.where) return null;
-    const departure = prepareNavigationStep({
-      intent: mayArrive,
-      landing: () => resolve()?.where,
-    });
+    const departure = prepareNavigationStep();
     departure.plan(destination.where);
     let release = () => {};
     await arrive(
@@ -313,8 +254,7 @@ export function createAnchorTravel({
                 {
                   at: current.where,
                   behavior: "instant",
-                  when: () =>
-                    !readableDestination(current.where) || !readableDestination(input),
+                  when: () => !alreadyShown(current.where) || !alreadyShown(input),
                 },
                 // The subject and editor can occupy different parts of a tall
                 // page. Finish on the box the user asked to write in.
@@ -342,53 +282,27 @@ export function createAnchorTravel({
     return mayArrive() ? (resolve()?.input() ?? null) : undefined;
   }
 
-  // Travel's departure transaction. Capture before any reveal; plan answers whether
-  // the caller moves the page, and arrive commits only its successful handoff. Failure
-  // or newer intent leaves history and the continuing navigation group untouched. A destination
-  // not yet placed (a datum a widget has yet to hydrate) is somewhere else. `there` is the
-  // caller's reading of already being there where it asks more than the destination's
-  // own (an obligation's arrival region), built on the reading it is handed. Clearing a surface
-  // can take the focus out of it, so the caller's retained `intent` hands the gesture
-  // over to where that leaves the user rather than reading the move as a newer one.
-  /** @param {{landing?: (() => Destination | null | undefined) | null, url?: URL, intent: UserIntent}} navigationStep @returns {NavigationStep} */
-  function prepareNavigationStep({ landing = null, url, intent }) {
+  // Travel's departure transaction. Capture where the user is before any reveal; plan
+  // answers whether the caller moves the page, since a destination the user can already
+  // read where they are is no departure, and arrive commits only its successful handoff.
+  // Failure or newer intent leaves history untouched. A destination not yet placed (a
+  // datum a widget has yet to hydrate) is somewhere else. `there` is the caller's reading
+  // of already being there where it asks more than the destination's own (an obligation's
+  // arrival region), built on the reading it is handed.
+  /** @param {URL} [url] @returns {NavigationStep} */
+  function prepareNavigationStep(url) {
     const write = prepareEntry();
-    const continuing = landing && stillLanded() ? navigationGroup : null;
-    const arrival = landing
-      ? {
-          landing,
-          passage: () => {
-            const where = landing();
-            return where ? openingPassage(where) : null;
-          },
-        }
-      : null;
     /** @type {boolean | undefined} */
     let moving;
     return {
       plan(where, { there } = {}) {
-        moving = !(
-          where && (there ? there(readableDestination) : readableDestination(where))
-        );
+        moving = !(where && (there ? there(alreadyShown) : alreadyShown(where)));
         return moving;
       },
       commit() {
-        if (moving === undefined) return;
-        if (!moving) {
-          if (continuing && arrival) Object.assign(continuing, arrival);
-          // No departure, but the entry the user stays on now names where they are.
-          if (url) replaceEntry(url);
-          return;
-        }
-        navigationGroup = arrival && {
-          token: navigationGroupPrefix + ++navigationSteps,
-          ...arrival,
-        };
-        write(
-          url ?? window.location.href,
-          navigationGroup && { lfNavigationGroup: navigationGroup.token },
-          Boolean(continuing),
-        );
+        if (moving) write(url ?? window.location.href);
+        // No departure, but the entry the user stays on now names where they are.
+        else if (moving === false && url) replaceEntry(url);
       },
     };
   }
@@ -474,7 +388,7 @@ export function createAnchorTravel({
 
     // The entry names the key, so a reload or a copied URL reaches the same part.
     const url = new URL(fragmentUrl(source, key));
-    const departure = prepareNavigationStep({ url, intent: mayArrive });
+    const departure = prepareNavigationStep(url);
 
     // The widget owns filters, lazy projection, and the state a visual draws. Ask it to
     // make the key reachable before interpreting DOM presence.
@@ -503,9 +417,7 @@ export function createAnchorTravel({
           where && {
             where,
             focus: focus ? where : null,
-            scroll: [
-              { at: where, block: "start", when: () => !readableDestination(where) },
-            ],
+            scroll: [{ at: where, block: "start", when: () => !alreadyShown(where) }],
           }
         );
       },
@@ -589,41 +501,6 @@ export function createAnchorTravel({
     placeScroll({ at: element, behavior, block }, replacedView);
   }
 
-  // A destination's box and what of it the user can see, which is that box less the
-  // window and whatever clips it, or null when none of it shows.
-  /** @param {Destination} where */
-  function seenOf(where) {
-    const holder = placeHolder(where);
-    if (!holder) return null;
-    const destination = placeBox(where);
-    const seen = clippedPlace(where, new Map(), destination);
-    return seen && { holder, destination, seen };
-  }
-
-  // Whether travel to `where` would leave the page as it stands: the destination stands
-  // whole inside the band a landing aims for (`landingBand`) and nothing cuts it. Being
-  // in front of the user (`seenRect`) is not enough, since a destination half cut off or
-  // pressed against the window's head is one a landing still moves.
-  /** @param {Destination} where */
-  function readableDestination(where) {
-    const shown = seenOf(where);
-    if (!shown) return false;
-    const { holder, destination, seen } = shown;
-    const box = scrollingBoxFor(holder);
-    const band = box ? landingBand(box) : shownBox(pageScroller);
-    if (!band) return false;
-    /** @param {number} a @param {number} b */
-    const close = (a, b) => Math.abs(a - b) <= 0.5;
-    return (
-      destination.top >= band.top - 0.5 &&
-      destination.bottom <= band.bottom + 0.5 &&
-      close(seen.top, destination.top) &&
-      close(seen.right, destination.right) &&
-      close(seen.bottom, destination.bottom) &&
-      close(seen.left, destination.left)
-    );
-  }
-
   /** @param {Range} where @param {ScrollBehavior} [behavior] */
   function scrollToRange(where, behavior = scrollBehavior()) {
     const holder = placeHolder(where);
@@ -671,10 +548,7 @@ export function createAnchorTravel({
     const destination = threadDestination(id);
     // Decided before the navigation step awaits anything: a destination that is not readable now,
     // or one a widget has yet to hydrate, is somewhere else.
-    const landing = () => threadDestination(id);
-    const departure = history
-      ? prepareNavigationStep({ landing, intent: mayArrive })
-      : null;
+    const departure = history ? prepareNavigationStep() : null;
     if (destination || hydrationTarget) departure?.plan(destination);
     if (hydrationTarget) {
       const source = sectionOf(hydrationTarget.anchor);
@@ -692,7 +566,8 @@ export function createAnchorTravel({
     // paint is not, so reading the destination in this turn would find the page as the
     // press left it.
     // A route naming no part of the thread lands on the place it is about, where the
-    // page shows that place but no view of the thread (thread/destination.js, `page`).
+    // page shows that place but no view of the thread (thread/destination.js,
+    // `reader: "page"`).
     return arrive(
       () => {
         const where = threadDestination(id);
@@ -706,7 +581,7 @@ export function createAnchorTravel({
         /** @type {ScrollPlacement[]} */
         const scroll = [];
         if (target) scroll.push({ at: target, block: "nearest" });
-        scroll.push({ at: where, when: () => !readableDestination(where) });
+        scroll.push({ at: where, when: () => !alreadyShown(where) });
         return { where, focus: target, scroll };
       },
       {
@@ -729,7 +604,6 @@ export function createAnchorTravel({
     returnToFragment,
     navigateToDatum,
     scrollToElement,
-    readableDestination,
     scrollToRange,
     scrollToThread,
     threadDestination,

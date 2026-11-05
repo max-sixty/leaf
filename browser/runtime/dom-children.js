@@ -93,12 +93,16 @@ export function orderChildren(parent, nodes) {
 // Replace a renderer-owned subtree using the same matching and text edits as an
 // authored revision. The caller owns every descendant's attributes and contents;
 // controls with independent state belong outside it. Current nodes pair to themselves,
-// so unchanged text and native Ranges stay in place without a source mirror.
-/** @param {Node & ParentNode} parent @param {Iterable<Node>} nodes */
-export function setRenderedChildren(parent, nodes) {
+// so unchanged text and native Ranges stay in place without a source mirror. A caller
+// that drew its subtree whole before, as setting `innerHTML` does, passes `bounded`: a
+// list whose diff would cost more than `BOUNDED_DIFF_WORK` is then replaced, so an
+// edit rewriting every paragraph costs the list's length rather than its square.
+/** @param {Node & ParentNode} parent @param {Iterable<Node>} nodes @param {{bounded?: boolean}} [options] */
+export function setRenderedChildren(parent, nodes, { bounded = false } = {}) {
   const after = document.createDocumentFragment();
   after.append(...nodes);
   patchChildren(parent, parent, after, {
+    diffWork: bounded ? BOUNDED_DIFF_WORK : Infinity,
     pairs: selfPairs(parent),
     arrive: (node) => node,
     sameValue: (held, wanted) => held === wanted,
@@ -193,7 +197,7 @@ function staying(parent, nodes) {
    authored container is swept out as markup the source does not have.
 
    So both sides of the diff are source. `before` and `after` are the two revisions'
-   authored `main`, inert and untouched by anything: whatever they agree on, this does not
+   authored body, inert and untouched by anything: whatever they agree on, this does not
    touch. `pairs` carries the correspondence, from a source node to the live node standing
    for it — built by a lockstep walk at boot, when the page is still exactly its own
    source, and kept up by every patch since.
@@ -229,6 +233,10 @@ function staying(parent, nodes) {
      other than a controller has taken, or a widget owns.
    - `generated(node)`: the live node is the runtime's own. Only placement asks, because
      only placement walks live children; nothing here matches or removes on it.
+   - `diffWork`: the most one sibling diff may cost, its lists' length times the edits
+     between them, before it pairs nothing in that list and the patch replaces it. A
+     revision's is unbounded, since its nodes carry the user's state; so is a rendered
+     subtree's, unless its caller replaced it whole before (`setRenderedChildren`).
 
    Matching runs in three passes, narrowest first, and each pass only sees what the one
    before it left. An id is a name the author gave, so it wins outright. Then the siblings
@@ -239,7 +247,8 @@ function staying(parent, nodes) {
 /** @typedef {{pairs: SourcePairs, contains: (target: Node, owner: Node | null | undefined) => boolean,
  * declared: (element: Element) => boolean, body: (element: Element) => Element | null,
  * reaches: (before: Element, after: Element) => boolean,
- * same: (before: Element, after: Element) => boolean, sameValue: (before: string, after: string) => boolean}} RetentionRules */
+ * same: (before: Element, after: Element) => boolean, sameValue: (before: string, after: string) => boolean,
+ * diffWork: number}} RetentionRules */
 /** @typedef {RetentionRules & {arrive: (node: Node, parent: Node) => Node,
  * touched: (element: Element) => void, generated: (node: Node) => boolean}} PatchRules */
 /** @param {Element} before @param {Element} after @param {PatchRules} rules */
@@ -258,7 +267,7 @@ export function patchTree(before, after, rules) {
 export function patchRetains(before, after, target, rules) {
   if (!target?.isConnected) return false;
   // Runtime chrome is outside the authored patch. Ask source pairs, not DOM place:
-  // eviction also removes authored nodes a page module moved outside main.
+  // eviction also removes authored nodes a page module moved outside its original parent.
   if (!sourceOwns(before, target, rules)) return true;
   return retainedWithin(before, after, target, rules);
 }
@@ -291,7 +300,7 @@ function retainedWithin(before, after, target, rules) {
     return false;
   const children = [...tree(before).childNodes];
   const arriving = [...tree(after).childNodes];
-  const forward = matchNodes(children, arriving);
+  const forward = matchNodes(children, arriving, rules.diffWork);
   const matches = new SourcePairs();
   for (const wanted of arriving) {
     const held = forward.get(wanted);
@@ -335,21 +344,50 @@ function patchAttributes(live, before, after, rules) {
   for (const { name, value } of [...before.attributes]) {
     if (after.hasAttribute(name)) continue;
     if (name === "class") live.classList.remove(...tokens(value));
+    else if (name === "style") restyle(live, value, "");
     else live.removeAttribute(name);
     changed = true;
   }
   for (const { name, value } of after.attributes) {
     const held = before.getAttribute(name);
     if (held !== null && rules.sameValue(held, value)) continue;
-    // Classes are a set the page shares with the runtime, so only the author's own
-    // members move; every mark and state class beside them stays.
+    // Classes and inline declarations are sets the page shares with the runtime, so
+    // only the author's own members move; every mark, state class and property the
+    // runtime wrote beside them stays.
     if (name === "class") {
       live.classList.remove(...tokens(held ?? ""));
       live.classList.add(...tokens(value));
-    } else live.setAttribute(name, value);
+    } else if (name === "style") restyle(live, held ?? "", value);
+    else live.setAttribute(name, value);
     changed = true;
   }
   if (changed) rules.touched(live);
+}
+
+// The runtime and page scripts write properties of their own inline on authored
+// elements, `body`'s included (composing/aim.js, content-layout.js), so a revision
+// writes whatever the live element holds that neither the old text nor the new one
+// declares, then the author's new text, in one write. The carried part goes as
+// serialized text, since a shorthand written with `var()` reads back empty longhand by
+// longhand, so moving declarations by name drops it. The author's text comes last,
+// where it ends the attribute as it would alone: a `calc(` or quote it leaves open
+// still closes at the end, and its `margin-inline-start` beats a script's
+// `margin-left`, which the names alone don't match.
+/** @param {Element} live @param {string} held @param {string} next */
+function restyle(live, held, next) {
+  const parse = (/** @type {string} */ text) => {
+    const parsed = document.createElement("div").style;
+    parsed.cssText = text;
+    return parsed;
+  };
+  const names = (/** @type {CSSStyleDeclaration} */ declared) =>
+    Array.from({ length: declared.length }, (_, at) => declared.item(at));
+  const carried = parse(live.getAttribute("style") ?? "");
+  for (const property of [...names(parse(held)), ...names(parse(next))])
+    carried.removeProperty(property);
+  const text = [carried.cssText, next.trim()].filter(Boolean).join(" ");
+  if (text) live.setAttribute("style", text);
+  else live.removeAttribute("style");
 }
 
 // Source text, so any run of whitespace separates two classes.
@@ -412,7 +450,7 @@ function* sourceNodes(node) {
 function patchChildren(liveParent, beforeParent, afterParent, rules) {
   const held = [...beforeParent.childNodes];
   const wanted = [...afterParent.childNodes];
-  const matches = matchNodes(held, wanted);
+  const matches = matchNodes(held, wanted, rules.diffWork);
   const matched = new Set(wanted.map((node) => matches.get(node)));
   for (const node of held) {
     if (!matched.has(node)) evict(node, rules.pairs.require(node), rules);
@@ -502,8 +540,8 @@ const atomic = (before, after, live, rules) =>
     (node) => rules.pairs.get(node)?.parentNode !== holder(live, rules),
   );
 
-/** @param {readonly Node[]} held @param {readonly Node[]} wanted */
-function matchNodes(held, wanted) {
+/** @param {readonly Node[]} held @param {readonly Node[]} wanted @param {number} work */
+function matchNodes(held, wanted, work) {
   const matches = new SourcePairs();
   /** @type {Set<Node>} */
   const matched = new Set();
@@ -523,9 +561,17 @@ function matchNodes(held, wanted) {
     held.filter((node) => !matched.has(node)),
     wanted.filter((node) => !matches.has(node)),
     matches,
+    work,
   );
   return matches;
 }
+
+// A sibling diff costs the lists' length times the edits between them: an edit that
+// rewrote every paragraph cost the square of the list's length.
+const BOUNDED_DIFF_WORK = 2 ** 18;
+/** @param {readonly unknown[]} held @param {readonly unknown[]} wanted @param {number} work */
+const editBudget = (held, wanted, work) =>
+  Math.max(1, Math.floor(work / (held.length + wanted.length + 1)));
 
 /** jsdiff's unchanged runs pair these two source positions.
  * @param {readonly Node[]} nodes @param {number} index */
@@ -549,8 +595,8 @@ const signature = (node) => {
   return `1:${node.localName}#${node.id}:${words.replace(COLLAPSE, " ").trim()}`;
 };
 
-/** @param {readonly Node[]} held @param {readonly Node[]} wanted @param {SourcePairs} matches */
-function alignRest(held, wanted, matches) {
+/** @param {readonly Node[]} held @param {readonly Node[]} wanted @param {SourcePairs} matches @param {number} work */
+function alignRest(held, wanted, matches, work) {
   let heldAt = 0;
   let wantedAt = 0;
   /** @type {Node[]} */
@@ -558,11 +604,14 @@ function alignRest(held, wanted, matches) {
   /** @type {Node[]} */
   let gapWanted = [];
   const closeGap = () => {
-    pairInGap(gapHeld, gapWanted, matches);
+    pairInGap(gapHeld, gapWanted, matches, work);
     gapHeld = [];
     gapWanted = [];
   };
-  for (const run of diffArrays(held.map(signature), wanted.map(signature))) {
+  const runs = diffArrays(held.map(signature), wanted.map(signature), {
+    maxEditLength: editBudget(held, wanted, work),
+  });
+  for (const run of runs ?? []) {
     const count = run.value.length;
     if (run.added) gapWanted.push(...wanted.slice(wantedAt, (wantedAt += count)));
     else if (run.removed) gapHeld.push(...held.slice(heldAt, (heldAt += count)));
@@ -590,11 +639,15 @@ function alignRest(held, wanted, matches) {
 // that name being given or taken away, which is a thing to do to an element. A key can
 // state the first or the second and not both — `p#a` would have to equal `p` while `p#a`
 // differs from `p#b` — so the rule travels as the comparator it is.
-/** @param {Node[]} held @param {Node[]} wanted @param {SourcePairs} matches */
-function pairInGap(held, wanted, matches) {
+/** @param {Node[]} held @param {Node[]} wanted @param {SourcePairs} matches @param {number} work */
+function pairInGap(held, wanted, matches, work) {
   let heldAt = 0;
   let wantedAt = 0;
-  for (const run of diffArrays(held, wanted, { comparator: interchangeable })) {
+  const runs = diffArrays(held, wanted, {
+    comparator: interchangeable,
+    maxEditLength: editBudget(held, wanted, work),
+  });
+  for (const run of runs ?? []) {
     const count = run.value.length;
     if (run.added) wantedAt += count;
     else if (run.removed) heldAt += count;

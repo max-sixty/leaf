@@ -10,9 +10,10 @@ second decision reader or repeated render/quality grader for every revision.
 
 Each phase retains its primary output, initialized pages and served addresses.
 The judge restores known page links in disposable copies; archived bytes stay exact.
-Reports capture those pages and retain native timing/token accounting. Optional eval-pairs
-judges compare saved samples without rerunning their authors. The run centrally
-selects its viewports, defaulting to one fullscreen desktop for every case.
+Reports capture those pages and retain native timing/token accounting.
+`eval --from --judge pair` compares saved samples without rerunning their authors.
+The run centrally selects its viewports, defaulting to one fullscreen desktop for
+every case.
 """
 
 import json
@@ -38,7 +39,7 @@ from leaf.service import requires_agent_attention
 from leaf.structure import source_index
 from leaf.thread import successful_replies
 from leaf.user_views import read_user_views
-from leaf_dev import ROOT, arrangement_plain, pane_readings
+from leaf_dev import ROOT, pane_readings, plain_html
 from leaf_dev.arms import (
     JUDGE_MODELS,
     TURN_LIMIT,
@@ -46,6 +47,7 @@ from leaf_dev.arms import (
     LiveSession,
     author_failure,
     environment,
+    live_copies,
     now,
     observed_sum,
     pages,
@@ -55,17 +57,19 @@ from leaf_dev.arms import (
     run_agent,
     run_leaf,
     scratch,
-    serving,
     trace_result,
     trace_summary,
 )
-from leaf_dev.browser import headless_shell, load, shell_executable, tab
-from leaf_dev.eval_cases import (
-    DEFAULT_VIEWPORTS,
-    VIEWPORTS,
-    definition,
-    selected_viewports,
+from leaf_dev.browser import (
+    WINDOWS,
+    Window,
+    headless_shell,
+    load,
+    screenshot,
+    shell_executable,
+    tab,
 )
+from leaf_dev.eval_cases import DEFAULT_VIEWPORTS, definition, selected_viewports
 from leaf_dev.eval_user import (
     CLIPBOARD_PERMISSIONS,
     COMMAND_LIMIT,
@@ -143,6 +147,12 @@ CASES = {
 }
 
 
+def is_leaf(condition: str) -> bool:
+    """Whether the author in `condition` writes a Leaf page; in `html` it writes plain
+    HTML."""
+    return condition == "leaf"
+
+
 @dataclass(frozen=True)
 class Run:
     subject: str
@@ -154,12 +164,20 @@ class Run:
     viewports: tuple[str, ...] = DEFAULT_VIEWPORTS
 
     @property
-    def widths(self) -> dict:
+    def windows(self) -> dict[str, Window]:
         return selected_viewports(self.viewports)
 
     @property
+    def journey_window(self) -> Window:
+        """The one window the user opens the page in, comments from and decides in,
+        as one person would: the first selected window's size, under a mouse. The
+        scripted comment selects with mouse events, and a coarse pointer changes how
+        the composer keeps a selection (`composing/surface.js`)."""
+        return Window(self.windows[self.viewports[0]].size)
+
+    @property
     def leaf_condition(self) -> bool:
-        return self.condition == "leaf"
+        return is_leaf(self.condition)
 
     @property
     def work(self) -> Path:
@@ -217,7 +235,9 @@ def first_prompt(payload: Path, page: Path, subject: str, condition="leaf") -> s
 def preference(viewports: tuple[str, ...]) -> str:
     """The same run-level work environment reaches the author and its judges."""
     return PREFERENCE.format(
-        windows="; ".join(label for _, label in selected_viewports(viewports).values())
+        windows="; ".join(
+            window.description for window in selected_viewports(viewports).values()
+        )
     )
 
 
@@ -320,49 +340,38 @@ def restored_page(saved: dict):
     """
     original = Path(saved["page"])
     manifest = original.with_name(f"{original.name}-pages.json")
-    archived = (
+    archived: list[dict] = (
         json.loads(manifest.read_text())
         if manifest.exists()
         else [{"page": original.name, "url": None}]
     )
-    with (
-        tempfile.TemporaryDirectory(prefix="leaf-judge-") as temporary,
-        ExitStack() as stack,
-    ):
-        work = Path(temporary)
-        copies = {}
-        addresses = {}
-        for entry in archived:
-            assert isinstance(entry["page"], str)
-            source = original.parent / entry["page"]
-            copied = work / entry["page"]
-            shutil.copytree(source, copied)
-            url = stack.enter_context(
-                arrangement_plain.serving(copied)
-                if saved["condition"] == "html"
-                else serving(Path(saved["payload"]), work / "state", copied)
-            )
-            copies[source] = (copied, url)
-            if entry["url"]:
-                addresses[entry["url"]] = url
-        for copied, _ in copies.values():
-            document = copied / "index.html"
+    leaf = is_leaf(saved["condition"])
+    with live_copies(
+        [original.parent / entry["page"] for entry in archived],
+        Path(saved["payload"]),
+        plain=not leaf,
+    ) as copies:
+        addresses = {
+            entry["url"]: copy.address
+            for entry, copy in zip(archived, copies, strict=True)
+            if entry["url"]
+        }
+        for copy in copies:
+            document = copy.directory / "index.html"
             source = document.read_text()
             restored = rebase_page_links(source, addresses)
             if restored != source:
                 document.write_text(restored)
-                if saved["condition"] == "leaf":
-                    state = read_page_state(
-                        Path(saved["payload"]), work / "state", copied
-                    )
+                if leaf:
+                    state = read_page_state(copy.arm, copy.state, copy.directory)
                     if not state["source"]["live"]:
                         raise RuntimeError(state["source"]["error"])
-        yield copies[original][1], addresses
+        [served] = [copy for copy in copies if copy.directory.name == original.name]
+        yield served.address, addresses
 
 
 def latest_seq(page: Path) -> int:
-    events = read_events(page) if (page / "events.jsonl").exists() else []
-    return max((e["seq"] for e in events), default=0)
+    return max((e["seq"] for e in read_events(page)), default=0)
 
 
 def open_as_user(run: Run, url: str) -> None:
@@ -376,8 +385,7 @@ def open_as_user(run: Run, url: str) -> None:
     while the user's stated window was 1600×1000: authors hunted for a way to
     change it, setting `LEAF_RENDER_VIEWPORT=1600x1000` and grepping Leaf's source,
     in 8 of 12 width revisions on 2026-10-24."""
-    viewport = next(iter(run.widths.values()))[0]
-    with headless_shell() as browser, tab(browser, viewport=viewport) as view:
+    with headless_shell() as browser, tab(browser, run.journey_window) as view:
         load(view, url)
         deadline = time.monotonic() + 20
         while not read_user_views(run.authored_page, None)["sessions"]:
@@ -475,7 +483,7 @@ def comment(run: Run, live: LiveSession):
             remark.text,
             comment_message(remark),
             scenario.reveal,
-            viewport=next(iter(run.widths.values()))[0],
+            window=run.journey_window,
         )
     )
     live.note({"type": "eval_post", **posted, "received_at": now()})
@@ -514,16 +522,19 @@ def decision_round(run: Run, live: LiveSession) -> None:
     page = run.authored_page
     before = latest_seq(page)
 
-    viewport = next(iter(run.widths.values()))[0]
-
     def deciding():
         if run.leaf_condition:
             assert live.url is not None
             return decide(
-                live.url, decision.task, run.directory / "user", viewport=viewport
+                live.url,
+                decision.task,
+                run.directory / "user",
+                window=run.journey_window,
             )
-        with arrangement_plain.serving(page) as url:
-            return decide(url, decision.task, run.directory / "user", viewport=viewport)
+        with plain_html.serving(page) as url:
+            return decide(
+                url, decision.task, run.directory / "user", window=run.journey_window
+            )
 
     made = live.during(deciding)
     # What the page sent the agent: the user's inputs admission marked as owing it
@@ -561,32 +572,24 @@ def capture_phase(run: Run, phase: int, page: Path | None = None) -> dict:
     A capture failure leaves completed images intact and names every unavailable
     viewport. It never discards the saved page, native trace or author checks.
     """
-    captures = {name: [] for name in run.widths}
+    captures = {name: [] for name in run.windows}
     result = {"captures": captures, "capture_errors": {}}
     page = page or run.page(phase)
     if page is None:
         return result
-    html = run.condition == "html"
+    html = not run.leaf_condition
     try:
         run.shots.mkdir(parents=True, exist_ok=True)
         with headless_shell() as browser:
-            for name, (viewport, _) in run.widths.items():
-                with tempfile.TemporaryDirectory(prefix="leaf-capture-") as temporary:
-                    copied = Path(temporary) / "page"
-                    shutil.copytree(page, copied)
-                    server = (
-                        arrangement_plain.serving(copied)
-                        if html
-                        else serving(run.payload, Path(temporary) / "state", copied)
-                    )
-                    with (
-                        server as url,
-                        tab(browser, viewport=viewport, touch=name == "phone") as view,
-                    ):
-                        (arrangement_plain.load if html else load)(view, url)
-                        image = run.shots / f"p{phase}-{name}-0.png"
-                        view.screenshot(path=image)
-                        captures[name] = [str(image)]
+            for name, window in run.windows.items():
+                with (
+                    live_copies([page], run.payload, plain=html) as [served],
+                    tab(browser, window) as view,
+                ):
+                    (plain_html.load if html else load)(view, served.address)
+                    image = run.shots / f"p{phase}-{name}-0.png"
+                    image.write_bytes(screenshot(view))
+                    captures[name] = [str(image)]
     except Exception as error:
         result["capture_errors"] = {
             name: f"{type(error).__name__}: {error}"
@@ -691,7 +694,7 @@ def judge_pages(
                     label: pane_readings.read(address, widths)
                     for label, address in addresses.items()
                 }
-                if all(page["condition"] == "leaf" for page in pages.values())
+                if all(is_leaf(page["condition"]) for page in pages.values())
                 else {}
             )
             (evidence / "panes.json").write_text(json.dumps(panes, indent=2))
@@ -703,10 +706,11 @@ def judge_pages(
                 if any(label.endswith("before_revision") for label in pages)
                 else ""
             )
+            mobile = " and ".join(name for name, each in WINDOWS.items() if each.touch)
             instructions = f"""Judge the live pages below against the task and criterion.
 Use this browser CLI: {shlex.join(command)}
 Open your own headless Chromium with -s=<session> open <URL> --config {browser_config}.
-Use --mobile for phone and resize W H for each required viewport. Choose your own
+Use --mobile for {mobile} and resize W H for each required viewport. Choose your own
 tabs, navigation, actions and screenshots. Use one browser session
 at a time and close it before opening another. Evaluate the page without editing
 its source; do not consult expected verdicts or control answers.
@@ -857,7 +861,7 @@ def listing(captures: dict[str, list[str]]) -> list[str]:
     """Report screenshot paths by viewport for static reader evals."""
     lines = []
     for name, paths in captures.items():
-        _, label = VIEWPORTS[name]
+        label = WINDOWS[name].description
         lines.append(f"  On {label}, top to bottom:")
         lines += [f"    {path}" for path in paths]
     return lines
@@ -940,8 +944,8 @@ def comparison_inputs(
         "phases": versions,
         "author_phases": list(order),
         "widths": {
-            name: list(viewport)
-            for name, (viewport, _) in selected_viewports(viewports).items()
+            name: list(window.size)
+            for name, window in selected_viewports(viewports).items()
         },
     }
 

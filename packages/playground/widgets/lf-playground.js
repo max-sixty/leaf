@@ -71,7 +71,6 @@ import {
   onCurrentLocation,
   onPress,
   isNativeLayer,
-  keeps,
   LeafElement,
   render,
   registerReadingRegion,
@@ -234,16 +233,16 @@ customElements.define(
         const stops = this.#regions.map((region) => registerReadingRegion(region));
         stops.push(onPress((start) => this.#holdRangePreview(start, signal)));
         // The narrow layout places shared controls above the stage. Their actual
-        // height is also the landing inset for its content and any sticky toolbar.
+        // height is also the landing inset for its content and any sticky toolbar. A
+        // quoted playground draws only its authored markup, with neither.
         const controls = this.#regions.find((region) => region.name === "controls");
         /** @type {HTMLElement | null} */
         const split = this.querySelector(":scope > .lf-playground-split");
-        if (!split) throw new Error("The playground needs its rendered split view");
         const observer = sizeObserver((entries) => {
           for (const entry of entries) {
             const box = entry.borderBoxSize[0];
             if (!box) continue;
-            split.style.setProperty(
+            split?.style.setProperty(
               "--playground-controls-height",
               `${box.blockSize}px`,
             );
@@ -383,7 +382,7 @@ customElements.define(
           if (!choice || choice.closest("lf-playground") !== this) return;
           if (reachedForWords(choice) || worksInside(target, choice)) return;
           /** @type {HTMLInputElement | null} */
-          const radio = choice.querySelector(":scope > .choice > input");
+          const radio = choice.querySelector(":scope > .lf-choice > input");
           if (!radio) throw new Error("A playground choice needs its rendered radio");
           focusDestination(radio, "press");
           radio.click();
@@ -408,7 +407,7 @@ customElements.define(
             });
             this.#draw();
           });
-        const { reveal, instruction } = initial;
+        const { instruction } = initial;
         // Leaf's copy control in the popover's head. A code block's (`copyBlock`) hides
         // while its block is away and came back a frame or more after the popover
         // opened, after a Tab had passed it by. A page that draws its own actions
@@ -428,14 +427,7 @@ customElements.define(
             { capture: true },
           );
           initial.copy = copy;
-          instruction.addEventListener("toggle", (event) => {
-            keeps(
-              reveal,
-              "aria-expanded",
-              event instanceof ToggleEvent && event.newState === "open",
-            );
-            commandsChanged(this);
-          });
+          instruction.addEventListener("toggle", () => commandsChanged(this));
         }
         this.addEventListener("mousedown", (event) => {
           const target = event.target;

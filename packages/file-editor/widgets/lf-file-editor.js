@@ -293,7 +293,7 @@ customElements.define(
         const retryable = Boolean(failure) && !latest && api.writable;
         return html`
           <div class="lf-file-editor-head">
-            <span class="lf-file-editor-name scroll">${label}</span>
+            <span class="lf-file-editor-name" data-lf-scroll>${label}</span>
             <span
               ${offered("lf-file-editor-status")}
               title=${failure?.message ?? nothing}
@@ -323,6 +323,7 @@ customElements.define(
                 aria-description=${failure?.message ?? nothing}
                 popovertarget="lf-file-editor-choices"
                 aria-haspopup="menu"
+                aria-expanded="false"
               >
                 ${failure ? "Not saved" : "Changed on disk"}${iconTemplate(
                   "down",
@@ -332,7 +333,7 @@ customElements.define(
             >
           </div>
           <div
-            ${offered("lf-file-editor-choices")}
+            ${offered("lf-file-editor-choices lf-popover")}
             id="lf-file-editor-choices"
             popover="auto"
             role="menu"

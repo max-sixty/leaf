@@ -1,12 +1,10 @@
-/* Mechanical presentation and arrival for the obligations placed on the page: widgets'
-   and to-dos on the user (obligations/place.js).
+/* Mechanical presentation and arrival for the obligations placed on the page, widgets'
+   (obligations/place.js).
 
    The application publisher owns the complete obligation inventory, typed answers,
    completion and attention. This view selects widget sources and resolves their
    current nodes for focus, geometry, contextual commands and blanket actions. Questions
-   answered in words navigate through their thread owner instead. A to-do has a place
-   and no source, so it takes the ring and the arrival and has no commands or choices:
-   its Done is the queue walk's (queue-walk.js).
+   answered in words navigate through their thread owner instead.
 
    An obligation keeps its source identity. Its prompt.target names where the user arrives:
    the enclosing widget (an lf-ask or another declaring `x-encloses`), otherwise
@@ -32,6 +30,7 @@
    method. They preserve one admitted action per widget rather than recording a second
    page-wide answer. */
 
+import { capitalized } from "../words.js";
 import { landingRoom } from "../landing-scroll.js";
 import { landingBand, shownBox, shownParts } from "../geometry.js";
 import { PAGE_CONTROL_RANK, registerPageControl } from "../page-controls.js";
@@ -39,6 +38,7 @@ import { decisionControls, nativePress } from "../keyboard/bindings.js";
 import { closestAcross, elementById, inChrome, showsWords } from "../passages.js";
 import { TEXT_BLOCK } from "../kernel-facts.js";
 import { scrollerFor } from "../reading-regions.js";
+import { scrollGoal } from "../scrolling.js";
 import { keeps } from "../keeps.js";
 import { decisionFor, registry, tagsDeclaring } from "../registry.js";
 import { hasObligationSource } from "./source.js";
@@ -55,12 +55,12 @@ import { paintLocation } from "../target-paint.js";
 import { scrollBehavior } from "../motion.js";
 import { OBLIGATION_CONTROL } from "./view-elements.js";
 import { obligationWord, ownedObligationControl } from "./answer.js";
-import { obligationHolding, placeOf } from "../current-target.js";
+import { obligationAt, placeOf } from "../current-target.js";
 import { PRESENTATION } from "../presentation.js";
 import { retainUserIntent } from "../user-intent.js";
 import { bindQueuedWork } from "../queued-work.js";
 import { applicationPresenter, PRESENTATION_DOM } from "../semantic-state.js";
-import { hostIn, under, upFrom } from "../shadow.js";
+import { hostIn, renderedOrder, under, upFrom } from "../shadow.js";
 import { showHeld } from "../thread/held-news.js";
 import { obligationPlace } from "./place.js";
 import { partOver } from "../thread/placement.js";
@@ -89,7 +89,7 @@ export function createObligationView({
   const obligationNode = (item) => obligationPlace(item).node;
   /** @param {Obligation | null} item */
   const sourceNode = (item) => obligationPlace(item).source;
-  // The widget whose commands answer an obligation; a to-do has none.
+  // The widget whose commands answer an obligation.
   /** @param {Obligation | null} item */
   const sourceOwner = (item) =>
     item?.source.kind === "widget" ? elementById(item.source.id) : null;
@@ -208,7 +208,7 @@ export function createObligationView({
     for (const tag of tagsDeclaring((entry) => entry["x-awaits"]?.all)) {
       const outcome = registry[tag]["x-awaits"].all;
       if (bulkAnswers.has(outcome)) continue;
-      const label = outcome[0].toUpperCase() + outcome.slice(1);
+      const label = capitalized(outcome);
       bulkAnswers.set(outcome, label);
       const waiting = () =>
         readObligations().user.filter((item) => obligationEntry(item)?.all === outcome)
@@ -244,12 +244,6 @@ export function createObligationView({
     reviewedThrough = null;
     return false;
   }
-  // Resolve a current location back to one record from the publisher-owned
-  // inventory: the source or unambiguous context holding where `node` stands
-  // (current-target.js). DOM containment says where focus is; it never decides whether
-  // the obligation belongs to that inventory.
-  /** @param {readonly Obligation[]} items @param {Element} node */
-  const obligationAt = (items, node) => obligationHolding(items, placeOf(node));
   // The obligation the user is in: the one holding the focus, or the one a control
   // hoisted into the margin decides, or the one a thread about it holds the focus for.
   //
@@ -265,7 +259,7 @@ export function createObligationView({
   // the same numeric action route so they can revise the recorded answer.
   function currentLocationObligation(held = focused()) {
     if (!held || held === document.body) return null;
-    const record = obligationAt(readObligations().all, held);
+    const record = obligationAt(held);
     if (!record) return null;
     if (readObligations().unanswered.some((item) => item.id === record.id))
       return record;
@@ -326,28 +320,19 @@ export function createObligationView({
         }),
     );
   }
-  // The widget obligation whose commands answer where `node` stands. A to-do has no
-  // commands, so one standing inside a question, or on it, leaves its digits live.
-  /** @param {Element | null} node */
-  const answerableAt = (node) => {
-    const all = readObligations().all;
-    return obligationHolding(
-      all.filter((item) => item.source.kind === "widget"),
-      placeOf(node),
-      all,
-    );
-  };
+  // The commands that answer where `origin` stands: the obligation there, which is a
+  // widget's, since only a widget's obligation has a place (`obligationPlace`).
   /** @param {Element | null} origin */
   function obligationContext(origin) {
     if (!origin) return null;
-    const record = answerableAt(placeOf(hostIn(origin, document)));
+    const record = obligationAt(placeOf(hostIn(origin, document)));
     let root = null;
     // Keep the projection outside any nearer widget scope, but inside the
     // keyboard boundary of a thread. Native input claims precede context scopes.
     /** @type {Element | null} */
     let node = origin;
     for (; record && node; node = upFrom(node)) {
-      if (answerableAt(node)?.id !== record.id) break;
+      if (obligationAt(node)?.id !== record.id) break;
       root = node;
       if (node.hasAttribute("data-lf-thread-surface")) break;
     }
@@ -527,34 +512,20 @@ export function createObligationView({
     // entirely — a worse answer than the one this misses. The heading is read off the
     // page's outline, which composes that order (`partOver`). The crossing worth having is
     // on the two questions asked of each block: `under` for the container, and
-    // the host climb below for the order, which together let an obligation staged inside a
+    // `renderedOrder` for the order, which together let an obligation staged inside a
     // shadow tree take the heading standing over its host.
     //
     // `showsWords` goes with `inChrome`: a block behind a shut disclosure keeps its
     // boxes, so it would otherwise measure like one the user can see.
-    //
-    // Order is asked of the obligation as the block's own tree sees it, which for an
-    // obligation staged in a shadow tree is its host and not the obligation. Two nodes in
-    // different roots are DISCONNECTED, and the direction bit that comes with it is
-    // arbitrary-but-consistent rather than positional: Chrome answers PRECEDING for every
-    // block in the document, whichever side of the host it stands. Asked straight, the
-    // filter therefore kept the blocks after such an obligation too, and a block after it
-    // won — the wrong-question arrival this bound exists to remove, in the one shape the
-    // crossing above was written to serve.
-    /** @param {Element} block */
-    const seenBy = (block) => hostIn(item, block.getRootNode());
-    const before = [...document.querySelectorAll(TEXT_BLOCK)].filter((block) => {
-      const from = seenBy(block);
-      return (
-        from &&
+    const before = [...document.querySelectorAll(TEXT_BLOCK)].filter(
+      (block) =>
         !inChrome(block) &&
         showsWords(block) &&
         !under(item, block) &&
         block.parentElement &&
         under(item, block.parentElement) &&
-        from.compareDocumentPosition(block) & Node.DOCUMENT_POSITION_PRECEDING
-      );
-    });
+        renderedOrder(block, item) < 0,
+    );
     return (
       [
         declared ? context : null,
@@ -573,7 +544,8 @@ export function createObligationView({
   // board's own scroller, or reaching under the floating panel, is not in front of the
   // user for having a box inside the window. This adds the one thing that reading
   // cannot know: the arrival is the region's start, so the start has to be standing
-  // clear of the window's head too.
+  // clear of the window's head too, read like the obligation where the motion of its box
+  // will leave it (`scrollGoal`).
   /** @param {Obligation} record @param {Element} region @param {Element} item
    * @param {Element} box @param {(node: Element) => boolean} readable */
   function framed(record, region, item, box, readable) {
@@ -581,7 +553,7 @@ export function createObligationView({
     return (
       !!band &&
       readable(item) &&
-      shownBox(region).top >= band.top &&
+      shownBox(region).top - (scrollGoal(box) - box.scrollTop) >= band.top &&
       actionsOf(record).every(({ control }) =>
         readable(presentedActionControl(control)),
       )
@@ -637,19 +609,16 @@ export function createObligationView({
     // rather than a second one asked here.
     const destination = () => {
       const { node: target, source, context } = obligationPlace(next);
-      // A widget is arrived at once its source is drawn; a to-do has none.
-      if (!target || (!source && next.source.kind === "widget")) return null;
+      // A widget is arrived at once its source is drawn.
+      if (!target || !source) return null;
       const box = inChrome(target) ? null : scrollerFor(target);
       return box
-        ? { target, box, region: arrivalRegion(source ?? target, context, target) }
+        ? { target, box, region: arrivalRegion(source, context, target) }
         : { target, box: null, region: null };
     };
     const initial = destination();
     if (!initial) return false;
-    const departure = prepareNavigationStep({
-      landing: () => obligationNode(next),
-      intent: mayArrive,
-    });
+    const departure = prepareNavigationStep();
     const { box: initialBox, region: initialRegion } = initial;
     const moving = Boolean(
       initialBox &&
@@ -691,12 +660,11 @@ export function createObligationView({
     return arrived;
   }
 
-  // A widget's obligation, which its thread draws first where it stands in one, and a
-  // to-do placed on the page outside any thread; the rest are their thread owner's.
+  // A widget's obligation, which its thread draws first where it stands in one; the
+  // rest are their thread owner's.
   /** @param {AnswerableObligation} next */
   function arriveAtRecord(next) {
-    const placed = next.thread === null && Boolean(obligationNode(next));
-    if (next.source.kind !== "widget" && !placed) return Promise.resolve(false);
+    if (next.source.kind !== "widget") return Promise.resolve(false);
     const ready = arriveAtRecordNow(next);
     void ready.catch(() => {});
     return ready;

@@ -193,14 +193,6 @@
           "author": "agent",
           "text": "Which environment should I use for the rehearsal?",
           "obligation": true
-        },
-        {
-          "id": "bg-message-task",
-          "kind": "todo",
-          "author": "agent",
-          "owner": "user",
-          "subject": { "kind": "thread", "id": "bg-message-request" },
-          "title": "Try the rehearsal build on your phone"
         }
       ]
     </script>
@@ -449,8 +441,9 @@
               An <code>lf-ask</code> puts a heading and context around the choice below.
               <strong>On me</strong> lists everything waiting on you: open obligations,
               a question in a thread among them (such as the gallery thread about a
-              pasted image), to-dos the agent put on you, and updates whose reply failed
-              and need sending again.
+              pasted image), and updates whose reply failed and need sending again. Each
+              is answered where it asks: a widget's own controls, or a reply in its
+              thread.
             </p>
             <ul id="bg-core-surfaces-steps">
               <li>
@@ -504,25 +497,6 @@
               </button>
               <pre id="bg-question-reading" hidden></pre>
             </details>
-            <section id="bg-task-on-you" class="layout-flow">
-              <h3>A to-do on you</h3>
-              <p>
-                The agent put a to-do on you about this section with
-                <code>leaf task create … --on user</code>: check that the trail map
-                marks the shelter. Nothing on the page answers it, so it ends only when
-                you press Done.
-              </p>
-              <ul>
-                <li>
-                  Open On me: the to-do waits there, and its row has a Done button.
-                </li>
-                <li>
-                  Press <kbd>m</kbd> until it lands on the to-do, after the obligation
-                  above, then press <kbd>x</kbd>, or its row's <strong>Done</strong> in
-                  On me: the to-do moves under On me's Done, and the agent is told.
-                </li>
-              </ul>
-            </section>
             <section id="bg-widget-shortcut-hints" class="layout-flow">
               <h3>Inline hints outside a question</h3>
               <p>
@@ -1339,8 +1313,8 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                   included.
                 </li>
                 <li>
-                  Start a conversation and mark the proofreading to-do Done: the
-                  package's lists and Leaf's On view show the same outcomes.
+                  Once you answer the channel question, compare the package's lists with
+                  Leaf's On view: both show the same outcome.
                 </li>
                 <li>
                   Use first-unread and question navigation: each lands in this reader.
@@ -1367,14 +1341,6 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                     "author": "agent",
                     "parent": "api-opening",
                     "text": "The draft now has one paragraph."
-                  },
-                  {
-                    "id": "api-proofread",
-                    "kind": "todo",
-                    "author": "agent",
-                    "owner": "user",
-                    "subject": { "kind": "page" },
-                    "title": "Proofread the announcement"
                   }
                 ]
               </script>
@@ -1467,13 +1433,13 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
             <section id="bg-message-obligations" class="layout-flow">
               <h3>A message waiting on me</h3>
               <p>
-                Open Full view, then On me, and reply to the environment question. The
-                question leaves On me; the phone test stays until you press Done. Both
-                entries open the same page thread. Reset restores the question and task.
+                Open Full view, then On me, and reply to the environment question: the
+                question leaves On me. Its entry opens the page thread. Reset restores
+                the question.
               </p>
               <lf-sample
                 id="bg-message-obligation-sample"
-                label="Message and task obligations"
+                label="Message obligation"
                 window
               >
                 <template
@@ -1483,8 +1449,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 >
                   <h1>Rehearsal handoff</h1>
                   <p>
-                    The build is ready. The page thread holds the environment question
-                    and the phone test.
+                    The build is ready. The page thread holds the environment question.
                   </p>
                 </template>
               </lf-sample>
@@ -1793,12 +1758,16 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
           <section id="bg-since-seen" class="layout-flow">
             <h2><strong>Changes in place</strong></h2>
             <p id="bg-since-seen-guide">
-              Open Versions in the leaf's menu and press Compare beside an earlier
-              version. Each block changed since then has a green bar beside it and a
-              Change entry; <kbd>h</kbd> and <kbd>Shift</kbd>+<kbd>h</kbd> step through
-              them, and <kbd>o</kbd> hides them with the other annotations. A revision
-              that lands while you watch flashes. While the agent is On it for a
-              comment, an accent bar stands beside the comment's block until it answers.
+              Coming back after the agent has revised the page, a notice says how much
+              changed since the version you last saw. Press <kbd>v</kbd> to mark those
+              changes, or what changed since the latest version when you've seen them
+              all, or open Versions (<kbd>g</kbd> <kbd>V</kbd>) and press Compare beside
+              an earlier one. Each block changed since then has a green bar beside it
+              and a Change entry; <kbd>h</kbd> and <kbd>Shift</kbd>+<kbd>h</kbd> step
+              through them, <kbd>o</kbd> hides them with the other annotations, and
+              <kbd>v</kbd> again takes them off. A revision that lands while you watch
+              flashes. While the agent is On it for a comment, an accent bar stands
+              beside the comment's block until it answers.
             </p>
           </section>
 
@@ -3122,7 +3091,8 @@ gallery/
                 either image in Pair at 100% moves both to the same location. In Slider,
                 a fully hidden image's label loses its shading. Outline preserves the
                 image's colors inside each border. The controls stay in place across
-                views and scales. Tab reaches each control.
+                views and scales. Tab reaches the chosen view and each other control,
+                and the arrow keys choose the next view.
               </p>
               <lf-shot
                 id="bg-shot"

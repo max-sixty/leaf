@@ -17,7 +17,6 @@ from render_cases_widgets import (
     visual_widgets,
 )
 from render_harness import (
-    EXAMPLES,
     LONG_PAGE,
     consume_browser_errors,
     expect_obligations_answered,
@@ -43,6 +42,7 @@ from browser.threads import open_panel_thread
 from leaf import event_log as events_model
 from leaf.render_checks import wait_until_ready
 from leaf.render_gate.page_code import run_page_code
+from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -175,7 +175,9 @@ def test_authored_page_paints_but_durable_controls_wait_for_first_replay(
     expect(choice).to_be_visible()
     choice.dispatch_event("click")
     expect(page.locator("#startup-a")).not_to_have_attribute("chosen", "")
-    suggestion_accept = page.locator("[data-lf-margin-for='sug'] .lf-sug-accept")
+    suggestion_accept = page.locator(
+        "[data-lf-margin-for='sug'] [data-lf-margin-entry-key=accept]"
+    )
     expect(suggestion_accept).to_be_disabled()
     assert suggestion_accept.evaluate(
         """button => lfUnwatched(() => {
@@ -248,7 +250,7 @@ def test_authored_page_paints_but_durable_controls_wait_for_first_replay(
 
 def test_playground_joins_initial_widget_settlement(browser, serve):
     """An optional package paints locally while its durable action still waits."""
-    source = next(path for path in EXAMPLES if path.stem == "notification-playground")
+    source = named_source("notification-playground")
     url = serve(source)
     held = []
     page = browser.new_page(viewport={"width": 1440, "height": 900})
@@ -526,7 +528,7 @@ def test_a_malformed_first_state_keeps_interaction_unresolved(browser, serve):
         expect(page.locator("#sug lf-old")).to_be_visible()
         # Versions is out of reach until state applies.
         expect(
-            panel_menu(page).locator('.lf-fp-item[data-row="versions"]')
+            panel_menu(page).locator('.lf-fp-item[data-lf-row="versions"]')
         ).to_be_disabled()
         # No producer below the feed saw the body, so the feed's report is the one
         # that reaches the agent.
@@ -719,7 +721,9 @@ def test_unavailable_optional_user_view_checks_create_no_agent_work(browser, ser
         page.goto(serve(SUGGESTION_PAGE), wait_until="load")
     wait_until_ready(page)
     with sending(page, "the suggestion decision"):
-        page.locator("[data-lf-margin-for='sug-refill'] .lf-sug-accept").click()
+        page.locator(
+            "[data-lf-margin-for='sug-refill'] [data-lf-margin-entry-key=accept]"
+        ).click()
     expect(page.locator("#sug-refill")).to_have_attribute("data-lf-state", "accept")
     assert not [
         event

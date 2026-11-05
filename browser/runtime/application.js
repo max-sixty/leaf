@@ -34,10 +34,11 @@ import { createInlineContributions } from "./inline-contributions.js";
 import { presentingContributions, watchContributions } from "./contributions.js";
 import { createThreadDestinations } from "./thread/destination.js";
 import { createThreadActions } from "./thread/actions.js";
-import { createQueueActions, queueItemKey } from "./queue-api.js";
+import { createQueueActions } from "./queue-api.js";
 import { createPrimaryReader } from "./thread/primary-reader.js";
 import { nextRender } from "./rendering.js";
 import { createReadTracking } from "./thread/read.js";
+import { createSinceSeen } from "./since-seen.js";
 import { createMarginBars } from "./margin-bars.js";
 import { renderMarginThread } from "./thread/inline.js";
 import { showHeld } from "./thread/held-news.js";
@@ -248,6 +249,13 @@ function createApplication(dependencies) {
       applicationState.settleMarkRead(messages);
     }
   };
+  // The revision a visible tab showed, sent as the user leaves; the event door keeps a
+  // send alive past its document (layer-client.js, `postEvent`). Nothing draws it ahead
+  // of the answer.
+  createSinceSeen({
+    markSeen: (revision) =>
+      deliverBookkeeping({ kind: "seen", revision }, receiveState),
+  });
   const read = createReadTracking({
     markRead,
     openThread: openPageThread,
@@ -261,7 +269,6 @@ function createApplication(dependencies) {
     open: openPageThread,
   });
   const queueActions = createQueueActions({
-    post,
     arrive: (item) => dependencies.arriveAtQueueItem(item),
   });
   const replyView = {
@@ -273,9 +280,7 @@ function createApplication(dependencies) {
   const settlementView = {
     pendingEntries: ledger.snapshot,
     actions: threadActions,
-    landedAway: undo.landedAway,
-    offerUndo: undo.offerUndo,
-    returnToThread: undo.returnToThread,
+    undo,
   };
   const reactionView = {
     registerSurface: dependencies.registerReactSurface,
@@ -285,11 +290,8 @@ function createApplication(dependencies) {
     reply: replyView,
     settlement: settlementView,
     reaction: reactionView,
-    // A thread's head ends the user's to-do on it with its own Done.
-    todos: {
-      done: /** @param {string} id */ (id) =>
-        queueActions.done(queueItemKey({ kind: "todo", id })),
-    },
+    // Where the words a thread is about stand, which a thread quoting them reads.
+    placedAt: dependencies.anchorPlacement.placedAt,
     read,
     openThread: openPageThread,
     landInThread: dependencies.landInThread,
@@ -335,7 +337,7 @@ function createApplication(dependencies) {
   // The inventory lists the marks the projection's chrome paints, reading their nodes,
   // which signals cannot track, so it reads the parts that move them itself, and
   // reads them once that region has committed. What the thread pass decides about
-  // each thread, where it is placed and whether a widget seats or holds it, and the
+  // each thread, where it is placed and whether a widget seats it, and the
   // ages the margin shows are followed with the rest of what this paint reads, so a
   // commit that moves one and the clock repaint them by the same proof.
   const annotationInputs = readPart(annotationSelection);
@@ -372,8 +374,8 @@ function createApplication(dependencies) {
     openPageMap: dependencies.annotationCommands.openPageMap,
     pageMapDialogContains: dependencies.annotationCommands.pageMapDialogContains,
     scrollThreadIntoView: dependencies.annotationCommands.scrollThreadIntoView,
-    renderMarginThread: (host, thread, controls) =>
-      renderMarginThread(host, thread, inlineView, controls),
+    renderMarginThread: (host, thread, outlets) =>
+      renderMarginThread(host, thread, inlineView, outlets),
     placedAt: dependencies.anchorPlacement.placedAt,
     marksFor: (id) => dependencies.anchorPaint?.marksFor(id) ?? [],
     currentLocationObligation:
@@ -424,9 +426,9 @@ function createApplication(dependencies) {
     marginCommitted: () => marginPresentation?.committed() ?? Promise.resolve(),
     read,
   });
-  /** @param {Parameters<typeof ledger.present>[0]} receipts */
-  const accountPending = (receipts) => {
-    ledger.present(receipts);
+  /** @param {Parameters<typeof ledger.present>[0]} events */
+  const accountPending = (events) => {
+    ledger.present(events);
     releasePendingSafely("receipt presentation");
   };
 
@@ -690,12 +692,11 @@ function createApplication(dependencies) {
     consumeAnnotations,
     threadActions,
     queueActions,
-    settlement: settlementView,
     /** @param {string} id */
     openObligation(id) {
       const item = readObligations().all.find((item) => item.id === id);
       if (!item) return Promise.resolve(false);
-      if (hasObligationSource(item, "update") || hasObligationSource(item, "todo"))
+      if (hasObligationSource(item, "update"))
         return queueActions.open(JSON.stringify([item.source.kind, item.id]));
       if (item.thread !== null && answeredInWords(item)) {
         showHeld(item.thread);
@@ -772,9 +773,6 @@ export const queueActions = Object.freeze({
   open: /** @type {ReturnType<typeof createApplication>["queueActions"]["open"]} */ (
     ...args
   ) => app().queueActions.open(...args),
-  done: /** @type {ReturnType<typeof createApplication>["queueActions"]["done"]} */ (
-    ...args
-  ) => app().queueActions.done(...args),
 });
 /** @type {ReturnType<typeof import("./composing/input.js").createCompositionInputs>["wireInput"]} */
 export const wireInput = (...args) => app().wireInput(...args);

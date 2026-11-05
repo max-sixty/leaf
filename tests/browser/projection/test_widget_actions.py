@@ -35,6 +35,7 @@ from render_harness import (
     post_event,
     resized,
     round_trip,
+    show_done,
     stamp_page,
     suggestion_control,
     told,
@@ -51,16 +52,16 @@ from leaf.render_checks import rendered
 pytestmark = pytest.mark.shifts_unsurveyed
 
 
-def thread_quote(page, page_dir):
-    """The quote of the page's first thread, in that thread's view in the panel, once
-    every gesture the page sent has been delivered."""
+def thread_quote(page, page_dir, skipping=None):
+    """The quote of the page's first thread, or first but `skipping`, in that thread's
+    view in the panel, once every gesture the page sent has been delivered."""
     round_trip(page)
     thread = next(
         event["id"]
         for event in events_model.read_events(page_dir)
-        if event["kind"] == "comment"
+        if event["kind"] == "comment" and event["id"] != skipping
     )
-    return open_panel_thread(page, thread).locator(".lf-fp-quote")
+    return open_panel_thread(page, thread).locator(".lf-thread-quote")
 
 
 def test_a_projected_attribute_opens_an_obligation_captured_from_authored_markup(
@@ -71,7 +72,7 @@ def test_a_projected_attribute_opens_an_obligation_captured_from_authored_markup
         "description": "A test-owned conditional Ask.",
         "type": "object",
         "properties": {
-            "id": {"type": "string", "pattern": "^[a-z][a-z0-9-]*$"},
+            "id": {"type": "string"},
             "phase": {"enum": ["closed", "open"]},
             "restated": {"type": "boolean"},
         },
@@ -119,7 +120,7 @@ customElements.define("lf-conditional", class extends LeafElement {
     )
     expect(page.locator(".lf-fp-on-user")).to_have_attribute("aria-label", "On me")
     view = page.locator(panel_view("queue"))
-    items = ".lf-fp-on-item[data-key^='[\"widget\"']"
+    items = ".lf-fp-on-item[data-lf-key^='[\"widget\"']"
 
     for phase, count in (("open", 1), ("closed", 0)):
         append_command(
@@ -137,15 +138,17 @@ customElements.define("lf-conditional", class extends LeafElement {
         if count:
             expect_obligations_answered(page, "0/1")
         # The phase move is the agent's to answer. The obligation leaves the user's
-        # queue when its condition closes, retaining its withdrawn card under Done.
+        # queue when its condition closes, retaining its withdrawn line under Done.
         # An open view keeps its cards seated, so each reading is a fresh opening.
         if view.count():
             page.locator(".lf-fp-close").click()
             panel_settled(page, open=False)
         page.locator(".lf-fp-on-user").click()
         panel_settled(page, view="queue")
-        expect(view.locator(f'{items}[data-list="you"]')).to_have_count(count)
-        withdrawn = view.locator(f'{items}[data-list="done"]')
+        expect(view.locator(f'{items}[data-lf-list="you"]')).to_have_count(count)
+        if not count:
+            show_done(page)
+        withdrawn = view.locator(f'{items}[data-lf-list="done"]')
         expect(withdrawn).to_have_count(1 - count)
         if not count:
             expect(withdrawn).to_contain_text("Withdrawn")
@@ -664,15 +667,58 @@ def test_replay_signatures_exclude_settlement_and_other_runtime_paint(browser, s
     assert json.loads(positions["before"]["thread-widget"])["parent"] == ""
 
 
-def test_a_pending_suggestion_can_be_discussed_instead_of_decided(browser, serve):
-    """✓ and ✗ are the visible affordances, but a proposal a user half-agrees
-    with wants a sentence, not a verdict: the proposed words are ordinary page
-    text, so selecting them and commenting works like anywhere else. Then the
-    decision they eventually take has to reach the thread — rejecting retires the
-    text the comment was made on, and a comment pointing into markup nobody can
-    see has to read as detached rather than as a live mark that jumps nowhere."""
-    page = open_page(browser, serve(SUGGESTION_PAGE))
+def test_a_decision_detaches_the_threads_on_what_it_took_off_the_page(browser, serve):
+    """A decision detaches the thread on what it removed, by element or by passage.
+
+    An element anchor asks whether its section is still on the user's page, and for a
+    suggestion that settles to nothing — an insertion refused — the markup's presence is
+    the wrong answer: the thread read as attached while its outline drew nothing.
+    Pending, the wrapper is a thing to point at; refused, the thread detaches like any
+    passage the decision removed.
+
+    ✓ and ✗ are the visible affordances, but a proposal a user half-agrees with wants a
+    sentence, not a verdict: the proposed words are ordinary page text, so selecting them
+    and commenting works like anywhere else. Then the decision they eventually take has
+    to reach the thread — rejecting retires the text the comment was made on, and a
+    comment pointing into markup nobody can see has to read as detached rather than as a
+    live mark that jumps nowhere."""
+    url = serve(SUGGESTION_PAGE)
+    on_element = append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "Is thistle worth a feeder?",
+            "anchor": {"section": "sug-thistle"},
+        },
+    )
+    page = open_page(browser, url)
     resized(page, 1920, 900)
+    expect(thread_quote(page, serve.page_dir)).not_to_have_attribute(
+        "data-lf-detached", ""
+    )
+    page.locator(".lf-fp-close").click()
+    panel_settled(page, open=False)
+    # Pending, the outline hangs on a box the user can see, and it is read as a box
+    # rather than as a class: the class sat on the wrapper while the wrapper was
+    # display: contents and painted no outline, so the half of this docstring about
+    # drawing nothing was true of the attached case too. The wrapper draws its own box
+    # now, so the mark is the wrapper itself rather than the slot it showed through.
+    shown = page.locator("#sug-thistle.lf-mark-el")
+    expect(shown).to_have_count(1)
+    box = shown.evaluate("el => el.getBoundingClientRect().toJSON()")
+    assert box["width"] > 0 and box["height"] > 0, (
+        f"the attached thread's outline hangs on a box of no size: {box}"
+    )
+    unfolded_button(
+        suggestion_control(page, "sug-thistle", "reject", visible=False)
+    ).click()
+    expect(thread_quote(page, serve.page_dir)).to_have_attribute("data-lf-detached", "")
+    expect(page.locator("#sug-thistle.lf-mark-el")).to_have_count(0)
+    page.locator(".lf-fp-close").click()
+    panel_settled(page, open=False)
+
     page.evaluate("""() => {
         const range = document.createRange();
         range.selectNodeContents(document.querySelector('#sug-refill lf-new'));
@@ -690,7 +736,7 @@ def test_a_pending_suggestion_can_be_discussed_instead_of_decided(browser, serve
 
     inline = page.locator(".lf-margin-thread")
     expect(inline.locator(".lf-msg-body")).to_have_text("Half-empty by whose reading?")
-    thread = thread_quote(page, serve.page_dir)
+    thread = thread_quote(page, serve.page_dir, skipping=on_element["id"])
     expect(thread).to_be_visible()
     expect(thread).not_to_have_attribute("data-lf-detached", "")
     page.locator(".lf-fp-close").click()
@@ -703,14 +749,16 @@ def test_a_pending_suggestion_can_be_discussed_instead_of_decided(browser, serve
     unfolded_button(
         suggestion_control(page, "sug-refill", "reject", visible=False)
     ).click()
-    expect(thread_quote(page, serve.page_dir)).to_have_attribute("data-lf-detached", "")
+    expect(
+        thread_quote(page, serve.page_dir, skipping=on_element["id"])
+    ).to_have_attribute("data-lf-detached", "")
     assert painted(page, "lf-mark") == "", (
         "a mark stayed painted on text the user's own decision removed"
     )
 
 
 def test_a_decision_already_in_the_log_retires_its_slot_at_load(browser, serve):
-    """The test above takes the decision in front of the user, on a page that has
+    """The test above takes its decisions in front of the user, on a page that has
     been up long enough for everything to have arrived. Here the log holds it before
     the page opens, which is what puts the anchor pass's skip list on the clock: the
     registry names the slot a decision retires (x-retired-when), and the registry
@@ -959,48 +1007,6 @@ def test_a_label_in_a_retired_slot_leaves_the_page_with_the_slot(browser, serve)
         "a quote matched inside the half the user accepted away, because the "
         "label there declared itself the page speaking"
     )
-
-
-def test_a_decision_that_empties_its_widget_detaches_the_element_anchor(browser, serve):
-    """An element anchor asks whether its section is still on the user's page,
-    and for a suggestion that settles to nothing — an insertion refused — the
-    markup's presence is the wrong answer: the thread read as attached while its
-    outline drew nothing. Pending, the wrapper is a thing to point at; refused, the
-    thread detaches like any passage the decision removed."""
-    url = serve(SUGGESTION_PAGE)
-    append_carried_log_record(
-        serve.page_dir,
-        {
-            "kind": "comment",
-            "author": "user",
-            "revision": 1,
-            "text": "Is thistle worth a feeder?",
-            "anchor": {"section": "sug-thistle"},
-        },
-    )
-    page = open_page(browser, url)
-    expect(thread_quote(page, serve.page_dir)).not_to_have_attribute(
-        "data-lf-detached", ""
-    )
-    page.locator(".lf-fp-close").click()
-    panel_settled(page, open=False)
-    # Pending, the outline hangs on a box the user can see, and it is read as a box
-    # rather than as a class: the class sat on the wrapper while the wrapper was
-    # display: contents and painted no outline, so the half of this docstring about
-    # drawing nothing was true of the attached case too. The wrapper draws its own box
-    # now, so the mark is the wrapper itself rather than the slot it showed through.
-    shown = page.locator("#sug-thistle.lf-mark-el")
-    expect(shown).to_have_count(1)
-    box = shown.evaluate("el => el.getBoundingClientRect().toJSON()")
-    assert box["width"] > 0 and box["height"] > 0, (
-        f"the attached thread's outline hangs on a box of no size: {box}"
-    )
-
-    unfolded_button(
-        suggestion_control(page, "sug-thistle", "reject", visible=False)
-    ).click()
-    expect(thread_quote(page, serve.page_dir)).to_have_attribute("data-lf-detached", "")
-    expect(page.locator("#sug-thistle.lf-mark-el")).to_have_count(0)
 
 
 def test_z_takes_back_a_decision_carried_into_a_later_revision(browser, serve):

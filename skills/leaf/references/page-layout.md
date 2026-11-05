@@ -19,6 +19,24 @@ One arranges a block's children:
 | -------------- | ------------------------------------ |
 | `layout-tiles` | equal cells, as many to a row as fit |
 
+Content standing beside `main` in `body`, such as a site-wide header or footer, takes
+no Layout: no gutter or column, and `data-width` does nothing there. A workspace's
+`main` still fills the window, so anything beside it scrolls the page. A page of parts
+holds its title and list fixed at the window's top, so it takes nothing beside `main`.
+Keep the page's
+title, and a Layout's `header` and `footer`, inside `main`, and lay out what stands
+beside it with the page's own CSS, such as a grid on `body`.
+
+A site header the page fixes at the window's top, or makes sticky in `body` before
+`main` (a banner may stand above it) or at the start of `main`, needs no landing room of
+its own when it spans the middle of the column and reaches less than halfway down the
+window: Leaf lands links below it, and its own marks and controls pass under it
+(`module-scroll-and-motion.md`, "Headers over the document"). A header taller than that,
+as on a phone held sideways, or a sticky header further into `main` or inside a section,
+isn't read that way, so give its targets `scroll-margin-top`. A `scroll-margin-top` the
+page gives a target replaces the room Leaf leaves above it; a `scroll-padding-top` on
+the page's root has no effect.
+
 On a column page, a board, diagram or diff declares its own width, and any other block,
 such as a table, a trace or a playground, can ask for one with `data-width` ("Bounds and
 widths"). The block breaks out of the column and the prose stays where it is.
@@ -128,7 +146,9 @@ A document sidebar takes the shared sidebar measure, leaving prose its own measu
 Beside the body, `layout-track` sticks within its sidebar and scrolls within the
 window when tall. Stacked, it flows whole with the page. The authored wrapper is the
 same node from the first paint through revisions: Leaf inserts no body around it.
-Style its blocks by their classes or ids, or as `.layout-track > p`.
+Style its blocks by their classes or ids, or as `.layout-track > p`. Put a contents
+map first in the track and follow it with one block, which stands clear of the
+map's spine; wrap several blocks in one element.
 
 Add `layout-notes` to the `layout-column` that should leave room beside its
 prose for notes, such as `<main class="layout-column layout-notes">`. This is an
@@ -223,8 +243,10 @@ downward, follows the newest entry while the user is at the end. The box takes t
 height page CSS gives it, as `max-block-size` or `--lf-bound`, and 28rem otherwise.
 
 `data-width` widens one block, overriding its widget's default. Put it on the block
-itself, such as a `table` or `lf-code`, and write no CSS that copies its widths. It
-works on column and sidebar pages:
+itself, such as a `table` or `lf-code`, and write no CSS that copies its widths or
+sets its inline margins. An `available` block reaches past the prose by its own start
+margin, so space it with `margin-block` rather than `margin`. `data-width` works on
+column and sidebar pages:
 
 - `data-width="wide"` is for a block slightly wider than the column, such as code up
   to 100 columns, a diff or a table of a few more columns. The block starts at the
@@ -295,9 +317,11 @@ for a text input or select, and
 a stack of layer tiles or a curve's handles, is the page's own design
 (`page-authoring.md`, "Style the page").
 
-Leaf's panel, thread cards and markers draw over everything in `main`, whatever its
+Leaf's panel, thread cards and markers draw over everything in `body`, whatever its
 `z-index`. Open a modal or menu of the page's own in the top layer: a `<dialog>` shown
-with `showModal()`, or an element with `popover`.
+with `showModal()`, or an element with `popover`. To show the page full screen, call
+`requestFullscreen()` on `document.documentElement`; a full-screen `body` leaves Leaf's
+panel and threads out.
 
 ### Space for changing text
 

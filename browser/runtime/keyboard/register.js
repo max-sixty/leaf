@@ -17,7 +17,6 @@
 import {
   bindings,
   checked,
-  declaresCommandHandler,
   declareCommandReadiness,
   touchPresses as pressesOf,
   titleOf,
@@ -71,10 +70,6 @@ const STACK = [
   // first.
   "draw mode",
   "design mode",
-  // A to-do on the user at the walk’s current location, whose Done this scope carries.
-  // It stands outside the modes, so a mode entered on a to-do keeps the panel's way
-  // out (touch-controls.js, the innermost stance).
-  "todo",
   PAGE,
   // Outermost, so a page command still ranks ahead of the way out.
   RUNGS,
@@ -85,6 +80,7 @@ const STACK = [
 // comes off before one they are not.
 const RUNG_LADDER = [
   "selection", // the selection, or the target a click captured
+  "change card", // what a change replaced, open over the change (margin-bars.js)
   "margin options", // the margin entry cluster the user unfolded
   "floating panel", // the menu or view the floating panel opened above its row
   "draw mode", // the drawing surface over the page
@@ -120,11 +116,14 @@ const PAGE_COMMANDS = [
   "draw.mode.enter",
   "capture.region.open",
   "design.mode.enter",
+  // Beside `o`, so the Annotations list reads its two hides together.
+  "changes.toggle",
   "annotations.toggle",
   "panel.floating.fold",
   COMMAND_REFERENCE,
-  // A real key the browser owns, and one gesture that is not a key at all.
+  // Real keys the browser owns, and one gesture that is not a key at all.
   "browser.caret",
+  "browser.history",
   "aim.comment",
 ];
 
@@ -237,9 +236,7 @@ const BACK_OUT = {
     return step ? descriptionOf(step) : undefined;
   },
   when: () => Boolean(rung()),
-  get run() {
-    return rung()?.out;
-  },
+  run: () => rung()?.out(),
 };
 
 function assemble() {
@@ -256,12 +253,7 @@ function assemble() {
     );
   const scopeRows = [...scopes.values()].flat().flatMap((scope) => scope.rows);
   const unreached = scopeRows
-    .filter(
-      (row) =>
-        (declaresCommandHandler(row, "run") || declaresCommandHandler(row, "runKey")) &&
-        !row.exit &&
-        row.touch !== false,
-    )
+    .filter((row) => (row.run || row.runKey) && !row.exit && row.touch !== false)
     .map((row) => row.id);
   if (unreached.length)
     throw new Error(

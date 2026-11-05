@@ -19,7 +19,6 @@ from render_cases_interaction import (
 from render_harness import (
     LONG_PAGE,
     PANEL,
-    PANEL_THREAD,
     expect_open_threads,
     holding,
     leaf_page,
@@ -41,6 +40,7 @@ from browser.threads import (
 )
 from leaf import event_log as events_model
 from leaf.render_checks import rendered
+from leaf_dev.browser import PANEL_THREAD
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -69,7 +69,7 @@ def test_inline_settlement_retains_focus_when_its_controls_are_replaced(browser,
         for event in events_model.read_events(serve.page_dir)
         if event["kind"] == "comment"
     )
-    thread = page.locator(f'.lf-page-thread[data-thread="{root["id"]}"]')
+    thread = page.locator(f'.lf-page-thread[data-lf-thread="{root["id"]}"]')
     destination = thread.locator("leaf-text")
     expect(destination).to_have_count(1)
     thread.get_by_role("button", name="Resolve thread", exact=True).focus()
@@ -145,7 +145,7 @@ def test_inline_retirement_is_resolved_before_its_pixels_finish(
         )
     page = open_page(request.getfixturevalue(engine), url)
     page.emulate_media(reduced_motion="no-preference")
-    thread = page.locator(f'#jobs .lf-page-thread[data-thread="{root}"]')
+    thread = page.locator(f'#jobs .lf-page-thread[data-lf-thread="{root}"]')
     summary = page.locator("#jobs .lf-resolved-summary")
     # Freeze the actual retirement when it becomes inert, so assertions cover the
     # interval before its natural finish without racing a wall-clock duration.
@@ -164,7 +164,7 @@ def test_inline_retirement_is_resolved_before_its_pixels_finish(
         thread.get_by_role("button", name="Resolve thread", exact=True).focus()
         before = thread.locator("..").bounding_box()["height"]
         page.keyboard.press("Enter")
-        expect(thread).to_have_attribute("data-resolved", "true")
+        expect(thread).to_have_attribute("data-lf-resolved", "true")
         expect(thread).to_have_attribute("inert", "")
         expect(summary).to_be_focused()
         expect(summary).to_contain_text(f"Resolved · {2 if existing_neighbors else 1}")
@@ -276,7 +276,7 @@ def test_resolve_acknowledges_the_press_and_recovers_a_refusal(held_events, serv
         for event in events_model.read_events(serve.page_dir)
         if event["kind"] == "resolve"
     ] == [root]
-    expect(page.locator(PANEL)).not_to_have_attribute("data-open", re.compile("."))
+    expect(page.locator(PANEL)).not_to_have_attribute("data-lf-open", re.compile("."))
     expect(page.locator("#bracket")).to_be_focused()
 
 
@@ -326,7 +326,7 @@ def test_z_leaves_the_user_in_a_seated_thread_they_resolved(browser, serve):
     )["id"]
     page = open_page(browser, url)
     resized(page, 1920, 900)
-    seated = page.locator(f'#jobs .lf-page-thread[data-thread="{root}"]')
+    seated = page.locator(f'#jobs .lf-page-thread[data-lf-thread="{root}"]')
     seated.get_by_role("button", name="Resolve thread", exact=True).focus()
     with sending(page, "the resolve"):
         page.keyboard.press("Enter")
@@ -337,7 +337,7 @@ def test_z_leaves_the_user_in_a_seated_thread_they_resolved(browser, serve):
     round_trip(page)
     expect_open_threads(page, 1)
     assert seated.evaluate("node => node.contains(document.activeElement)")
-    expect(page.locator(PANEL)).not_to_have_attribute("data-open", re.compile("."))
+    expect(page.locator(PANEL)).not_to_have_attribute("data-lf-open", re.compile("."))
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
 
 
@@ -363,12 +363,89 @@ def test_z_shows_a_settlement_the_user_left_before_taking_it(browser, serve, ges
     page.locator("h1").first.click()
 
     page.keyboard.press("z")
-    expect(page.locator(PANEL_THREAD)).to_have_attribute("data-thread", root)
+    expect(page.locator(PANEL_THREAD)).to_have_attribute("data-lf-thread", root)
     expect(page.locator(".lf-live")).to_contain_text("Press again to undo")
     undo(page)
     round_trip(page)
     expect_open_threads(page, 1 if gesture == "resolve" else 0)
-    expect(page.locator(PANEL_THREAD)).to_have_attribute("data-thread", root)
+    expect(page.locator(PANEL_THREAD)).to_have_attribute("data-lf-thread", root)
+
+
+def test_a_thread_resolved_in_the_panel_comes_back_to_the_panel(browser, serve):
+    """A thread about a passage opens in a card beside it, but the user read this one
+    in the panel's view and resolved it there, so that view is what `z` and a refusal
+    give back. A route to the thread chose for it as it stood, and put it in a card."""
+    comment = {
+        "kind": "comment",
+        "author": "user",
+        "revision": 1,
+        "text": "Check whether these jobs can share one visit.",
+        "anchor": {"section": "bracket"},
+    }
+    page = open_page(browser, serve(OBLIGATION_PAGE, events=[comment]))
+    root = events_model.read_events(serve.page_dir)[0]["id"]
+    resized(page, 1440, 900)
+    open_panel_thread(page, root).focus()
+    with sending(page, "the resolve"):
+        page.keyboard.press("r")
+    round_trip(page)
+    expect_open_threads(page, 0)
+    undo(page)
+    round_trip(page)
+    expect_open_threads(page, 1)
+    expect(page.locator(PANEL_THREAD)).to_have_attribute("data-lf-thread", root)
+    expect(page.locator(".lf-margin-preview")).to_be_hidden()
+
+    held = []
+    page.route("**/api/event", lambda route: held.append(route))
+    page.keyboard.press("r")
+    holding(page, held, 1, "the resolve")
+    expect_open_threads(page, 0)
+    held.pop().fulfill(json={"ok": False, "final": True, "error": "Please retry."})
+    expect_open_threads(page, 1)
+    expect(page.locator(PANEL_THREAD)).to_have_attribute("data-lf-thread", root)
+    expect(page.locator(".lf-margin-preview")).to_be_hidden()
+
+    # The refusal's error stands in the field, and the next Resolve closes the view whose
+    # reply editor stood there: the leaf's error dot stays as it was, unwritten.
+    page.unroute_all(behavior="wait")
+    with sending(page, "the resolve again"):
+        page.keyboard.press("r")
+    round_trip(page)
+    expect_open_threads(page, 0)
+
+
+def test_z_shows_a_thread_resolved_in_its_card_by_its_passage(browser, serve):
+    """No card draws a resolved thread, so a route to one opens the panel's view. The
+    user resolved this one in its card and went back to the top, so `z` shows it first:
+    by its passage, where they had it, and the press that takes the Resolve back opens
+    the card there again, with no turn through the panel."""
+    page = open_page(browser, serve(LONG_PAGE, anchored=(("p55", "Paragraph 55."),)))
+    resized(page, 1440, 900)
+    page.keyboard.press("Shift+t")
+    card = page.locator(".lf-margin-thread .lf-page-thread")
+    expect(card).to_be_focused()
+    # The card takes focus before the page has scrolled to it; a Home pressed while
+    # that scroll runs can lose to it.
+    expect(page.locator("#p55")).to_be_in_viewport()
+    scroll_settled(page)
+    with sending(page, "the resolve"):
+        page.keyboard.press("r")
+    round_trip(page)
+    expect_open_threads(page, 0)
+    page.keyboard.press("Home")
+    scroll_settled(page)
+    expect(page.locator("#p55")).not_to_be_in_viewport()
+
+    page.keyboard.press("z")
+    expect(page.locator(".lf-live")).to_contain_text("Press again to undo")
+    expect(page.locator("#p55")).to_be_in_viewport()
+    expect(page.locator(PANEL_THREAD)).to_have_count(0)
+    undo(page)
+    round_trip(page)
+    expect_open_threads(page, 1)
+    expect(card).to_be_focused()
+    expect(page.locator(PANEL_THREAD)).to_have_count(0)
 
 
 def test_resolving_one_of_two_threads_leaves_the_user_in_the_card(browser, serve):
@@ -506,7 +583,7 @@ def test_a_settlement_in_flight_leaves_its_opposite_live(held_events, serve):
     )["id"]
     page = open_page(browser, url)
     resized(page, 1920, 900)
-    inline = page.locator(f'#jobs .lf-page-thread[data-thread="{root}"]')
+    inline = page.locator(f'#jobs .lf-page-thread[data-lf-thread="{root}"]')
 
     with page.expect_request("**/api/event"):
         inline.get_by_role("button", name="Resolve thread", exact=True).click()
@@ -554,7 +631,7 @@ def test_taking_back_a_resolve_is_the_users_own_gesture(browser, serve):
     page = open_page(browser, url)
     open_panel_thread(page, root)
     with sending(page, "the resolve"):
-        page.locator(".lf-fp-settle").click()
+        page.locator(".lf-fp-thread-controls :is(.lf-resolve, .lf-reopen)").click()
     expect_open_threads(page, 0)
     undo(page)
     told(page)
@@ -574,10 +651,10 @@ def test_a_resolved_thread_can_be_reopened(browser, serve):
     )
     open_panel_thread(page, comment)
     with sending(page, "the resolve"):
-        page.locator(".lf-fp-settle").click()
+        page.locator(".lf-fp-thread-controls :is(.lf-resolve, .lf-reopen)").click()
     expect_open_threads(page, 17)
     view = open_panel_thread(page, comment)
-    settle = page.locator(".lf-fp-settle")
+    settle = page.locator(".lf-fp-thread-controls :is(.lf-resolve, .lf-reopen)")
     expect(settle).to_have_accessible_name("Reopen")
     with sending(page, "the reopen"):
         settle.click()
@@ -606,13 +683,17 @@ def test_a_reply_in_a_resolved_thread_reopens_it(browser, serve):
     page = open_page(browser, url)
     expect_open_threads(page, 0)
     open_panel_thread(page, root)
-    expect(page.locator(".lf-fp-settle")).to_have_accessible_name("Reopen")
+    expect(
+        page.locator(".lf-fp-thread-controls :is(.lf-resolve, .lf-reopen)")
+    ).to_have_accessible_name("Reopen")
     reply = page.locator(PANEL_REPLY)
     reply.click()
     page.keyboard.type("One more thing.")
     with sending(page, "the reply"):
         page.keyboard.press("Enter")
-    expect(page.locator(".lf-fp-settle")).to_have_accessible_name("Resolve thread")
+    expect(
+        page.locator(".lf-fp-thread-controls :is(.lf-resolve, .lf-reopen)")
+    ).to_have_accessible_name("Resolve thread")
     expect_open_threads(page, 1)
     assert events_model.read_events(serve.page_dir)[-1]["kind"] == "reply"
 
@@ -639,9 +720,9 @@ def test_a_reply_in_a_seat_s_resolved_thread_reopens_it(browser, serve):
     page = open_page(browser, url)
     resized(page, 1920, 900)
     page.locator("#jobs .lf-resolved-summary").click()
-    thread = page.locator(f'#jobs .lf-page-thread[data-thread="{root}"]')
+    thread = page.locator(f'#jobs .lf-page-thread[data-lf-thread="{root}"]')
     folded = page.locator(
-        f'#jobs .lf-resolved-threads .lf-page-thread[data-thread="{root}"]'
+        f'#jobs .lf-resolved-threads .lf-page-thread[data-lf-thread="{root}"]'
     )
     box = folded.locator(":scope > .lf-thread-reply leaf-text")
     expect(box).to_be_visible()
@@ -653,7 +734,7 @@ def test_a_reply_in_a_seat_s_resolved_thread_reopens_it(browser, serve):
     expect(box).to_be_focused()
     with sending(page, "the reply"):
         page.keyboard.press("Enter")
-    expect(thread).to_have_attribute("data-resolved", "false")
+    expect(thread).to_have_attribute("data-lf-resolved", "false")
     expect(folded).to_have_count(0)
     expect(thread.locator(".lf-msg", has_text="Per attempt, then.")).to_be_visible()
     assert events_model.read_events(serve.page_dir)[-1]["kind"] == "reply"
@@ -687,7 +768,9 @@ def test_a_late_reply_reopens_its_resolved_thread(browser, serve):
     expect_open_threads(page, 1)
     view = open_panel_thread(page, root["id"])
     expect(view.locator(".lf-msg[data-lf-author=agent]")).to_be_visible()
-    expect(page.locator(".lf-fp-settle")).to_have_accessible_name("Resolve thread")
+    expect(
+        page.locator(".lf-fp-thread-controls :is(.lf-resolve, .lf-reopen)")
+    ).to_have_accessible_name("Resolve thread")
     page.reload()
     told(page)
     expect_open_threads(page, 1)
@@ -733,7 +816,9 @@ def test_r_settles_the_thread_shown_for_the_element_the_user_stands_on(
             page.keyboard.press("Shift")
             element.focus()
         expect(element).to_be_focused()
-        expect(card.locator(f'.lf-page-thread[data-thread="{root}"]')).to_be_visible()
+        expect(
+            card.locator(f'.lf-page-thread[data-lf-thread="{root}"]')
+        ).to_be_visible()
 
     arrive()
     page.locator(".lf-fp-on-user").focus()

@@ -13,7 +13,6 @@ from render_cases_widgets import (
     chart_markup,
 )
 from render_harness import (
-    ROOT,
     consume_browser_errors,
     leaf_page,
     names,
@@ -24,6 +23,7 @@ from render_harness import (
 
 from browser.threads import open_panel_thread
 from leaf import render_checks as render_checks_model
+from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -31,7 +31,7 @@ pytestmark = pytest.mark.shifts_unsurveyed
 @pytest.mark.watch_shifts
 def test_merge_film_inspection_has_touch_and_keyboard_routes(browser, serve):
     """Readable part details survive a tap, including a move across commit branches."""
-    example = ROOT / "examples" / "wt-merge.html"
+    example = named_source("wt-merge")
     context = browser.new_context(
         viewport={"width": 320, "height": 844}, has_touch=True
     )
@@ -137,112 +137,112 @@ DREW = {
 }
 
 
-def test_covered_words_holds_a_tick_naming_its_month_on_a_second_line(browser, serve):
-    """A dated axis names the month where one begins, on a line under the day: the tick
-    for the first week of June reads 1 over Jun. Those two lines are two tspans of one
-    <text>, offset by the dy the drawing asked for, and each reports a line box carrying
-    the font's own leading — a couple of pixels taller than the step between them. So the
-    pass hunting words drawn on other words read every such tick as a collision, on a
-    drawing where no glyph comes near another, and the corpus's own heat-loss page failed
-    the gate for drawing a perfectly ordinary axis.
-
-    The reading is taken twice, as the float and the collapse are: once as the gate runs
-    it, where the label's lines are held out, and once with that hold defeated, where it
-    has to report. Otherwise a pass here would also be what a gate that never looked at
-    the drawing returns. The two lines are pulled onto each other before either reading,
-    so the second leg rests on an overlap this test arranged rather than on the leading
-    the axis happens to be drawn with."""
-    page = open_page(browser, serve(CHART_PAGE))
-    # Vacuous otherwise: the page has to be carrying a tick that takes two lines.
-    stacked = page.evaluate(
-        """() => [...document.querySelectorAll('#c-line text')]
-             .filter((t) => t.querySelectorAll('tspan').length > 1)
-             .map((t) => t.textContent)"""
-    )
-    assert stacked, "no tick names its month on a second line, so nothing is held out"
-    # The overlap the second reading needs belongs to the test rather than to whatever
-    # leading Plot draws with: the month is pulled onto the day above it, so the two
-    # boxes have to land on each other whatever step the drawing asked for. `held` does
-    # not move, because the hold asks which label a line belongs to and not how far apart
-    # a label's lines are.
-    page.evaluate(
-        """() => [...document.querySelectorAll('#c-line text')]
-             .flatMap((t) => [...t.querySelectorAll('tspan')].slice(1))
-             .forEach((line) => line.setAttribute('dy', '0'))"""
-    )
-    # The same named reading with its same-label hold disabled.
-    held, reported = (
-        render_checks_model.evaluate_probe(page, "coveredWords"),
-        render_checks_model.evaluate_probe(
-            page, "coveredWords", {"holdLabelLines": False}
-        ),
-    )
-    assert held == []
-    assert any(names(found, "c-line") for found in reported), (
-        "the lines land on nothing, so a gate that never looked would pass this too"
-    )
-
-
-def test_the_covered_words_gate_still_reads_two_of_a_chart_s_labels_on_each_other(
-    browser, serve
+def test_the_covered_words_gate_reads_a_chart_s_labels_and_what_is_shown(
+    browser, serve, subtests
 ):
-    """The other half of the exemption above, put back as a bug: a label's own lines are
-    one run of words the drawing lays out together, and two labels landing on each other
-    is the fault this pass exists to report. Arranged by placing one whole <text> on
-    another rather than by spreading a label's lines, because the hold asks which <text>
-    drew a line and not how far a line was moved.
-
-    `<text>` is the case it is written for, being the near-miss that reads as one label
-    and is not: every tick of an axis is a <text> inside one <g> inside one <svg>, so a
-    hold reaching for either of those carries the whole drawing with it — every word of a
-    chart stops being read against every other word of that chart — and nothing else in
-    the suite would say so. The corpus sweeps and the copy assert this pass returns
-    nothing, which a wider hold only makes more true, and the exemption above defeats the
-    predicate wholesale, so it reports the same either way. The only existing bug-back on
-    this pass reporting is the float's, and that is an HTML page whose runs never get an
-    SVG label at all."""
+    """The pass hunting words drawn on other words holds a label's own lines out, still
+    reports two labels on each other, and reads only the SVG state showing. The cases run
+    in this order on one drawing, since the first needs the page free of findings and
+    each later one adds its own."""
     page = open_page(browser, serve(CHART_PAGE))
-    # Two ticks the drawing places by transform, one stood on the other. The labels stay
-    # whole, so what lands is two <text> elements rather than two lines of one.
-    moved = page.evaluate(
-        """() => {
-            const ticks = [...document.querySelectorAll('#c-line text')]
-                .filter((t) => t.hasAttribute('transform') && !t.querySelector('tspan'));
-            if (ticks.length < 2) return null;
-            ticks[1].setAttribute('transform', ticks[0].getAttribute('transform'));
-            return [ticks[0].textContent, ticks[1].textContent];
-        }"""
-    )
-    assert moved, "no two ticks the drawing places by transform, so nothing was stacked"
-    # The root scrollport must not hide page-content collisions from this reading,
-    # whether the chart starts below the fold or the user has scrolled to it.
-    for scrolled in (False, True):
-        if scrolled:
-            page.locator("#c-line").scroll_into_view_if_needed()
-        covered = render_checks_model.evaluate_probe(page, "coveredWords")
-        assert [f for f in covered if {f["words"], f["covered"]} == set(moved)], (
-            f"two of a chart's labels stood on each other unreported: {covered}",
-            scrolled,
+
+    with subtests.test("only the visible SVG state"):
+        # A timing study replaces overlapping SVG labels by hiding their group.
+        page.evaluate(
+            """() => {
+              const box = document.createElement('div');
+              box.id = 'states';
+              box.innerHTML = `<svg viewBox="0 0 500 80">
+                <text x="10" y="30">Editing the proposal</text>
+                <g id="saved-state" style="display:none">
+                  <text x="10" y="30">Original words restored</text>
+                </g></svg>`;
+              document.querySelector('main').append(box);
+            }"""
+        )
+        assert render_checks_model.evaluate_probe(page, "coveredWords") == []
+        page.locator("#saved-state").evaluate("node => node.style.display = 'inline'")
+        assert render_checks_model.evaluate_probe(page, "coveredWords")
+        page.locator("#saved-state").evaluate("node => node.style.display = 'none'")
+        assert render_checks_model.evaluate_probe(page, "coveredWords") == []
+        page.locator("#states").evaluate("box => box.remove()")
+
+    with subtests.test("a tick naming its month on a second line"):
+        # A dated axis names the month where one begins, on a line under the day: the
+        # tick for the first week of June reads 1 over Jun. Those two lines are two
+        # tspans of one <text>, offset by the dy the drawing asked for, and each reports
+        # a line box carrying the font's own leading, a couple of pixels taller than
+        # the step between them. So the pass read every such tick as a collision, and
+        # the corpus's own heat-loss page failed the gate for an ordinary axis.
+        #
+        # The reading is taken as the gate runs it, where the label's lines are held out,
+        # and with that hold defeated, where it has to report; otherwise a pass here
+        # would also be what a gate that never looked at the drawing returns. Vacuous
+        # otherwise: the page has to be carrying a tick that takes two lines.
+        stacked = page.evaluate(
+            """() => [...document.querySelectorAll('#c-line text')]
+                 .filter((t) => t.querySelectorAll('tspan').length > 1)
+                 .map((t) => t.textContent)"""
+        )
+        assert stacked, (
+            "no tick names its month on a second line, so nothing is held out"
+        )
+        # The overlap the second reading needs belongs to the test rather than to
+        # whatever leading Plot draws with: the month is pulled onto the day above it,
+        # so the two boxes land on each other whatever step the drawing asked for. `held`
+        # does not move, because the hold asks which label a line belongs to and not how
+        # far apart a label's lines are.
+        page.evaluate(
+            """() => [...document.querySelectorAll('#c-line text')]
+                 .flatMap((t) => [...t.querySelectorAll('tspan')].slice(1))
+                 .forEach((line) => line.setAttribute('dy', '0'))"""
+        )
+        # The same named reading with its same-label hold disabled.
+        held, reported = (
+            render_checks_model.evaluate_probe(page, "coveredWords"),
+            render_checks_model.evaluate_probe(
+                page, "coveredWords", {"holdLabelLines": False}
+            ),
+        )
+        assert held == []
+        assert any(names(found, "c-line") for found in reported), (
+            "the lines land on nothing, so a gate that never looked would pass this too"
         )
 
-
-def test_covered_words_reads_only_the_visible_svg_state(browser, serve):
-    """A timing study replaces overlapping SVG labels by hiding their group."""
-    page = open_page(
-        browser,
-        serve("""<!doctype html><html><head><title>SVG states</title></head><body><main>
-          <svg id="states" viewBox="0 0 500 80">
-            <text x="10" y="30">Editing the proposal</text>
-            <g id="saved-state" style="display:none">
-              <text x="10" y="30">Original words restored</text>
-            </g>
-          </svg></main></body></html>"""),
-    )
-    assert render_checks_model.evaluate_probe(page, "coveredWords") == []
-    page.locator("#saved-state").evaluate("node => node.style.display = 'inline'")
-    assert render_checks_model.evaluate_probe(page, "coveredWords")
-    page.locator("#saved-state").evaluate("node => node.style.display = 'none'")
-    assert render_checks_model.evaluate_probe(page, "coveredWords") == []
+    with subtests.test("two of a chart's labels on each other"):
+        # The other half of that exemption, put back as a bug: a label's own lines are
+        # one run of words the drawing lays out together, and two labels landing on each
+        # other is the fault this pass exists to report. Arranged by placing one whole
+        # <text> on another rather than by spreading a label's lines, because the hold
+        # asks which <text> drew a line and not how far a line was moved.
+        #
+        # `<text>` is the case it is written for: every tick of an axis is a <text>
+        # inside one <g> inside one <svg>, so a hold reaching for either of those
+        # carries the whole drawing with it, every word of a chart no longer read against
+        # every other, and nothing else in the suite would say so. The corpus sweeps
+        # assert this pass returns nothing, which a wider hold only makes more true.
+        moved = page.evaluate(
+            """() => {
+                const ticks = [...document.querySelectorAll('#c-line text')]
+                    .filter((t) => t.hasAttribute('transform') && !t.querySelector('tspan'));
+                if (ticks.length < 2) return null;
+                ticks[1].setAttribute('transform', ticks[0].getAttribute('transform'));
+                return [ticks[0].textContent, ticks[1].textContent];
+            }"""
+        )
+        assert moved, (
+            "no two ticks the drawing places by transform, so nothing was stacked"
+        )
+        # The root scrollport must not hide page-content collisions from this reading,
+        # whether the chart starts below the fold or the user has scrolled to it.
+        for scrolled in (False, True):
+            if scrolled:
+                page.locator("#c-line").scroll_into_view_if_needed()
+            covered = render_checks_model.evaluate_probe(page, "coveredWords")
+            assert [f for f in covered if {f["words"], f["covered"]} == set(moved)], (
+                f"two of a chart's labels stood on each other unreported: {covered}",
+                scrolled,
+            )
 
 
 def test_a_chart_wears_the_page_s_colors_and_turns_over_with_the_scheme(browser, serve):

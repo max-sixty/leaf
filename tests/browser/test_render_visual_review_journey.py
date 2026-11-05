@@ -9,7 +9,6 @@ from render_cases_layout import (
     ring_faults,
 )
 from render_harness import (
-    CORPUS_SOURCES,
     consume_browser_errors,
     holding,
     leaf_page,
@@ -26,12 +25,11 @@ from render_harness import (
 from leaf import data as data_model
 from leaf import event_log as events_model
 from leaf.render_checks import rendered
+from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
-VISUAL_REVIEW_GALLERY = next(
-    path for path in CORPUS_SOURCES if path.stem == "visual-review-gallery"
-)
+VISUAL_REVIEW_GALLERY = named_source("visual-review-gallery")
 
 
 def test_a_visual_review_in_flow_takes_its_evidence_height(browser, serve):
@@ -60,7 +58,7 @@ def test_a_visual_review_in_flow_takes_its_evidence_height(browser, serve):
     case.get_by_role("button", name="100%", exact=True).click()
     host = case.locator(".lf-vr-capture")
     for mode in ("Pair", "Slider", "Pixels"):
-        case.get_by_role("button", name=mode, exact=True).click()
+        case.get_by_role("radio", name=mode, exact=True).click()
         rendered(page)
         assert host.evaluate("node => node.scrollHeight <= node.clientHeight + 1")
     assert page.evaluate("document.scrollingElement.scrollHeight > innerHeight")
@@ -288,7 +286,7 @@ def test_visual_review_reports_an_image_failure_after_its_peer_has_loaded(
     expect(host.locator(".lf-error")).to_have_count(0)
     refuse(held[0])
     expect(host.locator(".lf-error")).to_contain_text("focus needs two decoded images")
-    expect(host.get_by_role("button", name="Pair", exact=True)).to_be_visible()
+    expect(host.get_by_role("radio", name="Pair", exact=True)).to_be_visible()
     consume_browser_errors(page, "focus needs two decoded images")
     unrelated = run | {
         "cases": [
@@ -340,9 +338,9 @@ def test_visual_review_text_refresh_retains_comparison_choice_and_focus(browser,
     page = open_page(browser, serve(VISUAL_REVIEW_GALLERY))
     widget = page.locator("#visual-review-run")
     case = widget.locator(".lf-vr-case:not([hidden])")
-    control = case.get_by_role("button", name="Slider", exact=True)
+    control = case.get_by_role("radio", name="Slider", exact=True)
     control.click()
-    expect(control).to_have_attribute("aria-pressed", "true")
+    expect(control).to_have_attribute("aria-checked", "true")
     control.focus()
     old_control = control.element_handle()
     before = control.bounding_box()
@@ -357,7 +355,7 @@ def test_visual_review_text_refresh_retains_comparison_choice_and_focus(browser,
     told(page)
     expect(control).to_be_focused()
     assert control.evaluate("(node, old) => node === old", old_control)
-    expect(control).to_have_attribute("aria-pressed", "true")
+    expect(control).to_have_attribute("aria-checked", "true")
     expect(case.locator("lf-shot img").first).to_have_attribute(
         "alt", f"before: {record['cases'][0]['title']}. {result}"
     )
@@ -473,7 +471,7 @@ def test_visual_review_returns_to_case_feedback_on_phone(browser, serve):
         page.keyboard.press("ControlOrMeta+Enter")
     case.get_by_role("button", name="2 threads", exact=True).click()
     case.get_by_role("button", name="Keep the return route", exact=True).click()
-    selected = case.locator(f'.lf-page-thread[data-thread="{first_thread}"]')
+    selected = case.locator(f'.lf-page-thread[data-lf-thread="{first_thread}"]')
     expect(selected).to_be_focused()
     expect(selected).to_be_in_viewport(ratio=1)
 

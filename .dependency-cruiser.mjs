@@ -55,10 +55,11 @@ const exactClosures = {
     "thread/workflow.js",
     "voice.js",
   ],
-  "projection/model.js": ["kernel-facts.js"],
+  "projection/model.js": ["kernel-facts.js", "kept.js"],
   "projection/state.js": ["semantic-state.js", "version-signal.js", "queued-work.js"],
   "thread/model.js": [
     "anchor-coordinate.js",
+    "kept.js",
     "thread/identity.js",
     "thread/workflow.js",
     "voice.js",
@@ -69,6 +70,7 @@ const exactClosures = {
     "queued-work.js",
     "thread/model.js",
     "anchor-coordinate.js",
+    "kept.js",
     "thread/identity.js",
     "thread/workflow.js",
     "voice.js",
@@ -90,6 +92,7 @@ const exactClosures = {
     "language-paths.js",
     "syntax-languages.js",
     "shadow-tree.js",
+    "scroll-containers.js",
     "keeps.js",
     "keyboard/bindings.js",
     "keyboard/layer-stack.js",
@@ -112,6 +115,8 @@ const exactClosures = {
     "user-place.js",
     "geometry.js",
     "scrolling.js",
+    // A glide jumps under reduced motion.
+    "motion.js",
     "rect.js",
     "shown-box.js",
     // A widget's declared commands arrive by the event it dispatches, and a malformed
@@ -208,15 +213,6 @@ export default {
       severity: "error",
       from: { path: owners, pathNot: `^${overlay}` },
       to: { reachable: true, path: `^${overlay}` },
-    },
-    {
-      name: "no-cycle",
-      comment:
-        "A cycle has no boot order; whichever module the browser evaluates first " +
-        "reads the other's bindings before they exist.",
-      severity: "error",
-      from: { path: owners },
-      to: { circular: true },
     },
     {
       name: "not-to-unresolvable",

@@ -10,7 +10,7 @@
    A reply's box keeps the caret through its send (replies.js); a first message, or a
    rewrite, whose box goes with the send leaves focus on its thread's card or title
    (`landSent`). Returning to the page is a separate navigation gesture. */
-import { alreadyShown, fitsWhole, scrollIntoView } from "../landing-scroll.js";
+import { fitsWhole, scrollIntoView } from "../landing-scroll.js";
 import { seenRect } from "../geometry.js";
 import {
   focusDestination,
@@ -123,25 +123,24 @@ pageScope("text entry", {
 });
 
 // Coming back out of a thread's box onto the thread, by Escape or by a send, is no
-// arrival. A thread too tall to show whole and already shown stands around the box, and
-// landing its title would take the user away from the turn they were answering, so it
-// is a `return` that leaves it where it is. One that fits, or one the user has
-// scrolled out of view since, is a `move`, brought into view. While the box the user
-// left still stands in front of them, nothing scrolls: it stands beside the gesture,
-// and a landing would carry it, by the room the thread's focus ring asks at its foot or
-// by bringing back a head they scrolled above the window. A box the send gave up, as a
-// seat's does to the thread it starts, leaves nothing there to carry.
+// arrival. A thread too tall to show whole, some of which is in front of the user
+// (geometry.js, `seenRect`), stands around the box, and landing its title would take the
+// user away from the turn they were answering, so it is a `return` that leaves it where
+// it is. One that fits, or one the user has scrolled out of view since, is a `move`,
+// brought into view where it is not already shown. While the box the user left still
+// stands in front of them, nothing scrolls: it stands beside the gesture, and a landing
+// would carry it, by the room the thread's focus ring asks at its foot or by bringing
+// back a head they scrolled above the window. A box the send gave up, as a seat's does
+// to the thread it starts, leaves nothing there to carry.
 /** @param {Element} thread */
 function returnToThread(thread) {
-  const shown = alreadyShown(thread);
-  if (!fitsWhole(thread) && shown) {
+  if (!fitsWhole(thread) && seenRect(thread, new Map())) {
     focusThread(thread, "return");
     return;
   }
   focusThread(thread, "move");
   const box = threadReplyInput(thread);
-  if (!shown && !(box && seenRect(box, new Map())))
-    scrollIntoView(thread, { block: "nearest" });
+  if (!(box && seenRect(box, new Map()))) scrollIntoView(thread, { block: "nearest" });
 }
 
 // The thread whose card the user is on.
@@ -189,16 +188,12 @@ export function createThreadLanding() {
     if (!prepared) return false;
     const { box } = prepared;
     // Entering a reply is a focus move, not a navigation step to its thread or passage.
-    // Reveal only the writing area: a box already shown (landing-scroll.js,
-    // `alreadyShown`) leaves every scroller where the reader put it, including the
-    // transcript inside a margin card, however tall the box.
+    // Reveal only the writing area: a nearest landing leaves a box already shown where
+    // the reader put it (landing-scroll.js, `alreadyShown`), the transcript inside a
+    // margin card included.
     bringBackSurfaceOf(box);
     focusDestination(box, "move");
-    if (!alreadyShown(box))
-      scrollIntoView(box, {
-        block: "nearest",
-        behavior: "instant",
-      });
+    scrollIntoView(box, { block: "nearest", behavior: "instant" });
     return true;
   };
   /** @param {Element} box @param {ReturnRoute | null} route */
@@ -247,15 +242,19 @@ export function declareThreadKeys(landIn, threadHere) {
           resolutionControl(cardThread())?.matches(".lf-reopen")
             ? "reopen"
             : "reply",
+        when: () =>
+          Boolean(threadInput(cardThread())) ||
+          Boolean(
+            resolutionControl(cardThread())?.matches(
+              '.lf-reopen:not(:disabled, [aria-disabled="true"])',
+            ),
+          ),
         // Find the thread's own compose row rather than a widget editor inside it.
-        get run() {
+        run: () => {
           const thread = cardThread();
           const box = threadInput(thread);
-          if (box) return () => landIn({ held: thread, box });
-          const control = resolutionControl(thread);
-          return control?.matches('.lf-reopen:not(:disabled, [aria-disabled="true"])')
-            ? () => control.click()
-            : undefined;
+          if (box) landIn({ held: thread, box });
+          else resolutionControl(thread)?.click();
         },
       },
       {
@@ -264,24 +263,21 @@ export function declareThreadKeys(landIn, threadHere) {
         keys: ["r"],
         title: () =>
           resolutionControl(threadHere())?.matches(".lf-reopen") ? "reopen" : "resolve",
-        get run() {
-          const control = resolutionControl(threadHere());
-          return control?.matches(':not(:disabled, [aria-disabled="true"])')
-            ? () => control.click()
-            : undefined;
-        },
+        when: () =>
+          Boolean(
+            resolutionControl(threadHere())?.matches(
+              ':not(:disabled, [aria-disabled="true"])',
+            ),
+          ),
+        run: () => resolutionControl(threadHere())?.click(),
       },
       {
         id: "message.copy",
         touch: false,
         keys: ["Mod+c"],
         title: "copy message as Markdown",
-        get run() {
-          const trigger = messageCopy(threadHere());
-          return trigger && getSelection()?.isCollapsed
-            ? () => trigger.click()
-            : undefined;
-        },
+        when: () => Boolean(messageCopy(threadHere()) && getSelection()?.isCollapsed),
+        run: () => messageCopy(threadHere())?.click(),
       },
     ],
   });

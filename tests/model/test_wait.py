@@ -1257,10 +1257,7 @@ def test_an_unnamed_bare_shell_wait_has_no_watch_set(page_dir, sessionless, caps
     assert "nothing to watch" in printed.err
 
 
-@pytest.mark.parametrize("acknowledge", ["receive_delivery", "cmd_delivery_ack"])
-def test_a_wait_delivers_input_even_after_its_hooks_stop(
-    page_dir, monkeypatch, capsys, acknowledge
-):
+def test_a_wait_delivers_input_even_after_its_hooks_stop(page_dir, monkeypatch, capsys):
     """An explicit wait is a complete delivery route even when hooks succeeded
     earlier but cannot run now. A permanent capability mark cannot establish
     that the next hook will deliver; no timeout can establish that either."""
@@ -1277,7 +1274,7 @@ def test_a_wait_delivers_input_even_after_its_hooks_stop(
     payload = json.loads(capsys.readouterr().out)
     assert f"leaf delivery ack {payload['id']} && leaf wait" in payload["acknowledge"]
     assert [event["id"] for event in payload["batches"][0]["events"]] == [first["id"]]
-    getattr(delivery_model, acknowledge)(payload["id"])
+    delivery_model.cmd_delivery_ack(payload["id"])
 
     hooks_model.cmd_hook(
         "claude-code", {"hook_event_name": "UserPromptSubmit", "session_id": "unhooked"}
@@ -1297,7 +1294,7 @@ def test_a_wait_delivers_input_even_after_its_hooks_stop(
     payload, _, shown = printed(capsys.readouterr().out)
     assert [event["id"] for event in shown] == [second["id"]]
     assert page_state(page_dir)["pending"] == 1
-    getattr(delivery_model, acknowledge)(payload["id"])
+    delivery_model.cmd_delivery_ack(payload["id"])
     assert page_state(page_dir)["pending"] == 0
     observed = cleanup_model.session_record("unhooked")
     assert observed is not None

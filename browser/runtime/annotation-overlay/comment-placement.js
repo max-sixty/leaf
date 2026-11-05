@@ -277,12 +277,8 @@ const AXES = ["x", "y"];
 // `across(columns)` is the same room for a surface standing in those columns, where
 // chrome beside them, such as the floating panel's row under the page column, takes
 // none of its height (`shownWindow`).
-/** @param {{scroller?: Element | undefined, at?: {x: number, y: number} | null, right?: number}} [options] @returns {Boundary} */
-export function commentBoundary({
-  scroller = pageScroller,
-  at = null,
-  right = Infinity,
-} = {}) {
+/** @param {{scroller?: Element | undefined, at?: {x: number, y: number} | null}} [options] @returns {Boundary} */
+export function commentBoundary({ scroller = pageScroller, at = null } = {}) {
   /** @param {Partial<Box>} within */
   const room = (within) => {
     /** @param {Columns | null} columns */
@@ -316,9 +312,7 @@ export function commentBoundary({
       if (at.x < shown.left) cut.left = Math.max(cut.left, shown.left);
       if (at.x > shown.right) cut.right = Math.min(cut.right, shown.right);
     }
-  const shell = inRegion
-    ? inRegion.room
-    : room({ right: Math.min(shellRight(), right) });
+  const shell = inRegion ? inRegion.room : room({ right: shellRight() });
   const whole = inRegion ? flow.getBoundingClientRect() : shell;
   /** @type {BoundaryKey} */
   const key = inRegion
@@ -585,8 +579,12 @@ export function commentPlacement() {
     /** @param {Pick<MiddlewareState, "middlewareData">} state */
     const measure = (state) => state.middlewareData.scaled;
     // The room across the columns the surface stands in where the boundary lets it
-    // stand, so chrome beside it takes none of its height (`commentBoundary`); the
-    // last one read is the room the answer stood in.
+    // stand, so chrome beside it takes none of its height (`commentBoundary`). The last
+    // one read when the surface reads its answer (`plane`) is the room the answer stood
+    // in. floating.js solves the placement again at the box's old size only after that
+    // (`position`), and that solve writes it again. We could consider, in future,
+    // returning `shown` and `heldIn` in the answer's middleware data, so `plane` reads
+    // the answer it is given and the order of the two solves stops mattering.
     /** @type {DOMRectReadOnly} */
     let shown = boundary;
     /** @param {MiddlewareState} state */

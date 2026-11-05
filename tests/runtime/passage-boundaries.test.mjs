@@ -107,6 +107,18 @@ test("a node in a declared tree stands where its host stands", () => {
   assert.equal(pageWords(document.querySelector("main p")), true);
 });
 
+test("header and footer passages belong to the page while runtime surfaces do not", () => {
+  document.body.innerHTML = `<header><p>Opening</p></header><main><p>Content</p></main>
+    <footer><p>Closing</p></footer>
+    <div class="lf-chrome"><p data-lf-said>Thread words</p></div>
+    <div data-lf-runtime><p>Status words</p></div>`;
+  const words = pageText().raw;
+  for (const word of ["Opening", "Content", "Closing"]) assert.ok(words.includes(word));
+  assert.ok(!words.includes("Thread words"));
+  assert.ok(!words.includes("Status words"));
+  assert.equal(says(document.body), "Opening Content Closing");
+});
+
 test("the page's reading is taken once while the document holds still", () => {
   document.body.innerHTML = "<main><p>Alpha beta</p></main>";
   const first = pageText();
@@ -393,6 +405,40 @@ test("a reading's positions lead back to their nodes", () => {
   }
   assert.equal(pointAt(reading, -1) === null, true);
   assert.equal(pointAt(reading, reading.raw.length) === null, true);
+});
+
+// A quote's copies are told apart by the words beside each, and only those are read: a
+// run of whitespace before them, however long, is not read again to learn whether the
+// first of them follows a space.
+test("telling a quote's copies apart reads only around them", () => {
+  document.body.innerHTML = "<main><p></p></main>";
+  const line = document.querySelector("p");
+  line.textContent = `a${" ".repeat(1_000_000)}${"x".repeat(256)} MARK ${"y".repeat(256)} MARK ${"z".repeat(256)}`;
+  const reading = pageText();
+  const node = line.firstChild;
+  const data = node.data;
+  // A search reads a node's words as slices of its data, so the slices are what it read.
+  let read = 0;
+  Object.defineProperty(node, "data", {
+    configurable: true,
+    get: () => ({
+      slice: (/** @type {number} */ start, /** @type {number} */ end) => {
+        const part = data.slice(start, end);
+        read += part.length;
+        return part;
+      },
+    }),
+  });
+  try {
+    const found = findQuote(reading, "MARK", {
+      prefix: "y".repeat(24),
+      suffix: "z".repeat(24),
+    });
+    assert.equal(found[0]?.start, data.lastIndexOf("MARK"), "the second copy");
+  } finally {
+    delete node.data;
+  }
+  assert.ok(read < 10_000, `${read} characters read to tell two copies apart`);
 });
 
 // `says` and `wrote` are two answers for one element, and a kept reading must not hand

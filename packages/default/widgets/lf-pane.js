@@ -1,8 +1,11 @@
 /* A pane is one named reading region: an optional header, exactly one body element, and
    an optional footer, all authored. The theme lays them out and decides whether the body
    scrolls; this module names the region and registers its body, so reading keys, travel
-   and continuity find the place whichever box scrolls it. A revision that replaces the
-   body re-registers the region under the same id. */
+   and continuity find the place whichever box scrolls it. The module reads only which
+   child is which, so a revision edits inside them in place (`x-patch: members`) and the
+   browser's scroll anchoring keeps the reader's place in the body, which a pane
+   replaced whole would lose. A revision that replaces the body re-registers the region
+   under the same id. */
 import {
   keeps,
   once,

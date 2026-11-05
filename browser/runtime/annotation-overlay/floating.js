@@ -52,11 +52,23 @@
    Neither surface stands before the user acts, so the bundle stays off the presentation
    path and loads as soon as the page has presented, as an arrival the page answers for.
    A surface's first placement then lands in the frame that asks for it rather than
-   after a fetch. */
+   after a fetch.
+
+   The root's scroll padding keeps a landing clear of the chrome (base.css). Chromium
+   applies it to a caret reveal in an editor these surfaces hold too, carrying the
+   reveal through the box's anchor and moving the document beneath an editor already in
+   view (#4821). So while the user is in a `leaf-text` inside a box standing in a plane,
+   the root says so (`data-lf-floating-editor`, annotation-chrome.css), and is read again
+   as the user moves and as a box takes or leaves its plane (`readFloatingEditor`). The
+   root is the scroller the padding belongs to; a `:has()` on it matched its argument
+   against the whole document at each write, 4 ms a write in the chrome on the
+   512-section asks page of `leaf-dev scaling`. */
 
 import { afterPresentation } from "../presentation.js";
 import { visibleTargetParts } from "../visible-target-parts.js";
 import { keeps, layoutPx as px, atLayoutPrecision } from "../keeps.js";
+import { focused, onCurrentLocation } from "../focus.js";
+import { RUNTIME_PAINT_ATTRIBUTE } from "../page-paint.js";
 import { anchorBox, anchorElement, anchorFor, anchorName } from "../css-anchors.js";
 import { shownBand } from "../geometry.js";
 import { containingReadingRegionFor } from "../reading-regions.js";
@@ -73,6 +85,8 @@ import { upFrom, renderedParent } from "../shadow.js";
  * }} FloatingReference */
 /** @typedef {{subject: Element | null, anchor: ReturnType<typeof anchorFor>,
  * frame: ReturnType<typeof anchorFor>, plane: Plane, at: Point}} PlacementProof */
+/** @typedef {import("../box-motion.js").Held} Held */
+/** @typedef {import("../box-motion.js").Stood} Stood */
 /** @typedef {{floating: HTMLElement, subject: Element | null,
  * anchor: ReturnType<typeof anchorFor>, frame: ReturnType<typeof anchorFor>,
  * plane: Plane, tenure: object, edges: {left: "left" | "right", top: "top" | "bottom"},
@@ -205,21 +219,17 @@ const INSETS = ["left", "right", "top", "bottom"];
 /** @type {Map<HTMLElement, FloatingSelection>} */
 const stood = new Map();
 export const floatingSelections = () => [...stood.values()];
-// The edges that hold a placed box where its placement stood it, the anchor of what it
-// stands by, and the element its plane moves with, as box-motion.js reads them
-// (`held`), or null for a box no placement stands.
-/** @param {HTMLElement} floating */
-export const heldEdges = (floating) => {
-  const placed = stood.get(floating);
-  return placed
-    ? {
-        x: placed.edges.left,
-        y: placed.edges.top,
-        by: placed.anchor,
-        plane: placed.frame,
-      }
-    : null;
-};
+
+// Whether the user is in an editor a floating box holds, said on the root (header).
+function readFloatingEditor() {
+  const editing = focused()?.closest?.("[data-lf-plane] leaf-text");
+  keeps(
+    document.documentElement,
+    RUNTIME_PAINT_ATTRIBUTE.floatingEditor,
+    editing ? "" : null,
+  );
+}
+onCurrentLocation(readFloatingEditor);
 
 /** @param {Node | null | undefined} context */
 const physicalContext = (context) =>
@@ -319,6 +329,20 @@ export function floatingPlacement({ floating, update }) {
   let stand = placedAt;
   /** @type {PlacementProof | null} */
   let placementProof = null;
+  // What holds the box where its last placement stood it (`held`), and the size it
+  // stood at, in positioning pixels. We could consider, in future, keeping `stood` for a
+  // placement with no proof too, so `held` reads its edges rather than this copy, and
+  // having box-motion hand the placement the size it last read, so one place holds the
+  // box's old size: the two differ where a reading takes a resize no placement answers,
+  // as while the grip carries a card.
+  /** @type {Held | null} */
+  let holding = null;
+  /** @type {{width: number, height: number} | null} */
+  let stoodSize = null;
+  // Each answer's placement of the box at the size it last stood at, where the answer
+  // stands it at another (`position`).
+  /** @type {WeakMap<Position, Position>} */
+  const atStoodSize = new WeakMap();
   /** @type {(() => void) | null} */
   let stopScrollInvalidation = null;
   // Where an answer stands the box, in client coordinates, from the measurement it was
@@ -391,14 +415,15 @@ export function floatingPlacement({ floating, update }) {
     current: (placement) => placement === epoch,
     // Computes the answer, in the window's positioning space, and the constraint
     // `planeOf` reads as binding it: `"page"`, `"window"`, or the edge that holds it in
-    // (`{edge, at}`), whose holder names the plane. `beside` is the element the box
-    // stands beside in the page's plane. `stand` then writes that answer's spot in its
-    // plane. An answer a later placement superseded while it was computed is null, and
-    // writes nothing.
+    // (`{edge, at}`), whose holder names the plane; or `"page"` itself, for a box its
+    // owner keeps in the page's plane whatever the answer. `beside` is the element the
+    // box stands beside in the page's plane. `stand` then writes that answer's spot in
+    // its plane. An answer a later placement superseded while it was computed is null,
+    // and writes nothing.
     /** @param {typeof import("@floating-ui/dom").computePosition} computePosition
      * @param {FloatingReference} reference
      * @param {Partial<import("@floating-ui/dom").ComputePositionConfig> & {middleware: import("@floating-ui/dom").Middleware[]}} options
-     * @param {(answer: Position) => "page" | "window" | HoldingEdge} planeOf
+     * @param {((answer: Position) => "page" | "window" | HoldingEdge) | "page"} planeOf
      * @param {Element} beside */
     async position(computePosition, reference, options, planeOf, beside) {
       const placement = epoch;
@@ -425,7 +450,7 @@ export function floatingPlacement({ floating, update }) {
       });
       if (placement !== epoch) return null;
       const { offset, scale } = answer.middlewareData.anchorAt;
-      const wanted = planeOf(answer);
+      const wanted = planeOf === "page" ? planeOf : planeOf(answer);
       const holder =
         offset && physical && typeof wanted === "object"
           ? holderOf(wanted, physical, getOverflowAncestors(physical))
@@ -445,6 +470,7 @@ export function floatingPlacement({ floating, update }) {
         y: offset.y + (frameBox?.top ?? 0) / scale.y,
       };
       keeps(floating, "data-lf-plane", plane);
+      readFloatingEditor();
       stopScrollInvalidation?.();
       stopScrollInvalidation = null;
       if (plane !== "page") {
@@ -466,30 +492,78 @@ export function floatingPlacement({ floating, update }) {
       // anchorAt proves the solver's containing block is the window. Other
       // containing blocks have no declared prediction in this selection.
       placementProof = at
-        ? {
-            subject: watched,
-            anchor,
-            frame: frameAnchor,
-            plane,
-            at,
-          }
+        ? { subject: watched, anchor, frame: frameAnchor, plane, at }
         : null;
+      // The box changed size since it last stood: the same placement is solved for it
+      // at that size too, which its motion takes as where the box would have stood had
+      // it kept its size (box-motion.js, `placed`). It is solved after the surface has
+      // read its answer (`planeOf`), from the room its middleware keeps from the last
+      // solve, and without sizing, which writes the box's size. A box its owner keeps
+      // in the page's plane has no such spot: the open comment box rides its words and
+      // is never placed again for a scroll (composing/floating-response.js,
+      // `watchFabPosition`), so its next placement catches up with every scroll since,
+      // which is the box's own move.
+      const { width, height } = answer.middlewareData.held;
+      if (
+        planeOf !== "page" &&
+        stoodSize &&
+        (Math.abs(width - stoodSize.width) >= 0.5 ||
+          Math.abs(height - stoodSize.height) >= 0.5)
+      ) {
+        const size = stoodSize;
+        const before = await computePosition(measured, floating, {
+          ...options,
+          strategy: "fixed",
+          // Floating UI lays this over its own platform, which measures the box by it.
+          platform: /** @type {import("@floating-ui/dom").Platform} */ (
+            /** @type {unknown} */ ({ getDimensions: () => size })
+          ),
+          middleware: [
+            ...options.middleware.filter(
+              (middleware) => middleware && middleware.name !== "size",
+            ),
+            held,
+            anchorAt(measured),
+          ],
+        });
+        if (placement !== epoch) return null;
+        atStoodSize.set(answer, before);
+      }
       return answer;
     },
     // Writes the answer's spot in its plane, and returns how far that moved the box, by
-    // the answer's own measure (`clientBox`).
-    /** @param {Position} answer */
+    // the answer's own measure (`clientBox`), and, where the box changed size since it
+    // last stood, how far the edges that would have held it at that size move to where
+    // they would have stood it (`position`), measured from the same box.
+    /** @param {Position} answer @returns {Stood} */
     stand(answer) {
       const from = floating.getBoundingClientRect();
       stand(answer);
       const to = clientBox(answer);
-      const moved = { x: to.left - from.left, y: to.top - from.top };
+      const before = atStoodSize.get(answer);
+      const kept = before?.middlewareData.anchorAt.offset && clientBox(before);
+      /** @type {Held | undefined} */
+      const keptEdges = before?.middlewareData.held.edges;
+      const moved = {
+        x: to.left - from.left,
+        y: to.top - from.top,
+        kept:
+          kept && keptEdges
+            ? {
+                edges: keptEdges,
+                x: kept[keptEdges.x] - from[keptEdges.x],
+                y: kept[keptEdges.y] - from[keptEdges.y],
+              }
+            : null,
+      };
+      const { edges, width, height, block } = answer.middlewareData.held;
+      holding = { ...edges };
+      stoodSize = { width, height };
       if (!placementProof) {
         stood.delete(floating);
         tenure = Object.freeze({});
         return moved;
       }
-      const { edges, width, height, block } = answer.middlewareData.held;
       const { offset, scale } = answer.middlewareData.anchorAt;
       const { subject, anchor, frame: frameAnchor, plane, at } = placementProof;
       /** @param {"x" | "y"} coordinate @param {"left" | "top"} start
@@ -527,6 +601,9 @@ export function floatingPlacement({ floating, update }) {
       return moved;
     },
     clientBox,
+    // What holds the box where its last placement stood it, as box-motion.js reads it:
+    // the edges its spot is written from; null while no placement stands it.
+    held: () => holding,
     // Discards any placement in flight, leaving the box where it stands.
     supersede() {
       epoch += 1;
@@ -542,8 +619,11 @@ export function floatingPlacement({ floating, update }) {
       observer = null;
       tenure = Object.freeze({});
       placementProof = null;
+      holding = null;
+      stoodSize = null;
       stood.delete(floating);
       delete floating.dataset.lfPlane;
+      readFloatingEditor();
       for (const property of ["position-anchor", ...INSETS])
         floating.style.removeProperty(property);
     },

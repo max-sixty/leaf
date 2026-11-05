@@ -10,6 +10,12 @@
  * the reply's own message, or a news notice, on a thread holding the reply back so as
  * not to move what the user reads, changing once the page's applied state holds the
  * reply. The notice's change and the reply's arrival are both on the page's clock.
+ *
+ * The runtime records agent words coming into view itself (`reply_visible`,
+ * runtime/thread/read.js), which `leaf-dev response-times` reads from the page's
+ * diagnostics, but it cannot stand in for this reading: it records nothing while a
+ * thread holds the reply behind its notice, and a website's diagnostics stay in its
+ * page's container, out of the journey's reach.
  */
 (() => {
   const startedKey = "leaf-visible-reply-started";
@@ -49,9 +55,9 @@
     let dirty = false;
     const inView = new Set();
     const observed = new WeakSet();
-    // A message names its event by `data-mid` or `data-event`, as the reader drawing
+    // A message names its event by `data-mid` or `data-lf-event`, as the reader drawing
     // it does (thread/messages.js).
-    const message = ".lf-msg[data-lf-author=agent]:is([data-mid], [data-event])";
+    const message = ".lf-msg[data-lf-author=agent]:is([data-mid], [data-lf-event])";
     const selector = `${message}, .lf-thread-news`;
     const note = (table, key, now) => {
       if (table[key] !== undefined) return;
@@ -74,7 +80,7 @@
         if (!node.checkVisibility()) continue;
         if (node.matches(message)) {
           if (node.querySelector(".lf-msg-text")?.textContent.trim())
-            note(found.messages, node.dataset.mid ?? node.dataset.event, now);
+            note(found.messages, node.dataset.mid ?? node.dataset.lfEvent, now);
         } else {
           const thread = drawnThread(node);
           if (thread) said[thread] = node.textContent.trim();
@@ -140,9 +146,9 @@
   // The thread a node is drawn in: a card's, or the one the panel's view stands for.
   const drawnThread = (node) => {
     const thread = node.closest(
-      ".lf-thread[data-id], [data-lf-thread-view][data-thread]",
+      ".lf-thread[data-id], [data-lf-thread-view][data-lf-thread]",
     );
-    return thread?.dataset.id ?? thread?.dataset.thread ?? null;
+    return thread?.dataset.id ?? thread?.dataset.lfThread ?? null;
   };
 
   // When the page first showed the user reply `id` in `thread`, and by which sign: its
@@ -226,7 +232,7 @@
     visibleReplyDebug() {
       return {
         // The view open in the floating panel: threads, a thread, or none.
-        view: document.querySelector(".lf-floating-panel")?.dataset.open ?? null,
+        view: document.querySelector(".lf-floating-panel")?.dataset.lfOpen ?? null,
         visibility: document.visibilityState,
         presented: document.body.hasAttribute("data-lf-presented"),
         reading: document.body.dataset.lfReading ?? null,
@@ -236,7 +242,7 @@
         // What each drawn thread shows of itself: a card, or the panel's view.
         threads: [
           ...document.querySelectorAll(
-            ".lf-thread[data-id], [data-lf-thread-view][data-thread]",
+            ".lf-thread[data-id], [data-lf-thread-view][data-lf-thread]",
           ),
         ].map((node) => ({
           id: drawnThread(node),
@@ -247,8 +253,8 @@
         shown: shown(),
         messages: [...document.querySelectorAll(".lf-msg")].map((node) => ({
           classes: [...node.classList],
-          mid: node.dataset.mid ?? node.dataset.event ?? null,
-          attempt: node.dataset.attempt ?? null,
+          mid: node.dataset.mid ?? node.dataset.lfEvent ?? null,
+          attempt: node.dataset.lfAttempt ?? null,
           busy: node.hasAttribute("aria-busy"),
           hasText: Boolean(node.querySelector(".lf-msg-text")?.textContent.trim()),
           visible: node.checkVisibility(),

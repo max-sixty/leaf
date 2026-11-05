@@ -57,7 +57,7 @@ assert:
 # paragraph in place passed 2/2. Require the binding that supplies line controls.
 variants:
   # Work-update suggestion (2026-10-10): one Codex run per arm passed this case
-  # and text-edit. Candidate used wt step diff; base assembled a temporary index.
+  # and text-edit. Head used wt step diff; base assembled a temporary index.
   current-work:
     metadata:
       purpose: A current-work update offers refreshable patch evidence without transcribing it.

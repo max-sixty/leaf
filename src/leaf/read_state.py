@@ -35,12 +35,11 @@ mark it read.
 The page itself is agent content too, one revision at a time. A `seen` event names the
 newest live revision a tab showed the user while they were there (the document visible
 and focused, the evidence a message's exposure waits for too), posted as they leave
-it, and `seen_revision` is the newest one any tab named. The browser posts none at
-present.
+it, and `seen_revision` is the newest one any tab named.
 A hosted copy serves none (`served_state.page`), since its reader is not the page's
 user. It needs no exposure of each passage, as a message's read does: a reader comes
-back to a page to see what moved, and the marks it then shows are the evidence's whole
-use. A page has one user, so like `read` it names no account and holds across tabs and
+back to a page to see what moved, and how much moved since then (since-seen.js) is the
+evidence's whole use. A page has one user, so like `read` it names no account and holds across tabs and
 browsers.
 """
 
@@ -93,8 +92,10 @@ def read_contract_error(event: dict, events: list[dict]) -> Finding | None:
 
 def unread_content(
     events: list[dict], threads: dict, names: dict, widgets: dict
-) -> dict[str, list[dict]]:
-    """Each thread's agent content versions the user has not taken in, in log order.
+) -> dict[str, dict[str, str]]:
+    """Each thread's agent content versions the user has not taken in, each by the
+    message it is a version of, in log order. A message has one current version, so
+    a reading of one message adds or drops one entry.
 
     `threads` is the `build_threads` fold keyed by thread id; `names` and `widgets`
     are `thread_context.thread_names` and `thread_widgets` over the same log.
@@ -115,14 +116,14 @@ def unread_content(
     unread = {}
     for thread_id, thread in threads.items():
         moved = latest_move.get(thread_id, 0)
-        unread[thread_id] = [
-            {"message": message["id"], "version": version}
+        unread[thread_id] = {
+            message["id"]: version
             for message in thread["msgs"]
             if user_message_content(message)
             and not message.get("ephemeral")
             and message.get("edited", {}).get("seq", message["seq"]) > moved
             and (message["id"], version := content_version(message)) not in marked
-        ]
+        }
     return unread
 
 

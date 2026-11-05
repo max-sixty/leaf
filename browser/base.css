@@ -1,13 +1,6 @@
+/* Web Awesome's theme, its custom properties only: the tokens its components read. */
 @import "./styles/vendor/webawesome-theme.css" layer(lf-vendor);
 @import "./styles/tokens.css";
-/* Web Awesome's theme, imported for the tokens its components read, also gives the root
-   a colour, a light colour scheme and its sans. Leaf's core gives the root none of them,
-   so a page that takes no theme keeps the browser's (the reading theme sets its own). */
-:where(:root) {
-  color: revert;
-  color-scheme: revert;
-  font-family: revert;
-}
 
 /* Leaf's core sheet, composed into each page's layer and served at /theme.css with the
  * selected packages' contributions after it. It holds what Leaf's own interface and its
@@ -48,9 +41,9 @@
  * first comment and the last resolution leave the document column in place. */
 
 /* Leaf's controls wear the faces of their roles (components/controls.css), in
-   shadow.css so they also reach declared shadow trees. Packages may set placement and
-   density, but keep each face's shape, border, hover, and disabled treatment. Margin
-   entries, reaction chips, and status labels retain their own forms.
+   shadow.css so they also reach declared shadow trees. Packages may set placement,
+   type and density, but keep each face's ink, ground, border, lift, hover, and
+   disabled treatment.
 
    Typography is presentation, not passage permission. A chip or code annotation may look
    like apparatus and still be a page word the user can quote.
@@ -109,6 +102,22 @@
    means a disclosure to stay shut on paper says so in its own stylesheet. A wrong
    offer/said declaration is fixed where the label is created, not by naming its widget
    in print CSS. */
+
+/* The chrome's root stands after `body` (leaf.js), a stacking context at the largest
+   z-index there is. A box the page writes can at most tie with it, and a tie paints in
+   tree order, where nothing in `body` follows it; so it paints over every page box,
+   whatever stacking contexts the page makes, and the page rises over Leaf only through
+   the top layer (the ladder, styles/tokens.css). Its box is empty at the origin and
+   takes no room; Leaf positions its surfaces against the document or the viewport. It
+   inherits from the root, as `body` does, so what the two share is declared there
+   (`:root`, below). */
+:root > .lf-chrome {
+  position: absolute;
+  inset: 0 auto auto 0;
+  z-index: 2147483647;
+  width: 0;
+  height: 0;
+}
 
 :root {
   /* The root and body are important against the page's own rules (body, below): Leaf's
@@ -225,10 +234,29 @@
 }
 /* Where a box's marks stand (:root, "Where it stands"). It has no initial value, so a
  * box that states none reads as stating none, which `outline-offset`'s initial 0 could
- * not say: a field's edge read as nothing stated, and an overlay mark stood 3px out
- * round a field whose focus ring replaces its border. It does not inherit, so a box
+ * not say: a field's edge read as nothing stated, and a mark stood 3px out round a
+ * field whose focus ring replaces its border. It does not inherit, so a box
  * inside a stated one answers for itself. */
 @property --lf-ring-at {
+  syntax: "*";
+  inherits: false;
+}
+/* What a mark drawn on a box is drawn with (surfaces.css): its gap, band, ink and the
+ * room it reaches past the box. None inherits, so a box inside a marked one is marked
+ * only as it is itself. */
+@property --lf-band-gap {
+  syntax: "*";
+  inherits: false;
+}
+@property --lf-band-w {
+  syntax: "*";
+  inherits: false;
+}
+@property --lf-band-ink {
+  syntax: "*";
+  inherits: false;
+}
+@property --lf-band-room {
   syntax: "*";
   inherits: false;
 }
@@ -237,7 +265,13 @@
  * not become a containing block, and the foot's room pads it, which the live body's
  * minimum (below) fills the window with only at border-box. It is the shell, the
  * inline-size container a narrow column and a widget's `100cqi` ask (`lf-shell`,
- * page-layout.js).
+ * page-layout.js). */
+body {
+  position: static !important;
+  box-sizing: border-box !important;
+  container: lf-shell / inline-size;
+}
+/* What the page's body and Leaf's chrome after it both inherit from the root.
  *
  * A run with nothing to break on breaks anyway rather than painting outside the box that
  * was holding it, over whatever stands beside that box or past the window, where the
@@ -247,11 +281,8 @@
  * metric's headline was the one with no width to spare at all, and a twelve-character
  * value ran 287px out of a 138px card and across whatever the grid had put beside it.
  */
-body {
-  position: static !important;
-  box-sizing: border-box !important;
+:root {
   overflow-wrap: break-word;
-  container: lf-shell / inline-size;
 }
 /* Read only by the root's own `scroll-padding-bottom`, so it does not inherit: the
  * panel's every change of height then restyles the root alone. */
@@ -278,8 +309,12 @@ body {
     height: 100%;
     overflow-y: scroll;
     /* A sticky header over the whole root, a page tab strip, adds its stated height as
-     * `--lf-root-headers` (page-layout.js). */
-    scroll-padding-top: calc(var(--lf-top-covered) + var(--lf-landing-room));
+     * `--lf-root-headers` (root-headers.js). The page's own heads are cleared by the
+     * margin every box reads from the slot (surfaces.css), which a page's own
+     * `scroll-margin-top` replaces rather than adds to, and the root's band is Leaf's
+     * alone, so a page's own `scroll-padding-top`, written for its header, adds nothing
+     * either way: both idioms land a target once below the header. */
+    scroll-padding-top: calc(var(--lf-top-covered) + var(--lf-landing-room)) !important;
     /* The floating panel's box reaches from the window's foot to its top, a view open
      * above the row included (`--lf-panel-reach`, floating-panel.js), and every landing
      * clears it as it clears the row's own room, so an arrival with a view open lands
@@ -290,8 +325,12 @@ body {
     );
     /* The foot's room is the body's own end, where content growing above it only
      * lengthens the body: a box standing after the content would move with each growth.
-     * A page of parts makes it the open part's end instead (layouts.css). */
+     * A page of parts makes it the open part's end instead (layouts.css). The head's
+     * room is the body's own start the same way, padding rather than a box, so a page
+     * that lays its body out as a grid or flex row of header, nav and main finds no
+     * item of Leaf's among its own. */
     body {
+      padding-top: var(--lf-head-room);
       padding-bottom: var(--lf-foot-room);
     }
     /* Every live body but a block sample's (below) fills the window less its own
@@ -304,11 +343,6 @@ body {
      * the band. */
     &:not([data-lf-sample-block]) body {
       min-height: stretch;
-    }
-    body::before {
-      content: "";
-      display: block;
-      height: var(--lf-head-room);
     }
   }
   html[data-lf-live][data-lf-layout~="workspace"] {
@@ -341,11 +375,9 @@ body {
  * wins. This anonymous layer sits early in lf-base, which only lf-reset precedes, so
  * these declarations outrank every later layer and every unlayered stylesheet
  * declaration without reserving a named layer custom CSS could append to. What ranks
- * higher is what comes earlier: lf-reset and markup's reading face
- * (lf-base.lf-reading-face, reading.css), which state nothing important; Web
- * Awesome's sheet (lf-base.lf-vendor, imported at the top of this file), whose one
- * important rule hides its own page frame's desktop or mobile parts; and inline
- * importance.
+ * higher is what comes earlier: lf-reset, markup's reading face
+ * (lf-base.lf-reading-face, reading.css) and Web Awesome's tokens (lf-base.lf-vendor),
+ * which state nothing important; and inline importance.
  *
  * The same rank makes `hidden` hide whatever display another rule states for the
  * element, which the UA's own rule loses to, so no rule restores it per selector.
@@ -359,16 +391,18 @@ body {
     display: none !important;
   }
   @media screen {
+    /* The chrome's root follows body (above), so it reads body's stamp as a sibling. */
     html[data-lf-interactive] body:not([data-lf-presented]),
-    html[data-lf-interactive] body:not([data-lf-presented]) > main,
-    html[data-lf-interactive] body:not([data-lf-presented]) > main *,
-    html[data-lf-interactive] body:not([data-lf-presented]) .lf-ui {
+    html[data-lf-interactive] body:not([data-lf-presented]) *,
+    html[data-lf-interactive] body:not([data-lf-presented]) ~ .lf-chrome,
+    html[data-lf-interactive] body:not([data-lf-presented]) ~ .lf-chrome * {
       transition: none !important;
     }
     /* A declared shadow tree cannot see body's stamp, so transition suppression
      * reaches it as an inherited property its startup rule queries
      * (styles/shadow-leading.css). */
-    html[data-lf-interactive] body:not([data-lf-presented]) {
+    html[data-lf-interactive] body:not([data-lf-presented]),
+    html[data-lf-interactive] body:not([data-lf-presented]) ~ .lf-chrome {
       --lf-before-presentation: 1;
     }
     /* A sample document paints once its containing page has said what it wears
@@ -383,10 +417,12 @@ body {
 }
 /* The keys a served page's bootstrap holds until presentation (runtime/bootstrap.js).
  * It stands centred on the band where the floating panel's row will rest, and is styled
- * here because it can appear before the runtime has adopted chrome.css. */
+ * here because it can appear before the runtime has adopted chrome.css. It stands after
+ * `body` at the chrome root's z-index and follows that root, so it paints over the page
+ * and the panel's row alike (`:root > .lf-chrome`, above). */
 .lf-held-keys {
   position: fixed;
-  z-index: var(--lf-z-held-keys);
+  z-index: 2147483647;
   pointer-events: none;
   right: calc(18px + var(--lf-safe-right));
   bottom: calc(
@@ -449,13 +485,9 @@ body {
  * page's own CSS. Leaf sets none of its geometry, nor the body's, so a page with no
  * Layout lays out as the browser lays out any page. What stays here is what Leaf's chrome
  * coordinates with and draws nothing: the name a margin element asks the page's
- * readings by, with no Layout, and the stacking
- * context that keeps the page beneath Leaf's ladder (`--lf-z-*`, above). A stacking
- * context also isolates blending, so a page box's `mix-blend-mode` blends with what
- * `main` paints and not with the paper behind it. */
+ * readings by, with no Layout. Stacking and blending stay the page's: the chrome
+ * stacks over the page from outside `body`. */
 main {
-  position: relative;
-  z-index: 0;
   container-name: lf-content-frame;
 }
 
@@ -465,13 +497,17 @@ main {
  * states that beside its overflow, so it holds from the first paint, before the runtime
  * runs (a bounded block, a table, a board; a workspace pane's body from minus its top
  * padding, layouts.css). The runtime marks each declared scroll surface it finds
- * scrolling, whoever made it scroll: a box with the `scroll` class, which a reading
- * region's body takes when it registers (reach.js, `paintSlot`). The mark restarts the
- * slot ([data-lf-scrolls], state.css). The runtime reads no other box's overflow, so a
- * box CSS makes scroll without stating a restart or carrying the class keeps the slot
- * it met, and a header inside it sticks that far below the box's top. The mark sits
- * above packages and Layouts, so it outranks a value stacked onto a box that scrolls (a
- * page tab's panel the page makes scroll), and it restarts at `--lf-top-start`, which a
+ * scrolling, whoever made it scroll: a box with the page's `scroll` class or the
+ * runtime's and modules' `data-lf-scroll`, which a reading region's body takes when it
+ * registers (reach.js, `paintSlot`). The mark restarts the slot ([data-lf-scrolls],
+ * state.css). Each value it changes is one everything in the box inherits, so a box
+ * that holds thousands of elements states the whole restart beside its overflow and
+ * the mark changes nothing there (a text document's listing). The runtime reads no
+ * other box's overflow, so a box CSS makes scroll without stating a restart or
+ * carrying either keeps the slot it met, and a header
+ * inside it sticks that far below the box's top. The mark sits above packages and
+ * Layouts, so it outranks a value stacked onto a box that scrolls (a page tab's panel
+ * the page makes scroll), and it restarts at `--lf-top-start`, which a
  * box that starts its slot other than at 0 states beside its `--lf-top` (a workspace
  * pane's body, a thread list). A box the user scrolls only sideways restarts it for
  * what it holds and keeps the headers over itself for their landings (`across`,
@@ -495,6 +531,22 @@ main {
   syntax: "<length>";
   inherits: true;
   initial-value: 0px;
+}
+/* The page's own heads, the headers it fixes at the window's top or sticks there
+ * ahead of its content, which the runtime finds and measures (`--lf-page-head`,
+ * root-headers.js), stand over everything in the page but themselves, so the slot
+ * starts below them there. Leaf's chrome, after `body`, keeps the root's slot, and so
+ * does what stands above a sticky head, such as a banner (`above`). A head stands at its
+ * own slot, as a header Leaf sticks does, so a control focused in it counts as shown
+ * (`--lf-head-inset`, surfaces.css) rather than being scrolled toward on every Tab. */
+body {
+  --lf-top: calc(var(--lf-head-room) + var(--lf-page-head, 0px));
+}
+[data-lf-page-head] {
+  --lf-top: var(--lf-head-room);
+}
+[data-lf-page-head]:not([data-lf-page-head="above"]) {
+  --lf-head-inset: 0px;
 }
 /* Lengths a script reads (box-motion.js reads a floating box's lift to cut its
  * surface; margin-layout.js reads the rail's hang), registered so it gets resolved
@@ -939,302 +991,6 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new) {
 lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
   padding: 0;
 }
-/* The entry face (control-faces.js, `ACTION_FACES`): the pluggable RHS margin entry.
-   Contributors choose glyph, label, tone, and behavior through contributionEntry(),
-   whose host is built by the `entry` role; this declaration owns every visual and
-   interactive constant that makes unlike verbs read as one family. The margin's
-   modules find an entry by `.lf-margin-entry` and never by this face's class.
-
-   In the theme rather than in chrome.css, where it was, because a margin entry stands
-   in the page's own margin and a package contributes to it. Adopted, its face beat
-   .lf-ui's above by nothing better than that sheet arriving last, and it beat the
-   rules a few lines up — the marker's, the `…`'s — the same way, which is why the
-   `…` never took the ink its own rule asked for on hover. Here the order is the
-   file's, and a package theme concatenated after this one can answer any of it.
-   The states below stay in document order for the same reason: each reads the one
-   above it. A surface supplying --lf-entry-ink retains that ink through the shared
-   states, without competing with their selector specificity. */
-.lf-margin-face {
-  position: relative;
-  box-sizing: border-box;
-  width: var(--margin-entry);
-  min-width: var(--margin-entry);
-  height: var(--margin-entry);
-  min-height: var(--margin-entry);
-  padding: 0;
-  border: 1px solid var(--border-2);
-  border-radius: var(--r);
-  background: var(--lf-entry-tint, var(--paper));
-  color: var(--lf-entry-ink, var(--ink-2));
-  flex: 0 0 auto;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0;
-  font: var(--font-heading);
-  line-height: 1;
-  white-space: nowrap;
-  scroll-margin-block: var(--focus-ring-landing);
-  /* On its edge (:root, "Where it stands"), since a cluster's entries stand 4px apart
-     (`--margin-gap`), closer than a control's ring reaches. */
-  --lf-ring-at: 0;
-  /* The raised face a pressable entry wears, beneath any pulse that rings it. */
-  --lf-entry-lift: 0 1px 0 var(--border-2), var(--raise-1);
-}
-/* A margin entry carries one of three promises on the same paper surface.
-   An action's heavier ring and lower shadow say this press acts now; a disclosure's
-   firmer single ring says it opens context; read-only status keeps only the page's
-   ghost hairline. All three keep one silhouette and one place in the cluster,
-   while the static status alone has no raised or responsive material. */
-.lf-margin-face[data-lf-behavior="action"] {
-  border-width: 2px;
-  color: var(--lf-entry-ink, var(--ink));
-  box-shadow: var(--lf-entry-lift);
-}
-.lf-margin-face[data-lf-behavior="disclosure"] {
-  border-color: color-mix(in srgb, var(--ink) 34%, var(--paper));
-  color: var(--lf-entry-ink, var(--ink-2));
-  box-shadow: none;
-}
-.lf-margin-face[data-lf-behavior="status"] {
-  border-color: var(--rule);
-  color: var(--lf-entry-ink, var(--ink-2));
-  box-shadow: none;
-  cursor: default;
-}
-/* Tone keeps an action's meaning on its icon throughout delivery and agent work. */
-.lf-margin-face[data-lf-tone="positive"]
-  > :is(.lf-margin-entry-icon, .lf-margin-entry-glyph) {
-  color: var(--ok-ink);
-}
-.lf-margin-face[data-lf-tone="negative"]
-  > :is(.lf-margin-entry-icon, .lf-margin-entry-glyph) {
-  color: var(--danger-ink);
-}
-/* Pointer and hover feedback belong to interactive offers. A status keeps its ghost
-   ring in the page-map walk, while its hand and hover response go. */
-.lf-margin-face:is(button, [role="button"]):not([data-lf-behavior="status"]):not(
-    :disabled
-  ):not([aria-disabled="true"]) {
-  cursor: pointer;
-}
-.lf-margin-face:is(button, [role="button"]):not([data-lf-behavior="status"]):hover:not(
-    [aria-disabled="true"]
-  ) {
-  background: var(--lf-entry-tint, var(--chip));
-}
-/* A disclosure says on its own contour and ink that it is about to open, or is open.
-   The keyboard says it too: the Page Map walk lands with [data-lf-focus], and a
-   disclosure the walk has reached is as much about to open as a hovered one. Status
-   never reaches this rule, because inert status takes an interactive accent from
-   neither pointer nor keyboard.
-
-   The ink was stated in base.css, on `.lf-margin-marker` and `.lf-margin-more`, and
-   reached the first and not the second: the marker's selector carried one class more
-   than the resting rule here, and the `…` carried exactly as many, so it lost on this
-   sheet being adopted. One home for the state, and both say the same thing. */
-.lf-margin-face[data-lf-behavior="disclosure"]:is(button, [role="button"]):is(
-    :hover,
-    [data-lf-focus],
-    [aria-expanded="true"]
-  ):not([aria-disabled="true"]) {
-  border-color: var(--accent);
-  color: var(--lf-entry-ink, var(--ink));
-}
-/* A selected page reading and its compact Page Map projection share one accent. Reuse
-   the entry's existing contour: category still owns its weight, and focus can
-   add the one outer ring that says where input will land. */
-.lf-margin-face[data-lf-target-selected] {
-  border-color: var(--accent);
-}
-.lf-margin-face[aria-disabled="true"] {
-  cursor: default;
-}
-.lf-margin-face.lf-react[aria-pressed="true"] {
-  background: var(--chip);
-}
-/* Margin and Page Map share the same attention reading. Blue is the ordinary
-   thread and work cue; green means it is the user's turn, even when another thread
-   on the same carrier has active agent work. Progress stays in the status words and
-   the one arrival pulse rather than competing for the attention color. */
-:where(
-    .lf-margin-face[data-lf-kinds~="comment"],
-    .lf-page-map-action[data-lf-map-item^="comment:"],
-    .lf-margin-face[data-lf-agent-workflow],
-    .lf-page-map-action[data-lf-agent-workflow]
-  )
-  :is(.lf-margin-entry-icon, .lf-margin-entry-glyph, .lf-margin-kind) {
-  color: var(--accent);
-}
-:is(.lf-margin-face, .lf-page-map-action)[data-lf-turn="user"]
-  :is(.lf-margin-entry-icon, .lf-margin-entry-glyph, .lf-margin-kind) {
-  color: var(--turn-ink);
-}
-/* A row that says the thread's word at its end, in Threads and the Page Map, says the
-   user's turn in the same green. */
-:is(.lf-page-map-action, .lf-fp-thread)[data-lf-turn="user"] > .lf-row-end {
-  color: var(--turn-ink);
-}
-:is(.lf-margin-face, .lf-page-map-action)[data-lf-turn="user"] {
-  --lf-entry-tint: var(--turn-wash);
-}
-:is(.lf-margin-face, .lf-page-map-action)[data-lf-agent-arrival] {
-  animation: lf-runtime-4f3c2a8d-agent-work-arrival var(--lf-motion-agent-arrival)
-    ease-out var(--lf-agent-arrival-delay, 0ms) 1;
-}
-@keyframes lf-runtime-4f3c2a8d-agent-work-arrival {
-  0% {
-    box-shadow:
-      var(--lf-agent-stage-shadow, 0 0 0 0 transparent),
-      0 0 0 0 color-mix(in srgb, var(--accent) 42%, transparent);
-  }
-  58% {
-    box-shadow:
-      var(--lf-agent-stage-shadow, 0 0 0 0 transparent),
-      0 0 0 7px color-mix(in srgb, var(--accent) 16%, transparent);
-  }
-  100% {
-    box-shadow:
-      var(--lf-agent-stage-shadow, 0 0 0 0 transparent),
-      0 0 0 10px transparent;
-  }
-}
-@media (prefers-reduced-motion: reduce) {
-  :is(.lf-margin-face, .lf-page-map-action)[data-lf-agent-arrival] {
-    animation: none;
-  }
-}
-/* The arrival pulse keeps the action's existing shadow beneath its transient ring. */
-.lf-margin-face[data-lf-agent-workflow="working"][data-lf-behavior="action"] {
-  --lf-agent-stage-shadow: var(--lf-entry-lift);
-}
-/* Unread agent content marks the entry the way it marks the Threads toggle: a dot
-   painted inside the box the entry already reserves, so it adds no width. It sits on
-   the entry's corner, over its border, so a paper ring parts the two. */
-.lf-margin-face[data-lf-unread]::after {
-  content: "";
-  position: absolute;
-  inset-block-start: 0;
-  inset-inline-end: 0;
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--accent);
-  box-shadow: 0 0 0 2px var(--paper);
-}
-.lf-margin-entry-glyph {
-  line-height: 1;
-}
-.lf-margin-face > .lf-margin-entry-space {
-  display: none;
-}
-.lf-margin-face > .lf-margin-entry-label {
-  position: absolute;
-  z-index: 3;
-  inset-block-start: calc(100% + 6px);
-  inset-inline-end: 0;
-  display: block;
-  width: max-content;
-  max-width: min(320px, 100vw - 8px);
-  padding: var(--tip-pad);
-  border-radius: var(--tip-r);
-  background: var(--tip-bg);
-  color: var(--tip-ink);
-  font: var(--font-tip);
-  white-space: normal;
-  overflow-wrap: anywhere;
-  box-shadow: var(--raise-1);
-  opacity: 0;
-  visibility: hidden;
-  pointer-events: none;
-  transform: translateY(-2px);
-  transition:
-    opacity 90ms ease,
-    transform 90ms ease,
-    visibility 0s linear 90ms;
-}
-.lf-margin-entry-label-word,
-.lf-margin-entry-context,
-.lf-margin-entry-more {
-  display: block;
-}
-/* The label is one line, cut where the tooltip's width runs out: most are a kind's
-   word, and an obligation's is its question, which the marker's accessible name also says. */
-.lf-margin-entry-label-word {
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.lf-margin-entry-context,
-.lf-margin-entry-more {
-  margin-block-start: 2px;
-  color: color-mix(in srgb, var(--paper) 72%, transparent);
-  font: var(--font-fine);
-}
-/* What the entry's title says beyond the label, such as an agent's work on it. */
-.lf-margin-entry-more:empty {
-  display: none;
-}
-/* Inline controls keep their native label. Physical margin controls take the
-   geometry owner's placement, whose readiness gates their first visible paint. */
-.lf-margin-projection .lf-margin-face[data-lf-label-side] > .lf-margin-entry-label {
-  inset: auto;
-  left: var(--lf-label-x);
-  top: var(--lf-label-y);
-}
-/* Hover reveals the label after a short delay, only where the pointer really hovers: a
-   phone keeps the last tapped entry hovered until the next tap, so there the label
-   would outstay the tap. A finger holds the entry to read it instead (held-word.js),
-   and the focus a tap leaves behind says it only where the keyboard placed it, below. */
-@media (hover: hover) {
-  .lf-margin-face:hover:not([aria-expanded="true"]) > .lf-margin-entry-label {
-    opacity: 1;
-    visibility: visible;
-    transform: translateY(0);
-    transition-delay: 90ms;
-  }
-}
-/* A margin entry held under a press, or a focused destination, says its label at once.
-   Besides avoiding a needless delay for the user, this keeps a contribution that is
-   rebuilt while the margin projection settles from restarting three paint-only
-   transitions at time zero forever. */
-.lf-margin-face:is([data-lf-held-word], [data-lf-focus]:not([aria-expanded="true"]))
-  > .lf-margin-entry-label {
-  opacity: 1;
-  visibility: visible;
-  transform: translateY(0);
-  transition: none;
-}
-@media (hover: none) {
-  .lf-margin-face[data-lf-focus]:not(:focus-visible, [data-lf-held-word])
-    > .lf-margin-entry-label {
-    opacity: 0;
-    visibility: hidden;
-  }
-}
-.lf-margin-projection
-  .lf-margin-face:not([data-lf-label-side])
-  > .lf-margin-entry-label {
-  opacity: 0;
-  visibility: hidden;
-  transition: none;
-}
-.lf-margin-count {
-  position: absolute;
-  top: -7px;
-  right: -7px;
-  min-width: 16px;
-  height: 16px;
-  padding: 0 3px;
-  box-sizing: border-box;
-  border-radius: 999px;
-  border: 1px solid var(--paper);
-  background: var(--ink);
-  color: var(--paper);
-  display: grid;
-  place-items: center;
-  font: var(--font-count);
-}
 
 /* A pane is one task region: an optional header, one body element, an optional footer,
  * with no generated wrappers. It is whatever element declares `x-reading-role: pane`,
@@ -1264,25 +1020,14 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
  * Tab to (reach.js), and the layer's ring stands outside the box it names. A held pane
  * stands flush with the scrollport of the workspace body holding it, so that ring lost
  * its right and bottom sides to the scrollport's edge and ran over the header's rule.
- * The body's ring is drawn inset instead, on a later box sharing its grid cell, as the
- * Threads list draws its own (chrome.css, .lf-threads-frame): an outline on the body
+ * The pane is the body's ring frame instead (surfaces.css, `.lf-ring-frame`), drawing
+ * the ring inset on a later box sharing the body's grid cell: an outline on the body
  * itself paints under whatever positioned content scrolls across its edges. */
-[data-lf-reading-role="pane"] > :not(header, footer)[data-lf-focus-visible] {
-  outline: none;
-}
-[data-lf-reading-role="pane"]:has(> :not(header, footer)[data-lf-focus-visible]) {
-  --lf-wears-ring: 1;
-}
-[data-lf-reading-role="pane"]:has(
-    > :not(header, footer)[data-lf-focus-visible]
-  )::after {
-  content: "";
+[data-lf-reading-role="pane"]::after {
+  position: static;
   grid-row: 2;
   grid-column: 1;
   z-index: 1;
-  pointer-events: none;
-  outline: var(--focus-ring);
-  outline-offset: var(--focus-ring-inset);
 }
 /* The pane role's box: a grid of header, body and footer, whose rows the grammar
  * (layouts.css) places. It stands with the base its widget's rules share, so a widget

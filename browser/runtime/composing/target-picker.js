@@ -218,7 +218,7 @@ export function createTargetPicker({
     if (!clip) return null;
     return (
       [...range.getClientRects()]
-        .map((box) => reading.clearPart(box, clip))
+        .map((box) => reading.clearPart(box, clip, owner))
         .find((part) => reading.exposes(null, part)) ?? null
     );
   }
@@ -659,7 +659,7 @@ export function createTargetPicker({
     const own = owner && shownBox(owner);
     if (!segments || !first || !owner || !clip || !own) return marks.place([]);
     const boxes = [...rangeOf(segments).getClientRects()].filter((box) =>
-      reading.exposes(null, reading.clearPart(box, clip)),
+      reading.exposes(null, reading.clearPart(box, clip, owner)),
     );
     const anchor = anchorFor(first.node);
     marks.place(

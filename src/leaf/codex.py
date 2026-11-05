@@ -1955,10 +1955,6 @@ def delivery_records(session_id: str) -> list[tuple[Path, DeliveryRecord]]:
         return []
     records = []
     for path in directory.glob("*.json"):
-        try:
-            validate_delivery_id(path.stem)
-        except ValueError:
-            continue
         if retire_if_gone(path):
             continue
         record = read_record(path)

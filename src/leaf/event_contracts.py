@@ -18,6 +18,7 @@ from leaf.events import (
     spoken_turns,
     taken_back,
     undo_error,
+    unshown,
 )
 from leaf.findings import Finding
 from leaf.harness import message_identity
@@ -29,7 +30,7 @@ from leaf.obligations import (
 from leaf.page_view import CandidatePageView, PageView
 from leaf.plans import plan_error
 from leaf.projection import (
-    authored_positions,
+    AuthoredOrders,
     generated_children,
     projected_action_holders,
     record_members,
@@ -412,8 +413,8 @@ def record_contract_error(view, event, spec, readings, page_owned=True):
         ):
             return error.but(values=record)
     if record_kind == "attribute":
-        members = record_members(
-            event["widget"], spec["record"], projection, byid, registry
+        members = record_members(spec["record"], projection, byid, registry).get(
+            event["widget"], set()
         )
         named = event["detail"]["value"]
         if strangers := sorted(set(named) - members):
@@ -436,11 +437,9 @@ def stale_move_error(view, event: dict, spec: dict, reading, readings):
     owner, container = event["widget"], event["detail"]["value"]
     registry = readings.registry
     now = readings.page(newest)
-    if authored_positions(
-        owner, record, reading.document.by_id, reading.spoken, registry
-    ).get(container) == authored_positions(
-        owner, record, now.document.by_id, now.spoken, registry
-    ).get(container):
+    if AuthoredOrders(reading.document.by_id, registry).of(owner, record).get(
+        container
+    ) == AuthoredOrders(now.document.by_id, registry).of(owner, record).get(container):
         return None
     return Finding(
         "stale-move",
@@ -585,10 +584,10 @@ def _anchored_comment_error(view, event: dict, registry: dict):
 
 
 def _parent_error(event: dict, events: list) -> Finding | None:
-    """A parent is a message the log holds and no undo took back. Every thread fold
-    drops a withdrawn message (`build_threads`), so an event naming one would stand
-    on a message no reading shows; with `UndoReading` refusing to withdraw a message
-    another stands on, every message in force keeps its parent in force."""
+    """A parent is a message some reading shows: one the log holds that no undo took
+    back, or one taken back that something still stands on, which keeps its place in
+    its thread (`events.unshown`). An event naming any other would stand on a message
+    no reading shows."""
     if "parent" not in event:
         return None
     parent = event["parent"]
@@ -597,7 +596,7 @@ def _parent_error(event: dict, events: list) -> Finding | None:
         for logged in events
     ):
         return Finding("unknown-parent", values={"parent": parent})
-    if parent in taken_back(events):
+    if parent in unshown(events, taken_back(events)):
         return Finding("withdrawn-parent", values={"parent": parent})
     return None
 
@@ -605,14 +604,16 @@ def _parent_error(event: dict, events: list) -> Finding | None:
 def _edit_error(event: dict, events: list) -> Finding | None:
     """An edit revises the words of a message its own author wrote: the user's own,
     or an agent's, whichever session posted it, so a successor can correct what a
-    predecessor said. A reaction or a bare drawing has none to revise.
+    predecessor said. A reaction or a bare drawing has none to revise, and a message
+    the user took back has none left.
 
     An edit that names its `base`, the revision its words were written over (the
-    message's own id, or the latest edit of it; a browser names an edit of its own
-    still sending once the log has answered it), lands only on that revision: one
-    written over words another tab has since replaced would silently take their place.
-    Words the message already says are no revision, and no turn; no words at all
-    delete the message (events.md, "Messages")."""
+    message's own id, or the latest edit of it still in force; a browser names an edit
+    of its own still sending once the log has answered it), lands only on that
+    revision: one written over words another tab has since replaced would silently
+    take their place. An undone edit no longer stands, so the revision before it is the
+    one a rewrite writes over. Words the message already says are no revision, and no
+    turn; no words at all delete the message (events.md, "Messages")."""
     if event["kind"] != "edit":
         return None
     name = event["message"]
@@ -631,10 +632,15 @@ def _edit_error(event: dict, events: list) -> Finding | None:
         return Finding("foreign-message", values={**message, "author": event["author"]})
     if "text" not in target:
         return Finding("wordless-message", values=message)
+    withdrawn = taken_back(events)
+    if name in withdrawn:
+        return Finding("withdrawn-message", values=message)
     revisions = [
         logged
         for logged in events
-        if logged["kind"] == "edit" and logged["message"] == name
+        if logged["kind"] == "edit"
+        and logged["message"] == name
+        and logged["id"] not in withdrawn
     ]
     latest = revisions[-1] if revisions else target
     if "base" in event and event["base"] != latest["id"]:
@@ -676,7 +682,7 @@ def _withdrawal_error(
         return None
     newest = view.revisions[-1]
     absorbed = readings.page(newest).projection.absorbed
-    return undo_error(event, events, view.within, absorbed)
+    return undo_error(event, events, absorbed)
 
 
 def admission_error(
@@ -760,33 +766,12 @@ def _todo_error(view, event: dict, readings) -> Finding | None:
             return Finding("not-an-element", values={"element": element})
         return None
 
-    def user_widget_error(widget: str) -> Finding | None:
-        if error := element_error(widget):
-            return error
-        item = next(
-            (
-                item
-                for item in readings.work.all_obligations["all"]
-                if item["source"]["kind"] == "widget"
-                and item["source"]["id"] == widget
-                and item["status"] == "open"
-            ),
-            None,
-        )
-        if item is not None:
-            return Finding(
-                "duplicate-obligation",
-                values={"widget": widget, "obligation": item["id"]},
-            )
-        return None
-
     owed = agent_inputs(readings.work) if held else set()
     return todo_error(
         event,
         readings.log,
         seat_error=seat_error,
         element_error=element_error,
-        user_widget_error=user_widget_error,
         owed=owed,
         items=lambda: readings.work.all_obligations["all"],
         registry=readings.work.registry,
@@ -878,6 +863,11 @@ def admitted_event(view, events: list, event: dict) -> dict:
     ):
         raise EventRefused(error, event)
     attention = settled_attention(event, contracts[kind])
+    if attention is None and kind == "undo":
+        # The agent was told of the gesture, so it is told of the withdrawal, whether
+        # it has yet to read the gesture or has already acted on it.
+        withdrawn = next(logged for logged in events if logged["id"] == event["undoes"])
+        attention = True if withdrawn["attention"] else None
     if attention is None:
         candidate = {
             **APPEND_STAMPED,

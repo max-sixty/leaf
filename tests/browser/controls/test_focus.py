@@ -12,7 +12,6 @@ from render_cases_layout import (
     PANEL_DIFF_MARKUP,
     WIDE_DIFF_PAGE,
     current_location_ring,
-    ring_faults,
     rings_drawn,
     serious_axe_violations,
 )
@@ -22,7 +21,6 @@ from render_harness import (
     LONG_PAGE,
     RELEASE_FOCUS,
     REPLY_HOST_PAGE,
-    ROOT,
     expect_comment_notes,
     held_frames,
     holding,
@@ -41,6 +39,7 @@ from render_harness import (
 from browser.threads import open_panel_thread
 from leaf import event_log as events_model
 from leaf.render_checks import rendered
+from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -89,13 +88,10 @@ def test_tab_from_the_pages_last_control_reaches_the_panels_leaf(
     expect(page.locator(".lf-fp-leaf")).to_be_focused()
 
 
-def test_the_keys_into_and_out_of_a_panel_thread_land_where_a_ring_shows(
-    browser, serve
-):
-    """`g T` from the page stands Threads on its first row, and Escape from a thread's
-    reply in the panel stands the user on the thread's view; each wears a ring. Both
-    once left focus on a view, which drew none, so where Enter or `r` would act was a
-    guess."""
+def test_the_keys_into_and_out_of_a_panel_thread_land_where_keys_act(browser, serve):
+    """`g T` from the page stands Threads on its first row, which wears a ring, and
+    Escape from a thread's reply in the panel stands the user on the thread's view,
+    which wears none (floating-panel.css, `.lf-fp-view:focus`)."""
     url = serve(PANEL_PAGE)
     panel_comment(
         serve.page_dir, "Where should this explanation go?", {"section": "lede"}
@@ -112,22 +108,35 @@ def test_the_keys_into_and_out_of_a_panel_thread_land_where_a_ring_shows(
     expect(reply).to_be_focused()
     page.keyboard.press("Escape")
     expect(page.locator(panel_view("thread"))).to_be_focused()
-    # The view's own top edge fades out, so the stage it fills wears its ring. The box
-    # follows the Escape's layout on the next rendering, and while it moves the ring
-    # is drawn by its moving layer, so wait for that motion to start, then finish it.
+    # The box follows the Escape's layout on the next rendering, so wait for that
+    # motion to start, then finish it.
     rendered(page)
     panel_settled(page, view="thread")
     drawn = rings_drawn(page)
+    assert not [seen for seen in drawn if seen["here"]], drawn
+
+
+def test_an_empty_threads_opened_by_key_wears_its_ring_on_the_stage(browser, serve):
+    """`g T` on a page with no threads stands the user on Threads' view itself, which
+    wears its ring on the stage it fills, as every view but a thread's does
+    (floating-panel.css, `.lf-fp-stage`)."""
+    page = open_page(browser, serve(PANEL_PAGE))
+    page.evaluate(RELEASE_FOCUS)
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+t")
+    expect(page.locator(panel_view("threads"))).to_be_focused()
+    rendered(page)
+    panel_settled(page, view="threads")
+    drawn = rings_drawn(page)
     worn = [seen["who"].split(" ")[0] for seen in drawn if seen["here"]]
     assert worn == ["div.lf-fp-stage"], drawn
-    assert not (faults := ring_faults(drawn, "on the thread's view")), "\n".join(faults)
 
 
 def test_show_from_on_me_lands_in_the_card_it_opens(browser, serve):
     """On me's Show on a question asked in a thread's words opens the thread's card on
     the page with the user in it. The arrival stood them on the message On me drew,
     and On me closing then dropped them on the page."""
-    page = open_page(browser, serve(ROOT / "examples" / "ship-review.html"))
+    page = open_page(browser, serve(named_source("ship-review")))
     page.locator(".lf-fp-on-user").click()
     card = page.locator(f"{panel_view('queue')} .lf-fp-on-item").filter(
         has_text="The vendor release is the only schedule"
@@ -329,31 +338,6 @@ def test_a_scroll_box_inside_a_widgets_shadow_tree_takes_the_keyboard(browser, s
     )
 
 
-def test_scroll_surfaces_added_after_upgrade_gain_keyboard_reach(browser, serve):
-    page = open_page(browser, serve(leaf_page("Late scroll", "<h1>Late scroll</h1>")))
-    page.evaluate(
-        """() => {
-          const authored = document.createElement('div');
-          authored.id = 'late-authored';
-          authored.className = 'scroll';
-          authored.style.cssText = 'width:220px;overflow-x:auto;white-space:nowrap';
-          authored.textContent = 'a'.repeat(500);
-          const native = document.createElement('pre');
-          native.id = 'late-native';
-          native.style.width = '220px';
-          native.textContent = 'b'.repeat(500);
-          document.querySelector('main').append(authored, native);
-        }"""
-    )
-    for selector in ("#late-authored", "#late-native"):
-        surface = page.locator(selector)
-        expect(surface).to_have_attribute("data-lf-more-after", "")
-        measured = surface.evaluate(
-            "el => ({scrolls: el.scrollWidth > el.clientWidth, tab: el.tabIndex})"
-        )
-        assert measured == {"scrolls": True, "tab": 0}, (selector, measured)
-
-
 def test_a_hidden_control_does_not_take_a_scroll_boxes_keyboard_route(browser, serve):
     markup = leaf_page(
         "Hidden control in scroll box",
@@ -535,50 +519,75 @@ DISCLOSURE_TABLE_PAGE = leaf_page(
 )
 
 
-def test_a_disclosure_is_a_scrolling_box_s_own_stop(browser, serve):
-    """A box holding a control of its own is reached through that control, and a
-    disclosure's `summary` is one: Tab stands on it, and moving along the box from
-    there scrolls it. Counted as nothing, it gave the table a second stop of the
-    sweep's in front of the one it already had."""
+def test_a_scrolling_box_takes_a_stop_unless_tab_reaches_a_control_in_it(
+    browser, serve, subtests
+):
+    """Which boxes the sweep lends a Tab stop; each case's box stands apart on one page."""
     page = open_page(browser, serve(DISCLOSURE_TABLE_PAGE))
     resized(page, 420, 900)
-    table = page.locator("#sessions")
-    assert table.evaluate("t => t.scrollWidth > t.clientWidth"), (
-        "this table fits, so it proves nothing"
-    )
-    expect(table).not_to_have_attribute("tabindex", "0")
-    assert page.locator("#more > summary").evaluate("s => s.tabIndex") == 0
 
+    with subtests.test("a disclosure is a scrolling box's own stop"):
+        # A box holding a control of its own is reached through that control, and a
+        # disclosure's `summary` is one: Tab stands on it, and moving along the box from
+        # there scrolls it. Counted as nothing, it gave the table a second stop of the
+        # sweep's in front of the one it already had.
+        table = page.locator("#sessions")
+        assert table.evaluate("t => t.scrollWidth > t.clientWidth"), (
+            "this table fits, so it proves nothing"
+        )
+        expect(table).not_to_have_attribute("tabindex", "0")
+        assert page.locator("#more > summary").evaluate("s => s.tabIndex") == 0
 
-def test_a_control_tab_skips_leaves_a_scrolling_box_its_own_stop(browser, serve):
-    """A control inside a shadow tree whose host is out of the order is one Tab never
-    reaches, so a scrolling box holding only that is still the sweep's to give a stop;
-    with the host in the order, its control is the box's own."""
-    page = open_page(browser, serve(DISCLOSURE_TABLE_PAGE))
-    resized(page, 420, 900)
-    # A box a script builds is swept when its builder asks, as a module's would be.
-    boxes = page.evaluate(
-        """async () => {
-          const {reachScrollers} = await window.__lfCheckApi();
-          const ids = ["out", "in"].map((order) => {
-          const box = document.createElement("div");
-          box.id = `box-${order}`;
-          box.classList.add("scroll");
-          box.style.cssText = "width:200px;overflow-x:auto;white-space:nowrap";
-          const host = document.createElement("span");
-          if (order === "out") host.setAttribute("tabindex", "-1");
-          host.attachShadow({mode: "open"}).innerHTML = "<button>Inside</button>";
-          box.append(host, "x".repeat(400));
-          document.querySelector("main").append(box);
-          return box.id;
-          });
-          reachScrollers(document.querySelector("main"));
-          return ids;
-        }"""
-    )
-    out, inside = (page.locator(f"#{box}") for box in boxes)
-    expect(out).to_have_attribute("tabindex", "0")
-    expect(inside).not_to_have_attribute("tabindex", "0")
+    with subtests.test("a control Tab skips leaves a scrolling box its own stop"):
+        # A control inside a shadow tree whose host is out of the order is one Tab never
+        # reaches, so a scrolling box holding only that is still the sweep's to give a
+        # stop; with the host in the order, its control is the box's own.
+        # A box a script builds is swept when its builder asks, as a module's would be.
+        boxes = page.evaluate(
+            """async () => {
+              const {reachScrollers} = await window.__lfCheckApi();
+              const ids = ["out", "in"].map((order) => {
+              const box = document.createElement("div");
+              box.id = `box-${order}`;
+              box.classList.add("scroll");
+              box.style.cssText = "width:200px;overflow-x:auto;white-space:nowrap";
+              const host = document.createElement("span");
+              if (order === "out") host.setAttribute("tabindex", "-1");
+              host.attachShadow({mode: "open"}).innerHTML = "<button>Inside</button>";
+              box.append(host, "x".repeat(400));
+              document.querySelector("main").append(box);
+              return box.id;
+              });
+              reachScrollers(document.querySelector("main"));
+              return ids;
+            }"""
+        )
+        out, inside = (page.locator(f"#{box}") for box in boxes)
+        expect(out).to_have_attribute("tabindex", "0")
+        expect(inside).not_to_have_attribute("tabindex", "0")
+
+    with subtests.test("scroll surfaces added after upgrade gain keyboard reach"):
+        page.evaluate(
+            """() => {
+              const authored = document.createElement('div');
+              authored.id = 'late-authored';
+              authored.className = 'scroll';
+              authored.style.cssText = 'width:220px;overflow-x:auto;white-space:nowrap';
+              authored.textContent = 'a'.repeat(500);
+              const native = document.createElement('pre');
+              native.id = 'late-native';
+              native.style.width = '220px';
+              native.textContent = 'b'.repeat(500);
+              document.querySelector('main').append(authored, native);
+            }"""
+        )
+        for selector in ("#late-authored", "#late-native"):
+            surface = page.locator(selector)
+            expect(surface).to_have_attribute("data-lf-more-after", "")
+            measured = surface.evaluate(
+                "el => ({scrolls: el.scrollWidth > el.clientWidth, tab: el.tabIndex})"
+            )
+            assert measured == {"scrolls": True, "tab": 0}, (selector, measured)
 
 
 # Controls to Tab onto at a scroller's edge. Each wears its ring on a different box:
@@ -984,7 +993,7 @@ def test_a_reference_command_finishes_its_gesture_before_a_newer_control(
     page.keyboard.press("?")
     search = page.get_by_role("combobox", name="Search commands")
     search.fill("comment on the control")
-    command = page.get_by_role("button", name="Comment on the control", exact=True)
+    command = page.get_by_role("option", name="Comment on the control", exact=True)
     expect(command).to_be_visible()
     expect(command).to_have_attribute("data-lf-available", "true")
     with held_frames(page):

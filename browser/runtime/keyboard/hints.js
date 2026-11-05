@@ -238,7 +238,7 @@ function nestOutsets(faces, room) {
 /** @template {HintFace} T @param {readonly T[]} faces @param {{barriers?: HintBarrier[], band: number, viewport: import("../rect.js").Box}} options */
 export function seatHints(faces, { barriers: fixedBarriers = [], band, viewport }) {
   const gap = 2;
-  // The browsed hint wears the layer's band (--focus-shadow, base.css), which a face's
+  // The browsed hint wears the layer's band (--focus-shadow, styles/tokens.css), which a face's
   // own rectangle does not report. Any chip can become the browsed one as the user
   // types, so the pass seats every face as though it were, keeping the one layout. A
   // window edge takes the whole band, because a band drawn past it is clipped away. A

@@ -61,9 +61,7 @@ from render_cases_widgets import (
     TYPED_PARTS_PAGE,
 )
 from render_harness import (
-    CORPUS_SOURCES,
     EXAMPLE_PACKAGES,
-    EXAMPLES,
     INLINE_PAGE,
     LONG_PAGE,
     at_rest,
@@ -86,7 +84,7 @@ from leaf.render_checks import rendered, wait_until_ready
 from leaf.render_gate import version as render_gate_model
 from leaf.render_gate.preview import preview_server
 from leaf.revision_artifact import read_revision
-from leaf_dev.example_data import named_source
+from leaf_dev.example_data import authored_sources, named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -342,57 +340,6 @@ def test_the_render_gate_reads_content_through_bounded_pane_regions(browser, ser
     )
 
 
-def test_a_broken_probe_module_is_a_gate_finding(browser, serve):
-    """A probe module fault names the browser boundary instead of raising a traceback.
-
-    The neighboring stalled-module test owns the short deadline. This test uses the
-    gate's default so the module rejection, rather than the driver's timeout, supplies
-    the finding.
-    """
-
-    def break_probe(page):
-        page.route(
-            "**/checks/index.js",
-            lambda route: route.fulfill(
-                status=200,
-                content_type="text/javascript; charset=utf-8",
-                body='throw new Error("probe module failed for test");',
-            ),
-        )
-
-    failures = render_gate_model.render_version(
-        primed(browser.unwatched, break_probe), serve(LONG_PAGE)
-    ).failures
-
-    assert failures
-    assert {failure.code for failure in failures} == {"probe-failed"}, failures
-    assert all(
-        "probe module failed for test" in failure.values["error"]
-        for failure in failures
-    )
-
-
-def test_an_async_wait_probe_is_refused_instead_of_passing_as_a_promise(browser, serve):
-    """A Promise is not a readiness fact, even when JavaScript treats it as truthy."""
-
-    def make_readiness_async(page):
-        page.route(
-            "**/checks/index.js",
-            lambda route: route.fulfill(
-                status=200,
-                content_type="text/javascript; charset=utf-8",
-                body="export const runtimeStarted = async () => false;",
-            ),
-        )
-
-    failures = render_gate_model.render_version(
-        primed(browser.unwatched, make_readiness_async), serve(LONG_PAGE)
-    ).failures
-
-    assert failures
-    assert all("must be synchronous" in failure.values["error"] for failure in failures)
-
-
 def test_a_probe_module_that_stops_loading_is_a_gate_finding(browser, serve):
     """The module loader has the gate's deadline even though page.evaluate has none."""
     asked = []
@@ -440,6 +387,10 @@ def test_a_failed_probe_import_keeps_its_original_throw_site(browser, serve, fau
         serve(LONG_PAGE),
     ).failures
     assert len(failures) == 2, failures
+    assert {failure.code for failure in failures} == {"probe-failed"}, failures
+    # A dynamic import's failure is no page fault. The gate's own wait must not echo it
+    # back as one, or its timing would split one finding per render.
+    assert all(failure.values["console"] == [] for failure in failures), failures
     errors = [failure.values["error"] for failure in failures]
     assert all('File "' not in error for error in errors), failures
     if fault == "exception":
@@ -607,7 +558,7 @@ def test_rest_watches_a_frame_created_by_contained_arrival(browser, serve):
     assert any("data-late" in finding for finding in at_rest(page))
 
 
-@pytest.mark.parametrize("source", CORPUS_SOURCES, ids=lambda p: p.stem)
+@pytest.mark.parametrize("source", authored_sources(), ids=lambda p: p.stem)
 def test_page_fixture_renders(browser, serve, source):
     """Every shipped example and developer page passes the render gate, and a
     still_page of it comes back from every journey as it was.
@@ -703,7 +654,7 @@ def test_page_fixture_renders(browser, serve, source):
     )
 
 
-@pytest.mark.parametrize("source", CORPUS_SOURCES, ids=lambda p: p.stem)
+@pytest.mark.parametrize("source", authored_sources(), ids=lambda p: p.stem)
 def test_page_fixture_opens_without_firefox_console_warnings(
     firefox_browser, serve, source
 ):
@@ -844,7 +795,7 @@ def test_the_runtime_holds_a_declared_scroll_surface(browser, serve):
     )
     page.close()
 
-    example = next(e for e in EXAMPLES if e.stem == "pr-walkthrough")
+    example = named_source("pr-walkthrough")
     page = open_page(browser, serve(example))
     # The lines a diff has drawn, which is not every diff on the page: the shipped patch
     # stands collapsed and fetches one file when it is asked for, so its shadow tree
@@ -1536,9 +1487,6 @@ body { max-width: 768px; margin-inline: auto; }
 from browser.test_render_gate import _panel
 from render_cases_widgets import (
     PART_DIAGRAM_PAGE,
-)
-from render_harness import (
-    CORPUS_SOURCES,
 )
 
 

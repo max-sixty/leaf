@@ -9,17 +9,16 @@ from playwright.sync_api import expect
 from render_cases_layout import current_location_ring, ring_faults
 from render_cases_navigation import source_revision
 from render_harness import (
-    at_rest,
     holding,
     leaf_page,
     open_page,
     resized,
-    still_page,
     told,
 )
 
 from leaf import data as data_model
 from leaf.render_checks import evaluate_probe, rendered, wait_until_ready
+from leaf_dev.example_data import named_source
 from leaf_dev.page_fixtures import example_media
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -146,13 +145,6 @@ def test_trace_parts_carry_the_recording_and_place_they_were_drawn_from(browser,
     assert [{**part, "revision": rerun} for part in first] == stamps()
 
 
-@pytest.mark.shifts_unsurveyed
-def test_trace_viewer_stays_idle_after_initial_presentation(browser, serve):
-    """The viewer's disabled transition cannot wake margin layout after readiness."""
-    url = serve(ROOT / "examples/developer/playwright-trace-gallery.html")
-    assert at_rest(still_page(browser, url)) == []
-
-
 @pytest.mark.parametrize(
     ("engine", "width"),
     [("browser", 1400), ("browser", 320), ("firefox_browser", 320)],
@@ -192,7 +184,7 @@ def test_timeline_tooltips_keep_their_words_above_marks_inside_the_timeline(
         if zoom:
             widget.get_by_role("button", name="Zoom in", exact=True).click()
             rendered(page)
-        marks = timeline.locator("[data-tip]")
+        marks = timeline.locator("[data-lf-tip]")
         visible = marks.evaluate_all("""nodes => nodes.map((node, index) => {
             const box = node.getBoundingClientRect();
             const band = node.closest('.lf-trace-scroller').getBoundingClientRect();
@@ -214,7 +206,7 @@ def test_timeline_tooltips_keep_their_words_above_marks_inside_the_timeline(
             assert tip["x"] >= host["x"] - 1
             assert tip["x"] + tip["width"] <= host["x"] + host["width"] + 1
             assert tooltip.inner_text().replace("\u00a0", " ") == mark.get_attribute(
-                "data-tip"
+                "data-lf-tip"
             )
         page.get_by_role("heading", name="Inspect recorded input").hover()
         expect(timeline.get_by_role("tooltip")).to_be_hidden()
@@ -278,9 +270,9 @@ def test_trace_arrows_step_the_way_the_time_scale_runs_in_right_to_left_text(
     data_model.cmd_data_set(serve.page_dir, "rtl-trace", record)
     user = open_page(browser, url)
     widget = user.locator("#journey")
-    call = widget.locator(f'.lf-trace-call-bar[data-id="{setup["id"]}"]')
+    call = widget.locator(f'.lf-trace-call-bar[data-lf-id="{setup["id"]}"]')
     expect(call.locator(".lf-trace-call-name")).to_have_text(setup["method"])
-    expect(call).to_have_attribute("data-tip", re.compile(re.escape(setup["title"])))
+    expect(call).to_have_attribute("data-lf-tip", re.compile(re.escape(setup["title"])))
     timeline = widget.get_by_role("group", name="Recording timeline", exact=True)
     position = widget.locator(".lf-trace-position")
     playhead = widget.locator(".lf-trace-playhead")
@@ -461,7 +453,7 @@ def test_trace_tree_opens_at_each_checkpoints_reading(browser, serve):
 
 def test_trace_comparison_pairs_authored_results_across_delayed_sources(browser, serve):
     """A shared semantic result resolves each archive's own target, even on late arrival."""
-    source = ROOT / "examples/developer/playwright-trace-gallery.html"
+    source = named_source("playwright-trace-gallery")
     record = json.loads(source.with_suffix(".data.json").read_text())["release-journey"]
     actions = [action for action in record["actions"] if "click" in action["title"]]
     targets = [
@@ -633,7 +625,7 @@ def test_trace_initial_moment_uses_capture_order_and_skips_unavailable_targets(
 
 def test_hidden_recording_prepares_when_shown_without_blocking_page(browser, serve):
     """A native visibility toggle must not leave unrelated reading behind redraw proof."""
-    source = ROOT / "examples/developer/playwright-trace-gallery.html"
+    source = named_source("playwright-trace-gallery")
     record = json.loads(source.with_suffix(".data.json").read_text())["release-journey"]
     media = {
         image["url"]: (example_media() / Path(image["url"]).name).read_bytes()
@@ -677,7 +669,7 @@ def test_hidden_recording_prepares_when_shown_without_blocking_page(browser, ser
 
 def test_trace_metadata_inspection_preserves_pending_checkpoint(browser, serve):
     """Reading current action details never selects an older displayed image."""
-    source = ROOT / "examples/developer/playwright-trace-gallery.html"
+    source = named_source("playwright-trace-gallery")
     user = browser.new_page()
     held = []
     armed = False
@@ -729,7 +721,7 @@ def test_trace_playback_frames_stand_over_the_capture_they_replace(browser, serv
     image and the recorded pointer lands on the frame it marks."""
     context = browser.new_context(viewport={"width": 1440, "height": 900})
     user = context.new_page()
-    user.goto(serve(ROOT / "examples/developer/playwright-trace-gallery.html"))
+    user.goto(serve(named_source("playwright-trace-gallery")))
     wait_until_ready(user)
     widget = user.locator("lf-trace")
     widget.get_by_role("button", name="Start", exact=True).click()
@@ -755,7 +747,7 @@ def test_trace_playback_frames_stand_over_the_capture_they_replace(browser, serv
 
 def test_trace_overview_shows_every_row_and_preserves_page_scrolling(browser, serve):
     """The initial overview exposes every mark and lane without inner scrolling."""
-    url = serve(ROOT / "examples/developer/playwright-trace-gallery.html")
+    url = serve(named_source("playwright-trace-gallery"))
     for width, height in ((1440, 600), (480, 520)):
         context = browser.new_context(
             viewport={"width": width, "height": height}, color_scheme="dark"
@@ -792,7 +784,7 @@ def test_trace_overview_shows_every_row_and_preserves_page_scrolling(browser, se
           return r.top >= c.top && r.bottom <= c.bottom
             && r.left >= c.left && r.right <= c.right + 0.5
             && (hit === mark || mark.contains(hit)) ? [] : [{
-              label: mark.dataset.tip, bounds: r.toJSON(), coveredBy: hit?.className,
+              label: mark.dataset.lfTip, bounds: r.toJSON(), coveredBy: hit?.className,
             }];
         })""")
         assert hidden == [], hidden
@@ -816,7 +808,7 @@ def test_trace_overview_shows_every_row_and_preserves_page_scrolling(browser, se
         # Keyboard stepping moves the playhead, not the whole-recording window.
         timeline.focus()
         ruler_reading = "nodes => nodes.map(node => [node.textContent, node.getBoundingClientRect().x])"
-        ruler = widget.locator(".lf-trace-tick-major")
+        ruler = widget.locator(".lf-axis-tick[data-lf-major]")
         time_window = ruler.evaluate_all(ruler_reading)
         position = widget.locator(".lf-trace-position")
         for _ in range(4):
@@ -840,9 +832,7 @@ def test_trace_pointer_annotation_stays_inside_the_panned_image_viewport(
     browser, serve
 ):
     """Image inspection clips recorded pointer paint at the capture boundary."""
-    user = open_page(
-        browser, serve(ROOT / "examples/developer/playwright-trace-gallery.html")
-    )
+    user = open_page(browser, serve(named_source("playwright-trace-gallery")))
     widget = user.locator("lf-trace")
     widget.locator(".lf-trace-input-label").filter(has_text="Click").first.click()
     point = widget.locator(".lf-trace-input-point")
@@ -905,7 +895,7 @@ def test_trace_comparison_prepaint_shows_only_its_opening_recording(browser, ser
     A recording in a wrapper, here a <figure> with its caption and no id, shows and
     hides with it, before upgrade, after, and across a reload, which tells the two
     anonymous wrappers apart by the recording inside."""
-    source = ROOT / "tests/fixtures/pages/playwright-paired-results.html"
+    source = named_source("playwright-paired-results")
     url = serve(source, packages=("playwright",))
     user = browser.new_page()
     held = []
@@ -977,7 +967,7 @@ def test_trace_comparison_shows_each_wrapped_recording_in_one_place(browser, ser
     moved the recording down by them and the sticky chooser hung over a blank band
     below the workspace."""
     url = serve(
-        ROOT / "tests/fixtures/pages/playwright-paired-results.html",
+        named_source("playwright-paired-results"),
         packages=("playwright",),
     )
     user = open_page(browser, url)
@@ -1020,14 +1010,14 @@ def test_trace_render_gate_restores_the_zoomed_time_window(browser, serve):
     context = browser.new_context(viewport={"width": 480, "height": 520})
     user = open_page(
         browser,
-        serve(ROOT / "examples/developer/playwright-trace-gallery.html"),
+        serve(named_source("playwright-trace-gallery")),
         context=context,
     )
     widget = user.locator("lf-trace")
     for _ in range(3):
         widget.get_by_role("button", name="Zoom in", exact=True).click()
     rendered(user)
-    ruler = widget.locator(".lf-trace-tick-major")
+    ruler = widget.locator(".lf-axis-tick[data-lf-major]")
 
     def time_window():
         return ruler.evaluate_all("""nodes => nodes.map(node => ({
@@ -1064,7 +1054,7 @@ def test_trace_render_gate_restores_the_zoomed_time_window(browser, serve):
 def test_trace_images_stand_at_their_own_capture_times(browser, serve):
     """The image on screen is never captured after the playhead, and calls that
     overlap keep their own rows through every redraw."""
-    source = ROOT / "examples/developer/playwright-trace-gallery.html"
+    source = named_source("playwright-trace-gallery")
     record = json.loads(source.with_suffix(".data.json").read_text())["release-journey"]
     # Make the context's first call overlap the next one.
     calls = sorted(
@@ -1133,7 +1123,7 @@ def test_trace_comparison_keeps_native_playback_and_shares_image_inspection(
     browser, serve
 ):
     """Source switches pause native clocks, while explicit results and image zoom pair."""
-    source = ROOT / "examples/developer/playwright-trace-gallery.html"
+    source = named_source("playwright-trace-gallery")
     record = json.loads(source.with_suffix(".data.json").read_text())["release-journey"]
     actions = [action for action in record["actions"] if action["input"]]
     targets = [

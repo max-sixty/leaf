@@ -15,8 +15,7 @@ const styles = new Set(styleEntries.map(([, output]) => output));
 function generated(path) {
   return (
     (styles.has(path) ||
-      path === "dist/kernel/kernel.json" ||
-      /^(?:browser\/vendor|packages\/[^/.]+\/vendor|dist\/kernel)\/(?:[^/.][^/]*\/)*[^/.][^/]*\.(?:js|css|LICENSES\.txt)$/.test(
+      /^(?:browser\/vendor|packages\/[^/.]+\/vendor)\/(?:[^/.][^/]*\/)*[^/.][^/]*\.(?:js|css|LICENSES\.txt)$/.test(
         path,
       )) &&
     !path.split("/").some((part) => part === ".." || part === ".")

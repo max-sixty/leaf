@@ -12,7 +12,6 @@ from render_harness import (
 from leaf import anchor_capture as anchor_capture_model
 from leaf import passages as passages_model
 from leaf.registry import storage as registry_storage
-from leaf.schema import ELEMENT_ID
 from leaf.structure import SourceDocument
 
 # A page-owned widget whose drawing, delivery and asynchronous preparation can be
@@ -72,7 +71,7 @@ PAGE_DECLARATION = {
         "description": "A page-owned local widget.",
         "type": "object",
         "properties": {
-            "id": {"type": "string", "pattern": f"^{ELEMENT_ID}$"},
+            "id": {"type": "string"},
             "choice": {"type": "string"},
             "restated": {"type": "boolean"},
         },
@@ -180,7 +179,7 @@ GENERIC_VISUAL_LAYER: dict[str, dict] = {
         "description": "A generic rendered visual used to exercise Leaf's package contract.",
         "type": "object",
         "properties": {
-            "id": {"type": "string", "pattern": f"^{ELEMENT_ID}$"},
+            "id": {"type": "string"},
             "parts": {"const": "all"},
         },
         "required": ["id", "parts"],
@@ -250,7 +249,7 @@ SHADOW_VISUAL_LAYER = {
         "description": "A clipped shadow-root visual used to exercise Leaf's package contract.",
         "type": "object",
         "properties": {
-            "id": {"type": "string", "pattern": f"^{ELEMENT_ID}$"},
+            "id": {"type": "string"},
             "parts": {"const": "all"},
         },
         "required": ["id", "parts"],
@@ -264,24 +263,6 @@ SHADOW_VISUAL_LAYER = {
 }
 SHADOW_VISUAL_WIDGETS = {
     "lf-test-shadow-visual.js": browser_source("widgets/shadow-visual.js")
-}
-SHADOW_SCROLLER_PAGE = leaf_page(
-    "shadow scroller",
-    """
-<h1 id="title">Shadow scroller</h1>
-<lf-test-shadow-scroller id="shadow-scroller" parts="all"></lf-test-shadow-scroller>
-""",
-)
-SHADOW_SCROLLER_LAYER = {
-    "lf-test-shadow-scroller": {
-        **SHADOW_VISUAL_LAYER["lf-test-shadow-visual"],
-        "description": "A visual part in a shadow-stage scroller.",
-        "x-example": '<lf-test-shadow-scroller id="shadow-scroller" parts="all">'
-        "</lf-test-shadow-scroller>",
-    }
-}
-SHADOW_SCROLLER_WIDGETS = {
-    "lf-test-shadow-scroller.js": browser_source("widgets/shadow-scroller.js")
 }
 # Every supported structural diagram whose authored ids reach a drawn box. State
 # machines carry nested boxes and ER entities carry attribute tables, while sequence
@@ -1131,25 +1112,6 @@ RAIL_BANDS = """() => {
 }"""
 
 
-DRAWN_PAST_A_RAIL_PAGE = leaf_page(
-    "drawn past a rail",
-    """
-<h1 id="t">Flow</h1>
-<lf-suggestion id="sug-copy">
-  <lf-old><p id="old-line">Refill every feeder each morning.</p></lf-old>
-  <lf-new><p>Refill a feeder when its camera shows it half-empty.</p></lf-new>
-</lf-suggestion>
-<p id="gap" style="margin-block: 600px">Prose far enough below the change that its row
-reaches nothing here.</p>
-<lf-diagram id="flow"><pre>
-graph LR
-  R[request] --> C{cookie valid?}
-  C -->|yes| S[read session from Redis]
-  S -->|hit| H[handle]
-  C -->|no| L[login]
-</pre></lf-diagram>
-""",
-)
 # A drawing inside a tab panel: the panel's card is the frame a wide exhibit may not
 # leave, the graph is drawn wider than the frame's own inset, and no room the page has
 # can be given to it — so scrolling is the layer's honest answer. Beside it a line of

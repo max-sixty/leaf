@@ -11,7 +11,6 @@ from process.website_server import (
 )
 from render_harness import (
     LONG_PAGE,
-    PANEL_THREAD,
     open_page,
     page_comment,
     panel_field,
@@ -25,6 +24,7 @@ from leaf.event_log import read_events
 from leaf.leases import take_wait_lease, waiter_lease_path
 from leaf.render_checks import rendered
 from leaf.thread import ProviderFinal, cmd_resolve, post_reply
+from leaf_dev.browser import PANEL_THREAD
 from leaf_dev.commands import verify_site
 
 
@@ -62,7 +62,7 @@ def test_a_website_turn_posts_its_answer_when_the_move_is_settled_first(
     request.addfinalizer(watcher.close)
     # The send opens the new thread's view in the panel, its reply standing in the
     # field with the caret in it.
-    thread = page.locator(f'{PANEL_THREAD}[data-thread="{comment["id"]}"]')
+    thread = page.locator(f'{PANEL_THREAD}[data-lf-thread="{comment["id"]}"]')
     expect(thread).to_be_visible()
     # The user goes on writing in the reply, which the agent's resolve below must not
     # take from under them. The agent's reply joins the thread with its first words,
@@ -116,7 +116,8 @@ def test_a_website_turn_posts_its_answer_when_the_move_is_settled_first(
     # The agent's resolution is news, so the thread the user is writing in stays open
     # in front of them, holding it behind its notice.
     expect(thread).to_be_visible()
-    expect(news).to_have_text("Resolved")
+    expect(news).to_have_text("1 new")
+    expect(news).to_have_attribute("title", "Resolved")
     expect(metadata.locator(".lf-msg-sending")).to_have_count(0)
     if read_elsewhere:
         box = page_comment(page)
@@ -128,7 +129,7 @@ def test_a_website_turn_posts_its_answer_when_the_move_is_settled_first(
             for event in read_events(page_dir)
             if event["kind"] == "comment" and event["id"] != comment["id"]
         ]
-        other_thread = page.locator(f'{PANEL_THREAD}[data-thread="{other["id"]}"]')
+        other_thread = page.locator(f'{PANEL_THREAD}[data-lf-thread="{other["id"]}"]')
         expect(other_thread).to_be_visible()
 
     committed = page.evaluate("Date.now()")
@@ -179,7 +180,9 @@ def test_a_website_turn_posts_its_answer_when_the_move_is_settled_first(
         # moves nothing the user reads or writes and shows at once, the resolve it
         # reopens with it. The page times its notice and its own message.
         expect(news).to_be_hidden()
-        expect(page.locator(".lf-fp-settle")).to_have_accessible_name("Resolve thread")
+        expect(
+            page.locator(".lf-fp-thread-controls :is(.lf-resolve, .lf-reopen)")
+        ).to_have_accessible_name("Resolve thread")
         expect(
             thread.locator(".lf-msg[data-lf-author=agent]").filter(
                 has_text="deployment verified"

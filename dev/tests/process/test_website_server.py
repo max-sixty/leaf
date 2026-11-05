@@ -9,6 +9,7 @@ import subprocess
 import sys
 import time
 from contextlib import contextmanager
+from datetime import UTC, datetime
 from pathlib import Path
 from types import SimpleNamespace
 from typing import cast
@@ -25,6 +26,7 @@ from interact_support import (
     append_carried_log_record as append_event,
 )
 from playwright.sync_api import BrowserContext, Page
+from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from process.website_server import (  # noqa: F401
     _no_harness_outlives_its_test_fixture,
     accept_in_turn,
@@ -35,6 +37,7 @@ from process.website_server import (  # noqa: F401
 import leaf_website as website_server
 from leaf.event_log import read_events
 from leaf.files import revision_path
+from leaf.render_checks import OUTSTANDING
 from leaf.state import session_record
 from leaf_dev import ROOT, startup
 from leaf_dev.commands import journey, journey_chart, refresh_previews, verify_site
@@ -101,7 +104,7 @@ class _FailedTurn:
 
     def locator(self, selector: str):
         assert selector in {
-            ".lf-floating-panel[data-open]",
+            ".lf-floating-panel[data-lf-open]",
             ".lf-fp-close",
             ".lf-fp-field leaf-text",
         }
@@ -194,14 +197,6 @@ class _FailedTurn:
         }
 
 
-class _PresentationWait:
-    def __init__(self, waits: list[int]):
-        self.waits = waits
-
-    def wait_for(self, timeout: int) -> None:
-        self.waits.append(timeout)
-
-
 class _Text:
     def __init__(self, text: str):
         self.text = text
@@ -223,8 +218,11 @@ class _DeployedPage:
         follows_revision: bool = False,
         presentation_pending: bool = False,
         initial_presented_at: float | None = None,
+        reload_stalls_at: str | None = None,
     ):
         self.recorded = recorded
+        self.reload_stalls_at = reload_stalls_at
+        self.reloaded = False
         self.revision = revision
         self.presented_at = presented_at
         self.reload_ok = reload_ok
@@ -251,27 +249,32 @@ class _DeployedPage:
         return _Read({})
 
     def reload(self, **kwargs) -> _Read:
+        self.reloaded = True
         answered = _Read({})
         answered.ok = self.reload_ok
         return answered
 
-    def wait_for_function(
-        self, expression: str, *, arg: int | None = None, timeout: int
-    ) -> None:
-        assert expression == "window.__leafVerifier.revisionAtLeast" and arg is not None
+    def wait_for_function(self, expression: str, *, arg, timeout: int):
+        if expression == OUTSTANDING:
+            return SimpleNamespace(json_value=lambda: self.reload_stalls_at)
+        if expression != "window.__leafVerifier.revisionAtLeast":
+            # The readiness the verifier waits on (`wait_until_ready`).
+            assert arg == {"held": None, "through": "presented"}
+            self.presentation_waits.append(timeout)
+            if self.reloaded and self.reload_stalls_at is not None:
+                raise PlaywrightTimeout("the page never got ready")
+            return None
         self.revision_waits.append((arg, timeout))
         if self.revision >= arg and not self.presentation_pending:
             return
         if self.follows_revision:
             self.revision = arg
             return
-        raise verify_site.PlaywrightTimeout("revision did not arrive")
+        raise PlaywrightTimeout("revision did not arrive")
 
     def locator(self, selector: str):
-        if selector == "main":
-            return _Text(self.recorded)
-        assert selector == "body[data-lf-presented]"
-        return _PresentationWait(self.presentation_waits)
+        assert selector == "main"
+        return _Text(self.recorded)
 
     def evaluate(self, script: str, arg=None):
         if script == "window.__leafVerifier.startVisibleReplyClock":
@@ -333,7 +336,8 @@ class _DeployedContainer:
                 "active": {"revision": 1, "url": "revisions/1.html"},
                 "layer": {"generation": "generation-1"},
                 "release": self.release,
-                "events": [],
+                "events": TURN_LOG,
+                "now": "2026-10-04T12:01:00.000-07:00",
             },
             headers=answered,
         )
@@ -437,14 +441,23 @@ ACTIVATION = "https://leaf.page/examples/triage-board/api/view?revision=1&throug
 def run_browser_journey(website):
     """The release ask at the user's browser end on `website`'s session and release."""
     session, version = website
-    return journey.run_journey(journey.BrowserEnd(session), version)
+    return journey.run_journey(journey.BrowserEnd(session, None), version)
 
 
-TURN_LOG = [
-    {"kind": "comment", "id": "test-comment", "ts": "2026-10-04T12:00:00.000-07:00"},
+TURN_LOG: list[dict] = [
+    {
+        "kind": "comment",
+        "id": "test-comment",
+        "seq": 1,
+        "author": "user",
+        "attention": True,
+        "ts": "2026-10-04T12:00:00.000-07:00",
+    },
     {
         "kind": "thread_title",
         "id": "test-title",
+        "seq": 2,
+        "author": "agent",
         "thread": "test-comment",
         "title": "Deployment heading",
         "ts": "2026-10-04T12:00:02.250-07:00",
@@ -452,6 +465,7 @@ TURN_LOG = [
     {
         "kind": "reply",
         "id": "test-answer",
+        "seq": 3,
         "author": "agent",
         "parent": "test-comment",
         "responds": "test-comment",
@@ -570,15 +584,18 @@ def test_the_journey_chart_draws_each_targets_latest_version_from_kept_samples()
     no transcription: each target's latest version only, each sign a sample saw."""
 
     def sample(target, version, titled, picked_up, progress, replied, **named):
+        seconds = {
+            "opened": picked_up,
+            "titled": titled,
+            "progress": progress,
+            "published": replied - 500,
+            "answered": replied,
+        }
         comment = {
-            "sinceAdmissionMs": {
-                "queued": None,
-                "pickedUp": picked_up,
-                "started": None,
-                "titled": titled,
-                "progress": progress,
-                "published": replied - 500,
-                "replied": replied,
+            "milestones": {
+                name: {"elapsed_s": ms / 1000}
+                for name, ms in seconds.items()
+                if ms is not None
             },
             "sinceSendMs": {"responseVisible": replied + 1000},
         }
@@ -604,17 +621,18 @@ def test_the_journey_chart_draws_each_targets_latest_version_from_kept_samples()
         sample(adapter, old, 900, 300, None, 30000, origin="http://127.0.0.1:8080"),
         sample(adapter, new, 800, 300, None, 25000, origin="http://127.0.0.1:9090"),
     ]
-    # A sample kept before the journey ran its steps is left out.
-    unstepped = sample("codex", new, 900, 300, None, 9000)
-    del unstepped["steps"]
+    # A sample kept before the journey read its milestones as response-times does
+    # is left out.
+    unread = sample("codex", new, 900, 300, None, 9000)
+    unread["comment"] = {"sinceAdmissionMs": {"replied": 9000}}
     path = journey.samples_path()
     path.parent.mkdir(parents=True)
-    path.write_text("".join(json.dumps(s) + "\n" for s in [*samples, unstepped]))
+    path.write_text("".join(json.dumps(s) + "\n" for s in [*samples, unread]))
     result = CliRunner().invoke(journey_chart.journey_chart)
     assert result.exit_code == 0, result.output
     markup = result.stdout
     assert markup.startswith('<lf-chart id="journey-signs"')
-    rows = journey_chart.chart_rows([*samples, unstepped])
+    rows = journey_chart.chart_rows([*samples, unread])
     assert {r["row"] for r in rows} == {
         "Claude Code at bbbbbbbb+working-tree",
         "Claude Code over HTTP at aaaaaaaa",
@@ -635,6 +653,11 @@ def test_the_journey_chart_draws_each_targets_latest_version_from_kept_samples()
         "Claude Code over HTTP at aaaaaaaa",
     ]
     assert json.dumps(rows) in markup
+    # Kept samples with no milestones leave nothing to chart, which it says.
+    path.write_text(json.dumps(unread) + "\n")
+    empty = CliRunner().invoke(journey_chart.journey_chart)
+    assert empty.exit_code == 1
+    assert "holds no sample with milestones" in empty.output
 
 
 def test_a_turn_that_never_answered_is_reported_before_the_threads_panel():
@@ -882,8 +905,7 @@ def test_the_deploy_gate_stops_waiting_on_a_page_with_no_agent_on_the_comment():
     assert not journey.still_answering({}, "comment-id")
 
 
-@pytest.mark.parametrize("failure", ["startup_failed", "rate_limited"])
-def test_the_deploy_gate_reads_a_durable_harness_failure(page_dir, failure):
+def test_the_deploy_gate_reads_a_durable_harness_failure(page_dir):
     from leaf.event_contracts import event_record_error
     from leaf.registry.storage import load_registry
 
@@ -892,7 +914,7 @@ def test_the_deploy_gate_reads_a_durable_harness_failure(page_dir, failure):
         page_dir,
         {"kind": "comment", "author": "user", "text": "edit the page"},
     )
-    reply = harness.failure_receipt(page_dir, comment["id"], failure)
+    reply = harness.failure_receipt(page_dir, comment["id"], "startup_failed")
     state = page_state(page_dir)
     replies = [event for event in state["events"] if event["kind"] == "reply"]
     assert reply is not None
@@ -905,10 +927,9 @@ def test_the_deploy_gate_reads_a_durable_harness_failure(page_dir, failure):
     assert harness.attach(page_dir, comment["id"]) is None
 
 
-@pytest.mark.parametrize("failure", ["startup_failed", "rate_limited"])
-def test_the_deploy_gate_stops_on_the_first_failure(failure):
+def test_the_deploy_gate_stops_on_the_first_failure():
     """Failure receipts are evidence; the verifier sends no second model task."""
-    context = _FailedTurn(failure)
+    context = _FailedTurn()
     session = journey.Session(
         cast(BrowserContext, context),
         cast(Page, context),
@@ -919,10 +940,10 @@ def test_the_deploy_gate_stops_on_the_first_failure(failure):
         {"Leaf-Layer": "layer", "Leaf-Release": "release"},
         None,
     )
-    asked = journey.ask_until_answered(journey.BrowserEnd(session), "abcd1234")
+    asked = journey.ask_until_answered(journey.BrowserEnd(session, None), "abcd1234")
     assert asked.asks == 1
     assert asked.turn.answer is None
-    assert asked.turn.replies[0]["failure"] == failure
+    assert asked.turn.replies[0]["failure"] == "startup_failed"
     assert len(context.comments) == 1
 
 
@@ -1040,7 +1061,7 @@ def test_the_deploy_gate_stops_reading_a_turn_the_container_has_closed(
         None,
     )
     turn = journey.await_turn(
-        journey.BrowserEnd(session),
+        journey.BrowserEnd(session, None),
         comment,
         1,
         "abcd1234",
@@ -1072,18 +1093,14 @@ def test_a_title_written_after_the_reply_is_still_timed(tmp_path):
     prepare(ROOT, state, page_dir)
     with serving(ROOT, state, page_dir) as url:
         client = PageClient(url)
-        client.post(
+        comment = client.post(
             {
                 "kind": "comment",
-                "revision": client.state()["active"]["revision"],
                 "attempt": "journey-title-wait",
                 "text": "Is the release recorded?",
             }
         )
         untitled = client.state()
-        [comment] = [
-            e for e in untitled["events"] if e.get("attempt") == "journey-title-wait"
-        ]
         assert journey.title(untitled["events"], comment["id"]) is None
         paused = []
 
@@ -1114,91 +1131,13 @@ def test_a_title_written_after_the_reply_is_still_timed(tmp_path):
             None,
             pause=pause,
         )
-        events = journey.await_title(
-            journey.BrowserEnd(session), comment["id"], untitled
-        )["events"]
+        journey.await_title(journey.BrowserEnd(session, None), comment["id"], untitled)
     assert paused == [1]
-    assert journey.title(events, comment["id"]) == "Release recorded"
-    steps = journey.recorded_steps(events, comment, None)
-    assert steps["titled"] is not None and steps["titled"] > 0
-    assert steps["published"] is None
-
-
-def test_a_progress_update_is_timed_apart_from_the_answer():
-    """Transport and work milestones name this exact input; unrelated earlier
-    pickups and starts cannot count. Ephemeral progress is timed separately from
-    the durable reply that answers."""
-    comment, _title, reply = TURN_LOG
-    progress = {
-        "kind": "reply",
-        "author": "agent",
-        "id": "test-progress",
-        "parent": comment["id"],
-        "text": "Recording the release on the board.",
-        "ephemeral": True,
-        "ts": "2026-10-04T12:00:03.000-07:00",
-    }
-    assert journey.deployment_answer([progress], comment["id"]) is None
-    assert journey.deployment_answer([progress, reply], comment["id"]) is reply
-    published = {"activated_at": "2026-10-04T19:00:12+00:00"}
-    transport = [
-        {
-            "kind": "pickup",
-            "events": ["other-input"],
-            "phase": "opened",
-            "ts": "2026-10-04T12:00:00.500-07:00",
-        },
-        {"kind": "start", "item": "other-input", "ts": "2026-10-04T12:00:00.750-07:00"},
-        {
-            "kind": "pickup",
-            "events": [comment["id"]],
-            "phase": "queued",
-            "ts": "2026-10-04T12:00:01.000-07:00",
-        },
-        {
-            "kind": "pickup",
-            "events": [comment["id"]],
-            "phase": "opened",
-            "ts": "2026-10-04T12:00:02.000-07:00",
-        },
-        {"kind": "start", "item": comment["id"], "ts": "2026-10-04T12:00:02.500-07:00"},
+    milestones = journey.input_rows(page_dir, datetime.now(UTC))[comment["id"]][
+        "milestones"
     ]
-    for index, event in enumerate(transport):
-        event["id"] = f"transport-{index}"
-    assert journey.recorded_steps(
-        [comment, *transport, progress, reply], comment, published
-    ) == {
-        "queued": 1.0,
-        "pickedUp": 2.0,
-        "started": 2.5,
-        "titled": None,
-        "progress": 3.0,
-        "published": 12.0,
-        "replied": 12.5,
-    }
-
-    # Addressed progress takes the input in hand atomically in the current log.
-    inline = {**progress, "start": {"item": comment["id"]}}
-    # Progress on another input, in that input's own thread.
-    other = {**comment, "id": "other-input", "ts": "2026-10-04T12:00:00.900-07:00"}
-    unrelated = {
-        **inline,
-        "id": "other-progress",
-        "parent": "other-input",
-        "start": {"item": "other-input"},
-        "ts": "2026-10-04T12:00:01.000-07:00",
-    }
-    assert journey.recorded_steps(
-        [comment, other, unrelated, inline, reply], comment, published
-    ) == {
-        "queued": None,
-        "pickedUp": None,
-        "started": 3.0,
-        "titled": None,
-        "progress": 3.0,
-        "published": 12.0,
-        "replied": 12.5,
-    }
+    assert milestones["titled"]["elapsed_s"] > 0
+    assert "published" not in milestones
 
 
 def test_an_agent_turn_splits_into_delivery_model_and_tool_phases():
@@ -1453,13 +1392,7 @@ def test_the_page_a_turn_has_just_written_waits_for_its_revision_after_presentat
                 },
                 published,
                 [{"kind": "reply", "text": "deployment verified"}],
-                {
-                    "kind": "reply",
-                    "id": "test-answer",
-                    "parent": "test-comment",
-                    "text": "deployment verified",
-                    "ts": "2026-10-04T12:00:12.500-07:00",
-                },
+                TURN_LOG[-1],
             ),
             1,
             1,
@@ -1490,14 +1423,20 @@ def test_the_page_a_turn_has_just_written_waits_for_its_revision_after_presentat
     assert page.presentation_waits == [30_000, journey.TURN_PRESENTATION]
     assert page.revision_waits == [(2, journey.TURN_PRESENTATION)]
     assert journey.TURN_PRESENTATION > 30_000
-    # The stamps the message needs to say which stall it was. Without them a page that
-    # upgraded and stalled on its first state read reports the same "no startup
-    # milestone" as one whose modules never arrived.
+    # The startup profile the run reports, and the verifier's own readings.
     assert page.init_scripts == [startup.SCRIPT, verify_site.VERIFIER_SCRIPT]
     # A green run reports startup and the post-presentation revision follow separately.
     reported = capsys.readouterr().err
     assert "followed it 2500 ms after presentation" in reported
     assert '"responseVisible": 12500.0' in reported
+    # On a website the journey reads the log the page serves, which says when the
+    # thread was titled and the reply admitted, but not when a revision was published.
+    milestones = benchmark["comment"]["milestones"]
+    assert {name: reading["elapsed_s"] for name, reading in milestones.items()} == {
+        "titled": 2.25,
+        "first_reply": 12.5,
+        "answered": 12.5,
+    }
     assert benchmark == {
         "version": release,
         "page": {
@@ -1520,15 +1459,7 @@ def test_the_page_a_turn_has_just_written_waits_for_its_revision_after_presentat
             "sessionReference": None,
             "eventIds": ["test-comment"],
             "asks": 1,
-            "sinceAdmissionMs": {
-                "queued": None,
-                "pickedUp": None,
-                "started": None,
-                "titled": 2250.0,
-                "progress": None,
-                "published": 12000.0,
-                "replied": 12500.0,
-            },
+            "milestones": milestones,
             "sinceSendMs": {
                 "acknowledged": [250.0],
                 "responseVisible": 12500.0,
@@ -1600,7 +1531,7 @@ def test_the_page_a_turn_has_just_written_waits_for_its_revision_after_presentat
     assert pending.revision_waits == [(2, journey.TURN_PRESENTATION)]
 
 
-def test_a_reload_that_presented_offline_reports_the_status_it_presented_under(
+def test_a_reload_that_never_heard_its_server_is_told_apart_from_a_stale_answer(
     monkeypatch,
 ):
     """A stale revision has two causes, and the message has to separate them.
@@ -1608,8 +1539,9 @@ def test_a_reload_that_presented_offline_reports_the_status_it_presented_under(
     `publish-site` failed on release `5b6be522…` with `stands on revision 1 rather than
     following the published 2` and nothing else, which reads the same whether the
     container answered the reload's first state read with revision 1 or never answered
-    it at all. The gate cannot watch that read, but the page says which it was: an
-    answer it never got leaves the offline status standing over the authored document.
+    it at all. The gate cannot watch that read, but the page says which it was: a page
+    that never applied an answer stops at readiness's `log` stage, which the wait for
+    presentation names, while one that applied an old answer stands under its status.
     """
     release = "5b6be522" + "0" * 56
     recorded = f"Deployment {release[:8]} verified"
@@ -1640,13 +1572,7 @@ def test_a_reload_that_presented_offline_reports_the_status_it_presented_under(
                 },
                 published,
                 [{"kind": "reply", "text": "deployment verified"}],
-                {
-                    "kind": "reply",
-                    "id": "test-answer",
-                    "parent": "test-comment",
-                    "text": "deployment verified",
-                    "ts": "2026-10-04T12:00:12.500-07:00",
-                },
+                TURN_LOG[-1],
             ),
             1,
             1,
@@ -1659,6 +1585,7 @@ def test_a_reload_that_presented_offline_reports_the_status_it_presented_under(
         revision=1,
         presented_at=11_000.0,
         status="Server offline — reconnecting",
+        reload_stalls_at="log",
     )
     with pytest.raises(RuntimeError) as reported:
         run_browser_journey(
@@ -1669,12 +1596,11 @@ def test_a_reload_that_presented_offline_reports_the_status_it_presented_under(
                 direct_agent=False,
             )
         )
-    assert "stands on revision 1" in str(reported.value)
-    assert "Server offline — reconnecting" in str(reported.value)
-    # Reported after the gate's own patience ran out, not at presentation: the status is
-    # quoted for a read that never answered rather than for one a second slower than the
-    # runtime's wait.
-    assert offline.revision_waits == [(2, journey.TURN_PRESENTATION)]
+    assert "never presented" in str(reported.value)
+    assert "never finished replaying the log" in str(reported.value)
+    # Reported once the gate's own patience ran out, at presentation.
+    assert offline.presentation_waits == [30_000, journey.TURN_PRESENTATION]
+    assert offline.revision_waits == []
 
     # A page whose read answered is standing under an ordinary activity line rather
     # than an empty status — a presented page always has one — so the two causes are
@@ -1698,45 +1624,6 @@ def test_a_reload_that_presented_offline_reports_the_status_it_presented_under(
     assert "Claude is handling 1 update" in str(named.value)
     assert "Server offline" not in str(named.value)
     assert told.revision_waits == [(2, journey.TURN_PRESENTATION)]
-
-
-def test_journey_reads_and_times_inline_message_title():
-    comment, _title, reply = TURN_LOG
-    titled_reply = {**reply, "title": "Release recorded"}
-    assert journey.title([comment, titled_reply], comment["id"]) == "Release recorded"
-    assert (
-        journey.recorded_steps(
-            [comment, titled_reply], comment, {"activated_at": reply["ts"]}
-        )["titled"]
-        == 12.5
-    )
-    titled_comment = {**comment, "title": "Initial release"}
-    assert (
-        journey.recorded_steps(
-            [titled_comment, titled_reply],
-            titled_comment,
-            {"activated_at": reply["ts"]},
-        )["titled"]
-        == 0
-    )
-
-
-def test_journey_title_timing_accepts_admitted_action_dependencies():
-    comment, _title, reply = TURN_LOG
-    action = {
-        "kind": "action",
-        "id": "test-pick",
-        "widget": "options",
-        "action": "choose",
-        "revision": 1,
-        "ts": "2026-10-04T12:00:01.000-07:00",
-        "meaning": {"unit": "options", "depends": ["child"], "scope": "page"},
-    }
-    events = [comment, action, {**reply, "title": "Release recorded"}]
-    assert (
-        journey.recorded_steps(events, comment, {"activated_at": reply["ts"]})["titled"]
-        == 12.5
-    )
 
 
 def test_saved_state_verifier_fixture_returns_the_admitted_event_ids(

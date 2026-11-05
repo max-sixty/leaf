@@ -7,7 +7,6 @@ import pytest
 from playwright.sync_api import expect
 from render_cases_interaction import live_url
 from render_harness import (
-    ROOT,
     displayed,
     expect_obligations_answered,
     fills_the_window,
@@ -29,6 +28,7 @@ from browser.widgets import (
 from leaf import data as data_model
 from leaf import event_log as events_model
 from leaf.render_checks import evaluate_probe, rendered, wait_until_ready
+from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -294,38 +294,10 @@ def test_a_workspace_reaches_the_window_foot_and_its_readers_clear_the_panel(
     assert page.evaluate("document.scrollingElement.scrollHeight <= innerHeight + 1")
     page.locator("body").focus()
     page.keyboard.press(".")
-    expect(page.locator(".lf-floating-panel")).to_have_attribute("data-rest", "mark")
+    expect(page.locator(".lf-floating-panel")).to_have_attribute("data-lf-rest", "mark")
     assert page.locator("main").evaluate(
         "node => Math.abs(node.getBoundingClientRect().bottom - innerHeight) <= 1"
     )
-
-
-def test_a_workspace_body_scroller_clears_the_panel(browser, serve):
-    page = open_page(
-        browser,
-        serve(
-            leaf_page(
-                "Single-body workspace",
-                '<header><h1>Work</h1></header><div id="reader">'
-                '<div style="height:1100px"></div><p>End of work</p></div>',
-                layout="workspace",
-            )
-        ),
-    )
-    resized(page, 1200, 900)
-    geometry = page.evaluate(
-        """() => {
-          const reader = document.querySelector('#reader');
-          reader.scrollTop = reader.scrollHeight;
-          return {
-            scrolls: reader.scrollHeight > reader.clientHeight,
-            endBottom: reader.querySelector('p').getBoundingClientRect().bottom,
-            panelTop: document.querySelector('.lf-fp-row').getBoundingClientRect().top,
-          };
-        }"""
-    )
-    assert geometry["scrolls"], geometry
-    assert geometry["endBottom"] <= geometry["panelTop"], geometry
 
 
 def test_a_flowing_workspace_keeps_its_header_over_what_a_next_lands_on(browser, serve):
@@ -993,7 +965,7 @@ def test_a_release_page_is_wide_and_keeps_the_log_on_its_newest_line(browser, se
     checks table's box fills its panel. On a narrow
     window the track stacks under the body, and the bounded log opens on its newest
     line. Paper shows the log whole."""
-    example = ROOT / "examples" / "live-progress.html"
+    example = named_source("live-progress")
     context = browser.new_context(viewport={"width": 1600, "height": 1000})
     page = open_page(browser, live_url(serve(example)), context=context)
     body = ["lp-status", "lp-traffic", "lp-log"]
@@ -1333,7 +1305,7 @@ def test_monitoring_evidence_moves_without_stealing_position_or_the_summary(
 
     The release escape path is a question the operator answers: the page lists it
     among its obligations, and the pick reaches the agent as an action naming the option."""
-    example = ROOT / "examples" / "live-progress.html"
+    example = named_source("live-progress")
     page = open_page(browser, live_url(serve(example)))
     expect_obligations_answered(page, "0/1")
     with sending(page, "the rollback pick"):

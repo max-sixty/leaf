@@ -77,12 +77,8 @@ import {
   clearAim,
   geometryChanged,
   labelAim,
-  locationLayer,
-  mountTargetPaint,
   paintAim,
-  proxyRingLayer,
   shifted,
-  targetTraceLayer,
 } from "./runtime/target-paint.js";
 import { pointerAt } from "./runtime/pointer.js";
 import { createWritingResume } from "./runtime/drafts.js";
@@ -122,11 +118,11 @@ import {
   createGoToSequence,
   goToHintLayer,
 } from "./runtime/keyboard/go-to-sequence.js";
-import { presented, windowChromeBoxes } from "./runtime/geometry.js";
+import { coverBoxes, presented } from "./runtime/geometry.js";
 // The page's own keyboard parts join the register as this module evaluates; every other
 // owner contributes its own as it is constructed below.
 import { declareCurrentLocation } from "./runtime/keyboard/page.js";
-import { mountKeyboard } from "./runtime/keyboard/controller.js";
+import { letHeldKeysGo, mountKeyboard } from "./runtime/keyboard/controller.js";
 import { paintCoreControls } from "./runtime/keyboard/control-keys.js";
 import { paintTouchControls } from "./runtime/keyboard/touch-controls.js";
 import { paintCloseRequests } from "./runtime/keyboard/close-requests.js";
@@ -143,12 +139,7 @@ import {
 import { watchDisclosures } from "./runtime/keyboard/disclosure.js";
 import { mountRepaint, repaint, repaintPage } from "./runtime/repaint.js";
 import { openDocumentLayout } from "./runtime/content-layout.js";
-import {
-  createNavigation,
-  placeThreadEdge,
-  glideTo,
-  stopGlide,
-} from "./runtime/navigation.js";
+import { createNavigation, placeThreadEdge } from "./runtime/navigation.js";
 import {
   declareReading,
   focusDestination,
@@ -177,7 +168,7 @@ async function boot() {
   initializeServedDocument();
   const initialStateRead = beginRead();
   const initialDocument = takeInitialDocument();
-  if (!(await prepareDocument(initialDocument))) return;
+  if (!(await prepareDocument(initialDocument))) return letHeldKeysGo();
   holdArrivingBounds();
 
   // A published shell may bundle the entry without publishing its source modules beside
@@ -247,16 +238,12 @@ async function boot() {
     remove: (anchor) => drawing.removeDrawing(anchor),
     replace: replaceDrawing,
   };
-  /** @type {ReturnType<typeof createAim>} */
-  let aim;
   /** @type {ReturnType<typeof createTargetPicker>} */
   let targets;
   /** @type {ReturnType<typeof createReactionController>} */
   let reactions;
   /** @type {ReturnType<typeof createPageGeometry>} */
   let pageGeometry;
-  /** @type {ReturnType<typeof createGoToSequence>} */
-  let goToSequence;
 
   /** @type {ReturnType<typeof createFloatingPanel>} */
   let floatingPanel;
@@ -270,9 +257,9 @@ async function boot() {
     },
   });
 
-  // The fixed furniture every generated-hint map is spread around: the window's declared
-  // chrome (geometry.js). Both maps read the same boxes.
-  const hintChrome = { barriers: windowChromeBoxes };
+  // The fixed furniture every generated-hint map is spread around: the boxes the chrome
+  // covers (geometry.js, `coverBoxes`). Both maps read the same boxes.
+  const hintChrome = { barriers: () => coverBoxes() };
   const anchorPlacement = createAnchorPlacement();
   /** @type {ReturnType<NonNullable<typeof annotationRenderer>["createVisualMarkPaint"]> | undefined} */
   let visualMarkPaint;
@@ -314,7 +301,7 @@ async function boot() {
     announce,
     repaint,
   });
-  aim = createAim({
+  const aim = createAim({
     marginTargetAt: (...args) => app.overlay?.marginTargetAt(...args) ?? null,
     refreshAim: () => pageGeometry.refreshAim(),
     commentOnTarget: (...args) => responseSurface.commentOnTarget(...args),
@@ -331,7 +318,6 @@ async function boot() {
     pointer: pointerAt,
     designMode,
     targetPaint: { clearAim, geometryChanged, labelAim, paintAim, shifted },
-    visualMarkPaint,
     shiftDrawings: drawingPaint.shifted,
     queueLegend: designMode.queueLegend,
     legendScrolled: designMode.legendScrolled,
@@ -493,14 +479,11 @@ async function boot() {
     repaint,
   });
   const queueWalk = createQueueWalk({
-    actions: app.queueActions,
     arriveAtRecord: items.arriveAtRecord,
     arriveAtThread: navigation.arriveAtThread,
     threadPlace: (id) => app.threadDestinations.threadPlace(id),
     prepareNavigationStep: anchorTravel.prepareNavigationStep,
     arrive: anchorTravel.arrive,
-    readableDestination: anchorTravel.readableDestination,
-    showOnMe: () => floatingPanel.showOnMe(),
     announce,
   });
   const changeWalk = createChangeWalk();
@@ -524,7 +507,6 @@ async function boot() {
     arrivesAt: (item) => queueWalk.arrivesAt(item),
     onMe: queueWalk.onMe,
     withdraw: app.withdraw,
-    settlement: app.settlement,
     placedAt: anchorPlacement.placedAt,
     openThreadSubject: (id, options) =>
       app.threadDestinations.openThreadSubject(id, options),
@@ -678,7 +660,7 @@ async function boot() {
       app.threadDestinations.openThreadDraft(context, intent),
     holdsThreadDraft: (context) => app.threadDestinations.holdsThreadDraft(context),
   });
-  goToSequence = createGoToSequence({
+  const goToSequence = createGoToSequence({
     doors: floatingPanel.doors,
     hintChrome,
     openPageMap: (...args) => pageMapDialog.openPageMap(...args),
@@ -693,9 +675,7 @@ async function boot() {
     scrollToElement: anchorTravel.scrollToElement,
     leavesOffered,
     marginEntries: app.overlay ?? null,
-    glideTo,
     placeThreadEdge,
-    stopGlide,
   });
   const currentLocationPainters = {
     markHere: items.markHere,
@@ -728,9 +708,6 @@ async function boot() {
     // One permanent home for the chrome's foreground; none of these live descendants is
     // reparented.
     chromeForeground.append(
-      locationLayer,
-      targetTraceLayer,
-      proxyRingLayer,
       aimLayer,
       liveEl,
       mediaViewer,
@@ -740,12 +717,12 @@ async function boot() {
     chromeRoot.append(
       legendRoot,
       marginBarLayer,
-      ...(visualMarkPaint ? [visualMarkPaint.layer] : []),
       drawingPaint.layer,
       fabBar,
       chromeForeground,
     );
-    document.body.append(chromeRoot);
+    // After body, where it stacks over every box the page writes (base.css).
+    document.body.after(chromeRoot);
     version.mount();
     mountPageStatus();
     floatingPanel.mount(chromeForeground);
@@ -755,7 +732,6 @@ async function boot() {
     targets.mount();
     drawing.mount();
     aim.mount();
-    mountTargetPaint();
     anchorPaint?.mount();
     anchorControls.mount();
     pageGeometry.mount();
@@ -767,7 +743,7 @@ async function boot() {
     app.mountAnnotations();
     app.overlay?.mount();
     // Margin rows insert before the permanent foreground home, so these chips are laid
-    // out after every target they name while retaining their native modal ancestor.
+    // out after every target they name.
     chromeForeground.append(goToHintLayer, commandHintLayer, targetPickerHintLayer);
     app.mountRead();
     layout.mountLayoutObservers();
@@ -789,7 +765,7 @@ async function boot() {
   } else {
     document.adoptedStyleSheets = [...document.adoptedStyleSheets, chromeSheet];
     chromeRoot.append(mediaViewer);
-    document.body.append(chromeRoot);
+    document.body.after(chromeRoot);
     // Exports retain image inspection, but no page controls. Their other current location is
     // what a widget's own box shows, such as an options group's addition field.
     mountRepaint({

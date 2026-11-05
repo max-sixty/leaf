@@ -16,16 +16,12 @@ from pathlib import Path
 import turbohtml
 from playwright.sync_api import Error as PlaywrightError
 
-from leaf.codex import (
-    app_server_connect,
-    app_server_handshake,
-    app_server_request,
-    private_app_server,
-)
+from leaf.codex import private_app_server
 from leaf.inference import CODEX_CONFIG, CODEX_SERVER_ARGUMENTS
 from leaf_dev import ROOT
 from leaf_dev.arms import codex_home, codex_program, environment, run_leaf, serving
-from leaf_dev.browser import headless_shell, load, tab
+from leaf_dev.browser import Window, headless_shell, load, tab
+from leaf_dev.codex_task import Task
 
 FIXTURES = ROOT / "evals/widget-formats"
 MODEL = "gpt-6.1-sol"
@@ -196,15 +192,15 @@ def infer(request: str, system: str, work: Path) -> dict:
             cwd=str(cwd),
             log_path=work / "app-server.log",
         ) as (endpoint, _):
-            socket = app_server_connect(endpoint)
             trace = []
             first_text = None
             usage = None
+            terminal = None
             answers = []
             item_types = []
 
             def hear(message):
-                nonlocal first_text, usage
+                nonlocal first_text, usage, terminal
                 trace.append(
                     {
                         "elapsedMs": round((time.monotonic() - started) * 1000),
@@ -225,9 +221,11 @@ def infer(request: str, system: str, work: Path) -> dict:
                     item_types.append(item["type"])
                     if item["type"] == "agentMessage":
                         answers.append(item)
+                if method == "turn/completed":
+                    terminal = params["turn"]
 
+            task = Task(endpoint, hear)
             try:
-                app_server_handshake(socket, 0, "leaf-format-eval", "Leaf format eval")
                 config = deepcopy(CODEX_CONFIG)
                 # Removed in the installed CLI; do not imply it enforces no tools.
                 config.pop("include_apply_patch_tool", None)
@@ -242,9 +240,10 @@ def infer(request: str, system: str, work: Path) -> dict:
                     "baseInstructions": system,
                     "config": config,
                 }
-                thread = app_server_request(socket, "thread/start", 1, params, hear)
+                thread = task.request("thread/start", params)
+                task.thread = thread["thread"]["id"]
                 turn_params = {
-                    "threadId": thread["thread"]["id"],
+                    "threadId": task.thread,
                     "input": [{"type": "text", "text": request}],
                     "effort": EFFORT,
                     "serviceTierForTurn": "default",
@@ -256,16 +255,15 @@ def infer(request: str, system: str, work: Path) -> dict:
                     )
                 )
                 (work / "thread.json").write_text(json.dumps(thread, indent=2))
-                app_server_request(socket, "turn/start", 2, turn_params, hear)
-                while True:
-                    message = json.loads(socket.recv(timeout=300))
-                    hear(message)
-                    if message.get("method") == "turn/completed":
-                        terminal = message["params"]["turn"]
-                        break
+                task.request("turn/start", turn_params)
+                while terminal is None:
+                    heard = len(trace)
+                    task.receive(300)
+                    if len(trace) == heard:
+                        raise TimeoutError("App Server said nothing for 300 s mid-turn")
                 completed = time.monotonic()
             finally:
-                socket.close()
+                task.socket.close()
                 (work / "notifications.jsonl").write_text(
                     "".join(json.dumps(row) + "\n" for row in trace)
                 )
@@ -318,12 +316,13 @@ def check(answer: str, condition: str, case: str, work: Path) -> dict:
         with (
             serving(ROOT, state, page) as url,
             headless_shell() as browser,
-            tab(browser, viewport=(900, 760)) as view,
+            tab(browser, Window((900, 760))) as view,
         ):
             errors = []
             view.on("pageerror", lambda error: errors.append(str(error)))
             load(view, url)
-            (work / "visible.txt").write_text(view.locator("main").inner_text())
+            # The page is body; Leaf's chrome stands after it.
+            (work / "visible.txt").write_text(view.locator("body").inner_text())
             view.screenshot(path=work / "before.png", full_page=True)
             try:
                 if case == "choice":

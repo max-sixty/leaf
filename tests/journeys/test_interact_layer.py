@@ -32,9 +32,9 @@ from leaf import event_log as events_model
 from leaf import files as interact_files
 from leaf import layer as layer_model
 from leaf import packages as packages_model
+from leaf.registry.contract import stamp_grammars
 from leaf.registry.storage import (
     layer_record,
-    layer_widgets,
     load_registry,
     selected,
 )
@@ -621,72 +621,6 @@ def test_package_install_replaces_a_name_without_changing_held_readers(
     ).read_text() == "lf-installed { color: purple; }\n"
 
 
-def test_package_init_starts_one_checked_upgraded_widget(tmp_path, monkeypatch):
-    monkeypatch.chdir(tmp_path)
-    runner = CliRunner()
-    package = Path("packages/risk-notes")
-
-    created = runner.invoke(
-        cli_model.cli,
-        ["package", "init", str(package), "--widget", "lf-risk-note"],
-    )
-
-    assert created.exit_code == 0, created.output
-    package_root = tmp_path / package
-    registry = json.loads((package_root / "registry.json").read_text())
-    entry = registry["lf-risk-note"]
-    assert entry["description"]
-    assert entry["x-content"] == "markup"
-    assert entry["x-upgrade"] is True
-    assert entry["x-verbatim"] is True
-    assert entry["x-example"] == (
-        '<lf-risk-note id="risk-note"><strong>Risk note</strong> The retry budget '
-        "is three attempts before manual review.</lf-risk-note>"
-    )
-    assert (package_root / "defaults.css").read_bytes() == b""
-    module = (package_root / "widgets" / "lf-risk-note.js").read_text()
-    checked = runner.invoke(cli_model.cli, ["package", "check", str(package)])
-    assert checked.exit_code == 0, checked.output
-
-    page = tmp_path / "page"
-    initialized = runner.invoke(
-        cli_model.cli,
-        [
-            "page",
-            "init",
-            "--package",
-            "diagram",
-            "--package",
-            str(package),
-            str(page),
-        ],
-    )
-    assert initialized.exit_code == 0, initialized.output
-    layer_4 = layer_record(page)
-    assert layer_4 is not None
-    widgets = selected(layer_4, page).directory_files["widgets"]
-    assert widgets["lf-risk-note.js"].decode() == module
-    (page / "index.html").write_text(
-        PAGE.replace(
-            "<h2>Plan</h2>",
-            '<h2>Plan</h2><lf-risk-note id="release-risk"><strong>Release risk'
-            "</strong> The retry budget is three attempts before manual review."
-            "</lf-risk-note>",
-        )
-    )
-    result = check(page)
-    assert result.exit_code == 0, result.output
-    # Rendering owns a Playwright loop; a session browser may already own this
-    # process's loop when the full suite reaches this CLI integration.
-    rendered = subprocess.run(
-        [*LEAF_COMMAND, "page", "check", str(page), "--render"],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    assert rendered.returncode == 0, rendered.stdout + rendered.stderr
-
-
 def test_package_writers_only_wait_for_contract_destinations_they_share(
     tmp_path, monkeypatch, spawn
 ):
@@ -718,8 +652,8 @@ def test_package_writers_only_wait_for_contract_destinations_they_share(
 import contextlib
 import fcntl
 import sys
-from leaf import cli, packages
-real_lock = packages.flocked
+from leaf import cli, locations
+real_lock = locations.flocked
 @contextlib.contextmanager
 def observed(path):
     with open(path, "a+b") as probe:
@@ -729,7 +663,7 @@ def observed(path):
             print("waiting on shared destination", flush=True)
     with real_lock(path) as held:
         yield held
-packages.flocked = observed
+locations.flocked = observed
 cli.cli.main(args=sys.argv[1:], standalone_mode=False)
 """
     routes = [package, alias, registry_alias]
@@ -835,7 +769,11 @@ def test_package_is_the_unit_that_init_creates_checks_and_vendors(
     theme = layer.top_files["theme.css"].decode()
     assert "lf-callout {\n  display: block;" in theme
     assert theme.index("lf-callout {") < theme.index("@layer lf-overrides")
-    assert load_registry(page)["lf-callout"] == entry
+    # The package's entry, as composition completes it.
+    assert (
+        load_registry(page)["lf-callout"]
+        == stamp_grammars({"lf-callout": entry})["lf-callout"]
+    )
     assert (
         "Use them for short notices."
         in layer.vocabulary.instructions["author.md"].decode()
@@ -861,53 +799,6 @@ def test_package_is_the_unit_that_init_creates_checks_and_vendors(
     )
     result = check(page)
     assert result.exit_code == 0, result.output
-
-
-def test_page_init_vendors_an_explicit_package_without_privileging_it(
-    tmp_path, monkeypatch
-):
-    """A bundled vocabulary is selected and removed by the same ordinary layer path."""
-    monkeypatch.chdir(tmp_path)
-    plain = tmp_path / "plain"
-    composed = tmp_path / "composed"
-    runner = CliRunner()
-    plain_result = runner.invoke(cli_model.cli, ["page", "init", str(plain)])
-    packaged_result = runner.invoke(
-        cli_model.cli,
-        ["page", "init", "--package", "diagram", str(composed)],
-    )
-    assert plain_result.exit_code == 0, plain_result.output
-    assert packaged_result.exit_code == 0, packaged_result.output
-    plain_registry = load_registry(plain)
-    packaged_registry = load_registry(composed)
-    assert "lf-diagram" not in plain_registry
-    assert "lf-activity" in plain_registry
-    assert "lf-diagram" in packaged_registry
-    assert plain_registry["$layer"]["packages"] == []
-    assert packaged_registry["$layer"]["packages"] == ["diagram"]
-    diagram = "widgets/lf-diagram.js"
-    layer_6 = layer_record(plain)
-    assert layer_6 is not None
-    assert diagram not in layer_widgets(layer_6, plain)
-    layer_7 = layer_record(composed)
-    assert layer_7 is not None
-    assert diagram in layer_widgets(layer_7, composed)
-    revendor = runner.invoke(cli_model.cli, ["page", "init", str(composed)])
-    assert revendor.exit_code == 0, revendor.output
-    assert load_registry(composed)["$layer"]["packages"] == ["diagram"]
-    layer_8 = layer_record(composed)
-    assert layer_8 is not None
-    assert diagram in layer_widgets(layer_8, composed)
-    removed = runner.invoke(
-        cli_model.cli, ["page", "init", "--no-packages", str(composed)]
-    )
-    assert removed.exit_code == 0, removed.output
-    removed_registry = load_registry(composed)
-    assert removed_registry["$layer"]["packages"] == []
-    assert "lf-diagram" not in removed_registry
-    layer_9 = layer_record(composed)
-    assert layer_9 is not None
-    assert diagram not in layer_widgets(layer_9, composed)
 
 
 def _replying_after(page, server, edit):

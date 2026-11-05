@@ -36,11 +36,13 @@ module stacks the track with the content, as on a phone, it declares
 `--lf-track-scroll-behavior: flow` on the track's parent, and the track scrolls with
 the page. Register the track as a reading region, since it may scroll.
 
-A horizontal scroll surface uses the shared `scroll` class on its actual
-viewport and declares overflow in its CSS. The class supplies containment. Leaf adds
-keyboard access and continuation cues, inspecting these surfaces for overflow instead
-of reading every descendant's styles. A reading region's body receives this class when
-it registers; its CSS still decides whether the region scrolls or flows.
+A horizontal scroll surface a module builds wears `data-lf-scroll` on its actual
+viewport and declares overflow in its CSS; the page's own markup says the same with
+`class="scroll"` (`page-authoring.md`), a name the module leaves to the page, so the
+page's CSS for it reaches only the page's own boxes. The mark supplies containment. Leaf adds keyboard
+access and continuation cues, inspecting these surfaces for overflow instead of reading
+every descendant's styles. A reading region's body receives the mark when it
+registers; its CSS still decides whether the region scrolls or flows.
 Sticky headers set `--lf-head-inset: 0px` beside their `position: sticky` rule so
 keyboard focus counts the header's own inset as visible.
 
@@ -78,13 +80,19 @@ otherwise it waits until the growth is out of view or the reading is interrupted
 The returned function cancels the pending change. When a user's own gesture requests
 that change, cancel the hold and apply the change in that gesture.
 
-When a widget redraws or resizes content where the user is reading, keep their place
-with `placeKeeper(scroller, {items, identity})` rather than restoring `scrollTop`.
-`items` selects the nodes that can mark a place, and `identity(node)` returns the key
-each is drawn under, so a keyed redraw hands the place to the replacement. Wrap one
-synchronous change, which must not scroll anything itself, in `around(mutate)`. For a
-change spanning tasks, call `const hold = take()` before and `finish(hold, following)`
-after; the keeper holds the place frame by frame while `following()` is true.
+When a widget redraws or resizes content where the user is reading, the browser's
+scroll anchoring keeps their place: don't restore `scrollTop` or set
+`overflow-anchor: none`. Redraw by keeping the nodes the change leaves as they were,
+as `setRenderedChildren` does for a subtree the module renders whole
+([module-authoring.md](module-authoring.md), "Retained nodes"), since a node that replaces
+the one anchoring holds loses the place. Where a change
+hides what the reader is reading, as folding it does, anchoring can't hold it: read
+`const hold = holdPlace(node, standIn)` before the change and call `hold()` after it,
+in the same task, and `node`, or the node `standIn` names for it once the change hid
+or removed it, lands where `node` stood. `readingAt(column)` is what stands at the reading line, a
+quarter of the way down the window, in `column`'s middle: a range over the words there,
+which `holdPlace` takes too, else the element drawn there. The change itself scrolls
+nothing.
 
 A widget that hides a view and shows it again later keeps the place as
 `capturePlace()`, a landmark in the page's words, and returns to it with
@@ -101,14 +109,20 @@ reading in and redraws, for a "Show new" control, and `release()` lets the next 
 
 ### Scrolling to a destination
 
-To take the user somewhere, call `scrollIntoView(target, {block, behavior})`, which
-reveals the target inside any box that clips it, then places it in each reading region
-around it; `block` defaults to `start`. To bring an item into its own strip or list and
-leave the page where it is, pass that box as `within`. For a vertical move that keeps
-the sideways scroll, use `scrollIntoReadingBand(target, holder, block, behavior)`, where
-`target` is an element or a Range and `holder` the element whose regions contain it.
-Unlike native `Element.scrollIntoView`, both stay inside a live sample. Use them only
-for a deliberate move; focusing a visible control or redrawing keeps the scroll.
+To take the user somewhere, call `scrollIntoView(target, {block, behavior})`, where
+`target` is an element or a Range. It places the target at `block` in its own reading
+region, the box that scrolls it as the user reads, and every other box that scrolls
+it, inside or around that region, reveals it at the nearest edge, so a start landing in
+a bounded pane aligns it in the pane and moves the page only to show it; `block`
+defaults to `start`. Sideways, each box reveals it at the nearest edge. A `nearest`
+landing moves nothing where the target is already shown: the user sees all of it where
+it fits, and as much of it as the window holds where it is longer, which
+`alreadyShown(target)` answers for a widget deciding whether to land something else.
+Pass `sideways: false` to align what the user is reading and keep their place across
+its lines. To bring an item into its own strip or list and leave the page where
+it is, pass that box as `within`. Unlike native `Element.scrollIntoView`, it stays
+inside a live sample. Use it only for a deliberate move; focusing a visible control or
+redrawing keeps the scroll.
 
 A landing keeps the target's `scroll-margin` clear on every side, so a focused
 control's ring shows. `fitsWhole(target)` says whether the target and those margins
@@ -157,9 +171,9 @@ itself.
 
 A box a package makes scroll sets `--lf-top: 0px` beside its `overflow`, so a header
 inside it sticks at its top from the first paint. Leaf also restarts `--lf-top` on a box
-with the `scroll` class, such as a registered reading region's body, once it finds the
-box scrolling and not sticking, `overflow: hidden` included. Leaf reads no other box's
-overflow, so in a box that scrolls without that declaration or the class, a header
+marked as a scroll surface, such as a registered reading region's body, once it finds
+the box scrolling and not sticking, `overflow: hidden` included. Leaf reads no other
+box's overflow, so in a box that scrolls without that declaration or the mark, a header
 sticks as far below the box's top as the headers stacked over the box, and covers what
 lies under the header. A header sticks below its scroller's top padding; to have it sit
 on the scroller's edge, set `--lf-top-start` to minus that padding and
@@ -176,6 +190,14 @@ disconnecting and reconnecting the element update the total. Call its returned s
 when the header becomes local navigation. Only a header over the document belongs
 here: a nested scroller uses the local sticky and landing inputs above. Packages own
 where their headers are positioned; Leaf owns the aggregate root landing inset.
+
+A header the page itself fixes at the window's top, or makes sticky ahead of the
+page's content, in `body` or a box around `main` before it or at the start of `main`,
+such as a site header, is one of the page's heads, which Leaf finds without a
+declaration. How far down the window they
+reach starts the sticky-header slot below them for everything in the page but the
+heads, so a package's header sticking at `var(--lf-top)` sticks below them, and the
+margin every box reads from the slot clears them.
 
 ### Sideways scrollers and container queries
 

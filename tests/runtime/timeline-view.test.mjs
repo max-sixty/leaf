@@ -54,7 +54,7 @@ const timeline = (markup) => {
     get next() {
       return host.querySelector(".lf-timeline-next");
     },
-    eventElement: (id) => host.querySelector(`[data-event="${id}"]`),
+    eventElement: (id) => host.querySelector(`[data-lf-event="${id}"]`),
   };
   render(drawing.render(), host, { host });
   return drawing;
@@ -112,8 +112,8 @@ test("A step paints what came before as done and leaves later events open", () =
   const states = () =>
     Object.fromEntries(
       [...drawing.chart.querySelectorAll(".lf-timeline-event")].map((event) => [
-        event.dataset.event,
-        event.dataset.state,
+        event.dataset.lfEvent,
+        event.dataset.lfState,
       ]),
     );
   const controls = drawing.controls;
@@ -135,7 +135,9 @@ test("A step paints what came before as done and leaves later events open", () =
     "s-late": "current",
   });
   // Half the span is done when the playhead stands at 2000 of 1000..3000.
-  const work = drawing.chart.querySelector('[data-event="s-work"] .lf-timeline-mark');
+  const work = drawing.chart.querySelector(
+    '[data-lf-event="s-work"] .lf-timeline-mark',
+  );
   assert.match(work.getAttribute("style"), /--lf-timeline-done: 0\.5/);
   assert.equal(drawing.rows[2].getAttribute("aria-current"), "step");
   assert.equal(drawing.previous.getAttribute("aria-disabled"), null);
@@ -168,7 +170,7 @@ test("Compared runs share one axis and one playhead, each headed by its name", (
       .eventElement(id)
       .querySelector(".lf-timeline-mark")
       .getAttribute("style")
-      .match(/--lf-timeline-at: ([\d.]+)/)[1];
+      .match(/--lf-axis-at: ([\d.]+)/)[1];
   assert.deepEqual(
     ["before-write", "after-write", "before-done", "after-done"].map(at),
     ["0.5", "0.5", "0.625", "1"],

@@ -76,6 +76,7 @@ import { MODIFIER_KEYS, TEXT_BOX, TAB_STOP } from "./control-selectors.js";
 import { eventSource, pressIsKeyboardActivation } from "./pointer.js";
 import {
   excludedByInert,
+  hostIn,
   isElement,
   isHTML,
   isNativeLayer,
@@ -384,15 +385,27 @@ function landLabelPress() {
 // the host of the shadow tree the user is in, for a reader comparing or containing
 // nodes of that tree. Every reading of focus outside this module asks here, so none
 // misses a label press or a shadow tree (eslint's `architecture/current-location-reads`).
-// Keyboard reflection follows this revision explicitly. Mechanical focus queries made
-// while rendering stay untracked, so restoring focus cannot subscribe a render to itself.
+// Mechanical focus queries made while rendering stay untracked, so restoring focus
+// cannot subscribe a render to itself. Keyboard reflection follows where the user is
+// through this revision, either explicitly or by reading inside `followingFocus`, where
+// asking `focused` subscribes the reading: a move then reads again only what asked.
 const currentLocation = signal(0);
 export const focusRevision = () => currentLocation.value;
+let following = 0;
+/** @template T @param {() => T} read @returns {T} */
+export function followingFocus(read) {
+  following += 1;
+  try {
+    return read();
+  } finally {
+    following -= 1;
+  }
+}
 /** @param {Node | null} [tree] */
 export const focused = (tree = null) => {
-  let at = heldByLabel() ?? deepFocus();
-  if (tree) while (at && at.getRootNode() !== tree) at = shadowHost(at.getRootNode());
-  return at;
+  if (following) focusRevision();
+  const at = heldByLabel() ?? deepFocus();
+  return tree ? hostIn(at, tree) : at;
 };
 
 // The selection the user drew in the tree containing `node`, where the browser keeps it.
@@ -1284,7 +1297,7 @@ export function holdFocus(scope, { key = null } = {}) {
   const order = [keys[at], ...keys.slice(at + 1), ...keys.slice(0, at).reverse()];
   // In an item, the control like the one the user was on, as Remove for Remove, read
   // in the item's own tree, or the item itself where it holds none.
-  // Not shadow.js's `hostIn`, which answers null where the climb leaves the item's tree:
+  // Not shadow-tree.js's `hostIn`, which answers null where the climb leaves the item's tree:
   // this keeps the outermost host it reached.
   let control = node;
   while (control.getRootNode() !== item.getRootNode()) {

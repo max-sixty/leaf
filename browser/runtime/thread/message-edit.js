@@ -83,12 +83,14 @@
    rewrite, so saving them closes the editor and sends nothing. Saving no words at all
    deletes the message (events.md, "Messages"), which then reads Deleted in its place
    (messages.js): a box emptied of words says so before the press, its field reading
-   Delete message and its Save turning to Delete, so no dialog asks again.
+   Delete message and its Save turning to Delete, so no dialog asks again: `z` takes a
+   saved rewrite back, a deletion as any other (undo.js).
    Rejected: refusing an empty rewrite, which left a Save that drew as live and did
-   nothing, so the user typed a placeholder such as "[removed]" over their words; and
-   withdrawing the message (`undo`), which the log admits only while nothing answers
-   it, so a message the agent had answered couldn't be deleted (the user's decision,
-   1 November 2026). */
+   nothing, so the user typed a placeholder such as "[removed]" over their words (the
+   user's decision, 1 November 2026); and deleting by withdrawing the message (`undo`),
+   which nothing could then take back, as `z` takes back a deletion. `z` withdraws the
+   message the user sent last instead, and the empty save deletes an older one (the
+   user's decision, 3 November 2026). */
 import {
   clearDraft,
   draftHasContent,
@@ -238,7 +240,7 @@ export const watchRewrite = (id, changed) => watchDraft(rewriteContext(id), chan
 /** @param {Element | null} thread @param {string} id */
 export function openMessageEditIn(thread, id) {
   const message = [...(thread?.querySelectorAll(".lf-msg") ?? [])].find(
-    (node) => node.getAttribute("data-event") === id,
+    (node) => node.getAttribute("data-lf-event") === id,
   );
   message?.dispatchEvent(new CustomEvent(OPEN_MESSAGE_EDIT));
   return (
@@ -542,16 +544,13 @@ export class MessageEditor {
               this.input.selectionStart,
               this.input.selectionEnd,
             ];
-            return start === 0 && end === 0 && unchanged();
+            return start === 0 && end === 0 && unchanged() && Boolean(previous());
           },
-          get run() {
+          run: () => {
             const before = previous();
-            return before
-              ? () => {
-                  putAside();
-                  before.openEdit();
-                }
-              : undefined;
+            if (!before) return;
+            putAside();
+            before.openEdit();
           },
         },
       ],

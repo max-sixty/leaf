@@ -28,17 +28,32 @@
  * reads the same arithmetic the move then does. A destination's room (`landingRoom`) is
  * the least extent, on each axis, of the window and of every landing band clipping it
  * there, less the clearance each region the landing moves leaves at its top, and the
- * destination's own at its foot: what a landing can show of it at once. `fitsWhole` compares it with that room. A destination
- * is already shown (`alreadyShown`) when the user sees all of it along each axis where
- * it fits, and any of it along one where it does not: a box longer than its room never
- * shows whole, and moving one partly in view takes the user from what they see of it to
- * an edge they did not ask for. "Seen" is `seenRect`'s. A landing that follows the user,
- * such as entering a reply or returning to a thread, asks it before moving anything.
- * Navigation does not: `nearest` stays the native alignment (rect.js,
- * `nearestScrollBy`), which fills the band with a tall destination partly in view, so a
- * fold the user goes to opens from its start. Where a landing would leave a
- * destination (`landedBox`) is read by the same arithmetic, so a surface that would
- * stand over it there can give way first (floating-panel.js, `clearFor`).
+ * destination's own at its foot: what a landing can show of it at once. `fitsWhole`
+ * compares it with that room. Where a landing would leave a destination (`landedBox`)
+ * is read by the same arithmetic, so a surface that would stand over it there can give
+ * way first (floating-panel.js, `clearFor`).
+ *
+ * Every nearest landing first asks whether the destination is already shown
+ * (`alreadyShown`), so one that follows the user, a Tab's arrival, entering a reply or
+ * returning to a thread, and one that takes them somewhere, travel and the walks, ask
+ * one question. It is shown where a nearest landing would move nothing: the user sees
+ * it (geometry.js, `seenRect`, which takes away the box the chrome covers, so a control
+ * beside the floating panel stays put), out to its ring's room where the user is on or
+ * inside it (see below), as far as the boxes between it and its reading region let that
+ * room show (`landable`), along each axis where it fits its room; and where it is taller
+ * than its room, a nearest landing's own moves bring no more of it in, so a box taller
+ * than the window that the user sees only part of still comes in as far as it fits,
+ * and a fold the user goes to opens from its start. Its edges are compared at
+ * layout precision (keeps.js, `atLayoutPrecision`): a box a landing put flush at an
+ * edge reads back a float's rounding past it in Firefox, and a reading that counted it
+ * unseen would land it again and enter travel's history. A box a motion under way is
+ * carrying (scrolling.js, `scrollGoal`) is shown only where it is seen both where it
+ * stands and where that motion will leave it, as a key pressed while the page moves
+ * acts as if the motion had landed: `Shift+m` just after `m` finds the obligation `m`
+ * is leaving already gone. Only a box growing under the user's keystrokes skips the
+ * question, keeping its foot in the band as the browser keeps a caret (`keepInBand`).
+ * `sideways: false` keeps every box's sideways place, for a landing that aligns what
+ * the user is already reading, such as `g z` and a diff's file.
  *
  * A landing is the reader's choice of where each box it moves stands (scrolling.js).
  * Count it as it starts, including an instant landing: navigation can change layout
@@ -50,19 +65,19 @@
  * rings its radio and words together, and a landing that measured the radio left the
  * face's ring cut at its pane's foot. Where that box is longer than its room, the
  * destination is its own box again, so the user still sees the control. Every other
- * destination is its own box.
+ * destination is its own box, without its margins: a landing that takes the user
+ * somewhere asks before focus arrives, and a row under a pinned file header, whose top
+ * margin is that header's height, is shown where it stands just below it.
  *
  * A Tab's arrival lands here too, after the browser's own reveal. The browser reveals a
  * focus arrival only when it counts it out of view: Firefox when less than about a line
  * of it shows, on either axis, and Chromium across only when none of it shows; and
  * neither knows the box that wears its ring. So a control partly past a scroller's edge
  * stayed cut there, a link at a wide table's end in both engines, and in Firefox a
- * radio whose box showed whole while its ring was cut. An arrival whose ring the user
- * does not see, its box out to its margins on each axis where that fits the room a
- * landing has, lands nearest, reading the margins and padding the browser's reveal
- * reads. One whose ring shows moves nothing, so a control in a stuck header, whose
- * margin counts it as shown, stays put, as does a box longer than its room that shows
- * in part.
+ * radio whose box showed whole while its ring was cut. An arrival lands nearest, which
+ * moves nothing where its ring already shows (`alreadyShown`, out to its margins), so a
+ * control in a stuck header, whose margin counts it as shown, stays put, and reads the
+ * margins and padding the browser's reveal reads.
  * A marked decision also wears a ring around its own box while Tab is inside
  * it. Once the focused control is visible, reveal that ring if the decision
  * fits the room. Its own scroll margin already reserves the outline's gap.
@@ -70,16 +85,28 @@
 import { localScrollBy, scrollAxes } from "./element-frame.js";
 import { deepFocus, onCurrentLocation, ringBox } from "./focus.js";
 import {
+  clippedPlace,
+  fixedInWindow,
   landingBand,
   placeBox,
   placeHolder,
+  scrollContainer,
   seenRect,
   shownWindow,
   visibleBand,
 } from "./geometry.js";
+import { atLayoutPrecision } from "./keeps.js";
 import { scrollersOf } from "./scroll-containers.js";
 import { PAGE_PAINT_ATTRIBUTE, locationStandsDown } from "./page-paint.js";
-import { startScroll, reachable, pageScroller } from "./scrolling.js";
+import {
+  glideTo,
+  glides,
+  pageScroller,
+  reachable,
+  scrollGoal,
+  startScroll,
+  stopGlide,
+} from "./scrolling.js";
 import { clippingAxes, nearestScrollBy } from "./rect.js";
 import { nextRender } from "./rendering.js";
 import { renderedParent, renderedUnder } from "./shadow-tree.js";
@@ -90,14 +117,16 @@ import { setScroll } from "./arrivals.js";
  * @typedef {"Top" | "Right" | "Bottom" | "Left"} MarginSide
  * @typedef {{box: Element, local: number, moved: number}} ScrollMove
  */
+// A smooth landing glides (scrolling.js, `glides`); only the reading band's vertical
+// moves are smooth, so it moves only scrollTop.
 /** @param {Element} box @param {{top?: number, left?: number}} by @param {ScrollBehavior} behavior */
 const land = (box, by, behavior) => {
-  startScroll(box);
-  setScroll(box, {
-    top: box.scrollTop + (by.top ?? 0),
-    left: box.scrollLeft + (by.left ?? 0),
-    behavior,
-  });
+  const top = box.scrollTop + (by.top ?? 0);
+  if (glides(box, behavior)) return glideTo(box, top);
+  stopGlide(box);
+  const { scrollTop, scrollLeft } = box;
+  setScroll(box, { top, left: scrollLeft + (by.left ?? 0), behavior: "instant" });
+  if (box.scrollTop !== scrollTop || box.scrollLeft !== scrollLeft) startScroll(box);
 };
 
 // A destination's landing margin on one side. A range has none of its own and takes the
@@ -192,7 +221,7 @@ function roomAround(shown, where, until) {
       if (axes.x) width = Math.min(width, band.right - band.left);
       if (axes.y) height = Math.min(height, band.bottom - band.top - clearance);
     }
-    if (box === pageScroller || getComputedStyle(box).position === "fixed") break;
+    if (box === pageScroller || fixedInWindow(box)) break;
   }
   return { width, height };
 }
@@ -204,42 +233,110 @@ export function fitsWhole(where) {
   return box.height <= room.height && box.width <= room.width;
 }
 
-// Whether the user sees `out` of `where` along each axis where its box fits the room,
-// and any of it along one where it does not (see the header).
-/** @param {Destination} where @param {DOMRect} box @param {DOMRect} out */
-function seesWhole(where, box, out) {
-  const seen = seenRect(shownFor(where), new Map(), out);
-  if (!seen) return false;
-  const room = landingRoom(where);
-  return (
-    (box.height > room.height || (seen.top <= out.top && seen.bottom >= out.bottom)) &&
-    (box.width > room.width || (seen.left <= out.left && seen.right >= out.right))
+// `where`'s box (`destinationBox`) out to its margins, the ring's room.
+/** @param {Destination} where @param {DOMRect} box */
+function marginBox(where, box) {
+  const top = scrollMargin(where, "Top");
+  const left = scrollMargin(where, "Left");
+  return new DOMRect(
+    box.left - left,
+    box.top - top,
+    box.width + left + scrollMargin(where, "Right"),
+    box.height + top + scrollMargin(where, "Bottom"),
   );
 }
 
-/** @param {Destination} where */
-export function alreadyShown(where) {
-  const box = destinationBox(where);
-  return seesWhole(where, box, box);
+// What of `out` a landing can show: all of it but what the boxes between `shown` and the
+// nearest box that scrolls it clip, which no landing moves, as a joined option group's
+// own edge cuts the ring's room around its row. A box that scrolls, as a wide table's
+// does sideways, is one a landing moves.
+/** @param {Destination} shown @param {DOMRect} out @returns {Box} */
+function landable(shown, out) {
+  for (
+    let box = shown instanceof Range ? placeHolder(shown) : renderedParent(shown);
+    box instanceof Element;
+    box = renderedParent(box)
+  )
+    if (scrollContainer(box)) return clippedPlace(shown, new Map(), out, box) || out;
+  return out;
 }
 
-// Whether the user sees the ring of the control they stand on: its box out to its
-// margins.
+// Whether `seen`, what the user sees of `want`, covers it along each axis where `box`
+// fits `room`. Along an axis where it is longer, the landing's own arithmetic answers
+// (see `alreadyShown`), so this asks nothing there.
+/** @param {Box} seen @param {DOMRect} box @param {Box} want @param {{width: number, height: number}} room */
+function seesWhole(seen, box, want, room) {
+  /** @param {"top" | "left"} start @param {"bottom" | "right"} end @param {number} length @param {number} size */
+  const along = (start, end, length, size) =>
+    atLayoutPrecision(length) > atLayoutPrecision(size) ||
+    (atLayoutPrecision(seen[start]) <= atLayoutPrecision(want[start]) &&
+      atLayoutPrecision(seen[end]) >= atLayoutPrecision(want[end]));
+  return (
+    along("top", "bottom", box.height, room.height) &&
+    along("left", "right", box.width, room.width)
+  );
+}
+
+// What the user will see of `seen` once the motions under way in the regions scrolling
+// `shown` land (scrolling.js, `scrollGoal`), and how far they carry it, or null where no
+// motion is under way. The boxes inside the outermost region that moves ride with the
+// destination, so their cuts stand; that region and those around it read it where the
+// motions leave it (geometry.js, `seenRect`).
+/** @param {Destination} shown @param {Box} seen */
+function seenAhead(shown, seen) {
+  let carried = 0;
+  /** @type {Element | null} */
+  let outer = null;
+  for (const box of scrollersOf(placeHolder(shown))) {
+    const left = scrollGoal(box) - box.scrollTop;
+    if (!left) continue;
+    carried += left * scrollAxes(box).y.y;
+    outer = box;
+  }
+  if (!outer) return null;
+  const inside = document.createRange();
+  inside.selectNodeContents(outer);
+  return {
+    carried,
+    seen: seenRect(inside, new Map(), {
+      ...seen,
+      top: seen.top - carried,
+      bottom: seen.bottom - carried,
+    }),
+  };
+}
+
+// Whether the user is on `where` or inside it, so it wears its ring and is measured out
+// to the ring's room (see the header).
 /** @param {Destination} where */
-function ringShown(where) {
+const ringed = (where) =>
+  where instanceof Element && where.matches(":focus-within, [data-lf-focus-within]");
+
+/** @param {Destination} where */
+export function alreadyShown(where) {
+  const shown = shownFor(where);
   const box = destinationBox(where);
-  const top = scrollMargin(where, "Top");
-  const right = scrollMargin(where, "Right");
-  const bottom = scrollMargin(where, "Bottom");
-  const left = scrollMargin(where, "Left");
-  return seesWhole(
-    where,
-    box,
-    new DOMRect(
-      box.left - left,
-      box.top - top,
-      box.width + left + right,
-      box.height + top + bottom,
+  const out = ringed(where) ? marginBox(where, box) : box;
+  const seen = seenRect(shown, new Map(), out);
+  if (!seen) return false;
+  const room = landingRoom(where);
+  const want = landable(shown, out);
+  if (!seesWhole(seen, box, want, room)) return false;
+  // A box longer than its room is shown where a nearest landing would bring no more of
+  // it in, by the landing's own moves (`landsStill`): filling its boxes, or as far as
+  // they can scroll.
+  if (box.height > room.height && !landsStill(where)) return false;
+  if (box.width > room.width && seen.right - seen.left < room.width) return false;
+  const ahead = seenAhead(shown, seen);
+  if (!ahead) return true;
+  const by = ahead.carried;
+  return Boolean(
+    ahead.seen &&
+    seesWhole(
+      ahead.seen,
+      box,
+      { ...want, top: want.top - by, bottom: want.bottom - by },
+      room,
     ),
   );
 }
@@ -327,7 +424,7 @@ export function landedBox(where) {
 }
 
 /** @param {Destination} where @param {Element | null} holder @param {ScrollLogicalPosition} block @param {ScrollBehavior} behavior */
-export function scrollIntoReadingBand(where, holder, block, behavior) {
+function scrollIntoReadingBand(where, holder, block, behavior) {
   for (const { box, local, moved } of readingBandMoves(where, holder, block).moves)
     if (Math.abs(moved) >= 1) land(box, { top: local }, behavior);
 }
@@ -345,16 +442,37 @@ export function scrollIntoReadingBand(where, holder, block, behavior) {
 // its own strip or list while the page around it stays where the user reads. Native
 // `scrollIntoView({container: "nearest"})` is no substitute: Firefox still scrolls the
 // boxes around it (notes/browser-support.md, "Native reveal bounded to its scroller").
-/** @param {Destination | null | undefined} where @param {{alignment?: Destination, behavior?: ScrollBehavior, block?: ScrollLogicalPosition, within?: Element | null}} [options] */
+/** @param {Destination | null | undefined} where @param {{alignment?: Destination, behavior?: ScrollBehavior, block?: ScrollLogicalPosition, within?: Element | null, sideways?: boolean}} [options] */
 export function scrollIntoView(
   where,
-  { alignment, behavior = "auto", block = "start", within = null } = {},
+  {
+    alignment,
+    behavior = "auto",
+    block = "start",
+    within = null,
+    sideways = true,
+  } = {},
 ) {
   if (!where) return;
   const aligned = alignment ?? where;
   const holder = holderOf(aligned);
   if (!holder) return;
+  if (block === "nearest" && aligned === where && alreadyShown(where)) return;
   const targetScroller = within ? null : scrollersOf(holder).next().value;
+  // Only a box that will move is asked to, as a first tab's ring room at its strip's
+  // start moves nothing: a call that moves nothing still reads as a scroll the gesture
+  // made (tests/shift_watch.js, "Scrolls a gesture makes").
+  for (const { box, by } of innerMoves(where, targetScroller, within, sideways))
+    if (by.left || by.top) land(box, by, "instant");
+  if (targetScroller) scrollIntoReadingBand(aligned, holder, block, behavior);
+}
+
+// The moves the walk before a destination's reading region makes (`scrollIntoView`),
+// each read when the caller asks for it, after it made the last: every box clipping the
+// destination reveals it across at the nearest edge, and each inside `targetScroller`
+// down too.
+/** @param {Destination} where @param {Element | null | undefined} targetScroller @param {Element | null} within @param {boolean} sideways */
+function* innerMoves(where, targetScroller, within, sideways) {
   // Horizontal inspection can belong to any ancestor, the owning region included.
   // Only inner scrollports prepare Y; the region and its outers glide below.
   let inside = true;
@@ -365,30 +483,51 @@ export function scrollIntoView(
     if (band) {
       const { left, right } = band;
       const destination = destinationBox(where);
-      const byX = nearestScrollBy(
-        destination.left - scrollMargin(where, "Left"),
-        destination.right + scrollMargin(where, "Right"),
-        left,
-        right,
-      );
+      const byX = !sideways
+        ? 0
+        : nearestScrollBy(
+            destination.left - scrollMargin(where, "Left"),
+            destination.right + scrollMargin(where, "Right"),
+            left,
+            right,
+          );
       const byY = inside
         ? placementBy(where, "nearest", band, topMargin(where, box, band, start))
         : 0;
-      // Only a box that will move is asked to, as a first tab's ring room at its
-      // strip's start moves nothing: a call that moves nothing still reads as a
-      // scroll the gesture made (tests/shift_watch.js, "Scrolls a gesture makes").
-      const by = localScrollBy(box, { x: byX, y: byY });
-      if (by.left || by.top) land(box, by, "instant");
+      yield { box, by: localScrollBy(box, { x: byX, y: byY }) };
     }
-    if (
-      box === within ||
-      box === pageScroller ||
-      getComputedStyle(box).position === "fixed"
-    )
-      break;
+    if (box === within || box === pageScroller || fixedInWindow(box)) return;
   }
-  if (targetScroller) scrollIntoReadingBand(aligned, holder, block, behavior);
 }
+
+// Whether a nearest landing on `where` would move no box down or up: neither the walk
+// before its reading region nor the region and those around it (`readingBandMoves`).
+// Each move is read where the destination stands now, which holds while every move
+// before it is none, and every one is asked rather than their sum: a pane bringing in
+// more of a box while the page carries the pane back leaves the box where it stood,
+// and still shows more of it.
+/** @param {Destination} where */
+function landsStill(where) {
+  const holder = holderOf(where);
+  const targetScroller = scrollersOf(holder).next().value;
+  for (const { by } of innerMoves(where, targetScroller, null, false))
+    if (atLayoutPrecision(by.top) || atLayoutPrecision(by.left)) return false;
+  return (
+    !targetScroller ||
+    readingBandMoves(where, holder, "nearest").moves.every(
+      ({ moved }) => Math.abs(moved) < 1,
+    )
+  );
+}
+
+// A box growing under the user's keystrokes keeps its foot in the band, as the browser's
+// caret reveal keeps a caret in its scrollport less the padding, whether or not the user
+// already sees it: a row seen whole but growing into the band's clearance moves with each
+// keystroke, where one that waited until it passed under the chrome would jump by a line
+// and the clearance at once (thread/reply-landing.js, `revealWritingArea`).
+/** @param {Destination} where */
+export const keepInBand = (where) =>
+  scrollIntoReadingBand(where, holderOf(where), "nearest", "instant");
 
 // A Tab's arrival (see the header), read once the browser's own reveal has moved.
 onCurrentLocation(
@@ -396,7 +535,7 @@ onCurrentLocation(
     if (cause !== "step" || !node) return;
     nextRender(() => {
       if (deepFocus() !== node) return;
-      if (!ringShown(node)) scrollIntoView(node, { block: "nearest" });
+      scrollIntoView(node, { block: "nearest" });
       // A decision's attention ring is worn by its box, even while Tab stands on
       // a control inside it. Native focus reveal knows only the control's box.
       /** @type {Element | null} */
@@ -404,7 +543,7 @@ onCurrentLocation(
       for (; box; box = renderedParent(box)) {
         if (!box.matches(`[${PAGE_PAINT_ATTRIBUTE.obligation}]`)) continue;
         if (locationStandsDown(box)) continue;
-        if (!ringShown(box)) scrollIntoView(box, { block: "nearest" });
+        scrollIntoView(box, { block: "nearest" });
         break;
       }
     });

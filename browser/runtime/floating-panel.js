@@ -269,7 +269,7 @@ import { draftOf, standsAtItsBox, syncInput } from "./composing/input.js";
 import { TEXT_FIELD } from "./control-selectors.js";
 import { retainUserIntent } from "./user-intent.js";
 import { holdPlace } from "./user-place.js";
-import { queueItemKey, readPlan, readQueues } from "./queue-api.js";
+import { onUserCount, queueItemKey, readPlan, readQueues } from "./queue-api.js";
 import { queueTitle } from "./queue-title.js";
 import { groupingLabel, ON_ME_GROUPINGS, queueStop } from "./queue-walk.js";
 import { carriesObligation, itemNoun, itemOutcome } from "./queues.js";
@@ -1315,10 +1315,6 @@ export function createFloatingPanel({
   };
   const newCount = () => (inventoried() ? threadCounts(threads()).unread : 0);
   const openCount = () => (inventoried() ? threadCounts(threads()).open : null);
-  const onUserCount = () => {
-    const queues = readQueues();
-    return queues.phase === "ready" ? queues.on_user.length : 0;
-  };
   // Ordinary open state is implicit, and news is the row's mark (`data-lf-unread`),
   // which says New to assistive tech alone. Only an open thread is news (`isNews`), as
   // the On me mark's dot counts it: the user chose (2026-10-25) that a resolved

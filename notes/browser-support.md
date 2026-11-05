@@ -156,7 +156,11 @@ A margin pin's seat is read against the room around its target, with a sticky bo
 counted at its own place, where it stands before sticking (`stuckShift` in
 `browser/runtime/geometry.js`). Only a view timeline reads that place without
 writing to the page. Installed Playwright Firefox 157.0, build 1555, had no
-`ViewTimeline` on 2026-11-05, so there a sticky box counts where it is drawn. A pass
+`ViewTimeline` on 2026-11-05. Release Firefox 159.0 on macOS builds a `ViewTimeline` the
+same day but throws NotSupportedError on reading its `startOffset` or `endOffset`, which
+stopped every margin layout pass on a page with a pin; `stuckShift` now asks for an
+offset once and reads nothing further from timelines where it throws. In both, a sticky
+box counts where it is drawn. A pass
 made while a header inside the target is stuck down the page can then seat the pin
 where the header stands once the user scrolls back, and a later unrelated pass moves
 the pin with no input. Playwright Chromium 156.0.8078.4 (build 1248) and WebKit 27.2

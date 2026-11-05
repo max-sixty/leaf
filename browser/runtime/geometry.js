@@ -453,18 +453,35 @@ function sticks(sticky) {
 // the scrollport's end inset by all of its length, a box that sticks at its top starts
 // its range at its own top, and one that sticks at its foot ends it at its own foot,
 // counted in its scroller's scrolled content, at any scroll. Chromium and WebKit agree
-// on that reading. Firefox has no `ViewTimeline` and reads zero, which leaves a sticky
-// box read where it is drawn (notes/browser-support.md, "Sticky boxes' own place").
+// on that reading. Where a view timeline can't say where its range starts, the shift
+// reads zero, which leaves a sticky box read where it is drawn (notes/browser-support.md,
+// "Sticky boxes' own place").
 //
 // That place leaves out the offset of every sticky box in the scroller, so for a sticky
 // box inside another in the same scroller the outer box's offset is taken off and the
 // answer is the inner box's own: a walk down the boxes adds each one's shift to those
 // around it.
-const VIEW_TIMELINE = "ViewTimeline" in globalThis;
+/** @type {boolean | null} */
+let timelineOffsets = null;
+// Firefox 157 lacks `ViewTimeline`; Firefox 159 builds one and throws NotSupportedError
+// on reading its `startOffset` and `endOffset`.
+function readsTimelineOffsets() {
+  if (timelineOffsets !== null) return timelineOffsets;
+  if (!("ViewTimeline" in globalThis)) return (timelineOffsets = false);
+  try {
+    void new globalThis.ViewTimeline({ subject: document.documentElement }).startOffset;
+    timelineOffsets = true;
+  } catch (error) {
+    if (!(error instanceof DOMException && error.name === "NotSupportedError"))
+      throw error;
+    timelineOffsets = false;
+  }
+  return timelineOffsets;
+}
 /** @param {Element} sticky @param {CSSStyleDeclaration} [style] */
 export function stuckShift(sticky, style = getComputedStyle(sticky)) {
   const shift = { x: 0, y: 0 };
-  if (style.position !== "sticky" || !VIEW_TIMELINE) return shift;
+  if (style.position !== "sticky" || !readsTimelineOffsets()) return shift;
   for (const axis of /** @type {const} */ (["y", "x"])) {
     const own = displaced(sticky, style, axis);
     if (!own) continue;

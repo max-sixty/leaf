@@ -480,7 +480,7 @@ export function createQueueWalk({
           at && {
             where: at,
             focus: at,
-            scroll: [{ at, when: () => !alreadyShown(at) }],
+            scroll: [{ at, when: () => !alreadyShown(at, { block: "center" }) }],
           }
         );
       },

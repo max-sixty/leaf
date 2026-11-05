@@ -88,6 +88,11 @@ pnpm run test:evals
 
 `uv run pytest dev/tests` selects every Python developer-tool test.
 
+Nothing passes or fails on a benchmark's reading, in a test or in CI: a reading moves
+with the host's speed and load, so the benchmark reports it and a reader judges it.
+The daily `ci` run reports `leaf-dev scaling`, exponents included, and charts its
+readings (`.github/workflows/ci.yaml`, `scaling`).
+
 ## Commands with consequences outside `.tmp/`
 
 - `leaf-dev refresh-previews` (as `wt refresh-previews`), `record-demo` and

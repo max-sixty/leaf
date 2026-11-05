@@ -154,6 +154,7 @@ import { onCurrentLocation, focused } from "../focus.js";
 import { onReadingInterrupted, readingIsContinuous } from "../reading-continuity.js";
 import { pagePresented } from "../page-paint.js";
 import { watchOwner } from "../arrivals.js";
+import { holdUserPlace } from "../user-place.js";
 
 /** @typedef {import("./thread-card.js").ThreadReading} ThreadReading */
 /** @typedef {import("./thread-card.js").ThreadRecord} ThreadRecord */
@@ -528,7 +529,9 @@ export function showHeld(id) {
 
 // The thread the user is in, and their arrivals at another. A move or a step there shows
 // what it holds. A press there puts the user in it, so each seat holding it draws again
-// and the seat's rule for a user in it decides (inline.js).
+// and the seat's rule for a user in it decides (inline.js). No reading brings either
+// draw, so it takes the hold a reading takes, which keeps the control they arrived on
+// where it stood (user-place.js, `holdUserPlace`).
 /** @type {string | null} */
 let currentLocation = null;
 onCurrentLocation(
@@ -539,9 +542,11 @@ onCurrentLocation(
     const id = drawnThreadId(thread);
     const arrived = id !== null && id !== currentLocation;
     currentLocation = id;
-    if (!arrived) return;
-    if (cause === "move" || cause === "step") showHeld(id);
-    else if (cause === "press") for (const held of holders) held.redraw(id);
+    if (!arrived || cause === "return") return;
+    const keep = holdUserPlace();
+    if (cause === "press") for (const held of holders) held.redraw(id);
+    else showHeld(id);
+    keep();
   },
 );
 

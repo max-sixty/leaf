@@ -2601,7 +2601,7 @@ def test_a_page_s_own_conversation_reader_takes_the_panel_s_threads(browser, ser
     panel (application.js, `registerThreadPresentation`, `yields`): the page starts
     without a fault, and a thread opened from the panel's Threads opens in the
     package's reader rather than above the row."""
-    from browser.test_render_application_boundary import package_workspace
+    from render_cases_interaction import package_workspace
 
     page = floating(browser, package_workspace(serve))
     workspace = page.locator("#workspace")

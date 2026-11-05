@@ -769,7 +769,7 @@ def test_a_screenshot_comment_contour_paints_above_its_edge_to_edge_frame(
     example = named_source("release-notes")
     page = open_page(browser, serve(example))
     shot = page.locator("#rn-console-shot")
-    shot.get_by_role("button", name="Slider", exact=True).click()
+    shot.get_by_role("radio", name="Slider", exact=True).click()
     shot.scroll_into_view_if_needed()
     box = shot.bounding_box()
     clip = {
@@ -895,7 +895,7 @@ def test_a_screenshot_margin_trace_paints_both_quiet_brackets(browser, serve):
     assert not missing, (
         f"the screenshot frame covered the trace's {missing} edge: {changed} ink pixels"
     )
-    shot.get_by_role("button", name="Pair", exact=True).click()
+    shot.get_by_role("radio", name="Pair", exact=True).click()
     expect(shot.locator('.lf-shotframe[data-lf-state="after"]')).to_be_visible()
 
 

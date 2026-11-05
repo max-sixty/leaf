@@ -719,8 +719,8 @@
         --lf-landing-room: 0px;
         --lf-head-inset: initial;
         --lf-track-scroll-behavior: flow;
-        /* Its own scroll anchoring keeps the reader's place in it across a revision;
-         * the aside before the body is what the page's anchoring passes over. */
+        /* Its own scroll anchoring holds the line read in it while a block above
+         * grows; the aside before the body keeps the page's anchoring off it. */
         overflow-y: auto;
         --lf-holds-height: 1;
         max-block-size: calc(

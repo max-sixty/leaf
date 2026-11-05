@@ -430,10 +430,8 @@ def test_an_agent_turn_arriving_holds_still_the_page_box_being_typed_in(
     )
 
 
-@pytest.mark.parametrize(
-    ("first", "engine"),
-    [("on screen", "browser"), ("above", "browser"), ("on screen", "firefox_browser")],
-)
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+@pytest.mark.parametrize("first", ["above", "on screen"])
 def test_an_edit_above_the_paragraph_read_holds_it_with_the_reply_box_scrolled_away(
     request, serve, first, engine
 ):
@@ -441,10 +439,11 @@ def test_an_edit_above_the_paragraph_read_holds_it_with_the_reply_box_scrolled_a
     message's second paragraph, and an edit from another tab grew that message's first
     paragraph: the paragraph they read moved down by the 126px it grew. The redraw
     replaced every paragraph of the message, the node the browser's scroll anchoring
-    held among them, and where the first paragraph stood on screen anchoring held that
-    paragraph, the growth inside it; the seat held nothing, its focus out of view. The
-    paragraph read stays where it was, whether the first stands on screen or above the
-    window, and in Firefox."""
+    held among them, and neither engine anchors again on a node that replaces its
+    anchor; it now keeps the paragraphs the edit leaves, so with the first paragraph
+    above the window anchoring holds the one read. With the first on screen, anchoring
+    holds that paragraph, the growth inside it, and the seat held nothing, its focus out
+    of view; the reading's hold keeps what stands at the reading line."""
     url, host = seated_page(serve, "task")
     second = "The second paragraph, being read. " + SEAT_WORDS * 3
     root = append_carried_log_record(

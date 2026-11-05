@@ -27,17 +27,18 @@
  * (`holdPlace`, given the line's words by `readingAt`), since the browser's scroll
  * anchoring can't: Skim hides the block it anchors.
  *
- * The dial is three word toggles of one face, as an image pair's views are, reached by
- * Tab and the go-to key; inside the dial the arrow keys toward and away from the
- * text's start step one depth. It sticks at the window's top, at the column's end, so
- * the reader can turn it wherever they are reading rather than only at the top, which
- * is where keeping their place matters. */
+ * The dial is a radio group of the three depths, Web Awesome's, the control every
+ * choice among a few views takes, as a recording's scopes and an image pair's views
+ * do. Tab and the go-to key reach it, and inside it the arrow keys step one depth, as
+ * in any radio group. It sticks at the window's top, at the column's end, so the
+ * reader can turn it wherever they are reading rather than only at the top, which is
+ * where keeping their place matters. */
 import {
+  actionClass,
   authoredScope,
   focusDestination,
   foldDuration,
   holdPlace,
-  keeps,
   LeafElement,
   motion,
   move,
@@ -46,13 +47,12 @@ import {
   PAGE_INTERFACE,
   readingAt,
   registerRootHeader,
-  rowArrows,
   shownWindow,
   tabStore,
   viewDocument,
   whileConnected,
-  commandsChanged,
 } from "/runtime/widget-api.js";
+import "/vendor/webawesome-views.js";
 
 const DEPTHS = [
   { name: "skim", label: "Skim", title: "Headings and each section's gist" },
@@ -77,8 +77,8 @@ const shown = (node) => node.isConnected && !node.closest(`[${FOLDED}]`);
 customElements.define(
   "lf-dial",
   class extends LeafElement {
-    /** @type {Map<string, HTMLElement>} */
-    #buttons = new Map();
+    /** @type {import("@awesome.me/webawesome/dist/components/radio-group/radio-group.js").default | null} */
+    #depths = null;
     #depth = "read";
     // Each fold this dial made: the run's marker, mapped to the blocks it folded and
     // the block they follow (or their container, where nothing kept precedes them).
@@ -107,46 +107,29 @@ customElements.define(
     }
 
     setup() {
-      const group = offer("div", "lf-dial-depths");
-      group.setAttribute("role", "group");
-      group.setAttribute("aria-label", "How much to show");
+      const group = (this.#depths = offer(
+        "wa-radio-group",
+        "lf-dial-depths lf-label-hidden",
+      ));
+      group.label = "How much to show";
+      group.name = `${this.id}-depth`;
+      group.size = "s";
+      group.orientation = "horizontal";
       for (const { name, label, title } of DEPTHS) {
-        const button = offerAction("word", "lf-dial-depth", label, { title });
-        button.addEventListener("click", () => this.turn(name));
-        this.#buttons.set(name, button);
-        group.append(button);
+        const depth = offer(
+          "wa-radio",
+          actionClass("word", "lf-dial-depth"),
+          label,
+          undefined,
+          true,
+        );
+        depth.value = name;
+        depth.appearance = "button";
+        depth.title = title;
+        group.append(depth);
       }
+      group.addEventListener("change", () => this.turn(String(group.value)));
       this.append(group);
-      const [back, ahead] = rowArrows(this);
-      // The depth one step from the current one; each end has none past it.
-      const beside = (/** @type {number} */ by) =>
-        DEPTHS[DEPTHS.findIndex((depth) => depth.name === this.#depth) + by];
-      const step = (/** @type {number} */ by) => {
-        const next = beside(by);
-        if (!next) return;
-        this.turn(next.name);
-        const button = this.#buttons.get(next.name);
-        if (button) focusDestination(button, "move");
-      };
-      this.lfCommands = {
-        title: "In the detail dial",
-        rows: [
-          {
-            id: "dial.less",
-            keys: [back],
-            title: "Less detail",
-            when: () => Boolean(beside(-1)),
-            run: () => step(-1),
-          },
-          {
-            id: "dial.more",
-            keys: [ahead],
-            title: "More detail",
-            when: () => Boolean(beside(1)),
-            run: () => step(1),
-          },
-        ],
-      };
       this.#draw();
       whileConnected(this, (signal) => {
         // A revision applied in place rebuilds the folds over its new structure.
@@ -175,12 +158,8 @@ customElements.define(
       this.#apply(name, { moving: true });
     }
 
-    // The depth decides which of the dial's commands are available, so drawing a depth
-    // has Leaf read them again.
     #draw() {
-      for (const [name, button] of this.#buttons)
-        keeps(button, "aria-pressed", String(name === this.#depth));
-      commandsChanged(this);
+      if (this.#depths) this.#depths.value = this.#depth;
     }
 
     /** @param {string} name @param {{moving: boolean}} options */

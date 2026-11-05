@@ -58,7 +58,7 @@ def test_a_visual_review_in_flow_takes_its_evidence_height(browser, serve):
     case.get_by_role("button", name="100%", exact=True).click()
     host = case.locator(".lf-vr-capture")
     for mode in ("Pair", "Slider", "Pixels"):
-        case.get_by_role("button", name=mode, exact=True).click()
+        case.get_by_role("radio", name=mode, exact=True).click()
         rendered(page)
         assert host.evaluate("node => node.scrollHeight <= node.clientHeight + 1")
     assert page.evaluate("document.scrollingElement.scrollHeight > innerHeight")
@@ -286,7 +286,7 @@ def test_visual_review_reports_an_image_failure_after_its_peer_has_loaded(
     expect(host.locator(".lf-error")).to_have_count(0)
     refuse(held[0])
     expect(host.locator(".lf-error")).to_contain_text("focus needs two decoded images")
-    expect(host.get_by_role("button", name="Pair", exact=True)).to_be_visible()
+    expect(host.get_by_role("radio", name="Pair", exact=True)).to_be_visible()
     consume_browser_errors(page, "focus needs two decoded images")
     unrelated = run | {
         "cases": [
@@ -338,9 +338,9 @@ def test_visual_review_text_refresh_retains_comparison_choice_and_focus(browser,
     page = open_page(browser, serve(VISUAL_REVIEW_GALLERY))
     widget = page.locator("#visual-review-run")
     case = widget.locator(".lf-vr-case:not([hidden])")
-    control = case.get_by_role("button", name="Slider", exact=True)
+    control = case.get_by_role("radio", name="Slider", exact=True)
     control.click()
-    expect(control).to_have_attribute("aria-pressed", "true")
+    expect(control).to_have_attribute("aria-checked", "true")
     control.focus()
     old_control = control.element_handle()
     before = control.bounding_box()
@@ -355,7 +355,7 @@ def test_visual_review_text_refresh_retains_comparison_choice_and_focus(browser,
     told(page)
     expect(control).to_be_focused()
     assert control.evaluate("(node, old) => node === old", old_control)
-    expect(control).to_have_attribute("aria-pressed", "true")
+    expect(control).to_have_attribute("aria-checked", "true")
     expect(case.locator("lf-shot img").first).to_have_attribute(
         "alt", f"before: {record['cases'][0]['title']}. {result}"
     )

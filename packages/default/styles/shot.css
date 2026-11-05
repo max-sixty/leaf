@@ -25,7 +25,6 @@ lf-shot {
   font: var(--font-compact);
 }
 .lf-shot-actions,
-.lf-shot-views,
 .lf-shot-tools {
   display: flex;
   align-items: center;
@@ -35,7 +34,6 @@ lf-shot {
 .lf-shot-actions {
   grid-area: actions;
 }
-.lf-shot-views > .lf-btn,
 .lf-shot-tools > .lf-btn,
 .lf-shot-scale-options > .lf-btn {
   /* Selection changes the face, never the width of its words. */
@@ -129,8 +127,18 @@ lf-shot {
   .lf-shot-actions {
     justify-content: space-between;
   }
+  /* The views share their row with the tools. A view that wrapped below the others
+     would stand inside their touch targets and push the images down, so here the
+     views give up their gap and, last, a little of their padding. */
   .lf-shot-views {
+    min-inline-size: 0;
+  }
+  .lf-shot-views::part(form-control-input) {
+    flex-wrap: nowrap;
     gap: 0;
+  }
+  .lf-shot-views > .lf-shot-view::part(label) {
+    white-space: nowrap;
   }
   .lf-shot-tools {
     gap: 0;
@@ -295,17 +303,7 @@ lf-shot:not([data-lf-shot-mode="compare"]) .lf-shotcanvas {
   grid-template-columns: calc(var(--lf-shot-frame-width) + 2px);
   gap: 0;
 }
-lf-shot:not([data-lf-shot-mode="compare"]) .lf-shotcanvas > .lf-shotframe {
-  grid-area: 1 / 1;
-}
 @media screen {
-  lf-shot[data-lf-shot-mode="flip"]
-    .lf-shotcanvas
-    > .lf-shotframe[data-lf-state="before"] {
-    /* Match the first slider drawing while its deferred control loads. */
-    clip-path: inset(0 50% 0 0);
-    z-index: 1;
-  }
   lf-shot[data-lf-shot-mode="pixels"] .lf-shotframe {
     display: none;
   }
@@ -493,6 +491,5 @@ lf-shot[data-lf-shot-focus="true"][data-lf-shot-crop="false"]
   }
   .lf-shotframe {
     margin-block-end: var(--sp-3);
-    clip-path: none;
   }
 }

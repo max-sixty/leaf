@@ -132,7 +132,7 @@ def test_shot_controls_have_disjoint_targets_and_labels_stay_passive(
     )
     toolbar = shot.locator(".lf-shot-toolbar")
     toolbar.scroll_into_view_if_needed()
-    controls = toolbar.get_by_role("button").all()
+    controls = toolbar.get_by_role("button").or_(toolbar.get_by_role("radio")).all()
     controls = [control for control in controls if control.is_visible()]
     boxes = [control.bounding_box() for control in controls]
     assert len(boxes) == 5
@@ -162,6 +162,14 @@ def test_shot_controls_have_disjoint_targets_and_labels_stay_passive(
                 or box["y"] + box["height"] <= other["y"] + 0.5
                 or other["y"] + other["height"] <= box["y"] + 0.5
             ), (box, other)
+    # A narrower phone keeps one row of controls: a view that wrapped would stand inside
+    # the targets of the views above it.
+    resized(page, 360, 844)
+    middles = [control.bounding_box() for control in controls]
+    assert {round(box["y"] + box["height"] / 2) for box in middles} == {
+        round(middles[0]["y"] + middles[0]["height"] / 2)
+    }, middles
+    resized(page, 390, 844)
     captions = toolbar.locator(".lf-shotcap")
     expect(captions).to_have_text(["Before", "After"])
     label_colors = captions.evaluate_all(
@@ -174,8 +182,8 @@ def test_shot_controls_have_disjoint_targets_and_labels_stay_passive(
     for caption in captions.all():
         caption.tap() if touch else caption.click()
         expect(shot.locator("wa-comparison")).to_have_attribute("position", "50")
-        expect(shot.get_by_role("button", name="Slider", exact=True)).to_have_attribute(
-            "aria-pressed", "true"
+        expect(shot.get_by_role("radio", name="Slider", exact=True)).to_have_attribute(
+            "aria-checked", "true"
         )
     # Source labels remain selectable words.
     box = captions.first.bounding_box()
@@ -220,8 +228,8 @@ def test_shot_controls_have_disjoint_targets_and_labels_stay_passive(
         )
         expect(captions.nth(hidden)).not_to_have_css("color", label_colors[hidden])
         expect(captions.nth(1 - hidden)).to_have_css("color", label_colors[1 - hidden])
-        expect(shot.get_by_role("button", name="Slider", exact=True)).to_have_attribute(
-            "aria-pressed", "true"
+        expect(shot.get_by_role("radio", name="Slider", exact=True)).to_have_attribute(
+            "aria-checked", "true"
         )
     handle = comparison.get_by_role("scrollbar")
     handle.focus()
@@ -238,7 +246,7 @@ def test_shot_controls_have_disjoint_targets_and_labels_stay_passive(
                 )
             else:
                 expect(captions.nth(index)).to_have_css("color", label_colors[index])
-    shot.get_by_role("button", name="Pair", exact=True).click()
+    shot.get_by_role("radio", name="Pair", exact=True).click()
     for index in (0, 1):
         expect(captions.nth(index)).to_have_css("color", label_colors[index])
     # Controls and the image area's top stay put; Pair may shrink the content
@@ -252,16 +260,16 @@ def test_shot_controls_have_disjoint_targets_and_labels_stay_passive(
       };
       return {toolbar: box(node.querySelector('.lf-shot-toolbar')),
         controls: [...node.querySelectorAll(
-          '.lf-shot-views button, .lf-shot-tools > button'
+          '.lf-shot-views wa-radio, .lf-shot-tools > button'
         )].map(box), stageTop: box(node.querySelector('.lf-shotstage')).y};
     }"""
     for width in (390, 500, 1000):
         page.set_viewport_size({"width": width, "height": 844})
-        shot.get_by_role("button", name="Slider", exact=True).click()
+        shot.get_by_role("radio", name="Slider", exact=True).click()
         toolbar.scroll_into_view_if_needed()
         allocation = shot.evaluate(boxes)
         for view in ("Pair", "Pixels", "Slider"):
-            shot.get_by_role("button", name=view, exact=True).click()
+            shot.get_by_role("radio", name=view, exact=True).click()
             assert shot.evaluate(boxes) == allocation, view
             page.evaluate("() => new Promise(requestAnimationFrame)")
             assert shot.evaluate(boxes) == allocation, view
@@ -276,7 +284,7 @@ def test_shot_controls_have_disjoint_targets_and_labels_stay_passive(
                 }""")
                 assert abs(unused_height) <= 1
     # Pair takes the arrangement that draws the 2:1 captures larger on screen.
-    shot.get_by_role("button", name="Pair", exact=True).click()
+    shot.get_by_role("radio", name="Pair", exact=True).click()
     for width, height, layout in (
         (1000, 844, "stack"),
         (1000, 360, "side"),
@@ -327,7 +335,7 @@ def test_shot_inspects_either_original_without_flipping_or_moving(
     expect(comparison).to_have_attribute("position", "0")
     expect(viewer).not_to_be_visible()
 
-    shot.get_by_role("button", name="Pair", exact=True).click()
+    shot.get_by_role("radio", name="Pair", exact=True).click()
     links = shot.get_by_role("link")
     expect(links).to_have_count(2)
     before = shot.bounding_box()
@@ -382,8 +390,8 @@ def test_shot_inspects_either_original_without_flipping_or_moving(
         page.keyboard.press("Escape")
         expect(viewer).not_to_be_visible()
         expect(link).to_be_focused()
-        expect(shot.get_by_role("button", name="Pair", exact=True)).to_have_attribute(
-            "aria-pressed", "true"
+        expect(shot.get_by_role("radio", name="Pair", exact=True)).to_have_attribute(
+            "aria-checked", "true"
         )
         assert shot.bounding_box() == before
         assert link.bounding_box() == box
@@ -474,7 +482,7 @@ def test_a_tall_shot_drags_where_it_was_grabbed_without_moving_the_page(browser,
         media={SHOT_SRC["before"]: before, SHOT_SRC["after"]: after},
     )
     page = open_page(browser, url)
-    page.locator("lf-shot").get_by_role("button", name="Slider", exact=True).click()
+    page.locator("lf-shot").get_by_role("radio", name="Slider", exact=True).click()
     comparison = page.locator("lf-shot wa-comparison")
     handle = comparison.get_by_role("scrollbar")
     expect(handle).to_have_accessible_name("Before and after — the navigation rail")
@@ -546,7 +554,7 @@ def test_a_tall_shot_scrolls_its_images_then_chains_to_its_container(
         ),
     )
     shot = page.locator("#scroll-shot")
-    shot.get_by_role("button", name="Pair", exact=True).click()
+    shot.get_by_role("radio", name="Pair", exact=True).click()
     allocation = shot.locator(".lf-shotstage").bounding_box()
     fitted = [frame.bounding_box() for frame in shot.locator(".lf-shotframe").all()]
     assert len(fitted) == 2
@@ -617,53 +625,129 @@ def test_a_shot_keeps_its_reserved_frame_while_images_load(browser, serve):
     assert complete == pytest.approx(before, abs=1), (before, complete)
 
 
-def test_a_shot_keeps_its_default_slider_stable_while_the_divider_loads(browser, serve):
-    """Slider reserves one image from first drawing; Pair stays usable during loading."""
+def test_a_shot_takes_a_view_pressed_as_the_page_shows_and_keeps_its_divider(
+    browser, serve
+):
+    """Pixels, pressed the moment the page shows, is the view the next frame draws, and
+    its mask arrives. Back on Slider the divider stands halfway, and Pixels and back keep
+    it where the reader moved it."""
     source = leaf_page(
-        "Request a divider",
-        f'<h1>Request a divider</h1><lf-shot id="deferred-pair" alt="a pair" before="{SHOT_SRC["before"]}" after="{SHOT_SRC["after"]}"></lf-shot>',
+        "Press a view",
+        f'<h1>Press a view</h1><lf-shot id="pressed-pair" alt="a pair" before="{SHOT_SRC["before"]}" after="{SHOT_SRC["after"]}"></lf-shot>',
     )
     url = serve(source, media={SHOT_SRC[n]: data for n, data in SHOTS.items()})
-    page = browser.new_page(viewport={"width": 1200, "height": 900})
-    held = []
-    page.route("**/vendor/webawesome.esm.js", lambda route: held.append(route))
-    page.goto(url, wait_until="domcontentloaded")
-    holding(page, held, 1, "the default comparison divider")
-    shot = page.locator("lf-shot")
-    views = shot.get_by_role("group", name="Comparison view")
-    expect(views.get_by_role("button", name="Slider", exact=True)).to_have_attribute(
-        "aria-pressed", "true"
+    # The press lands the moment the page shows, ahead of any work the page starts only
+    # once it shows; on a slow network a reader's press can land there too.
+    page = open_page(
+        browser,
+        url,
+        init_script="""new MutationObserver((records, observer) => {
+          if (!document.body?.hasAttribute('data-lf-presented')) return;
+          observer.disconnect();
+          const shot = document.querySelector('lf-shot');
+          shot.querySelector('.lf-shot-views [value="pixels"]').click();
+          requestAnimationFrame(() => {
+            window.lfNextFrame = {
+              view: shot.dataset.lfShotMode,
+              mask: shot.querySelector('.lf-shot-pixel-mask').getAttribute('style'),
+            };
+          });
+        }).observe(document, {subtree: true, attributeFilter: ['data-lf-presented']});""",
     )
-    expect(shot).to_have_attribute("data-lf-shot-mode", "flip")
-    expect(shot.locator("wa-comparison")).to_have_count(0)
-    images = shot.locator(".lf-shotframe img")
-    for image in images.all():
-        expect(image).to_be_visible()
-    pending = [image.bounding_box() for image in images.all()]
-    assert len(pending) == 2
-    assert pending[0] == pytest.approx(pending[1], abs=1)
-    reserved = shot.bounding_box()
-    views.get_by_role("button", name="Pair", exact=True).click()
-    expect(shot).to_have_attribute("data-lf-shot-mode", "compare")
-    paired = [image.bounding_box() for image in images.all()]
-    assert paired[1]["y"] >= paired[0]["y"] + paired[0]["height"], paired
-    views.get_by_role("button", name="Slider", exact=True).click()
-    for route in held:
-        route.continue_()
-    page.unroute("**/vendor/webawesome.esm.js")
-    render_checks_model.wait_until_ready(page)
+    page.wait_for_function("window.lfNextFrame !== undefined")
+    assert page.evaluate("window.lfNextFrame") == {"view": "pixels", "mask": ""}
+    shot = page.locator("lf-shot")
+    views = shot.locator(".lf-shot-views")
+    expect(views.get_by_role("radio", name="Pixels", exact=True)).to_have_attribute(
+        "aria-checked", "true"
+    )
+    expect(shot.locator(".lf-shotpixels")).to_be_visible()
+    expect(shot.locator(".lf-shot-pixel-mask")).to_have_attribute(
+        "style", re.compile(r"--lf-shot-pixels: url\(")
+    )
+    views.get_by_role("radio", name="Slider", exact=True).click()
     comparison = shot.locator("wa-comparison")
     expect(comparison).to_have_attribute("position", "50")
-    assert shot.bounding_box() == pytest.approx(reserved, abs=1)
-    for image, box in zip(images.all(), pending, strict=True):
-        assert image.bounding_box() == pytest.approx(box, abs=1)
     handle = comparison.get_by_role("scrollbar")
     handle.press("Home")
     handle.press("ArrowRight")
     position = comparison.get_attribute("position")
-    views.get_by_role("button", name="Pixels", exact=True).click()
-    views.get_by_role("button", name="Slider", exact=True).click()
+    views.get_by_role("radio", name="Pixels", exact=True).click()
+    views.get_by_role("radio", name="Slider", exact=True).click()
     expect(comparison).to_have_attribute("position", position)
+
+
+def test_a_shot_masks_the_pair_that_replaced_the_one_it_was_masking(browser, serve):
+    """Pixels pressed before the first reading, with a capture replaced while its mask
+    runs: the old mask ending draws nothing, and the new pair gets its own mask."""
+    source = leaf_page(
+        "Replace a capture",
+        f'<h1>Replace a capture</h1><lf-shot id="replaced-pair" alt="a pair" before="{SHOT_SRC["before"]}" after="{SHOT_SRC["after"]}"></lf-shot>',
+    )
+    url = serve(source, media={SHOT_SRC[n]: data for n, data in SHOTS.items()})
+    # Each mask waits for its release, so the old one is still running as the capture
+    # is replaced. The readings wait behind it, so the page never reads as ready here.
+    page = open_page(
+        browser,
+        url,
+        upgraded=False,
+        init_script="""window.lfHeldMasks = [];
+        const encode = OffscreenCanvas.prototype.convertToBlob;
+        OffscreenCanvas.prototype.convertToBlob = function (...args) {
+          return new Promise((resolve) =>
+            window.lfHeldMasks.push(() => resolve(encode.apply(this, args))));
+        };
+        new MutationObserver((records, observer) => {
+          if (!document.body?.hasAttribute('data-lf-presented')) return;
+          observer.disconnect();
+          document.querySelector('lf-shot .lf-shot-views [value="pixels"]').click();
+        }).observe(document, {subtree: true, attributeFilter: ['data-lf-presented']});""",
+    )
+    shot = page.locator("lf-shot")
+    mask = shot.locator(".lf-shot-pixel-mask")
+    page.wait_for_function("window.lfHeldMasks.length === 1")
+    shot.evaluate("node => node.setAttribute('after', node.getAttribute('before'))")
+    expect(shot.locator(".lf-shotpixels img")).to_have_attribute(
+        "src", re.compile(re.escape(SHOT_SRC["before"]))
+    )
+    page.evaluate("window.lfHeldMasks.shift()()")
+    page.wait_for_function("window.lfHeldMasks.length === 1")
+    expect(mask).not_to_have_attribute("style", re.compile("--lf-shot-pixels"))
+    page.evaluate("window.lfHeldMasks.shift()()")
+    expect(mask).to_have_attribute("style", re.compile(r"--lf-shot-pixels: url\("))
+
+
+def test_a_pressed_shot_gets_its_mask_ahead_of_the_other_shots_readings(browser, serve):
+    """A press is the reader's, so its mask goes ahead of the difference readings queued
+    for the page's other shots, waiting at most for the one already running."""
+    pairs = "".join(
+        f'<lf-shot id="pair-{n}" alt="pair {n}" before="{SHOT_SRC["before"]}" after="{SHOT_SRC["after"]}"></lf-shot>'
+        for n in range(4)
+    )
+    source = leaf_page("Press one of many", f"<h1>Press one of many</h1>{pairs}")
+    url = serve(source, media={SHOT_SRC[n]: data for n, data in SHOTS.items()})
+    # A frame after the page shows, every shot's reading has joined the queue.
+    page = open_page(
+        browser,
+        url,
+        init_script="""new MutationObserver((records, observer) => {
+          if (!document.body?.hasAttribute('data-lf-presented')) return;
+          observer.disconnect();
+          requestAnimationFrame(() => {
+            const shot = document.querySelector('#pair-3');
+            const mask = new MutationObserver(() => {
+              if (!shot.querySelector('.lf-shot-pixel-mask')?.style.length) return;
+              mask.disconnect();
+              window.lfOthersRead = document.querySelectorAll(
+                'lf-shot:not(#pair-3) .lf-shot-outline[aria-description]').length;
+            });
+            mask.observe(shot, {subtree: true, childList: true, attributeFilter: ['style']});
+            shot.querySelector('.lf-shot-views [value="pixels"]').click();
+          });
+        }).observe(document, {subtree: true, attributeFilter: ['data-lf-presented']});""",
+    )
+    page.wait_for_function("window.lfOthersRead !== undefined")
+    assert page.evaluate("window.lfOthersRead") <= 1
 
 
 def test_a_shot_owns_cropped_inspection_and_preserves_choices_when_metadata_changes(
@@ -709,11 +793,11 @@ def test_a_shot_owns_cropped_inspection_and_preserves_choices_when_metadata_chan
     assert img.bounding_box()["y"] == pytest.approx(
         image.bounding_box()["y"] - 25, abs=1
     )
-    views = shot.get_by_role("group", name="Comparison view")
+    views = shot.locator(".lf-shot-views")
     for direction in ("ltr", "rtl"):
         shot.evaluate("(node, direction) => node.dir = direction", direction)
         for view in ("Slider", "Pixels", "Pair"):
-            views.get_by_role("button", name=view, exact=True).click()
+            views.get_by_role("radio", name=view, exact=True).click()
             expect(
                 shot.get_by_role("button", name="100%", exact=True, include_hidden=True)
             ).to_have_attribute("aria-pressed", "true")
@@ -772,9 +856,13 @@ def test_a_shot_fits_both_wide_captures_and_retains_actual_scale_across_views(
     )
     resized(page, 695, 900)
     shot = page.locator("#wide-pair")
-    shot.get_by_role("button", name="Pair", exact=True).click()
+    shot.get_by_role("radio", name="Pair", exact=True).click()
     controls = [
-        shot.get_by_role("button", name=name, exact=True)
+        shot.get_by_role(
+            "radio" if name in ("Pair", "Slider", "Pixels") else "button",
+            name=name,
+            exact=True,
+        )
         for name in (
             "Pair",
             "Slider",
@@ -829,7 +917,7 @@ def test_a_shot_fits_both_wide_captures_and_retains_actual_scale_across_views(
     assert [header.bounding_box() for header in headers] == header_boxes
     assert stage.evaluate("node => node.scrollTop === 0 && node.scrollLeft === 0")
     for view in ("Slider", "Pixels", "Pair"):
-        shot.get_by_role("button", name=view, exact=True).click()
+        shot.get_by_role("radio", name=view, exact=True).click()
         expect(shot).to_have_attribute(
             "data-lf-shot-mode",
             {"Slider": "flip", "Pixels": "pixels", "Pair": "compare"}[view],
@@ -851,12 +939,12 @@ def test_a_shot_fits_both_wide_captures_and_retains_actual_scale_across_views(
     shot.get_by_role("button", name="Image options").click()
     shot.get_by_role("button", name="Fit", exact=True).click()
     for mode in ("Slider", "Pixels"):
-        shot.get_by_role("button", name=mode, exact=True).click()
+        shot.get_by_role("radio", name=mode, exact=True).click()
         expect(shot).to_have_attribute(
             "data-lf-shot-mode", {"Slider": "flip", "Pixels": "pixels"}[mode]
         )
         assert [control.bounding_box() for control in controls] == control_boxes
-        shot.get_by_role("button", name="Pair", exact=True).click()
+        shot.get_by_role("radio", name="Pair", exact=True).click()
         rendered = [frame.bounding_box() for frame in frames.all()]
         stage_box = stage.bounding_box()
         for frame in rendered:
@@ -895,12 +983,12 @@ def test_a_shot_outlines_and_explains_its_pixel_difference(browser, serve):
     )
     patch = page.locator("#shot-patch")
     patch.evaluate("async node => await node.difference")
-    views = patch.get_by_role("group", name="Comparison view")
-    expect(views.get_by_role("button")).to_have_text(["Slider", "Pair", "Pixels"])
-    pair = views.get_by_role("button", name="Pair", exact=True)
-    slider = views.get_by_role("button", name="Slider", exact=True)
-    pixels = views.get_by_role("button", name="Pixels", exact=True)
-    expect(slider).to_have_attribute("aria-pressed", "true")
+    views = patch.locator(".lf-shot-views")
+    expect(views.get_by_role("radio")).to_have_text(["Slider", "Pair", "Pixels"])
+    pair = views.get_by_role("radio", name="Pair", exact=True)
+    slider = views.get_by_role("radio", name="Slider", exact=True)
+    pixels = views.get_by_role("radio", name="Pixels", exact=True)
+    expect(slider).to_have_attribute("aria-checked", "true")
     pair.click()
     outlines = patch.get_by_role("button", name="Outline changes", exact=True)
     outlines.click()
@@ -929,17 +1017,17 @@ def test_a_shot_outlines_and_explains_its_pixel_difference(browser, serve):
     )
     expect(page.locator("#shot-same .lf-shotdiff > span")).to_have_count(0)
     expect(page.locator("#shot-tint .lf-shotdiff > span")).to_have_count(0)
+    # The views are one radio group: Tab reaches the chosen view, and the arrows
+    # choose the next.
     pair.click()
-    page.keyboard.press("Shift+Tab")
+    page.keyboard.press("ArrowLeft")
     expect(slider).to_be_focused()
-    page.keyboard.press("Space")
-    expect(slider).to_have_attribute("aria-pressed", "true")
-    page.keyboard.press("Tab")
+    expect(slider).to_have_attribute("aria-checked", "true")
+    page.keyboard.press("ArrowRight")
     expect(pair).to_be_focused()
-    page.keyboard.press("Tab")
+    page.keyboard.press("ArrowRight")
     expect(pixels).to_be_focused()
-    page.keyboard.press("Enter")
-    expect(pixels).to_have_attribute("aria-pressed", "true")
+    expect(pixels).to_have_attribute("aria-checked", "true")
     expect(outlines).to_be_disabled()
     expect(outlines).to_have_attribute("aria-pressed", "true")
     expect(patch.locator(".lf-shotpixels")).to_be_visible()
@@ -960,10 +1048,10 @@ def test_a_shot_outlines_and_explains_its_pixel_difference(browser, serve):
     expect(patch.locator(".lf-shotdiff").last).to_be_hidden()
     # Reading or pointing at evidence cannot silently switch comparison modes.
     patch.locator(".lf-shotpixels").click(position={"x": 10, "y": 10})
-    expect(pixels).to_have_attribute("aria-pressed", "true")
+    expect(pixels).to_have_attribute("aria-checked", "true")
     expect(patch.locator(".lf-shotpixels")).to_be_visible()
     pair.click()
-    expect(pair).to_have_attribute("aria-pressed", "true")
+    expect(pair).to_have_attribute("aria-checked", "true")
     expect(outlines).to_be_enabled()
     expect(outlines).to_have_attribute("aria-pressed", "true")
     expect(patch.locator(".lf-shotdiff > span").first).to_be_visible()

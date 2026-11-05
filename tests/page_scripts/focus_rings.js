@@ -227,12 +227,15 @@
     // comment names — it asked only about overflow, so paint containment and
     // content-visibility clipped a ring away with nothing said, and it measured the
     // padding box with the scrollbar's gutter still in it.
-    const { shownBand } = await window.__lfCheckApi();
+    const { shownBand, ringBox } = await window.__lfCheckApi();
     const holds = (a, b) => {
       for (let n = b; n; n = flatParent(n)) if (n === a) return true;
       return false;
     };
     const focused = deepFocus();
+    // The box the runtime rings in the focused control's place (`ringBox`, focus.js), as
+    // a choice's label rings its checkbox: it wears the focused control's ring.
+    const wearer = focused && ringBox(focused);
     const { accent } = accentSwatch();
     // A colour as the screenshot holds it, whatever space it was written in: a canvas
     // paints it into sRGB.
@@ -728,7 +731,7 @@
         mark: el.matches(".lf-mark-el"),
         pseudo: pseudo ? "after" : null,
         carrier: outlined ? "outline" : "box-shadow",
-        focused: el === focused || carriesFocus(el, focused),
+        focused: el === focused || el === wearer || carriesFocus(el, focused),
         sample:
           el === focused ||
           carriesFocus(el, focused) ||

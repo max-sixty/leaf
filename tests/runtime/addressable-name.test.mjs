@@ -121,6 +121,11 @@ test("past every name, plain markup is its words and a widget is its word", () =
     "<lf-column><lf-card><strong>Card</strong> words</lf-card></lf-column>";
   assert.equal(labelled(`<lf-board id="it">${members}</lf-board>`), "");
   assert.equal(labelled(`<div id="it">${members}</div>`), "Card words");
+  // The page's title leads the column; it still names nothing the column holds.
+  assert.equal(
+    labelled(`<h1>Page title</h1><div id="it">${members}</div>`),
+    "Card words",
+  );
   // A picture's own name stands in for words it does not have.
   assert.equal(
     labelled('<figure id="it"><svg role="img" aria-label="Visual 0"></svg></figure>'),

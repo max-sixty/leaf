@@ -265,13 +265,17 @@ def test_a_side_list_is_a_queue_beside_the_item_it_opens(browser, serve):
     )
     page = open_page(browser, serve(column))
     resized(page, 1200, 900)
-    # The list is off screen above, so the walk is the gesture: a click would first
-    # scroll the tab into view.
-    page.get_by_role("tab", name="Ticket b", exact=True).evaluate(
-        "tab => tab.focus({preventScroll: true})"
-    )
-    page.evaluate("document.scrollingElement.scrollTop = 900")
+    # Scrolled past the header with the list still in sight, since a key at a tab
+    # scrolled out of sight lets go of it (keyboard/controller.js). Short of the
+    # panel's top, so a switch that scrolled to the panel or the page's top would show.
+    page.get_by_role("tab", name="Ticket b", exact=True).focus()
+    page.evaluate("""() => {
+      const top = document.querySelector('#queue > lf-tab:not([hidden])')
+        .getBoundingClientRect().top;
+      document.scrollingElement.scrollTop = Math.floor(top) - 12;
+    }""")
     before = page.evaluate("document.scrollingElement.scrollTop")
+    assert before > 0, before
     page.keyboard.press("ArrowDown")
     expect(page.get_by_role("tab", name="Ticket c", exact=True)).to_have_attribute(
         "aria-selected", "true"

@@ -455,11 +455,16 @@ def main_thread_ms(pid: int) -> float:
     return (times.user + times.system) / 1e6 if read else 0
 
 
-def content_clock() -> Callable[[], float]:
-    """What reads the page's main-thread CPU so far, in ms, in Firefox, which offers no
+def content_clock(page: Page) -> Callable[[], float]:
+    """What reads `page`'s main-thread CPU so far, in ms, in Firefox, which offers no
     count of its own: the thread's CPU as the OS counts it (this module's header).
-    Nothing says which content process holds the page, so this takes whichever one's
-    main thread has spent most since the clock began."""
+
+    Nothing says which content process holds the page, and Firefox runs others beside
+    it, so the clock settles on one. It reads 0 while the page is still blank. At its
+    first read after the page opened its address, it takes the content process whose
+    main thread has spent most since the clock began, the one that loaded the page,
+    and from then on reads only that process. Its reading never falls, and holds its
+    last value once the process has gone."""
 
     def spent() -> dict[int, float]:
         times = {}
@@ -471,9 +476,20 @@ def content_clock() -> Callable[[], float]:
         return times
 
     before = spent()
-    return lambda: max(
-        (ms - before.get(pid, 0) for pid, ms in spent().items()), default=0
-    )
+    holder: int | None = None
+    last = 0.0
+
+    def clock() -> float:
+        nonlocal holder, last
+        if holder is None:
+            if page.url == "about:blank":
+                return 0
+            grown = {pid: ms - before.get(pid, 0) for pid, ms in spent().items()}
+            holder = max(grown, key=grown.__getitem__)
+        last = max(last, main_thread_ms(holder) - before.get(holder, 0))
+        return last
+
+    return clock
 
 
 def profiler(page: Page, directory: Path | None):
@@ -502,7 +518,7 @@ def measure(browser, address: str, profiles: Path | None) -> dict:
         # large page, which is what this measures rather than a failure.
         tab_page.set_default_timeout(DEADLINE_MS)
         chromium = browser.browser_type.name == "chromium"
-        clock = renderer_clock(tab_page) if chromium else content_clock()
+        clock = renderer_clock(tab_page) if chromium else content_clock(tab_page)
         profiled = profiler(tab_page, profiles)
         quiet = tab_page.wait_for_timeout
 

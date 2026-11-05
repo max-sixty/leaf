@@ -17,7 +17,6 @@ import {
 import { landingBand, shownRect } from "./geometry.js";
 import { intersect } from "./rect.js";
 import {
-  actedIn,
   effectiveScroller,
   userReadingRegion,
   readingRegionFor,
@@ -165,9 +164,8 @@ export function placeThreadEdge(thread, edge) {
 // them under the panel would be a step onto words they cannot read.
 //
 // Reading-page keys follow the region the user is working in (`userReadingRegion`), so
-// `d` after a click in a pane scrolls that pane as PageDown does. A step names the region
-// it moves, so a walk or a let-go after it starts from where it reached. Focus can put
-// them in a panel or anchored thread beside the page. Focus on a region's
+// `d` after a click in a pane scrolls that pane as PageDown does. Focus can put them in
+// a panel or anchored thread beside the page. Focus on a region's
 // apparatus follows its actual containing scrollport within the region while that
 // box overflows; otherwise the region's reading body takes the step. The step then
 // walks that box's scroll chain (`stepAlong`), where a box outside the visible band
@@ -183,7 +181,6 @@ const readingStep = (box, clips) => {
 };
 const stepStart = () => {
   const region = userReadingRegion();
-  if (region) actedIn(region);
   const at = focused();
   if (region && under(at, region.host) && !under(at, region.body)) {
     const containing = scrollersOf(at).next().value;

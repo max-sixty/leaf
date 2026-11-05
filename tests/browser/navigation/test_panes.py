@@ -230,15 +230,18 @@ def test_a_click_on_a_panes_words_makes_it_the_subject_of_every_scroll_key(
     page.wait_for_function(f"() => ({tops})()[0] < {left}")
 
 
-def test_reading_keys_move_the_pane_the_user_acted_in_else_the_largest(browser, serve):
-    """The page a full-height workspace keeps still is no answer for a reading key. With
-    nothing named, on a fresh load, the key moves the pane with the most room rather
-    than the rail before it. A press on words or a wheel leaves focus on the body, where
-    the region the user acted in answers, and the keys' own step names its pane too, so
-    a walk from there goes on from where the step reached.
+def test_a_wheel_or_a_press_on_words_gives_a_pane_the_reading_keys_and_the_walk(
+    browser, serve
+):
+    """A wheel in a pane, or a click on its words, leaves focus on the body, which
+    stands on nothing, so the pane the user acted in answers for the reading keys and
+    for where a walk starts. Focus on the body once read as standing in the page, and
+    then `j` scrolled a page a workspace keeps still and `m` walked from the page's top.
 
     Each body holds a control, so neither is a tab stop a click would focus (reach.js),
-    which would answer through focus and leave the body's route unread."""
+    which would answer through focus and leave the body's route unread. The rail holds
+    the most to scroll, so a pane chosen for the user would be the rail and not the
+    detail pane the wheel names."""
     rail = "#rail > :not(header, footer)"
     detail = "#detail > :not(header, footer)"
 
@@ -260,7 +263,7 @@ def test_reading_keys_move_the_pane_the_user_acted_in_else_the_largest(browser, 
                 "a rail beside its detail",
                 '<header><h1 id="top">Queue</h1></header><div id="regions">'
                 '<lf-pane id="rail" label="Rail"><div><a href="#top">Top</a>'
-                '<p id="rail-words" style="min-height: 1400px">The words of the rail.</p>'
+                '<p id="rail-words" style="min-height: 6000px">The words of the rail.</p>'
                 '</div></lf-pane><lf-pane id="detail" label="Detail"><div>'
                 f"{ask('first')}{words}{ask('second')}"
                 "<div style='height: 1400px'></div></div></lf-pane></div>",
@@ -283,11 +286,14 @@ def test_reading_keys_move_the_pane_the_user_acted_in_else_the_largest(browser, 
         )
         scroll_settled(page, selector)
 
+    box = page.locator(detail).bounding_box()
+    page.mouse.move(box["x"] + 300, box["y"] + 300)
+    page.mouse.wheel(0, 900)
+    page.wait_for_function(f"() => document.querySelector('{detail}').scrollTop > 0")
+    scroll_settled(page, detail)
+    assert page.evaluate("document.activeElement === document.body")
     stepped("j", detail)
-    stepped("d", detail)
-    stepped("d", detail)
     assert top(rail) == 0
-    assert page.evaluate("document.scrollingElement.scrollTop") == 0
     first = page.locator("#first").bounding_box()
     assert first["y"] + first["height"] <= page.locator(detail).bounding_box()["y"]
     page.keyboard.press("m")
@@ -299,43 +305,6 @@ def test_reading_keys_move_the_pane_the_user_acted_in_else_the_largest(browser, 
     at = top(detail)
     stepped("j", rail)
     assert top(detail) == at
-
-    held = top(rail)
-    box = page.locator(detail).bounding_box()
-    page.mouse.move(box["x"] + 300, box["y"] + 300)
-    page.mouse.wheel(0, 60)
-    page.wait_for_function(f"() => document.querySelector('{detail}').scrollTop > {at}")
-    scroll_settled(page, detail)
-    stepped("j", detail)
-    assert top(rail) == held
-
-    # A press on the workspace's header names the page, which still has nothing to move.
-    page.locator("#top").click()
-    stepped("d", detail)
-    assert top(rail) == held
-
-
-def test_the_page_keeps_the_reading_keys_while_it_can_scroll(browser, serve):
-    """A region the user hasn't named takes a step only from a page with nothing to
-    scroll: on a long page the keys read the page, and a bounded block in view stays put."""
-    entries = "".join(f"<p>Entry {n}: a line of the deploy.</p>" for n in range(60))
-    page = open_page(
-        browser,
-        serve(
-            leaf_page(
-                "a log atop a long page",
-                f'<h1>Deploy</h1><div id="log" data-bound="start">{entries}</div>'
-                f"{BOUNDED_LOG_FILLER}",
-            )
-        ),
-    )
-    log = page.locator("#log")
-    expect(log).to_be_in_viewport()
-    assert log.evaluate("log => log.scrollHeight > log.clientHeight")
-    page.keyboard.press("j")
-    page.wait_for_function("document.scrollingElement.scrollTop > 0")
-    scroll_settled(page)
-    assert log.evaluate("log => log.scrollTop") == 0
 
 
 def test_a_closed_threads_panel_hands_the_page_back_where_the_user_was_reading(

@@ -28,6 +28,7 @@ from render_harness import (
     RELEASE_FOCUS,
     CutOff,
     _traffic,
+    fetch_whole_state,
     heard_back,
     holding,
     http_error_console,
@@ -164,12 +165,13 @@ def test_automatic_read_refusal_keeps_message_unread(browser, serve):
     open_panel_thread(page, root)
     holding(page, held, 1, "automatic read")
     request = held.pop()
-    response = request.fetch(
+    response, answer = fetch_whole_state(
+        request,
         post_data=json.dumps(
             {"kind": "read", "messages": [{"message": "missing", "version": "missing"}]}
-        )
+        ),
     )
-    assert response.status == 400 and response.json()["final"] is True
+    assert response.status == 400 and answer["final"] is True
     request.fulfill(response=response)
     rendered(page)
     assert _read_events(serve.page_dir) == []
@@ -178,7 +180,7 @@ def test_automatic_read_refusal_keeps_message_unread(browser, serve):
       const {readApplication} = await window.__lfCheckApi();
       return readApplication().authoritative.taken;
     }""")
-        == response.json()["state"]["taken"]
+        == answer["state"]["taken"]
     )
     assert take_browser_errors(page) == [
         Finding(

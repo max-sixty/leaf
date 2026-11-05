@@ -227,7 +227,7 @@ html[data-lf-region-capture]
      off the chrome (chrome-guard.css) but inheritance still reaches it; and user-select, because a
      drag that reaches any selectable part of the chrome extends the range through
      everything between, so the root answers for every surface and what may still be
-     copied says so itself (.lf-quote, .lf-msg-body). */
+     copied says so itself (.lf-thread-quote, .lf-msg-body). */
   :scope:not(:root > *),
   .lf-legend {
     position: static;
@@ -316,7 +316,7 @@ html[data-lf-region-capture]
      island still runs the range from the document through everything between
      (user-select: contain is unimplemented), so this bounds the accident; what reads a
      selection into a quote answers the rest. */
-  :is(.lf-quote, .lf-msg-body) {
+  :is(.lf-thread-quote, .lf-msg-body) {
     user-select: text;
     -webkit-user-select: text;
   }

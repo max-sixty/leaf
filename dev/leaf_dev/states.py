@@ -1655,6 +1655,12 @@ def gallery_plans(page: Page) -> None:
     page.locator("#bg-plans-and-history").scroll_into_view_if_needed()
 
 
+def gallery_drawing(page: Page) -> None:
+    """The reading theme's `svg.drawing`, with each of its text classes on its shapes."""
+    page.get_by_role("tab", name="Page & layout", exact=True).click()
+    page.locator("#bg-drawing-figure").scroll_into_view_if_needed()
+
+
 def gallery_ask_figure(page: Page) -> None:
     """An `lf-ask` enclosing a chart, with its question at the window's top so the chart and
     every option either share the window or run past it."""
@@ -2698,6 +2704,12 @@ STATES = (
     State("frame-edges", "feature-gallery", frame_edges),
     State("gallery-metrics", "feature-gallery", gallery_metrics),
     State("gallery-plans", "feature-gallery", gallery_plans),
+    State(
+        "gallery-drawing",
+        "feature-gallery",
+        gallery_drawing,
+        region="#bg-drawing-figure",
+    ),
     State("gallery-ask-figure", "feature-gallery", gallery_ask_figure),
     State("gallery-theme", "feature-gallery", theme_hierarchy),
     State("widget-inline-hints", "feature-gallery", widget_inline_hints),

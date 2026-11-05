@@ -290,8 +290,9 @@ and the follow-on brief from Codex session `01a13358-0141-70f0-8bb4-a8defb75b07e
 (line 13). The original nine-pair Claude report survives at
 `~/.local/state/leaf/pages/eval-plain-html/`, with its raw runs at
 `~/.tmp/leaf.authoring-vs-plain-html/eval/`; those are distinct from the recovered
-twelve-author Codex comparison above. The continuing brief is
-[issue #4017](https://github.com/max-sixty/leaf/issues/4017).
+twelve-author Codex comparison above. The brief written then is
+[issue #4017](https://github.com/max-sixty/leaf/issues/4017), closed in favor of
+`TODO.md`'s first challenge.
 
 ## Widgets plain page check doesn't run, 2026-10-24
 

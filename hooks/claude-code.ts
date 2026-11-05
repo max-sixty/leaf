@@ -299,16 +299,17 @@ let forkAgain = false;
  * to write (`src/leaf/clerk.py`, whose header says what it writes and why). It runs
  * off the turn's path, and a turn that ends while a fork is out starts one more
  * after it. `$.model.fork` resends the main thread's own last request, its model,
- * system prompt, tools and effort, so the cache serves the conversation; it takes
- * no answer schema, so Leaf checks the answer against its own (`read_answer`).
- * What Leaf wrote goes to the debug log, beside Claude Code's own line for the
- * fork's tokens (`Forked agent [plugin_model_fork] finished`); the module logs no
- * usage of its own, since the debug log redacts a `*_tokens` field, and hands the
- * fork's usage and time, or why it gave no answer, to Leaf, which notes them with
- * the answer in each page's diagnostics. In the
- * claude-code journey on 2026-10-29, twelve forks over a 46–77k-token
- * conversation read it all from the cache, cost $0.015–0.026 each at list price and
- * took 1–6 s. */
+ * system prompt and tools, so the cache serves the conversation, and thinks at the
+ * effort Leaf's question names (`clerk.EFFORT`), which the cache doesn't depend on;
+ * it takes no answer schema, so Leaf checks the answer against its own
+ * (`read_answer`). What Leaf wrote goes to the debug log, beside Claude Code's own
+ * lines for the fork's tokens (`Forked agent [plugin_model_fork] finished`) and the
+ * effort it sent; the module logs no usage of its own, since the debug log redacts
+ * a `*_tokens` field, and hands the fork's usage and time, or why it gave no answer,
+ * to Leaf, which notes them with the answer in each page's diagnostics. In the
+ * claude-code journey on 2026-11-04, with the session at xhigh, 102 forks at low
+ * over a 57–202k-token conversation read 98% of it from the cache, cost
+ * $0.04–0.12 each at list price and took 0.5–8 s. */
 async function clerk($: EngineInterface, session: string) {
   if (forking) {
     forkAgain = true;
@@ -323,7 +324,10 @@ async function clerk($: EngineInterface, session: string) {
         if (!asked) continue;
         const resent = request();
         const started = await $.clock.now();
-        const reply = await $.model.fork({ prompt: asked.prompt });
+        const reply = await $.model.fork({
+          prompt: asked.prompt,
+          effort: asked.effort,
+        });
         const run = {
           basis: asked.basis,
           elapsed_ms: (await $.clock.now()) - started,

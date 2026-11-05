@@ -40,9 +40,12 @@ pays that request's new part uncached each time. The main thread writes one-hour
 cache entries (`ephemeral_1h` in every run), so a session idle for longer than that,
 or just resumed, makes its first fork write the whole context, as the resumed copy's
 first fork did; the forks after it read that fork's entry. The fork keeps the main
-thread's model, system prompt, tools and effort, since any difference misses the
-cache: a `claude -p --resume --fork-session` fork at `--effort low` read none of it
-(2026-10-24).
+thread's model, system prompt and tools. Its effort can differ without missing the
+cache: since Claude Code 2.1.318 `$.model.fork` takes one, and a fork at low in a
+session at xhigh read the whole conversation from the cache (2026-11-04,
+`src/leaf/clerk.py`), though a `claude -p --resume --fork-session` fork at
+`--effort low` had read none of it (2026-10-24). The turn-end check runs at low and
+replies at the session's effort (`src/leaf/forks.py` says why).
 
 `$.agent.spawn({ prompt, subagentType: "fork" })` starts a background subagent with
 the main thread's current transcript and all its tools. It started within 40 ms of the

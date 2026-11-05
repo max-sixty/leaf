@@ -134,11 +134,12 @@ const $ = {
     // A redraw of the band, printed as `{"band": {<surface>: <its tree, or null>}}`.
     invalidate: () => setImmediate(drawBand),
   },
-  // A fork answers with `options.forkReply`, printing the prompt it was asked as
-  // `{"forked": <prompt>}`; with none it has nothing to fork, as before a turn's end.
+  // A fork answers with `options.forkReply`, printing the prompt and effort it was
+  // asked for as `{"forked": <prompt>, "effort": <effort>}`; with none it has
+  // nothing to fork, as before a turn's end.
   model: {
-    fork: async ({ prompt }) => {
-      print({ forked: prompt });
+    fork: async ({ prompt, effort }) => {
+      print({ forked: prompt, effort });
       if (options.forkRejects) throw new Error("the model refused the request");
       const usage = {
         input_tokens: 10,

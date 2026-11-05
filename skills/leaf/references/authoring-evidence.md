@@ -161,8 +161,8 @@ them, whichever draws them larger, so short wide captures stack and tall narrow 
 side by side; stacked frames fit together within the screen or the comparison's height limit. At 100%, both panes stay visible and scrolling either image moves
 the other to the same location. This scale uses CSS pixels when capture metadata
 supplies the pixel ratio, or bitmap pixels otherwise. The **…** menu offers Fit,
-100%, the Changed pixels color key and, for a pair with focus metadata, Full frame to inspect
-beyond that region. Outline changes stays beside the menu.
+100%, Outline changes, the Changed pixels color key and, for a pair with focus metadata, Full
+frame to inspect beyond that region.
 
 In Slider, click or tap the image to alternate between the complete Before and After
 frames. Drag the divider for an intermediate comparison, or focus it and use the

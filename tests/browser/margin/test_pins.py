@@ -421,7 +421,6 @@ def test_a_control_an_authored_anchor_name_moves_into_a_pin_s_seat_moves_the_pin
                 || b.bottom <= act.top || act.bottom <= b.top;
             });
         }""",
-        timeout=5000,
     )
 
 
@@ -516,7 +515,6 @@ def test_a_page_s_reaction_to_a_runtime_mark_moves_a_pin_clear(
           return b.right <= act.left || act.right <= b.left
             || b.bottom <= act.top || act.bottom <= b.top;
         }""",
-        timeout=5000,
     )
 
 

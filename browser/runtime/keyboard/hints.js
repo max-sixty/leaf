@@ -253,6 +253,23 @@ export function seatHints(faces, { barriers: fixedBarriers = [], band, viewport 
   const edgeBottom = viewport.bottom - band;
   /** @param {HintFace} face */
   const beforeLeft = ({ start, target }) => target.left - start.width - clear;
+  // A before seat stands level with its target's first line, so in a list of short rows
+  // each chip reads as its own row's rather than the boundary with the row above. A
+  // chip that would cover its own target at the window's edge, or a neighbour's words
+  // in a row of buttons, keeps its target's corner, which covers less of them.
+  /** @param {T} face @param {number} left */
+  const levelTop = (face, left) => {
+    const { start, target } = face;
+    const top =
+      target.top + (Math.min(target.height, 2 * start.height) - start.height) / 2;
+    const seat = movedTo(start, left, top);
+    const covers = faces.some(
+      (other) =>
+        overlaps(seat, other.target) &&
+        (other === face || !encloses(other.target, target)),
+    );
+    return covers ? start.top : top;
+  };
   const measured = nestOutsets(faces, (face) => beforeLeft(face) - edgeLeft).map(
     ({ face, outset }) => {
       const { start, target, placement = "corner" } = face;
@@ -264,15 +281,22 @@ export function seatHints(faces, { barriers: fixedBarriers = [], band, viewport 
             : placement === "above"
               ? target.left
               : start.left;
+      const left = clamp(
+        preferredLeft,
+        edgeLeft,
+        Math.max(edgeLeft, edgeRight - start.width),
+      );
       const preferredTop =
         placement === "below"
           ? target.bottom + clear
           : placement === "above"
             ? target.top - start.height - clear
-            : start.top;
+            : placement === "before"
+              ? levelTop(face, left)
+              : start.top;
       const first = movedTo(
         start,
-        clamp(preferredLeft, edgeLeft, Math.max(edgeLeft, edgeRight - start.width)),
+        left,
         clamp(preferredTop, edgeTop, Math.max(edgeTop, edgeBottom - start.height)),
       );
       const held = first.left !== preferredLeft || first.top !== preferredTop;

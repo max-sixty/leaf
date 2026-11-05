@@ -4,16 +4,19 @@
 import { capitalized, labelWords } from "../words.js";
 import { widgetWord } from "../addressable-names.js";
 import { closestAcross, elementById } from "../passages.js";
-import { tagsDeclaring } from "../registry.js";
+import { perVocabulary, tagsDeclaring } from "../registry.js";
 import { answeredInWords } from "./model.js";
 import { leafSays } from "../voice.js";
 import { hasObligationSource } from "./source.js";
 
 /** @typedef {Exclude<import("../framework/application.js").ObligationRecord, {source: {kind: "update"}}>} AnswerableObligation */
 
+const awaitingWidgets = perVocabulary(() =>
+  tagsDeclaring((entry) => entry["x-awaits"]).join(","),
+);
 /** @param {Element} source @param {Element} commandSource */
 export function ownedObligationControl(source, commandSource) {
-  const selector = tagsDeclaring((entry) => entry["x-awaits"]).join(",");
+  const selector = awaitingWidgets();
   return !selector || closestAcross(commandSource, selector) === source;
 }
 

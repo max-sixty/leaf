@@ -42,7 +42,8 @@ import { ShotView } from "./shot-view.js";
  * `difference` reads the requested pair, with its `description` in words; a superseded
  * or refused load resolves null.
  * Pair's images are original-image links using the shared viewer; dragging or
- * scrolling them never opens the viewer. Image options holds scale and the pixel key.
+ * scrolling them never opens the viewer. Image options holds scale, outlines and the
+ * pixel key, so the row holds only the views and nothing there reads as a fourth one.
  * Print shows both complete original images. */
 // A containing widget can create a pair absent from the authored document.
 import {
@@ -96,6 +97,7 @@ const inTurn = (work, pressed = false) =>
 import { shotBox } from "./shot-view.js";
 import {
   compareImagePixels,
+  paperOf,
   compareImages,
   describeDifference,
 } from "./image-difference.js";
@@ -304,6 +306,7 @@ export class Shot extends HTMLElement {
     this.#error?.remove();
     this.#error = null;
     if (changed) {
+      this.#drawing.paper = null;
       this.#setPixelUrl(pixels);
       this.#pixelsPainted = pixels ? Promise.resolve() : null;
     }
@@ -324,6 +327,9 @@ export class Shot extends HTMLElement {
     this.#syncComparison();
     // Show the selected presentation before reading its shared allocation.
     keeps(this, "data-lf-shot-mode", this.#drawing.view);
+    const shown = this.#drawing.images[1];
+    if (this.#drawing.view === "pixels" && shown)
+      this.#drawing.paper ??= paperOf(shown);
     this.#drawing.fit();
     this.#paint();
     layoutChanged(this);

@@ -8,7 +8,7 @@ import re
 import pytest
 from interact_support import append_command
 from playwright.sync_api import expect
-from render_cases_interaction import PANEL_PAGE
+from render_cases_interaction import PANEL_PAGE, live_url
 from render_cases_layout import token_colour
 from render_harness import (
     draft_control,
@@ -19,6 +19,7 @@ from render_harness import (
     panel_settled,
     resized,
     sending,
+    told,
 )
 
 from browser.margin import (
@@ -1132,3 +1133,69 @@ def test_draw_mode_leaves_page_annotation_controls_usable(browser, serve):
     expect(edit).to_be_visible()
     expect(page.locator("html")).to_have_attribute("data-lf-draw-mode", "")
     expect(page.locator(".lf-drawing-pending")).to_have_count(0)
+
+
+def test_a_row_leaving_renames_the_rows_after_it(browser, serve):
+    """A marker's name says where its row stands among the rows, so a listener's count
+    stays true when another row leaves, though nothing else about the marker changed."""
+    body = "<h1>Rows</h1>" + "".join(
+        f'<p id="line-{n}">Line {n}, with a thread on it.</p>' for n in range(1, 4)
+    )
+    url = serve(leaf_page("Rows", body), events=[])
+    roots = [
+        append_command(serve.page_dir, _comment_on(f"line-{n}")) for n in range(1, 4)
+    ]
+    page = open_page(browser, live_url(url))
+    resized(page, 1440, 900)
+    last = page.locator('[data-lf-margin-for="line-3"] > .lf-margin-marker')
+    expect(last).to_have_attribute("aria-label", re.compile(r"3 of 3"))
+    append_command(
+        serve.page_dir, {"kind": "resolve", "author": "user", "parent": roots[0]["id"]}
+    )
+    told(page)
+    expect(page.locator('[data-lf-margin-for="line-1"]')).to_have_count(0)
+    expect(last).to_have_attribute("aria-label", re.compile(r"2 of 2"))
+
+
+def test_a_row_follows_words_rewrapped_as_the_margin_begins_watching_their_box(
+    browser, serve
+):
+    """The boxes a new row's target stands among are watched from the pass that seats
+    it. Where such a box's content narrows before the browser first reports it, as it
+    does when its padding grows while the box keeps its size, its words rewrap and the
+    row moves with them. No write the margin's page observer hears says so; that first
+    report does."""
+    words = " ".join(["Words that wrap across the box."] * 6)
+    body = (
+        '<h1>Narrowing</h1><section><p id="first">A row stands here.</p></section>'
+        '<section><p id="box" style="box-sizing: border-box; width: 420px; '
+        f'height: 480px; overflow: auto">{words} <span id="target" '
+        'style="display: inline-block">The last words.</span></p></section>'
+    )
+    source = leaf_page("Narrowing", body, head='<style id="narrowing"></style>')
+    page = open_page(browser, serve(source))
+    resized(page, 1440, 900)
+    register = """async (id) => {
+      const {contributionEntry, registerContribution} = await window.__lfWidgetApi();
+      registerContribution({key: id, target: document.getElementById(id),
+        read: () => ({entries: [contributionEntry({key: 'go', label: 'Go',
+          icon: 'check'})]}), activate() {}});
+    }"""
+    page.evaluate(register, "first")
+    expect(page.locator('[data-lf-margin-for="first"]')).to_have_count(1)
+    margins_laid_out(page)
+    # The page's own stylesheet narrows the box in the pass that seats the new row,
+    # after that pass read the box and before the browser first reports it: a write the
+    # margin's page observer does not hear.
+    page.evaluate("""() => document.addEventListener('lf-margin-layout', () => {
+      document.getElementById('narrowing').textContent =
+        '#box { padding-inline-start: 200px; }';
+    }, {once: true})""")
+    page.evaluate(register, "target")
+    row = page.locator('[data-lf-margin-for="target"]')
+    expect(row).to_have_count(1)
+    rendered(page)
+    top = "row => row.getBoundingClientRect().top"
+    seated = row.evaluate(top)
+    margins_laid_out(page)
+    assert row.evaluate(top) == seated

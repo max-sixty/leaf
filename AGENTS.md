@@ -326,8 +326,8 @@ detaches instead of falling back to order or offsets.
 Each fact Leaf derives about the page is derived once, and each place that
 reports the page selects what its purpose needs. Whatever a delivery tells the
 agent about an event, apart from what it asks of the agent at the time (`answer`,
-`handling`, `waiting`), `leaf page state` tells a later session about the same
-event, or the message as it now reads, under the same name and from the same code
+`handling`, `waiting`, `settled`), `leaf page state` tells a later session about the
+same event, or the message as it now reads, under the same name and from the same code
 (`event_facts.py`). A fact about the past, such as the settings the user had open
 when they wrote, is derived from the log and never stored as a second copy.
 

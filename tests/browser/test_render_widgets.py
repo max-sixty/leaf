@@ -182,9 +182,9 @@ def test_a_playground_dresses_each_sample_child_and_never_its_own_page(browser, 
 <lf-ask id="tone-ask">
   <h2>Which tone?</h2>
   <lf-playground id="tone-playground">
-    <lf-playground-control name="tone" label="Tone" kind="choice" value="quiet">
-      <lf-playground-choice value="quiet" label="Quiet"></lf-playground-choice>
-      <lf-playground-choice value="loud" label="Loud"></lf-playground-choice>
+    <lf-playground-control id="tone" name="tone" label="Tone" kind="choice" value="quiet">
+      <lf-playground-choice id="tone-quiet" value="quiet" label="Quiet"></lf-playground-choice>
+      <lf-playground-choice id="tone-loud" value="loud" label="Loud"></lf-playground-choice>
     </lf-playground-control>
     <lf-playground-preview>
       <lf-sample id="tone-sample" label="tone sample">
@@ -284,16 +284,16 @@ def test_a_pointer_press_on_a_playground_control_leaves_the_user_in_the_preview(
 <lf-ask id="ring-ask">
   <h2>Which ring?</h2>
   <lf-playground id="ring-playground">
-    <lf-playground-preset label="Wide">
+    <lf-playground-preset id="preset-wide" label="Wide">
       <lf-playground-setting for="width" value="4"></lf-playground-setting>
     </lf-playground-preset>
-    <lf-playground-control name="ring" label="Ring" kind="choice" value="thin">
-      <lf-playground-choice value="thin" label="Thin"></lf-playground-choice>
-      <lf-playground-choice value="thick" label="Thick"></lf-playground-choice>
+    <lf-playground-control id="ring" name="ring" label="Ring" kind="choice" value="thin">
+      <lf-playground-choice id="ring-thin" value="thin" label="Thin"></lf-playground-choice>
+      <lf-playground-choice id="ring-thick" value="thick" label="Thick"></lf-playground-choice>
     </lf-playground-control>
-    <lf-playground-control name="width" label="Width" kind="range" value="2" min="1" max="4" step="1" unit="px"></lf-playground-control>
-    <lf-playground-control name="dim" label="Dim" kind="toggle" value="false"></lf-playground-control>
-    <lf-playground-control name="note" label="Note" kind="text" value="hi"></lf-playground-control>
+    <lf-playground-control id="width" name="width" label="Width" kind="range" value="2" min="1" max="4" step="1" unit="px"></lf-playground-control>
+    <lf-playground-control id="dim" name="dim" label="Dim" kind="toggle" value="false"></lf-playground-control>
+    <lf-playground-control id="note" name="note" label="Note" kind="text" value="hi"></lf-playground-control>
     <lf-playground-preview>
       <button id="preview-button" type="button">A candidate button</button>
       <lf-sample id="ring-sample" label="ring sample">

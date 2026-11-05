@@ -1362,7 +1362,7 @@
      own at the row's end. The title and what the agent is doing stand on one baseline,
      as a row's name and end do (controls.css, `.lf-row`); centred each in its own
      box, the smaller words stood higher. Their line stands centred in the row, and the
-     leaf and the mark centred on it. */
+     leaf centred on it. */
   .lf-fp-page {
     display: grid;
     grid-template-columns: auto minmax(0, max-content) minmax(6em, 1fr) 0.75em;
@@ -1375,17 +1375,13 @@
   .lf-fp-page .lf-dot {
     --lf-mark-w: 14px;
   }
-  .lf-fp-page > :is(.lf-dot, .lf-external-mark) {
+  .lf-fp-page > .lf-dot {
     align-self: center;
   }
   .lf-fp-page .lf-fp-value {
     overflow: hidden;
     text-overflow: ellipsis;
     text-align: end;
-  }
-  .lf-fp-page > .lf-external-mark {
-    margin: 0;
-    color: var(--muted);
   }
   a.lf-fp-page {
     padding-inline-start: 6px;
@@ -1416,6 +1412,48 @@
     white-space: nowrap;
     font-weight: 500;
     font-variant-numeric: tabular-nums;
+  }
+  /* A row cuts its words to the panel's width, and a title says them whole on hover. A
+     pointer that can't hover never reads that title, so under one a row says its words
+     whole at rest: a menu row's, a version's note on the lines under its name, and a
+     page's title, what its agent is doing and the rest of its account in All pages. On
+     me's answers keep their two lines, whose whole words Show reaches. */
+  .lf-fp-page-rest {
+    display: none;
+  }
+  @media (pointer: coarse), (hover: none) {
+    .lf-fp-item > .lf-fp-label,
+    .lf-fp-version > .lf-fp-item > .lf-fp-label {
+      display: block;
+      white-space: normal;
+    }
+    .lf-fp-item > .lf-fp-label > .lf-fp-note {
+      display: block;
+      margin-inline-start: 0;
+    }
+    .lf-fp-page {
+      grid-template-columns: auto minmax(0, 1fr) 0.75em;
+      row-gap: 2px;
+    }
+    .lf-fp-page > .lf-dot {
+      grid-row: 1;
+      align-self: baseline;
+    }
+    a.lf-fp-page::after {
+      grid-area: 1 / 3;
+    }
+    .lf-fp-page > :is(.lf-fp-label, .lf-fp-value, .lf-fp-page-rest) {
+      grid-column: 2;
+      overflow-wrap: anywhere;
+      white-space: normal;
+      text-align: start;
+    }
+    .lf-fp-page > .lf-fp-page-rest {
+      display: block;
+      color: var(--muted);
+      font: var(--font-small);
+      white-space: pre-line;
+    }
   }
   .lf-fp-version > :is(.lf-fp-compare, .lf-fp-showing) {
     grid-area: 1 / end;

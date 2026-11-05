@@ -681,6 +681,75 @@ def test_judgments_of_saved_samples_reach_the_report(tmp_path, monkeypatch):
     assert section.count("Desktop navigation.") == 3
 
 
+def test_review_citations_become_leaf_elements_the_page_check_accepts(tmp_path):
+    """The review's tabs come before the browser's, and each citation reaches its saved
+    captures, while one that names nothing stops the report."""
+    from PIL import Image
+
+    from leaf_dev.commands import eval_report
+
+    run = saved_run(tmp_path / "saved")
+    for sample in ("document-base-0", "document-head-1"):
+        shots = run / "screenshots" / sample
+        shots.mkdir(parents=True)
+        for name in run_samples((run,))["document-live-status"][
+            "codex:app-server/base/workflow"
+        ][0]["diagnostics"]["comparison"]["widths"]:
+            for phase in ("3", "5"):
+                Image.new("RGB", (8, 8)).save(shots / f"p{phase}-{name}-1.png")
+    patch = tmp_path / "change.diff"
+    patch.write_text(
+        "diff --git a/a.txt b/a.txt\n--- a/a.txt\n+++ b/a.txt\n"
+        "@@ -1,2 +1,2 @@\n \n-old\n+new\n"
+    )
+    review = tmp_path / "review.html"
+    review.write_text(
+        f"""<h1 id="title">Keeping the “change”</h1>
+<lf-tab id="report-introduction" label="Introduction">
+  <p>A review’s own words.</p>
+  <lf-eval-cite before="saved/document-base-0" after="saved/document-head-1@3"
+    before-label="Base" aligned></lf-eval-cite>
+  <p><lf-eval-cite file="{patch}" label="The change" links></lf-eval-cite></p>
+  <lf-eval-cite id="patch" file="{patch}" label="The patch"></lf-eval-cite>
+  <p><lf-eval-cite output="saved/document-head-1" links></lf-eval-cite></p>
+</lf-tab>
+"""
+    )
+    page = tmp_path / "report"
+    arguments = [str(page), str(run), "--review", str(review)]
+
+    result = CliRunner().invoke(eval_report.eval_report, arguments)
+
+    assert result.exit_code == 0, result.output
+    written = (page / "index.html").read_text()
+    assert "lf-eval-cite" not in written
+    assert "<title>Keeping the “change”</title>" in written
+    assert written.index("A review’s own words.") < written.index('id="scores"')
+    assert written.count("<lf-shot ") == 1
+    assert written.count('<lf-diff id="patch" collapsed>') == 1
+    assert "\n&#32;\n-old" in written
+    # A cited sample's checks link back to the citation that draws it.
+    assert "Base and After · " in written
+    eval_report.leaf("page", "check", str(page))
+
+    for missing in (
+        "saved/document-absent",
+        "elsewhere/document-base-0",
+        "saved/document-base-0@9",
+    ):
+        review.write_text(
+            f'<h1>Report</h1><lf-eval-cite output="{missing}"></lf-eval-cite>'
+        )
+        result = CliRunner().invoke(eval_report.eval_report, arguments)
+        assert result.exit_code != 0 and missing in result.output
+    review.write_text(
+        '<h1>Report</h1><lf-eval-cite file="/absent.json"></lf-eval-cite>'
+    )
+    result = CliRunner().invoke(eval_report.eval_report, arguments)
+    assert result.exit_code != 0 and "/absent.json" in result.output
+    assert (page / "index.html").read_text() == written
+
+
 def test_arrangement_retains_linked_pages_per_phase(tmp_path, monkeypatch):
     from contextlib import ExitStack, contextmanager
 

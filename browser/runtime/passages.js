@@ -4,8 +4,9 @@
    text. `textNodesUnder` produces the segments, and quote capture, quote resolution,
    reading position, element labels, and version-comparison readings all use them. Never
    introduce another text walk for one of those jobs: the page's words are `pageText()`
-   (its `segments`, `pageBlocks()`), one element's are `elementReading(el, "says" |
-   "wrote")`, and both are kept until the page changes. Each segment also carries the
+   (its `segments`, `pageBlocks()`), the part of them under one element is
+   `pageText(el)`, and one element's own words are `elementReading(el, "says" |
+   "wrote")`; each is kept until the page changes. Each segment also carries the
    `block` its words read in, their typographic `textBlock`, and the generated element
    (`gen`) they stand in, which the walk knew on its way down. A datum starts a reading
    block without inserting whitespace into inline text; a cut segment keeps these facts.
@@ -598,13 +599,24 @@ export const authored = (root) => {
 //
 // `readingParent`, below, climbs the tree this walk comes down, so a root or a slot this
 // walk treats differently changes there too.
+//
+// `frame` is where chrome and the generated marks start counting (`frameOf`). The page
+// reading counts them from the top whatever root it reads, so a part of it read alone
+// says what the whole says there.
 /** @param {Node} root
  * @param {(node: Text, ctx: ReadingContext) => void} onText
  * @param {((element: Element) => boolean) | null} [skip]
  * @param {((ctx: ReadingContext) => void) | null} [onBreak]
- * @param {((element: Element, ctx: ReadingContext, entering: boolean) => void) | null} [onElement] */
-function walk(root, onText, skip = null, onBreak = null, onElement = null) {
-  const frame = frameOf(root);
+ * @param {((element: Element, ctx: ReadingContext, entering: boolean) => void) | null} [onElement]
+ * @param {Element | null} [frame] */
+function walk(
+  root,
+  onText,
+  skip = null,
+  onBreak = null,
+  onElement = null,
+  frame = frameOf(root),
+) {
   /** @type {Map<Element, ReadingContext>} */
   const passed = new Map();
   /** @param {Node} node */
@@ -1173,21 +1185,23 @@ function spanOf(reading, lo, hi) {
 // repeated candidates detach rather than inheriting document order.
 //
 // Rare, not impossible. The bar is however much was stored, and the capture reads the
-// neighbours out of the whole document — a section is a filter on where a passage may sit,
-// not on what surrounds it — so both sides are full except against the document's own
-// ends. Anchors written before context reached past the section carry a side clipped at
-// that edge; they confirm at that shorter bar, which is the bar they were stored under.
+// neighbours out of the reading the search uses: the whole document, where a section is a
+// filter on where a passage may sit, not on what surrounds it, or a datum's own words
+// (`pageText`). So both sides are full except against that reading's ends. Anchors written
+// before context reached past the section carry a side clipped at that edge; they confirm
+// at that shorter bar, which is the bar they were stored under.
 //
 // The bar is what the capture actually produces, not a number picked to fit: across every
 // selection in the shipped examples, an unmodified page confirms its stored context in full.
 //
 // An empty side is the case worth stating, because reading it as an absent constraint is
-// what sends a comment to a copy it was never made on. The capture reads the whole
-// document, so a side comes out empty only where the passage had nothing at all beside it:
-// the top or bottom of the page, the one place no capture can give two sides to. That is
-// not a missing constraint but the tightest one there is, and it is checkable — a candidate
-// confirms it by also having nothing there, which exactly one occurrence does. Refusing to
-// read it that way handed the last copy's mark to the first.
+// what sends a comment to a copy it was never made on. The capture reads the reading the
+// search reads, so a side comes out empty only where the passage had nothing at all beside
+// it there: the top or bottom of the page or of the datum, the one place no capture can
+// give two sides to. That is not a missing constraint but the tightest one there is, and
+// it is checkable — a candidate confirms it by also having nothing there, which exactly
+// one occurrence does. Refusing to read it that way handed the last copy's mark to the
+// first.
 //
 // A side is read from the words the reading keeps (`wordsBetween`), the words a fresh read
 // of the span gives, until it holds as many code units as `want` — the unit endsWith
@@ -1316,26 +1330,6 @@ const isPair = (raw, i) =>
   i >= 0 &&
   /[\uD800-\uDBFF]/.test(raw.charAt(i)) &&
   /[\uDC00-\uDFFF]/.test(raw.charAt(i + 1));
-// `reading` with fences at the edges of the words `element` holds, so a neighbourhood
-// read from inside it stops there. The words `element` renders are one run of the
-// reading. The words it holds are the ones under it, which can be fewer: a `<slot>`
-// inside it renders words its shadow host holds, and those come off the run's ends.
-/** @param {PageReading} reading @param {Element} element @returns {PageReading} */
-export function fencedAt(reading, element) {
-  const { segments } = reading;
-  let lo = firstPassing(segments, ({ node }) => readingOrder(node, element) > 0);
-  let hi = firstPassing(segments, ({ node }) => !readingUnder(node, element), lo);
-  while (lo < hi && !under(segments[lo]?.node, element)) lo += 1;
-  while (hi > lo && !under(segments[hi - 1]?.node, element)) hi -= 1;
-  const first = segments[lo];
-  const last = segments[hi - 1];
-  if (lo === hi || !first || !last) return reading;
-  const edges = [first.rawStart, last.rawStart + last.end - last.start];
-  return {
-    ...reading,
-    fences: [...new Set([...reading.fences, ...edges])].sort((a, b) => a - b),
-  };
-}
 // The reading is a function of the document and the user's settlements, so those are
 // what say when it may change. Everything it is built out of is here: the page's words
 // and their shape, the markers those words are read through, the vocabulary the markers
@@ -1378,6 +1372,8 @@ const WATCH_READING = {
 let reading = null;
 /** @type {WeakMap<Element, Partial<Record<Reading, string>>>} */
 let elementReadings = new WeakMap();
+/** @type {WeakMap<Element, PageReading>} */
+let partReadings = new WeakMap();
 /** @type {string | undefined} */
 let readingVocabulary;
 /** @type {string | undefined} */
@@ -1434,6 +1430,7 @@ let readingVersion = 0;
 const forgetReading = () => {
   reading = null;
   elementReadings = new WeakMap();
+  partReadings = new WeakMap();
   readingVersion += 1;
 };
 export function pageReadingVersion() {
@@ -1486,9 +1483,21 @@ export function fencePassageParts(root, children = root.children) {
 // runs in a microtask, so a caller that changed the page and read it back in the same task
 // would be handed the reading from before its own edit. Draining the queue at the read asks
 // the observer what it has seen instead of waiting to be told.
-export function pageText() {
+//
+// `within` asks for one part of that reading, the words under one element, read alone
+// with its edges as the reading's ends, so a neighbourhood read inside it stops there.
+// A quote anchored in a datum is captured and found again in its datum's part alone
+// (anchor-resolution.js). A page grows large through its widgets' data: on a page of 30
+// text documents of 4 MB, the whole reading took 2.3 to 2.6 s in Chromium and 3.6 to
+// 4.2 s in Firefox, and the part for the document a comment was on 50 to 130 ms. A part
+// is kept as long as the whole reading, since the same watcher answers for both.
+/** @param {Element | null} [within] */
+export function pageText(within = null) {
   catchUpReading();
-  return (reading ??= readPage());
+  if (!within) return (reading ??= readPage(document.body));
+  let part = partReadings.get(within);
+  if (!part) partReadings.set(within, (part = readPage(within)));
+  return part;
 }
 function catchUpReading() {
   const moved = watchReading().takeRecords().some(changesTheReading);
@@ -1523,28 +1532,33 @@ export function elementReading(element, reading = "says") {
   }
   return value;
 }
-// The walk itself.
-/** @returns {PageReading} */
-function readPage() {
+// The walk itself, over the page's words under `root`, by the page's rules whatever the
+// root (`walk`, `frame`). A root outside the page, such as a widget in a message the
+// panel shows, holds none of the page's words.
+/** @param {Element} root @returns {PageReading} */
+function readPage(root) {
   /** @type {Segment[]} */
   const segments = [];
   /** @type {(CellChain | null)[]} */
   const cellChains = []; // the cell candidates over each segment, nearest first
   const keeps = READINGS.says;
   let breakBefore = false;
-  walk(
-    document.body,
-    (node, ctx) => {
-      if (!keeps(ctx)) return;
-      segments.push({ ...segmentIn(node, ctx), breakBefore });
-      breakBefore = false;
-      cellChains.push(ctx.cells);
-    },
-    (child) => child.matches(LEAF_SURFACE),
-    (ctx) => {
-      if (keeps(ctx)) breakBefore = true;
-    },
-  );
+  if (inPage(root))
+    walk(
+      root,
+      (node, ctx) => {
+        if (!keeps(ctx)) return;
+        segments.push({ ...segmentIn(node, ctx), breakBefore });
+        breakBefore = false;
+        cellChains.push(ctx.cells);
+      },
+      (child) => child.matches(LEAF_SURFACE),
+      (ctx) => {
+        if (keeps(ctx)) breakBefore = true;
+      },
+      null,
+      null,
+    );
 
   // Generated page-words that the registry does not model are their own passage cells:
   // the generated element a word of the reading stands in, where it is unmodelled.

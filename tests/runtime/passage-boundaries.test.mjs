@@ -7,7 +7,7 @@ import "/runtime/stage-integration.js";
    what makes one answer serve both trees, and it is the reading `inChrome` and
    `pageWords` are built on.
 
-   `pageText` is the whole of that reading. Every caller shares one answer for as long as
+   `pageText()` is the whole of that reading. Every caller shares one answer for as long as
    the page holds still, and something the reading is built out of moving is what makes the
    next caller pay for a walk. The document reports most of that movement itself; the two
    inputs it reports nothing about have a door apiece, and the cases after those are why.
@@ -25,7 +25,6 @@ import {
   closestAcross,
   contextAround,
   elementReading,
-  fencedAt,
   fencePassageParts,
   findQuote,
   inChrome,
@@ -414,17 +413,12 @@ test("a selection in an undeclared host that reorders its children keeps its wor
   range.setStart(text("title"), 0);
   range.setEnd(text("after"), 5);
   assert.equal(quoteFrom(segmentsIn(range)), "Title After");
-  const reading = pageText();
-  const title = reading.raw.indexOf("Title");
-  const fences = fencedAt(reading, document.querySelector("#title")).fences;
-  assert.ok(fences.includes(title) && fences.includes(title + 5), `fences ${fences}`);
   // Firefox keeps both ends of a selection of the root's own words inside the root, even
   // around a slot, and comments can't quote those words.
   range.selectNodeContents(root.querySelector("#own"));
   assert.deepEqual(segmentsIn(range), []);
   range.selectNodeContents(root.querySelector("#holder"));
   assert.deepEqual(segmentsIn(range), []);
-  assert.equal(fencedAt(reading, root.querySelector("#holder")), reading);
 });
 
 // `segmentsIn` searches the reading, so every way the walk reaches a word has to agree
@@ -484,16 +478,16 @@ test("the reading's words stand in the order a selection is compared in", () => 
   });
 });
 
-// A selection covers one run of the page reading's segments, as do the words one element
-// holds, so each is found by searching for where its two ends fall rather than by testing
-// every segment. Every comparison starts by asking a text node for its slot, so counting
-// those asks counts the comparisons.
+// A selection covers one run of the page reading's segments, so it is found by searching
+// for where its two ends fall rather than by testing every segment. Every comparison
+// starts by asking a text node for its slot, so counting those asks counts the
+// comparisons.
 test("a selection's words are found from its ends, not by asking every word", () => {
   document.body.innerHTML = `<main>${Array.from(
     { length: 4096 },
     (_, i) => `<p id="row${i}">Row ${i}</p>`,
   ).join("")}</main>`;
-  const reading = pageText();
+  pageText();
   const row = document.querySelector("#row2000");
   const range = document.createRange();
   range.selectNodeContents(row);
@@ -508,9 +502,6 @@ test("a selection's words are found from its ends, not by asking every word", ()
   });
   try {
     assert.equal(quoteFrom(segmentsIn(range)), "Row 2000");
-    const at = reading.raw.indexOf("Row 2000");
-    const fences = fencedAt(reading, row).fences;
-    assert.ok(fences.includes(at) && fences.includes(at + "Row 2000".length));
   } finally {
     Object.defineProperty(Text.prototype, "assignedSlot", slot);
   }
@@ -594,6 +585,28 @@ test("one element's two readings are kept apart", () => {
   assert.equal(elementReading(line, "says"), "Words generated");
   assert.equal(elementReading(line, "wrote"), "Words");
   assert.equal(elementReading(line), "Words generated");
+});
+
+// A part of the page's reading, read alone, holds what the whole holds under its element:
+// chrome inside it is skipped, and an element under chrome or in a runtime surface holds
+// none of the page's words, though a reading of its own frame (`says`) would find some.
+test("a part of the page's reading says what the whole says there", () => {
+  document.body.innerHTML =
+    '<main><p>Before</p><lf-w id="w"><div id="row"><p>Row <b>words</b>' +
+    '<button class="lf-ui">Chrome</button></p></div></lf-w>' +
+    '<div class="lf-ui"><lf-w id="v"><div id="covered"><p>Covered row</p></div></lf-w>' +
+    '</div></main><div class="lf-chrome"><lf-w id="m"><div id="message">' +
+    "<p>Message row</p></div></lf-w></div>";
+  const part = (id) => pageText(document.querySelector(`#${id}`));
+  assert.equal(quoteFrom(part("row").segments), "Row words");
+  assert.ok(pageText().raw.includes(part("row").raw));
+  for (const [id, words] of [
+    ["covered", "Covered row"],
+    ["message", "Message row"],
+  ]) {
+    assert.equal(says(document.querySelector(`#${id}`)), words);
+    assert.equal(part(id).raw, "", `#${id} holds none of the page's words`);
+  }
 });
 
 // A display window may be shorter than a word, while stored quote context remains exact.

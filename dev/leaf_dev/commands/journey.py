@@ -1577,6 +1577,7 @@ def target_session(
     sandbox: bool,
     preview: bool,
     forks: bool,
+    fork_work: bool = False,
 ) -> Generator[tuple[User, dict, Callable[[], None]]]:
     """The user at the page TARGET answers, what names TARGET in the journey's
     output (`target` the same across runs, as a local server's `origin` is not), and
@@ -1587,9 +1588,12 @@ def target_session(
         if harness == "claude-code":
             from leaf_dev.journey_claude_code import answering
 
-            answered = answering(browser, sandbox=sandbox, forks=forks)
+            answered = answering(
+                browser, sandbox=sandbox, forks=forks, fork_work=fork_work
+            )
             named |= {"sandbox": True} if sandbox else {}
             named |= {"forks": True} if forks else {}
+            named |= {"fork_work": True} if fork_work else {}
         elif harness == "pi":
             from leaf_dev.journey_pi import answering
 
@@ -1665,6 +1669,12 @@ def target_session(
     "thread messages, and run the steps that test them in place of the delivery steps.",
 )
 @click.option(
+    "--fork-work",
+    is_flag=True,
+    help="On claude-code, --forks with forks that do the work of a message the "
+    "line's fork judges theirs (LEAF_FORK_WORK=on).",
+)
+@click.option(
     "--case",
     type=click.Choice(CASES),
     default="waiting",
@@ -1684,6 +1694,7 @@ def journey(
     sandbox: bool,
     preview: bool,
     forks: bool,
+    fork_work: bool,
     case: str,
     browser: bool | None,
 ) -> None:
@@ -1703,8 +1714,9 @@ def journey(
         raise click.UsageError("--preview is an option of the codex targets")
     if preview and sandbox:
         raise click.UsageError("--preview runs leaf-dev, which a sandbox refuses")
-    if forks and harness != "claude-code":
-        raise click.UsageError("--forks is an option of claude-code")
+    if (forks or fork_work) and harness != "claude-code":
+        raise click.UsageError("--forks and --fork-work are options of claude-code")
+    forks = forks or fork_work
     website = harness is None
     if website and case == "working":
         raise click.UsageError("a website's journey has no terminal to start a turn")
@@ -1722,6 +1734,7 @@ def journey(
                 sandbox=sandbox,
                 preview=preview,
                 forks=forks,
+                fork_work=fork_work,
             )
         )
         user.case = case

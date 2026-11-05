@@ -23,6 +23,7 @@ from interact_support import (
     stamp,
 )
 
+from leaf import clerk as clerk_model
 from leaf import delivery as delivery_model
 from leaf import event_endpoint as endpoint_model
 from leaf import event_log as events_model
@@ -165,6 +166,120 @@ def test_a_held_message_gets_the_forks_working_line_and_goes_to_the_session(
 
     thread_model.post_reply(claimed, {"responds": asked["id"]}, "It matches the lease.")
     assert forked(claimed) == []
+
+
+def test_a_fork_takes_work_it_judges_its_own_and_its_answer_goes_in_as_the_agents(
+    claimed, lane
+):
+    """Where the module makes forks that do the work, a thread the line's fork judges
+    `take` stays held, past the line's bound, while a fork named for it does the
+    work: the message reads On it and goes to no one else, and the main session
+    hears which fork has it. The fork's answer goes in as the agent's, and the main
+    session hears that too."""
+    asked = said(claimed, "Which Python does the project need?")
+    taken = forks_model.take(
+        "s1",
+        basis(claimed, asked["id"], asked["id"]),
+        answer=judged("checking the project's Python requirement", "take"),
+        failed=None,
+        work_forks=True,
+    )
+    agent = f"leaf-{asked['id']}"
+    assert (taken["outcome"], taken["agent"]) == ("take", agent)
+    assert taken["prompt"].startswith(forks_model.WORK_OPENING)
+    assert "Which Python does the project need?" in taken["prompt"]
+    [line] = [e for e in events_model.read_events(claimed) if e["kind"] == "reply"]
+    assert (line["id"], line["ephemeral"]) == (taken["line"], True)
+    assert deliverable(claimed) == []
+    assert forked(claimed) == [asked["id"]]
+    [told] = clerk_model.queued("s1")
+    assert agent in told and f"SendMessage {agent}" in told
+    # A receipt for later input, past the message, gives it to no one.
+    with PageTransaction(claimed) as page:
+        delivery_model.record_receipt(page, page.events[-1]["seq"])
+    assert deliverable(claimed) == []
+    assert forked(claimed) == [asked["id"]]
+    # The line's bound has passed; the fork's has not.
+    admitted = datetime.fromisoformat(asked["ts"]).timestamp()
+    [still] = forks_model.look("s1", claimed, now=admitted + forks_model.BOUND_S + 1)
+    assert (still.thread, still.agent) == (asked["id"], agent)
+    assert deliverable(claimed) == []
+
+    joined = forks_model.join(
+        "s1",
+        still.basis(claimed),
+        answer="Python 3.12 or later, from pyproject.toml.",
+        failed=None,
+    )
+    assert joined["outcome"] == "answer"
+    replies = [e for e in events_model.read_events(claimed) if e["kind"] == "reply"]
+    assert (replies[-1]["id"], replies[-1]["text"], replies[-1].get("ephemeral")) == (
+        joined["reply"],
+        "Python 3.12 or later, from pyproject.toml.",
+        None,
+    )
+    assert held(claimed) == []
+    assert forked(claimed) == []
+    assert forks_model.look("s1", claimed) == []
+    assert agent in clerk_model.queued("s1")[-1]
+    assert "answered" in clerk_model.queued("s1")[-1]
+
+
+def test_a_fork_that_took_the_work_passes_on_further_messages_or_gives_it_back(
+    claimed, lane
+):
+    """A further message in a thread a fork took goes to that fork rather than to a
+    new one; a fork that finds the work belongs with the main session gives the
+    thread back, which then holds all its messages; and a fork that outruns its own
+    bound loses the thread to the session."""
+    asked = said(claimed, "Does the autocomplete service start its cache this way?")
+    taken = forks_model.take(
+        "s1",
+        basis(claimed, asked["id"], asked["id"]),
+        answer=judged("checking the autocomplete service's cache start", "take"),
+        failed=None,
+        work_forks=True,
+    )
+    more = said(claimed, "And the suggest service?", parent=asked["id"])
+    grown = {
+        **basis(claimed, asked["id"], asked["id"], more["id"]),
+        "agent": taken["agent"],
+    }
+    passed = forks_model.extend("s1", grown)
+    assert passed is not None
+    assert "And the suggest service?" in passed["message"]
+    assert "Does the autocomplete" not in passed["message"]
+    assert deliverable(claimed) == []
+
+    back = forks_model.join(
+        "s1",
+        grown,
+        answer=f"{forks_model.HAND_BACK} the session is changing that service's startup.",
+        failed=None,
+    )
+    assert back == {
+        "outcome": "hand_over",
+        "why": "the session is changing that service's startup.",
+    }
+    assert deliverable(claimed) == [asked["id"], more["id"]]
+    assert "gave thread" in clerk_model.queued("s1")[-1]
+
+    other = said(claimed, "How many shards does staging have?")
+    forks_model.take(
+        "s1",
+        basis(claimed, other["id"], other["id"]),
+        answer=judged("counting staging's shards", "take"),
+        failed=None,
+        work_forks=True,
+    )
+    forks_model.look("s1", claimed, now=time.time() + forks_model.WORK_BOUND_S + 1)
+    assert other["id"] in deliverable(claimed)
+    assert (
+        forks_model.join(
+            "s1", basis(claimed, other["id"], other["id"]), answer="Five.", failed=None
+        )["outcome"]
+        == "dropped"
+    )
 
 
 def test_a_failed_fork_gives_the_thread_to_the_session_bare(claimed, lane):

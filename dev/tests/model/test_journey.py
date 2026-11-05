@@ -1097,7 +1097,7 @@ def test_a_harness_journey_over_http_starts_no_browser(monkeypatch):
     entered = []
 
     @contextmanager
-    def target_session(browser, target, release, *, sandbox, preview, forks):
+    def target_session(browser, target, release, *, sandbox, preview, forks, fork_work):
         entered.append(browser)
         end = (
             journey.HttpEnd("http://127.0.0.1:1/?t=t", Path("page"), time.sleep)

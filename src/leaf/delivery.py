@@ -1153,12 +1153,15 @@ def deliverable(
     pending = unacknowledged(page.events, page.cursor)
     if pending and (held := awaiting_receipt(page)):
         pending = [event for event in pending if event["id"] not in held]
-    if pending:
+    owed = unreferenced(page, obligations) if received else []
+    if pending or owed:
         from .forks import held_inputs
 
+        # A held message the cursor has passed is owed and unreferenced, and stays
+        # held all the same.
         if forked := held_inputs(page):
             pending = [event for event in pending if event["id"] not in forked]
-    owed = unreferenced(page, obligations) if received else []
+            owed = [event for event in owed if event["id"] not in forked]
     if not pending and not owed:
         return []
     from .event_contracts import write_refusal

@@ -146,12 +146,15 @@ QUIET_TRIES = 20
 # A function must take this long at the largest size to be listed as growing.
 GROWTH_FLOOR_MS = 20
 DEADLINE_MS = 300_000
-# How long `content_clock` spins a page's main thread to find its process, and the
-# spin, which ends by the page's own clock.
+# How long `content_clock` spins a page's main thread to find its process, how many
+# times it tries, and the spin, which ends by the page's own clock and is named so a
+# profile of the page shows it.
 SPIN_MS = 30
-SPIN = (
-    "(ms) => { const end = performance.now() + ms; while (performance.now() < end); }"
-)
+SPIN_TRIES = 10
+SPIN = """function scalingSpin(ms) {
+  const end = performance.now() + ms;
+  while (performance.now() < end);
+}"""
 # `proc_pidinfo`'s flavors for a process's threads and one thread's times, in
 # `sys/proc_info.h`.
 PROC_PIDLISTTHREADS = 6
@@ -466,16 +469,14 @@ def content_clock(page: Page) -> Callable[[], float]:
     count of its own: the thread's CPU as the OS counts it (this module's header).
 
     Nothing says which content process holds the page, and Firefox runs others beside
-    it, such as its built-in extensions', so the page identifies its own. Making the
-    clock spins the page's main thread for SPIN_MS and takes the content process that
-    gained most meanwhile, among those already running, since the page's tab is in
-    one. While the page is still blank, each read returns 0 and takes every content
-    process's reading again, so the load counts from the read that starts it. At the
-    first read after the page opened its address, that process must be the one that
-    spent most during the load. If another did, or the page moved to another process,
-    the clock can't tell which process holds the page, and raises. From then on it
-    reads only that process. Its reading never falls, and holds its last value once
-    the process has gone."""
+    it, such as its built-in extensions', so the page identifies its own (`spinner`).
+    Making the clock finds the process holding the blank page. While the page is still
+    blank, each read returns 0 and takes every content process's reading again, so the
+    load counts from the read that starts it. The first read after the page opened its
+    address finds the process again, and raises if the two disagree. It returns its
+    reading from before those spins, and leaves what they cost the page out of every
+    later reading. From then on the clock reads only that process. Its reading never
+    falls, and holds its last value once the process has gone."""
 
     def spent() -> dict[int, float]:
         times = {}
@@ -486,36 +487,64 @@ def content_clock(page: Page) -> Callable[[], float]:
                     times[child.pid] = main_thread_ms(child.pid)
         return times
 
-    def gained(since: dict[int, float]) -> dict[int, float]:
-        """Each content process's growth since `since`; one started since, its life."""
-        now = spent()
-        return {pid: now.get(pid, ms) - ms for pid, ms in since.items()} | {
-            pid: ms for pid, ms in now.items() if pid not in since
-        }
+    def spinner() -> tuple[int, float]:
+        """The content process the page's main thread runs in, and what finding it
+        cost that thread.
 
-    ahead = spent()
-    page.evaluate(SPIN, SPIN_MS)
-    spun = {pid: ms for pid, ms in gained(ahead).items() if pid in ahead}
-    holder = max(spun, key=spun.__getitem__)
-    before: dict[int, float] = {}
+        Each try spins the page's main thread for SPIN_MS, then leaves it for as long.
+        The page's process gains CPU while the page spins and stops when it stops,
+        where a process busy throughout gains alike in both, so each process's
+        contrast is its rise during the spin less its rise after. The page's must be
+        at least half the spin, and at least twice any other's; a try on a host too
+        busy to give it that is tried again, up to SPIN_TRIES."""
+        costs: dict[int, float] = {}
+        contrasts = {}
+        for _ in range(SPIN_TRIES):
+            ahead = spent()
+            page.evaluate(SPIN, SPIN_MS)
+            spun = spent()
+            time.sleep(SPIN_MS / 1000)
+            after = spent()
+            contrasts = {
+                pid: 2 * spun[pid] - ms - after.get(pid, spun[pid])
+                for pid, ms in ahead.items()
+                if pid in spun
+            }
+            for pid in contrasts:
+                costs[pid] = costs.get(pid, 0) + spun[pid] - ahead[pid]
+            first, *rest = sorted(contrasts.values(), reverse=True)
+            if first >= SPIN_MS / 2 and first >= 2 * max(rest, default=0):
+                found = max(contrasts, key=contrasts.__getitem__)
+                return found, costs[found]
+        raise RuntimeError(
+            f"No content process followed the page's spins in {SPIN_TRIES} tries "
+            f"(the last's contrasts, in ms by process: {contrasts}), so the clock "
+            "can't tell which holds the page. Run it again on a quieter host."
+        )
+
+    holder, _ = spinner()
+    start: dict[int, float] = {}
     loaded = False
     last = 0.0
 
     def clock() -> float:
-        nonlocal before, loaded, last
+        nonlocal start, loaded, last
         if page.url == "about:blank":
-            before = spent()
+            start = spent()
             return 0
+        reading = main_thread_ms(holder) - start.get(holder, 0)
         if not loaded:
             loaded = True
-            grown = gained(before)
-            if max(grown, key=grown.__getitem__) != holder:
+            now, cost = spinner()
+            if now != holder:
                 raise RuntimeError(
-                    f"Content process {holder} ran the blank page, but another spent "
-                    f"more while the page loaded, in ms by process: {grown}. The "
-                    "clock can't tell which process holds the page; run it again."
+                    f"The page's spins pointed to content process {holder} while it "
+                    f"was blank and to {now} once it loaded. Either the page moved or "
+                    "a busy process misled one of them, so the clock can't tell which "
+                    "process holds the page. Run it again."
                 )
-        last = max(last, main_thread_ms(holder) - before.get(holder, 0))
+            start[holder] = start.get(holder, 0) + cost
+        last = max(last, reading)
         return last
 
     return clock

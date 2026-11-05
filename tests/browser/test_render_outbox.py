@@ -48,6 +48,7 @@ from render_harness import (
     expect_obligations_answered,
     expect_panel_offers,
     expect_panel_says,
+    fetch_whole_state,
     holding,
     http_error_console,
     is_problem,
@@ -906,8 +907,7 @@ def test_an_accepted_event_is_not_retried_when_its_state_cannot_render(
                 },
             )
             return
-        response = route.fetch()
-        answer = response.json()
+        response, answer = fetch_whole_state(route)
         if not first_attempt:
             first_attempt.append(event["attempt"])
             # An optional widget's fail-soft view is valid presentation. Fail the
@@ -1021,8 +1021,7 @@ def test_a_failed_background_presentation_keeps_the_new_undo_authority(browser, 
         if failed_reads:
             refuse(route)
             return
-        response = route.fetch()
-        state = response.json()
+        response, state = fetch_whole_state(route)
         fail_reading_commit(page, state["reading"], "injected background commit fault")
         failed_reads.append(True)
         route.fulfill(status=response.status, json=state)
@@ -1528,8 +1527,7 @@ def test_refusal_does_not_overlay_an_accepted_attempt_already_in_the_log(
         if route.request.post_data_json.get("kind") != "action":
             route.continue_()
             return
-        response = route.fetch()
-        answer = response.json()
+        response, answer = fetch_whole_state(route)
         fail_reading_commit(
             page, answer["state"]["reading"], "injected chronology event commit fault"
         )
@@ -1562,8 +1560,7 @@ def test_refusal_does_not_overlay_an_accepted_attempt_already_in_the_log(
     # Fail that read's required commit too, here rather than on a later timer.
     holding(page, held_reads, 1, "the read the move's append prompts")
     held = held_reads.pop()
-    response = held.fetch()
-    state = response.json()
+    response, state = fetch_whole_state(held)
     fail_reading_commit(page, state["reading"], "injected chronology read commit fault")
     failed_reads.append(True)
     with page.expect_console_message(
@@ -2240,8 +2237,7 @@ def test_an_undo_reveals_the_prior_winner_before_its_send_finishes(
         serve.page_dir,
         {"kind": "undo", "author": "user", "undoes": actions(serve.page_dir)[-1]["id"]},
     )
-    response = held[0].fetch()
-    refusal = response.json()
+    response, refusal = fetch_whole_state(held[0])
     assert response.status == 400 and refused_on(refusal).code == "withdrawn-gesture"
     assert other_undo in refusal["state"]["events"]
     if not refusal_first:
@@ -2909,14 +2905,7 @@ def test_undo_waits_while_the_candidate_is_applying_then_reads_accepted_truth(
         },
     )
     holding(page, held_states, 1, "candidate read")
-    # The whole reading rather than the changes since the one the tab holds, so the
-    # test can read the undo list and the reading's name from it.
-    held = held_states[0].request.headers
-    candidate = (
-        held_states[0]
-        .fetch(headers={k: v for k, v in held.items() if k != "leaf-held-basis"})
-        .json()
-    )
+    _, candidate = fetch_whole_state(held_states[0])
     head = candidate["browser"]["views"]["1"]["undo"][0]
     assert head["event"]["widget"] == "sug-thistle"
     with page.expect_request("**/preparation-content"):

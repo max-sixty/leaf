@@ -775,6 +775,9 @@ export const inPage = (node) => under(node, pageDocument()) && !leafSurface(node
 /** @param {Element} box */
 const isLayoutBox = (box) =>
   getComputedStyle(box).getPropertyValue("--lf-layout-box").trim() === "1";
+/** @param {Element} box */
+const isLayoutShell = (box) =>
+  getComputedStyle(box).getPropertyValue("--lf-layout-shell").trim() === "1";
 // Read off `main`'s children rather than by `:scope >`, which walks every element under
 // `main` to find one of its children, several times for each keystroke.
 /** @param {Element} main */
@@ -784,10 +787,11 @@ export const layoutBox = () => {
   const main = document.querySelector("body > main");
   if (!main || isLayoutBox(main)) return main;
   const parts = partsOf(main);
-  const boxes = [
-    ...main.children,
-    ...[...(parts?.children ?? [])].flatMap((part) => [...part.children]),
-  ];
+  // Only a shell holds a layout box, so a `main` of plain sections is read once, not once
+  // for each section (layouts.css, `--lf-layout-shell`).
+  const boxes = [main, ...(parts?.children ?? [])]
+    .filter(isLayoutShell)
+    .flatMap((shell) => [...shell.children]);
   return boxes.find((box) => box.checkVisibility() && isLayoutBox(box)) ?? main;
 };
 // A page of parts' views: the parts a `main` with no Layout of its own shows one at a

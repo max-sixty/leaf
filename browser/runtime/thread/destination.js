@@ -429,7 +429,10 @@ export function createThreadDestinations({
     // place into view and lands on the margin control standing for the thread, whose
     // focus traces the place (`refreshHighlight`) after a pointer's press as after a
     // key's, and from which a tap or Enter opens the thread again; with no margin, on the
-    // place itself, its current target.
+    // place itself, its current target. Bringing the place into view can draw a view of
+    // the thread there after all, as a widget's seat does once the file holding its line
+    // loads, replacing the control that stood for it: the route lands in that seat, as on
+    // a wide window, at every width.
     const asked = primary && !page ? inPrimary(primary, false) : DECLINED;
     const first = asked instanceof Promise ? await asked : asked;
     if (first !== DECLINED && first !== UNDRAWN) return first;
@@ -448,6 +451,25 @@ export function createThreadDestinations({
         history,
       });
       if (!arrived) return null;
+      const localPart = part ?? "reply";
+      if (focus && surfaceFocusTarget(id, { part: localPart })) {
+        const seated = await arrive(
+          () => {
+            const current = surfaceFocusTarget(id, { part: localPart });
+            return (
+              current && {
+                where: current,
+                focus: current,
+                scroll: [{ at: current, block: "nearest" }],
+              }
+            );
+          },
+          { intent },
+        );
+        if (!seated) return null;
+        if (primary) await inPrimary(primary, false);
+        return surfaceFocusTarget(id, { part: localPart });
+      }
       if (!control) return threadTarget(id);
       intent.handoff(() => focusDestination(control, "move"));
       return control;

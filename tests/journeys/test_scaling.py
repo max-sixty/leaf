@@ -10,9 +10,13 @@ past `SUPERLINEAR`.
 `uv run leaf-dev scaling AXIS --profile` names the function that grew.
 
 A busy runner adds time to a reading and never takes it away, so each size is measured
-twice, the sizes interleaved, and the lower reading counts. On a host at load 50, three
-such pairs of every cost on every axis stayed under `SUPERLINEAR`, and 100 ms per input
-of added quadratic work failed most of them.
+twice, the sizes interleaved, and the lower reading counts. Each reading is the page's
+own: the suite's health sensors (`render_harness.watched`) work on the main thread at
+every input, more than most inputs take, so the pages are opened without them. Each
+page's costs stayed under `SUPERLINEAR` on an M5 Max at load 10, and the document and
+asks pages' at CPU rate 10 too, while 100 ms of busy work at the 256 page, added to each
+press, key and wheel step and scaled with the square of the page's size, failed the
+click, key and scroll on the prose and document pages.
 
 Each run also writes the readings it takes at `CHARTED` sections, the lower of each
 pair, to `READINGS` in github-action-benchmark's `customSmallerIsBetter` form, and the
@@ -33,6 +37,7 @@ from leaf_dev.commands.scaling import (
     SUPERLINEAR,
     TRANSITIONS,
     exponent,
+    floors,
     measure,
     serving_collection,
 )
@@ -78,11 +83,12 @@ def test_no_cost_grows_faster_than_the_page(axis, tmp_path, browser):
             ]
         )
     )
+    noise = floors(lowest)
     grown = {}
     # `leaf-dev scaling` reports a Tab's cost, which this doesn't hold to anything yet.
     for cost in (c for c in (*TRANSITIONS, *SERVER) if c != "tab"):
         readings = [at_size[cost] for at_size in lowest]
-        slope = exponent(cost, SIZES, readings)
+        slope = exponent(SIZES, readings, noise[cost])
         if slope is not None and slope > SUPERLINEAR:
             grown[cost] = {
                 "by size": dict(zip(SIZES, readings, strict=True)),

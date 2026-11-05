@@ -173,6 +173,24 @@ let geometryObservation = 0;
 /** @type {Set<Element>} */
 let wantedGeometry = new Set();
 
+// The size a pass read each box at that it is about to begin watching. The browser
+// delivers a newly watched box once whatever its size, and that delivery asks for a pass
+// only where the box no longer measures what the pass read, so a row's arrival lays the
+// rows out once rather than twice.
+/** @type {WeakMap<Element, {width: number, height: number}>} */
+const readAt = new WeakMap();
+/** @param {readonly ResizeObserverEntry[]} entries */
+function heardSizes(entries) {
+  let changed = false;
+  for (const { target } of entries) {
+    const read = readAt.get(target);
+    readAt.delete(target);
+    const now = read && target.getBoundingClientRect();
+    if (!now || now.width !== read.width || now.height !== read.height) changed = true;
+  }
+  if (changed) layoutMarginRows();
+}
+
 /** @param {Set<Element>} geometry @param {Layer} layer */
 function watchGeometry(geometry, layer) {
   wantedGeometry = geometry;
@@ -722,7 +740,7 @@ export function scheduleMarginEntryLabels() {
 // here, rather than per lane: a table or a board scrolled sideways is no lane of its own.
 /** @param {HTMLElement} root @param {HTMLElement} projection */
 export function mountMarginLayer(root, projection) {
-  layer = { root, projection, lanes: new Map(), sizes: sizeObserver(layoutMarginRows) };
+  layer = { root, projection, lanes: new Map(), sizes: sizeObserver(heardSizes) };
   // Where the root does not scroll, the window bounds a pin's seat (`pinSeating`), and a
   // window resized around a page of fixed size resizes no box the margin watches.
   window.addEventListener("resize", scheduleMarginLayout);
@@ -1860,6 +1878,12 @@ function layoutMountedRows(layer) {
       carrierPaint: null,
     });
   }
+  // The boxes this pass begins to watch, as it reads them (`readAt`).
+  for (const node of geometry)
+    if (!observedGeometry.has(node)) {
+      const { width, height } = node.getBoundingClientRect();
+      readAt.set(node, { width, height });
+    }
   came = arrivals(came, present, pass);
   // Posture determines row size. Write every posture before measuring those sizes;
   // every coordinate is then written together after packing.

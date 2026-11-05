@@ -61,6 +61,13 @@ to. A survey of every page touched in a week:
         ~/.local/state/leaf/pages -maxdepth 2 -name events.jsonl -mtime -7 |
         sed 's:/events.jsonl$::')
 
+Each input also carries the fork that decided it (`fork`: its outcome and seconds),
+the last whose inputs name its message. The summary's `delivered` row is how long an
+update read Delivered, from its opened pickup to the agent's first words, over the
+inputs no fork answered; `fork_reply` and `fork_hand_over` time the first reply over
+the inputs a fork answered or handed to the session, so a survey shows whether forks
+bring the agent's first words sooner.
+
 `prompted` waits are where nothing of Leaf's woke an idle session before the user
 typed. The watch record says whether a watch ran and the protocol its Leaf spoke,
 so one older than the page's could not read it; the transcript between admission
@@ -405,12 +412,21 @@ def page_timings(
     watches = [
         row for row in observations if row["source"] == "cli" and row["type"] == "watch"
     ]
-    forked = {
-        row["reply"]
-        for row in observations
-        if row["type"] == "fork_reply" and "reply" in row
-    }
+    forks = [row for row in observations if row["type"] == "fork_reply"]
+    forked = {fork["reply"] for fork in forks if "reply" in fork}
+    # The last fork made for a message decided it: another message in its held
+    # thread forks again for them all, dropping the earlier fork's answer.
+    decided = {message: fork for fork in forks for message in fork["inputs"]}
     for row in rows.values():
+        fork = decided.get(row["message_id"])
+        row["fork"] = (
+            None
+            if fork is None
+            else {
+                "outcome": fork["outcome"],
+                "elapsed_s": fork["elapsedMs"] / 1000 if "elapsedMs" in fork else None,
+            }
+        )
         answered = row["milestones"].get("answered")
         mine = [
             command
@@ -621,6 +637,28 @@ def response_times(
             "failure",
         )
     }
+    # How long each update read Delivered: from the harness opening it into a turn
+    # to the agent's first words, over the inputs no fork answered.
+    delivered = [
+        row
+        for row in rows
+        if "opened" in row["milestones"]
+        and (row["fork"] is None or row["fork"]["outcome"] != "reply")
+    ]
+    summary["delivered"] = spread(
+        delivered,
+        [
+            row["milestones"]["first_reply"]["elapsed_s"]
+            - row["milestones"]["opened"]["elapsed_s"]
+            for row in delivered
+            if "first_reply" in row["milestones"]
+        ],
+    )
+    for outcome in ("reply", "hand_over"):
+        summary[f"fork_{outcome}"] = distribution(
+            [row for row in rows if row["fork"] and row["fork"]["outcome"] == outcome],
+            "first_reply",
+        )
     summary["leaf_commands"] = spread(
         rows,
         [row["leaf_commands_s"] for row in rows if row["leaf_commands_s"] is not None],
@@ -672,6 +710,9 @@ def response_times(
     )
     click.echo(
         f"Unlinked agent replies: {sum(len(reading['unlinked_agent_replies']) for reading in readings)}; missing means no exact-linked observation."
+    )
+    click.echo(
+        "delivered runs from opened to first_reply, over inputs no fork answered; fork_reply and fork_hand_over are first_reply over the inputs a fork answered or handed to the session."
     )
     click.echo(
         "leaf_commands reads each command's own record on any harness; whole_* and leaf_share_* read Claude Code transcripts, so their missing includes every other input and those a fork answered."

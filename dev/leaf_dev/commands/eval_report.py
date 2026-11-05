@@ -347,7 +347,7 @@ def comparison_screens(
     aligned: bool = False,
     phases: list[str] | None = None,
 ) -> str:
-    """Compare selected revisions at equal recorded viewport dimensions; default final."""
+    """Compare selected phases at equal recorded viewport dimensions; default final."""
     links = "".join(
         f"<div><strong>{escape(label)}</strong> {action}</div>"
         for (label, _), action in zip(columns, actions or [], strict=False)
@@ -450,12 +450,12 @@ def pair_section(
     heading = verdict_line(pair, labels) if pair else "Compare the outputs"
     earlier = ""
     phase_description = (
-        f"The captures show the final saved revision (phase {versions['']}), "
+        f"The captures show the final saved phase, {versions['']}, "
         "before the judge's inspection actions."
     )
     if "_before_decision" in versions:
         phase_description += (
-            " This revision follows the request to record the user's decisions as final. "
+            " This phase follows the request to record the user's decisions as final. "
             f"The earlier screenshots below show phase {versions['_before_decision']}, before "
             "the decision; judges operate decision controls on live copies of that phase."
         )
@@ -549,7 +549,7 @@ def phase_label(sample: dict, phase: str) -> str:
         return "Before decision"
     if phase == roles.get(""):
         return "Final output"
-    return f"Revision {phase}"
+    return f"Phase {phase}"
 
 
 def linked_file(page: Path, path: Path, output_url: str | None, label: str) -> str:
@@ -872,7 +872,7 @@ def sample_section(page: Path, sample: dict, label: str, output_url: str | None)
         source = linked_file(
             page, Path(saved["page"]) / "index.html", output_url, "View HTML source"
         )
-        sources.append(f"<li>Revision {escape(phase)}: {source}</li>")
+        sources.append(f"<li>Phase {escape(phase)}: {source}</li>")
         captures = screens(page, sample, phase)
         tabs = [
             (
@@ -908,12 +908,12 @@ def sample_section(page: Path, sample: dict, label: str, output_url: str | None)
         if phase == final:
             role = phase_label(sample, phase)
             final_view = (
-                f'<section id="{anchor}-p{phase}"><h3>{role} · revision {phase}</h3>'
+                f'<section id="{anchor}-p{phase}"><h3>{role} · phase {phase}</h3>'
                 f"{content}</section>"
             )
         else:
             role = phase_label(sample, phase)
-            title = f"Revision {phase}"
+            title = f"Phase {phase}"
             if role != title:
                 title += f" · {role.lower()}"
             history.append(
@@ -931,7 +931,7 @@ def sample_section(page: Path, sample: dict, label: str, output_url: str | None)
     )
     metrics = measures(sample)
     phases_view = final_view + (
-        f'<details id="{anchor}-phases"><summary>Earlier revisions ({len(history)})</summary>'
+        f'<details id="{anchor}-phases"><summary>Earlier phases ({len(history)})</summary>'
         "<p>Successive turns with the same author, in chronological order. "
         "The frozen request below records the feedback and decisions.</p>"
         + "".join(history)
@@ -1393,8 +1393,9 @@ def citation_anchor(attributes: dict[str, str]) -> str:
 
 
 def cited_output(samples: dict, reference: str | None) -> tuple[dict, str]:
-    """The sample and revision `RUN/SAMPLE[@REVISION]` names: the final revision unless
-    it says which. A saved output the supplied runs don't hold stops the report."""
+    """The sample and phase `RUN/SAMPLE[@PHASE]` names: the final phase unless it says
+    which. A saved output the supplied runs don't hold stops the report, and one naming
+    a phase its sample lacks says which it has."""
     run, _, name = (reference or "").rpartition("/")
     name, _, phase = name.partition("@")
     sample = samples.get((Path(run).name, name))
@@ -1402,8 +1403,15 @@ def cited_output(samples: dict, reference: str | None) -> tuple[dict, str]:
         raise click.ClickException(
             f"Citation names no saved output in the supplied runs: {reference}"
         )
-    if phase and phase not in sample["diagnostics"].get("phases", {}):
-        raise click.ClickException(f"Citation names no saved revision: {reference}")
+    saved = sample["diagnostics"].get("phases", {})
+    if phase and phase not in saved:
+        raise click.ClickException(
+            f"Citation names no saved phase: {reference}. It has: "
+            + ", ".join(
+                f"@{p} ({phase_label(sample, p)})"
+                for p, _ in sorted(saved.items(), key=lambda item: int(item[0]))
+            )
+        )
     roles = (sample["diagnostics"].get("comparison") or {}).get("phases", {})
     return sample, phase or str(roles.get("", ""))
 
@@ -1411,7 +1419,7 @@ def cited_output(samples: dict, reference: str | None) -> tuple[dict, str]:
 def cited_outputs(
     attributes: dict[str, str], samples: dict
 ) -> list[tuple[str, dict, str]]:
-    """The label, sample and revision of each output a citation names. A label the
+    """The label, sample and phase of each output a citation names. A label the
     review leaves out comes from what the saved output records."""
     sides = ("output",) if "output" in attributes else ("before", "after")
     chosen = {side: cited_output(samples, attributes.get(side)) for side in sides}
@@ -1436,8 +1444,8 @@ def cited_outputs(
 
 
 def output_links(sample: dict, phase: str) -> str:
-    """A cited revision's saved page, its place in the browser, and what it is: its
-    condition, author model and revision."""
+    """A cited phase's saved page, its place in the browser, and what it is: its
+    condition, author model and phase."""
     author = sample["execution_metadata"]["author"]
     saved = sample["diagnostics"].get("phases", {}).get(phase, {}).get("page")
     role = phase_label(sample, phase) if saved else "No saved page"

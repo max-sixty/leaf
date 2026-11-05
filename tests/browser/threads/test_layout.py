@@ -1230,14 +1230,17 @@ def test_a_short_window_keeps_media_choices_and_send_around_the_scrolling_draft(
     browser, serve, scaled
 ):
     """A whole-frame cap reserves the choices and Send before text scrolls; the attached
-    image hangs outside the frame (annotation-chrome.css)."""
+    image hangs outside the frame (annotation-chrome.css).
+
+    Scaled, the bar's containing block is a transformed box the window's size, which
+    the chrome's root is made into here, since its own box is empty (base.css)."""
     source = LONG_PAGE
     if scaled:
         source = source.replace(
             "</head>",
             """<style>
-              div.lf-chrome { position:fixed; inset:0; pointer-events:none;
-                transform:scale(1.2); transform-origin:0 0; }
+              div.lf-chrome { position:fixed; inset:0; width:auto; height:auto;
+                pointer-events:none; transform:scale(1.2); transform-origin:0 0; }
               .lf-fab-bar, .lf-margin-preview { zoom:1.2; }
             </style></head>""",
         )

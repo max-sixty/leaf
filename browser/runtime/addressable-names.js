@@ -159,7 +159,11 @@ export function addressableLabel(element) {
   if (own) return own;
   if (saysItself(element)) return excerptWords(addressableSays(element), LABEL_WORDS);
   const scope = authoredScope(element);
-  for (let at = upFrom(element); at && at !== scope; at = upFrom(at)) {
+  // The page's column is `main`, beside the body's other content; its leading heading
+  // titles the page, not each unnamed element in it.
+  const column = (/** @type {Element} */ at) =>
+    at.localName === "main" && at.parentElement === scope;
+  for (let at = upFrom(element); at && at !== scope && !column(at); at = upFrom(at)) {
     const name = ownName(at);
     if (name) return name;
   }

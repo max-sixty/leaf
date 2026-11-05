@@ -19,7 +19,8 @@ import {
 import { landingBand, shownRect } from "./geometry.js";
 import { intersect } from "./rect.js";
 import {
-  actedIn,
+  chooseReadingRegion,
+  chosenReadingRegion,
   effectiveScroller,
   regionScrollBehavior,
   shownRegionBounds,
@@ -178,17 +179,25 @@ export function placeThreadEdge(thread, edge) {
 // passes it on as a spent one does, so a floating thread scrolled off screen still
 // pages its document. Neither changes which region the user is reading.
 //
-// With no region named the page takes the step, and a step the page can't take goes to
-// the region with the most to scroll (`regionForStep`). A full-height workspace keeps the
+// With no region named the page takes the step, and a step down the page can't take goes
+// to the largest region that can (`regionForStep`). A full-height workspace keeps the
 // page still, or gives it only the height of a header or footer beside `main`, so on a
 // fresh load the keys would otherwise run out on the page while its panes held everything
-// to read. The most to scroll rather than the largest box, since panes of one size are
-// common and the shorter of them is soon spent; the first in reading order of two that
-// tie, so the answer depends on the page rather than on which registered first. Vimium
-// makes the same hand-off on a page whose scrolling element doesn't scroll, though it
-// ranks by visible area. The step names the region it chose, so later keys and a walk go
-// on from there. Choosing reads every region, and only a step with no region named that
-// the page can't take pays for it.
+// to read. Vimium makes the same hand-off on a page whose scrolling element doesn't
+// scroll, by visible area too. Of panes the same size the one with the most to scroll
+// goes first, since the shorter is soon spent, and then the first in reading order, so
+// the answer depends on the page rather than on which registered first.
+//
+// A step up chooses only on a page that doesn't scroll, as a workspace whose log opens
+// at its newest entry needs. On a page that scrolls, `k` at its top has nothing to read
+// above it, and a log in view it moved would stop following its newest entry.
+//
+// The step names the region it chose, so a walk goes on from there, but the page stays
+// ahead of it in both directions until the user acts (`chosenReadingRegion`). The page
+// carries the pane, so the reader sees the text move by each step either way, and `k`
+// returns the page's own scroll rather than leaving it behind a pane it can't pass. On a
+// long page, a `j` at its end that moved a log leaves the next `k` to the page. Choosing
+// reads every region, and only a step the page can't take with none named pays for it.
 /** @param {Element} box @param {import("./geometry.js").ClipCache} clips */
 const readingStep = (box, clips) => {
   const shown = shownRect(box, clips);
@@ -222,30 +231,39 @@ const takesStep = (box, amount) => {
 const regionForStep = (amount) => {
   /** @type {ReturnType<typeof userReadingRegion>} */
   let most;
+  let mostArea = 0;
+  let mostRange = 0;
   for (const region of unconcealedReadingRegions()) {
     const { host, body } = region;
-    if (
-      !inPage(host) ||
-      regionScrollBehavior(region) !== "bounded" ||
-      !takesStep(body, amount) ||
-      !nativeModalAdmits(body) ||
-      !shownRegionBounds(region)
-    )
-      continue;
+    const bounds =
+      inPage(host) &&
+      regionScrollBehavior(region) === "bounded" &&
+      takesStep(body, amount) &&
+      nativeModalAdmits(body) &&
+      shownRegionBounds(region);
+    if (!bounds) continue;
+    // In whole pixels, so equal tracks tie whatever their rounding.
+    const area =
+      Math.round(bounds.right - bounds.left) * Math.round(bounds.bottom - bounds.top);
+    const range = scrollLimit(body);
     const ahead = most
-      ? scrollLimit(body) - scrollLimit(most.body) || renderedOrder(most.host, host)
+      ? area - mostArea || range - mostRange || renderedOrder(most.host, host)
       : 1;
-    if (ahead > 0) most = region;
+    if (ahead > 0) [most, mostArea, mostRange] = [region, area, range];
   }
   return most;
 };
 /** @param {number} amount @param {"page" | "pixel"} unit */
 const stepReading = (amount, unit) => {
   const named = userReadingRegion();
-  const region =
-    named ?? (takesStep(pageScroller, amount) ? undefined : regionForStep(amount));
-  if (region && !named) actedIn(region);
-  stepAlong(stepStart(region), amount, unit);
+  const chosen = chosenReadingRegion();
+  if (named && named.id !== chosen?.id)
+    return stepAlong(stepStart(named), amount, unit);
+  if (takesStep(pageScroller, amount)) return stepAlong(pageScroller, amount, unit);
+  const choosing = !chosen && (amount > 0 || atScrollEnd(pageScroller, 0));
+  const region = chosen ?? (choosing ? regionForStep(amount) : undefined);
+  if (region && !chosen) chooseReadingRegion(region);
+  stepAlong(region ? region.body : pageScroller, amount, unit);
 };
 // The step walks the chain from `from` to the first box that shows and can take it. A
 // box that contains its overscroll, or one an open modal leaves outside, ends the walk.

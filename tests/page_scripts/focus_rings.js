@@ -119,11 +119,21 @@
   // "Every mark on a box is drawn by the box itself"): the target painter's focus state,
   // the proxy ring round what a focused stop stands for, or the location ring on a
   // decision that holds focus itself, as an arrival leaves it, and on each box it shows
-  // through.
+  // through. Or the face a rule rings in the focused control's place, the nearest box
+  // around it declaring `--lf-wears-ring: 1` (base.css; `ringBox`, focus.js), as a
+  // choice's label rings its checkbox.
   const carriesFocus = (el, focused) =>
     el.matches('[data-lf-mark~="focus"], [data-lf-proxied]') ||
     (el.matches("[data-lf-projected-location]") &&
-      Boolean(focused?.matches?.("[data-lf-projected-location]")));
+      Boolean(focused?.matches?.("[data-lf-projected-location]"))) ||
+    wearer(focused) === el;
+
+  const wearer = (focused) => {
+    if (!focused) return null;
+    for (let box = flatParent(focused); box instanceof Element; box = flatParent(box))
+      if (getComputedStyle(box).getPropertyValue("--lf-wears-ring") === "1") return box;
+    return null;
+  };
 
   // A gesture's mark on a box: the aim, the margin trace or a comment's mark, which the
   // box draws as its outline cut to brackets (surfaces.css, "A gesture's mark is

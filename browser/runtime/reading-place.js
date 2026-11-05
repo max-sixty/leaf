@@ -71,7 +71,7 @@ import {
   userScrollport,
   stuckBox,
 } from "./geometry.js";
-import { skipped, skipper } from "./shown-box.js";
+import { skipped, skipper } from "./shadow-tree.js";
 import {
   blockAt,
   closestAcross,

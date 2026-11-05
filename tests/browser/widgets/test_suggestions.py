@@ -592,7 +592,9 @@ def test_a_widget_naming_its_own_words_does_not_read_the_runtimes(browser, serve
         ("accept", "Accepted", False),
         ("reject", "Rejected", True),
     ):
-        control = page.locator(f"[data-lf-margin-for='sug'] .lf-sug-{outcome}")
+        control = page.locator(
+            f"[data-lf-margin-for='sug'] [data-lf-margin-entry-key={outcome}]"
+        )
         (unfolded_button(control) if folded else control).click()
         expect(page.locator(".lf-live")).to_have_text(
             f"{verb} suggested change: Retry three times."

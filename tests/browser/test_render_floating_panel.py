@@ -4502,7 +4502,9 @@ def test_the_menu_s_search_finds_rows_threads_and_commands(browser, serve):
     puts the menu away. A thread found opens over the menu, its way back returning to
     the words."""
     url = serve(LONG_PAGE)
-    panel_comment(serve.page_dir, "Is the window long enough?")
+    # The agent's, since the menu's Undo row names the user's newest comment by its
+    # words, so a search for a thread of the user's finds that row first.
+    panel_comment(serve.page_dir, "Is the window long enough?", author="agent")
     page = floating(browser, url)
     search = page.get_by_role("searchbox", name="Rows, threads, versions")
     menu = panel_menu(page)

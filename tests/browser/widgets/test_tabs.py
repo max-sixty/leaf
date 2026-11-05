@@ -1064,7 +1064,8 @@ def test_a_queue_row_names_an_answer_whose_widget_module_arrives_last(browser, s
         "Undid: Chose “Escalate to engineering” · just now"
     )
     assert row.bounding_box() == before
-    page.locator("#o-a-long").get_by_role("checkbox").click()
+    # The group wears its digits over each card's mark, so the card takes the press.
+    page.locator("#o-a-long").click()
     expect(words).to_have_text(
         "Escalate to the international engineering incident response team"
     )

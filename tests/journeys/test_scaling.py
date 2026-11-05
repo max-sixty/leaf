@@ -53,8 +53,11 @@ def test_no_cost_grows_faster_than_the_page(axis, tmp_path, browser):
             )
             for n in SIZES
         ]
+        # The suite's watches instrument every timer, write and input on a watched
+        # page, which multiplied a keystroke's cost here tenfold and more; this
+        # measures the page a user gets, as `leaf-dev scaling` does.
         rounds = [
-            [measure(browser, address, None) for address in addresses]
+            [measure(browser.unwatched, address, None) for address in addresses]
             for _ in range(ROUNDS)
         ]
     # Each size's lower reading of each cost.

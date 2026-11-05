@@ -37,45 +37,21 @@ nodes or fewer frames rather than doing one read faster. `read` also enumerates
 the composed tree's animations twice per frame, once through `readMotion`, and
 `tick` again for each open rendering.
 
-## The gallery's load, split
+## The feature gallery's load
 
-On November 5, 2026, on an M-series Mac under other sessions' load (one-minute
-load 6–25), the feature gallery opened in a 1200×900 context with reduced motion
-and waited for `wait_until_ready`, three interleaved rounds per arm:
+A complete reading costs about 14 µs a node, timed around `read()` in a scratch
+copy of the watch while the gallery loads (November 2026); about 3,700 of the
+gallery's 5,913 nodes stand in its shut tabs and other skipped content.
 
-| Arm                                  | To ready    | Complete readings                   |
-| ------------------------------------ | ----------- | ----------------------------------- |
-| `browser.unwatched`                  | 7.0–8.4 s   | none                                |
-| Watched, reading every node          | 13.6–16.1 s | 85–99 of 5,913 nodes, 6.8–8.5 s     |
-| Watched, leaving skipped content out | 9.5–10.9 s  | 92–94 of at most 2,923 nodes, 3.1 s |
+Most of the gallery's own time to ready is its 16 live samples arriving after it
+presents: the probe below reports the page presented at about 2.1 s and settled,
+every sample in, at about 8.2 s on an M-series Mac. Each sample frame loads a
+Leaf runtime of its own, and the page's readiness waits for the last.
 
-The page presents at about 1.6 s. Its 16 live samples then report ready one
-after another, the first at about 2.6 s and the last at 6.7–7.6 s, and the page
-is ready within 0.1 s of the last. Its JavaScript profile spreads over many
-runtime modules with none above 300 ms.
-
-A complete reading costs about 14 µs a node. Of the gallery's 4,049 elements and
-1,782 text nodes, about 3,700 stood in shut tabs and other skipped content, so
-the watch now leaves skipped content out ("Skipped content" in its header). Of
-the 2,160 nodes still drawn once the page settles, 223 elements lie within one
-window-height of the 900-pixel window.
-
-Of the gallery tests CI's daily run takes longest on, only
-`test_the_feature_gallery_exercises_its_core_journeys` runs the shift watch:
-`test_render_gate.py`, `test_render_pages.py` and `test_render_anchors.py` are
-marked `shifts_unsurveyed`. Call seconds on the same Mac, `-n0`:
-
-| Test                                                        | Every node | Skipped left out | No shift watch | No sensors |
-| ----------------------------------------------------------- | ---------- | ---------------- | -------------- | ---------- |
-| `test_page_fixture_renders[feature-gallery]`                | 110, 115   | 116, 110         | 109            | 113        |
-| `test_the_feature_gallery_exercises_its_core_journeys`      | 63, 63     | 43, 44           | 19             | 20         |
-| `test_an_anchor_written_from_the_mapped_revision_lands_...` | 25, 24     | 25, 24           | 23             | 24         |
-| `test_real_page_passages_can_be_quoted[feature-gallery]`    | 24, 22     | 25, 22           | 22             | 23         |
-
-`test_page_fixture_renders[feature-gallery]` spends about 55 s of its 110 s in
-seven `wait_until_ready` calls, about 8 s per gallery load, and the rest in its
-journeys' own probes. On CI's daily runs of November 4 and 5 the same seven calls
-took 292 s and 327 s.
+```sh
+uv run leaf-dev probe feature-gallery --motion reduce --viewport 1200x900 \
+  --js "() => ({settled: Math.round(performance.now()), samples: document.querySelectorAll('lf-sample iframe').length})"
+```
 
 ## Gesture scroll judgement
 

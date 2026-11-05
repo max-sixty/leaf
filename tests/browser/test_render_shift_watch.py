@@ -2592,6 +2592,34 @@ def test_a_control_drawn_out_of_skipped_content_is_watched(browser, holder):
     consume_browser_errors(page, moved_within("button#inside"))
 
 
+def test_a_box_the_browser_stops_drawing_without_a_scroll_leaves_no_stale_reading(
+    browser,
+):
+    """A `content-visibility: auto` box just below the window is drawn; a write above
+    it that pushes it far down, with no scroll, makes the browser stop drawing it a
+    frame or more later. The watch reads the box as it goes and then without it, so
+    the verdict's own complete reading finds no change the watch missed."""
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote(
+            '<!doctype html><body style="margin:0">'
+            '<div style="height:100vh">Top</div><div id="spacer"></div>'
+            '<div id="holder" style="content-visibility:auto">'
+            '<button id="inside">Inside</button></div>'
+        )
+    )
+    page.evaluate("document.body.setAttribute('data-lf-presented', '')")
+    paint(page)
+    drawn = "() => inside.checkVisibility({contentVisibilityAuto: true})"
+    assert page.evaluate(drawn)
+    page.evaluate("spacer.style.height = '5000px'")
+    page.wait_for_function(f"!({drawn})()")
+    paint(page)
+    judge_watches()
+    assert take_browser_errors(page) == []
+
+
 @pytest.mark.parametrize("barrier", ["absolute", "bounded-ancestor", "movement"])
 def test_size_animation_rejection_retains_its_geometry(browser, barrier):
     """Rejected reflow keeps the source, receiver and first failing geometry check."""

@@ -3608,10 +3608,12 @@
       // A newer input already dispatched makes this observation an ambiguous
       // endpoint. Retain the native entry for the ordinary frame ledger instead.
       if (renderings.some(({ start }) => start > entry.startTime)) continue;
+      // The population the reading at `at` covers, whether that reading was taken
+      // now or kept from the last complete one.
       const at = read(nativePerformance.now(), false);
       observedPaint.set(entry, {
         at,
-        nodes: everything(),
+        nodes: held,
         motion: frames[frame].motion,
       });
     }

@@ -1073,7 +1073,8 @@ SHORT_WORKSPACE_PLAYGROUND = leaf_page(
     '<lf-playground-control name="latency" label="Latency window" kind="range" '
     'value="5" min="1" max="15" unit="min"></lf-playground-control>'
     "</lf-playground-preview><lf-playground-output>"
-    + "Include alert evidence, validation, routing and deployment instructions. " * 100
+    + "Include alert evidence, validation, routing and deployment instructions. "
+    * 100
     + '<span id="instruction-end">Finish with the rollback procedure.</span>'
     "</lf-playground-output></lf-playground>",
     layout="workspace",
@@ -1138,19 +1139,17 @@ def test_inline_playground_keeps_half_a_short_workspace_for_its_stage(browser, s
 def test_the_wheel_takes_a_short_workspace_to_its_playgrounds_send(
     browser, serve, over
 ):
-    """Where the stage keeps half the window and the workspace scrolls to the bar, the
-    wheel turned over the stage, once the stage has nothing left to show, or over the
-    presets goes on to the workspace and brings Send into view. Chromium held it in the
-    region under the pointer, so only a wheel over the premise reached Send."""
+    """In a short workspace that scrolls to the playground's Send, a wheel over the
+    stage, once the stage is at its end, or over the presets scrolls the workspace and
+    brings Send into view. Chromium kept that wheel in the region under the pointer,
+    which left only a wheel over the premise to reach Send."""
     page = open_page(browser, serve(SHORT_WORKSPACE_PLAYGROUND))
     resized(page, 900, 500)
     playground = page.locator("#short-config")
     submit = playground.get_by_role("button", name="Use these settings")
     expect(submit).not_to_be_in_viewport(ratio=1)
     region = playground.locator(
-        ".lf-playground-preview-body"
-        if over == "stage"
-        else ".lf-playground-presets"
+        ".lf-playground-preview-body" if over == "stage" else ".lf-playground-presets"
     )
     region.evaluate("body => { body.scrollTop = body.scrollHeight; }")
     box = region.bounding_box()

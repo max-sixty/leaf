@@ -220,15 +220,21 @@ def diff_page(serve):
     return Built(live_url(url), serve.page_dir, DIFF_PAGE)
 
 
-def dial_page(serve):
+def dial_page(serve, repeat=1):
     """The detail example's incident report, with the words of the cause's first
-    paragraph in an `em`, inline text the dial's Skim folds behind the section's
-    gist."""
+    paragraph, `repeat` times over, in an `em`, inline text the dial's Skim folds behind
+    the section's gist."""
     source = named_source("detail").read_text()
     start = source.index('<p id="detail-cause-1">') + len('<p id="detail-cause-1">')
     end = source.index("</p>", start)
-    source = f"{source[:start]}<em>{source[start:end]}</em>{source[end:]}"
+    words = " ".join([source[start:end]] * repeat)
+    source = f"{source[:start]}<em>{words}</em>{source[end:]}"
     return Built(serve(source), serve.page_dir, source)
+
+
+def tall_dial_page(serve):
+    """The dial's page with the cause's first paragraph taller than the window."""
+    return dial_page(serve, 12)
 
 
 PANE_PAGE = leaf_page(
@@ -278,6 +284,7 @@ PAGES = {
     "map": map_page,
     "diff": diff_page,
     "dial": dial_page,
+    "tall-dial": tall_dial_page,
     "pane": pane_page,
     "queue": queue_page,
 }
@@ -641,10 +648,10 @@ GUTTER_COMMENT = f"""() => {{
 }}"""
 
 
-def put_dial(motion):
+def put_dial(motion, at=900 * 0.25 - 10):
     def put(page, built):
         page.emulate_media(reduced_motion=motion)
-        scroll_to(page, "#detail-cause-1", 900 * 0.25 - 10)
+        scroll_to(page, "#detail-cause-1", at)
 
     return put
 
@@ -660,6 +667,25 @@ DIAL_READING = """() => {
   const text = read.firstChild;
   const at = text.data.search(/\\S/);
   const range = document.createRange();
+  range.setStart(text, at);
+  range.setEnd(text, at + 1);
+  return range;
+}"""
+
+# For a reader in the middle of a paragraph that began above the window: the first
+# letter of the line at the reading line, a quarter down the window, found once, and
+# from the fold on, the gist. Its box lands where those letters stood, which puts its
+# own letters half a leading lower, 2.1-2.5px, a step below what the eye takes in
+# across a fold.
+DIAL_WORDS = """() => {
+  const em = document.querySelector('#detail-cause-1 em');
+  if (!em.checkVisibility()) window.__lfDialFolded = true;
+  if (window.__lfDialFolded) return document.getElementById('detail-cause-gist');
+  if (window.__lfDialWords) return window.__lfDialWords;
+  const {offsetNode: text, offset} = document.caretPositionFromPoint(
+    em.parentElement.getBoundingClientRect().left + 1, innerHeight / 4);
+  const at = offset + text.data.slice(offset).search(/\\S/);
+  const range = window.__lfDialWords = document.createRange();
   range.setStart(text, at);
   range.setEnd(text, at + 1);
   return range;
@@ -864,6 +890,13 @@ PLACES = [
         {"dial": None, "glided": "detail-impact-gist"},
     ),
     Place("dial-reduced", "dial", put_dial("reduce"), DIAL_READING, {"dial": None}),
+    Place(
+        "dial-begun",
+        "tall-dial",
+        put_dial("no-preference", -400),
+        DIAL_WORDS,
+        {"dial": None},
+    ),
     Place("pane", "pane", put_pane, Found("#q-30"), {"pane above": "left-body"}),
     Place(
         "on-me-row",

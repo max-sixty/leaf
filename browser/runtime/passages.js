@@ -392,10 +392,16 @@ function refusesBareText(root) {
 // Startup asks every declared root the page reading would cross into before the page
 // upgrades, so a page whose module staged bare text never presents even when nothing
 // has read the page's words yet: a reading is taken only when something needs one, and
-// a page with no comment to find again presents without one.
+// a page with no comment to find again presents without one. Like the walk, it crosses
+// into a root it admits and on into the roots staged inside that one; a refused root's
+// host reads by its light children, whose stages the sweep of the tree above holds.
 export function refuseBareText() {
-  for (const declared of shadowRootsIn(document.body))
-    if (!leafSurface(declared.host)) refusesBareText(declared);
+  /** @type {(Element | ShadowRoot)[]} */
+  const trees = [document.body];
+  for (const tree of trees)
+    for (const declared of shadowRootsIn(tree))
+      if (!leafSurface(declared.host) && !refusesBareText(declared))
+        trees.push(declared);
 }
 // The widget a reading belongs to. `.lf-ui` says the runtime built this rather than the
 // author, and a reading rooted at the document takes that straight: everything the layer

@@ -35,10 +35,11 @@ import {
   pageWords,
   pointAt,
   quoteFrom,
+  refuseBareText,
   says,
   segmentsIn,
 } from "/runtime/passages.js";
-import { upFrom } from "/runtime/shadow.js";
+import { declaredRoot, upFrom } from "/runtime/shadow.js";
 import { shadowStage } from "/runtime/shadow-stage.js";
 
 test("no node means no passage location, rather than a runtime error", () => {
@@ -260,6 +261,33 @@ test("a declared shadow tree's words are read, and its changes are seen", () => 
   // And the door leaves the tree watched, rather than forgetting the reading once.
   root.querySelector("p").textContent = "Gamma";
   assert.match(pageText().raw, /Alpha.*Gamma/s);
+});
+
+// Startup refuses a module's bare text before anything reads the page, so it has to
+// reach every root the reading would cross into, a stage inside another stage included.
+test("startup refuses bare text staged inside another widget's root", () => {
+  Object.assign(registry, {
+    "lf-staged": { "x-shadow": true },
+    $layer: { generation: "passage-nested-bare" },
+  });
+  document.body.innerHTML = "<main><lf-staged id=outer></lf-staged></main>";
+  const inner = Object.assign(document.createElement("lf-staged"), { id: "inner" });
+  const outer = shadowStage(document.getElementById("outer"), [inner]);
+  shadowStage(inner, [document.createTextNode("Loose words")]);
+  /** @type {string[]} */
+  const reasons = [];
+  /** @param {Event} event */
+  const failed = (event) => reasons.push(event.detail.reason);
+  window.addEventListener("lf-startup-failed", failed);
+  try {
+    refuseBareText();
+  } finally {
+    window.removeEventListener("lf-startup-failed", failed);
+  }
+  assert.equal(reasons.length, 1, String(reasons));
+  assert.match(reasons[0], /<lf-staged id="inner"> staged bare text/);
+  assert.equal(declaredRoot(outer.host), outer, "the outer stage holds an element");
+  assert.equal(declaredRoot(inner), null, "the inner stage is refused for good");
 });
 
 // A page script's own custom element attaches a root no declaration vouches for. The

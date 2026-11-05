@@ -834,6 +834,15 @@ export function watchCurrentLocationIn(root) {
 }
 watchCurrentLocationIn(document);
 watchCurrentLocationAround(deepFocus());
+// Focus the document took before this module loaded, as `autofocus` gives it, fired no
+// event it heard, so its paint starts from it.
+{
+  const at = deepFocus();
+  if (at && at !== document.body) {
+    paintDestination = new WeakRef(at);
+    queueFocusPaint();
+  }
+}
 // Leaving for nowhere from a node still drawn is the user's own move, and so a
 // placement: body holds no stop, so a press on the page's words takes focus off the
 // control and puts it nowhere with no `focusin` to count, and a hold still waiting

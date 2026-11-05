@@ -14,6 +14,11 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import { Window } from "happy-dom";
 
+// Focus the page took before the runtime loaded, as `autofocus` gives it: a choice's
+// ring is drawn from these marks alone (controls.css).
+const before = document.createElement("input");
+document.body.append(before);
+before.focus();
 const {
   closeLayer,
   focusDestination,
@@ -69,6 +74,14 @@ const click = (target) =>
     new window.MouseEvent("click", { bubbles: true, composed: true, cancelable: true }),
   );
 const settled = () => new Promise((resolve) => setTimeout(resolve));
+
+test("focus held before the runtime loaded wears its marks", async () => {
+  await settled();
+  assert.equal(document.activeElement, before);
+  assert.equal(before.hasAttribute("data-lf-focus"), true);
+  assert.equal(before.hasAttribute("data-lf-focus-visible"), true);
+  assert.equal(document.body.hasAttribute("data-lf-focus-within"), false);
+});
 
 test("a departing package releases its current location reader", () => {
   const { first, second } = scene();

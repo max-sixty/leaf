@@ -128,7 +128,13 @@ def launch(engine: str, scheme: str = "light"):
 
     The Chromium shell keeps an overlay scrollbar shown after a scroll, as `screenshot`
     requires, by disabling Chromium's `ScrollbarAnimations` feature, which Chromium
-    keeps so that web platform tests' screenshots can't flake on their timing."""
+    keeps so that web platform tests' screenshots can't flake on their timing.
+
+    Firefox starts no spare content process ahead of a page that might need one, so
+    every content process holds a page or an extension. `scaling.content_clock` takes
+    the content process whose main thread spent most during a page's load as that
+    page's, and a spare starting up then could outspend a small page. Playwright's
+    build turns spares off too, in `playwright.cfg`, which this pref overrides."""
     if engine == "ios":
         from leaf_dev.ios_safari import ios_safari
 
@@ -152,6 +158,14 @@ def launch(engine: str, scheme: str = "light"):
                 args=[f"{features},ScrollbarAnimations"],
             ) as browser:
                 yield browser
+    elif engine == "firefox":
+        with (
+            sync_playwright() as playwright,
+            playwright.firefox.launch(
+                firefox_user_prefs={"dom.ipc.processPrelaunch.enabled": False}
+            ) as browser,
+        ):
+            yield browser
     else:
         with (
             sync_playwright() as playwright,

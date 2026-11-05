@@ -460,11 +460,13 @@ def content_clock(page: Page) -> Callable[[], float]:
     count of its own: the thread's CPU as the OS counts it (this module's header).
 
     Nothing says which content process holds the page, and Firefox runs others beside
-    it, so the clock settles on one. It reads 0 while the page is still blank. At its
-    first read after the page opened its address, it takes the content process whose
-    main thread has spent most since the clock began, the one that loaded the page,
-    and from then on reads only that process. Its reading never falls, and holds its
-    last value once the process has gone."""
+    it, so the clock settles on one. While the page is still blank, each read returns 0
+    and takes every content process's reading again, so the load counts from the read
+    that starts it. At the first read after the page opened its address, the clock
+    takes the content process whose main thread has spent most since then, the one
+    that loaded the page (`browser.launch` starts no spare process that could outspend
+    it), and from then on reads only that process. Its reading never falls, and holds
+    its last value once the process has gone."""
 
     def spent() -> dict[int, float]:
         times = {}
@@ -475,14 +477,15 @@ def content_clock(page: Page) -> Callable[[], float]:
                     times[child.pid] = main_thread_ms(child.pid)
         return times
 
-    before = spent()
+    before: dict[int, float] = {}
     holder: int | None = None
     last = 0.0
 
     def clock() -> float:
-        nonlocal holder, last
+        nonlocal before, holder, last
         if holder is None:
             if page.url == "about:blank":
+                before = spent()
                 return 0
             grown = {pid: ms - before.get(pid, 0) for pid, ms in spent().items()}
             holder = max(grown, key=grown.__getitem__)

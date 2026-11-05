@@ -420,6 +420,16 @@
     > :is(.layout-flow, [data-lf-flow]) {
     --lf-prose-measure: inherit;
   }
+  /* A flow's box holds the blocks standing in it, so a flow that otherwise keeps the
+   * measure, as a question does, gives it up once one of them asks for more room, in a
+   * column or in a sidebar page's wider body. */
+  :is(.layout-flow, [data-lf-flow]):has(
+    > :is([data-lf-space], .layout-note, .layout-sidebar),
+    :is(.layout-flow, [data-lf-flow])
+      > :is([data-lf-space], .layout-note, .layout-sidebar)
+  ) {
+    max-inline-size: none;
+  }
   @property --lf-breakout {
     syntax: "<integer>";
     inherits: false;
@@ -514,8 +524,7 @@
      * the room. A table's reach is its whole room, since its columns set its width. A
      * block breaks out only where it stands directly in a flow, so a flow counts its
      * own children and those of the flows in it, and not a block a plain wrapper keeps
-     * in the column. A flow that otherwise keeps the measure, as a question does, gives
-     * it up to reach. */
+     * in the column. */
       :is(.layout-column, .layout-flow, [data-lf-flow])
         > :is(.layout-flow, [data-lf-flow]) {
         --lf-note-reach: 0px;
@@ -550,7 +559,6 @@
           margin-inline: calc(-1 * max(0px, var(--lf-reach-start)))
             calc(-1 * max(0px, var(--lf-reach-end)));
           padding-inline: max(0px, var(--lf-reach-start)) max(0px, var(--lf-reach-end));
-          max-inline-size: none;
         }
       }
     }

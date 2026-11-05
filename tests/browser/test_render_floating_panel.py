@@ -479,6 +479,8 @@ def test_resolving_a_thread_from_threads_moves_on_to_the_next(browser, serve):
     expect(notice).to_be_visible()
     expect(notice).to_contain_text(f"Resolved “{first}” · Undo")
     expect(notice.locator("kbd")).to_have_text("z")
+    # Its press is the one the row offers while it passes.
+    expect(page.locator(".lf-fp-field .lf-compose-placeholder > kbd")).to_be_hidden()
     second = page.locator(".lf-fp-head .lf-fp-title").inner_text()
     # Taking the first resolve back returns the user to the thread they resolved.
     with sending(page, "the undo"):

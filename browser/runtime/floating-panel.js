@@ -1096,8 +1096,13 @@ export function createFloatingPanel({
       hint: () => saying(null, input),
       hintParts: () => fieldHint(null, input),
       // The agent's or Leaf's words at rest say nothing about the press, so the key
-      // that enters the field stands with its word (composing/input.js, `enters`).
-      enters: () => (SAYS_ELSE.has(fieldReading(null, input).says) ? "Comment" : ""),
+      // that enters the field stands with its word (composing/input.js, `enters`). A
+      // notice offering a press stands over an empty reading (`rowNotice`), and that
+      // press is the one the row offers while it passes.
+      enters: () => {
+        const { says, words } = fieldReading(null, input);
+        return SAYS_ELSE.has(says) && wordsText(words) ? "Comment" : "";
+      },
       // Named for what a press there does, as the field's reading says it, once the
       // editor this builds is the one the reading reads.
       accessibleName: () =>

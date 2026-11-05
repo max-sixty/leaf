@@ -499,6 +499,14 @@
   .lf-fp-field leaf-text::part(placeholder) {
     color: var(--lf-fp-quiet);
   }
+  /* A notice offering a press stands in the empty words' place, the one press the row
+     offers while it passes (floating-panel.js, `rowNotice`). */
+  .lf-fp-field
+    leaf-text[data-lf-says="notice"]
+    .lf-compose-placeholder-words:empty
+    ~ kbd {
+    display: none;
+  }
   /* The word naming what entering the field does, after the agent's or Leaf's words
      (composing/input.js, `enters`), in the interface's own face whatever theirs is. */
   .lf-fp-field .lf-compose-placeholder-enters {

@@ -308,7 +308,7 @@ const edgeInset = (el, scroller, edge) =>
     ? 0
     : insetAt(slotHolder(el, scroller), scroller, ...edge);
 /** @param {Element} el @param {Element} scroller */
-export const headerInset = (el, scroller) => edgeInset(el, scroller, TOP);
+const headerInset = (el, scroller) => edgeInset(el, scroller, TOP);
 // The same reading at the foot, for a box sticking there (`--lf-bottom`, base.css):
 // how far above the bottom of `scroller`'s band the view of `el` ends.
 /** @param {Element} el @param {Element} scroller */

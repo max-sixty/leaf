@@ -431,16 +431,19 @@ def test_an_agent_turn_arriving_holds_still_the_page_box_being_typed_in(
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
-def test_an_edit_above_the_paragraph_read_keeps_it_where_anchoring_holds_it(
-    request, serve, engine
+@pytest.mark.parametrize("first", ["above", "on screen"])
+def test_an_edit_above_the_paragraph_read_holds_it_with_the_reply_box_scrolled_away(
+    request, serve, first, engine
 ):
     """The user wrote in a thread's reply box, scrolled up out of it to read an earlier
-    message's second paragraph, with its first above the window, and an edit from
-    another tab grew that first paragraph: the paragraph they read moved down by the
-    126px it grew. The redraw replaced every paragraph of the message, the node the
-    browser's scroll anchoring held among them, and neither engine anchors again on a
-    node that replaces its anchor. The redraw keeps the paragraphs the edit leaves, so
-    anchoring holds the one read."""
+    message's second paragraph, and an edit from another tab grew that message's first
+    paragraph: the paragraph they read moved down by the 126px it grew. The redraw
+    replaced every paragraph of the message, the node the browser's scroll anchoring
+    held among them, and neither engine anchors again on a node that replaces its
+    anchor; it now keeps the paragraphs the edit leaves, so with the first paragraph
+    above the window anchoring holds the one read. With the first on screen, anchoring
+    holds that paragraph, the growth inside it, and the seat held nothing, its focus out
+    of view; the reading's hold keeps what stands at the reading line."""
     url, host = seated_page(serve, "task")
     second = "The second paragraph, being read. " + SEAT_WORDS * 3
     root = append_carried_log_record(
@@ -475,7 +478,7 @@ def test_an_edit_above_the_paragraph_read_keeps_it_where_anchoring_holds_it(
     page.evaluate(
         """([node, at]) => document.scrollingElement.scrollBy({
           top: node.getBoundingClientRect().top - at, behavior: 'instant'})""",
-        [read.element_handle(), -60],
+        [read.element_handle(), 150 if first == "on screen" else -60],
     )
     scroll_settled(page)
     expect(box).to_be_focused()

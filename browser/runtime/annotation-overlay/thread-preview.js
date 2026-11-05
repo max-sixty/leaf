@@ -129,7 +129,7 @@ import { CardAnchor } from "../thread/card-anchor.js";
  * focusPending: {holding: Element | null} | null, withheldFocus: ReturnType<typeof holdFocus>,
  * transcript: HTMLElement | null, settled: (() => void) | null, place: ReturnType<typeof placeKeeper> | null,
  * stopRegion: (() => void) | null, stopFoot: (() => void) | null, side: ReturnType<typeof commentPlacement>, anchor: CardAnchor,
- * opened: number, reading: {input: number, scroll: number, end: boolean} | null, itemView: {node: HTMLElement, body: HTMLElement} | null, width: number | null, scroller: Element, followed: boolean}} Session
+ * reading: {input: number, scroll: number, end: boolean} | null, itemView: {node: HTMLElement, body: HTMLElement} | null, width: number | null, scroller: Element, followed: boolean}} Session
  * @typedef {{latest: boolean, end: boolean, scroll: number, keepTop: boolean, transcript: HTMLElement}} Reading
  */
 
@@ -892,9 +892,6 @@ export function createThreadPreview({
       stopFoot: null,
       side: commentPlacement(),
       anchor: new CardAnchor(preview),
-      // The user's inputs as this selection opened, which a caret landing in its reply
-      // before any more of them is the opening's (`mount`).
-      opened: inputCount(),
       // The width the card stands at for this selection, in client pixels: the box's
       // Send replaced, so the two are one rectangle, else the one it first stood at, or
       // was carried at (`placeThreadPreview`). Sized by itself, Firefox stood a one-line
@@ -1272,15 +1269,12 @@ export function createThreadPreview({
         cause !== "return" &&
         cause !== "drop"
       ) {
-        // Before any input since the card opened, the caret is the opening's.
-        if (previewSession?.opened === inputCount()) previewSession.anchor.opened();
-        else previewSession?.anchor.writing();
+        previewSession?.anchor.writing();
         scheduleThreadPreviewPosition();
       }
       const row =
         left && under(left, preview) && closestAcross(left, ".lf-thread-reply");
       if (row && !(node && under(node, row))) {
-        previewSession?.anchor.leftReply();
         /** @type {HTMLTextAreaElement | null} */
         const field = row.querySelector(REPLY_BOX);
         if (!field?.value) scheduleThreadPreviewPosition();

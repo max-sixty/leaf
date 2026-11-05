@@ -3,6 +3,17 @@
    A reply send draws its turn in the gesture that makes it. Its provisional result
    masks the words while the session still owes a refusal; acceptance finishes editing,
    and the session begins again when the user comes back to the box or types in it.
+   A session is the user writing, so only their own act begins one: words typed, a
+   press in the box, a Tab into its row, or a command that takes them there (`c`, Enter
+   on a thread; `beginReplyAt`, landing.js). A caret alone is not that act: the one an
+   opening places (thread/focus.js, `openingPart`), a send leaves or a pass carries
+   begins nothing, so a thread settled meanwhile leaves the margin as it would for a
+   reader. One that lands on the user's own words is theirs to go on with, and begins
+   as they would. Everything that asks whether the user is writing reads the session
+   (`replyIsEditing`), a card's anchor as a margin's entry. Rejected: beginning on every
+   `focusin`, which made an opening's caret a session nobody began and kept a resolved
+   thread's card standing over its empty box (the same class as the send's caret, #5364;
+   found on 4 November 2026).
    The send preserves the panel's narrowing and, whichever control sent it, leaves the
    caret in the box for the next message, on a card or a seat as in the floating
    panel's field; Escape takes the user to the thread. The user chose this on 31
@@ -45,6 +56,7 @@ import {
   readCaret,
   blurFocused,
   currentLocationIn,
+  onCurrentLocation,
   onPressAway,
 } from "../focus.js";
 import { threadKey } from "./model.js";
@@ -384,7 +396,7 @@ function wireReply(
     // reply boxes are views of one draft here, so they take the same bus directly.
     // Other draft kinds still have one view per document.
     // The user's own edit is writing a reply, so it opens the session where none
-    // stands: the box Send leaves the caret in counts as written in once they type.
+    // stands: a box Send or an opening left the caret in counts once they type.
     save: (v) => {
       saveDraft(draftCtx, v);
       tellDraft(draftCtx, v);
@@ -428,11 +440,39 @@ function wireReply(
   return composition;
 }
 
-// A view takes the row: it joins the thread's draft views and mirrors the draft, and
-// focus in it makes it the editing session's owner. The returned detach gives it up.
+// The user beginning a reply in this row, or going on with one from it: it owns the
+// thread's session from here.
+/** @param {Composition} composition */
+function beginIn(composition) {
+  adopt(composition.context, composition);
+  composition.changed();
+}
+// A command that takes the user into a box says so as it lands (landing.js, `landIn`).
+/** @param {Element | null} node */
+export const beginReplyAt = (node) => {
+  const composition = compositionOf(node);
+  if (composition?.binding) beginIn(composition);
+};
+// Focus arriving in a row of a view: a session standing moves to it, words in it are
+// the user's to go on with, and a Tab into the row is their own move. Any other caret
+// begins nothing (above).
+onCurrentLocation((node, cause, left) => {
+  const composition = compositionOf(node);
+  if (
+    composition?.binding &&
+    (compositions.has(composition.context) ||
+      composition.controls.input.value !== "" ||
+      (cause === "step" && compositionOf(left) !== composition))
+  )
+    beginIn(composition);
+});
+
+// A view takes the row: it joins the thread's draft views and mirrors the draft, and a
+// press in its box makes it the editing session's owner, a caret already there included,
+// which moves no focus. The returned detach gives it up.
 /** @param {Composition} composition @param {Binding} binding */
 function attach(composition, binding) {
-  const { context, row, controls, sync } = composition;
+  const { context, controls, sync } = composition;
   composition.binding = binding;
   composition.send = (_text, raw, owns) => {
     const { actions, sending, sent } = binding;
@@ -444,10 +484,7 @@ function attach(composition, binding) {
   };
   const attached = { composition, binding };
   views.add(attached);
-  const begin = () => {
-    adopt(context, composition);
-    composition.changed();
-  };
+  const begin = () => beginIn(composition);
   // A row taken again catches up with words another view or tab wrote meanwhile. The
   // same words are left alone, with their caret and undo history (drafts.js, `sync.load`).
   sync.load(loadDraft(context)?.text ?? "");
@@ -466,13 +503,13 @@ function attach(composition, binding) {
       composition.changed();
     },
   });
-  row.addEventListener("focusin", begin);
+  controls.input.addEventListener("pointerdown", begin);
   // A row handed on to another view (`give`) keeps its dictation, as it keeps focus,
   // caret and history; one this view ends with it stops listening.
   return ({ handingOn = false } = {}) => {
     if (!handingOn) sync.cancelDictation();
     stopMirror();
-    row.removeEventListener("focusin", begin);
+    controls.input.removeEventListener("pointerdown", begin);
     views.delete(attached);
     composition.binding = null;
     composition.send = null;

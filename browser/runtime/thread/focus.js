@@ -110,8 +110,8 @@ export const currentLocationThreadId = () => heldThreadId() ?? pressed;
 // The intent restricted to the thread `id` still present: every thread takes a reply,
 // a resolved one too, which the reply reopens. A resolved thread takes the user's box
 // along only while a reply is being written in it (`replyIsEditing`): carrying the
-// caret would otherwise start that session itself, and keep a card that settlement
-// closed open over a box the user had finished with, as the empty box Send leaves.
+// caret would otherwise open a card that settlement closed again, over a box the user
+// had finished with or never began in, as the empty box a send or an opening leaves.
 /** @param {string} id @param {UserIntent} intent */
 const mayReplyTo = (id, intent) =>
   restrictUserIntent(intent, () => {

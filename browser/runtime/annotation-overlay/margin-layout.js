@@ -8,15 +8,17 @@
    media, and where none does, over the target itself (`pinSeating`). Hiding annotations
    reveals what a pin covers. User-held controls retain their seat.
    The stylesheet places each row from what this pass writes on it
-   (annotation-theme.css, at .lf-margin-cluster): its posture as `data-lf-place`, its
-   seat as `--lf-margin-x` and `--lf-margin-y`, including the push rail packing gives it.
+   (annotation-theme.css, at .lf-margin-cluster): its posture as `data-lf-place`, and
+   its seat, including the push rail packing gives it, as the row's own `margin-left`
+   and `margin-top`. A custom property for the seat would be inherited, and every move
+   would restyle the row's whole subtree. Layout reads the full length; the style
+   attribute prints it to six significant digits, so far down a long page its text can
+   stay the same as the row moves (tests/write_watch.js, `unshownSeat`).
    Rows take their final places once, in one shared held-and-arrival order. Each posture's
    solver avoids the final rectangles and held labels already placed. A pin's chosen
    seat is its final place: no second packing pass can translate it into words or
    controls.
-   These measured coordinates keep their full layout precision in custom properties;
-   ordinary length serialization would round distant document positions before comparing
-   them. Scrolling moves a row with its target in the frame that scrolls it, whether the
+   Scrolling moves a row with its target in the frame that scrolls it, whether the
    document scrolls or a pane does, with no pass at all.
    Mutation checkpoints and resize deliveries settle placement before native paint;
    deferring that pass to the next frame would show a row at its stale seat after its
@@ -2148,12 +2150,12 @@ function layoutMountedRows(layer) {
         "left",
         carrierAxes.get(carrier) === "xy" ? from("left", carrierBox.left) : "0px",
       );
-      setStyle(row, "--lf-margin-x", layoutPx(left));
-      setStyle(row, "--lf-margin-y", layoutPx(top));
+      setStyle(row, "margin-left", layoutPx(left));
+      setStyle(row, "margin-top", layoutPx(top));
       continue;
     }
-    setStyle(row, "--lf-margin-x", layoutPx(left + windowX));
-    setStyle(row, "--lf-margin-y", layoutPx(top + windowY));
+    setStyle(row, "margin-left", layoutPx(left + windowX));
+    setStyle(row, "margin-top", layoutPx(top + windowY));
   }
 
   // With the column's box and height as the pass read them, so a listener measuring

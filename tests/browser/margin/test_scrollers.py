@@ -1644,10 +1644,27 @@ def test_distant_margin_coordinates_follow_small_moves_without_restatement(
         )
         after = page.evaluate(reading)
         assert after["target"] - before["target"] == delta, after
-    # The shared browser write watch rejects any unchanged style during these passes.
+    # This far down, the style text rounds the seat, so the write watch can't judge the
+    # row's writes (write_watch.js, `unshownSeat`). Passes over an unchanged layout
+    # must write nothing to it.
+    page.evaluate(
+        """() => {
+          const row = window.__distantMargin.contribution.control('distant', 'margin')
+            .closest('.lf-margin-cluster');
+          window.__distantWatch = {passes: 0, writes: 0};
+          document.addEventListener('lf-margin-layout', () => {
+            window.__distantWatch.passes += 1;
+          });
+          new MutationObserver((records) => {
+            window.__distantWatch.writes += records.length;
+          }).observe(row, {attributes: true, attributeFilter: ['style']});
+        }"""
+    )
     for _ in range(3):
         page.evaluate("window.dispatchEvent(new Event('resize'))")
         rendered(page)
+    watched = page.evaluate("window.__distantWatch")
+    assert watched["passes"] >= 3 and watched["writes"] == 0, watched
 
 
 @pytest.mark.parametrize(

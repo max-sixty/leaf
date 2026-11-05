@@ -405,6 +405,14 @@
   // an empty value that stays empty says nothing about whether the relation changed.
   const reflected = (record) =>
     record.attributeName?.startsWith("aria-") && record.oldValue === "";
+  // A margin row's seat is a plain length (margin-layout.js), and the style attribute
+  // prints a length to six significant digits. From 10,000px down a page, a move of
+  // less than a tenth of a pixel leaves the text unchanged though the row moved, and
+  // further down so does a larger one. A seat set again to the same length is no write.
+  const unshownSeat = (record) =>
+    record.attributeName === "style" &&
+    record.target.matches(".lf-margin-cluster") &&
+    /\d{5}|e\+/.test(record.oldValue ?? "");
   // The first write to each place in this script, with each value the place passed
   // through after it.
   const started = new Map();
@@ -414,6 +422,7 @@
       if (
         valueOf(record) === record.oldValue &&
         !reflected(record) &&
+        !unshownSeat(record) &&
         !nativeTransition(record) &&
         !(through.length && putBack(write))
       )

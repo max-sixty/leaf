@@ -259,7 +259,7 @@ def test_a_drawing_fitted_until_its_labels_are_unreadable_gets_advice_and_still_
     """Drawn size decides, and only the fit is advised about: the 9px glyph at its
     natural size is a size the source chose, and words the drawing never paints have
     no drawn size at all. Each shrunk drawing is named once, with the swept widths it
-    spans and its smallest label at the narrowest of them: the drawing whose 11px
+    spans and its smallest label at the narrowest of them: the drawing whose 11.5px
     labels came out at 5px on the desktop at every width, and the one whose halved
     28px labels read fine on the desktop only where a narrower window takes them
     under 10px. Side by side in one figure, two id-less drawings share the name the
@@ -317,7 +317,7 @@ def test_a_drawing_fitted_until_its_labels_are_unreadable_gets_advice_and_still_
     assert {advice.values["threshold"] for advice in reading.advice} == {10}
     (squeezed,), (large,) = named("squeezed"), named("large")
     assert squeezed.widths == (360, 1920), squeezed
-    assert (squeezed.values["labels"], squeezed.values["set"]) == (3, 11), squeezed
+    assert (squeezed.values["labels"], squeezed.values["set"]) == (3, 11.5), squeezed
     low, high = large.widths
     assert low == 360 and 540 <= high < 1200, large
     assert (large.values["labels"], large.values["set"]) == (2, 28), large

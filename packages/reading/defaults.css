@@ -285,10 +285,9 @@ ol.steps > li {
 
 /* A schematic drawing the page makes itself: every mark takes a theme token, so the
    figure follows the palette as the prose does, which an SVG loaded as an image cannot.
-   Its words take the ladder's two smallest rungs, read in the drawing's own units, so
-   they scale with its viewBox. They also follow a density's rungs and the reader's
-   default size, which the shapes around them do not. One without a width of its own
-   fills its figure; a thumbnail states one.
+   Its words take the two drawing sizes (tokens.css, `--drawing-size`), which are in the
+   drawing's own units and scale with its viewBox. One without a width of its own fills
+   its figure; a thumbnail states one.
 
    TODO: revisit whether this set is too specific. It ships as taken from one page's
    drawings of Leaf's own layout, less the marks only that subject used (its rail, pins
@@ -298,7 +297,7 @@ svg.drawing {
   display: block;
   height: auto;
   font-family: var(--sans);
-  font-size: var(--t-6);
+  font-size: var(--drawing-size);
 }
 svg.drawing:not([width]) {
   width: 100%;
@@ -311,11 +310,11 @@ svg.drawing .strong {
   font-weight: 600;
 }
 svg.drawing .small {
-  font-size: var(--t-7);
+  font-size: var(--drawing-small-size);
 }
 svg.drawing .mono {
   font-family: var(--mono);
-  font-size: var(--t-7);
+  font-size: var(--drawing-small-size);
   fill: var(--ink-2);
 }
 svg.drawing .frame {
@@ -371,7 +370,7 @@ svg.drawing .tip.hot {
 }
 svg.drawing .glyph {
   fill: var(--paper);
-  font-size: var(--t-7);
+  font-size: var(--drawing-small-size);
   font-weight: 700;
   text-anchor: middle;
   dominant-baseline: central;

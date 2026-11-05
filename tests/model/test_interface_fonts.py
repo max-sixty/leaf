@@ -1,5 +1,5 @@
-"""Leaf's sheets set their words in the theme's type (tokens.css): every font size
-follows its ladder, and the interface names one of its fonts (`--font-*`)."""
+"""Leaf's sheets set their words in the theme's type (tokens.css): every font size names
+one of its tokens, and the interface names one of its fonts (`--font-*`)."""
 
 import re
 
@@ -226,19 +226,20 @@ def own_sizes(sheets, theme):
     return list(own)
 
 
-def test_every_font_size_follows_the_type_ladder():
-    """Every font size in Leaf's sheets follows the theme's ladder, so a density or a
-    theme that restates a rung reaches every word set at it, as does a reader's own
-    default size.
+def test_every_font_size_names_a_theme_token():
+    """Every font size in Leaf's sheets names a token of the theme or scales the size
+    its element inherits, so a new size is a new token in tokens.css, where it is seen
+    beside the others, and a density or a theme that restates a rung reaches every word
+    set at it.
 
-    A size follows the ladder when it names a custom property tokens.css declares. The
-    sizes there are the rungs (`--t-*`), the code size, `--entry-floor` (the smallest
-    size typed words take on a touch screen) and the fonts built from them. The test
-    doesn't tell those from the file's other properties, so a box's size used as a font
-    size would pass, and it doesn't read a property tokens.css declares wherever it is
-    set: those declarations, and a density's or theme's restatement of them, are the
-    ladder itself. A package's own property, such as an option's font, is read through
-    its declarations.
+    A size names the theme when it names a custom property tokens.css declares. The
+    sizes there are the rungs (`--t-*`), the code size, the drawing sizes,
+    `--entry-floor` (the smallest size typed words take on a touch screen) and the fonts
+    built from them. The test doesn't tell those from the file's other properties, so a
+    box's size used as a font size would pass, and it doesn't read a property tokens.css
+    declares wherever it is set: those declarations, and a density's or theme's
+    restatement of them, are the theme itself. A package's own property, such as an
+    option's font, is read through its declarations.
 
     `inherit`, `em` and `%` pass, since they scale the size their element inherits. A
     run sized against whatever holds it, such as inline code beside its line or an
@@ -259,8 +260,8 @@ def test_every_font_size_follows_the_type_ladder():
         (ASSETS / "styles/tokens.css").read_text(),
     )
     assert not own, (
-        f"{len(own)} font sizes are sizes of their own rather than the theme's "
-        f"(styles/tokens.css, `--t-*`):\n  " + "\n  ".join(own)
+        f"{len(own)} font sizes neither name a token of styles/tokens.css nor scale the "
+        f"size they inherit:\n  " + "\n  ".join(own)
     )
 
 

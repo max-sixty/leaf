@@ -90,8 +90,7 @@ hides what the reader is reading, as folding it does, anchoring can't hold it: r
 `const hold = holdPlace(node, standIn)` before the change and call `hold()` after it,
 in the same task, and `node`, or the node `standIn` names for it once the change hid
 or removed it, lands where `node` stood. `readingAt(column)` is what stands at the reading line, a
-quarter of the way down the window, across `column`: a range over the words in the
-reader's column, where their pointer last named a place, or else in `column`'s middle,
+quarter of the way down the window, in `column`'s middle: a range over the words there,
 which `holdPlace` takes too, else the element drawn there. The change itself scrolls
 nothing.
 

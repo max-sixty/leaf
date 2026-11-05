@@ -1461,6 +1461,10 @@ REVISION_LANDING = "the revision's landing moves the message clicked 96px up"
 ON_SCREEN = "the paragraph read moves 67.4px down under the paragraph the revision adds"
 REMOVES = "the paragraph read moves 67.4px up into the paragraph the revision takes out"
 DELETIONS = "the diff's Comment moves 100px down as five deletions join above it"
+DIFF_READING = (
+    "the diff line read moves 100px down as five deletions join above it, nothing "
+    "focused: anchoring holds the first block in view, above the rows"
+)
 GROWN_AFTER_GLIDE = (
     "the gist read moves 199.7-199.8px down as the 200px image above it loads after "
     "the glide; Chromium held it before #5397"
@@ -1469,6 +1473,8 @@ GROWN_AFTER_GLIDE = (
 # The cases the runtime fails today, with what each measured: a fix flips one to a
 # pass, and its strict mark then fails until its entry goes.
 MOVES_ON_MAIN = {
+    "diff-reading-deletions-chromium": DIFF_READING,
+    "diff-reading-deletions-firefox": DIFF_READING,
     "message-reply-below-chromium": REPLY_BELOW,
     "message-reply-below-firefox": REPLY_BELOW,
     "message-revision-above-chromium": REVISION_LANDING,

@@ -66,8 +66,9 @@ own (`../SOUL.md`, "Keep the foundation small and extensible").
   and a message's words (`setRenderedChildren` in `dom-children.js`) do, and Leaf turns
   anchoring off on no box the reader reads in. A revision then restores the reader's
   landmark (`version.js`). One Leaf hold, acting once, keeps what anchoring can't: the
-  control under the user's hands, the reading line where growth starts between
-  anchoring's box and it, and a place the change hides. A reading from outside the tab
+  control under the user's hands; for a reader whose focus is scrolled away, the
+  reading line where growth starts between anchoring's box and it; and a place the
+  change hides. A reader who focused nothing is anchoring's to keep. A reading from outside the tab
   takes it where it is applied and keeps it once the page shows it
   (`state-application.js`), whichever surfaces the reading redraws. A surface that
   changes with no reading behind it takes the same hold around that change, as Page

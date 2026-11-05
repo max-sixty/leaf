@@ -124,11 +124,12 @@ def test_shot_controls_have_disjoint_targets_and_labels_stay_passive(
     assert_source_words()
     expect(shot).to_have_attribute("data-lf-shot-mode", "flip")
     assert_source_words()
+    # The classic track is on: its stable gutter takes both edges.
     assert (
         shot.locator(".lf-shotstage").evaluate(
             "node => node.offsetWidth - node.clientWidth"
         )
-        == 15
+        == 2 * 15
     )
     toolbar = shot.locator(".lf-shot-toolbar")
     toolbar.scroll_into_view_if_needed()
@@ -258,7 +259,7 @@ def test_shot_controls_have_disjoint_targets_and_labels_stay_passive(
         const r = element.getBoundingClientRect();
         return {x: r.x, y: r.y + scrollY, width: r.width, height: r.height};
       };
-      return {toolbar: box(node.querySelector('.lf-shot-toolbar')),
+      return {
         controls: [...node.querySelectorAll(
           '.lf-shot-views wa-radio, .lf-shot-tools > button'
         )].map(box), stageTop: box(node.querySelector('.lf-shotstage')).y};
@@ -293,6 +294,16 @@ def test_shot_controls_have_disjoint_targets_and_labels_stay_passive(
         page.set_viewport_size({"width": width, "height": height})
         expect(shot).to_have_attribute("data-lf-shot-layout", layout)
         assert_source_words()
+    # Slider's single frame fits the screen too, so the reader sees all of it while
+    # sliding.
+    page.set_viewport_size({"width": 1000, "height": 300})
+    shot.get_by_role("radio", name="Slider", exact=True).click()
+    toolbar.scroll_into_view_if_needed()
+    shown = shot.evaluate("""node => {
+      const top = node.querySelector('.lf-shot-toolbar').getBoundingClientRect().top;
+      return node.querySelector('.lf-shotstage').getBoundingClientRect().bottom - top;
+    }""")
+    assert shown <= 300 + 1
 
 
 @pytest.mark.parametrize("touch", [False, True])
@@ -833,6 +844,57 @@ def test_a_shot_owns_cropped_inspection_and_preserves_choices_when_metadata_chan
     expect(
         shot.locator('.lf-shot-toolbar .lf-shotcap[data-lf-state="before"]')
     ).to_contain_text("Previous")
+
+
+def test_a_shot_narrower_than_its_box_keeps_its_labels_on_its_frames(
+    scrollbar_browser, serve
+):
+    """A capture narrower than the shot's box stands centred in it, so the source labels
+    stand on the frames' edges in each view rather than on the box's, hundreds of
+    pixels from what they name, and the tools hold the axis as the frames change. A
+    classic scrollbar's gutter, as on Linux and Windows, moves neither."""
+    data = {
+        "before": solid_png(600, 300, (210, 220, 235)),
+        "after": solid_png(600, 300, (235, 215, 205)),
+    }
+    sources = {
+        state: f"/media/{hashlib.sha256(value).hexdigest()[:16]}.png"
+        for state, value in data.items()
+    }
+    source = leaf_page(
+        "Narrow pair",
+        f"""<h1>Narrow pair</h1><lf-shot id="narrow" data-width="available" alt="a narrow pair"
+        before="{sources["before"]}" after="{sources["after"]}"></lf-shot>""",
+    )
+    page = open_page(
+        scrollbar_browser,
+        serve(source, media={sources[state]: value for state, value in data.items()}),
+        init_script="""(() => {
+          const sheet = new CSSStyleSheet();
+          sheet.replaceSync('.lf-shotstage::-webkit-scrollbar { width: 15px; height: 15px; }');
+          document.adoptedStyleSheets = [...document.adoptedStyleSheets, sheet];
+        })()""",
+    )
+    resized(page, 1600, 900)
+    shot = page.locator("#narrow")
+    tools = shot.locator(".lf-shot-actions")
+    captions = shot.locator(".lf-shot-toolbar .lf-shotcap")
+    held = None
+    for view, width in (("Slider", 602), ("Pair", 2 * 602 + 8), ("Slider", 602)):
+        shot.get_by_role("radio", name=view, exact=True).click()
+        frames = [
+            frame.bounding_box()
+            for frame in shot.locator(".lf-shotframe").all()
+            if frame.is_visible()
+        ]
+        left = min(frame["x"] for frame in frames)
+        right = max(frame["x"] + frame["width"] for frame in frames)
+        assert right - left == pytest.approx(width, abs=1), (view, frames)
+        before, after = [caption.bounding_box() for caption in captions.all()]
+        assert before["x"] == pytest.approx(left, abs=1), (view, before, frames)
+        assert after["x"] + after["width"] == pytest.approx(right, abs=1), (view, after)
+        held = held or tools.bounding_box()
+        assert tools.bounding_box() == held, view
 
 
 def test_a_shot_fits_both_wide_captures_and_retains_actual_scale_across_views(

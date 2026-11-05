@@ -56,8 +56,8 @@ for comparison.
 
 Choose the playground's space by what the user needs to see and operate together
 (`references/page-authoring.md`, "Composing a page"). For more room in a reading
-column, put `data-width="available"` on the enclosing `lf-ask`, or on the playground
-when it stands alone (`references/page-layout.md`, "Bounds and widths"). A workspace
+column, put `data-width="available"` on the playground, in an `lf-ask` or alone
+(`references/page-layout.md`, "Bounds and widths"). A workspace
 gives it the window. Candidates the user
 compares fit the window together, each picture sized as
 `references/authoring-on-me.md` says.
@@ -142,9 +142,13 @@ When the user comments on one of them, the comment records its id, which tells y
 which one they mean.
 
 ```html
-<lf-ask id="notification-ask" data-width="available">
+<lf-ask id="notification-ask">
   <h2>Which deployment notification should we build?</h2>
-  <lf-playground id="notification-playground" submit-label="Create notification">
+  <lf-playground
+    id="notification-playground"
+    submit-label="Create notification"
+    data-width="available"
+  >
     <lf-playground-control
       id="radius"
       name="radius"

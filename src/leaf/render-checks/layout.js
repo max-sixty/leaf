@@ -48,14 +48,42 @@ export function geometryReading(open) {
   };
 }
 
-// Advice about a declared space a holder keeps in: a block breaks out only from the
-// column or a flow in it. Existing containment may be deliberate, so this reading never
-// refuses a page.
+// Whether a box that broke out takes words off the column: a text block starts at its
+// holder's edge (base.css), so in a box reaching before the prose it starts there too. A
+// widget arranges its own contents, and a caption belongs to its figure.
+/** @param {Element} el */
+function takesItsWords(el) {
+  const holder = el.parentElement;
+  if (!holder || el.localName.includes("-")) return false;
+  const box = holder.getBoundingClientRect();
+  const style = getComputedStyle(holder);
+  const rtl = style.direction === "rtl";
+  const prose = rtl
+    ? box.right - parseFloat(style.paddingRight)
+    : box.left + parseFloat(style.paddingLeft);
+  return [...el.children].some((child) => {
+    if (
+      child.matches("figcaption") ||
+      !child.checkVisibility() ||
+      getComputedStyle(child).maxInlineSize === "none"
+    )
+      return false;
+    const words = child.getBoundingClientRect();
+    return (rtl ? words.right - prose : prose - words.left) > 1;
+  });
+}
+
+// Advice about a declared space that doesn't do what it asks. A block breaks out only
+// from the column or a flow in it, so a holder can keep it in, and one that does break
+// out can take the words it holds off the column. Either may be deliberate, so this
+// reading never refuses a page.
 function containedSpace() {
   const page = pageDocument();
   if (!page) return [];
   return [...page.querySelectorAll("[data-lf-space]")].filter(inPage).flatMap((el) => {
     if (skipped(el) || !el.checkVisibility()) return [];
+    if (breaksOut(el) && takesItsWords(el))
+      return [{ code: "words-off-column", at: at(el), place: place(el) }];
     const holders = [];
     for (let holder = el.parentElement; holder; holder = holder.parentElement) {
       if (holder.matches(".layout-column"))
@@ -75,7 +103,7 @@ function containedSpace() {
         breaksOut(holder)
       )
         return [];
-      if (!holder.matches(".layout-flow")) holders.push(at(holder));
+      if (!holder.matches(".layout-flow, [data-lf-flow]")) holders.push(at(holder));
     }
     return [];
   });

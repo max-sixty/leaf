@@ -8,21 +8,29 @@ import urllib.error
 import urllib.request
 from dataclasses import replace
 
-import leaf_website as website_server
 import pytest
 from interact_support import comment as open_thread
-from interact_support import owed_answers, publish, running_http_server
-from leaf_dev.commands import journey, verify_site
+from interact_support import (
+    owed_answers,
+    publish,
+    revision_root,
+    running_http_server,
+)
 
+import leaf_website as website_server
 from leaf.event_log import read_events
 from leaf.files import revision_path
 from leaf.hosting import LeafHTTPServer
 from leaf.http import page_delivery
+from leaf.registry.storage import LAYER, layer_record, load_registry
 from leaf.revision_artifact import capture_artifact
 from leaf.revision_delivery import compose_document
 from leaf.runtime_selection import executing, serving_runtime
+from leaf.schema import LAYER_FILE
 from leaf.served_state import page as served_page
 from leaf.structure import SourceDocument
+from leaf_dev.commands import journey, verify_site
+from leaf_dev.page_fixtures import example_media
 from process.website_server import (
     FakeCodexHarness,
     get,
@@ -68,7 +76,7 @@ def test_a_published_document_names_its_page_to_a_crawler(
         capture_artifact(
             page_dir,
             SourceDocument(PAGE_SOURCE),
-            json.loads((page_dir / "registry.json").read_text()),
+            load_registry(page_dir),
         )
     ).resources
     delivery = page_delivery(
@@ -79,7 +87,6 @@ def test_a_published_document_names_its_page_to_a_crawler(
         1,
         1,
         executable="sha256:executable",
-        widgets={},
         resources=resources,
         registry={},
         delivery=replace(delivery, head=addition),
@@ -319,7 +326,9 @@ def test_website_samples_serve_private_pages_without_starting_an_agent(
             expected = f"{asset_root}/revisions/{revision_path(published, 1).stem}"
             assert f'data-lf-entry="{expected}/leaf.js"'.encode() in document
         else:
-            entry = re.search(rb'data-lf-entry="([^"]+)"', document)[1].decode()
+            match = re.search(rb'data-lf-entry="([^"]+)"', document)
+            assert match is not None
+            entry = match[1].decode()
             assert entry.startswith(child["url"] + "revisions/")
             assert get(origin + entry)[0]
         assert f'data-lf-page-root="{child["url"].rstrip("/")}"'.encode() in document
@@ -341,24 +350,34 @@ def test_website_samples_serve_private_pages_without_starting_an_agent(
             {"Leaf-Layer": state["layer"]["generation"]},
         )
         assert accepted["state"]["events"][-1]["text"] == "Try this here"
+        # An image attached in the child is as private as one attached on its parent.
+        upload = urllib.request.Request(
+            url + "api/media",
+            data=(example_media() / "051bee487bfb5d13.png").read_bytes(),
+            headers={
+                "Content-Type": "image/png",
+                "Leaf-Layer": state["layer"]["generation"],
+            },
+        )
+        with urllib.request.urlopen(upload) as stored:
+            media = json.loads(stored.read())["path"]
+        assert get(url + media.lstrip("/"))[1]["Cache-Control"] == "no-store"
         assert read_events(published) == []
         assert harness.attached == []
 
 
-def test_the_website_refuses_a_page_vendored_at_another_protocol(page_dir, tmp_path):
-    """The container serves only pages vendored at its own Leaf's protocol, as every
-    page server does; a site built across a breaking change breaks in the browser
-    otherwise."""
+def test_the_website_refuses_a_page_initialized_at_another_protocol(page_dir, tmp_path):
+    """The container serves only pages initialized at its own Leaf's protocol, as
+    every page server does; a site built across a breaking change breaks in the
+    browser otherwise."""
     site = tmp_path / "site"
     published = site / "examples" / "decision"
     published.parent.mkdir(parents=True)
     shutil.copytree(page_dir, published)
-    registry_path = published / "registry.json"
-    registry = json.loads(registry_path.read_text())
-    registry["$events"]["protocol"] = 999
-    # A newer protocol may reshape the layer past this Leaf's schema.
-    registry["$future"] = 1
-    registry_path.write_text(json.dumps(registry))
+    record = layer_record(published)
+    (published / LAYER_FILE).unlink()
+    assert record is not None
+    LAYER.write(published / LAYER_FILE, {**record, "protocol": 999})
     write_manifest(site, {"/examples/decision": ("examples/decision", "example")})
     httpd = LeafHTTPServer(("127.0.0.1", 0), website_server.site_endpoint(site))
     root = f"http://127.0.0.1:{httpd.server_address[1]}/examples/decision"
@@ -369,7 +388,7 @@ def test_the_website_refuses_a_page_vendored_at_another_protocol(page_dir, tmp_p
         get(f"{root}/api/state")
     assert refused.value.code == 500
     told = json.loads(refused.value.read())["error"]
-    assert "page protocol 999" in told
+    assert "Use a newer Leaf" in told
 
 
 def test_a_website_example_uses_the_real_page_server(page_dir, tmp_path, monkeypatch):
@@ -397,10 +416,9 @@ def test_a_website_example_uses_the_real_page_server(page_dir, tmp_path, monkeyp
 
         document, headers = get(f"{root}/examples/decision/")
         assert b"sitenote.js" not in document
-        artifact = f"{revision_path(published, 1).stem}/{serving_runtime().identity}"
+        served = revision_root(published, 1)
         assert (
-            f'data-lf-entry="/examples/decision/revisions/{artifact}/leaf.js"'.encode()
-            in document
+            f'data-lf-entry="/examples/decision{served}/leaf.js"'.encode() in document
         )
         assert headers["Content-Security-Policy"] == "frame-ancestors 'self'"
         assert headers["Leaf-Session"] == "active"
@@ -432,6 +450,20 @@ def test_a_website_example_uses_the_real_page_server(page_dir, tmp_path, monkeyp
         assert headers["Leaf-Layer"] == state["layer"]["generation"]
         assert headers["Leaf-Session"] == "active"
         assert headers["Cache-Control"] == "no-store"
+
+        # So does an image the visitor attaches, though a local server lets the
+        # browser keep page media for good.
+        upload = urllib.request.Request(
+            f"{root}/examples/decision/api/media",
+            data=(example_media() / "051bee487bfb5d13.png").read_bytes(),
+            headers={
+                "Content-Type": "image/png",
+                "Leaf-Layer": state["layer"]["generation"],
+            },
+        )
+        with urllib.request.urlopen(upload) as stored:
+            media = json.loads(stored.read())["path"]
+        assert get(f"{root}/examples/decision{media}")[1]["Cache-Control"] == "no-store"
 
         raw_view, _ = get(
             verify_site.activation_url(f"{root}/examples/decision/", state)
@@ -546,6 +578,88 @@ def test_a_website_example_uses_the_real_page_server(page_dir, tmp_path, monkeyp
         assert stopped.value.code == 404
 
 
+def test_an_answer_to_a_held_reading_addresses_a_new_revision_at_the_page_root(
+    page_dir, tmp_path
+):
+    """A page served beneath a prefix addresses its revisions there, in an answer that
+    carries only what changed since the tab's reading as in a whole one, so a tab
+    that completes it loads the new revision from its page's own route."""
+    site = tmp_path / "site"
+    published = site / "examples" / "decision"
+    published.parent.mkdir(parents=True)
+    shutil.copytree(page_dir, published)
+    write_manifest(site, {"/examples/decision": ("examples/decision", "example")})
+    httpd = LeafHTTPServer(
+        ("127.0.0.1", 0), website_server.site_endpoint(site, FakeCodexHarness())
+    )
+    state = f"http://127.0.0.1:{httpd.server_address[1]}/examples/decision/api/state"
+    with running_http_server(httpd):
+        held = json.loads(get(state)[0])["browser"]["basis"]["key"]
+        index = published / "index.html"
+        index.write_text(index.read_text().replace("</main>", "<p>More.</p></main>"))
+        request = urllib.request.Request(state, headers={"Leaf-Held-Basis": held})
+        with urllib.request.urlopen(request) as response:
+            tail = json.loads(response.read())
+    assert "since" in tail
+    revisions = re.findall(
+        r'"(/[^"]*/revisions/[^"]*|/revisions/[^"]*)"', json.dumps(tail)
+    )
+    assert revisions
+    assert all(url.startswith("/examples/decision/revisions/") for url in revisions)
+
+
+def test_an_answer_to_a_held_reading_addresses_only_the_events_it_sends(
+    page_dir, tmp_path, monkeypatch
+):
+    """Beneath a prefix each message's markup is addressed at the page root, which
+    parses it. An answer carrying only what changed since the tab's reading sends no
+    event the tab holds, so it parses none of their markup: its parses fall short of
+    the whole answer's by one for each markup message the log holds."""
+    import leaf.http
+
+    site = tmp_path / "site"
+    published = site / "examples" / "decision"
+    published.parent.mkdir(parents=True)
+    shutil.copytree(page_dir, published)
+    messages = 3
+    for at in range(messages):
+        created = open_thread(
+            published, "--text", f"Look {at}:", "--markup", f"<p>Part {at}.</p>"
+        )
+        assert created.exit_code == 0, created.output
+    write_manifest(site, {"/examples/decision": ("examples/decision", "example")})
+    parsed = []
+    rebase = leaf.http.rebase_document
+    monkeypatch.setattr(
+        leaf.http,
+        "rebase_document",
+        lambda source, *args, **kwargs: (
+            parsed.append(source),
+            rebase(source, *args, **kwargs),
+        )[1],
+    )
+    httpd = LeafHTTPServer(
+        ("127.0.0.1", 0), website_server.site_endpoint(site, FakeCodexHarness())
+    )
+    state = f"http://127.0.0.1:{httpd.server_address[1]}/examples/decision/api/state"
+
+    def parses(headers: dict) -> tuple[dict, int]:
+        before = len(parsed)
+        with urllib.request.urlopen(
+            urllib.request.Request(state, headers=headers)
+        ) as response:
+            return json.loads(response.read()), len(parsed) - before
+
+    with running_http_server(httpd):
+        whole, whole_parses = parses({})
+        tail, tail_parses = parses(
+            {"Leaf-Held-Basis": whole["browser"]["basis"]["key"]}
+        )
+    assert "since" in tail
+    assert tail["events"] == []
+    assert whole_parses - tail_parses == messages
+
+
 def test_a_stale_layer_is_answered_with_the_generation_the_container_holds(
     page_dir, tmp_path
 ):
@@ -626,17 +740,14 @@ def test_the_adapter_serves_a_published_revision_at_its_release_address(
             f'data-lf-entry="/examples/decision/revisions/{private.stem}/'.encode()
             in current
         )
-        runtime = serving_runtime().resources({})
+        runtime = serving_runtime().resources({}, {})
         for logical in ("/leaf.js", "/runtime/widget-api.js"):
             body, headers = get(f"{root}{release}{logical}")
             assert body == runtime[logical].data, logical
             assert headers["Cache-Control"] == "public, max-age=31536000, immutable"
             assert headers["Access-Control-Allow-Origin"] == "*"
         registry, headers = get(f"{root}{release}/registry.json")
-        assert (
-            json.loads(registry)["$layer"]
-            == json.loads((published / "registry.json").read_text())["$layer"]
-        )
+        assert json.loads(registry)["$layer"] == load_registry(published)["$layer"]
         assert headers["Leaf-Release"] == manifest["release"]
         for missing in (
             f"{release}/api/state",
@@ -670,11 +781,8 @@ def test_a_product_route_uses_the_same_real_page_server(
         document, _ = get(f"{root}{page_root}/")
         assert b"data-lf-site" not in document
         assert b"data-lf-share-url" not in document
-        artifact = f"{revision_path(published, 1).stem}/{serving_runtime().identity}"
-        assert (
-            f'data-lf-entry="{page_root}/revisions/{artifact}/leaf.js"'.encode()
-            in document
-        )
+        served = revision_root(published, 1)
+        assert f'data-lf-entry="{page_root}{served}/leaf.js"'.encode() in document
         state = json.loads(get(f"{root}{page_root}/api/state")[0])
         assert state["publication"] == {
             "kind": "product",

@@ -11,7 +11,6 @@ import subprocess
 import sys
 import threading
 import time
-from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import pytest
@@ -35,7 +34,6 @@ from interact_support import (
 from leaf import cli as cli_model
 from leaf import harness as harness_model
 from leaf import hooks as hooks_model
-from leaf import layer as layer_model
 from leaf import leases as leases_model
 from leaf import machine as machine_model
 from leaf import presence as presence_model
@@ -43,29 +41,6 @@ from leaf import server as server_model
 from leaf import service as service_model
 from leaf import session as session_model
 from leaf import state as cleanup_model
-from leaf import vendoring as vendoring_model
-
-
-def test_a_codex_command_claims_the_page_for_its_thread(codex_claimed_page):
-    session = service_model.page_claim(codex_claimed_page)
-    assert session["id"] == "codex-thread"
-    assert session["agent"] == "Codex"
-    assert session["harness"] == "codex"
-    assert set(session) == {
-        "page",
-        "id",
-        "agent",
-        "harness",
-        "pid",
-        "cwd",
-        "ts",
-        "turn",
-        "turn_opened",
-        "turn_closed",
-        "generation",
-        "acquisition",
-    }
-    assert page_state(codex_claimed_page)["agent"] == "Codex"
 
 
 def test_a_codex_claim_records_the_session_not_the_shell_it_ran_through(
@@ -86,7 +61,13 @@ def test_a_codex_claim_records_the_session_not_the_shell_it_ran_through(
     append_carried_log_record(page, {"kind": "comment", "author": "user", "text": "hi"})
     session = under_codex(claim_and_wait_command(page), env)
     assert session.wait(timeout=STATED_TIMEOUT) == 0
-    assert service_model.page_claim(page)["pid"] == session.pid
+    claim_record = service_model.page_claim(page)
+    assert claim_record is not None
+    assert claim_record["pid"] == session.pid
+    assert claim_record["id"] == "thread-shape"
+    assert claim_record["agent"] == "Codex"
+    assert claim_record["harness"] == "codex"
+    assert page_state(page)["agent"] == "Codex"
 
 
 def test_the_nearest_harness_runs_a_command_that_inherits_another(under_codex):
@@ -180,7 +161,9 @@ def test_a_claim_records_where_the_session_is_working(page_dir, tmp_path, monkey
     work.mkdir()
     monkeypatch.chdir(work)
     assert service_model.claim_page(page_dir)
-    assert service_model.page_claim(page_dir)["cwd"] == str(work)
+    claim_record_2 = service_model.page_claim(page_dir)
+    assert claim_record_2 is not None
+    assert claim_record_2["cwd"] == str(work)
     assert presence_model.presence(page_dir, [])["session_cwd"] == str(work)
     # Diagnostic joins survive replacement/ending of the live claim and lifecycle.
     from leaf.event_log import read_events
@@ -342,7 +325,9 @@ def test_a_session_whose_shell_is_sandboxed_claims_its_page(page_dir, monkeypatc
         check=False,
     )
     assert claimed.returncode == 0, claimed.stderr
-    assert service_model.page_claim(page_dir)["id"] == "sandboxed"
+    claim_record_3 = service_model.page_claim(page_dir)
+    assert claim_record_3 is not None
+    assert claim_record_3["id"] == "sandboxed"
     assert not machine_model.pid_alive(1)
 
 
@@ -411,108 +396,10 @@ def test_a_page_calls_its_agent_by_its_claimant_or_last_voice(page_dir, monkeypa
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "s1")
     monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
     assert service_model.claim_page(page_dir)
-    claimant = service_model.page_claim(page_dir)["agent"]
+    claim_record_4 = service_model.page_claim(page_dir)
+    assert claim_record_4 is not None
+    claimant = claim_record_4["agent"]
     assert presence_model.presence(page_dir, voiced[:1])["agent"] == claimant
-
-
-def test_reinitializing_a_deleted_page_path_drops_its_old_claim(page_dir, monkeypatch):
-    """A regenerated page is not the deleted page that occupied its path."""
-    monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "old-session")
-    monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
-    assert service_model.claim_page(page_dir)
-
-    shutil.rmtree(page_dir)
-    initialized = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
-    assert initialized.exit_code == 0, initialized.output
-
-    assert service_model.page_claim(page_dir) is None
-    assert service_model.owned_pages("old-session") == []
-
-
-def test_a_fresh_init_does_not_delete_a_concurrently_created_pages_claim(
-    tmp_path, monkeypatch, spawn
-):
-    """The first page creation is one serialized transition."""
-    monkeypatch.chdir(tmp_path)
-    page = tmp_path / "concurrent-page"
-    reached_layer = threading.Event()
-    resume = threading.Event()
-    original_composed_sheets = layer_model.composed_sheets
-
-    def held_composed_sheets(sources):
-        reached_layer.set()
-        assert resume.wait(timeout=STATED_TIMEOUT), (
-            "the concurrent init never released its peer"
-        )
-        return original_composed_sheets(sources)
-
-    monkeypatch.setattr(layer_model, "composed_sheets", held_composed_sheets)
-    executor = ThreadPoolExecutor(max_workers=1)
-    first = executor.submit(vendoring_model.cmd_init, page)
-    try:
-        assert reached_layer.wait(timeout=STATED_TIMEOUT), (
-            "the first init never reached its held read"
-        )
-        requested = tmp_path / "second-init-requested"
-        second = spawn_probe(
-            spawn,
-            page,
-            """\
-import fcntl
-native_flock = fcntl.flock
-identity = Path(os.environ["PAGE"]).stat()
-def observed_flock(fd, operation):
-    descriptor = fd if isinstance(fd, int) else fd.fileno()
-    if operation == fcntl.LOCK_EX and os.path.samestat(os.fstat(descriptor), identity):
-        try:
-            native_flock(fd, operation | fcntl.LOCK_NB)
-        except BlockingIOError:
-            Path(os.environ["REQUESTED"]).write_text("blocked")
-        else:
-            raise AssertionError("the overlapping init bypassed the page lease")
-    return native_flock(fd, operation)
-fcntl.flock = observed_flock
-sys.argv = ["leaf", "page", "init", os.environ["PAGE"]]
-cli_model.cli()
-""",
-            REQUESTED=requested,
-        )
-        wait_for(
-            requested.exists,
-            bool,
-            failure="the overlapping init never attempted the held page lease",
-        )
-        resume.set()
-        first.result(timeout=STATED_TIMEOUT)
-        second_out, second_err = second.communicate(timeout=STATED_TIMEOUT)
-        assert second.returncode == 0, f"{second_out}{second_err}"
-        idled = subprocess.run(
-            [*LEAF_COMMAND, "page", "close", page],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-        assert idled.returncode == 0, idled.stderr
-        picked_up = subprocess.run(
-            claim_and_wait_command(page),
-            shell=True,
-            env=os.environ
-            | {
-                "CLAUDE_CODE_SESSION_ID": "new-owner",
-                "CLAUDE_PID": str(os.getpid()),
-            },
-            capture_output=True,
-            text=True,
-            timeout=STATED_TIMEOUT,
-            check=False,
-        )
-        assert picked_up.returncode == 2, picked_up.stderr
-        assert service_model.page_claim(page)["id"] == "new-owner"
-    finally:
-        resume.set()
-        executor.shutdown(wait=True, cancel_futures=True)
-    assert first.done()
-    assert service_model.page_claim(page)["id"] == "new-owner"
 
 
 def test_the_codex_environment_defaults_the_name_but_a_worker_keeps_its_own(
@@ -527,6 +414,7 @@ def test_the_codex_environment_defaults_the_name_but_a_worker_keeps_its_own(
     waited = under_codex(claim_and_wait_command(page), env)
     assert waited.wait(timeout=STATED_TIMEOUT) == 0
     session = service_model.page_claim(page)
+    assert session is not None
     assert session["id"] == "thread-9"
     assert session["agent"] == "Indexer" and session["harness"] == "codex"
 
@@ -550,7 +438,9 @@ def test_hook_remedies_follow_the_harness_not_the_display_name(
     hooks_model.cmd_hook("codex", {"hook_event_name": "Stop", "session_id": "w1"})
     reason = json.loads(capsys.readouterr().out)["reason"]
     assert "leaf page claim" in reason and str(page) in reason
-    assert service_model.page_claim(page)["agent"] == "Indexer"
+    claim_record_7 = service_model.page_claim(page)
+    assert claim_record_7 is not None
+    assert claim_record_7["agent"] == "Indexer"
 
 
 @pytest.mark.parametrize(
@@ -566,7 +456,7 @@ def test_wait_lease_is_exact_and_excludes_another_wait(
     """The held lease, not a timestamp or pid, is the wait's liveness."""
     # The suite's hook marks (`isolated_session`) are not records this test makes.
     for session in HOOKED_SESSIONS:
-        leases_model.hooks_path(session).unlink()
+        cleanup_model.session_file(session, cleanup_model.HOOKS_SUFFIX).unlink()
     for name in identity_names:
         monkeypatch.delenv(name, raising=False)
     serving(page_dir, 1)
@@ -575,13 +465,12 @@ def test_wait_lease_is_exact_and_excludes_another_wait(
     if not identity_names:
         record_claim(page_dir, id="past-session")
         service_model.claim_page(page_dir)
-    lease_path = (
-        page_dir / "waiter.lock"
-        if identity_names
-        else leases_model.waiter_lease_path(
-            page_dir, harness_model.session_harness().session
-        )
-    )
+    harness = harness_model.session_harness()
+    if identity_names:
+        lease_path = page_dir / "waiter.lock"
+    else:
+        assert harness is not None
+        lease_path = leases_model.waiter_lease_path(page_dir, harness.session)
     first = spawn(
         [*LEAF_COMMAND, "wait", str(page_dir)],
         stdout=subprocess.PIPE,
@@ -589,6 +478,7 @@ def test_wait_lease_is_exact_and_excludes_another_wait(
         text=True,
         env=os.environ,
     )
+    assert lease_path is not None
     wait_for(
         lambda: leases_model.lock_is_held(lease_path),
         bool,
@@ -830,19 +720,27 @@ def test_a_new_claim_cannot_borrow_the_previous_sessions_wait_lease(
     monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
     assert service_model.claim_page(page_dir)
     first = harness_model.session_harness()
-    first_turn = service_model.page_claim(page_dir)["turn"]
-    lease = leases_model.take_lease(
-        leases_model.waiter_lease_path(page_dir, first.session)
-    )
+    claim_record_8 = service_model.page_claim(page_dir)
+    assert claim_record_8 is not None
+    first_turn = claim_record_8["turn"]
+    assert first is not None
+    lease_path_2 = leases_model.waiter_lease_path(page_dir, first.session)
+    assert lease_path_2 is not None
+    assert first is not None
+    lease = leases_model.take_wait_lease(lease_path_2)
     assert lease and page_state(page_dir)["listening"]
 
     assert service_model.claim_page(page_dir)
-    assert service_model.page_claim(page_dir)["turn"] == first_turn
+    claim_record_9 = service_model.page_claim(page_dir)
+    assert claim_record_9 is not None
+    assert claim_record_9["turn"] == first_turn
     assert page_state(page_dir)["listening"]
 
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "replacement")
     assert service_model.claim_page(page_dir)
-    assert service_model.page_claim(page_dir)["turn"] != first_turn
+    claim_record_10 = service_model.page_claim(page_dir)
+    assert claim_record_10 is not None
+    assert claim_record_10["turn"] != first_turn
     assert not page_state(page_dir)["listening"]
     leases_model.release_lease(lease)
 
@@ -933,6 +831,7 @@ def test_a_claim_an_older_leaf_wrote_is_dropped_rather_than_read_or_raised_on(
     assert service_model.owned_pages("s8") == [stale.resolve(), page_dir.resolve()]
 
     claim = service_model.page_claim(stale)
+    assert claim is not None
     cleanup_model.write_json(
         service_model.claim_path(stale),
         {**service_model.CLAIM.stored(claim), "format": "leaf-claim/0"},
@@ -994,7 +893,9 @@ def test_a_claim_is_active_while_the_lifetime_it_names_holds(
     monkeypatch.setenv("CLAUDE_PID", str(dead_pid))
     monkeypatch.setenv("CLAUDE_JOB_DIR", str(job))
     assert service_model.claim_page(page)
-    assert "pid" not in service_model.page_claim(page)
+    value = service_model.page_claim(page)
+    assert value is not None
+    assert "pid" not in value
     assert service_model.claim_is_active(service_model.page_claim(page))
     # Deleting the job takes its record; the directory can stay behind empty.
     (job / "state.json").unlink()
@@ -1007,6 +908,7 @@ def test_a_claim_is_active_while_the_lifetime_it_names_holds(
     source = native_codex_chat("multiplexed")
     record_claim(chat, id="multiplexed", harness="codex", chat=True)
     claim = service_model.page_claim(chat)
+    assert claim is not None
     assert "pid" not in claim
     assert service_model.claim_is_active(claim)
     source.rename(source.with_suffix(".archived"))

@@ -1,7 +1,7 @@
 description: page-css-names-leaf-controls
 metadata:
-  purpose: "Restyling generated controls uses an explicitly marked stylesheet; selectors
-    then target only the requested widgets while other surfaces keep their faces."
+  purpose: "Restyling generated controls names the requested widgets in each selector,
+    so the page's other controls and Leaf's chrome keep their faces."
   tags:
     - theme
 vars:
@@ -21,10 +21,9 @@ assert:
   - type: llm-rubric
     metric: judgment
     value: |
-      Read the CSS. Pass only if the supplied style element carries data-controls,
-      granting its stylesheet access to generated controls, and the enlargement rules
-      target the requested board and options controls specifically. Selectors naming
-      widgets without that stylesheet marker cannot reach generated controls and fail.
-      Native @scope may constrain the intended region, but does not itself grant access.
-      Fail if the enlargement reaches unrelated page or chrome controls, or changes
-      page-wide size tokens or the type scale when the user asked to leave the rest alone.
+      Read the CSS. Pass only if every enlargement rule names the requested board or
+      options widget in its selector (by id or tag), so it reaches their controls and
+      nothing else. Fail if a rule selects controls page-wide, such as a bare `button`
+      or `.lf-ui`, which would also enlarge unrelated page controls, or if the CSS
+      changes page-wide size tokens or the type scale when the user asked to leave the
+      rest alone. A `data-controls` attribute neither helps nor hurts.

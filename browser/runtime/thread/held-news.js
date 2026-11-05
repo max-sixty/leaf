@@ -1,7 +1,7 @@
 /* News a thread surface holds back while it would move what the reader reads.
 
    These holds protect existing reading and active composition
-   (`browser/AGENTS.md`, "Layout and motion"). Each surface's rule below
+   (`browser/AGENTS.md`, "Leaf's interface"). Each surface's rule below
    determines which surrounding content may move as messages arrive. A held change
    shows when a gesture takes the user to it. A hidden tab ends that reading. Returning reveals its held
    news and its first refreshed reading through the shared reading-continuity owner;
@@ -9,31 +9,33 @@
    tint and retirement fold explain the changed layout without withholding its words.
 
    A seat draws its threads in the page's flow (inline.js: a widget's seat, or a widget's
-   outlet such as a diff line's), so whatever the agent adds grows the page there: a turn
-   at the foot of its thread, a turn that reopens a resolved thread taking it out of the
-   seat's Resolved disclosure, a thread the agent starts at the foot of the seat. A turn of the user's that this page did not
-   just send, such as one from another tab, grows it the same way. Where that growth
-   starts above the screen, the browser's scroll anchoring takes it into what the user
-   has scrolled past; where it starts below, it moves nothing they see (geometry.js,
-   `motionBand`, says where that is). Where it starts on screen, everything after it
-   would move under the reader, so the seat draws what it drew before and says what is
-   waiting in a row it already draws at a fixed size. A
-   thread resolved or reopened elsewhere changes shape the same way:
+   outlet such as a diff line's), so whatever the agent adds to a thread grows the page
+   there. A turn of the user's that this page did not just send, such as one from
+   another tab, grows it the same way. Where that growth starts above the screen, the
+   browser's scroll anchoring takes it into what the user has scrolled past; where it
+   starts below, it moves nothing they see (geometry.js, `motionBand`, says where that
+   is). Where it starts on screen:
 
-   - a thread's own news (its new turns, a reaction put on a reply or taken off it, a
-     summary the agent folds turns into or one that goes, and its resolving or reopening,
-     which draws or folds its reply box and reaction strips) in the thread's control
-     row: the head row beside Resolve or Reopen, Reopen's place in a resolved panel
-     card's title, and, for its reopening alone, the summary of a seat's closed Resolved
-     disclosure folding it, where nothing else it changes shows;
-   - a new thread in the control row of the thread it would follow, or, where the seat
-     draws no thread, in place of its first-message row, at that row's height, unless the
-     user is in that box, which `holdBox` (reply-landing.js) keeps still instead;
-   - a new thread at a widget's datum that has no seat yet, such as a diff line with no
-     thread, behind the margin marker it gets. Its seat would be a new outlet the widget
-     opens in the flow, with no row in it to say what waits, so the widget is not handed
-     the thread to place (surfaces.js), and the margin draws it as it draws any thread
-     no widget places, out of the flow.
+   - the thread the user is in, by focus or by a gesture of theirs still in flight
+     (`gesturedOn`), draws what its news adds at once, as a chat does, and the seat
+     keeps the control they are on still by scrolling what stands above it up by the
+     growth (user-place.js, `holdUserPlace`). That control is where the user
+     is: a message they stand on stays and the reply box below it moves down by the
+     turn; on the thread itself, as a send leaves them, its reply box stays. Where the
+     page can't scroll by all of the growth, as when it is shorter than its window, the
+     control moves by the rest. Its resolving or reopening waits as in the next case,
+     with whatever arrives with it, since a settlement moves the thread between the
+     seat's open threads and its Resolved disclosure, out from under the user;
+   - any other thread drawn there keeps drawing what it drew, and says that news waits
+     in its control row, the head row beside Resolve or Reopen, at a fixed size: its new
+     turns, a reaction put on a reply or taken off it, a summary that comes or goes, and
+     its resolving or reopening;
+   - a thread not drawn yet draws at once, moving what follows it: one the agent starts
+     in a seat or at a widget's datum, and one reopened out of a seat's closed Resolved
+     disclosure. The user chose that on 4 November, over the notices these once waited
+     behind: in the row the thread would follow, in place of the seat's first-message
+     row, in the Resolved summary, and at the margin marker of a datum with no seat,
+     which took a second hold for widgets out of what they were handed (surfaces.js).
 
    An open panel card shows appended messages immediately when no composition is
    active: its idle reply row and later cards may move, while existing messages keep
@@ -55,13 +57,13 @@
    stands, so only the newest run's face changes. The
    working message's arrival, its departure, and a new step whose words wrap to
    another height change the thread's height, so a seat holds any change of its words
-   behind its control-row notice when that growth would move the reader. The notice
-   counts each held progress message as it counts a held reply (the user's choice,
-   2026-10-14), as "1 new message", unless a held reply folds it, and says "Work in
-   progress" or "Work changed" only where the working message changed with none.
-   Rejected: "1 new update", since "update" names only the user's input (glossary);
-   and "1 new progress message", which at about 126px cut in a phone seat's head row
-   and a primary reader's 5rem notice, and squeezed a margin card's heads.
+   when that growth would move the reader. Its notice doesn't say that change (the
+   user's choice, 2026-10-26): progress never counts as unread, and the receipt on the
+   user's message, such as "On it", already says the agent is working, so a red
+   "1 new message" over a draft announced news the user owes nothing. Held alone, it
+   shows by any route below but the notice. Rejected: counting each held step as
+   "1 new message" (2026-10-14 to 2026-10-26), and "Work in progress" or "Work
+   changed" where the working message changed alone, which repeated that receipt.
    Completed progress disappears when the answer shows. Changes to other existing
    messages, reactions, folds and settlement use the same hold as a seat in page flow,
    and a notice calls a changed message an edit.
@@ -71,37 +73,33 @@
    were, and a press on one means what it drew (actions.js, `setReaction` and
    `settle`) and shows what the thread holds.
 
-   `HeldNews` is that one owner for a seat, and `HeldArrivals` for the seats a widget has
-   not opened. Each reads every reading against the one it drew last, the only baseline:
-   news is whatever the seat would draw differently, the notice says exactly that
-   difference, and a reading back to what is drawn holds nothing. The gestures that show
-   what a thread holds are the ones that take the user to it:
+   `HeldNews` is that one owner for a seat. It reads every reading against the one it
+   drew last, the only baseline: news is whatever the seat would draw differently, the
+   notice says exactly that difference, and a reading back to what is drawn holds
+   nothing. The gestures that show what a thread holds are the ones that take the user
+   to it:
 
-   - pressing its notice, or its margin marker where a widget holds it out of the flow;
-   - opening the thread: a seat's Resolved disclosure folding it, or a panel card the
-     list opens;
+   - pressing its notice;
+   - opening the thread: a panel card the list opens;
    - arriving at it: coming to stand in it from outside it, by a move of theirs, a t/T
-     walk, an obligation, a link, Tab, whatever route took them (focus.js, `onCurrentLocation`), or by
-     a press on its title, which stands for the whole thread, whether or not it already
-     stood open. Coming back to the thread they were in is a stay, whatever puts them
-     there, as when the runtime puts back a reply box a surface stopped drawing, and so
-     is a move within it, such as Escape out of its reply box onto its title or going to
-     an obligation it already shows;
+     walk, an obligation, a link, Tab, whatever route took them (focus.js,
+     `onCurrentLocation`). A press into it, such as into its reply box, puts the user in
+     it, so what its news adds draws as in any thread they are in, the pressed control
+     held still, though the margin's card keeps its own rule for that (inline.js), and a
+     settlement still waits for its notice. Coming back
+     to the thread they were in is a stay, whatever puts them there, as when the runtime
+     puts back a reply box a surface stopped drawing, and so is a move within it;
    - acting in it (`gesturedOn`): a reply, a reaction on one of its messages, settling
      it, an action on a widget one of them holds or one that closes it, as accepting
-     the suggestion it asked for does, or a thread they start in the seat, which
-     answers what came before it and so follows it;
+     the suggestion it asked for does;
    - changing the panel's view, which moves its cards anyway.
 
    Held news also shows once growth anywhere in the seat would move nothing the user
    sees: none of it stands where a change of size moves what is seen (geometry.js,
-   `growthIsSeen`), as when it is scrolled under the chrome. A press into the thread,
-   such as into its reply box, shows
-   nothing: it asks for what it lands on, and drawing the news would move that under the
-   press. Where the destination is itself held, a message or an obligation in a held turn, or a
-   thread a seat holds whole, the route shows it first (`showHeld`), since nothing
-   undrawn can take focus. Anything held in a seat is not drawn, so it stays unread until
-   it shows.
+   `growthIsSeen`), as when it is scrolled under the chrome. Where a route's destination
+   is itself held, a message or an obligation in a held turn, the route shows it first
+   (`showHeld`), since nothing undrawn can take focus. Anything held in a seat is not
+   drawn, so it stays unread until it shows.
 
    Decisions. An idle open panel card shows appended messages (the user's decision,
    2026-10-08, relaxing #1694's blanket hold), and a streaming reply's words as they
@@ -121,8 +119,7 @@
    Resolve, Close and Send sideways, and rising under a draft. Rejected: keeping only
    its width, which doubled the rise; keeping its box and scrolling the transcript,
    which scrolls Resolve away; and holding all news while it is open, which stops
-   progress showing live where the user watches it. A held step's notice reads like a
-   held reply's (the user's decision, 2026-10-13). A presentation that makes room for
+   progress showing live where the user watches it. A presentation that makes room for
    the agent's answer to the user's last turn itself shows that answer at once, as the
    floating panel's thread view does (the user's decision, 2026-10-14, floating-panel.js):
    held, the reply the user waited for stood unseen behind a small notice in their own
@@ -141,48 +138,56 @@
    exception: it draws its lists at first paint, with "Lists current" as the control.
    A fixed-height box that scrolls the rows is no answer: a scroller shows no edge until
    it is scrolled, so nothing tells the reader a row is cut off. */
-import { html, render } from "/vendor/browser-runtime.js";
-import { growthAfterIsSeen, growthIsSeen, whenNone } from "../geometry.js";
-import { offer } from "../widget-elements.js";
-import { keeps, layoutPx } from "../keeps.js";
-import { sizeObserver } from "../rendering.js";
+import { counted } from "../words.js";
+import { growthIsSeen, whenNone } from "../geometry.js";
+import { offerAction } from "../widget-elements.js";
+import { keeps, keepsText } from "../keeps.js";
 import { keys } from "../keyboard/scopes.js";
 import { PRESS } from "../keyboard/bindings.js";
 import { focusThread } from "./focus.js";
-import { isReaction, messageKey, threadKey } from "./model.js";
-import { allThreads, threadIdNamed, threadState } from "./state.js";
+import { isReaction, messageKey } from "./model.js";
+import { threadIdNamed, threadNamed, threadState } from "./state.js";
 import { drawnThreadId, THREAD } from "./selectors.js";
 import { closestAcross } from "../passages.js";
 import { runtime } from "../context.js";
-import { onCurrentLocation, focused, currentLocationNodes } from "../focus.js";
+import { onCurrentLocation, focused } from "../focus.js";
 import { onReadingInterrupted, readingIsContinuous } from "../reading-continuity.js";
 import { pagePresented } from "../page-paint.js";
 import { watchOwner } from "../arrivals.js";
+
+/** @typedef {import("./thread-card.js").ThreadReading} ThreadReading */
+/** @typedef {import("./thread-card.js").ThreadRecord} ThreadRecord */
+/** @typedef {ReturnType<typeof import("./messages.js").messageReading>} MessageReading */
 
 // Whether this page's ledger holds a gesture of the user's on `thread`, of any kind, the
 // refusal that takes one back included until the reading it restores is drawn: the
 // application publisher says which thread each stands in (`thread.gestured`). Their
 // words from another tab, or a turn a seat first draws after the log answered it, arrive
 // like the agent's.
-const gesturedOn = (thread) => threadState().gestured.includes(thread.id);
+/** @param {{id: string}} thread */
+export const gesturedOn = (thread) => threadState().gestured.includes(thread.id);
 
 // Whether the user acts in the thread a seat draws under `key` (`gesturedOn`).
+/** @param {string | undefined} key */
 const gestured = (key) => {
-  const thread = allThreads().find((each) => threadKey(each) === key);
-  return Boolean(thread) && gesturedOn(thread);
+  const thread = key === undefined ? null : threadNamed(key);
+  return thread !== null && gesturedOn(thread);
 };
 
 // The reactions in force a strip draws, by token, since a reaction keeps its token but
 // not its id when the log answers it.
+/** @param {NonNullable<MessageReading["reactions"]>} reactions */
 const tokens = (reactions) =>
   new Set(reactions.choices.filter(({ inForce }) => inForce).map(({ name }) => name));
 
 // The tokens in force in one of two strips and not the other.
+/** @template T @param {ReadonlySet<T>} a @param {ReadonlySet<T>} b */
 const symmetric = (a, b) => [...a, ...b].filter((name) => !a.has(name) || !b.has(name));
 
 // A summary as a card draws it: the messages of `drawn`, the ids of the turns the card
 // draws, that it folds, and whether one of them holds it open (`protected`, which the
 // server derives from whose turn it is). A reaction reply it covers draws as a strip.
+/** @param {ThreadReading["summaries"][number]} summary @param {ReadonlySet<string>} drawn */
 const fold = (summary, drawn) =>
   JSON.stringify([
     summary.id,
@@ -191,6 +196,7 @@ const fold = (summary, drawn) =>
   ]);
 
 // The edit a message's words were last rewritten by, or null for words as first said.
+/** @param {Pick<MessageReading, "base" | "id">} message */
 const rewritten = (message) => (message.base === message.id ? null : message.base);
 
 // How the seat would draw `message` differently in its words from `prior`, the same
@@ -201,6 +207,7 @@ const rewritten = (message) => (message.base === message.id ? null : message.bas
 //   appended turn does;
 // - "rewritten": words a new revision changed, an edit;
 // - "grew": words that changed under the same revision, still that message arriving.
+/** @param {MessageReading | undefined} prior @param {MessageReading} message */
 function messageChange(prior, message) {
   if (!prior) return "joined";
   const reworded = JSON.stringify(prior.body) !== JSON.stringify(message.body);
@@ -220,12 +227,15 @@ function messageChange(prior, message) {
 // folded when the agent's answer arrives, moves what it covers but is that reply's news,
 // so the notice does not count it, and where it folds the run standing at the thread's
 // foot (`footFold`) it changes only that foot, as the answer's arrival does. `answers`
-// says the news is the agent answering the user, who had the last turn as drawn: all of
+// names the user's turn and the first reply answering it (null while only work
+// has arrived), when the user had the last turn as drawn: all of
 // it, the reply, the work under way on it and that work's fold, lies after that turn,
 // which a presentation may show at once (primary-reader.js, `answersAtOnce`). A message the log
 // took back is no news: it goes. `joined` names new messages and existing streamed
 // messages whose words grew, including progress. Card placement uses those same
 // arrivals when predicting motion and when they actually show. Null where nothing differs.
+/** @typedef {Pick<ThreadReading, "messages" | "resolved" | "working" | "summaries" | "source">} ChangeReading */
+/** @param {ChangeReading} was @param {ChangeReading} now @param {{progressOpen?: boolean}} [options] */
 export function threadChange(was, now, { progressOpen = false } = {}) {
   const drawn = new Map(was.messages.map((message) => [message.key, message]));
   const settled =
@@ -236,36 +246,32 @@ export function threadChange(was, now, { progressOpen = false } = {}) {
         : "Reopened";
   const news = {
     settled,
-    working:
-      was.working?.words === now.working?.words
-        ? null
-        : now.working?.live
-          ? "Work in progress"
-          : "Work changed",
-    progress: 0,
+    working: was.working?.words !== now.working?.words,
     replies: 0,
     messages: 0,
     edits: 0,
     reactions: 0,
+    summaries: 0,
     appended: false,
   };
+  /** @type {Set<string>} */
   const changed = new Set();
+  /** @type {Set<string>} */
   const joined = new Set();
+  /** @type {Set<string>} */
   const arrived = new Set();
   for (const message of now.messages) {
     const prior = drawn.get(message.key);
     const change = messageChange(prior, message);
     if (change === "joined") joined.add(message.key);
     if (!prior || prior.provisional) arrived.add(message.id);
-    // A progress message joins the thread's working message, not its replies, so its
-    // notice counts it, as it counts a reply; the answer that later folds it
-    // is a reply. Where the step shows, because the reader opened the progress
-    // (`progressOpen`, thread-card.js) or the thread is resolved and keeps its progress
-    // as messages, it is a reply's news.
-    if (change === "joined" && message.progress && !progressOpen && !now.resolved) {
-      news.progress += 1;
+    // A progress message joins the thread's working message, not its replies, so it is
+    // the working message's news (`news.working`), which the notice doesn't say. Where
+    // the step shows, because the reader opened the progress (`progressOpen`,
+    // thread-card.js) or the thread is resolved and keeps its progress as messages, it
+    // is a reply's news.
+    if (change === "joined" && message.progress && !progressOpen && !now.resolved)
       continue;
-    }
     if (change === "joined") {
       if (message.author === "agent") news.replies += 1;
       else news.messages += 1;
@@ -274,12 +280,13 @@ export function threadChange(was, now, { progressOpen = false } = {}) {
       news[change === "grew" ? "replies" : "edits"] += 1;
       changed.add(message.key);
     } else if (settled) changed.add(message.key);
-    else if (message.reactions && prior.reactions) {
+    else if (message.reactions && prior?.reactions) {
       const turned = symmetric(tokens(prior.reactions), tokens(message.reactions));
       news.reactions += turned.length;
       if (turned.length) changed.add(message.key);
     }
   }
+  /** @param {ChangeReading} reading */
   const summaries = (reading) => {
     const ids = new Set(reading.messages.map(({ id }) => id));
     return new Map(reading.summaries.map((summary) => [fold(summary, ids), summary]));
@@ -294,7 +301,10 @@ export function threadChange(was, now, { progressOpen = false } = {}) {
   const visible = new Set(now.messages.map(({ id }) => id));
   const retired = new Set(
     now.source.msgs
-      .filter((message) => visible.has(message.completed_by))
+      .filter(
+        (message) =>
+          message.completed_by !== undefined && visible.has(message.completed_by),
+      )
       .map(({ key }) => key),
   );
   const removed = was.messages.filter(({ key }) => retired.has(key));
@@ -317,20 +327,13 @@ export function threadChange(was, now, { progressOpen = false } = {}) {
     messages: [
       ...removed.map(({ key }) => key),
       ...[...added, ...gone].flatMap(({ covers }) =>
-        covers.map((id) => keys.get(id)).filter(Boolean),
+        covers.flatMap((id) => keys.get(id) ?? []),
       ),
     ],
     summaries: gone.map(({ id }) => id),
   };
-  const counts = [
-    "working",
-    "progress",
-    "replies",
-    "messages",
-    "edits",
-    "reactions",
-    "summaries",
-  ];
+  /** @type {(keyof typeof news)[]} */
+  const counts = ["working", "replies", "messages", "edits", "reactions", "summaries"];
   if (!settled && counts.every((count) => !news[count])) return null;
   const appendedAtEnd =
     news.appended &&
@@ -340,9 +343,14 @@ export function threadChange(was, now, { progressOpen = false } = {}) {
   const turn = was.messages.findLastIndex(
     (message) => message.author === "user" && !message.progress,
   );
+  const previousTurn = was.messages[turn];
   const asked = new Set(was.messages.slice(0, turn + 1).map(({ key }) => key));
-  const answers =
-    turn >= 0 &&
+  const currentTurn = now.messages.findIndex(
+    (message) => message.key === was.messages[turn]?.key,
+  );
+  const answering =
+    previousTurn !== undefined &&
+    currentTurn >= 0 &&
     was.messages
       .slice(turn + 1)
       .every((message) => message.progress || message.provisional) &&
@@ -354,25 +362,37 @@ export function threadChange(was, now, { progressOpen = false } = {}) {
     !folds.summaries.length &&
     (!news.appended || appendedAtEnd) &&
     ![...changed, ...folds.messages].some((key) => asked.has(key));
+  const answers = answering
+    ? Object.freeze({
+        turn: previousTurn.key,
+        reply:
+          now.messages.slice(currentTurn + 1).find((message) => !message.progress)
+            ?.key ?? null,
+      })
+    : null;
   return { news, changed, joined, folds, appendedAtEnd, footFold, answers };
 }
 
 // The thread `now` with what `was`, the thread as the seat drew it, did not show held
 // back: what the log's news changed, as drawn. That is its settlement; its messages, the
 // new ones left out, a reaction taken off or a streaming reply gone still present, and
-// each one's words as drawn, which only an edit or a stream changes; and its summaries
-// as drawn. A held thread is read from this as from any other, so what the reading
-// derives from those, such as its title, its reaction strips or its controls, agrees
-// with what it draws.
+// each one's words or mark as drawn, which only an edit, an undo of a reaction or a
+// stream changes; and its summaries as drawn. A held thread is read from this as from
+// any other, so what the reading derives from those, such as its title, its reaction
+// strips or its controls, agrees with what it draws. A message with words the user took
+// back in another tab is no news: it reads Deleted, or goes, at once.
 // Whose turn it is and each message's delivery read as they stand, as the server
 // derives them: they change the title's status and a message's head row in place, as
 // in a thread that holds nothing, so a resolution held from the card already takes its
 // turn off the title.
+/** @param {ThreadRecord} was @param {ThreadRecord} now */
 function withheld(was, now) {
   const current = new Map(now.msgs.map((message) => [messageKey(message), message]));
   const msgs = was.msgs.flatMap((prior) => {
     const message = current.get(messageKey(prior));
     if (!message) return isReaction(prior) || prior.provisional ? [prior] : [];
+    // A reaction taken back while something stands on it is still the mark drawn.
+    if (isReaction(prior) && !isReaction(message)) return [prior];
     // A streaming reply held as drawn is still the reply arriving, whatever completed it.
     // Its content version is the one its drawn words are, so the words a rewrite holds
     // back are neither marked read nor taken for the rewrite.
@@ -402,84 +422,69 @@ function withheld(was, now) {
   });
 }
 
-const counted = (count, one, many) => count && `${count} ${count === 1 ? one : many}`;
-/** @param {{
- *   settled?: string,
- *   working?: string,
- *   progress?: number,
- *   replies?: number,
- *   messages?: number,
- *   edits?: number,
- *   reactions?: number,
- *   summaries?: number,
- *   threads?: number,
- * }} news */
-const newsParts = ({
-  settled,
-  working,
-  progress = 0,
-  replies = 0,
-  messages = 0,
-  edits,
-  reactions,
-  summaries,
-  threads,
-}) =>
+/** @param {ThreadChange["news"]} news */
+const newsParts = ({ settled, replies, messages, edits, reactions, summaries }) =>
   [
     settled,
-    ![settled, progress, replies, messages, edits, reactions, summaries, threads].some(
-      Boolean,
-    ) && working,
-    counted(replies, "new reply", "new replies"),
-    // A progress message is no reply, so it counts with the user's messages from
-    // elsewhere; a reply arriving after it folds it, and says it.
-    counted(messages + (replies ? 0 : progress), "new message", "new messages"),
-    counted(edits, "message edited", "messages edited"),
-    counted(reactions, "reaction changed", "reactions changed"),
-    counted(summaries, "summary changed", "summaries changed"),
-    counted(threads, "new thread", "new threads"),
-  ].filter(Boolean);
+    replies && counted(replies, "new reply", "new replies"),
+    messages && counted(messages, "new message"),
+    edits && counted(edits, "message edited", "messages edited"),
+    reactions && counted(reactions, "reaction changed", "reactions changed"),
+    summaries && counted(summaries, "summary changed", "summaries changed"),
+  ].flatMap((part) => (typeof part === "string" && part.length > 0 ? [part] : []));
 
-// What a notice says: each fact of the news, most telling first and each after the
-// first led by its separator, and the line they make.
+// How a notice says that things wait: one count of them all ("2 new"), a settling
+// counting as one, on every surface that says news is held, Threads' notice of
+// joining rows included.
+/** @param {number} total */
+export const newsCount = (total) => `${total} new`;
+
+// The room a card holds for its notice's count: the widest count it says, in two
+// figures of one width (`button.lf-thread-news`, surfaces.css), so a count past 99
+// is cut.
+export const NEWS_ROOM = newsCount(99);
+
+// What a notice says: the count (`text`), and each fact of the news, most telling
+// first, as the line its title, and so its accessible description, reads (`label`).
+// Null where only the working message changed, which waits with no notice (the header).
+/** @param {ThreadChange["news"]} news */
 const said = (news) => {
-  const parts = newsParts(news).map((part, index) => (index ? ` · ${part}` : part));
-  return { parts, label: parts.join("") };
+  const { settled, replies, messages, edits, reactions, summaries } = news;
+  const total = (settled ? 1 : 0) + replies + messages + edits + reactions + summaries;
+  return total ? { text: newsCount(total), label: newsParts(news).join(" · ") } : null;
 };
 
+/** @typedef {{text: string, label: string, open: () => Element | null}} NewsNotice */
+
 /** The control that says what a row holds and shows it. `set(news)` gives it the
- *  reading's `news` ({parts, label, reopened, open}); `open` returns the thread to land a
- *  keyboard on, since the notice goes with what it held. A held reopening's notice stands
- *  where Reopen did, with the same compact face as other news, and is the thread's
- *  reopen control (`lf-reopen`), so the thread's Enter and `r` keep their meaning and
- *  press it to show the thread reopened. A `header` notice stands in a resolved panel
- *  card's title as a node of its own, since the notice in the card's rows may have
- *  stood elsewhere a moment before. The words have a span of their own, so a card that
- *  holds the notice's room (`data-room`, controls.css) keeps it at the width of the
- *  news it first said. Each fact of the news has a span in it, and a fact that would
- *  pass the notice's width drops whole rather than cutting the facts before it, so
- *  "1 new reply" with a message arriving after it still reads "1 new reply", where a cut
- *  read "1 new re…" (components/surfaces.css); the title and the accessible name keep
- *  every fact. While facts are dropped, the notice counts them at its end ("+1",
- *  `data-lf-more`), so a reader with no tooltip, as on a phone, knows more waits. The
- *  count reads the layout, so a size observer recounts whenever the words or a fact
- *  change size, a fact's first observation included. */
-export function newsNotice(header = false) {
-  const node = offer(
-    "button",
-    header
-      ? "lf-thread-notice lf-thread-notice-news lf-thread-header-action lf-thread-news"
-      : "lf-thread-notice lf-thread-notice-news lf-thread-news",
-  );
+ *  reading's `news` ({text, label, open}); `open` returns the thread to land a
+ *  keyboard on, since the notice goes with what it held. It is an inline press that
+ *  announces news waiting (`data-lf-news`, controls.css), in the accent the unread dot
+ *  wears. It says one count of all
+ *  that waits, "2 new", in every placement, which is its accessible name too, so a
+ *  voice user saying the words they see reaches it; its title, and so its accessible
+ *  description, says each fact, "1 new reply · 1 new message". A name of the facts
+ *  alone matched nothing the user saw. The user chose this on 31 October over a line
+ *  of facts that dropped those past its room and counted them at its end ("1 new reply
+ *  +1"), and said "2 new" only where even the first fact didn't fit, so one piece of
+ *  news read three ways, in the danger ink an error wears. The words have a span of
+ *  their own, so a card that holds the notice's room (`data-lf-room`, controls.css)
+ *  keeps it at the width of the widest count it says (`NEWS_ROOM`). */
+export function newsNotice() {
+  const node = offerAction("inline", "lf-thread-news");
+  keeps(node, "data-lf-news", "");
   const words = document.createElement("span");
+  // The news is Leaf's, so the words wear Leaf's voice, as the panel's field does a
+  // reading all Leaf says (voice.js).
+  words.dataset.lfVoice = "leaf";
   node.append(words);
-  // A dropped fact wraps onto a line below the first (components/surfaces.css).
-  const dropped = sizeObserver(() => {
-    const [first, ...later] = /** @type {HTMLElement[]} */ ([...words.children]);
-    const count = later.filter((fact) => fact.offsetTop !== first.offsetTop).length;
-    keeps(words, "data-lf-more", count ? `+${count}` : null);
-  });
+  /** @type {() => Element | null} */
   let open = () => null;
+  // A key on the notice, which stands the user on it, lands them on the thread, since
+  // the notice goes with what it held. A pointer's press takes no focus, so it shows the
+  // news and leaves the user where they stand: a reply being written keeps its caret,
+  // where the press once took it out of the box.
+  node.addEventListener("mousedown", (event) => event.preventDefault());
   const show = () => {
     const currentLocation = focused() === node;
     const landing = open();
@@ -496,90 +501,80 @@ export function newsNotice(header = false) {
   ]);
   return {
     node,
+    /** @param {NewsNotice} news */
     set(news) {
-      if (words.textContent !== news.label) {
-        render(html`${news.parts.map((part) => html`<span>${part}</span>`)}`, words);
-        dropped.disconnect();
-        for (const box of [words, ...words.children]) dropped.observe(box);
-      }
+      keepsText(words, news.text);
       keeps(node, "title", news.label);
-      node.classList.toggle("lf-reopen", news.reopened);
       open = news.open;
-    },
-  };
-}
-
-/** The row a seat that draws no thread shows in its first-message row's place while it
- *  holds a thread, at the height that row stood at. The first-message row has no room
- *  to spare: a notice beside its box moved the box's Send and the hold route beside it.
- *  The box comes back once the thread shows. */
-export function seatNotice() {
-  const notice = newsNotice();
-  const node = offer("div", "lf-seat-news");
-  node.append(notice.node);
-  return {
-    node,
-    set(news, box) {
-      notice.set(news);
-      if (box?.isConnected)
-        node.style.blockSize = layoutPx(box.getBoundingClientRect().height);
     },
   };
 }
 
 // Every live seat's HeldNews, so an arrival can show what any of them holds of its
 // thread.
+/** @type {Set<HeldNews>} */
 const holders = new Set();
 
 /** Shows what every seat holds of the thread `id` names, a message's id naming its
  *  thread: an arrival at it, or a route whose destination it holds. Each seat draws
  *  what it released before this returns. Returns whether any seat held anything of it. */
-export const showHeld = (id) => everySeat(id, (held, thread) => held.show(thread));
-
-/** Shows the new threads a seat holds back where `id` names one of them, as their
- *  notice would, and nothing it holds of threads it draws: a destination with no node
- *  until its seat draws it. Returns whether any seat held it. */
-export const showHeldThread = (id) =>
-  everySeat(id, (held, thread) => held.showThreads(thread));
-
-function everySeat(id, show) {
+/** @param {string} id */
+export function showHeld(id) {
   const thread = threadIdNamed(id);
   let shown = false;
-  for (const held of holders) shown = show(held, thread) || shown;
+  for (const held of holders) shown = held.show(thread) || shown;
   return shown;
 }
 
-// The thread the user is in, and their arrivals at another, which show what it holds.
+// The thread the user is in, and their arrivals at another. A move or a step there shows
+// what it holds. A press there puts the user in it, so each seat holding it draws again
+// and the seat's rule for a user in it decides (inline.js).
+/** @type {string | null} */
 let currentLocation = null;
-onCurrentLocation((node, cause) => {
-  // A drop leaves them in the thread, for its owner to put them back in.
-  if (cause === "drop") return;
-  const thread = node && closestAcross(node, THREAD);
-  const id = drawnThreadId(thread);
-  const arrived =
-    id !== null && id !== currentLocation && (cause === "move" || cause === "step");
-  currentLocation = id;
-  if (arrived) showHeld(id);
-});
+onCurrentLocation(
+  /** @param {Node | null} node @param {string} cause */ (node, cause) => {
+    // A drop leaves them in the thread, for its owner to put them back in.
+    if (cause === "drop") return;
+    const thread = node && closestAcross(node, THREAD);
+    const id = drawnThreadId(thread);
+    const arrived = id !== null && id !== currentLocation;
+    currentLocation = id;
+    if (!arrived) return;
+    if (cause === "move" || cause === "step") showHeld(id);
+    else if (cause === "press") for (const held of holders) held.redraw(id);
+  },
+);
+
+/** @typedef {NonNullable<ReturnType<typeof threadChange>>} ThreadChange */
+/** @typedef {ThreadReading & {visible?: boolean, folding?: boolean}} DrawableThread */
+/** @typedef {Omit<DrawableThread, "settlement"> & {
+ * settlement: ThreadReading["settlement"] | null, news: NewsNotice | null,
+ * change: ThreadChange | null}} HeldThread */
+/** @typedef {{threads: readonly HeldThread[]}} HeldCollection */
+/** @typedef {{node: Element, progressOpen?: boolean,
+ * newsMoves: (change: ThreadChange) => boolean}} NewsView */
 
 export class HeldNews {
   #seat;
   #view;
   #changed;
-  // The reading last drawn, the one each reading is read against: every thread the seat
-  // has taken in, by key, drawn or held; the threads it draws holding news; the threads
-  // whose news the user asked to see, which the next reading draws as they stand; the
-  // threads not drawn; and each thread's key by its id.
+  // The reading last drawn, the one each reading is read against; the threads it draws
+  // holding news; the threads whose news the user asked to see, which the next reading
+  // draws as they stand; and each thread's key by its id.
+  /** @type {HeldCollection | null} */
   #shown = null;
-  #known = new Set();
+  /** @type {Set<string>} */
   #holds = new Set();
+  /** @type {Map<string, symbol>} */
   #released = new Map();
-  #threads = new Set();
+  /** @type {Map<string, string>} */
   #keys = new Map();
+  /** @type {(() => void) | null} */
   #stopWatching = null;
 
   // `view(key)` is the seat's ThreadView for a thread; `changed()` draws the seat again
   // from the reading it holds.
+  /** @param {Element} seat @param {(key: string) => NewsView | null} view @param {() => void} changed */
   constructor(seat, view, changed) {
     this.#seat = seat;
     this.#view = view;
@@ -594,29 +589,27 @@ export class HeldNews {
   // The reading to draw from `reading`, the seat's whole reading of its threads. The first
   // reading drawn from the read log is what the seat shows on arrival, so none of it is
   // news; one drawn before the log is read, or while the server is away, is no baseline
-  // either. `row` says whether the seat draws a first-message row the user is not in, in
-  // whose place a new thread's notice can stand.
-  hold(reading, { row }) {
-    const candidate = this.prepare(reading, { row });
+  // either.
+  /** @template {{threads: readonly DrawableThread[]}} R @param {R} reading */
+  hold(reading) {
+    const candidate = this.prepare(reading);
     candidate.commit();
     return candidate.reading;
   }
 
   // Required presenters prepare before yielding to package layout. Only the
   // candidate actually painted becomes the baseline for the next comparison.
-  prepare(reading, { row }) {
+  /** @template {{threads: readonly DrawableThread[]}} R @param {R} reading */
+  prepare(reading) {
     const read = runtime.statePhase === "ready";
     if (!read || !readingIsContinuous()) this.#forget();
     const prior = read ? this.#shown : null;
-    const keys = new Set(reading.threads.map(({ key }) => key));
-    for (const key of this.#threads) if (!keys.has(key)) this.#threads.delete(key);
     this.#keys = new Map(reading.threads.map(({ id, key }) => [id, key]));
-    if (prior) this.#arrive(prior, reading, row);
     const shown = this.#draw(prior, reading);
     const released = new Map(this.#released);
     // Waiting for all of the seat to go keeps news held a little longer than it needs,
     // never shorter.
-    if (this.#holding())
+    if (this.#holds.size)
       this.#stopWatching ??= whenNone([this.#seat], growthIsSeen, this.#all);
     else this.#stop();
     return {
@@ -626,125 +619,78 @@ export class HeldNews {
         // reading. Consume only the intents this candidate actually drew.
         for (const [key, token] of released)
           if (this.#released.get(key) === token) this.#released.delete(key);
-        this.#known = keys;
         this.#shown = read ? shown : null;
       },
     };
   }
 
-  // Which of the threads new to the seat it holds back.
-  #arrive(prior, reading, row) {
-    const arrived = reading.threads.filter(({ key }) => !this.#known.has(key));
-    // A thread the user starts is their gesture, and the threads before it show with it.
-    if (arrived.some(({ key }) => gestured(key))) this.#threads.clear();
-    else if (arrived.length) {
-      const last = prior.threads.at(-1)?.key;
-      const after = last ? this.#view(last)?.node : this.#seat;
-      const seen = readingIsContinuous() && Boolean(after) && growthAfterIsSeen(after);
-      if (seen && (last || row)) for (const { key } of arrived) this.#threads.add(key);
-      else this.#threads.clear();
-    }
-  }
-
   // Each thread as it stands, except one whose news would move what the reader reads,
-  // which stands as it was drawn, its notice saying what waits.
+  // which stands as it was drawn, its notice saying what waits, if anything but the
+  // working message does.
+  /** @template {{threads: readonly DrawableThread[]}} R
+   * @param {HeldCollection | null} prior @param {R} reading
+   * @returns {Omit<R, "threads"> & HeldCollection} */
   #draw(prior, reading) {
     this.#holds.clear();
     const drawn = new Map(prior?.threads.map((thread) => [thread.key, thread]));
-    const threads = reading.threads
-      .filter(({ key }) => !this.#threads.has(key))
-      .map((thread) => {
+    const threads = reading.threads.map(
+      /** @returns {HeldThread} */ (thread) => {
         const was = drawn.get(thread.key);
         // A card the reading takes off the screen, or one already leaving it, shows
         // nothing for news to move.
         const shown = thread.visible !== false && !thread.folding;
-        const held =
-          was && shown && !this.#released.has(thread.key)
-            ? threadChange(was, thread, {
-                progressOpen: this.#view(thread.key)?.progressOpen ?? false,
-              })
-            : null;
-        if (!held || gestured(thread.key) || !this.#view(thread.key)?.newsMoves(held))
-          return { ...thread, news: null };
+        if (!was || !shown || this.#released.has(thread.key))
+          return { ...thread, news: null, change: null };
+        const view = this.#view(thread.key);
+        const held = threadChange(was, thread, {
+          progressOpen: view?.progressOpen ?? false,
+        });
+        if (!held || gestured(thread.key) || !view?.newsMoves(held))
+          return { ...thread, news: null, change: held };
         this.#holds.add(thread.key);
-        // What the news changes stands as drawn. A held reopening's notice stands
-        // where Reopen did, since opening it is what reopening would show.
-        const { news } = held;
+        const notice = said(held.news);
+        // What the news changes stands as drawn.
         return {
           ...thread.reread(withheld(was.source, thread.source)),
           // Workflows and to-dos update in place, but the working message itself
           // keeps its drawn presence while its arrival or departure is held.
-          working: news.working ? was.working : thread.working,
-          ...(news.settled === "Reopened" && { settlement: null }),
-          news,
+          working: held.news.working ? was.working : thread.working,
+          news: notice
+            ? {
+                ...notice,
+                open: () => {
+                  showHeld(thread.id);
+                  return this.#view(thread.key)?.node ?? null;
+                },
+              }
+            : null,
+          change: null,
         };
-      });
-    const waiting = this.#threads.size;
-    const host = threads.at(-1);
-    if (waiting && host) host.news = { ...host.news, threads: waiting };
-    for (const thread of threads) {
-      if (thread.news)
-        thread.news = {
-          ...said(thread.news),
-          reopened: thread.news.settled === "Reopened",
-          open: () => {
-            const node = this.#view(thread.key)?.node ?? null;
-            showHeld(thread.id);
-            if (thread === host && waiting) this.#open(thread.key, true);
-            return node;
-          },
-        };
-    }
-    // A thread arriving with no thread drawn is held only where the seat drew its
-    // first-message row, so its notice stands in that row's place.
-    const news =
-      waiting && !host
-        ? {
-            ...said({ threads: waiting }),
-            reopened: false,
-            open: () => this.#open(null, true),
-          }
-        : null;
-    return Object.freeze({ ...reading, threads: Object.freeze(threads), news });
+      },
+    );
+    return Object.freeze({ ...reading, threads: Object.freeze(threads) });
   }
 
-  // Shows what the seat holds of the thread `id`: its news, or, where the seat holds the
-  // thread itself, every thread it holds, as the notice saying them would.
+  // Shows what the seat holds of the thread `id`.
+  /** @param {string} id */
   show(id) {
     const key = this.#keys.get(id);
-    const thread = this.#threads.has(key);
-    if (!this.#holds.has(key) && !thread) return false;
-    this.#open(key, thread);
+    if (key === undefined || !this.#holds.has(key)) return false;
+    if (this.#released.has(key)) return true;
+    this.#released.set(key, Symbol("release"));
+    // A thread held while the user acts in it has a newer reading on its way, which
+    // draws it as it stands; drawing the one held now would show a state that reading
+    // replaces in the same task.
+    if (!gestured(key)) this.#changed();
     return true;
   }
 
-  // Shows the new threads the seat holds, where it holds the thread `id` among them.
-  showThreads(id) {
-    if (!this.#threads.has(this.#keys.get(id))) return false;
-    this.#open(null, true);
-    return true;
-  }
-
-  // Shows what one notice holds: a thread's news, and the seat's new threads where that
-  // notice also says them. Returns the thread a keyboard on the notice lands on.
-  #open(key, threads) {
-    const first = threads && [...this.#threads][0];
-    let changed = false;
-    if (key && this.#holds.has(key) && !this.#released.has(key)) {
-      this.#released.set(key, Symbol("release"));
-      // A thread held while the user acts in it has a newer reading on its way, which
-      // draws it as it stands; drawing the one held now would show a state that reading
-      // replaces in the same task.
-      changed = !gestured(key);
-    }
-    if (threads && this.#threads.size) {
-      this.#threads.clear();
-      changed = true;
-    }
-    // Native disclosure can report the same opening after its owner released the
-    // news. A no-op observation must not replace that operation's pending paint.
-    if (changed) this.#changed();
-    return this.#view(key ?? first)?.node ?? null;
+  // Draws the seat again where it holds the thread `id`, so the thread's rule for a
+  // user now in it decides.
+  /** @param {string} id */
+  redraw(id) {
+    const key = this.#keys.get(id);
+    if (key !== undefined && this.#holds.has(key)) this.#changed();
   }
 
   // The next reading draws every thread as it stands, as when the user changes what
@@ -754,7 +700,7 @@ export class HeldNews {
   }
 
   #all = () => {
-    if (!this.#holding()) return;
+    if (!this.#holds.size) return;
     this.#forget();
     this.#changed();
   };
@@ -763,17 +709,6 @@ export class HeldNews {
   #forget() {
     for (const thread of this.#shown?.threads ?? [])
       this.#released.set(thread.key, Symbol("release"));
-    this.#threads.clear();
-  }
-
-  #holding() {
-    return Boolean(this.#threads.size || this.#holds.size);
-  }
-
-  // Whether the seat holds no news and owes no release, so a reading it has drawn would
-  // draw the same again.
-  get settled() {
-    return !this.#holding() && !this.#released.size;
   }
 
   #stop() {
@@ -800,13 +735,17 @@ export class HeldNews {
  *  ends it and a return takes it up again, since a return draws nothing again. Current
  *  activation availability is not a retained presentation: callers refresh it
  *  from its current owner even while the reading holds. */
+/** @template T */
 export class HeldReading {
   #region;
   #changed;
+  /** @type {T | null} */
   #shown = null;
   #released = false;
+  /** @type {{nodes: readonly Element[], stop: (() => void) | null} | null} */
   #watch = null;
 
+  /** @param {Element} owner @param {() => readonly Element[]} region @param {() => void} changed */
   constructor(owner, region, changed) {
     this.#region = region;
     this.#changed = changed;
@@ -823,6 +762,7 @@ export class HeldReading {
     });
   }
 
+  /** @param {T} reading @returns {T} */
   hold(reading) {
     // Preparation can draw partial authored contributions before the complete log
     // arrives. That is no baseline for news: the first ready reading stands whole.
@@ -880,7 +820,8 @@ export class HeldReading {
  *  the reading breaks, as a hidden tab breaks it. Returns a step that drops a waiting
  *  change. A gesture of the reader's into the box is theirs to move it: the owner,
  *  which knows what counts as one, drops the wait and applies the change itself, as a
- *  live sample does on input inside its child (lf-sample.js). */
+ *  live sample does on a click or key inside its child (lf-sample.js). */
+/** @param {Element} node @param {() => void} change */
 export function heldGrowth(node, change) {
   if (!pagePresented() || !readingIsContinuous() || !growthIsSeen(node)) {
     change();
@@ -900,127 +841,4 @@ export function heldGrowth(node, change) {
   const unwatch = whenNone([node], growthIsSeen, show);
   const uninterrupt = onReadingInterrupted(show);
   return stop;
-}
-
-/** The threads one widget holds out of its flow: each thread the agent starts at a datum
- *  where the widget draws no thread, while growth at the datum's foot would be seen
- *  (geometry.js, `growthAfterIsSeen`). `hold` says
- *  which threads the widget is not handed to place. The margin draws each as it draws
- *  a thread no widget places, and pressing its marker is opening the notice, which
- *  `show` answers. The margin draws a held thread's marker though the agent settled it,
- *  since the marker is its notice. A thread also shows when the user adds a turn to it,
- *  settles or reopens it, or starts a thread at its datum, and once growth anywhere in
- *  the datum would move nothing seen. */
-export class HeldArrivals {
-  #changed;
-  // The keys of the page's threads at the last reading, or null before a reading drawn
-  // from the read log, which is what the page shows on arrival and so no baseline for
-  // news; each held thread's id and datum, by key; and the watch on each holding datum's
-  // node. A thread the widget is first handed because the user opened its datum, as a
-  // collapsed file, is no news.
-  #known = null;
-  #held = new Map();
-  #watching = new Map();
-
-  // `changed()` hands the widget its threads again.
-  constructor(changed) {
-    this.#changed = changed;
-  }
-
-  // The keys to keep out of what the widget places. `threads` holds each thread record
-  // the widget has an exact target for, with the `datum` it stands at and that datum's
-  // `node`; `drawn` holds the datums where the widget drew a thread last, and `all` is
-  // every thread record on the page.
-  hold(threads, { drawn, all }) {
-    const read = runtime.statePhase === "ready";
-    if (!read) this.#held.clear();
-    else if (this.#known) this.#take(threads, drawn);
-    this.#known = read ? new Set(all.map(({ key }) => key)) : null;
-    this.#watch(threads);
-    return new Set(this.#held.keys());
-  }
-
-  #take(threads, drawn) {
-    if (!readingIsContinuous()) {
-      this.#lapse(() => true);
-      return;
-    }
-    const keys = new Set(threads.map(({ thread }) => thread.key));
-    this.#release(({ key }) => !keys.has(key));
-    // Settling a thread or reopening it is the user's gesture in it, as a turn is. A
-    // thread the agent moves follows its datum, and one moved to a datum with a thread
-    // drawn joins that seat, whose HeldNews holds what arrives in it.
-    for (const { thread, datum } of threads) {
-      const held = this.#held.get(thread.key);
-      if (!held) continue;
-      held.datum = datum;
-      if (gesturedOn(thread)) this.#held.delete(thread.key);
-      else if (drawn.has(datum)) this.#lapse((each) => each === held);
-    }
-    const arrived = threads.filter(({ thread }) => !this.#known.has(thread.key));
-    // A thread the user starts at a datum is their gesture, and the threads held there
-    // show before it.
-    const started = new Set(
-      arrived.filter(({ thread }) => gesturedOn(thread)).map(({ datum }) => datum),
-    );
-    for (const { thread, datum, node } of arrived) {
-      // A datum with a thread drawn has a seat, and one whose growth would not be seen
-      // draws its threads together.
-      if (started.has(datum)) this.#release((held) => held.datum === datum);
-      else if (drawn.has(datum) || !growthAfterIsSeen(node))
-        this.#lapse((held) => held.datum === datum);
-      else this.#held.set(thread.key, { key: thread.key, id: thread.id, datum });
-    }
-  }
-
-  // Releases what `which` picks for a reason other than a gesture of the user's. A
-  // thread the user is in (`currentLocationNodes`), by focus or by a selection of its
-  // words, in the margin's card, stays there with them, since its
-  // release would take the card, and the reply they may be writing, away; it shows
-  // when they press its marker, or the next time its datum's growth goes unseen.
-  #lapse(which) {
-    const currentLocation = new Set(
-      currentLocationNodes().map((node) => closestAcross(node, THREAD)?.dataset.thread),
-    );
-    return this.#release((held) => which(held) && !currentLocation.has(held.id));
-  }
-
-  // One watch for each datum holding a thread, on the node it stands at now.
-  #watch(threads) {
-    const nodes = new Map(threads.map(({ datum, node }) => [datum, node]));
-    const holding = new Set([...this.#held.values()].map(({ datum }) => datum));
-    for (const [datum, watch] of this.#watching)
-      if (!holding.has(datum) || watch.node !== nodes.get(datum)) {
-        watch.stop();
-        this.#watching.delete(datum);
-      }
-    for (const datum of holding) {
-      if (this.#watching.has(datum)) continue;
-      const node = nodes.get(datum);
-      const leave = () => {
-        if (this.#lapse((held) => held.datum === datum)) this.#changed();
-      };
-      this.#watching.set(datum, { node, stop: whenNone([node], growthIsSeen, leave) });
-    }
-  }
-
-  holds(id) {
-    return [...this.#held.values()].some((held) => held.id === id);
-  }
-
-  // Shows the held threads `ids` names, and returns the ones it held, in `ids`' order.
-  show(ids) {
-    return ids.filter((id) => this.#release((held) => held.id === id));
-  }
-
-  #release(which) {
-    const released = [...this.#held.values()].filter(which);
-    for (const { key } of released) this.#held.delete(key);
-    return released.length > 0;
-  }
-
-  dispose() {
-    for (const watch of this.#watching.values()) watch.stop();
-    this.#watching.clear();
-  }
 }

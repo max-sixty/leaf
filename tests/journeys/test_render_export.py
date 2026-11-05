@@ -4,7 +4,6 @@ import base64
 import re
 import urllib.error
 import urllib.request
-from pathlib import Path
 
 import pytest
 from click.testing import CliRunner
@@ -24,12 +23,10 @@ from leaf import exporting as exporting_model
 from leaf import server as server_model
 from leaf import state as cleanup_model
 from leaf.render_checks import wait_until_ready
-from leaf.schema import ELEMENT_ID
 from leaf.served_state.service import PageStateService
+from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
-
-ROOT = Path(__file__).parents[2]
 
 
 def test_export_omits_neighboring_pages_and_their_access_key(serve, tmp_path):
@@ -125,7 +122,7 @@ OFFLINE_REGISTRY = {
         "description": "A page-owned offline export test widget.",
         "type": "object",
         "properties": {
-            "id": {"type": "string", "pattern": f"^{ELEMENT_ID}$"},
+            "id": {"type": "string"},
             "choice": {"type": "string"},
             "restated": {"type": "boolean"},
         },
@@ -273,7 +270,7 @@ def test_authored_video_and_audio_play_seek_and_export_offline(
 def test_playground_examples_keep_their_offline_interaction_mode(
     browser, serve, tmp_path, stem
 ):
-    source = ROOT / "examples" / f"{stem}.html"
+    source = named_source(stem)
     url = serve(source)
     live = open_page(browser, url)
     playground = live.locator("lf-playground")
@@ -285,7 +282,10 @@ def test_playground_examples_keep_their_offline_interaction_mode(
         live.locator('.query-row[data-filter-id="filter-2"] input').fill("80")
         submit = playground.get_by_role("button", name="Build query")
     else:
-        playground.get_by_role("button", name="B at 320px").click()
+        width = playground.get_by_role("slider", name="Comparison viewport")
+        for _ in range(5):
+            width.press("ArrowLeft")
+        playground.get_by_role("radio", name="B", exact=True).click()
         submit = playground.get_by_role("button", name="Apply treatment")
     with sending(live, f"the {stem} configuration"):
         submit.click()
@@ -312,7 +312,8 @@ def test_playground_examples_keep_their_offline_interaction_mode(
         "request",
         lambda request: (
             external.append(request.url)
-            if request.url != document_url and not request.url.startswith("data:")
+            if request.url != document_url
+            and not request.url.startswith(("data:", "blob:"))
             else None
         ),
     )

@@ -1,17 +1,13 @@
-/* Adopt the native disclosure the initial drawing built around the authored body.
- * Revision patching edits inside that body, retaining nested readers while changing
- * the prose around them. */
-import { LeafElement, initialRender, noChange } from "/runtime/widget-api.js";
+/* The native disclosure owns its open state. Lit updates the snapshot's labels
+ * and totals; authored evidence remains in the host through revisions. */
+import { render } from "./worktree-view.js";
+import { LeafElement } from "/runtime/widget-api.js";
 
 customElements.define(
   "lf-worktree",
   class extends LeafElement {
-    setup() {
-      initialRender(this);
-    }
-
     render() {
-      return noChange;
+      return render(this);
     }
   },
 );

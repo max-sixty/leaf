@@ -25,9 +25,10 @@ from leaf import codex as codex_model
 from leaf import event_endpoint as endpoint_model
 from leaf import event_log as events_model
 from leaf import harness as harness_model
-from leaf import hooks as hooks_model
 from leaf import inference, thread_titles
 from leaf import interaction_log as interaction_model
+from leaf import state as cleanup_model
+from leaf.thread import fit_title
 
 # What Codex's turn reports when the account cannot use the model it asks for.
 UNAVAILABLE_MODEL = {
@@ -346,6 +347,39 @@ def test_a_generated_title_yields_to_one_the_agent_wrote_first(page_dir):
     assert titles == ["Intro"]
 
 
+def test_a_generated_title_is_fitted_to_a_thread_title(page_dir):
+    """A model can't count characters or keep to one line, so a generated title past
+    the limit, or broken over lines, is fitted as the clerk's are rather than refused,
+    which would leave the thread untitled."""
+    comment = append_carried_log_record(
+        page_dir, {"kind": "comment", "author": "user", "text": "Tighten the intro"}
+    )
+    codex_model.prepare_codex_delivery(
+        page_dir,
+        harness_model.EmbeddedHarness("hosted-thread", "Leaf guide", os.getpid()),
+    )
+    words = "Tightening\nthe " + "long introduction " * 8
+    records = []
+    thread_titles.name_thread(
+        lambda request, target: {"title": words},
+        page_dir,
+        comment["id"],
+        "hosted-thread",
+        lambda event, **fields: records.append((event, fields)),
+    )
+    wait_for(lambda: records, bool, failure="the title request never reported")
+
+    [(event, fields)] = records
+    assert (event, fields.get("written")) == ("thread_title_generated", True)
+    [title] = [
+        e["title"]
+        for e in events_model.read_events(page_dir)
+        if e["kind"] == "thread_title"
+    ]
+    assert title == fit_title(words)
+    assert title.startswith("Tightening the long introduction") and title.endswith("…")
+
+
 TITLING_CLAUDE = """\
 #!{python}
 import json, os, sys
@@ -384,7 +418,6 @@ def test_a_comment_on_a_claude_code_page_is_named_as_it_arrives(
             "revision": 1,
             "text": "Why does the export take a minute?",
         },
-        dict,
     )
     assert status == 200, body
     titles = wait_for(
@@ -446,7 +479,6 @@ def test_a_comment_on_a_codex_page_is_named_as_it_arrives(
             "revision": 1,
             "text": "Why does the export take a minute?",
         },
-        dict,
     )
     assert status == 200, body
     [title] = wait_for(
@@ -483,7 +515,6 @@ def test_a_comment_on_a_codex_page_is_named_as_it_arrives(
             "parent": reaction["id"],
             "text": "Can the import run in parallel?",
         },
-        dict,
     )
     assert status == 200, body
     wait_for(
@@ -581,7 +612,6 @@ def test_a_comment_on_a_pi_page_is_named_as_it_arrives(page_dir, tmp_path, monke
             "revision": 1,
             "text": "Why does the export take a minute?",
         },
-        dict,
     )
     assert status == 200, body
     [title] = wait_for(
@@ -633,9 +663,7 @@ def test_a_title_request_that_outlives_its_session_writes_no_title(claimed):
         return {"title": "Intro"}
 
     thread_titles.name_admitted_thread(generate, claimed, comment["id"], "s1")
-    hooks_model.cmd_hook(
-        "claude-code", {"hook_event_name": "SessionEnd", "session_id": "s1"}
-    )
+    cleanup_model.end_harness_instance("s1")
     answered.set()
     for worker in threading.enumerate():
         if worker.name == "leaf-thread-title":
@@ -661,7 +689,9 @@ def test_both_harnesses_are_asked_for_a_title_in_the_same_words(
             "anchor": {"section": None, "quote": "Export runs nightly"},
         },
     )
-    _, request = thread_titles.title_request(page_dir, comment["id"])
+    title_request_result = thread_titles.title_request(page_dir, comment["id"])
+    assert title_request_result is not None
+    _, request = title_request_result
 
     programs = tmp_path / "programs"
     programs.mkdir()

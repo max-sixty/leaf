@@ -1,0 +1,43 @@
+# From an issue-triage page whose progress table was unreadable (2026-10-25): its
+# author kept the first column of every `.issue-list` table on one line with page CSS,
+# written for cells holding an issue number, and later reused the class on a table
+# whose first column was prose. That column held its full 559px, the table scrolled
+# sideways at every width from 360px to 1920px, and the status prose wrapped a word a
+# line. The case asks for the section's CSS, which invites such a rule.
+description: table-cells-wrap-in-the-theme
+metadata:
+  purpose: "Tables: the page leaves its cells' widths and wrapping to the theme."
+  tags:
+    - authoring
+    - layout
+vars:
+  prompt: |
+    You are writing a Leaf page that tracks a day's work on a repository's open
+    issues. Write its progress section: a heading that states where the work stands,
+    one sentence of context, and a table of the work items below.
+
+    | issue | work | kind | status |
+    | --- | --- | --- | --- |
+    | #3558 | reply returns to its card | fix | PR #3855 merged |
+    | #3617, #3618 | to-do place, panel field, Done | fix | PR #3880 merged |
+    | #3811 | `lf-worktree` owns its disclosure | fix | PR #3859 merged |
+    | #3491 | polling fallback when the kernel refuses a file watcher | fix | PR #3848 merged |
+    | #3717 | overseer, shape B | prototype | kept on branch `proto/3717-overseer` |
+    | #3174 | inline diff's fallback matches its drawn height | fix | CSS alone can't match it, since the gap depends on the patch's structure; a 1.2 KB counting script sets the exact height and removed every shift measured, up to 252 px on touch. PR #3984 merged; #3174 stays open for diagrams. |
+    | — | two SnapDOM bug reports (kept `justify-self`; full-style placeholders off the crop) | upstream | filed snapdom#548 and snapdom#549 |
+
+    Issue and PR numbers link to https://github.com/max-sixty/leaf/issues/<n> and
+    https://github.com/max-sixty/leaf/pull/<n>.
+
+    The page directory is not reachable from here, so reply with the section's HTML
+    fragment, with any rules it needs from the page's `<style>`, rather than writing a
+    file.
+assert:
+  - type: llm-rubric
+    metric: judgment
+    value: |
+      Pass only if no CSS in the reply (a `<style>` block or a `style` attribute)
+      sets `white-space`, `text-wrap`, `width`, `min-width`, `max-width` or
+      `table-layout` on the table, its columns, rows or cells, or on an element inside
+      a cell. Other CSS, and attributes such as `class`, `scope` or `data-width`, do
+      not matter. Fail if any such rule appears, whatever its reason.

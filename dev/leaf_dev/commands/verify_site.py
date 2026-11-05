@@ -24,6 +24,8 @@ on this machine (`local_adapter`), and the local Worker (`local_worker`).
 from __future__ import annotations
 
 import base64
+import gzip
+import hashlib
 import json
 import shutil
 import subprocess
@@ -33,20 +35,20 @@ import time
 import tomllib
 import urllib.error
 import urllib.request
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Generator
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
-from typing import IO, NamedTuple
+from typing import IO, NamedTuple, Protocol
 from urllib.parse import urlencode, urljoin, urlsplit
 
 import click
 import psutil
-from playwright.sync_api import APIResponse, BrowserContext, Page
+from playwright.sync_api import APIRequestContext, APIResponse, BrowserContext, Page
 from playwright.sync_api import Error as PlaywrightError
-from playwright.sync_api import TimeoutError as PlaywrightTimeout
 
 from leaf.findings import Finding
+from leaf.render_checks import PageNotReady, wait_until_ready
 from leaf.render_gate.scheme import collect_page_errors
 from leaf_dev import ROOT
 from leaf_dev.arms import (
@@ -57,7 +59,7 @@ from leaf_dev.arms import (
     install_codex_plugin,
     run_directory,
 )
-from leaf_dev.browser import headless_shell
+from leaf_dev.browser import go_to_threads, headless_shell, panel_view
 from leaf_dev.commands.site import asset_site, install_tree
 from leaf_dev.startup import observe_startup as record_startup
 from leaf_dev.startup import startup_reading
@@ -102,9 +104,10 @@ class AgentSession(NamedTuple):
     state: dict
 
 
-def check(condition: bool, message: str) -> None:
+def check[T](condition: T | None, message: str) -> T:
     if not condition:
         raise RuntimeError(message)
+    return condition
 
 
 def said(failures: list[Finding]) -> str:
@@ -112,13 +115,40 @@ def said(failures: list[Finding]) -> str:
     return "; ".join(map(str, failures)) or "none"
 
 
-def answered(response: APIResponse, url: str) -> APIResponse:
+class HttpAnswer(Protocol):
+    @property
+    def ok(self) -> bool: ...
+
+    @property
+    def status(self) -> int: ...
+
+    def text(self) -> str: ...
+
+
+def answered[Response: HttpAnswer](response: Response, url: str) -> Response:
     """Hold one API answer to being an answer, quoting what a refusal said (a Leaf
     fault's body is `{"error": "<class>: <message>"}`)."""
     if not response.ok:
         said = response.text().strip()[:400]
         raise RuntimeError(f"{url} returned {response.status}: {said}")
     return response
+
+
+def read_state(
+    request: APIRequestContext,
+    url: str,
+    *,
+    headers: dict[str, str] | None = None,
+    timeout: float | None = None,
+) -> APIResponse:
+    """Read state with one native connection-reset retry, safe for this idempotent GET.
+
+    HTTP failures still surface through ``answered``. Publish-site's transport
+    capture records failed attempts even when the retry succeeds.
+    """
+    return answered(
+        request.get(url, headers=headers, timeout=timeout, max_retries=1), url
+    )
 
 
 def observe_startup(page: Page) -> list[Finding]:
@@ -133,17 +163,82 @@ def observe_startup(page: Page) -> list[Finding]:
 def await_presentation(
     page, url: str, failures: list[Finding], timeout: int = 30_000
 ) -> None:
-    """Wait for presentation; a page that never presents names the startup stamps it
-    reached (none: upgrade stalled; `upgraded` alone: the first state read did)."""
+    """Wait until the page has presented the state it read (`wait_until_ready`
+    through `presented`); a page that never does names the readiness stage it
+    stopped at and the browser errors it raised on the way."""
     try:
-        page.locator("body[data-lf-presented]").wait_for(timeout=timeout)
-    except PlaywrightTimeout:
-        reached = page.evaluate("window.__leafStartup.milestones")
+        wait_until_ready(page, through="presented", timeout_ms=timeout)
+    except PageNotReady as error:
         raise RuntimeError(
-            f"{url} never presented, reaching "
-            f"{', '.join(reached) or 'no startup milestone'}; browser errors: "
-            + said(failures)
+            f"{url} never presented: {error}; browser errors: " + said(failures)
         ) from None
+
+
+@contextmanager
+def capture_script_responses(page: Page):
+    """Keep the reload's actual script responses if its verification fails.
+
+    The CI log is the retained artifact, so bodies are gzip/base64 with short lines.
+    Decode by joining `gzipBase64`, base64-decoding, then gzip-decompressing. These
+    are Playwright's decoded response bytes, not a new request or wire compression.
+    Only delivery headers are retained; cookies and other credentials are excluded.
+    """
+    scripts = []
+    delivery_headers = {
+        "content-type",
+        "content-length",
+        "content-encoding",
+        "etag",
+        "cache-control",
+        "cf-cache-status",
+        "cf-ray",
+        "leaf-release",
+        "leaf-state-source",
+    }
+
+    def finished(request):
+        if request.resource_type != "script":
+            return
+        response = request.response()
+        if response is None:
+            return
+        script = {
+            "url": response.url,
+            "status": response.status,
+            "headers": {
+                name: value
+                for name, value in response.headers.items()
+                if name in delivery_headers
+            },
+        }
+        body = None
+        try:
+            body = response.body()
+        except PlaywrightError as error:
+            script["bodyError"] = str(error)
+        scripts.append((script, body))
+
+    page.on("requestfinished", finished)
+    try:
+        yield
+    except Exception:
+        for script, body in scripts:
+            if body is not None:
+                script["sha256"] = hashlib.sha256(body).hexdigest()
+                encoded = base64.b64encode(gzip.compress(body, mtime=0)).decode("ascii")
+                script["gzipBase64"] = [
+                    encoded[start : start + 4096]
+                    for start in range(0, len(encoded), 4096)
+                ]
+        print(
+            json.dumps(
+                {"scriptResponses": [script for script, _ in scripts]}, indent=2
+            ),
+            file=sys.stderr,
+        )
+        raise
+    finally:
+        page.remove_listener("requestfinished", finished)
 
 
 def activation_url(page_url: str, state: dict) -> str:
@@ -282,9 +377,7 @@ def verify_page(
         return startup
 
     state_url = urljoin(url, "api/state")
-    passive_response = answered(
-        context.request.get(state_url, timeout=120_000), state_url
-    )
+    passive_response = read_state(context.request, state_url, timeout=120_000)
     check(
         passive_response.headers.get("leaf-session") == "passive",
         f"{state_url} left the edge before interaction",
@@ -292,7 +385,7 @@ def verify_page(
     activation = activation_url(url, passive_response.json())
     # No wait here: `--wait` reruns the whole pass until the release verifies.
     activation_response = activation_read(context, activation)
-    check(activation_response is not None, f"{activation} {STILL_STARTING}")
+    activation_response = check(activation_response, f"{activation} {STILL_STARTING}")
     check(
         activation_response.headers.get("leaf-session") == "active",
         f"{activation} did not activate a private container",
@@ -303,13 +396,11 @@ def verify_page(
     )
     if settle_after_activation is not None:
         settle_after_activation()
-    state_response = answered(
-        context.request.get(
-            state_url,
-            headers={"Leaf-Layer": identity["layer"], "Leaf-Release": release},
-            timeout=120_000,
-        ),
+    state_response = read_state(
+        context.request,
         state_url,
+        headers={"Leaf-Layer": identity["layer"], "Leaf-Release": release},
+        timeout=120_000,
     )
     check(
         state_response.headers.get("leaf-session") == "active",
@@ -438,7 +529,7 @@ def verify_cross_tab_activation(
         # Docker changes host interfaces; the page under test must remain passive.
         neighbor = f"{origin}/"
         state_url = urljoin(neighbor, "api/state")
-        state = answered(context.request.get(state_url), state_url).json()
+        state = read_state(context.request, state_url).json()
         check(
             activation_read(context, activation_url(neighbor, state)) is not None,
             f"{neighbor} {STILL_STARTING}",
@@ -453,7 +544,7 @@ def verify_cross_tab_activation(
         response = page.goto(url, wait_until="load", timeout=120_000)
         check(response is not None and response.ok, f"{url} did not load")
         await_presentation(page, url, failures)
-    passive = answered(context.request.get(state_url, timeout=120_000), state_url)
+    passive = read_state(context.request, state_url, timeout=120_000)
     check(
         passive.headers.get("leaf-session") == "passive",
         f"{state_url} activated before the cross-tab interaction",
@@ -501,7 +592,7 @@ def user_session(
     response = page.goto(url, wait_until="load", timeout=120_000)
     check(response is not None and response.ok, f"{url} did not load for its agent")
     await_presentation(page, url, failures)
-    passive = answered(context.request.get(state_url, timeout=120_000), state_url)
+    passive = read_state(context.request, state_url, timeout=120_000)
     if direct_agent:
         reached = passive.headers.get("leaf-release")
         if release is not None and reached != release:
@@ -524,8 +615,8 @@ def user_session(
         f"{activation} did not activate a private container for its agent",
     )
     headers = {"Leaf-Release": release} if release is not None else None
-    state_response = answered(
-        context.request.get(state_url, headers=headers, timeout=120_000), state_url
+    state_response = read_state(
+        context.request, state_url, headers=headers, timeout=120_000
     )
     # The edge answers a passive read with the deployed release, so the release header
     # is the container's own only once the session has left the edge.
@@ -600,7 +691,7 @@ def announced_origin(log: Path, event: str) -> str | None:
 
 
 @contextmanager
-def logged(log: Path) -> Iterator[IO[str]]:
+def logged(log: Path) -> Generator[IO[str]]:
     """Collect a local server's output in `log`, printing it beside any failure."""
     log.parent.mkdir(parents=True, exist_ok=True)
     with log.open("w") as output:
@@ -619,7 +710,7 @@ def serving(
     ready: Callable[[], str | None],
     patience: float,
     **popen,
-) -> Iterator[str]:
+) -> Generator[str]:
     """Run a local server and yield the origin its readiness probe confirms."""
     with subprocess.Popen(
         command, stdout=output, stderr=subprocess.STDOUT, **popen
@@ -644,7 +735,7 @@ def ready_origin(log: Path, event: str, path: str) -> str | None:
 
 
 @contextmanager
-def local_adapter() -> Iterator[tuple[str, str]]:
+def local_adapter() -> Generator[tuple[str, str]]:
     """Build the site and serve it with the website adapter sharing the host's login.
 
     Its isolated Codex home and normal Leaf plugin installation are removed with
@@ -711,10 +802,8 @@ def verify_saved_state(browser, worker: LocalWorker) -> dict[str, dict]:
     state_url = urljoin(url, "api/state")
     before = worker.containers()
     session = user_session(browser, url, state_url, worker.release)
-    check(
-        isinstance(session, AgentSession),
-        f"saved-state fixture could not activate: {session}",
-    )
+    if not isinstance(session, AgentSession):
+        raise RuntimeError(f"saved-state fixture could not activate: {session}")
     cookies = session.context.cookies()
     session.context.close()
     wait_for_host_network()
@@ -725,7 +814,7 @@ def verify_saved_state(browser, worker: LocalWorker) -> dict[str, dict]:
     # Read through the real HTTP owner too; it must agree with the fixture's commits.
     context = browser.new_context()
     context.add_cookies(cookies)
-    current = answered(context.request.get(state_url), state_url).json()
+    current = read_state(context.request, state_url).json()
     check(
         current["active"]["revision"] == seeded["revision"],
         "private revision was not activated",
@@ -764,13 +853,12 @@ def verify_saved_state(browser, worker: LocalWorker) -> dict[str, dict]:
     await_presentation(page, url, failures)
     page.locator("#saved-state-recall").wait_for(state="visible")
     page.locator("#heat-opt-window[chosen]").wait_for(state="visible")
-    page.locator(".lf-fp-threads").click()
-    page.locator(".lf-fp-filters button", has_text="Open").click()
-    page.locator(f'.lf-fp-thread[data-key="{seeded["comment"]}"]').click()
-    page.locator(".lf-fp-view[data-view=thread]").get_by_text(
+    go_to_threads(page)
+    page.locator(f'.lf-fp-thread[data-lf-key="{seeded["comment"]}"]').click()
+    page.locator(panel_view("thread")).get_by_text(
         "Saved before the container stopped.", exact=True
     ).wait_for(state="visible")
-    state_response = answered(context.request.get(state_url), state_url)
+    state_response = read_state(context.request, state_url)
     check(
         state_response.headers.get("leaf-state-source") == "durable",
         "saved state woke its container",
@@ -830,7 +918,7 @@ def verify_saved_state(browser, worker: LocalWorker) -> dict[str, dict]:
     )
     check(uploaded.json().get("path"), "the next write did not upload media")
     wait_for_host_network()
-    resumed = answered(context.request.get(state_url), state_url).json()
+    resumed = read_state(context.request, state_url).json()
     check(
         {seeded["comment"], seeded["choice"]}
         <= {event["id"] for event in resumed["events"]},
@@ -959,7 +1047,7 @@ class LocalWorker:
 
 
 @contextmanager
-def local_worker() -> Iterator[LocalWorker]:
+def local_worker() -> Generator[LocalWorker]:
     """Serve the built site through `wrangler dev`: the Worker and its page container.
 
     Build the image before timing HTTP readiness: a cold dependency download is not
@@ -992,6 +1080,7 @@ def local_worker() -> Iterator[LocalWorker]:
                     "package.json",
                     "pnpm-lock.yaml",
                     "pnpm-workspace.yaml",
+                    "build/*.patch",
                     "worker/codex-config.toml",
                 ],
                 context,

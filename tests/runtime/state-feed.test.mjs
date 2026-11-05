@@ -7,6 +7,7 @@ import assert from "node:assert/strict";
 import { setImmediate } from "node:timers/promises";
 import test from "node:test";
 import { applicationState } from "/runtime/semantic-state.js";
+import { servedState } from "../served.mjs";
 
 const canonical = document.createElement("link");
 canonical.rel = "canonical";
@@ -18,35 +19,7 @@ const { readingIsContinuous, readingReturn, completeReadingReturn } =
   await import("/runtime/reading-continuity.js");
 
 let taken = 0;
-const emptyProjection = () => ({ entries: [], actions: [], reports: [], desired: [] });
-const noObligations = () => ({ all: [], user: [], unanswered: [] });
-const state = (reading) => ({
-  taken: ++taken,
-  reading,
-  layer: { generation: "test" },
-  active: { revision: 1 },
-  data: { version: null, sources: {} },
-  events: [],
-  workflows: [],
-  activity: null,
-  browser: {
-    basis: { through_seq: 0 },
-    receipts: [],
-    views: {
-      1: {
-        basis: { revision: 1, through_seq: 0 },
-        thread: {
-          threads: [],
-          projection: emptyProjection(),
-          obligations: noObligations(),
-        },
-        coverage: [],
-        undo: [],
-        document: { obligations: noObligations(), projection: emptyProjection() },
-      },
-    },
-  },
-});
+const state = (reading) => servedState({ taken: ++taken, reading });
 
 test("an earlier return cannot close a later absence", (t) => {
   let visible = "visible";
@@ -166,7 +139,7 @@ test("a return stays interrupted until its refreshed reading is actually present
       assert.equal(readingIsContinuous(), false);
 
       if (mode === "rejected") {
-        assert.equal(applicationState.read().reach, "broken");
+        assert.equal(applicationState.read().reach.reach, "broken");
         return;
       }
       if (mode !== "painting") news = "second";
@@ -175,7 +148,7 @@ test("a return stays interrupted until its refreshed reading is actually present
       assert.equal(reads, mode === "painting" ? 1 : 2);
       // A read that brings nothing says so to whatever reads the server's reach.
       if (mode === "offline")
-        assert.equal(applicationState.read().reach, "unreachable");
+        assert.equal(applicationState.read().reach.reach, "unreachable");
       if (mode === "overtaken") {
         preparation.resolve();
         await setImmediate();
@@ -189,6 +162,34 @@ test("a return stays interrupted until its refreshed reading is actually present
   }
 });
 
+test("a matching response completes from its held data after a newer admission", async (t) => {
+  const held = {
+    version: "initial",
+    sources: { builds: { contract: "c", value: "old" } },
+  };
+  const newer = {
+    version: "new",
+    sources: { builds: { contract: "c", value: "new" } },
+  };
+  const { runtime } = await import("/runtime/context.js");
+  const { acceptData } = await import("/runtime/data.js");
+  applicationState.acceptData(held, ++taken);
+  t.mock.method(globalThis.AbortSignal, "timeout", () => new AbortController().signal);
+  const response = Promise.withResolvers();
+  const earlier = state("initial-response");
+  t.mock.method(globalThis, "fetch", async (url, init) => {
+    assert.equal(new Headers(init.headers).get("Leaf-Data-Version"), "initial");
+    return response.promise;
+  });
+  const reading = beginRead();
+  acceptData(newer, ++taken);
+  response.resolve(Response.json({ ...earlier, data: { version: "initial" } }));
+  const { state: answer } = await reading;
+  assert.deepEqual(answer.data, held);
+  assert.equal(acceptData(answer.data, answer.taken), false);
+  assert.deepEqual(runtime.data, newer);
+});
+
 test("a read keeps the data it named when the answer leaves its sources out", async (t) => {
   const held = {
     version: "v1",
@@ -199,7 +200,7 @@ test("a read keeps the data it named when the answer leaves its sources out", as
   t.mock.method(globalThis.AbortSignal, "timeout", () => new AbortController().signal);
   t.mock.method(globalThis, "fetch", async (url, init) => {
     assert.equal(new URL(url).pathname, "/api/state");
-    assert.equal(init.headers["Leaf-Data-Version"], "v1");
+    assert.equal(new Headers(init.headers).get("Leaf-Data-Version"), "v1");
     return Response.json({ ...state("unmoved"), data: { version: "v1" } });
   });
   const { state: answer } = await beginRead();
@@ -218,4 +219,20 @@ test("a live server's error is its fault, while a gateway with nothing behind it
     answer = new Response("", { status });
     assert.deepEqual(await beginRead(), { state: null, fault: null }, `HTTP ${status}`);
   }
+});
+
+test("a state body lost in transit is no answer, while malformed JSON remains a fault", async (t) => {
+  t.mock.method(globalThis.AbortSignal, "timeout", () => new AbortController().signal);
+  let answer = new Response(
+    new globalThis.ReadableStream({
+      start(controller) {
+        controller.error(new TypeError("Failed to fetch"));
+      },
+    }),
+  );
+  t.mock.method(globalThis, "fetch", async () => answer);
+  assert.deepEqual(await beginRead(), { state: null, fault: null });
+  answer = new Response("{");
+  const result = await beginRead();
+  assert.ok(result.error instanceof SyntaxError);
 });

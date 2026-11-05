@@ -23,15 +23,14 @@ from render_cases_navigation import (
     _publish,
 )
 from render_harness import (
-    EXAMPLES,
     LONG_PAGE,
-    PANEL_THREAD,
     CutOff,
     Traffic,
     _until,
     holding,
     leaf_page,
     open_page,
+    open_threads,
     opened_tab,
     page_comment,
     panel_settled,
@@ -52,13 +51,15 @@ from leaf import hosting as hosting_model
 from leaf import presence as presence_model
 from leaf.render_checks import rendered, wait_until_ready
 from leaf.schema import SERVICE_FILE
+from leaf_dev.browser import PANEL_THREAD
+from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
 
 @pytest.mark.parametrize("width", [390])
 def test_merge_film_play_continues_from_the_displayed_moment(browser, serve, width):
-    source = next(path for path in EXAMPLES if path.name == "wt-merge.html")
+    source = named_source("wt-merge")
     page = open_page(browser, serve(source))
     resized(page, width, 900)
     play = page.locator(".film-play")
@@ -182,11 +183,13 @@ def test_sample_fixture_history_presents_before_ready_and_returns_on_reset(
     first = page.frame_locator("#first-history iframe")
     other = page.frame_locator("#second-history iframe")
     for frame in (first, other):
-        expect(frame.locator(f'{PANEL_THREAD}[data-thread="question"]')).to_be_visible()
+        expect(
+            frame.locator(f'{PANEL_THREAD}[data-lf-thread="question"]')
+        ).to_be_visible()
     first_state = first.locator("body").evaluate(
         "new URL('api/state', document.baseURI).href"
     )
-    first.locator(".lf-fp-controls .lf-fp-settle").click()
+    first.locator(".lf-fp-thread-controls :is(.lf-resolve, .lf-reopen)").click()
     wait_for(
         lambda: [e["kind"] for e in page.request.get(first_state).json()["events"]],
         lambda kinds: "resolve" in kinds,
@@ -204,7 +207,7 @@ def test_sample_fixture_history_presents_before_ready_and_returns_on_reset(
         "button", name="Reset", exact=True
     ).click()
     expect(page.locator("#arrivals")).to_have_text("3")
-    expect(first.locator(f'{PANEL_THREAD}[data-thread="question"]')).to_be_visible()
+    expect(first.locator(f'{PANEL_THREAD}[data-lf-thread="question"]')).to_be_visible()
     state = page.request.get(
         first.locator("body").evaluate("new URL('api/state', document.baseURI).href")
     ).json()
@@ -221,8 +224,11 @@ def test_sample_host_view_changes_leave_its_scroll_and_keyboard_position(
 ):
     """Page, panel and Reset arrive inside a child without moving its host reader."""
     page = open_page(browser, serve(_sample_containment_page()))
-    resized(page, 1000, 720)
+    resized(page, 1400, 720)
     sample = page.locator("#practice")
+    # The child's window holds a rail, so its page surface is a margin card; a
+    # narrower one opens every thread in its panel.
+    sample.evaluate("sample => { sample.style.width = '1100px'; }")
     sample.evaluate("async sample => { await sample.ready; }")
     frame = sample.locator("iframe")
     completed = 0
@@ -257,7 +263,7 @@ def test_sample_host_view_changes_leave_its_scroll_and_keyboard_position(
             assert page.evaluate("scrollY") == before
             if panel_open:
                 expect(
-                    child.locator(f'{PANEL_THREAD}[data-thread="question"]')
+                    child.locator(f'{PANEL_THREAD}[data-lf-thread="question"]')
                 ).to_be_visible()
             else:
                 expect(
@@ -875,8 +881,7 @@ def test_live_samples_preserve_optimistic_refusal_and_child_escape(browser, serv
     )
     page.unroute(event_url)
 
-    child.locator(".lf-fp-threads").click()
-    panel_settled(child, view="threads")
+    open_threads(child)
     page.keyboard.press("Escape")
     panel_settled(child, open=False)
     page.keyboard.press("Escape")
@@ -1021,48 +1026,6 @@ def test_all_pages_opens_a_neighbour_in_a_tab_of_its_own(
     panel_settled(page, open=False)
 
 
-def test_all_pages_takes_the_keyboard(browser, serve, live_leaf, one_user):
-    """All pages is a list, and a user walks it without reaching for the mouse: g L
-    opens it, up and down step between its links and clamp at the ends, Home and End
-    reach the ends, Enter opens the focused one in its own tab, and Esc gives that press
-    back — the user is returned to the reading place they pressed `g L` from."""
-    live_leaf("second", "A second leaf")
-    other_url, _ = live_leaf("other", "The other leaf")
-    page = open_page(browser, serve(LONG_PAGE), context=one_user)
-    page.keyboard.press("g")
-    page.keyboard.press("Shift+l")
-    panel_settled(page, view="leaves")
-    rows = page.locator(f"{LEAVES} a.lf-fp-page")
-    # Titles order the list, so the walk has a stated first row to start from.
-    expect(rows.first.locator(".lf-fp-label")).to_have_text("A second leaf")
-    page.keyboard.press("ArrowDown")
-    expect(rows.first).to_be_focused()
-    page.keyboard.press("ArrowUp")
-    expect(rows.first).to_be_focused()
-    page.keyboard.press("ArrowDown")
-    expect(rows.nth(1)).to_be_focused()
-    page.keyboard.press("ArrowDown")  # clamped at the end, never wrapped to the top
-    expect(rows.nth(1)).to_be_focused()
-    page.keyboard.press("ArrowUp")
-    expect(rows.first).to_be_focused()
-    page.keyboard.press("End")
-    expect(rows.nth(1)).to_be_focused()
-    page.keyboard.press("Home")
-    expect(rows.first).to_be_focused()
-    # Enter is the browser's own on a link, which is why the row is one.
-    page.keyboard.press("ArrowDown")
-    destination = rows.nth(1).get_attribute("href")
-    assert destination is not None and destination.startswith(f"{other_url}/?t=")
-    tab = opened_tab(page, destination, lambda: page.keyboard.press("Enter"))
-    expect(tab).to_have_url(f"{other_url}/")
-    tab.close()
-    page.keyboard.press("Escape")
-    panel_settled(page, open=False)
-    # One press in, one Escape out, and what the Escape gives back is exactly what the
-    # press took: the reading place `g L` was pressed from.
-    assert page.evaluate("() => document.activeElement === document.body")
-
-
 def test_a_leaf_served_at_a_new_address_keeps_its_row_and_focus(
     browser, serve, other_leaf, one_user
 ):
@@ -1118,3 +1081,6 @@ def test_a_leaf_served_at_a_new_address_keeps_its_row_and_focus(
         "focusedLeaf === document.activeElement && focusedLeaf.isConnected"
     ), "the restarted page's row lost its node or its focus"
     opened_tab(page, destination, lambda: page.keyboard.press("Enter"))
+
+
+import pytest

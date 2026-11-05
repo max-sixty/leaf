@@ -1,51 +1,260 @@
-/** Build component-owned CSS into ready distribution sheets.
+/** Bundle the third-party stylesheets Leaf's own sheets import into ready files.
  *
- * Source entrypoints use native CSS imports; esbuild resolves them at contributor
- * build time. Runtime delivery, installation and packages consume the committed
- * complete sheets, so introducing an owner never adds a startup request or compiler.
- * Existing layer/scope wrappers remain with composition and their source owners.
- * `build/browser/build.mjs` writes and checks these outputs with its own.
+ * Leaf's sheets need no build: layer composition and the serving runtime place each
+ * `@import` of a file beside them inline (`leaf.layer.stylesheet`). A dependency's
+ * sheet lives in `node_modules`, which an install doesn't have, so esbuild resolves its
+ * imports here at contributor build time and the result is committed beside the sheet
+ * that imports it. `build/browser/build.mjs` writes and checks these outputs with its
+ * own.
  */
-import { readdir } from "node:fs/promises";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const assets = "browser";
-const packages = "packages";
 
 /** Source and output pairs, readable without build dependencies by the trusted
- * dependency publisher as well as the compiler. */
-export async function styleEntries() {
-  const entries = [
-    [`${assets}/styles/theme.css`, `${assets}/theme.css`],
-    [`${assets}/styles/shadow.css`, `${assets}/shadow.css`],
-    [`${assets}/styles/chrome.css`, `${assets}/runtime/chrome.css`],
-  ];
-  for (const entry of await readdir(resolve(root, packages), { withFileTypes: true })) {
-    if (!entry.isDirectory()) continue;
-    const packageName = entry.name;
-    const source = `${packages}/${packageName}/styles`;
-    let files;
-    try {
-      files = await readdir(resolve(root, source));
-    } catch (error) {
-      if (error.code === "ENOENT") continue;
-      throw error;
-    }
-    for (const file of files.filter((file) => /^(theme|shadow)\.css$/.test(file)))
-      entries.push([`${source}/${file}`, `${packages}/${packageName}/${file}`]);
-  }
-  return entries;
-}
+ * dependency publisher as well as the compiler. A third member takes regions of the
+ * source onto Leaf's faces instead of the whole sheet (`regions`, below).
+ * @type {[source: string, output: string, faces?: Faces][]} */
+export const styleEntries = [
+  [
+    "node_modules/@awesome.me/webawesome/dist/styles/themes/default.css",
+    "browser/styles/vendor/webawesome-theme.css",
+  ],
+  [
+    "node_modules/@awesome.me/webawesome/dist/styles/native.css",
+    "browser/styles/vendor/webawesome-native.css",
+    {
+      "Checkboxes + Radios": { input: ":is(.lf-choice, .choice) > input" },
+      Buttons: {
+        button: ":is(.lf-btn, .button, .lf-icon-action)",
+        ".wa-plain": ":not(.lf-commit, .primary)",
+        ".wa-outlined": ":is(.lf-commit, .primary)",
+        ":disabled": ':is(:disabled, [aria-disabled="true"])',
+        "::file-selector-button": null,
+      },
+      "Text Fields + Textareas + Selects": {
+        input: "input:is(.lf-ui, .field)",
+        // Leaf's own text boxes grow with their words (controls.css), which the
+        // library's fixed-height field doesn't; an authored one takes the library's.
+        textarea: "textarea.field",
+        // A single-choice listbox (`size` over 1) keeps the browser's face: the
+        // library draws every select but a multiple one as closed, a line tall.
+        select:
+          'select:is(.lf-ui, .field):is([multiple], :not([size]), [size="0"], [size="1"])',
+      },
+    },
+  ],
+];
 
 export async function styleOutputs() {
   const outputs = new Map();
-  for (const [source, output] of await styleEntries())
-    outputs.set(output, Buffer.from(await sheet(source)));
+  for (const [source, output, faces] of styleEntries)
+    outputs.set(
+      output,
+      Buffer.from(faces ? await regions(source, faces) : await sheet(source)),
+    );
   return outputs;
 }
 
+/** Leaf owns the type and the focus band of every control (surfaces.css), and its
+ * motion (`--lf-motion-*`), so the rules taken from a dependency leave these
+ * properties out. A transition would also report a control's old colour to whatever
+ * reads it during the fade, as a test reading a state just set does. */
+const LEAF_OWNS = /^(font|line-height|outline|transition)(-|$)/;
+
+/** Values in the library's rules that Leaf sets otherwise. A select's chevron is drawn
+ * in the library's cool grey, which its blend against the field's ground turned violet
+ * on Leaf's warm grounds; a neutral grey blends to a neutral grey in either scheme. A
+ * value the library no longer writes fails the build. */
+const LEAF_SETS = { "rgb(180 180 200)": "rgb(180 180 180)" };
+
+/** Regions of a dependency's sheet, each with its rules rewritten onto the Leaf faces
+ * that take them. Web Awesome ships its styles for native controls only in
+ * `native.css`, which restyles every element of a kind in the document, so Leaf takes
+ * the regions for the controls it draws and names, for each region, the faces each of
+ * the region's element types, classes and states stand for (controls.css says which
+ * role takes which).
+ *
+ * A type or class a region's map doesn't name, and anything it maps to null, matches
+ * no Leaf face: a selector that requires one goes, `:not()` of one goes from the
+ * selector it stands in, and a selector that names nothing in the map goes too. Every
+ * rule then weighs nothing (`:where()`), as the library's own sheet stands in its
+ * lowest layer, and the rules keep the library's order, which alone ranks them among
+ * themselves. shadow.css imports the result after the layer's defaults for every
+ * control, such as `.lf-ui-face`'s ink, which it replaces, and before controls.css,
+ * whose rules state where Leaf departs from it. A region that moves or goes fails the
+ * build rather than shipping an empty sheet.
+ * @typedef {Record<string, Record<string, string | null>>} Faces
+ * @param {string} source
+ * @param {Faces} faces */
+async function regions(source, faces) {
+  const { readFile } = await import("node:fs/promises");
+  const { transform, Features } = await import("lightningcss");
+  const text = await readFile(resolve(root, source), "utf8");
+  const parse = (/** @type {string} */ code, /** @type {any} */ visitor = undefined) =>
+    transform({
+      filename: source,
+      code: Buffer.from(code),
+      include: Features.Nesting,
+      visitor,
+    }).code.toString();
+  /** @param {string} selector */
+  const components = (selector) => {
+    /** @type {any[]} */
+    let found = [];
+    parse(`${selector} {}`, {
+      Rule: {
+        style: (/** @type {any} */ rule) => void (found = rule.value.selectors[0]),
+      },
+    });
+    return found;
+  };
+  let out = `/* @noformat Generated from ${source} by build/styles.mjs. */\n`;
+  for (const [name, select] of Object.entries(faces)) {
+    const start = text.indexOf(`/* #region ${name} `);
+    const end = text.indexOf("/* #endregion */", start);
+    if (start < 0 || end < 0) throw new Error(`No region "${name}" in ${source}`);
+    const map = new Map(
+      Object.entries(select).map(([from, to]) => [
+        from,
+        to === null ? null : components(to),
+      ]),
+    );
+    const flat = parse(text.slice(text.indexOf("\n", start) + 1, end));
+    const rules = parse(flat, {
+      Rule: {
+        style(/** @type {any} */ rule) {
+          const selectors = rule.value.selectors
+            .map((/** @type {any[]} */ selector) => onFaces(selector, map))
+            .filter(Boolean)
+            .map(weightless);
+          const kept = (/** @type {any[]} */ list) =>
+            list.filter((d) => !LEAF_OWNS.test(declared(d)));
+          const declarations = {
+            declarations: kept(rule.value.declarations.declarations ?? []),
+            importantDeclarations: kept(
+              rule.value.declarations.importantDeclarations ?? [],
+            ),
+          };
+          const count =
+            declarations.declarations.length +
+            declarations.importantDeclarations.length;
+          if (!selectors.length || !count) return [];
+          return revived({
+            ...rule,
+            value: { ...rule.value, selectors, declarations },
+          });
+        },
+      },
+      RuleExit: {
+        media: (/** @type {any} */ rule) => (rule.value.rules.length ? undefined : []),
+      },
+    });
+    out += `\n/* Region "${name}" */\n${rules.trim()}\n`;
+  }
+  for (const [from, to] of Object.entries(LEAF_SETS)) {
+    if (!out.includes(from))
+      throw new Error(`No ${from} in the regions taken from ${source}`);
+    out = out.replaceAll(from, to);
+  }
+  return out;
+}
+
+/** A selector rewritten onto the faces `map` names, or null where it names none of
+ * them or requires an element no face is.
+ * @param {any[]} selector
+ * @param {Map<string, any[] | null>} map */
+function onFaces(selector, map) {
+  const rewritten = rewrite(selector, map);
+  return rewritten?.named ? rewritten.parts : null;
+}
+
+/** @param {any[]} selector
+ * @param {Map<string, any[] | null>} map
+ * @returns {{ parts: any[], named: boolean } | null} */
+function rewrite(selector, map) {
+  /** @type {any[]} */
+  const parts = [];
+  let named = false;
+  for (const part of selector) {
+    const key =
+      part.type === "type"
+        ? part.name
+        : part.type === "class"
+          ? `.${part.name}`
+          : part.type === "pseudo-class"
+            ? `:${part.kind}`
+            : part.type === "pseudo-element"
+              ? `::${part.kind}`
+              : null;
+    const face = key === null ? undefined : map.get(key);
+    if (face === null) return null;
+    if (face) {
+      parts.push(...structuredClone(face));
+      named = true;
+    } else if (part.type === "type" || part.type === "class") return null;
+    else if (
+      part.type === "pseudo-class" &&
+      ["is", "where", "not"].includes(part.kind)
+    ) {
+      const within = part.selectors
+        .map((/** @type {any[]} */ inner) => rewrite(inner, map))
+        .filter(Boolean);
+      // `:not()` of what matches no face holds for every face.
+      if (part.kind === "not") {
+        if (within.length)
+          parts.push({ ...part, selectors: within.map((w) => w.parts) });
+        continue;
+      }
+      if (!within.length) return null;
+      parts.push({ ...part, selectors: within.map((w) => w.parts) });
+      named ||= within.some((w) => w.named);
+    } else if (
+      (part.type === "pseudo-class" &&
+        part.kind !== "has" &&
+        (part.selectors || part.of)) ||
+      (part.type === "pseudo-element" && part.selector)
+    )
+      // `:has()` asks about other elements, which no face names. Any other selector
+      // argument, such as `::slotted()`'s, would need rewriting this code doesn't do,
+      // so the build stops.
+      throw new Error(`No rewrite for :${part.kind}() of selectors`);
+    else parts.push(part);
+  }
+  return { parts, named };
+}
+
+/** The selector at no weight, its pseudo-element left outside `:where()`.
+ * @param {any[]} selector */
+function weightless(selector) {
+  const at = selector.findIndex((part) => part.type === "pseudo-element");
+  const head = at < 0 ? selector : selector.slice(0, at);
+  const tail = at < 0 ? [] : selector.slice(at);
+  return [{ type: "pseudo-class", kind: "where", selectors: [head] }, ...tail];
+}
+
+/** A rule handed back to lightningcss 1.33, which hands optional fields over as null
+ * and refuses them back unless the key is absent.
+ * @param {any} rule */
+function revived(rule) {
+  return JSON.parse(
+    JSON.stringify(rule, (key, value) => (value === null ? undefined : value)),
+  );
+}
+
+/** @param {any} declaration */
+function declared(declaration) {
+  return declaration.property === "unparsed" || declaration.property === "custom"
+    ? (declaration.value.propertyId?.property ?? declaration.value.name ?? "")
+    : declaration.property;
+}
+
+/** A dependency's whole sheet, bundled, with only its custom properties: the tokens its
+ * components read. Its rules for the document, such as Web Awesome's root colour,
+ * colour scheme and sans and its page frame, stay out, so a page without Leaf can
+ * take the tokens at its root (`leaf.layer.portable_sheet`) and keep its own look.
+ * @param {string} source */
 async function sheet(source) {
   const { build } = await import("./esbuild.mjs");
   const result = await build({
@@ -67,7 +276,6 @@ async function sheet(source) {
         },
       },
     ],
-    banner: { css: `/* @noformat Generated from ${source} by build/styles.mjs. */` },
   });
   if (result.warnings.length)
     throw new Error(
@@ -78,5 +286,27 @@ async function sheet(source) {
     .filter((item) => item.kind === "import-rule");
   if (deferredImports.length)
     throw new Error(`Stylesheets must be complete at distribution: ${source}`);
-  return result.outputFiles[0].text;
+  const { transform } = await import("lightningcss");
+  const empty = (/** @type {any} */ rule) => (rule.value.rules.length ? undefined : []);
+  const tokens = transform({
+    filename: source,
+    code: Buffer.from(result.outputFiles[0].text),
+    visitor: {
+      // A declaration kept is left untouched, since lightningcss 1.33 can't take back
+      // every value it hands over, such as a colour in a custom property.
+      Declaration: (/** @type {any} */ d) =>
+        declared(d).startsWith("--") ? undefined : [],
+      RuleExit: {
+        style: (/** @type {any} */ rule) =>
+          rule.value.declarations.declarations?.length ||
+          rule.value.declarations.importantDeclarations?.length
+            ? undefined
+            : [],
+        "layer-block": empty,
+        media: empty,
+        supports: empty,
+      },
+    },
+  }).code.toString();
+  return `/* @noformat Generated from ${source} by build/styles.mjs. */\n${tokens}`;
 }

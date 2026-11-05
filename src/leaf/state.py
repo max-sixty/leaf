@@ -8,6 +8,17 @@ generation invalidates them without page discovery, page locks or claim rewrites
 Desktop instance unloading closes observations while retaining chat ownership.
 A session's end removes the files nothing will read again (`_retire`).
 
+This module alone says what phase a session's turn is in. Its stamps encode four:
+no turn yet, open, closed and ended. Ending a session closes its turn too, and a
+turn is open only once it has an id, so `turn_open` and `turn_closed` read a record
+and a claim's view of it (`service.claim_reading`) alike, and `session_live` says
+whether the generation may open another. Code that holds a record or a claim asks
+these rather than reading its stamps. The page's served reading carries the claim's
+turn and stamps under the record's names (`presence.presence_with_activity`), so its
+readers ask these too, and activity folds the stamps as dated evidence. Every
+opening passes through `advance_turn`, which keeps the one rule the transitions
+share: a turn id the record holds closed never reopens.
+
 The session lock also serializes Codex transport reservation, making its
 revision a compare-and-swap token for observations. Lock order is page then
 session. Session transitions never acquire page locks or call an external harness;
@@ -23,17 +34,39 @@ import functools
 import hashlib
 import json
 import os
+import re
 import secrets
 import stat
 import sys
 import tempfile
 import time
-from datetime import datetime
+from collections.abc import Mapping
+from datetime import datetime, timedelta
 from pathlib import Path
+from typing import TYPE_CHECKING, Generic, TypeVar, cast
+
+if TYPE_CHECKING:
+    from typing import TypeGuard
 
 # Installation paths start at the plugin, independent of its instruction skills.
 # Keep this locator dependency-free for standalone SessionEnd and cold hooks.
 PLUGIN_ROOT = Path(__file__).resolve().parents[2]
+
+
+def plugin_cache_copy(root: Path) -> bool:
+    """Whether `root` is a copy Claude Code installed from a marketplace into its
+    plugin cache, `<config>/plugins/cache/<marketplace>/leaf/<version>`, rather
+    than a checkout. Leaf leaves its manifest version unset, so the version
+    component is the source commit's SHA."""
+    parents = root.parents
+    return (
+        len(parents) >= 4
+        and root.parent.name == "leaf"
+        and parents[2].name == "cache"
+        and parents[3].name == "plugins"
+        and re.fullmatch(r"[0-9a-f]{7,40}", root.name) is not None
+    )
+
 
 EVENTS_FILE = "events.jsonl"
 
@@ -72,8 +105,36 @@ def hold_mode(path: Path, mode: int) -> None:
 
 # A session's hook capability observation, which ends with its instance.
 HOOKS_SUFFIX = "hooks"
+# The tool calls its hooks last ran before (`leases.first_hook_for_tool`).
+TOOLS_SUFFIX = "tools"
+# When its tool boundaries last checked its pages' status lines
+# (`hook_transport.status_reminders`), by the file's mtime.
+STATUS_CHECKED_SUFFIX = "status-checked"
+# How long the status line may stand unrenewed while the agent works before a tool
+# boundary reminds it, and how often a tool boundary checks.
+STATUS_RENEWAL = timedelta(minutes=2)
 # Its lifecycle outlives its instance while a claim reads it (`_retire`).
 SESSION_SUFFIX = "lifecycle"
+
+
+def status_check_due(session_id: str) -> bool:
+    """Whether a tool boundary of the session checks its pages' status lines now
+    (`hook_transport.status_reminders`): at most once each `STATUS_RENEWAL`, by the
+    `status-checked` mark, so a tool hook that runs after every call reads the pages
+    only that often. Here rather than beside the check, so a hook with nothing due
+    imports no page model."""
+    try:
+        checked = session_file(session_id, STATUS_CHECKED_SUFFIX).stat().st_mtime
+    except FileNotFoundError:
+        return True
+    return time.time() - checked >= STATUS_RENEWAL.total_seconds()
+
+
+def sessions_home() -> Path:
+    """The state home's session directory, created on first use."""
+    sessions = state_home() / "sessions"
+    sessions.mkdir(exist_ok=True)
+    return sessions
 
 
 def session_file(session_id: str, suffix: str) -> Path:
@@ -85,7 +146,7 @@ def session_file(session_id: str, suffix: str) -> Path:
     suffix, in the state home's `sessions/`.
     """
     key = hashlib.sha256(session_id.encode()).hexdigest()[:32]
-    return state_home() / "sessions" / f"{key}.{suffix}"
+    return sessions_home() / f"{key}.{suffix}"
 
 
 def page_key(page_dir: Path) -> str:
@@ -102,37 +163,61 @@ def flocked(path: Path, *, deadline: float | None = None):
     to them, since the files themselves are replaced by rename and a lock on a
     replaced inode holds nothing.
 
-    The event log is the successful-init marker as well as a lease. A transaction
-    racing page deletion must not recreate it and turn a deleted directory back into
-    an initialized page, so it is opened, never created, and it outlives the lock.
+    The event log is a lease as well as the page's init marker
+    (`event_log.initialized`). A transaction racing page deletion must not recreate
+    it and turn a deleted directory back into a page, so it is opened, never
+    created, and it outlives the lock.
 
     A purpose lock's file is created on first use and remains after release.
-    The block's end unlocks it before closing, since a subprocess another thread
-    starts meanwhile holds a copy of the descriptor until its exec, and closing
-    alone would keep the next taker waiting on that child (`release_lease`).
-    Every acquired descriptor is checked
-    against its path, since a shared-path replacement while a taker waits must
-    never let it enter a transaction on an inode other takers can no longer find.
-    This also covers a page replaced with a new event log.
+    What the block wrote through the file is flushed before the lock is let go
+    (`flocked_descriptor`).
 
     A `deadline`, a `time.monotonic()` reading, bounds the wait: a lock not taken
     by then raises TimeoutError, for a taker that must finish by a harness's
     deadline more than it must take the lock."""
-    mode = "r+b" if path.name == EVENTS_FILE else "a+b"
+    events = path.name == EVENTS_FILE
+    flags = os.O_RDWR if events else os.O_RDWR | os.O_CREAT | os.O_APPEND
+    with (
+        flocked_descriptor(path, flags, deadline=deadline) as held,
+        open(held, "r+b" if events else "a+b", closefd=False) as f,
+    ):
+        yield f
+
+
+@contextlib.contextmanager
+def flocked_descriptor(path: Path, flags: int, *, deadline: float | None = None):
+    """The descriptor `os.open` gives `path` under `flags`, exclusively locked while
+    the block runs (`flocked`, `leases.page_locked`).
+
+    Every acquired descriptor is checked against its path, since a shared-path
+    replacement while a taker waits must never let it enter a transaction on an
+    inode other takers can no longer find; one that lost its path is let go and
+    the path opened again. This also covers a page replaced with a new event log.
+    Each descriptor is unlocked before it is closed, since a subprocess another
+    thread starts meanwhile holds a copy of the descriptor until its exec, and
+    closing alone would keep the next taker waiting on that child
+    (`release_lease`)."""
     while True:
-        with open(path, mode) as f:
-            acquire(f, path, deadline)
-            if still_named(f.fileno(), path):
-                try:
-                    yield f
-                finally:
-                    fcntl.flock(f, fcntl.LOCK_UN)
-                return
+        held = os.open(path, flags, 0o666)
+        try:
+            acquire(held, path, deadline)
+            if still_named(held, path):
+                break
+            fcntl.flock(held, fcntl.LOCK_UN)
+        except BaseException:
+            os.close(held)
+            raise
+        os.close(held)
+    try:
+        yield held
+    finally:
+        fcntl.flock(held, fcntl.LOCK_UN)
+        os.close(held)
 
 
 def acquire(f, path: Path, deadline: float | None) -> None:
-    """Take `f`'s exclusive lock before `deadline` where one is given
-    (`flocked`); a deadline already past takes no lock at all."""
+    """Take `f`'s exclusive lock, `f` a file or a descriptor, before `deadline`
+    where one is given (`flocked`); a deadline already past takes no lock at all."""
     if deadline is None:
         fcntl.flock(f, fcntl.LOCK_EX)
         return
@@ -158,6 +243,7 @@ def still_named(held: int, path: Path) -> bool:
 
 
 def now_iso() -> str:
+    """Now in Leaf's date-time format, which `registry.schema.aware_instant` reads."""
     return datetime.now().astimezone().isoformat(timespec="milliseconds")
 
 
@@ -220,19 +306,25 @@ def write_json(path: Path, obj) -> None:
     replace_bytes([(path, json_bytes(obj), not path.is_symlink())])
 
 
+# The running Leaf's kernel registry, the facts no layer changes, whose `$events`
+# state its page protocol (`registry.kernel`). It sits in the runtime, which the
+# browser reads it from too (`runtime/kernel-facts.js`), and composition lays each
+# layer over it (`validation.composition.incoming_registry`).
+KERNEL_REGISTRY = PLUGIN_ROOT / "browser" / "runtime" / "kernel-registry.json"
+
+
 @functools.cache
 def kernel_registry() -> dict:
-    """The running Leaf's shipped registry, whose `$events` state its page protocol
-    (`registry.kernel`)."""
-    path = PLUGIN_ROOT / "browser" / "registry.json"
-    return json.loads(path.read_text(encoding="utf-8"))
+    """The kernel registry (`KERNEL_REGISTRY`), read once."""
+    return json.loads(KERNEL_REGISTRY.read_text(encoding="utf-8"))
 
 
 # Every declared `Record` by its kind, which names one shape.
 RECORDS: dict = {}
+_RecordValue = TypeVar("_RecordValue", bound=Mapping[str, object])
 
 
-class Record:
+class Record(Generic[_RecordValue]):
     """One kind of JSON object Leaf keeps outside a page's log and document, such as
     a page's stream, a claim or a session's lifecycle.
 
@@ -266,26 +358,38 @@ class Record:
     def format(self) -> str:
         return f"leaf-{self.kind}/{self.since}"
 
-    def read(self, path: Path) -> dict | None:
+    def read(self, path: Path) -> _RecordValue | None:
         """The record at `path`, less its `format`, or None where this Leaf reads
         none there."""
         stored = stored_record(path)
         if stored is None or stored.pop("format", None) != self.format:
             return None
-        return stored
+        return cast(_RecordValue, stored)
 
-    def stored(self, value: dict) -> dict:
+    def newer(self, path: Path) -> bool:
+        """Whether `path` holds this kind at a later shape than this Leaf's, which
+        only a newer Leaf writes, since a kind's `since` only rises. `read` takes it
+        as absent, so a reader that must not mistake it for none asks this."""
+        stored = stored_record(path) or {}
+        kind, _, since = str(stored.get("format", "")).rpartition("/")
+        return (
+            kind == f"leaf-{self.kind}"
+            and since.isdecimal()
+            and int(since) > self.since
+        )
+
+    def stored(self, value: _RecordValue) -> dict:
         """`value` as `write` stores it, led by its `format`."""
         return {"format": self.format} | {
             name: item for name, item in value.items() if name != "format"
         }
 
-    def encode(self, value: dict) -> bytes:
+    def encode(self, value: _RecordValue) -> bytes:
         """The bytes `write` writes, for a writer that replaces several files at
         once or writes through a lease it holds."""
         return json_bytes(self.stored(value))
 
-    def write(self, path: Path, value: dict) -> dict:
+    def write(self, path: Path, value: _RecordValue) -> _RecordValue:
         """Atomically replace the record at `path`, preserving a regular target's
         mode, and return `value` as `read` will."""
         replace_bytes([(path, self.encode(value), not path.is_symlink())])
@@ -294,8 +398,8 @@ class Record:
 
 def stored_record(path: Path) -> dict | None:
     """The JSON object at `path`, whichever Leaf wrote it, or None where there is
-    none. Only retirement reads a record this way (`retire_if_gone`); every other
-    reader goes through `Record.read`."""
+    none. Only retirement (`retire_if_gone`) and `Record.newer` read a record this
+    way; every other reader goes through `Record.read`."""
     try:
         text = path.read_text(encoding="utf-8")
     except FileNotFoundError:
@@ -436,9 +540,7 @@ SESSION = Record(
 
 
 def session_lock_path(session_id: str) -> Path:
-    path = session_file(session_id, "delivery.lock")
-    path.parent.mkdir(parents=True, exist_ok=True)
-    return path
+    return session_file(session_id, "delivery.lock")
 
 
 def session_record(session_id: str) -> dict | None:
@@ -447,9 +549,39 @@ def session_record(session_id: str) -> dict | None:
 
 
 def write_session(record: dict) -> dict:
-    path = session_file(record["id"], SESSION_SUFFIX)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    return SESSION.write(path, {**record, "revision": record["revision"] + 1})
+    return SESSION.write(
+        session_file(record["id"], SESSION_SUFFIX),
+        {**record, "revision": record["revision"] + 1},
+    )
+
+
+def session_live(record: dict | None) -> TypeGuard[dict]:
+    """Whether the record names a session that has not ended, whose generation may
+    still open turns and own claims."""
+    return record is not None and record["ended"] is None
+
+
+def turn_open(record: dict | None, turn_id: str | None = None) -> TypeGuard[dict]:
+    """Whether the record's latest turn is open, and is `turn_id` where one is named.
+
+    A record with no turn yet has none open, and an ended one closed its turn as it
+    ended, so this reads a claim's view of the record as well as the record."""
+    return (
+        record is not None
+        and record["turn"] is not None
+        and record["turn_closed"] is None
+        and turn_id in (None, record["turn"])
+    )
+
+
+def turn_closed(record: dict | None, turn_id: str | None = None) -> TypeGuard[dict]:
+    """Whether the record's latest turn has closed, by a close or the session's end,
+    and is `turn_id` where one is named. That id never reopens (`advance_turn`)."""
+    return (
+        record is not None
+        and record["turn_closed"] is not None
+        and turn_id in (None, record["turn"])
+    )
 
 
 def chat_exists(record: dict | None) -> bool:
@@ -485,7 +617,7 @@ def ensure_session(session_id: str, lifetime: dict) -> dict:
     """
     with flocked(session_lock_path(session_id)):
         record = session_record(session_id)
-        if record is None or record["ended"] is not None:
+        if not session_live(record):
             record = new_session(session_id, lifetime)
             record.update(turn=secrets.token_hex(8), turn_opened=now_iso())
         elif record["lifetime"] == lifetime:
@@ -499,8 +631,9 @@ def ensure_session(session_id: str, lifetime: dict) -> dict:
 
 
 def renew_turn(record: dict) -> dict:
-    """Renew a trusted prompt/tool observation under the caller's session lock."""
-    return write_session({**record, "turn_opened": now_iso(), "turn_closed": None})
+    """Renew the open turn of `record`, a trusted prompt or tool observation, under
+    the caller's session lock: `turn_opened` dates its last renewal."""
+    return write_session({**record, "turn_opened": now_iso()})
 
 
 def advance_turn(
@@ -510,10 +643,12 @@ def advance_turn(
     running: bool,
     observed_at: str | None = None,
 ) -> dict | None:
-    """Publish a turn observation under the caller's session lock.
+    """Publish a turn observation under the caller's session lock, or return None
+    where the record refuses it.
 
-    A closed provider identity never reopens. Unknown-id harnesses reuse their open
-    turn and mint a new identity after its ending. Callback callers validate the
+    Every opening passes through here, so this holds the rule the openings share: a
+    turn id the record holds closed never reopens. Unknown-id harnesses reuse their
+    open turn and mint a new identity after its ending. Callback callers validate the
     existing identity before calling this; prompts and guarded provider starts
     introduce a known replacement. A provider transcript observation supplies
     its own timestamp so reading old evidence does not renew its lifetime.
@@ -521,13 +656,14 @@ def advance_turn(
     record = session_record(session_id)
     if record is None:
         record = new_session(session_id, {})
-    if record["ended"] is not None:
+    if not session_live(record):
         return None
     if running:
+        if turn_id is not None and turn_closed(record, turn_id):
+            return None
         provider = turn_id is not None or record["provider"]
         if turn_id is None:
-            turn_id = record["turn"] if record["turn_closed"] is None else None
-            turn_id = turn_id or secrets.token_hex(8)
+            turn_id = record["turn"] if turn_open(record) else secrets.token_hex(8)
         if turn_id == record["turn"]:
             return record
         record = {
@@ -544,26 +680,17 @@ def advance_turn(
     return write_session(record)
 
 
-def open_session_turn(session_id: str, turn_id: str | None = None) -> dict | None:
+def open_session_turn(session_id: str) -> dict | None:
+    """Open the session's turn for an explicit reader acknowledgement
+    (`delivery.receive_delivery`). A provider names its own turns, so this opens
+    none of a provider's but the one it holds open: a late consumer or callback
+    can't restart a turn the harness ended. One after the session's files retired
+    starts a generation no claim names."""
     with flocked(session_lock_path(session_id)):
         record = session_record(session_id)
-        if record is not None and (
-            record["ended"] is not None
-            or (record["provider"] and record["turn_closed"] is not None)
-        ):
-            # A late consumer/callback cannot restart a known provider turn; one
-            # after the session's files retired starts a generation no claim names.
+        if record is not None and record["provider"] and not turn_open(record):
             return None
-        if (
-            record
-            and turn_id is not None
-            and (
-                (record["provider"] and record["turn"] != turn_id)
-                or (record["turn"] == turn_id and record["turn_closed"] is not None)
-            )
-        ):
-            return None
-        return advance_turn(session_id, turn_id, running=True)
+        return advance_turn(session_id, None, running=True)
 
 
 def start_session_turn(
@@ -572,13 +699,6 @@ def start_session_turn(
     """Adopt a provider start result only if its request still owns this epoch."""
     with flocked(session_lock_path(session_id)):
         current = session_record(session_id)
-        if (
-            current
-            and current["provider"]
-            and current["turn"] == turn_id
-            and current["turn_closed"] is not None
-        ):
-            return None
         if current != expected:
             # The provider may run its synchronous prompt hook before replying
             # to turn/start. That exact publication is the successful adoption,
@@ -587,9 +707,8 @@ def start_session_turn(
                 current
                 and expected
                 and current["generation"] == expected["generation"]
-                and current["ended"] is None
                 and current["provider"]
-                and current["turn"] == turn_id
+                and turn_open(current, turn_id)
             ):
                 return current
             return None
@@ -597,23 +716,14 @@ def start_session_turn(
 
 
 def prompt_turn(session_id: str, turn_id: str | None = None) -> dict | None:
-    """A synchronous prompt starts/resumes the harness's generation before claims."""
+    """A synchronous prompt starts/resumes the harness's generation before claims:
+    it renews the open turn it names, or the open turn where it names none, and
+    otherwise opens a turn."""
     with flocked(session_lock_path(session_id)):
         record = session_record(session_id)
-        if record is not None and record["ended"] is not None:
-            write_session(new_session(session_id, {}))
-        record = session_record(session_id)
-        if (
-            record
-            and turn_id is not None
-            and turn_id == record["turn"]
-            and record["turn_closed"] is not None
-        ):
-            return None
-        if record and (
-            turn_id == record["turn"]
-            or (turn_id is None and record["turn_closed"] is None)
-        ):
+        if record is not None and not session_live(record):
+            record = write_session(new_session(session_id, {}))
+        if turn_open(record, turn_id):
             return renew_turn(record)
         return advance_turn(session_id, turn_id, running=True)
 
@@ -631,8 +741,7 @@ def close_session_turn(
     with flocked(session_lock_path(session_id)):
         record = session_record(session_id)
         if (
-            record is None
-            or record["ended"] is not None
+            not session_live(record)
             or (expected is not ... and record != expected)
             or (
                 ended_at is not None
@@ -688,7 +797,7 @@ def _retire(session_id: str) -> None:
     (`flocked`). A failed takeover that restores a claim naming the session after
     this finds it ended either way. Directories, such as a Codex task's delivery
     records, are their owner's to retire."""
-    if holds_claims(session_id):
+    if held_claims(session_id):
         session_file(session_id, HOOKS_SUFFIX).unlink(missing_ok=True)
         return
     lock = session_lock_path(session_id)
@@ -730,23 +839,23 @@ def end_harness_instance(session_id: str) -> None:
     with flocked(session_lock_path(session_id)):
         record = session_record(session_id)
         if record and record["lifetime"] and "pid" not in record["lifetime"]:
-            if record["ended"] is None and record["turn_closed"] is None:
+            if not turn_closed(record):
                 advance_turn(session_id, record["turn"], running=False)
             session_file(session_id, HOOKS_SUFFIX).unlink(missing_ok=True)
             return
         _end_session(session_id)
 
 
+def claims_home() -> Path:
+    """The state home's `claims/`, resolved, as notifications name it: each page's
+    claim payload (`service.claim_path`), and each session's locators
+    (`session_claims`)."""
+    return state_home().resolve() / "claims"
+
+
 def session_claims(session_id: str) -> Path:
     """This session's discovery locators; payloads remain canonical by page."""
-    return state_home().resolve() / "claims" / session_file(session_id, "claims").stem
-
-
-def holds_claims(session_id: str) -> bool:
-    """Whether the session holds a claim, in this generation or a kept one from
-    before: a page it claimed that still stands and no other session has claimed
-    since."""
-    return bool(held_claims(session_id))
+    return claims_home() / session_file(session_id, "claims").stem
 
 
 def held_claims(session_id: str) -> list[Path]:
@@ -774,7 +883,7 @@ def standing_claims() -> list[Path]:
     """Every claim payload on this machine whose page still stands, retiring those
     whose page is gone (`retire_claim`), whichever Leaf wrote them."""
     standing = []
-    for payload in (state_home().resolve() / "claims").glob("*.json"):
+    for payload in claims_home().glob("*.json"):
         stored = stored_record(payload)
         if stored is not None and pages_gone(named_pages(stored)):
             retire_claim(payload, stored)
@@ -822,17 +931,30 @@ def drop_locator(session_id: str, name: str) -> None:
         partition.rmdir()
 
 
+def worker_tool_batch(harness: str, payload: dict) -> bool:
+    """A Claude Code worker's batch names its parent's session but receives none
+    of that session's input. Both the standalone gate and the full hook skip it."""
+    return (
+        harness == "claude-code"
+        and payload.get("hook_event_name") == "PostToolBatch"
+        and bool(payload.get("agent_id"))
+    )
+
+
 def main() -> None:
     payload = json.load(sys.stdin)
-    if sys.argv[1:2] == ["hook-gate"]:
-        # `bin/leaf` asks this before starting uv for a hook registered
-        # `--if-claimed`, and a hook it skips takes about 25 ms in place of about
-        # 70 (measured on macOS). 3 alone says "nothing to do": a failure here
-        # must not skip the hook.
-        sys.exit(0 if holds_claims(payload.get("session_id") or "") else 3)
     if payload.get("hook_event_name") == "SessionEnd":
         end_harness_instance(payload.get("session_id") or "")
 
 
 if __name__ == "__main__":
+    # `bin/leaf` asks this before starting uv for a hook registered `--if-claimed`,
+    # with -S, so no site packages load. A hook it skips takes about 25 ms in
+    # place of about 70 for starting the package (measured on macOS). Only status
+    # 3 skips the hook; any failure runs it whole.
+    if len(sys.argv) == 3 and sys.argv[1] == "hook-gate":
+        payload = json.load(sys.stdin)
+        if worker_tool_batch(sys.argv[2], payload):
+            sys.exit(3)
+        sys.exit(0 if held_claims(payload.get("session_id") or "") else 3)
     main()

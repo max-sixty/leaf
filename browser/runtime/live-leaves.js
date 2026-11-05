@@ -26,6 +26,8 @@ export const leavesOffered = () =>
 // overlap, so a title left on the line would answer the hover most likely to be asking
 // this question — a user pointing at the words that ran out of room — with the one
 // part of the account they can already read.
+/** @param {import("../types/contract.js").ServedState | import("../types/contract.js").ServedState["others"][number]} entry
+ * @param {string} title @param {string} line */
 const rowAccount = (entry, title, line) =>
   [
     title,
@@ -44,6 +46,7 @@ const rowAccount = (entry, title, line) =>
 // neighbour. A neighbour's row is its page, keyed by `page_key`, and its link is wherever
 // that page is served now. A server restarted on another port keeps the row, and the
 // focus on it, where they were; only the destination changes.
+/** @param {import("../types/contract.js").ServedState | null} state */
 const listedPages = (state) =>
   state === null
     ? []
@@ -59,10 +62,11 @@ const listedPages = (state) =>
 
 // Each page a state reading lists, as a row says it: its tone and line in the shape of
 // the page's own status, and the whole account its hover gives.
+/** @param {import("../types/contract.js").ServedState | null} state */
 export const leavesRows = (state) =>
   Object.freeze(
     listedPages(state).map(({ key, href, title, entry }) => {
-      const { tone, line } = leafRow(entry);
+      const { tone, line, parts } = leafRow(entry);
       return Object.freeze({
         key,
         self: key === "self",
@@ -70,6 +74,7 @@ export const leavesRows = (state) =>
         title,
         tone,
         line,
+        parts,
         account: rowAccount(entry, title, line),
       });
     }),

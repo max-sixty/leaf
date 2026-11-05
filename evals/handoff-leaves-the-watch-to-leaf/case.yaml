@@ -66,7 +66,7 @@ variants:
           and the page remains available for the answer rather than being closed.
   finished:
     metadata:
-      purpose: "Close a completed page conversation explicitly, without stopping its HTTP server."
+      purpose: "Close a completed page conversation explicitly, keeping the report available at its URL."
     vars:
       prompt: |
         You drive the checked Leaf report at ~/.local/state/leaf/pages/cache-plan,
@@ -83,6 +83,6 @@ variants:
         value: |
           The agent explicitly ends the page's conversation and watching using its
           installed lifecycle command (page close or the baseline status idle).
-          It keeps the HTTP server running and the report readable, creates no
-          obligation or task, and does not confuse ending conversation with stopping
-          service, resolving one thread, or declaring availability for feedback.
+          At the end, the HTTP server is running and the report remains readable at
+          the same URL, with no new obligation or task. Resolving one thread or
+          declaring availability for feedback does not end the page's conversation.

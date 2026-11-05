@@ -1,0 +1,36 @@
+# From Claude Code session 27e6e594-73d5-4a47-bb37-b2da7f2562e6. Its first draft put
+# three routes in a playground, one rich choice per row (`--playground-choice-columns:
+# minmax(0, 1fr)`), each a pair of full-window captures. After its render check it
+# made each choice one 1240x1010 crop at full width, so each stood about 1250px tall
+# in the user's 1000px window and the comparison ran 3800px. The user couldn't compare
+# the routes or tell which one they were reading. The captures and draft are that
+# session's. The plain request (`request.md`) composes the page fresh; `draft`
+# resumes from the session's first draft (`draft.md`).
+description: decision-options-fit-the-window
+metadata:
+  purpose: "Decisions: picture options are sized so the reader compares them together
+    in one window."
+  authoring: true
+  tags:
+    - asks
+    - playground
+vars:
+  prompt: file://decision-options-fit-the-window/request.md
+assert:
+  - type: agent-rubric
+    metric: options-seen-together
+    transform: "JSON.stringify({html: output, captures: context.metadata.capture_evidence})"
+    value: |
+      Open the rendered page screenshots in captures.screens and read the HTML to
+      find the decision between the three routes. Judge the displayed result at the
+      desktop widths. Pass if one desktop screen shows every route's option, with
+      the picture that shows its result, so the reader compares the three without
+      scrolling from one to the next. Pictures may be cropped or scaled, and the
+      originals may open on a click. Fail if any route's option, its label and
+      pictures, is taller than the window, or if the options stand one under another
+      so that reaching the last scrolls the first out of view. If no rendered
+      screenshot can be read, fail for missing evidence.
+variants:
+  draft:
+    vars:
+      prompt: file://decision-options-fit-the-window/draft.md

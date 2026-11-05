@@ -19,6 +19,24 @@ One arranges a block's children:
 | -------------- | ------------------------------------ |
 | `layout-tiles` | equal cells, as many to a row as fit |
 
+Content standing beside `main` in `body`, such as a site-wide header or footer, takes
+no Layout: no gutter or column, and `data-width` does nothing there. A workspace's
+`main` still fills the window, so anything beside it scrolls the page. A page of parts
+holds its title and list fixed at the window's top, so it takes nothing beside `main`.
+Keep the page's
+title, and a Layout's `header` and `footer`, inside `main`, and lay out what stands
+beside it with the page's own CSS, such as a grid on `body`.
+
+A site header the page fixes at the window's top, or makes sticky in `body` before
+`main` (a banner may stand above it) or at the start of `main`, needs no landing room of
+its own when it spans the middle of the column and reaches less than halfway down the
+window: Leaf lands links below it, and its own marks and controls pass under it
+(`module-scroll-and-motion.md`, "Headers over the document"). A header taller than that,
+as on a phone held sideways, or a sticky header further into `main` or inside a section,
+isn't read that way, so give its targets `scroll-margin-top`. A `scroll-margin-top` the
+page gives a target replaces the room Leaf leaves above it; a `scroll-padding-top` on
+the page's root has no effect.
+
 On a column page, a board, diagram or diff declares its own width, and any other block,
 such as a table, a trace or a playground, can ask for one with `data-width` ("Bounds and
 widths"). The block breaks out of the column and the prose stays where it is.
@@ -34,7 +52,9 @@ narrow its grid track or cap its blocks in the page's `<style>`, such as
 
 The page's own `<style>` comes after the Layout, so ordinary rules can change a track
 share, a gap or an order. Where a Layout fits, use it rather than rebuilding it; a page
-that no Layout fits writes its own grid or flex rules.
+that no Layout fits writes its own grid or flex rules. For a row of side-by-side blocks
+inside a card or a playground's preview, follow `package-themes.md`, "A theme change",
+so its items keep their top margins level.
 
 ## A page of parts
 
@@ -57,53 +77,95 @@ child carrying that part's Layout:
 </main>
 ```
 
-The page's `header`, the one element to write before the parts, heads a column down the
-window's left edge, and the list of parts stands under it, with each part's `summary`
+The page's `header` is the only element written before the parts. It appears at the
+top of a column along the window's left edge, followed by the list of parts, with each part's `summary`
 under its label. Each part takes the rest of the width from the top of the window, so
 a workspace part fills the window. Keep the header to the page's title, since it shares
 the column's width. Give each part its own heading, and a column part its own contents
 outline.
 
-## A sidebar page
+## Document flow
 
-Use `<main class="layout-sidebar">` when the reader works through one region while
-keeping another in view: a board with its status, a release dashboard, or a review whose
-verdict and file list stay beside the code. The region kept in view is the `aside`:
+A `layout-column` is ordinary block flow at the reading measure, centered, with the
+space on both sides available to exhibits. Its blocks' margins collapse and a float
+stands beside the prose, as on any page. Group a nested section with
+`class="layout-flow"` when its children should share that space. Ordinary wrappers
+contain their children: a list, callout or custom grid does not grant a nested exhibit
+room outside its own box. The same `data-width` contract applies at every level.
 
 ```html
-<main class="layout-sidebar">
-  <header>
-    <h1>…</h1>
-    <p class="lede">…</p>
-  </header>
-  <aside id="status">
-    <lf-toc id="contents"></lf-toc>
+<main class="layout-column">
+  <h1>…</h1>
+  <section id="evidence" class="layout-flow">
+    <h2>…</h2>
     <p>…</p>
-    <!-- short verdict or status -->
-  </aside>
-  <div id="body">…</div>
-  <!-- document and supporting evidence -->
+    <lf-diff id="changes">…</lf-diff>
+  </section>
 </main>
 ```
 
-The body and `aside` sit side by side, two thirds and one third, while the page has
-room for both, and stack in source order when it hasn't or when the body's content needs
-the whole width. To give the `aside` another width, set `--aside` on the `main` to a
-length or a share of the row, such as `main { --aside: 20rem; }`: the `aside` stands
-that wide beside the body, the body takes the rest, and the two stack where the body
-no longer fits beside it.
-Write the `aside` first when the reader of the stacked page reads it first, such as a
-verdict; it then sits on the left. Write it after the body when it follows the work,
-such as a dashboard's log; it then sits on the right. Stack the regions inside the body
-and inside the `aside`, so every region shares the same two vertical edges, rather than
-splitting each row anew.
+Give a tab set `class="layout-flow"` when it should share the document's space
+without a frame. Each panel is either another `layout-flow` or its own Layout.
+Omit the class for a framed tab set inside a section or another panel; its panels
+stay ordinary boxes too. Placement alone never chooses a set's visual flow.
 
-While the two sit side by side, Leaf keeps everything the `aside` holds in view at the
-window's top as the body scrolls, however many blocks it is, and scrolls it within the
-window when it is taller. Write no `position`, `top`, height or overflow for the `aside`
-or its blocks. Leaf does this by gathering the blocks into a box of its own inside the
-`aside`, so a rule that names the `aside`'s children, such as `aside > p`, no longer
-reaches them: write `aside p`, or name the block by its class or id.
+## A sidebar page
+
+Use `<main class="layout-sidebar">` when the reader works through one region while
+keeping another in view. The sidebar and body are authored siblings; the sidebar's
+`layout-track` holds everything that should stick and scroll together.
+
+```html
+<main class="layout-sidebar">
+  <aside id="status">
+    <div class="layout-track">
+      <lf-toc id="contents"></lf-toc>
+      <p>…</p>
+    </div>
+  </aside>
+  <article id="evidence" class="layout-column">
+    <h1>…</h1>
+    <p>…</p>
+    <!-- document and supporting evidence -->
+  </article>
+</main>
+```
+
+Use a `layout-column` body for a reading document with wider exhibits. Its prose
+starts beside the sidebar, and exhibits use the remaining body width. For a board or
+dashboard, the body can instead be an ordinary `div` with the page's own layout; a
+`header` and `footer` on the outer Layout span both regions.
+
+The browser wraps the regions in source order when they no longer fit. Put the
+`aside` before the body when its contents should be read first on a narrow screen,
+and after it when they should follow the body. Set `--aside` on the Layout to a
+length or share, such as `20rem` or `25%`, to choose its width; its contents fit that
+width. The default dashboard shares are two thirds body and one third sidebar.
+A document sidebar takes the shared sidebar measure, leaving prose its own measure.
+
+Beside the body, `layout-track` sticks within its sidebar and scrolls within the
+window when tall. Stacked, it flows whole with the page. The authored wrapper is the
+same node from the first paint through revisions: Leaf inserts no body around it.
+Style its blocks by their classes or ids, or as `.layout-track > p`. Put a contents
+map first in the track and follow it with one block, which stands clear of the
+map's spine; wrap several blocks in one element.
+
+Add `layout-notes` to the `layout-column` that should leave room beside its
+prose for notes, such as `<main class="layout-column layout-notes">`. This is an
+optional arrangement: an unmarked column stays centered, and its notes wrap
+within the room it has. An independent nested column chooses its own arrangement.
+
+Group a short note with the passage it accompanies in `layout-note`:
+
+```html
+<div class="layout-note">
+  <p>…</p>
+  <aside class="note" id="qualification">…</aside>
+</div>
+```
+
+The note stands beside the passage when the row has room, then follows it when
+narrow. The next exhibit follows the whole row, so it cannot cover the note.
 
 ## A workspace
 
@@ -156,9 +218,9 @@ the page nearer the window's top.
 
 For a queue of items decided one at a time, such as tickets or findings, make the body
 one `lf-tabs list="side"` with an `lf-tab` per item, and put an `lf-tally` with `next`
-in the header. The list marks each tab's open obligations and the tally counts what is
-left, so write no script or count of your own, and don't state the count in prose or
-chips. Each item's `summary` shows under its label, so the user can choose an item
+where the reader looks for the queue's state, such as the header. The list marks each
+tab's open obligations and the tally counts what is left, so write no script or count
+of your own, and don't state the count in prose or chips. Each item's `summary` shows under its label, so the user can choose an item
 without opening it. Start the summary with what the item is about, such as the problem
 a ticket reports, unless the label already says so, then what sets it apart from its
 neighbours, such as its age or suggested outcome. Leave out the item's group, which its
@@ -174,15 +236,17 @@ positions. A shared page scroll lets content grow together; separate regions hel
 when the task needs independent positions kept in view. Live updates should preserve
 the reader's place and input as content grows.
 
-For a live stream, set `data-bound` to the end where new entries arrive:
-`data-bound="end"` for a list that grows downward, which follows the last line while
-the user is at the bottom, and `data-bound="start"` for a newest-first list. Don't make
-a box scroll vertically with page CSS: Leaf keeps no reading position in a scroll box
-it didn't make.
+Make a box scroll vertically with `data-bound` rather than `overflow` alone: Leaf
+keeps the reader's place in a bounded box across revisions, and in no other scroller.
+`data-bound="start"` opens at the top, and `data-bound="end"`, for a stream that grows
+downward, follows the newest entry while the user is at the end. The box takes the
+height page CSS gives it, as `max-block-size` or `--lf-bound`, and 28rem otherwise.
 
 `data-width` widens one block, overriding its widget's default. Put it on the block
-itself, such as a `table` or `lf-code`, and write no CSS that copies its widths. It
-works on column and sidebar pages:
+itself, such as a `table` or `lf-code`, and write no CSS that copies its widths or
+sets its inline margins. An `available` block reaches past the prose by its own start
+margin, so space it with `margin-block` rather than `margin`. `data-width` works on
+column and sidebar pages:
 
 - `data-width="wide"` is for a block slightly wider than the column, such as code up
   to 100 columns, a diff or a table of a few more columns. The block starts at the
@@ -192,32 +256,31 @@ works on column and sidebar pages:
   large drawing or a playground. It takes all the width Leaf's chrome and the margin
   leave free, into both margins.
 
-A `table` with either value is only as wide as its columns need, up to that width. A
-block inside an `lf-ask` or callout breaks out only with its own `data-width`; the
-`lf-ask` keeps the column. A block breaks out only from a box that spans the column,
-such as a section or an `lf-ask`. One inside a box standing in from the column, such as
-a list item, or a box the page lays out itself, such as a grid or flex item, stays in
-that box, and a table there scrolls sideways.
+A `table` with either value is only as wide as its columns need, up to that width.
+A block widens when it is a child of `layout-column` or `layout-flow`.
+A framed holder, such as an `lf-ask` or callout, needs its own `data-width` to widen;
+its children use the room inside it. A wide child alone does not widen its holder.
+Under the reading face a table scrolls sideways when needed; a page without the face
+gives a table that can outgrow its width a box of its own that scrolls sideways
+(`page-authoring.md`, "Markup"). Use `layout-flow` on unframed section
+wrappers that should share the document's space, not on boxes that arrange their
+own contents.
 
 A widget whose entry declares `x-height`, such as `lf-chart`, reserves that height
 before it draws; `data-height` on the element overrides it. A widget whose drawing sets
-its own height, such as `lf-diagram` or an `lf-diff` bound with `source`, reserves
-nothing, so content below it moves when it draws unless you set `data-height`. An
-`lf-diff` with its patch inline sizes itself from the patch, so leave `data-height` off
-it. `page check --render` suggests the height wherever a drawing differs from what was
-reserved.
+its own height, such as `lf-diagram`, reserves nothing, so content below it moves
+when it draws unless you set `data-height`. `lf-diff` sizes textual patches from
+inline content or available source data; its package author instructions own the
+limits. `page check --render` suggests the height wherever a drawing differs from
+what was reserved.
 
 ## The rail and the margin
 
-With page tabs, each tab can start with its own `aside.sidebar` and empty `lf-toc`:
-the tab's outline stands below its strip in flow and becomes its spine when the margin
-has room. A sidebar directly in the column keeps that slot if one is present; nested
-tabbed boxes keep their sidebars in flow. Write short notes in `aside.sidenote`. For
-CSS that depends on what is in the
-margin, read the tokens in the `data-lf-margin` of the box carrying `layout-column`
-(`rail`, `map`, `sidebar`, `note`), such as
-`.layout-column:not([data-lf-margin~="sidebar"]) #route { display: none }`, and check
-the page at the widths where an item leaves the margin.
+A document's explicit sidebar keeps its route beside the body. A contents map there
+uses the quiet spine on a wide fine-pointer screen; stacked, it returns to its native
+outline. A dashboard sidebar keeps its outline open beside the body. These placements
+are CSS layout, present before widgets load. Page CSS does not read runtime placement
+attributes. To change where a route stands, compose its sidebar and body explicitly.
 
 `data-rail="right"` on `body` gives a sidebar page a rail, and `data-rail="none"` gives
 a column page's right margin to the page's own content. A workspace has no rail; a
@@ -234,24 +297,31 @@ rather than rebuilding the event log in page code.
 
 ## Page CSS and Leaf's controls
 
-The page's CSS styles the page's content, not Leaf's panel, thread cards or the controls
-widgets build: a rule for `button` styles only the page's own buttons. To style Leaf's
-controls on purpose, put their rules in a separate `<style data-controls>` or
-`<link rel="stylesheet" data-controls>` element. Its rules and imports stand as
-written; use selectors that reach only the controls you intend to change. Set the marker
-before attaching a dynamic sheet. A token such as `--accent` on `:root` changes every surface that reads it. For
+The page's CSS is ordinary CSS over the whole document: a rule for `button` styles the
+buttons widgets build as well as the page's own. Give each rule a selector that names
+what it means to style, such as a class on your own controls or a widget's id before
+its controls (`#triage button`). Leaf's panel and thread cards keep their own look
+against a page rule as light as one class (`button`, `.card`); a heavier selector such
+as `button:hover`, an `!important` declaration or a rule in the page's own `@layer`
+reaches them too, so name your own content in it. A token such as `--accent` on `:root` changes every surface that reads it, and a token
+on one of the chrome's parts, such as `--paper` on `[part~="card"]`, changes only that
+surface (`package-themes.md`, "Leaf's chrome"). For
 a page-specific inset, use the frame declaration in `package-themes.md`, "A theme
 change".
 
-To make a control you write match Leaf's, give it `class="button"`,
-`class="button primary"` for the committing action, or `class="field"` for a text
-input or select. A native radio or checkbox uses
+A native control you write keeps the browser's default face until it takes Leaf's:
+`class="button"`, `class="button primary"` for the committing action, `class="field"`
+for a text input or select, and
 `<label class="choice"><input type="radio" name="view" value="summary">Summary</label>`
-(or `type="checkbox"`).
+(or `type="checkbox"`) for a radio or checkbox. A control drawn for the task, such as
+a stack of layer tiles or a curve's handles, is the page's own design
+(`page-authoring.md`, "Style the page").
 
-Leaf's panel, thread cards and markers draw over everything in `main`, whatever its
+Leaf's panel, thread cards and markers draw over everything in `body`, whatever its
 `z-index`. Open a modal or menu of the page's own in the top layer: a `<dialog>` shown
-with `showModal()`, or an element with `popover`.
+with `showModal()`, or an element with `popover`. To show the page full screen, call
+`requestFullscreen()` on `document.documentElement`; a full-screen `body` leaves Leaf's
+panel and threads out.
 
 ### Space for changing text
 

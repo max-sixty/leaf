@@ -1,15 +1,18 @@
+import "/runtime/stage-integration.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  SourcePairs,
   patchRetains,
   patchTree,
   setChildLists,
   setChildren,
+  setRenderedChildren,
 } from "/runtime/dom-children.js";
 import { under } from "/runtime/shadow.js";
 import { shadowStage } from "/runtime/shadow-stage.js";
-import { failSoftUnreported } from "/runtime/widget-upgrade.js";
-import { createRef, html, ref, render } from "/vendor/browser-runtime.js";
+import { failSoftUnreported, placesFailure } from "/runtime/widget-upgrade.js";
+import { createRef, html, ref, render } from "/runtime/framework.js";
 
 test("failure replacement releases directives and supports native and template recovery", () => {
   const host = document.createElement("test-widget");
@@ -19,6 +22,7 @@ test("failure replacement releases directives and supports native and template r
   assert.equal(reference.value.textContent, "Before failure");
   failSoftUnreported(host, new Error("first failure"));
   assert.equal(reference.value, undefined);
+  assert.equal(host.textContent, "<test-widget> failed: first failure");
   paint("Recovered template");
   assert.equal(host.textContent, "Recovered template");
   failSoftUnreported(host, new Error("second failure"));
@@ -29,6 +33,19 @@ test("failure replacement releases directives and supports native and template r
   failSoftUnreported(host, new Error("third failure"));
   paint("Final template");
   assert.equal(host.textContent, "Final template");
+});
+
+test("an owner that registers its failure placer on every connection keeps one", () => {
+  const host = document.createElement("test-widget");
+  const asked = [];
+  for (const connection of ["first", "second"])
+    placesFailure(host, (box) => {
+      asked.push(connection);
+      host.append(box);
+      return true;
+    });
+  failSoftUnreported(host, new Error("failed"));
+  assert.deepEqual(asked, ["second"]);
 });
 
 test("a staged widget shows each failure in its stage and its next stage replaces it", () => {
@@ -73,9 +90,9 @@ function patch(beforeMarkup, afterMarkup = beforeMarkup) {
   const after = main(afterMarkup);
   const live = before.cloneNode(true);
   document.body.replaceChildren(live);
-  const pairs = new Map();
+  const pairs = new SourcePairs();
   const pair = (source, node) => {
-    pairs.set(source, node);
+    pairs.pair(source, node);
     [...source.childNodes].forEach((child, i) => pair(child, node.childNodes[i]));
   };
   pair(before, live);
@@ -85,19 +102,39 @@ function patch(beforeMarkup, afterMarkup = beforeMarkup) {
     declared: (node) => node.localName === "test-owner",
     reaches: () => false,
     body: () => null,
-    unchanged: (held, wanted) => held.isEqualNode(wanted),
     same: (held, wanted) => held.isEqualNode(wanted),
-    sameValue: (_name, held, wanted) => held === wanted,
+    sameValue: (held, wanted) => held === wanted,
+    diffWork: Infinity,
     touched: () => {},
     generated: () => false,
   };
   return {
     live,
+    after,
     rules,
     retains: (node) => patchRetains(before, after, node, rules),
     install: () => patchTree(before, after, rules),
   };
 }
+
+test("a revision writes the author's inline style and keeps the runtime's", () => {
+  const { live, install } = patch(
+    '<p style="color: red; margin: 0">Words</p><p style="margin: 0">More</p>' +
+      '<p style="margin: 0">Last</p>',
+    '<p style="color: blue">Words</p><p style="margin: 0; color: blue">More</p>' +
+      "<p>Last</p>",
+  );
+  const [first, second, last] = live.querySelectorAll("p");
+  first.style.setProperty("--lf-runtime", "1px");
+  // A value a script wrote yields to one the author newly declares.
+  second.style.setProperty("color", "green");
+  install();
+  assert.equal(first.style.getPropertyValue("color"), "blue");
+  assert.equal(first.style.getPropertyValue("margin-top"), "");
+  assert.equal(first.style.getPropertyValue("--lf-runtime"), "1px");
+  assert.equal(second.style.getPropertyValue("color"), "blue");
+  assert.equal(last.hasAttribute("style"), false);
+});
 
 test("runtime chrome outside the authored patch survives; detached fields do not", () => {
   const { retains } = patch("<p>Before</p>", "<p>After</p>");
@@ -214,6 +251,22 @@ test("a native shadow editor follows its containing owner's authored retention",
   }
 });
 
+test("a widget a revision keeps stands for the same live nodes inside it", () => {
+  const { live, after, rules, install } = patch(
+    '<test-owner id="o"><p>Kept words.</p></test-owner><p>Before</p>',
+    '<test-owner id="o"><p>Kept words.</p></test-owner><p>After</p>',
+  );
+  const words = live.querySelector("test-owner p");
+  // The controller moved its paragraph into a box of its own.
+  const box = document.createElement("div");
+  live.firstElementChild.append(box);
+  box.append(words);
+  install();
+  const source = after.querySelector("test-owner p");
+  assert.equal(rules.pairs.get(source), words);
+  assert.equal(rules.pairs.get(source.firstChild), words.firstChild);
+});
+
 test("a revision reaching a widget writes inside the authored body its module built", () => {
   const { live, rules, install } = patch(
     '<test-owner id="o"><p>Before</p></test-owner>',
@@ -312,4 +365,50 @@ test("a reorder moves only the nodes that left the run in place", () => {
   } finally {
     Element.prototype.moveBefore = nativeMove;
   }
+});
+
+test("rendered markup redrawn keeps the nodes an edit leaves and its rewritten words' node", () => {
+  const words = document.createElement("div");
+  document.body.replaceChildren(words);
+  /** @param {string} markup */
+  const draw = (markup) => {
+    const parsed = document.createElement("template");
+    parsed.innerHTML = markup;
+    setRenderedChildren(words, parsed.content.childNodes);
+  };
+  draw("<p>First.</p>\n<p>Second, being read.</p>\n<p>Third.</p>");
+  const [first, second, third] = words.children;
+  // An edit grows the first paragraph: the browser's scroll anchor in the second, and
+  // a selection in the third, stand in nodes the redraw keeps, and the first keeps its
+  // node with its words rewritten.
+  const grown = "<p>First, grown.</p>\n<p>Second, being read.</p>\n<p>Third.</p>";
+  draw(grown);
+  assert.equal(words.innerHTML, grown);
+  assert.deepEqual([...words.children], [first, second, third]);
+  // A paragraph that goes takes only itself.
+  draw("<p>First, grown.</p>\n<p>Third.</p>");
+  assert.deepEqual([...words.children], [first, third]);
+});
+
+test("bounded rendered markup rewritten past the diff's bound is replaced", () => {
+  // Completing a Markdown reference definition turns a reference in every paragraph
+  // into a link. A diff over every paragraph costs the square of their number, so a
+  // bounded caller's list past the bound is replaced, as `innerHTML` would replace it.
+  const words = document.createElement("div");
+  document.body.replaceChildren(words);
+  /** @param {string} markup */
+  const draw = (markup) => {
+    const parsed = document.createElement("template");
+    parsed.innerHTML = markup;
+    setRenderedChildren(words, parsed.content.childNodes, { bounded: true });
+  };
+  const said = Array.from({ length: 2000 }, (_, at) => at);
+  draw(said.map((at) => `<p>Paragraph ${at} says [reference].</p>`).join("\n"));
+  const linked = said
+    .map((at) => `<p>Paragraph ${at} says <a href="https://example.com">it</a>.</p>`)
+    .join("\n");
+  const before = words.firstElementChild;
+  draw(linked);
+  assert.equal(words.innerHTML, linked);
+  assert.notEqual(words.firstElementChild, before);
 });

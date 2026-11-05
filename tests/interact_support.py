@@ -22,6 +22,7 @@ import sys
 import tempfile
 import threading
 import time
+import urllib.error
 import urllib.parse
 import urllib.request
 from collections.abc import Callable
@@ -29,6 +30,7 @@ from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 from copy import deepcopy
 from functools import cache
+from importlib.metadata import packages_distributions, requires
 from pathlib import Path
 
 import psutil
@@ -36,6 +38,8 @@ import pytest
 import yaml
 from click.testing import CliRunner
 from conftest import CLAUDE_IDENTITY, LEAF_COMMAND, collect_app_server_error
+from packaging.requirements import Requirement
+from packaging.utils import canonicalize_name
 from pytest_regtest.snapshot_handler import (
     BaseSnapshotHandler,
     SnapshotHandlerRegistry,
@@ -73,8 +77,9 @@ from leaf.findings import Finding
 from leaf.obligations import collection
 from leaf.refusals import Refused
 from leaf.registry.contract import RegistryError
-from leaf.registry.storage import load_registry
-from leaf.revision_artifact import active_enclosing
+from leaf.registry.storage import load_registry, read_page_registry
+from leaf.revision_artifact import active_enclosing, read_artifact
+from leaf.runtime_selection import execution_identity
 from leaf.served_state import page as served_page
 from leaf.validation import composition as composition_model
 from leaf.validation import instances as validation_model
@@ -160,13 +165,19 @@ def append_carried_log_record(page_dir, event):
     return events_model.append_event(page_dir, record)
 
 
+def revision_root(page_dir: Path, revision: int) -> str:
+    """Where a page's server answers revision `revision`'s resources: under the
+    identity of the runtime and layer it executes (`http.PageEndpoint._named_root`)."""
+    name = files_model.revision_path(page_dir, revision).stem
+    return f"/revisions/{name}/{execution_identity(read_artifact(page_dir, revision))}"
+
+
 def write_revision(page_dir: Path, revision: int, data: bytes) -> Path:
     """Write revision `revision` of `data` under the page's current registry.
 
     A shortcut past `page stamp` for a test that stages history directly: it
     runs no gate and no activation, and refuses a revision number already taken."""
     from leaf.passages import SourceReading
-    from leaf.registry.storage import read_page_registry
     from leaf.revision_artifact import capture_artifact, write_artifact
     from leaf.structure import SourceDocument
 
@@ -454,6 +465,15 @@ def js_facts(command: str, files) -> str:
     ).stdout
 
 
+def shipped_core_registry() -> dict:
+    """The kernel registry with the core layer's declarations beside it, the layer
+    facts `page init` starts every composition from, unstamped."""
+    return {
+        **cleanup_model.kernel_registry(),
+        **json.loads((schema_model.ASSETS / "registry.json").read_text()),
+    }
+
+
 def shipped_payload():
     """Tracked and unignored candidate files a completed change would ship."""
     listed = subprocess.run(
@@ -490,38 +510,73 @@ def install_payload(destination):
 
 
 def vendored_at_another_protocol(page_dir: Path, *, newer: bool = False) -> int:
-    """Record another page protocol in the page's vendored `$events`, and return it.
+    """Record another page protocol in the page's layer record, and return it.
 
-    The state a breaking Leaf update leaves a page in: its layer is the one an
-    earlier `page init` copied, at an older number this Leaf no longer speaks, or
-    with `newer`, one a later Leaf vendored. Only the number changes, which is all
-    the comparison reads, and the file is replaced rather than written through, as
-    every file a lent page may share with its template has to be.
+    The state a breaking Leaf update leaves a page in: an earlier `page init`
+    recorded an older number this Leaf no longer speaks, or with `newer`, a later
+    Leaf recorded a higher one. The file is replaced rather than written through,
+    as every file a lent page may share with its template has to be.
     """
-    stamp = page_dir / "registry.json"
-    registry = json.loads(stamp.read_text(encoding="utf-8"))
-    foreign = registry["$events"]["protocol"] + (1 if newer else -1)
-    registry["$events"]["protocol"] = foreign
-    cleanup_model.write_json(stamp, registry)
+    from leaf.registry.storage import LAYER, layer_record
+
+    path = page_dir / schema_model.LAYER_FILE
+    record = layer_record(page_dir)
+    assert record is not None
+    foreign = record["protocol"] + (1 if newer else -1)
+    path.unlink()
+    LAYER.write(path, {**record, "protocol": foreign})
     return foreign
 
 
-def vendored_before_a_key_rename(page_dir: Path) -> None:
-    """Spell `x-word` as `x-noun`, as if that were its name before a rename, in the
-    page's layer and in every registry its revisions captured: in `$keys` and in each
-    entry that declares it, `lf-ask`'s among them. The state an older Leaf leaves
-    a page in, at the same protocol; files are replaced rather than written through."""
-    for path in [
-        page_dir / "registry.json",
-        *page_dir.glob("revisions/*/resources/registry.json"),
-    ]:
-        registry = json.loads(path.read_text(encoding="utf-8"))
-        assert "x-word" in registry["$keys"]
-        for entry in [registry["$keys"], *registry.values()]:
-            if isinstance(entry, dict) and "x-word" in entry:
-                entry["x-noun"] = entry.pop("x-word")
+def declare_on_page(page_dir: Path, mutate) -> None:
+    """Apply `mutate` to the page's vocabulary as the page's own declarations.
+
+    A page's layer is the Leaf's own (`layer.selected_layer`), so a test that needs
+    a vocabulary the shipped layer lacks declares it where an author would, in
+    `page/registry.json`: each entry `mutate` changes or adds, whole, and each `$`
+    fact by the members it changes, which merge over the layer's, a map member by
+    merge-patch (`registry.layer.merge_layer_declarations`). `mutate` sees the
+    declarations the page already makes."""
+    from copy import deepcopy
+
+    from leaf.registry.layer import merge_layer_declarations
+
+    path = page_dir / "page" / "registry.json"
+    declarations = json.loads(path.read_text()) if path.is_file() else {}
+    before = deepcopy(
+        {
+            key: value
+            for key, value in load_registry(page_dir).items()
+            if key != "$layer"
+        }
+    )
+    merge_layer_declarations(before, deepcopy(declarations))
+    after = deepcopy(before)
+    mutate(after)
+    for key, value in after.items():
+        if value == before.get(key):
+            continue
+        if key.startswith("$") and isinstance(before.get(key), dict):
+            members = declarations.setdefault(key, {})
+            for member, item in value.items():
+                earlier = before[key].get(member)
+                if item == earlier:
+                    continue
+                if isinstance(item, dict) and isinstance(earlier, dict):
+                    patch = members.get(member)
+                    members[member] = {
+                        **(patch if isinstance(patch, dict) else {}),
+                        **{k: v for k, v in item.items() if earlier.get(k) != v},
+                        **{k: None for k in earlier.keys() - item.keys()},
+                    }
+                else:
+                    members[member] = item
+        else:
+            declarations[key] = value
+    path.parent.mkdir(exist_ok=True)
+    if path.is_file():
         path.unlink()
-        cleanup_model.write_json(path, registry)
+    path.write_text(json.dumps(declarations))
 
 
 PAGE = """<!doctype html>
@@ -646,12 +701,17 @@ def command_findings(*args) -> list[Finding]:
     """The findings the refusal of the leaf command `args`, run in process, carries:
     none where the command succeeds."""
     result = CliRunner().invoke(cli_model.cli, [*map(str, args)], standalone_mode=False)
-    return [] if result.exception is None else result.exception.__cause__.findings
+    if result.exception is None:
+        return []
+    cause = result.exception.__cause__
+    assert isinstance(cause, Refused)
+    return list(cause.findings)
 
 
 def read_page_data(page_dir) -> dict:
-    """Every source the page records, judged against the page's own layer."""
-    return data_model.read_data(page_dir, load_registry(page_dir))
+    """Every source the page records, judged against the vocabulary a write to it
+    takes: the page's layer with its own declarations (`data._write_source`)."""
+    return data_model.read_data(page_dir, read_page_registry(page_dir).registry)
 
 
 def declare_data_input(
@@ -666,18 +726,15 @@ def declare_data_input(
     activate=True,
 ):
     """Add one typed widget input and bind it in the mutable source."""
-    registry_path = page_dir / "registry.json"
-    registry = json.loads(registry_path.read_text())
     declaration = {"description": "Test data contract.", "schema": schema}
     if instructions:
         declaration["instructions"] = instructions
-    registry["$data"]["contracts"][contract] = declaration
-    registry[tag] = {
+    entry = {
         "description": "A test widget with one external-data input.",
         "type": "object",
         "properties": {
-            "id": {"type": "string", "pattern": f"^{schema_model.ELEMENT_ID}$"},
-            "source": {"type": "string", "pattern": "^[a-z][a-z0-9-]*$"},
+            "id": {"type": "string"},
+            "source": {"type": "string"},
         },
         "required": ["id", "source"],
         "additionalProperties": False,
@@ -685,7 +742,12 @@ def declare_data_input(
         "x-data": {input_name: {"contract": contract, "source": "source"}},
         "x-upgrade": False,
     }
-    registry_path.write_text(json.dumps(registry))
+
+    def declare(registry):
+        registry["$data"]["contracts"][contract] = declaration
+        registry[tag] = entry
+
+    declare_on_page(page_dir, declare)
     source_path = page_dir / "index.html"
     html = source_path.read_text()
     source_path.write_text(
@@ -722,9 +784,12 @@ def let_a_pick_settle_a_thread(page_dir, thread):
     which is where the append door reads the vocabulary and the markup that
     admit an action.
     """
-    registry = files_model.read_json(page_dir / "registry.json")
-    registry["lf-options"]["properties"]["resolves"] = {"type": "string"}
-    cleanup_model.write_json(page_dir / "registry.json", registry)
+    declare_on_page(
+        page_dir,
+        lambda registry: registry["lf-options"]["properties"].update(
+            resolves={"type": "string"}
+        ),
+    )
     # An obligation, so a pick answers it; the markup already records that pick, so the
     # answer owes no version of its own and only the thread is left to settle.
     source = page_dir / "index.html"
@@ -874,9 +939,9 @@ def native_codex_chat(tmp_path):
                 "transcript_path": str(source),
             },
         )
-        assert cleanup_model.session_record(session_id)["transcript_path"] == str(
-            source
-        )
+        turn_record = cleanup_model.session_record(session_id)
+        assert turn_record is not None
+        assert turn_record["transcript_path"] == str(source)
         return source
 
     return create
@@ -992,8 +1057,10 @@ def bind_task_lifetime_to_worker(page):
     briefly leave the already-running adapter with no pages to own.
     """
     claim = service_model.page_claim(page)
+    assert claim is not None
     with cleanup_model.flocked(cleanup_model.session_lock_path(claim["id"])):
         record = cleanup_model.session_record(claim["id"])
+        assert record is not None
         assert record["generation"] == claim["generation"]
         assert record["ended"] is None
         cleanup_model.write_session({**record, "lifetime": {"pid": os.getpid()}})
@@ -1029,13 +1096,6 @@ def live_versions(d):
 def fragment_errors(html, registry):
     parser = structure_model.SourceDocument(html)
     return validation_model.fragment_errors(parser, registry)
-
-
-def case_alias(path):
-    alias = path.with_name(path.name.swapcase())
-    if not alias.exists() or not path.samefile(alias):
-        pytest.skip("requires a case-insensitive filesystem")
-    return alias
 
 
 SUGGESTION = """<lf-suggestion id="sug-refill">
@@ -1312,9 +1372,7 @@ def assert_revendor_serializes_writer(page_dir, monkeypatch, kind, write):
 
 
 def _mutated_registry_check(page_dir, mutate):
-    registry = json.loads((page_dir / "registry.json").read_text())
-    mutate(registry)
-    (page_dir / "registry.json").write_text(json.dumps(registry))
+    declare_on_page(page_dir, mutate)
     return check_findings(page_dir)
 
 
@@ -1400,13 +1458,12 @@ TRIAL_LOG = """<lf-trial id="trial-log">
 PILOT_PURGE = """<lf-pilot id="pilot-purge">
   <lf-proposed><p id="purge-weekly">Purge the dead-letter queue weekly.</p></lf-proposed>
 </lf-pilot>"""
-ADOPTED = '<p id="cache-hourly">Rebuild the cache each hour.</p>'
-SHELVED = '<p id="log-daily">Logs roll over at midnight.</p>'
 
 
 def deciding_verb(outcomes):
     """The one verb whose `outcome` settles which of a holder's slots retire."""
     return {
+        "decides": True,
         "detail": {
             "type": "object",
             "properties": {"outcome": {"enum": outcomes}},
@@ -1461,7 +1518,7 @@ def trial_family(root: Path) -> None:
     # add_test_widget frames every tag as a card. The slots draw no box of their own;
     # clearing their paragraph margins keeps a retired sibling from leaving a margin
     # trapped against the holder's frame. Geometry is not this family's subject.
-    with (package / "theme.css").open("a") as theme:
+    with (package / "defaults.css").open("a") as theme:
         theme.write(
             "\nlf-current, lf-proposed "
             "{ display: block; margin: 0; padding: 0; border: none; "
@@ -1677,6 +1734,18 @@ def _no_page_outlives_its_test(tmp_path, isolated_session):
     retire_test_services(tmp_path, isolated_session)
 
 
+@pytest.fixture(autouse=True)
+def _each_test_composes_its_own_layers():
+    """Each test composes the layers its pages select afresh, as a new process does.
+
+    A process holds each selection's composition and vocabulary for its life
+    (`layer.selected_layer`, `layer.selected_vocabulary`), and a test may rewrite
+    a package at a path an earlier test's package held."""
+    yield
+    layer_model._composed.cache_clear()
+    layer_model._vocabulary.cache_clear()
+
+
 def retire_bridge(lock):
     """End the bridge holding `lock` once it has published its address."""
     record = wait_for(
@@ -1838,7 +1907,6 @@ def declare_work(page_dir, line, *, item=None, ts=None, **voice):
                 {
                     "kind": "todo",
                     "author": "agent",
-                    "owner": "agent",
                     "subject": {"kind": "page"},
                     "title": "Work on the page",
                     **({"ts": ts} if ts else {}),
@@ -1980,9 +2048,10 @@ def comment_once_served():
 
 
 class ContextRecord:
-    """Claude Code's transcript, as tests stand it in (`Harness.entered_context`):
-    every inline handover a hook printed reached the model's context, except those
-    into the turns a test has `dropped`, as Escape during a prompt hook drops them."""
+    """Claude Code's transcript, as tests stand it in (`Harness.entered_context`,
+    `Harness.prompt_dropped`): every prompt and every inline handover a hook printed
+    reached the model's context, except the turns a test has `dropped`, as Escape
+    during a prompt hook drops them."""
 
     def __init__(self):
         self.dropped: set[str] = set()
@@ -2008,6 +2077,11 @@ def context_record(monkeypatch):
         harness_model.ClaudeCodeHarness,
         "entered_context",
         lambda harness, payload: record.entered(harness),
+    )
+    monkeypatch.setattr(
+        harness_model.ClaudeCodeHarness,
+        "prompt_dropped",
+        lambda harness, payload, turn: turn in record.dropped,
     )
     return record
 
@@ -2369,9 +2443,9 @@ def add_test_widget(package: Path, tag: str, *, upgrade: bool = False) -> dict:
     declaration = element_declaration(tag, upgrade=upgrade)
     registry[tag] = declaration
     registry_path.write_text(json.dumps(registry, indent=2))
-    with (package / "theme.css").open("a") as theme:
+    with (package / "defaults.css").open("a") as theme:
         theme.write(
-            f"\n:scope:is({tag}) {{\n"
+            f"\n{tag} {{\n"
             "  display: block;\n"
             "  margin: var(--sp-3) 0;\n"
             "  padding: var(--sp-3);\n"
@@ -2440,7 +2514,7 @@ class _SnapshotDumper(yaml.SafeDumper):
     def best_width(self, width):
         self._best_width = width
 
-    def increase_indent(self, flow=False, **_indentless):
+    def increase_indent(self, flow=False, indentless=False):  # noqa: F841, RUF100 - Vulture: preserve PyYAML keyword parameters.
         # A list sits indented under its key, as a person writes one.
         return super().increase_indent(flow, False)
 
@@ -2558,7 +2632,7 @@ class _YamlSnapshotHandler(BaseSnapshotHandler):
     def compare(self, current_obj, recorded_obj):
         return current_obj == recorded_obj
 
-    def show_differences(self, current_obj, recorded_obj, *_presentation):
+    def show_differences(self, current_obj, recorded_obj, has_markup, use_ddiff):  # noqa: F841, RUF100 - Vulture: preserve regtest keyword parameters.
         return list(
             difflib.unified_diff(
                 recorded_obj.splitlines(),
@@ -2589,7 +2663,9 @@ def consume_pending_input(session_id):
     if not batches:
         return None
     payload = delivery.freeze_delivery(batches)
-    delivery.receive_held(payload, session_id, state.session_record(session_id))
+    turn_record_2 = state.session_record(session_id)
+    assert turn_record_2 is not None
+    delivery.receive_held(payload, session_id, turn_record_2)
     return payload
 
 
@@ -2634,16 +2710,16 @@ def woken(output: str, session: str | None = None) -> tuple[dict, dict, list[dic
         ):
             payload = candidate
             break
+    if not session:
+        harness = session_model.session_harness()
+        assert harness is not None
+        session = harness.session
     if payload is not None:
         assert payload["acknowledge"] is not None
-        delivery_model.receive(
-            payload, session or session_model.session_harness().session
-        )
+        delivery_model.receive(payload, session)
     else:
         assert "has new input" in output, output
-        payload = consume_pending_input(
-            session or session_model.session_harness().session
-        )
+        payload = consume_pending_input(session)
         assert payload["acknowledge"] is None
     assert payload["format"] == delivery_model.DELIVERY.format
     [batch] = payload["batches"]
@@ -2920,9 +2996,10 @@ def _watched(page_dir):
     """A claimed page this session watches, so only its debts reach the hooks."""
     session_model.cmd_waiting(page_dir)
     session = service_model.page_claim(page_dir)
-    lease = leases_model.take_lease(
-        leases_model.waiter_lease_path(page_dir, session["id"])
-    )
+    assert session is not None
+    lease_path = leases_model.waiter_lease_path(page_dir, session["id"])
+    assert lease_path is not None
+    lease = leases_model.take_wait_lease(lease_path)
     assert lease
     return lease
 
@@ -2936,3 +3013,116 @@ def adapter_lease(session_id, app_server):
     lease.write(codex_adapter_model.ADAPTER.encode({"app_server": app_server}))
     lease.flush()
     return lease
+
+
+EVERY_TURN_DEPENDENCIES = frozenset({"click"})
+"""The runtime dependencies (`[project.dependencies]`) a Leaf process may load where a
+harness starts it at every turn of every session it is installed in: a hook in a
+session holding no page, and a tool hook with nothing new to deliver. Importing any
+other dependency costs each such process milliseconds to tens of milliseconds."""
+
+READING_DEPENDENCIES = EVERY_TURN_DEPENDENCIES | {
+    "linkify-it-py",
+    "markdown-it-py",
+    "mdit-py-plugins",
+    "psutil",
+    "pywhatwgurl",
+    "turbohtml",
+}
+"""What a hook that reads a page its session holds may load as well: the parsers of
+the page's markup, URLs and messages, and psutil, which reads the harness's processes.
+It loads no schema validator: `page init` validated the page's layer, and `page check`
+and serving validate it again (`layer-registry.md`)."""
+
+ADMITTING_DEPENDENCIES = READING_DEPENDENCIES | {"jsonschema", "referencing", "regress"}
+"""What a process that writes an event or delivers one to the agent may load as well:
+the schema validator, which admits each event (`event_contracts.append_admitted`) and
+picks the handling clauses whose `when` a delivered event matches
+(`registry.contract.event_clauses`)."""
+
+_IMPORTERS = """\
+import json, sys
+
+_importers = {}
+
+
+class _Importers:
+    def find_spec(self, name, path=None, target=None):
+        if name in _importers:
+            return None
+        chain, frame = [], sys._getframe(1)
+        while frame:
+            _, leaf, source = frame.f_code.co_filename.rpartition("/src/leaf/")
+            if leaf:
+                chain.insert(0, f"leaf/{source}:{frame.f_lineno}")
+                if frame.f_code.co_name != "<module>":
+                    break
+            frame = frame.f_back
+        _importers[name] = " -> ".join(chain)
+
+
+sys.meta_path.insert(0, _Importers())
+"""
+
+_IMPORTED = """
+print("\\n" + json.dumps({name: _importers.get(name, "") for name in sys.modules}))
+"""
+
+
+def fresh_imports(program: str) -> tuple[str, dict[str, str]]:
+    """Run `program` in a fresh interpreter, whose `sys.modules` is the process's own,
+    and return what it printed and each module it imported, mapped to the Leaf lines
+    that first imported it: the innermost Leaf function on the stack, then each Leaf
+    module whose import led there (empty where no Leaf code did)."""
+    done = subprocess.run(
+        [sys.executable, "-c", _IMPORTERS + program + _IMPORTED],
+        capture_output=True,
+        text=True,
+        timeout=STATED_TIMEOUT,
+    )
+    assert done.returncode == 0, done.stdout + done.stderr
+    printed, _, imported = done.stdout.rstrip("\n").rpartition("\n")
+    return printed, json.loads(imported)
+
+
+def leaf_main(*args: str, stdin: str = "") -> str:
+    """A program for `fresh_imports` that runs `leaf *args` on `stdin`, as a harness
+    or an agent runs it, and fails on a nonzero exit."""
+    return f"""
+import io, runpy, sys
+sys.argv = ["leaf", *{list(args)!r}]
+sys.stdin = io.StringIO({stdin!r})
+try:
+    runpy.run_module("leaf", run_name="__main__")
+except SystemExit as error:
+    assert not error.code, error.code
+"""
+
+
+def unlisted_dependencies(
+    imported: dict[str, str], listed: frozenset[str]
+) -> dict[str, str]:
+    """Each runtime dependency (`[project.dependencies]`) among the modules
+    `fresh_imports` returned that `listed` doesn't name, with the Leaf lines that first
+    imported it."""
+    dependency_of = _runtime_dependency_of()
+    return {
+        dependency_of[module]: importer
+        for module, importer in imported.items()
+        if module in dependency_of and dependency_of[module] not in listed
+    }
+
+
+@cache
+def _runtime_dependency_of() -> dict[str, str]:
+    """Each top-level module of Leaf's runtime dependencies, mapped to the name its
+    distribution has in `[project.dependencies]`."""
+    runtime = {
+        canonicalize_name(Requirement(line).name) for line in requires("leaf") or ()
+    }
+    return {
+        module: canonicalize_name(name)
+        for module, names in packages_distributions().items()
+        for name in names
+        if canonicalize_name(name) in runtime
+    }

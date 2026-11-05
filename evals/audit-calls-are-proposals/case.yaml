@@ -1,0 +1,173 @@
+# From Claude Code session c4c95e75-3af7-4bf9-88ee-5ab5a8aeb39f (leaf
+# diagnose-ui-whack-a-mole). An audit subagent returned removal candidates as
+# records (title, where, why_cut, cost, one capture of today), and the author turned
+# all 25 into asks with one script: "Remove the <title>?", today's capture, the
+# record's fields as labelled prose, and identical "Keep it" / "Remove it" options.
+# Revising after "need more descriptive choices than these two; make it so I can
+# whizz through them" moved the prose into the options and kept the titles. Only
+# after "these need to be actual proposals / descriptions, good titles, so I can
+# quickly assess them. They often will be lf-shots" did a briefed subagent build each
+# item as a question with its context, two titled proposals and a before/after
+# capture of each, with a recommendation; the user called that set "100x better ...
+# the context is _in_ the question, there are clear images, it's very engagable".
+# This case hands the author the same kind of records about a small static app it
+# can render, so the after state is within its reach. Composed fresh from them,
+# every draft asked questions with context, named options by result and held a
+# capture of each result: 3/3 at 3b9cdcaf3 (the guidance the source had read) and
+# 9/9 at f9b8a7158 and with the brief paragraph (one picture per option in every
+# decision), and 2/2 on every metric at ae78efbc1, the first commit whose picture
+# judge ran on this host's Codex CLI. The source
+# failed hours into its session, assembling records by script; the cause this
+# case's variants reproduce is upstream, in the brief.
+description: audit-calls-are-proposals
+metadata:
+  purpose:
+    "Asks: survey findings are put to the user as proposals: each asks its question
+    with its context, names each option by its result and pictures today beside the
+    change."
+  authoring: true
+  tags:
+    - asks
+    - drawing
+vars:
+  prompt: |
+    The user asked: "how should we ensure we're not playing whack-a-mole with UI
+    defects? should we reduce the surface area of the console so we don't have so
+    many choices?" They decided to have every surface of their support console
+    audited for things it shows at rest that no task needs, so they can cut in one
+    pass.
+
+    Your audit subagent has finished. It wrote its candidates to
+    `evals/audit-calls-are-proposals/audit/candidates.json`, with a cropped capture
+    of each item as it looks today under `audit/captures/` (device scale 2) and a
+    capture of the whole console, `audit/captures/console.png`, at 1200x720. All four
+    are judgment calls, where removing the item loses something real. The console
+    is a static page, `evals/audit-calls-are-proposals/audit/app/index.html` with its
+    `console.css`, which opens directly in a browser; a headless Chrome is at
+    `$LEAF_BROWSER_EXECUTABLE`. No code has changed.
+
+    Write the Leaf page where the user decides each of the four.
+assert:
+  - type: llm-rubric
+    metric: question-carries-context
+    value: |
+      Find the four decisions, one per audit candidate (the status line's reply
+      count, the empty Bot tab, the kind word on cards, the age on every message).
+      Pass only if each opens with a heading that asks a question about that item,
+      naming the item and the change considered, and before its options says in a
+      sentence or two of prose where the item shows and what removing or changing it
+      trades away. Fail a heading that only names the item ("Kind word over each
+      card"), and fail context given only as the record's labelled fields (Where: /
+      Why it might go: / What would be lost:) copied from the audit.
+  - type: llm-rubric
+    metric: specific-choice-names
+    value: |
+      Read the titles (the leading `<strong>` or the whole label) of each decision's
+      options. Pass only if, in every one of the four decisions, each option's title
+      names its concrete result for that item, such as "Keep the reply count in the
+      top bar" against "Show only the Inbox dot". Equivalent wording is fine, and a
+      third option such as a quieter middle way is fine. Fail generic titles repeated
+      across decisions (Keep it / Remove it, Keep / Cut, Accept / Reject), even when
+      each has a detailed body explaining the consequence.
+  - type: agent-rubric
+    metric: pictures-each-result
+    transform: "JSON.stringify({html: output, captures: context.metadata.capture_evidence})"
+    value: |
+      The output has authored HTML and a map of the original captures and the page's
+      media. `captures.exact_inputs` lists which page media are byte-identical to a
+      supplied capture. Open the other page media the four decisions use. Pass only
+      if every one of the four decisions shows, within the decision (its `lf-ask` or
+      answering widget), the item as it is today and the console under each option
+      that changes it, as pictures of the same region the reader can compare by
+      looking: an `lf-shot` pair, or a picture in each option. Each changed picture
+      must visibly show its change (the element gone or altered) and otherwise
+      match today's region; a capture of the edited app, an edited or masked
+      capture, or an HTML or SVG rendering of the region all count. Fail any
+      decision that pictures only today's state, leaves an option's change in words
+      only, or whose "after" picture looks the same as today.
+variants:
+  # The source's decisions took the shape of the audit worker's records, which its
+  # brief set: a later brief asking for proposals with a capture of each result gave
+  # the praised set, though the parent assembled both rounds with a script. This
+  # context asks for the brief, where the decision material's shape is set. At
+  # f9b8a7158 base briefs asked for records with today-only captures (1/10 under a
+  # looser title criterion, 0/6 under this one); a "Long-running work" paragraph
+  # asking for each decision's material, options titled per finding and each result
+  # shown, passed 5/6 (the miss prescribed "Keep as today" for every candidate).
+  brief:
+    metadata:
+      purpose:
+        "Asks: a worker gathering findings the user will decide is briefed to return
+        each as a proposal, with every option's result pictured, not as a record of
+        today."
+      authoring: false
+    vars:
+      prompt: |
+        The user asked: "how should we ensure we're not playing whack-a-mole with UI
+        defects? should we reduce the surface area of the console so we don't have so
+        many choices?" They decided to have every surface of their support console
+        audited for things it shows at rest that no task needs, so they can cut in one
+        pass on the Leaf page you're keeping with them.
+
+        You'll hand the audit to a background subagent and stay with the user while it
+        runs. The console is a static page, `audit/app/index.html` with its
+        `console.css`, which opens directly in a browser; a headless Chrome is at
+        `$LEAF_BROWSER_EXECUTABLE`.
+
+        Reply with the brief you'll give the subagent, then a line on how you'll put
+        its results on the page.
+    assert:
+      - type: llm-rubric
+        metric: brief-asks-for-proposals
+        value: |
+          Judge the brief together with the closing line on how its results reach
+          the page. Pass only if, for each candidate the user will decide, the plan
+          gets the decision a picture of the console with the change applied (a
+          capture of the edited page, or an equivalent rendering), beside today's,
+          and options named by their results, whether the subagent produces them or
+          the author does from its report. Judge each option title the plan
+          prescribes on its own, apart from the question above it: it must name the
+          item and its result ("Hide the Bot tab at zero"). Fail a plan whose only
+          pictures are of today, whose candidates reach the user as records (what
+          the item is, where, why it might go, what it costs), or that prescribes
+          titles that would read the same for any item (Keep it, Remove it, Keep it
+          as is, Cut, Move, Keep).
+  # The same brief for findings with no picture: a removal survey of a codebase,
+  # as in the Leaf session that made `simplification-survey`, whose first draft gave
+  # each mechanism "Remove it" / "Keep it" and the user asked "more details?".
+  # Base 0/6, the same paragraph 6/6, after it named a refused request beside the
+  # capture as a result shown the way the user meets it.
+  brief-code:
+    metadata:
+      purpose:
+        "Asks: a worker surveying code the user may remove is briefed to return each
+        candidate as a decision with what each option leaves, not a record."
+      authoring: false
+    vars:
+      prompt: |
+        The user asked: "find the features in our importer service whose removal
+        would delete a lot of code, and let me decide which to cut." The service is
+        a Python package, `importer/`, with its tests under `tests/`.
+
+        You'll hand the survey to a background subagent and stay with the user on the
+        Leaf page you're keeping with them while it runs.
+
+        Reply with the brief you'll give the subagent, then a line on how you'll put
+        its results on the page.
+    assert:
+      - type: llm-rubric
+        metric: brief-asks-for-proposals
+        value: |
+          Judge the brief together with the closing line on how its results reach
+          the page. Pass only if, for each candidate the user will decide, the plan
+          gets the decision what each option leaves the user with: for removal, what
+          stops working or changes for someone using the service (shown by example,
+          such as an input it no longer accepts, or the trial patch's effect), and
+          options named by those results, whether the subagent produces them or the
+          author does from its report. Judge each option title the plan prescribes
+          on its own, apart from the question above it: it must name the feature and
+          its result ("Cut the XML importer", "Keep XML uploads"). Fail a plan whose
+          candidates reach the user only as records (what the feature is, where it
+          lives, lines deleted, why it might go) with no example of what a user would
+          lose, or that prescribes titles that would read the same for any feature
+          (Keep it, Remove it, Keep it as is, Cut, Keep).

@@ -17,7 +17,6 @@ from render_cases_navigation import (
 )
 from render_harness import (
     LONG_PAGE,
-    PANEL_THREAD,
     consume_browser_errors,
     draft_control,
     draft_key,
@@ -40,6 +39,7 @@ from render_harness import (
 
 from browser.threads import PANEL_REPLY, open_panel_thread, seed_panel_threads
 from leaf import event_log as events_model
+from leaf_dev.browser import PANEL_THREAD
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -219,7 +219,7 @@ def test_a_refused_selection_comment_leaves_the_words_on_their_passage(
     # The words went back to a box out of view, so the refusal says where they are.
     expect_panel_says(
         page,
-        "Couldn't send — refused before append. Draft kept — g i resumes writing",
+        "Couldn't take this — refused before append. Draft kept — g i resumes writing",
     )
 
     # Their passage still holds their draft, so opening it again finds the words.
@@ -269,7 +269,7 @@ def test_a_refused_selection_comment_reopens_its_words_while_the_send_owns_inten
     # about the passage's box, so it stands there over the words, which send nothing
     # until the user's first key or press there, and the leaf's dot waits for it.
     cover = page.locator(".lf-fab-bar .lf-compose-error")
-    expect(cover).to_have_text("Couldn't send — refused before append")
+    expect(cover).to_have_text("Couldn't take this — refused before append")
     expect(page.locator(".lf-fp-error-dot")).to_be_hidden()
     # The first Enter only lifts the cover, with the caret at the words' end, so the
     # words are never sent unseen; the error waits in the leaf's menu.
@@ -286,7 +286,7 @@ def test_a_refused_selection_comment_reopens_its_words_while_the_send_owns_inten
     holding(page, held, 1, "the comment sent again")
     assert held[0].request.post_data_json["text"] == words
     held.pop(0).continue_()
-    expect_error_waits_in_menu(page, "Couldn't send — refused before append")
+    expect_error_waits_in_menu(page, "Couldn't take this — refused before append")
     consume_browser_errors(page, http_error_console(400))
 
 
@@ -365,7 +365,7 @@ def test_a_refusals_error_leaves_with_the_words_it_stood_over(held_events, serve
     box = page.locator(".lf-fab-input")
     cover = page.locator(".lf-fab-bar .lf-compose-error")
     dot = page.locator(".lf-fp-error-dot")
-    expect(cover).to_have_text("Couldn't send — refused before append")
+    expect(cover).to_have_text("Couldn't take this — refused before append")
     expect(dot).to_be_hidden()
     assert cover.evaluate(COVER_LINE_REMAINDER) == pytest.approx(0, abs=0.01)
 
@@ -375,7 +375,7 @@ def test_a_refusals_error_leaves_with_the_words_it_stood_over(held_events, serve
     compose(page, "#p9")
     expect(box).to_have_js_property("value", "")
     expect(cover).to_be_hidden()
-    expect_error_waits_in_menu(page, "Couldn't send — refused before append")
+    expect_error_waits_in_menu(page, "Couldn't take this — refused before append")
     consume_browser_errors(page, http_error_console(400))
 
 
@@ -447,7 +447,7 @@ def test_a_refused_selection_comment_written_past_is_where_resume_writing_goes(
     assert stored_draft_text(page, "general") == later
     expect_error_waits_in_menu(
         page,
-        "Couldn't send — refused before append. Draft kept — g i resumes writing",
+        "Couldn't take this — refused before append. Draft kept — g i resumes writing",
     )
     consume_browser_errors(page, http_error_console(400))
 
@@ -472,7 +472,7 @@ def test_a_reply_under_a_refused_parent_comes_back_with_it(
     holding(page, held, 1, "the parent send")
 
     attempt = held[0].request.post_data_json["attempt"]
-    card = page.locator(f'{PANEL_THREAD}[data-thread="pending:{attempt}"]')
+    card = page.locator(f'{PANEL_THREAD}[data-lf-thread="pending:{attempt}"]')
     expect(card).to_be_visible()
     reply = "A reply written while the parent was in flight."
     write(page.locator(PANEL_REPLY), reply)
@@ -495,8 +495,8 @@ def test_a_reply_under_a_refused_parent_comes_back_with_it(
     expect(box).to_have_js_property("value", parent)
     expect_panel_says(
         page,
-        "Couldn't send — refused before append. "
-        "Reply kept — it returns when its comment sends",
+        "Couldn't take this — refused before append. "
+        "Reply kept — it comes back once its comment is saved",
     )
     expect(card).to_have_count(0)
     assert not thread_listed(page, attempt), "the refused thread is still listed"
@@ -515,7 +515,7 @@ def test_a_reply_under_a_refused_parent_comes_back_with_it(
 
     # The refusal covers the words it gave back until the user comes back to them.
     cover = page.locator(".lf-fp-field .lf-compose-error")
-    expect(cover).to_contain_text("Couldn't send — refused before append")
+    expect(cover).to_contain_text("Couldn't take this — refused before append")
     # Resume writing leads to the comment, the one place that brings the reply back,
     # and is the user coming back to its words: the error goes to the leaf's menu and
     # the caret stands at the words' end, where Enter sends them.
@@ -548,7 +548,9 @@ def test_a_reply_under_a_refused_parent_comes_back_with_it(
         if event.get("text") == text
     )
     # The comment's send opens its thread in the panel, its reply back in the field.
-    expect(page.locator(f'{PANEL_THREAD}[data-thread="{sent["id"]}"]')).to_be_visible()
+    expect(
+        page.locator(f'{PANEL_THREAD}[data-lf-thread="{sent["id"]}"]')
+    ).to_be_visible()
     expect(page.locator(PANEL_REPLY)).to_have_js_property("value", reply)
     # An unsent reply's box goes down with the thread; the notice says where its words
     # went, which is what the guard's report is about.
@@ -588,7 +590,7 @@ def test_a_refused_comments_reply_travels_with_it_to_another_passage(
                 "final": True,
             },
         )
-    expect_panel_says(page, "Reply kept — it returns when its comment sends")
+    expect_panel_says(page, "Reply kept — it comes back once its comment is saved")
 
     page.locator("h1").click()
     page.keyboard.press("g")
@@ -632,7 +634,7 @@ def test_a_refused_comment_takes_its_message_back_and_returns_the_words(
     page.locator(FIELD_SEND).click()
     holding(page, held, 1, "the general send")
     attempt = held[0].request.post_data_json["attempt"]
-    pending = page.locator(f'{PANEL_THREAD}[data-thread="pending:{attempt}"]')
+    pending = page.locator(f'{PANEL_THREAD}[data-lf-thread="pending:{attempt}"]')
     expect(pending).to_be_visible()
     # The thread's view is the stop the user is located on.
     pending.focus()
@@ -655,7 +657,7 @@ def test_a_refused_comment_takes_its_message_back_and_returns_the_words(
     # address for them.
     expect(box).to_be_focused()
     expect(box).to_have_js_property("value", words)
-    expect_panel_says(page, "Couldn't send — refused before append")
+    expect_panel_says(page, "Couldn't take this — refused before append")
     assert "Draft kept" not in panel_says(page)
     assert stored_draft_text(page, "general") == words
     assert not [
@@ -686,7 +688,7 @@ def test_every_message_send_says_so_to_a_user_listening(held_events, serve):
     # Held: the gesture is the only thing that can have written the region, and the
     # words are said before the log has answered rather than because it did.
     holding(page, held, 1, "the send")
-    expect(live).to_have_text("Message sent")
+    expect(live).to_have_text("Message added")
 
     held.pop(0).continue_()
     page.unroute("**/api/event")
@@ -717,7 +719,7 @@ def test_a_first_answer_leaves_a_later_sends_words_masked(held_events, serve):
         },
     )
     page = open_page(browser, url)
-    thread = page.locator(f'#jobs .lf-page-thread[data-thread="{root["id"]}"]')
+    thread = page.locator(f'#jobs .lf-page-thread[data-lf-thread="{root["id"]}"]')
     reply = thread.locator("leaf-text")
     send = thread.get_by_role("button", name="Send", exact=True)
 
@@ -745,7 +747,7 @@ def test_a_first_answer_leaves_a_later_sends_words_masked(held_events, serve):
     offered = page.evaluate(
         """async (ctx) => {
           const api = await window.__lfWidgetApi();
-          return api.loadDraft(ctx);
+          return api.loadDraft(ctx)?.text ?? null;
         }""",
         f"reply:{root['id']}",
     )
@@ -805,7 +807,7 @@ def test_a_held_reply_send_leaves_a_later_reply_box_focused(
         expect(page.locator(f"{PANEL_THREAD} .lf-msg").last).to_contain_text(
             "The first reply is in flight."
         )
-    expect(page.locator(f'{PANEL_THREAD}[data-thread="{later_id}"]')).to_be_visible()
+    expect(page.locator(f'{PANEL_THREAD}[data-lf-thread="{later_id}"]')).to_be_visible()
     expect(later).to_be_focused()
     expect(later).to_have_js_property("value", newer)
     expect(later).to_be_in_viewport()
@@ -917,7 +919,7 @@ def test_a_held_comment_send_leaves_a_later_reply_box_focused(browser, serve):
         for event in events_model.read_events(serve.page_dir)
         if event["kind"] == "comment"
     ][-1] == "The earlier comment in flight."
-    expect(page.locator(f'{PANEL_THREAD}[data-thread="{later_id}"]')).to_be_visible()
+    expect(page.locator(f'{PANEL_THREAD}[data-lf-thread="{later_id}"]')).to_be_visible()
     expect(later).to_be_focused()
     expect(later).to_have_js_property("value", "The later reply keeps the user here.")
     assert later.evaluate("ta => ta.selectionStart") == 9
@@ -1048,10 +1050,10 @@ def test_a_held_thread_send_cannot_clear_a_newer_raw_draft(browser, serve, one_u
     )
     first = open_page(browser, url, context=one_user)
     second = open_page(browser, url, context=one_user)
-    thread = first.locator(f'#jobs .lf-page-thread[data-thread="{root["id"]}"]')
+    thread = first.locator(f'#jobs .lf-page-thread[data-lf-thread="{root["id"]}"]')
     inline = thread.locator("leaf-text")
     second_inline = second.locator(
-        f'#jobs .lf-page-thread[data-thread="{root["id"]}"] leaf-text'
+        f'#jobs .lf-page-thread[data-lf-thread="{root["id"]}"] leaf-text'
     )
     sent_raw = "  Send this part first.  "
     newer_raw = "  A later thought stays raw.  "
@@ -1094,7 +1096,7 @@ def test_a_held_selection_comment_preserves_a_newer_exact_draft(held_events, ser
     compose(page, "#p3", old)
     page.keyboard.press("ControlOrMeta+Enter")
     holding(page, held, 1, "the selection comment")
-    expect(page.locator("[data-attempt]").first).to_contain_text(old)
+    expect(page.locator("[data-lf-attempt]").first).to_contain_text(old)
 
     compose(page, "#p3", newer)
     box = page.locator(".lf-composer leaf-text")

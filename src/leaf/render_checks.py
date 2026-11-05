@@ -1,7 +1,9 @@
 """Named browser probes, and the waits built on them, shared by the render gate and the
 test suite."""
 
+from contextlib import contextmanager
 from pathlib import Path
+from urllib.parse import urljoin
 
 from .schema import RENDER_CHECKS_DIR
 
@@ -50,6 +52,13 @@ PROBE_SOURCES = {
 _DRIVER_PRESENT = "() => Boolean(globalThis.__leafRenderDriver)"
 # Null when this document has no driver yet: one opened before the driver was installed.
 _LOAD_PROBES = "route => globalThis.__leafRenderDriver?.load(route) ?? null"
+# Whether the probe load has settled, arrived or failed. A wait's predicate must not
+# throw: Playwright's poller then rejects a promise the page never handles, so the page
+# hears its own unhandled rejection, which the runtime reports as a page fault, and
+# that echo races the wait's rejection to the reader collecting the page's console.
+_PROBES_SETTLED = (
+    f"route => {{ try {{ return ({_LOAD_PROBES})(route); }} catch {{ return true; }} }}"
+)
 _PROBE = "call => globalThis.__leafRenderDriver.call(call)"
 _REQUEST_FRAME = "() => globalThis.__leafRenderDriver?.requestFrame() ?? null"
 _FRAME_PRESENTED = "asked => globalThis.__leafRenderDriver.framePresented(asked)"
@@ -57,11 +66,10 @@ _RENDERING_SETTLED = """facts => {
   const state = globalThis.__leafRenderDriver.renderingState();
   return (facts ?? Object.keys(state)).every(fact => state[fact]);
 }"""
-_THEME_READY = "() => globalThis.__leafRenderDriver.themeReady()"
-_PRE_UPGRADE_FINDINGS = "() => globalThis.__leafRenderDriver.preUpgradeFindings()"
 
 
 def _timeout(page, timeout_ms: int | None) -> int:
+    page = getattr(page, "page", page)
     return timeout_ms or getattr(page, "_leaf_probe_timeout_ms", SERVED_TIMEOUT_MS)
 
 
@@ -74,6 +82,89 @@ def install_driver(page) -> None:
         return
     page.add_init_script(path=DRIVER_SOURCE)
     page._leaf_render_driver_installed = True
+
+
+def is_runtime_entry(request) -> bool:
+    """Whether this request names its document's delivered runtime entry.
+
+    The delivery's bootstrap marker precedes loadable resources. Read it without
+    waiting for the parser: a classic authored script can also be named leaf.js.
+    """
+    entry = request.frame.evaluate("""() => {
+      const entry = document.querySelector('script[data-lf-entry]')?.dataset.lfEntry;
+      return entry ? new URL(entry, location.href).href : null;
+    }""")
+    return request.url == entry
+
+
+def observe_output_documents(page) -> None:
+    """Capture producer publications before the checked document or a sample upgrades.
+
+    The binding retains values outside their realm, including a disposed sample.
+    Only render tools install it; the ordinary runtime retains no publication history.
+    """
+    from playwright.sync_api import Error as PlaywrightError
+
+    if hasattr(page, "_leaf_output_values"):
+        return
+    install_driver(page)
+    page._leaf_output_values = []
+    page._leaf_output_documents = {}
+
+    def heard(source, value):
+        if source["frame"] != page.main_frame:
+            value["document"] = source["frame"].url
+        page._leaf_output_values.append(value)
+
+    page.expose_binding("__leafOutputValue", heard)
+
+    def before_entry(route):
+        frame = route.request.frame
+        if not is_runtime_entry(route.request):
+            route.fallback()
+            return
+        # Let the browser order the subscription before this entry's upgrade. A route
+        # callback must not wait for a document: sibling sample routes can nest while
+        # its parser is awaiting another response, stranding both. This imports the
+        # same check API graph as the runtime; no publication can precede the call.
+        try:
+            response = route.fetch(timeout=_timeout(page, None))
+        except PlaywrightError:
+            route.abort()
+            return
+        document = frame.url
+        probe = urljoin(route.request.url, f"{RENDER_CHECKS_DIR}/outputs.js")
+        route.fulfill(
+            response=response,
+            body=(
+                f'import {{ observeOutputValues }} from "{probe}";\n'
+                "observeOutputValues();\n" + response.text()
+            ),
+        )
+        page._leaf_output_documents[frame] = document
+
+    # Observe publications before each document's entry runs, including the main
+    # document and samples opened later by the check's sweep.
+    page.route("**/leaf.js", before_entry)
+
+
+def close_render_page(page) -> None:
+    """Cancel route callbacks before disposing a render check's page and responses.
+
+    Context closure disposes fetched responses before the page reports closed, so
+    callback-local checks of `is_closed()` cannot recognize every cancellation.
+    Playwright's route lifecycle suppresses errors from those cancelled callbacks.
+    """
+    page.unroute_all(behavior="ignoreErrors")
+    page.close()
+
+
+def output_values(page) -> list[dict]:
+    """Wait for live realms' reports, then read all publications retained by the check."""
+    for frame, document in page._leaf_output_documents.items():
+        if not frame.is_detached() and frame.url == document:
+            wait_for_probe(frame, "outputsReported")
+    return page._leaf_output_values
 
 
 def _ensure_driver(page) -> None:
@@ -100,20 +191,44 @@ def _load_probes(page, timeout_ms: int) -> None:
             # Probe readiness is independent of animation frames. A complete child
             # document in a closed disclosure or inactive tab still needs inspection,
             # but browsers suspend its requestAnimationFrame callbacks.
-            loaded = page.wait_for_function(
-                _LOAD_PROBES, arg=PROBE_ROUTE, timeout=timeout_ms, polling=PROBE_POLL_MS
-            ).json_value()
+            page.wait_for_function(
+                _PROBES_SETTLED,
+                arg=PROBE_ROUTE,
+                timeout=timeout_ms,
+                polling=PROBE_POLL_MS,
+            )
         except PlaywrightTimeout as error:
             raise PlaywrightError(
                 f"Leaf browser probes did not load from {PROBE_ROUTE} "
                 f"within {timeout_ms}ms"
             ) from error
+        # A failed load throws its own error here, from an evaluate the page never sees.
+        page.evaluate(_LOAD_PROBES, PROBE_ROUTE)
 
 
 def evaluate_probe(page, name: str, *args):
     """Invoke one named export from the browser probe module."""
     _load_probes(page, _timeout(page, None))
     return page.evaluate(_PROBE, {"name": name, "args": list(args)})
+
+
+@contextmanager
+def observe_probe(page, name: str, *args):
+    """Own a probe's native finish closure; fill its records when the scope ends.
+
+    JSON evaluation cannot carry a browser function. Its JSHandle keeps the
+    observation in this document and disconnects it even if the caller's work fails.
+    """
+    _load_probes(page, _timeout(page, None))
+    handle = page.evaluate_handle(_PROBE, {"name": name, "args": list(args)})
+    records = []
+    try:
+        yield records
+    finally:
+        try:
+            records.extend(handle.evaluate("finish => finish()"))
+        finally:
+            handle.dispose()
 
 
 def wait_for_probe(page, name: str, *args, timeout_ms: int | None = None) -> None:
@@ -206,10 +321,12 @@ _REFUSED = """() => {
     && !root.hasAttribute('data-lf-interactive') ? root.dataset.lfStartupError : null;
 }"""
 _READY_OR_REFUSED = f"asked => ({_READY})(asked) || ({_REFUSED})() !== null"
-_OUTSTANDING = f"asked => ({_READINESS})(asked) ?? 'ready'"
+# The stage the page has yet to state, or 'ready'. A reader without Playwright's waits,
+# such as the iOS probe's WebDriver, polls this itself (`leaf_dev.ios_safari`).
+OUTSTANDING = f"asked => ({_READINESS})(asked) ?? 'ready'"
 # How a failure words each stage `pageReadiness` names. `state` fails only against an
 # answer the caller holds.
-_UNREADY = {
+UNREADY = {
     "answering": "the page stopped answering",
     "started": "the runtime never started",
     "upgraded": "the widget layer never finished upgrading",
@@ -283,27 +400,14 @@ def wait_until_ready(
     # page whose own code holds its main thread answers neither.
     try:
         stage = page.wait_for_function(
-            _OUTSTANDING, arg=asked, timeout=_STAGE_READ_MS
+            OUTSTANDING, arg=asked, timeout=_STAGE_READ_MS
         ).json_value()
     except PlaywrightTimeout:
         stage = "answering"
     if stage == "ready":
         return
-    words = _UNREADY[stage].format_map(asked["held"] or {})
+    words = UNREADY[stage].format_map(asked["held"] or {})
     raise PageNotReady(stage, f"{words} within {timeout_ms}ms")
-
-
-def wait_for_theme(page) -> None:
-    """Wait until the authored document's theme stylesheet is readable."""
-    _ensure_driver(page)
-    page.wait_for_function(_THEME_READY)
-
-
-def pre_upgrade_findings(page) -> list[dict]:
-    """Read authored structure before the held Leaf entry is released, as finding
-    records (`leaf.findings`)."""
-    _ensure_driver(page)
-    return page.evaluate(_PRE_UPGRADE_FINDINGS)
 
 
 def install_window_errors(page, heard) -> None:

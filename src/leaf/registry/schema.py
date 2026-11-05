@@ -3,7 +3,7 @@ r"""Offline JSON Schema validation shared by registry, markup, and event admissi
 Each validator owns a self-contained resource graph and is cached by schema content.
 Leaf's date-time format admits only absolute, timezone-aware RFC3339 instants, and its
 uri format only absolute URLs parsed by pywhatwgurl. A registry schema may
-name only a format `FORMAT_CHECKER` checks (`check_schema`).
+name only a format Leaf checks (`check_schema`).
 
 A schema's regular expressions are ECMAScript, as JSON Schema defines them and the
 browser reads them. jsonschema reads them with Python's `re`, whose `$` also matches
@@ -13,30 +13,31 @@ makes, `re.search`, in the modules that make it at regress, an ECMAScript engine
 covers `pattern`, `patternProperties` and the `additionalProperties` and
 `unevaluatedProperties` accounting built on it, and `check_schema` compiles patterns,
 and the `regex` format checks a value, with the same engine.
+
+jsonschema, referencing, regress and pywhatwgurl load when this module first checks a
+schema or builds a validator (`_checkers`), not when it is imported. Most commands
+and hooks read a page without validating anything, and those imports would cost each
+of them tens of milliseconds.
 """
+
+from __future__ import annotations
 
 import functools
 import json
 import re
 from datetime import datetime
+from typing import TYPE_CHECKING
 
-import jsonschema._keywords
-import jsonschema._utils
-import regress
-from jsonschema import Draft202012Validator, FormatChecker
-from jsonschema.exceptions import SchemaError, best_match
-from pywhatwgurl import URL
-from referencing import Registry
-from referencing.exceptions import Unresolvable
-from referencing.jsonschema import DRAFT202012
+if TYPE_CHECKING:
+    import regress
+    from jsonschema import FormatChecker
+    from jsonschema.protocols import Validator
 
-FORMAT_CHECKER = FormatChecker()
 RFC3339_DATE_TIME = re.compile(
     r"^\d{4}-\d{2}-\d{2}[Tt]\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:[Zz]|[+-]\d{2}:\d{2})$"
 )
 
 
-@FORMAT_CHECKER.checks("date-time")
 def is_aware_datetime(value) -> bool:
     """Leaf's self-contained date-time format: one absolute, aware instant."""
     if not isinstance(value, str):
@@ -44,7 +45,6 @@ def is_aware_datetime(value) -> bool:
     return aware_instant(value) is not None
 
 
-@FORMAT_CHECKER.checks("uri")
 def is_browser_url(value) -> bool:
     """An absolute URL parsed by the pure-Python WHATWG implementation.
 
@@ -53,6 +53,8 @@ def is_browser_url(value) -> bool:
     `new URL` would then throw on a value `data set` accepted. pywhatwgurl avoids
     a native compiler requirement; its IDNA handling can differ from browsers
     for unusual internationalized domains."""
+    from pywhatwgurl import URL
+
     if not isinstance(value, str):
         return True  # the declared JSON Schema owns the type complaint
     return URL.can_parse(value)
@@ -72,6 +74,8 @@ def aware_instant(value: str):
 
 @functools.cache
 def _ecma(pattern: str) -> regress.Regex:
+    import regress
+
     return regress.Regex(pattern, "u")
 
 
@@ -83,27 +87,41 @@ class _EcmaSearch:
         return _ecma(pattern).find(string)
 
 
-# jsonschema's only regular-expression calls; a call it adds to these modules fails
-# loudly here rather than reading Python's dialect.
-jsonschema._keywords.re = _EcmaSearch
-jsonschema._utils.re = _EcmaSearch
-
-# The metaschema's `regex` format, which `check_schema` holds every pattern to.
-META_FORMAT_CHECKER = FormatChecker()
-
-
-# A value a schema declares `format: regex` is read as ECMAScript too.
-@FORMAT_CHECKER.checks("regex", raises=regress.RegressError)
-@META_FORMAT_CHECKER.checks("regex", raises=regress.RegressError)
 def is_ecma_regex(value) -> bool:
+    """A value a schema declares `format: regex`, read as ECMAScript too."""
     return not isinstance(value, str) or bool(_ecma(value))
+
+
+@functools.cache
+def _checkers() -> tuple[FormatChecker, FormatChecker]:
+    """The format checker every validator reads instances with, and the one
+    `check_schema` holds a schema's `regex` patterns to. Building them first points
+    jsonschema's regular expressions at ECMAScript."""
+    import jsonschema._keywords
+    import jsonschema._utils
+    import regress
+    from jsonschema import FormatChecker
+
+    # jsonschema's only regular-expression calls; a call it adds to these modules
+    # fails loudly here rather than reading Python's dialect.
+    jsonschema._keywords.re = _EcmaSearch  # ty: ignore[invalid-assignment] -- replace its regex engine
+    jsonschema._utils.re = _EcmaSearch  # ty: ignore[invalid-assignment] -- replace its regex engine
+    checker = FormatChecker()
+    checker.checks("date-time")(is_aware_datetime)
+    checker.checks("uri")(is_browser_url)
+    meta = FormatChecker()
+    for each in (checker, meta):
+        each.checks("regex", raises=regress.RegressError)(is_ecma_regex)
+    return checker, meta
 
 
 @functools.cache
 def leaf_resources() -> dict[str, dict]:
     """The schemas Leaf's own schemas name by a `leaf:` reference, by that name:
     `leaf:event/<kind>` is one kernel event record (`$events.kinds`), `leaf:event`
-    any of them, and `leaf:verb` an x-state verb (`schema.VERB_SCHEMA`). A reference
+    any of them, `leaf:message/<kind>` a message kind's record as a thread holds it,
+    whose `text` is its latest edit's and empty once an edit deleted it (`events.md`,
+    "Messages"), and `leaf:verb` an x-state verb (`schema.VERB_SCHEMA`). A reference
     may point into one, as `leaf:event/comment#/properties/anchor` does.
 
     Each event record is left open, so that a schema adding fields to one, as a
@@ -114,6 +132,7 @@ def leaf_resources() -> dict[str, dict]:
     from leaf.registry.kernel import kernel_event_kinds
     from leaf.schema import VERB_SCHEMA
 
+    kinds = kernel_event_kinds()
     events = {
         f"leaf:event/{kind}": {
             "$id": f"leaf:event/{kind}",
@@ -123,10 +142,23 @@ def leaf_resources() -> dict[str, dict]:
                 if key != "additionalProperties"
             },
         }
-        for kind, contract in kernel_event_kinds().items()
+        for kind, contract in kinds.items()
+    }
+    messages = {
+        f"leaf:message/{kind}": {
+            **events[f"leaf:event/{kind}"],
+            "$id": f"leaf:message/{kind}",
+            "properties": {
+                **contract["record"]["properties"],
+                "text": {"type": "string"},
+            },
+        }
+        for kind, contract in kinds.items()
+        if contract.get("message")
     }
     return {
         **events,
+        **messages,
         "leaf:event": {
             "$id": "leaf:event",
             "anyOf": [{"$ref": identity} for identity in sorted(events)],
@@ -142,7 +174,10 @@ def with_leaf_resources(schema: dict) -> dict:
 
 
 def schema_resource_registry(schema: dict):
-    """One self-contained resource graph for a vendored JSON Schema."""
+    """One self-contained resource graph for a JSON Schema."""
+    from referencing import Registry
+    from referencing.jsonschema import DRAFT202012
+
     resource = DRAFT202012.create_resource(schema)
     registry = Registry().with_resource("", resource).crawl()
     return resource, registry
@@ -154,13 +189,19 @@ def check_schema(schema) -> None:
     jsonschema skips a `format` it has no checker for, so a schema naming one would
     declare a rule no boundary enforces, and the value would reach a widget unchecked.
     Raises `SchemaError` for either."""
-    Draft202012Validator.check_schema(schema, format_checker=META_FORMAT_CHECKER)
+    from jsonschema import Draft202012Validator
+    from jsonschema.exceptions import SchemaError
+    from referencing.jsonschema import DRAFT202012
+
+    checker, meta = _checkers()
+    # The generated validator accepts this keyword; its Validator protocol omits it.
+    Draft202012Validator.check_schema(schema, format_checker=meta)  # ty: ignore[unknown-argument]
 
     def visit(contents) -> None:
         if isinstance(contents, dict):
             named = contents.get("format")
-            if isinstance(named, str) and named not in FORMAT_CHECKER.checkers:
-                checked = sorted(FORMAT_CHECKER.checkers)
+            if isinstance(named, str) and named not in checker.checkers:
+                checked = sorted(checker.checkers)
                 raise SchemaError(
                     f"format {named!r} is not one Leaf checks; it checks "
                     f"{json_value(checked)}",
@@ -175,7 +216,7 @@ def check_schema(schema) -> None:
     visit(schema)
 
 
-def json_validator(schema: dict) -> Draft202012Validator:
+def json_validator(schema: dict) -> Validator:
     """One offline schema reader for every authored/event ingress, including formats.
 
     Readers are shared by schema content: a read re-validates every stored event
@@ -186,14 +227,16 @@ def json_validator(schema: dict) -> Draft202012Validator:
 
 
 @functools.lru_cache(maxsize=1024)
-def _validator(canonical: str) -> Draft202012Validator:
+def _validator(canonical: str) -> Validator:
+    from jsonschema import Draft202012Validator
+
     # Built from its own parse of the key, so a caller that later mutates the dict
     # it passed cannot change the reader that key names.
     schema = json.loads(canonical)
     _, registry = schema_resource_registry(schema)
     return Draft202012Validator(
         schema,
-        format_checker=FORMAT_CHECKER,
+        format_checker=_checkers()[0],
         registry=registry,
     )
 
@@ -211,6 +254,8 @@ def schema_complaint(schema: dict, instance) -> dict | None:
     `best_match`, which goes inside a `oneOf` or `anyOf` to the branch the instance
     nearly matched, so a step with an unknown `state` names that field rather than
     the whole step."""
+    from jsonschema.exceptions import best_match
+
     error = best_match(json_validator(schema).iter_errors(instance))
     if error is None:
         return None
@@ -246,6 +291,9 @@ def unresolved_schema_reference(schema: dict) -> str | None:
     avoids mistaking literal instance data under `const`, `enum`, or `default` for a
     reference while still checking refs behind properties, combinators, and $defs.
     """
+    from referencing.exceptions import Unresolvable
+    from referencing.jsonschema import DRAFT202012
+
     resource, registry = schema_resource_registry(schema)
 
     def visit(current, resolver) -> str | None:

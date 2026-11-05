@@ -113,13 +113,16 @@ def test_a_source_read_keeps_one_complete_publication(tmp_path, monkeypatch):
     with monkeypatch.context() as ordered:
         ordered.setattr(Path, "open", open_before_replacement)
         reading = data_model.read_source(tmp_path, "numbers", REGISTRY)
+    assert reading is not None
     assert reading["value"] == 1
     assert reading["updated"] == "2026-01-01T00:00:00Z"
     assert reading["run"] == "1" * 32
-    assert (
-        reading["run"] != data_model.read_source(tmp_path, "numbers", REGISTRY)["run"]
-    )
-    assert data_model.read_source(tmp_path, "numbers", REGISTRY)["value"] == 2
+    source_record = data_model.read_source(tmp_path, "numbers", REGISTRY)
+    assert source_record is not None
+    assert reading["run"] != source_record["run"]
+    source_record_2 = data_model.read_source(tmp_path, "numbers", REGISTRY)
+    assert source_record_2 is not None
+    assert source_record_2["value"] == 2
 
 
 def test_cache_eviction_during_a_validation_keeps_its_result(monkeypatch):

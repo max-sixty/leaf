@@ -1,24 +1,29 @@
 """Arms, served pages, and isolated CC, Codex and Pi sessions for the commands and eval
 harnesses that run a version of Leaf.
 
-An arm is the plugin payload (`PAYLOAD`) at one ref, or as the working tree has it, and
-nothing else: no `.git`, examples or notes, so a child cannot read its way to another
-arm's version. An A/B's base is the merge base with the local `main` unless the caller
-names another ref (`base_ref`).
+A command that runs Leaf at two versions, such as `stills`, `probe` or `compare`, runs
+`head`, this working tree in place with its uncommitted edits, and `base`, the merge
+base with the local `main` unless `--base REF` names another commit (`choose_arms`,
+`base_option`). The base is the whole tree at its commit, so it serves pages, runs the
+preview worker and reads its own authored sources (`own_source`) as this checkout does.
+An eval's `base` and `head` are instead each a copy of the plugin payload (`PAYLOAD`)
+at its version and nothing else: no `.git`, examples or notes, so a child cannot read
+its way to another arm's version.
 
 A child runs from a scratch cwd outside any repository, so no project instructions
 load, under a home of its own beside that cwd, so its bypassed permissions write to
 that home rather than the user's `~` (children given the user's home once appended to
-the user's `~/.claude/CLAUDE.md`). The home carries the login and, for a sandboxed
-Claude Code child, generated instructions naming its scratch directory and
-restriction. A trace is the child's normalized tool/turn evidence; it counts when
+the user's `~/.claude/CLAUDE.md`). The home carries the login; sandboxed children
+receive instructions naming their scratch directory and restriction. A trace is
+the child's normalized tool/turn evidence; it counts when
 its harness turn completed (`completed`). CC raw stdout and Codex notifications
 are retained too.
 A `LiveChild` keeps its session open across turns, so a driver can post
 user moves to a served page (`PageClient`) as a tab would; a `LiveSession` is how
 every live driver holds one: it records the stream, sends chat messages, and tells
-when the session has gone quiet. On macOS a Claude Code child runs under
-`private_tmp`, so concurrent children share no file in `/tmp`.
+when the session has gone quiet. On macOS, native authoring sessions use
+`authoring_sandbox` to isolate shared `/tmp`, host plugin payloads and other processes. Read-only probes use
+their provider's restrictions; Codex's sandbox cannot nest inside a macOS sandbox.
 """
 
 import base64
@@ -27,33 +32,44 @@ import json
 import os
 import queue
 import re
+import shlex
 import shutil
 import signal
 import subprocess
+import sys
 import tempfile
 import threading
 import time
 import urllib.error
 import urllib.parse
 import urllib.request
-from collections.abc import Callable, Iterable
-from contextlib import contextmanager
+from collections.abc import Iterable
+from contextlib import ExitStack, contextmanager
 from contextvars import ContextVar
 from datetime import datetime
 from functools import partial
 from pathlib import Path
-from typing import IO, NamedTuple, Self
+from typing import IO, NamedTuple, Self, overload
 
 import click
 
 from leaf.codex import APP_SERVER_ENV
-from leaf.delivery import opened_input_ids
+from leaf.event_log import initialized
 from leaf.harness import IDENTITY_VARIABLES, ClaudeCodeHarness, CodexHarness
+from leaf.registry.kernel import kernel_event_kinds
 from leaf.render_gate import browser as browser_model
 from leaf.render_gate import command as render_command_model
-from leaf_dev import ROOT
+from leaf_dev import ROOT, plain_html
 from leaf_dev.browser import shell_executable
-from leaf_dev.page_fixtures import prepare_page, read_fixture, record_run_context
+from leaf_dev.page_fixtures import (
+    admit_events,
+    fixture_environment,
+    prepare_page,
+    read_event_lines,
+    read_fixture,
+    record_run_context,
+    refresh_composition,
+)
 
 # The uv project names this package's `pyproject.toml` as a workspace member, so uv
 # needs that file to read the lock. The package itself stays out: the launcher never
@@ -72,7 +88,6 @@ PAYLOAD = (
     "src",
     "browser",
     "packages",
-    "dist",
     "package.json",
     "leaf-distribution.json",
     "pyproject.toml",
@@ -86,15 +101,16 @@ PAYLOAD = (
 # The harnesses an arm's child runs, named as the shipped harness names itself.
 HARNESSES = (ClaudeCodeHarness.name, CodexHarness.name)
 
-# The models evals run, pinned so runs on different days compare: each harness's
-# agents, the judge behind `llm-rubric` assertions, the screenshot judge, and the
-# agent that plays the user in a page's browser.
+# Pin authors and the simulated user separately from quality judges, so changing
+# the author under evaluation never changes who assesses its output.
 MODELS = {
     ClaudeCodeHarness.name: "claude-opus-5-5",
     CodexHarness.name: "gpt-6.1-sol",
-    "judge": "claude-sonnet-5-5",
-    "screenshots": "gpt-6.1-sol",
-    "user": "claude-sonnet-5-5",
+    "user": "gpt-6.1-sol",
+}
+JUDGE_MODELS = {
+    ClaudeCodeHarness.name: "claude-opus-5-5",
+    CodexHarness.name: "gpt-6-astra",
 }
 
 
@@ -104,7 +120,7 @@ def run_directory(parent: Path) -> Path:
     return Path(tempfile.mkdtemp(prefix="run-", dir=parent))
 
 
-def environment(*, payload: Path | None = None, **extra: str) -> dict[str, str]:
+def environment(*, payload: Path | str | None = None, **extra: str) -> dict[str, str]:
     """This process's environment without the agent session it may be running in.
 
     A harness run from a Claude Code or Codex session inherits that session's
@@ -117,6 +133,10 @@ def environment(*, payload: Path | None = None, **extra: str) -> dict[str, str]:
     one the session's harness added for its own Leaf plugin: the `leaf` in either
     would shadow the launcher a child harness puts on PATH for the arm's plugin.
     When supplied, `payload` puts that arm's bin directory first on the clean PATH.
+    An isolated HOME keeps agent settings and state private, while uv shares the
+    host's dependency cache and the interpreter running this harness. Otherwise
+    hiding the host's managed Python can select a different system interpreter
+    and compile dependencies again for every sample.
 
     A child names the pinned headless shell as its browser through
     LEAF_BROWSER_EXECUTABLE (`shell_executable`), unless that variable is already
@@ -142,6 +162,8 @@ def environment(*, payload: Path | None = None, **extra: str) -> dict[str, str]:
     if browser_model.VARIABLE not in env:
         env[browser_model.VARIABLE] = shell_executable()
     env.setdefault(render_command_model.PIN_VARIABLE, "fixed")
+    env.setdefault("UV_CACHE_DIR", str(Path.home() / ".cache/uv"))
+    env.setdefault("UV_PYTHON", sys.executable)
     venv = os.environ.get("VIRTUAL_ENV")
     env["PATH"] = os.pathsep.join(
         entry
@@ -150,7 +172,7 @@ def environment(*, payload: Path | None = None, **extra: str) -> dict[str, str]:
         and not (Path(entry).parent / "skills" / "leaf").is_dir()
     )
     if payload is not None:
-        env["PATH"] = os.pathsep.join((str(payload / "bin"), env["PATH"]))
+        env["PATH"] = os.pathsep.join((str(Path(payload) / "bin"), env["PATH"]))
     return {**env, **extra}
 
 
@@ -162,7 +184,7 @@ def run_leaf(
     timeout: float | None = None,
     input_text: str | None = None,
 ) -> subprocess.CompletedProcess:
-    """Run an arm's launcher under a state home of its own."""
+    """Run an arm's launcher under its state home, without personal configuration."""
     proc = subprocess.run(
         [str(arm / "bin/leaf"), *args],
         input=input_text,
@@ -170,13 +192,18 @@ def run_leaf(
         text=True,
         check=False,
         timeout=timeout,
-        env=environment(XDG_STATE_HOME=str(state)),
+        env=fixture_environment(environment(XDG_STATE_HOME=str(state))),
     )
     if check and proc.returncode:
         raise click.ClickException(
             f"leaf {' '.join(args)} exited {proc.returncode}:\n{proc.stdout}{proc.stderr}"
         )
     return proc
+
+
+def pages(*roots: Path) -> list[Path]:
+    """Initialized page directories under the private workspace or state homes."""
+    return sorted({p.parent for root in roots for p in root.rglob("events.jsonl")})
 
 
 @contextmanager
@@ -199,6 +226,7 @@ def serving(arm: Path, state: Path, page: Path):
         text=True,
         start_new_session=True,
     )
+    assert server.stdout is not None
     try:
         yield json.loads(server.stdout.readline())["url"]
     finally:
@@ -208,9 +236,10 @@ def serving(arm: Path, state: Path, page: Path):
 
 def build_source(arm: Path, state: Path, source: Path, page: Path) -> None:
     """Build the authored `source` into the page directory `page` with the arm's own
-    launcher under the state home `state`. Callers select a prepared installation
-    before building, then use that same installation to serve or check the page.
+    launcher under the state home `state`, to serve or check from that arm. A
+    generated source, such as the corpus, is generated first (`refresh_composition`).
     """
+    refresh_composition(source)
     prepare_page(
         page,
         read_fixture(source, runtime=arm, env=environment(XDG_STATE_HOME=str(state))),
@@ -220,41 +249,75 @@ def build_source(arm: Path, state: Path, source: Path, page: Path) -> None:
 
 
 class ServedPage(NamedTuple):
-    """A page `serving_source` serves: its directory, its keyed address, and its arm's
-    launcher under its state home."""
+    """A page `serving_source` or `live_copies` serves: its directory, its address,
+    and the arm that serves it under the state home `state`."""
 
     directory: Path
     address: str
-    leaf: Callable[..., subprocess.CompletedProcess]
+    arm: Path
+    state: Path
+
+    def leaf(
+        self, *args: str, timeout: float | None = None
+    ) -> subprocess.CompletedProcess:
+        """Run the arm's launcher under the state home, refusing a failed command."""
+        return run_leaf(self.arm, self.state, *args, check=True, timeout=timeout)
 
 
 # The page `serving_source` serves while it does, for an input that writes to it from
-# outside the tab, as the agent or another tab does (stills.py, `held_news`).
+# outside the tab, as the agent or another tab does (states.py, `held_news`).
 served_page: ContextVar[ServedPage] = ContextVar("served_page")
 
 
 @contextmanager
-def serving_source(arm: Path, source: Path, scratch: Path):
-    """Build `source` into a page under `scratch` (`build_source`), serve it
-    (`serving`), and yield the address, all using one prepared installation."""
-    from leaf_dev.commands.distribution import cached_installation
-
-    arm = cached_installation(arm)
+def serving_source(arm: Path, source: Path, scratch: Path, log: Path | None = None):
+    """Build `source` into a page under `scratch` (`build_source`), admit `log`'s
+    events after its own history, unacknowledged as a writer's would be
+    (`admit_events`), serve it (`serving`), and yield the address, all from `arm`."""
     state, page = scratch / "state", scratch / "page"
     build_source(arm, state, source, page)
-    with serving(arm, state, page) as address:
-        bound = served_page.set(
-            ServedPage(page, address, partial(run_leaf, arm, state, check=True))
+    if log is not None:
+        admit_events(
+            arm,
+            page,
+            read_event_lines(log),
+            log=log,
+            env=environment(XDG_STATE_HOME=str(state)),
         )
+    with serving(arm, state, page) as address:
+        bound = served_page.set(ServedPage(page, address, arm, state))
         try:
             yield address
         finally:
             served_page.reset(bound)
 
 
+@contextmanager
+def live_copies(pages: Iterable[Path], arm: Path, *, plain: bool):
+    """Serve a disposable copy of each saved page directory in `pages`, under its own
+    name, and yield their `ServedPage`s in order. What serving writes, and any edit a
+    reader makes, lands in the copies, so the saved pages stay as their author left
+    them. `plain` pages are ordinary HTML, served as written (`plain_html.serving`);
+    any others are Leaf pages, which `arm` serves under one state home, as the pages
+    they were saved from shared one (`serving`)."""
+    with (
+        tempfile.TemporaryDirectory(prefix="leaf-live-copies-") as scratch,
+        ExitStack() as servers,
+    ):
+        state = Path(scratch) / "state"
+        copies = []
+        for page in pages:
+            copy = shutil.copytree(page, Path(scratch) / "pages" / page.name)
+            address = servers.enter_context(
+                plain_html.serving(copy) if plain else serving(arm, state, copy)
+            )
+            copies.append(ServedPage(copy, address, arm, state))
+        yield copies
+
+
 def merge_base(ref: str = "HEAD") -> str:
-    """The commit `ref` branched from the local `main`: the base an A/B command
-    compares HEAD against unless it is handed another."""
+    """The commit `ref` branched from the local `main`: the base a command compares
+    this working tree with unless it is handed another."""
     return subprocess.run(
         ["git", "-C", ROOT, "merge-base", ref, "main"],
         capture_output=True,
@@ -314,6 +377,16 @@ def extract_payload(
         copy_working(paths, dest)
 
 
+def arm_commit(ref: str | None) -> str:
+    """The commit `ref` names, HEAD's for the working tree."""
+    return subprocess.run(
+        ["git", "-C", ROOT, "rev-parse", f"{ref or 'HEAD'}^{{commit}}"],
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.strip()
+
+
 def build_arm(ref: str | None, dest: Path, *, paths: Iterable[str] = PAYLOAD) -> str:
     """Extract `paths` at `ref`, or as the working tree has it when `ref` is None,
     into `dest`, replacing any earlier arm there, and build its environment; return
@@ -330,26 +403,95 @@ def build_arm(ref: str | None, dest: Path, *, paths: Iterable[str] = PAYLOAD) ->
     subprocess.run(
         [dest / ".venv/bin/python", "-m", "compileall", "-q", dest], check=True
     )
-    return subprocess.run(
-        ["git", "-C", ROOT, "rev-parse", f"{ref or 'HEAD'}^{{commit}}"],
-        capture_output=True,
-        text=True,
-        check=True,
-    ).stdout.strip()
+    return arm_commit(ref)
 
 
-def base_ref(ref: str | None) -> str:
-    """The ref an A/B command compares HEAD against: the one it was handed, else
-    `merge_base()`."""
-    return ref or merge_base()
+def named_commit(_context, _parameter, ref: str | None) -> str | None:
+    """Refuse a REF that names no commit while the command line is read, before any
+    arm is built. An optional value takes the next word, so `--base` written before
+    an argument reads that argument as its REF."""
+    if (
+        ref
+        and subprocess.run(
+            ["git", "-C", ROOT, "rev-parse", "--verify", "-q", f"{ref}^{{commit}}"],
+            capture_output=True,
+            check=False,
+        ).returncode
+    ):
+        raise click.BadParameter(
+            f"no commit {ref!r}; without REF, put --base after any arguments"
+        )
+    return ref
 
 
-def build_pair(base: str | None, dest: Path) -> tuple[dict[str, Path], dict[str, str]]:
-    """Build an A/B's arms under `dest`: `base` at `base_ref(base)` and `head` at
-    HEAD. Return each arm's directory and its commit, both keyed `base` and `head`."""
-    refs = {"base": base_ref(base), "head": "HEAD"}
-    arms = {arm: dest / arm for arm in refs}
-    return arms, {arm: build_arm(ref, arms[arm]) for arm, ref in refs.items()}
+def base_option(*, paired: bool = False):
+    """The `--base [REF]` option of every command that runs Leaf at two versions.
+
+    A paired command, whose readings mean something only beside the base's, always
+    runs the base; any other runs it only when given `--base`. The value is None for
+    no base, and empty for the merge base (`choose_arms`)."""
+    return click.option(
+        "--base",
+        is_flag=False,
+        flag_value="",
+        default="" if paired else None,
+        metavar="[REF]",
+        callback=named_commit,
+        help="Compare with REF instead of the merge base with main."
+        if paired
+        else "Also run the merge base with main, or REF. Without REF, put it after "
+        "any arguments.",
+    )
+
+
+class Arm(NamedTuple):
+    """A version of Leaf a command runs: its checkout, and the commit that checkout
+    stands on, HEAD's for this working tree."""
+
+    directory: Path
+    commit: str
+
+
+def choose_arms(
+    base: str | None, scratch: Path, *, payload: bool = False
+) -> dict[str, Arm]:
+    """The arms a command runs, keyed `base` and `head`, base first. `head` is this
+    working tree in place, uncommitted edits included, so an edit made during a run
+    reaches what the run reads after it. Unless `base` is None, `base` is the whole
+    tree at `base`, or at the merge base when `base` is empty, built under `scratch`
+    in `arms/` (`build_arm`).
+
+    With `payload`, as for a command that installs each arm for child agents, both
+    arms are copies of the plugin payload alone in `scratch`'s `arms/`, the head's
+    taken from the working tree now: a child can't read its way to the other arm,
+    and a later edit changes neither."""
+    paths = PAYLOAD if payload else (".",)
+    arms = {}
+    if base is not None:
+        directory = scratch / "arms" / "base"
+        commit = build_arm(base or merge_base(), directory, paths=paths)
+        arms["base"] = Arm(directory, commit)
+    if not payload:
+        return {**arms, "head": Arm(ROOT, arm_commit(None))}
+    directory = scratch / "arms" / "head"
+    return {**arms, "head": Arm(directory, build_arm(None, directory))}
+
+
+def describe(arms: dict[str, Arm]) -> str:
+    """Name each arm and its commit, as a command's report heads its readings."""
+    return " vs ".join(f"{name} {arm.commit[:10]}" for name, arm in arms.items())
+
+
+def own_source(arm: Arm, source: Path) -> Path:
+    """`source`, an authored page in this checkout, as `arm`'s checkout has it, with
+    that checkout's companions and asset pin beside it: `source` itself on the head,
+    the base commit's copy on the base. The base holds only tracked files, so a
+    generated source, such as the corpus, is generated there when it is missing
+    (`refresh_composition`); its readers regenerate it as they read it."""
+    own = arm.directory / source.relative_to(ROOT)
+    if not own.exists():
+        refresh_composition(own)
+    return own
 
 
 def load_average() -> str:
@@ -477,11 +619,9 @@ def claude_home(path: Path) -> Path:
 
 def claude_environment(home: Path, **extra: str) -> dict[str, str]:
     """The environment of a Claude Code child under `home` (`claude_home`): its
-    config is the home's, never one `CLAUDE_CONFIG_DIR` names, and it shares the
-    host's uv cache and keeps no memory."""
+    config is the home's, never one `CLAUDE_CONFIG_DIR` names, and it keeps no memory."""
     env = environment(
         HOME=str(home),
-        UV_CACHE_DIR=os.environ.get("UV_CACHE_DIR", str(Path.home() / ".cache/uv")),
         CLAUDE_CODE_DISABLE_AUTO_MEMORY="1",
         **extra,
     )
@@ -551,38 +691,79 @@ def scratch(payload: Path | None = None, *, state: Path | None = None):
                 retire_sessions(payload, state if state is not None else work / "state")
 
 
-def private_tmp(*owned: Path) -> str:
-    """The macOS sandbox profile a Claude Code child runs under, so that two
-    children never share a file under `/tmp`.
+def authoring_sandbox(*owned: Path) -> str:
+    """Isolate shared scratch files, installed instructions and processes on macOS.
 
-    Its `TMPDIR` and zsh's `TMPPREFIX` are already its own (`claude_child`), but
+    The child's `TMPDIR` and zsh's `TMPPREFIX` are already private, but
     authoring agents also write fixed names such as `/tmp/chk.py`, which a
-    concurrent sample would overwrite. Writes to `/tmp` are refused except under
-    `owned`, the child's own directories, wherever they are, and the names
-    Claude Code and Leaf give their
-    own machine-local files there: Claude Code's per-user directory and each
+    concurrent sample would overwrite or read as its own. Content reads and writes
+    under `/tmp` are refused except under `owned`, the child's own directories,
+    and the harnesses' machine-local files: Claude Code's per-user directory and each
     shell's cwd file and socket, zsh's here-document files, whose names are
-    unique, and Leaf's per-user package locks and each App Server's socket
-    directory. The sandbox resolves `/tmp` to `/private/tmp`, so the rules name
-    that."""
+    unique, Leaf's per-user package locks and each App Server's socket directory,
+    and Codex's per-user daemon sockets and locks. Metadata remains readable for
+    runtime directory traversal. The sandbox resolves `/tmp` to `/private/tmp`,
+    so the rules name that. Host plugin payloads are inaccessible: a guessed global
+    cache path must not replace the sample's installed instructions. Credentials
+    outside those payloads remain available. Signals stay within the inherited sandbox:
+    an author's browser cleanup cannot terminate another sample's or the host's browser.
+    """
     uid = os.getuid()
     names = (
         rf"claude-{uid}(/|$)|claude-[0-9a-f]+-cwd$|cc-socks(/|$)|zsh[^/]+$"
-        rf"|leaf-package-locks-{uid}(/|$)|leaf-codex-[^/]+(/|$)"
+        rf"|leaf-path-locks-{uid}(/|$)|leaf-codex-[^/]+(/|$)"
+        rf"|codex-daemon-{uid}(/|$)"
+    )
+    host_plugins = (
+        Path(os.environ.get("CODEX_HOME", Path.home() / ".codex")) / "plugins",
+        Path(os.environ.get("CLAUDE_CONFIG_DIR", Path.home() / ".claude")) / "plugins",
     )
     return "\n".join(
         [
             "(version 1)",
             "(allow default)",
-            '(deny file-write* (subpath "/private/tmp"))',
-            f'(allow file-write* (regex #"^/private/tmp/({names})"))',
+            "(deny signal)",
+            "(allow signal (target same-sandbox))",
+            '(deny file-read-data file-write* (subpath "/private/tmp"))',
+            f'(allow file-read-data file-write* (regex #"^/private/tmp/({names})"))',
             *(
-                f"(allow file-write* (subpath {json.dumps(str(path.resolve()))}))"
+                f"(deny file-read-data file-write* (subpath {json.dumps(str(path.resolve()))}))"
+                for path in host_plugins
+            ),
+            *(
+                f"(allow file-read-data file-write* (subpath {json.dumps(str(path.resolve()))}))"
                 for path in owned
             ),
             "",
         ]
     )
+
+
+def authoring_sandbox_instructions(cwd: Path) -> str:
+    """The scratch capability of the outer sandbox, shared by native harnesses."""
+    return (
+        f"Writable scratch directory: `{cwd / 'tmp'}` (`$TMPDIR`).\n"
+        "An outer process sandbox rejects arbitrary reads and writes under shared `/tmp`.\n"
+    )
+
+
+def private_program(executable: Path, home: Path, *owned: Path) -> Path:
+    """Wrap an executable with inherited temporary-file isolation.
+
+    App Server accepts an executable, not an argv prefix. The private home's
+    launcher execs the native CLI under `authoring_sandbox`, which its subprocesses inherit.
+    Callers supply the child's workspace
+    and other owned directories, and set its private TMPDIR in their environment.
+    """
+    if (sandbox := shutil.which("sandbox-exec")) is None:
+        return executable
+    launcher = home / f"{executable.name}-private-tmp"
+    command = shlex.join(
+        [sandbox, "-p", authoring_sandbox(home, *owned), str(executable)]
+    )
+    launcher.write_text(f'#!/bin/sh\nexec {command} "$@"\n')
+    launcher.chmod(0o700)
+    return launcher
 
 
 def claude_child(
@@ -597,7 +778,7 @@ def claude_child(
 
     `args` follow `-p`, so a prompt goes first. `dirs` are what the child may read
     beyond `cwd`, and `env` adds to `environment()`. Output is verbose stream-json.
-    On macOS the child runs under `private_tmp`, owning `cwd`, its home and
+    On macOS the child runs under `authoring_sandbox`, owning `cwd`, its home and
     `dirs`, unless `sandbox` is False, as a child that drives the harness's own
     browser is. Its private-home CLAUDE.md names the sandbox's scratch directory
     and restriction; an unsandboxed launch retires that generated file."""
@@ -613,11 +794,8 @@ def claude_child(
     instructions = home / ".claude" / "CLAUDE.md"
     if sandbox and shutil.which("sandbox-exec"):
         instructions.parent.mkdir(exist_ok=True)
-        instructions.write_text(
-            f"Writable scratch directory: `{cwd / 'tmp'}` (`$TMPDIR`).\n"
-            "The sandbox rejects arbitrary writes under shared `/tmp`.\n"
-        )
-        profile = private_tmp(cwd, home, *dirs)
+        instructions.write_text(authoring_sandbox_instructions(cwd))
+        profile = authoring_sandbox(cwd, home, *dirs)
         command = ["sandbox-exec", "-p", profile, *command]
     else:
         instructions.unlink(missing_ok=True)
@@ -644,8 +822,9 @@ def run_agent(
     dirs: Iterable[Path] = (),
     env: dict | None = None,
     harness: str = ClaudeCodeHarness.name,
+    model: str | None = None,
     limit: float = TURN_LIMIT,
-    **options: str | bool,
+    sandbox: bool = True,
 ) -> list[dict]:
     """Run an isolated harness turn, optionally resuming its preceding session.
 
@@ -653,8 +832,9 @@ def run_agent(
     notifications live beside `err` with a `.codex.jsonl` suffix. Both harnesses
     have the same `limit`, TURN_LIMIT unless the caller bounds its turn more
     tightly; a timeout retains their partial native evidence and
-    marks `out.with_suffix(".timed-out")` without fabricating completion. `options`
-    passes a Claude Code child's `model` and `sandbox` (`claude_child`).
+    marks `out.with_suffix(".timed-out")` without fabricating completion. `model`
+    overrides either harness's author default; `sandbox` controls Claude Code's
+    child isolation (`claude_child`).
     """
     if harness == CodexHarness.name:
         with (
@@ -668,6 +848,7 @@ def run_agent(
                 timed_out=out.with_suffix(".timed-out"),
                 dirs=dirs,
                 env=env,
+                model=model,
             ) as child,
             out.open("w") as stream,
         ):
@@ -681,7 +862,14 @@ def run_agent(
     with out.open("w") as stdout, err.open("w") as stderr:
         try:
             subprocess.run(
-                **claude_child(cwd, *args, dirs=dirs, env=env, **options),
+                **claude_child(
+                    cwd,
+                    *args,
+                    dirs=dirs,
+                    env=env,
+                    model=model or MODELS[harness],
+                    sandbox=sandbox,
+                ),
                 stdin=subprocess.DEVNULL,
                 stdout=stdout,
                 stderr=stderr,
@@ -750,6 +938,8 @@ class ClaudeSession:
             self.raw.close()
             self.stderr_stream.close()
             raise
+        assert self.proc.stdin is not None and self.proc.stdout is not None
+        self.stdin, self.stdout = self.proc.stdin, self.proc.stdout
         self.deadline.start()
         try:
             self.send(self.prompt)
@@ -761,12 +951,12 @@ class ClaudeSession:
     def send(self, text: str) -> None:
         """Send the user's next chat message; a turn still running takes it next."""
         message = {"type": "user", "message": {"role": "user", "content": text}}
-        self.proc.stdin.write(json.dumps(message) + "\n")
-        self.proc.stdin.flush()
+        self.stdin.write(json.dumps(message) + "\n")
+        self.stdin.flush()
 
     def records(self):
         """The native stream; malformed output and unexpected exits raise."""
-        for line in self.proc.stdout:
+        for line in self.stdout:
             self.raw.write(line)
             self.raw.flush()
             yield {**json.loads(line), "received_at": now()}
@@ -807,18 +997,18 @@ class ClaudeSession:
         try:
             self.close()
             # The caller joins its sole observer before leaving this context.
-            shutil.copyfileobj(self.proc.stdout, self.raw)
+            shutil.copyfileobj(self.stdout, self.raw)
         finally:
             try:
-                self.proc.stdin.close()
+                self.stdin.close()
             except BrokenPipeError:
                 pass
-            self.proc.stdout.close()
+            self.stdout.close()
             self.stderr_stream.close()
             self.raw.close()
 
 
-def child_class(harness: str) -> type:
+def child_class(harness: str):
     """The live session class that runs `harness`, and so the transport it takes."""
     if harness == CodexHarness.name:
         from leaf_dev.eval_codex import CodexChild
@@ -846,9 +1036,10 @@ class LiveSession:
 
     The child's native records go to the file `stream`, each written before the
     driver sees it, with the driver's own records (`note`) between them where it
-    makes them. A thread reads the child in lockstep with the driver: it reads the
-    next record only once the driver asks for it, so whatever the driver does on a
-    record happens before anything the child does after it. Reading with `idle`
+    makes them. A thread drains the child's records into a queue while the driver
+    acts or observes the page. The child continues working independently; pausing
+    its reader can fill the transport buffer and prevent heartbeat replies from
+    being read. The driver consumes queued records in order. Reading with `idle`
     yields None each time that long passes without a record, so a driver can tell
     a quiet session from one still working (`settle`).
 
@@ -866,7 +1057,6 @@ class LiveSession:
         self.child, self.path, self.watch = child, stream, watch
         self.url: str | None = None
         self.handed = queue.Queue()
-        self.taken = threading.Event()
         self.stopping = False
         # The turns ended so far, whether one is running, and when the last record
         # arrived.
@@ -887,12 +1077,10 @@ class LiveSession:
         try:
             for record in self.child.records():
                 self.handed.put(record)
-                self.taken.wait()
-                self.taken.clear()
                 if self.stopping:
                     return
         # The driver's thread raises what the child's records raised.
-        except BaseException as error:  # noqa: BLE001
+        except BaseException as error:
             self.handed.put(error)
             return
         self.handed.put(_ENDED)
@@ -917,26 +1105,23 @@ class LiveSession:
                 return
             if isinstance(item, BaseException):
                 raise item
-            try:
-                if before is not None:
-                    before(item)
-                self.note(item)
-                self._observe(item)
-                self.heard = time.monotonic()
-                if item.get("type") == "result":
-                    self.answered, self.running = self.answered + 1, False
-                elif item.get("type") == "turn_started" or (
-                    item.get("harness") != CodexHarness.name
-                    and item.get("type") in ("assistant", "user")
-                ):
-                    self.running = True
-                yield item
-            finally:
-                self.taken.set()
+            if before is not None:
+                before(item)
+            self.note(item)
+            self._observe(item)
+            self.heard = time.monotonic()
+            if item.get("type") == "result":
+                self.answered, self.running = self.answered + 1, False
+            elif item.get("type") == "turn_started" or (
+                item.get("harness") != CodexHarness.name
+                and item.get("type") in ("assistant", "user")
+            ):
+                self.running = True
+            yield item
 
     def _observe(self, record: dict) -> None:
         # An agent authoring the page has not made it yet.
-        if self.watch is None or not (self.watch[2] / "events.jsonl").exists():
+        if self.watch is None or not initialized(self.watch[2]):
             return
         if not self.url and record.get("type") in ("user", "result"):
             state = read_page_state(*self.watch)
@@ -988,15 +1173,15 @@ class LiveSession:
         return self.answered > since
 
     def during(self, action, before=None):
-        """Run `action` while the session's records keep being read, so the child
-        never waits on its output, and return what it returns."""
+        """Run `action` while the driver records and observes the child's output,
+        and return what it returns."""
         done: queue.Queue = queue.Queue()
 
         def run():
             try:
                 done.put((True, action()))
             # Raised again in the driver's thread.
-            except BaseException as error:  # noqa: BLE001
+            except BaseException as error:
                 done.put((False, error))
 
         worker = threading.Thread(target=run, daemon=True)
@@ -1020,7 +1205,6 @@ class LiveSession:
 
     def __exit__(self, *exc) -> None:
         self.stopping = True
-        self.taken.set()
         try:
             self.child.close()
             # A closed Claude Code child's output ends at once. A Codex child's
@@ -1061,15 +1245,27 @@ class PageClient:
             return json.loads(response.read())
 
     def post(self, event: dict) -> dict:
-        """Post one move as the page does: keyed, on the served layer, and return the
-        state the server answers with, which shows the move. The caller names the
-        revision and the retry key, as the browser does.
+        """Post one move as the page's tab does, and return the event the log holds
+        for it, as the server's answer names it. The caller names the retry key.
+
+        The move is posted keyed and on the served layer. Any move may name the
+        revision it was made on, as a tab's is made on the revision it shows, and is
+        otherwise made on the active one. The revision goes with the move only where
+        its kind's record has one (`$events.kinds` in the kernel registry). One state
+        read gives the layer and the active revision. A kind the kernel doesn't
+        declare goes as it is, for the server to refuse.
 
         An answer naming another layer than the one posted on admitted nothing: the
-        page was re-vendored between the state read and the post. A tab reloads onto
+        page was re-initialized between the state read and the post. A tab reloads onto
         that layer and the user moves again, so the move is posted again under it.
         """
-        layer = self.state()["layer"]["generation"]
+        read = self.state()
+        layer = read["layer"]["generation"]
+        event = dict(event)
+        if contract := kernel_event_kinds().get(event.get("kind")):
+            made_on = event.pop("revision", None)
+            if "revision" in contract["record"]["properties"]:
+                event["revision"] = made_on or read["active"]["revision"]
         while True:
             request = urllib.request.Request(
                 f"{self.origin}/api/event?t={self.token}",
@@ -1085,7 +1281,7 @@ class PageClient:
                     f"posting {event}: HTTP {error.code} {error.read().decode()}"
                 ) from error
             if answered == layer:
-                return answer["state"]
+                return answer["event"]
             layer = answered
 
 
@@ -1109,19 +1305,6 @@ def commands(record: dict) -> list[str]:
         for block in (content if isinstance(content, list) else ())
         if block.get("type") == "tool_use"
     ]
-
-
-def inputs_received(events: list[dict], attempts: set[str]) -> bool:
-    """Whether a posted round is admitted and its attention inputs are received.
-
-    Inline context, pointer reads, and attempted ACK commands are presentations,
-    not acceptance. Every attempt must be admitted; only attention-marked inputs
-    require the opened pickups that name exactly what the reader received.
-    Page-authored errors carry no user attempt and do not advance user rounds.
-    """
-    posted = [e for e in events if e.get("attempt") in attempts]
-    inputs = {e["id"] for e in posted if e["attention"]}
-    return len(posted) == len(attempts) and inputs <= opened_input_ids(events)
 
 
 def read_trace(stream: Path) -> list[dict]:
@@ -1152,10 +1335,33 @@ def completed(trace: list[dict]) -> bool:
     return trace_result(trace).get("is_error") is False
 
 
+def author_failure(trace: list[dict]) -> str | None:
+    """A failed native author is a provider error, not a page-quality judgment."""
+    if completed(trace):
+        return None
+    result = trace_result(trace)
+    error = result.get("error") or result.get("errors")
+    return (
+        f"Author did not complete: {json.dumps(error)}"
+        if error
+        else "Author did not complete; no successful closing result in the native trace"
+    )
+
+
+@overload
+def observed_sum(values: Iterable[int | None]) -> int | None: ...
+
+
+@overload
+def observed_sum(values: Iterable[float | None]) -> float | None: ...
+
+
 def observed_sum(values: Iterable[int | float | None]) -> int | float | None:
     """Sum complete measurements; absent or incomplete evidence stays unknown."""
     observed = list(values)
-    return sum(observed) if observed and all(v is not None for v in observed) else None
+    if not observed or any(v is None for v in observed):
+        return None
+    return sum(v for v in observed if v is not None)
 
 
 def token_counts(trace: list[dict]) -> dict[str, int | None]:

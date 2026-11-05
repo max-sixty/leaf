@@ -7,7 +7,6 @@ from browser.test_render_application_boundary import (
     package_workspace,
 )
 from interact_support import append_carried_log_record
-from leaf_dev.browser import slow_cpu
 from playwright.sync_api import expect
 from render_cases_interaction import (
     LIVE_V1,
@@ -15,6 +14,7 @@ from render_cases_interaction import (
     live_url,
 )
 from render_harness import (
+    before_landing_frame,
     holding,
     open_page,
     page_comment,
@@ -28,6 +28,7 @@ from render_harness import (
 )
 
 from leaf import event_log as events_model
+from leaf_dev.browser import slow_cpu
 
 
 def test_a_settled_delivery_activates_one_fresh_document_with_continuity(
@@ -119,7 +120,7 @@ def test_a_settled_delivery_activates_one_fresh_document_with_continuity(
     [
         (True, True, 200, False, False),
         (True, False, 200, False, False),
-        # Back interrupts the native trip before its first compositor frame.
+        # Back interrupts the trip before its first frame.
         (False, True, 1000, False, True),
         # A contextual card's travel, slowed until it crosses into the viewport.
         (False, True, 1000, True, False),
@@ -166,18 +167,13 @@ def test_primary_arrival_records_a_return_place_only_when_travelling(
         # contextual card travels into the viewport and changes placement plane.
         slow_cpu(page, 6)
     if back_before_frame:
-        page.evaluate("""() => {
-          const scrollBy = Element.prototype.scrollBy;
-          Element.prototype.scrollBy = function(options) {
-            const result = scrollBy.call(this, options);
-            if (this === document.scrollingElement && options.behavior === 'smooth') {
-              Element.prototype.scrollBy = scrollBy;
+        before_landing_frame(
+            page,
+            """() => {
               window.backRequestedAt = scrollY;
               queueMicrotask(() => history.back());
-            }
-            return result;
-          };
-        }""")
+            }""",
+        )
     entries = page.evaluate("history.length")
     assert page.evaluate(
         """async ({travel, primary}) => {
@@ -235,8 +231,8 @@ def test_primary_package_reader_retains_native_widgets_drafts_and_creation(
                 "author": "agent",
                 "revision": 1,
                 "parent": "opening",
-                "text": "One question:",
-                "markup": f'<lf-ask id="{question_id}-q">{text}</lf-ask>',
+                "text": text,
+                "obligation": True,
             },
         )
     page = open_page(browser, url, context=context)

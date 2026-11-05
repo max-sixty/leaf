@@ -96,7 +96,7 @@ const NOTICE = /^(?:notice|third[-_]party[-_]notices)(?:\.|$)/i;
  * Further documents follow under their path: a second license file, an Apache NOTICE,
  * and a renderer's own `THIRD_PARTY_NOTICES` with the texts it keeps in `LICENSES/`.
  */
-export function licenseNotices(title, packageRoots) {
+export function licenseNotices(title, packageRoots, suppliedLicenses = {}) {
   const sections = packageRoots
     .map((root) => {
       const manifest = JSON.parse(
@@ -106,7 +106,7 @@ export function licenseNotices(title, packageRoots) {
         .filter((file) => statSync(path.join(root, file)).isFile())
         .sort();
       const [license, ...licenses] = files.filter((file) => LICENSE.test(file));
-      if (license === undefined)
+      if (license === undefined && !suppliedLicenses[manifest.name])
         throw new Error(`no license file shipped by ${manifest.name}`);
       const bundled = path.join(root, "LICENSES");
       const documents = [
@@ -121,7 +121,7 @@ export function licenseNotices(title, packageRoots) {
       const text = (file) =>
         readFileSync(path.join(root, file), "utf8").replaceAll("\r\n", "\n").trim();
       return [
-        `===== ${manifest.name} ${manifest.version} (${manifest.license}) =====\n${text(license)}`,
+        `===== ${manifest.name} ${manifest.version} (${manifest.license}) =====\n${license === undefined ? suppliedLicenses[manifest.name] : text(license)}`,
         ...documents.map(
           (file) => `===== ${manifest.name}: ${file} =====\n${text(file)}`,
         ),

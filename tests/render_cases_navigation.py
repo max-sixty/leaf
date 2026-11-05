@@ -26,7 +26,6 @@ from leaf import leases as leases_model
 from leaf import service as service_model
 from leaf.registry.storage import read_page_registry
 from leaf.render_checks import rendered
-from leaf.schema import ELEMENT_ID
 
 
 def call_node(label, file=None, line=None, *, status="same", children=(), kind="call"):
@@ -739,6 +738,9 @@ THIN_V2 = THIN_V1.replace(
 # the widget owes the user the text without them.
 SENTENCE = "The version stamp never lands, so migration 0041 replays on every deploy."
 DRAFT_TEXT = "Run the migration before deploying.\nIt is online."
+# A draft reads as a Markdown file, so its source's line break inside the paragraph
+# draws as a space.
+DRAFT_DRAWN = "Run the migration before deploying. It is online."
 DRAFT_EDITED = "Run the migration before deploying. It takes about a minute."
 JOURNEY_SCAFFOLD = leaf_page(
     "journey",
@@ -858,6 +860,7 @@ FIRST_PRESENTATION = """
     if (old) {
       const box = old.getBoundingClientRect();
       window.__lfPresentation.frames.push({
+        upgraded: document.body.hasAttribute("data-lf-upgraded"),
         authoredPainted: old.checkVisibility({
           opacityProperty: true,
           visibilityProperty: true,
@@ -901,9 +904,11 @@ SUGGEST_BLOCK = (
 def live_watcher(page_dir, page):
     """Hold the exact lease `leaf wait` uses for the duration of the block."""
     session = service_model.page_claim(page_dir)
-    lease = leases_model.take_lease(
-        leases_model.waiter_lease_path(page_dir, session["id"] if session else None)
+    lease_path = leases_model.waiter_lease_path(
+        page_dir, session["id"] if session else None
     )
+    assert lease_path is not None
+    lease = leases_model.take_wait_lease(lease_path)
     assert lease
     told(page)
     try:
@@ -930,8 +935,9 @@ def live_watcher(page_dir, page):
 # paints it the shade it already was, and a reading that took the first rule it found
 # agreed with the leaf on the one state where nothing had to have happened.
 TAB_TONE = """(want) => {
-    const el = document.querySelector('.lf-fp-leaf .lf-dot');
-    const judged = el.className.replace('lf-dot', '').trim();
+    const leaf = document.querySelector('.lf-fp-leaf');
+    const el = leaf.querySelector('svg[data-lf-icon=leaf]');
+    const judged = leaf.getAttribute('data-lf-tone') ?? '';
     const prefix = 'data:image/svg+xml,';
     const href = document.querySelector('link[rel=icon]').getAttribute('href');
     const svg = href.startsWith(prefix)
@@ -942,7 +948,7 @@ TAB_TONE = """(want) => {
     const sheets = svg ? [...svg.querySelectorAll('style')] : [];
     const tone =
         sheets.length > 1 ? /fill: ([^}]+) \\}/.exec(sheets.at(-1).textContent)?.[1] : null;
-    const dot = getComputedStyle(el).backgroundColor;
+    const dot = getComputedStyle(el).color;
     return VERDICT;
 }"""
 # The same reading with nothing required of it, for a failure that says what it found.
@@ -993,8 +999,8 @@ def data_projection_page(serve):
         "description": "A project-supplied live feed.",
         "type": "object",
         "properties": {
-            "id": {"type": "string", "pattern": f"^{ELEMENT_ID}$"},
-            "source": {"type": "string", "pattern": "^[a-z][a-z0-9-]*$"},
+            "id": {"type": "string"},
+            "source": {"type": "string"},
         },
         "required": ["id", "source"],
         "additionalProperties": False,

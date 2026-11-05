@@ -29,10 +29,9 @@
    an `aria-expanded` control fires nothing anywhere. Both keep that state in an
    attribute, so one `MutationObserver` over `open` and `aria-expanded` repaints for both,
    and `shadowStage` hands it each root. */
-import { PRESS, rowArrows } from "./bindings.js";
 import { paintKeysWithin } from "./scopes.js";
 
-import { inChrome } from "../passages.js";
+export { DISCLOSE, DISCLOSURE_SELECTOR, disclosureAt } from "../control-keys.js";
 
 // Where a disclosure keeps which way it stands, in both spellings. Declared up here
 // because `shadowStage` calls it, far above the surfaces it repaints for.
@@ -51,33 +50,17 @@ import { inChrome } from "../passages.js";
 const disclosureWatch = new MutationObserver((records) => {
   // Every record is an attribute's, so its target is an element.
   for (const r of records)
-    if (/** @type {Element} */ (r.target).getAttribute(r.attributeName) !== r.oldValue)
+    if (
+      r.target instanceof Element &&
+      r.attributeName !== null &&
+      r.target.getAttribute(r.attributeName) !== r.oldValue
+    )
       paintKeysWithin(r.target);
 });
+/** @param {Node} root */
 export const watchDisclosures = (root) =>
   disclosureWatch.observe(root, {
     subtree: true,
     attributeFilter: ["open", "aria-expanded"],
     attributeOldValue: true,
   });
-
-export const DISCLOSE = (el) => {
-  const open = disclosed(el);
-  if (open === null) return [...PRESS, "ArrowLeft", "ArrowRight"];
-  const [back, ahead] = rowArrows(el);
-  return inChrome(el) ? PRESS : [...PRESS, open ? back : ahead];
-};
-
-export const DISCLOSURE_SELECTOR =
-  'details > summary, :is(button, [role="button"])[aria-expanded]';
-
-// Which way the disclosure at this element is set: open, shut, or null where it is
-// not a disclosure at all — which is a question asked from wherever the user happens to
-// be, the reference listing a scope the page has rather than the one they are in.
-export function disclosed(el) {
-  return !el?.matches?.(DISCLOSURE_SELECTOR)
-    ? null
-    : el.matches("details > summary")
-      ? el.parentElement.open
-      : el.getAttribute("aria-expanded") === "true";
-}

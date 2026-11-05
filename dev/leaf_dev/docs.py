@@ -14,7 +14,8 @@ it here from that owner as it reads the source (`page_fixtures.authored_markup`)
   `<meta name="description">`;
 - `table#all-verbs`'s body: every `x-state` verb the kernel and the bundled packages
   declare, in registry order;
-- `nav.reference-index` and `div.reference-list`: the kernel registry's `$keys`;
+- `nav.reference-index` and `div.reference-list`: the core layer's `$keys`
+  (`browser/registry.json`);
 - `div.schema-list`: each declared schema in the group its `data-schemas` names
   (`SCHEMA_LISTS`), as a table of its fields.
 
@@ -30,13 +31,14 @@ from pathlib import Path
 
 from leaf.media import media_name
 from leaf.schema import MEDIA_DIR
+from leaf.state import KERNEL_REGISTRY
 from leaf.structure import SourceDocument
 from leaf_dev import ROOT, declared_records
-from leaf_dev.example_data import document_metadata
+from leaf_dev.example_data import PRODUCT_DOCS, WORKED_EXAMPLES, document_metadata
 from leaf_dev.leaf_assets import pinned_assets
 
-DOCS = ROOT / "docs"
-EXAMPLES = ROOT / "examples"
+DOCS = ROOT / PRODUCT_DOCS
+EXAMPLES = ROOT / WORKED_EXAMPLES
 ASSETS = ROOT / "browser"
 PACKAGES = ROOT / "packages"
 SCRIPTS = ROOT / "src" / "leaf"
@@ -51,6 +53,7 @@ SITE_NAV = (
     ("/", "leaf"),
     ("/examples/", "Examples"),
     ("/how-it-works/", "How it works"),
+    ("/ui/", "UI"),
     ("/extending/", "Extending"),
     ("https://github.com/max-sixty/leaf", "GitHub"),
 )
@@ -113,7 +116,7 @@ def markup_record(verb_state: dict) -> str:
 
 
 def registries() -> list[Path]:
-    """The kernel's registry, then each bundled package's."""
+    """The core layer's registry, then each bundled package's."""
     return [ASSETS / "registry.json", *sorted(PACKAGES.glob("*/registry.json"))]
 
 
@@ -189,12 +192,13 @@ def schema_reference(ref: str) -> str:
     uri, _, pointer = ref.partition("#")
     if not uri:
         name = pointer.removeprefix("/$defs/")
-        return f'<a href="#served-{name or "state"}">{name or "served state"}</a>'
+        target = name.split("/", 1)[0]
+        return f'<a href="#served-{target or "state"}">{name or "served state"}</a>'
     if uri == "leaf:verb":
         return '<a href="/registry/#x-state">x-state verb</a>'
     if uri == "leaf:event":
         return '<a href="#events">event</a>'
-    kind = uri.removeprefix("leaf:event/")
+    kind = uri.removeprefix("leaf:event/").removeprefix("leaf:message/")
     field = pointer.removeprefix("/properties/")
     named = (
         f"<code>{kind}</code>'s <code>{field}</code>"
@@ -297,7 +301,7 @@ def field_rows(schema, path: str = "", skip: frozenset = frozenset()) -> list[tu
     ]
     alternatives = []
     for index, ((branch, condition, alternative), nested) in enumerate(
-        zip(clauses, adding), 1
+        zip(clauses, adding, strict=True), 1
     ):
         if nested:
             label = condition or f"variant {index}"
@@ -364,7 +368,7 @@ def schema_entry(
     entry_id: str,
     heading: str,
     schema: dict,
-    notes: list[str] = (),
+    notes: list[str] | tuple[str, ...] = (),
     *,
     skip: frozenset = frozenset(),
 ) -> str:
@@ -405,7 +409,7 @@ def served_entries() -> list[str]:
 def event_entries() -> list[str]:
     """The fields every event record shares, then each kind's own, with the meaning
     left to `events.md`."""
-    kinds = read_json(ASSETS / "registry.json")["$events"]["kinds"]
+    kinds = read_json(KERNEL_REGISTRY)["$events"]["kinds"]
     records = [contract["record"] for contract in kinds.values()]
     shared = tuple(
         name
@@ -446,7 +450,7 @@ def event_entries() -> list[str]:
 def record_entries() -> list[str]:
     """Each record Leaf keeps outside a page's log and document, the composer's draft
     among them, with the `format` it is stored at."""
-    draft = read_json(ASSETS / "registry.json")["$events"]["draft"]
+    draft = read_json(KERNEL_REGISTRY)["$events"]["draft"]
     records = {
         kind: (record.since, record.schema)
         for kind, record in declared_records().items()
@@ -499,11 +503,7 @@ def inputs(source: Path) -> list[Path]:
     return [
         *examples,
         *(registries() if composed else []),
-        *(
-            [SERVED_SCHEMA, INTERACTION_SCHEMA, ASSETS / "registry.json"]
-            if schemas
-            else []
-        ),
+        *([SERVED_SCHEMA, INTERACTION_SCHEMA, KERNEL_REGISTRY] if schemas else []),
     ]
 
 
@@ -526,7 +526,8 @@ def compose(source: Path, markup: str, *, assets: Path | None = None) -> str:
             edits.append((start, end, children))
             return
         line_start = markup.rfind("\n", 0, start) + 1
-        indent = re.match(r"[ \t]*", markup[line_start:]).group()
+        indent = markup[line_start:]
+        indent = indent[: len(indent) - len(indent.lstrip(" \t"))]
         inner = "".join(f"\n{indent}  {child}" for child in children)
         edits.append((start, end, f"{inner}\n{indent}"))
 
@@ -539,6 +540,7 @@ def compose(source: Path, markup: str, *, assets: Path | None = None) -> str:
             continue
         for image in link.select("img"):
             if "src" in image.attrs:
+                assert image.source_location is not None
                 raise ValueError(
                     f"{source.name}:{image.source_location.start_tag.start_line}: "
                     "an example link's image is its preview, composed from its owner "
@@ -546,6 +548,7 @@ def compose(source: Path, markup: str, *, assets: Path | None = None) -> str:
                 )
             if previews is None:
                 previews = assets or pinned_assets()
+            assert image.source_location is not None
             at = document.offsets(image.source_location.start_tag)[0] + len("<img")
             address = media_url(catalog_preview(previews, name))
             edits.append((at, at, f' src="{address}"'))
@@ -560,7 +563,9 @@ def compose(source: Path, markup: str, *, assets: Path | None = None) -> str:
     for listing in document.tree.select("div.reference-list"):
         fill(listing, key_entries())
     for listing in document.tree.select("div.schema-list"):
-        fill(listing, SCHEMA_LISTS[listing.attrs["data-schemas"]]())
+        name = listing.attrs["data-schemas"]
+        assert isinstance(name, str)
+        fill(listing, SCHEMA_LISTS[name]())
     for start, end, text in sorted(edits, reverse=True):
         markup = markup[:start] + text + markup[end:]
     return markup

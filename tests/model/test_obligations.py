@@ -117,7 +117,7 @@ def test_a_decision_is_independent_and_survives_revision_until_restated():
 
 def test_obligations_name_their_exact_owning_message_without_conflating_thread_identity():
     document = page()
-    events = [
+    events: list[dict] = [
         {
             "kind": "note",
             "id": "stamp",
@@ -144,8 +144,8 @@ def test_obligations_name_their_exact_owning_message_without_conflating_thread_i
             "kind": "comment",
             "id": "prompt",
             "author": "agent",
-            "text": "One question:",
-            "markup": '<lf-ask id="useful">Is this useful?</lf-ask>',
+            "text": "Is this useful?",
+            "obligation": True,
         },
     ]
     state = model.reading(document, events)
@@ -157,13 +157,13 @@ def test_obligations_name_their_exact_owning_message_without_conflating_thread_i
         "widget:choice": (None, None),
         "widget:root-choice": ("thread", "thread"),
         "widget:later-choice": ("thread", "later"),
-        "widget:useful": ("prompt", "prompt"),
+        "message:prompt": ("prompt", "prompt"),
     }
 
 
 def test_partial_and_completed_empty_values_are_distinct_from_no_answer_and_undo_reopens():
     document = page("choose multiple")
-    events = [
+    events: list[dict] = [
         {
             "kind": "action",
             "widget": "choice",
@@ -257,7 +257,7 @@ def test_a_pinned_view_reads_its_frozen_threads_under_its_own_registry():
 
     earlier, later = registry("value"), registry("chosen")
     document = model.leaf_page("Value", '<p id="p">Notes.</p>')
-    events = model.served_reading(
+    events: list[dict] = model.served_reading(
         document,
         [
             {
@@ -359,7 +359,7 @@ def test_false_and_zero_are_typed_answers(value):
 
 
 def test_changed_partial_value_does_not_reuse_an_earlier_completion_event():
-    events = [
+    events: list[dict] = [
         {
             "kind": "action",
             "widget": "choice",
@@ -379,30 +379,8 @@ def test_changed_partial_value_does_not_reuse_an_earlier_completion_event():
     assert item["answer"] == {"value": ["b"], "event": None}
 
 
-def test_display_only_widget_does_not_suppress_a_question_beside_it():
-    state = model.reading(
-        page(),
-        [
-            {
-                "kind": "comment",
-                "author": "agent",
-                "text": "One question:",
-                "markup": OPTIONS.format(attrs="")
-                + '<lf-ask id="useful">Is this useful?</lf-ask>',
-                "anchor": {"section": "choice"},
-            },
-        ],
-    )
-    assert [item["id"] for item in served_obligations(state)["all"]] == [
-        "widget:useful"
-    ]
-
-
-QUESTION = '<lf-ask id="q">Weekly or daily?</lf-ask>'
-
-
 def answered_in_words(*later):
-    """A user's comment, the agent's reply asking back with an lf-ask, then `later`."""
+    """A user's comment, the agent's reply asking back in words, then `later`."""
     return [
         {"kind": "comment", "id": "t", "author": "user", "text": "Schedule it."},
         {
@@ -411,19 +389,19 @@ def answered_in_words(*later):
             "author": "agent",
             "parent": "t",
             "responds": "t",
-            "text": "Which cadence?",
-            "markup": QUESTION,
+            "text": "Weekly or daily?",
+            "obligation": True,
         },
         *later,
     ]
 
 
 def test_a_question_in_a_reply_waits_on_the_user_until_their_next_message():
-    """An lf-ask holding no widget obligations in words: it waits on the user, titled by its
+    """A message's obligation is answered in words: it waits on the user, titled by its
     words, until their next message in its thread, which is its answer."""
     [item] = served_obligations(model.reading(page(""), answered_in_words()))["all"]
     assert (item["id"], item["status"], item["next_actor"]) == (
-        "widget:q",
+        "message:asking",
         "open",
         "user",
     )
@@ -447,98 +425,6 @@ def test_a_question_in_a_reply_waits_on_the_user_until_their_next_message():
     assert lists(state) == ([], ["update:r"], [])
 
 
-def test_the_agent_ends_a_question_the_user_answered_elsewhere():
-    state = model.reading(
-        page(""),
-        answered_in_words(
-            {
-                "kind": "todo_end",
-                "author": "agent",
-                "todo": "widget:q",
-                "outcome": "done",
-                "detail": "answered in chat",
-            }
-        ),
-    )
-    [item] = served_obligations(state)["all"]
-    assert (item["status"], item["next_actor"], item["answer"]) == (
-        "answered_elsewhere",
-        None,
-        None,
-    )
-    assert item["end"]["detail"] == "answered in chat"
-
-
-def test_a_question_on_the_page_is_answered_by_a_comment_on_it():
-    document = model.leaf_page(
-        "Questions",
-        '<p id="intro">Context.</p><lf-ask id="q">Weekly or daily?</lf-ask>',
-    )
-    assert lists(model.reading(document, [])) == (["widget:q"], [], [])
-    comment = {
-        "kind": "comment",
-        "id": "c",
-        "author": "user",
-        "text": "Daily",
-        "anchor": {"section": "q"},
-    }
-    state = model.reading(document, [comment])
-    [item] = page_obligations(state)["all"]
-    assert (item["status"], item["answer"]["value"]) == ("answered", {"text": "Daily"})
-    assert lists(state) == ([], ["update:c"], [])
-    # Moving the thread elsewhere doesn't unsay the answer it holds.
-    moved = {
-        "kind": "reply",
-        "author": "agent",
-        "parent": "c",
-        "responds": "c",
-        "text": "Daily it is.",
-        "anchor": {"section": "intro"},
-    }
-    [item] = page_obligations(model.reading(document, [comment, moved]))["all"]
-    assert item["status"] == "answered"
-
-
-def test_a_restated_question_waits_on_an_answer_given_after_it():
-    """A comment answers the question it was about. A version that rewrites the
-    question and marks it `restated` asks again: only a message after that stamp
-    answers it."""
-
-    def question(attrs=""):
-        return model.leaf_page(
-            "Questions", f'<lf-ask id="q"{attrs}>Weekly or daily?</lf-ask>'
-        )
-
-    answer = {
-        "kind": "comment",
-        "id": "c",
-        "author": "user",
-        "revision": 1,
-        "text": "Daily",
-        "anchor": {"section": "q"},
-    }
-    stamp = {
-        "kind": "note",
-        "id": "n",
-        "author": "agent",
-        "revision": 2,
-        "version": 1,
-        "text": "Asked about weekends too",
-        "restated": ["q"],
-    }
-    documents = {1: question(), 2: question(" restated")}
-    [item] = page_obligations(model.reading(documents, [answer, stamp]), 2)["all"]
-    assert item["status"] == "open"
-    again = {**answer, "id": "c2", "revision": 2, "text": "Daily, weekends too"}
-    [item] = page_obligations(model.reading(documents, [answer, stamp, again]), 2)[
-        "all"
-    ]
-    assert (item["status"], item["answer"]["value"]) == (
-        "answered",
-        {"text": "Daily, weekends too"},
-    )
-
-
 def test_a_frame_around_a_decision_widget_stays_one_obligation():
     [item] = page_obligations(model.reading(page(context="frame"), []))["all"]
     assert (item["id"], item["prompt"]["target"]) == ("widget:choice", "frame")
@@ -560,6 +446,66 @@ def lists(state) -> tuple[list, list, list]:
             and item["source"]["kind"] != "update"
         ),
     )
+
+
+def test_on_me_lists_one_row_for_each_place_the_user_answers_at():
+    """A thread's reply answers every question asked in it, so they share its row, and a
+    thread about a decision is one place with it, so its row rides on the decision's.
+    Each record still settles by its own rule: answering the decision leaves the
+    thread's questions on their own row until the user replies."""
+    document = model.leaf_page(
+        "Questions",
+        '<p id="intro">Context.</p><section id="case"><h2>Which route?</h2>'
+        + OPTIONS.format(attrs="choose")
+        + "</section>",
+    )
+
+    def asked(thread, anchor, *replies):
+        return [
+            {
+                "kind": "comment",
+                "id": thread,
+                "author": "user",
+                "text": "Show me.",
+                "anchor": {"section": anchor},
+            },
+            *(
+                {
+                    "kind": "reply",
+                    "id": reply,
+                    "author": "agent",
+                    "parent": thread,
+                    "responds": thread,
+                    "text": "Try it before choosing.",
+                    "obligation": True,
+                }
+                for reply in replies
+            ),
+        ]
+
+    events: list[dict] = asked("about", "case", "r1", "r2") + asked(
+        "aside", "intro", "r3"
+    )
+
+    def rows(state):
+        return sorted(
+            (row["id"], row["also"]) for row in state["views"]["1"]["queues"]["on_user"]
+        )
+
+    assert rows(model.reading(document, events)) == [
+        ("message:r3", []),
+        ("widget:choice", ["message:r1", "message:r2"]),
+    ]
+    chosen = {
+        "kind": "action",
+        "widget": "choice",
+        "action": "choose",
+        "detail": {"value": ["a"]},
+    }
+    assert rows(model.reading(document, [*events, chosen])) == [
+        ("message:r1", ["message:r2"]),
+        ("message:r3", []),
+    ]
 
 
 FRAMED = model.leaf_page(
@@ -717,7 +663,7 @@ def test_conditional_request_retains_registration_between_value_actions():
         "Conditional",
         '<lf-conditional id="conditional" phase="closed" ready></lf-conditional>',
     )
-    events = [
+    events: list[dict] = [
         {
             "kind": "action",
             "widget": "conditional",
@@ -801,7 +747,7 @@ def test_historical_conditional_registration_reuses_work_and_tracks_event_change
         revision: SourceReading(SourceDocument(document), registry)
         for revision in (1, 2)
     }
-    events = [
+    events: list[dict] = [
         {
             "kind": writer,
             "author": "agent" if writer == "report" else "user",
@@ -941,7 +887,7 @@ def test_todo_validation_does_not_rewrite_obligation_identity_and_refuses_bare_s
     door = ModelPage(
         documents={1: SourceDocument(document)}, registry=model.model_layer()
     )
-    events = [
+    events: list[dict] = [
         admitted_event(
             door,
             [],
@@ -952,8 +898,8 @@ def test_todo_validation_does_not_rewrite_obligation_identity_and_refuses_bare_s
                 "ts": model.NOW,
                 "author": "agent",
                 "revision": 1,
-                "text": "One question:",
-                "markup": '<lf-ask id="path">Which path?</lf-ask>',
+                "text": "Which path?",
+                "obligation": True,
             },
         )
     ]
@@ -961,44 +907,14 @@ def test_todo_validation_does_not_rewrite_obligation_identity_and_refuses_bare_s
         "kind": "todo_end",
         "id": "end",
         "author": "agent",
-        "todo": "widget:path",
+        "todo": "message:prompt",
         "outcome": "dropped",
     }
     admitted = admitted_event(door, events, command)
-    assert command["todo"] == admitted["todo"] == "widget:path"
+    assert command["todo"] == admitted["todo"] == "message:prompt"
     with pytest.raises(EventRefused) as refused:
-        admitted_event(door, events, {**command, "todo": "path"})
+        admitted_event(door, events, {**command, "todo": "prompt"})
     assert refused_on(refused.value).code == "unknown-todo"
-
-
-@pytest.mark.parametrize("state", ["answered", "withdrawn"])
-def test_user_work_can_stand_on_a_source_after_its_obligation_ends(state):
-    documents = page() if state == "answered" else {1: page(), 2: page("")}
-    events = (
-        [
-            {
-                "kind": "action",
-                "widget": "choice",
-                "action": "choose",
-                "detail": {"value": ["a"]},
-            }
-        ]
-        if state == "answered"
-        else []
-    )
-    events.append(
-        {
-            "kind": "todo",
-            "author": "agent",
-            "owner": "user",
-            "title": "Check rollout numbers",
-            "subject": {"kind": "widget", "id": "choice"},
-        }
-    )
-    reading = model.reading(documents, events)
-    revision = 1 if state == "answered" else 2
-    assert page_obligations(reading, revision)["all"][0]["status"] == state
-    assert reading["todos"][0]["title"] == "Check rollout numbers"
 
 
 def test_repicking_a_withdrawn_request_records_provenance_without_reclosing_thread():
@@ -1008,7 +924,7 @@ def test_repicking_a_withdrawn_request_records_provenance_without_reclosing_thre
         1: page('choose resolves="thread"'),
         2: page('choose settled resolves="thread"'),
     }
-    events = [
+    events: list[dict] = [
         {"kind": "comment", "id": "thread", "text": "Which choice resolves this?"},
         {
             "kind": "action",
@@ -1059,6 +975,7 @@ def test_an_element_is_named_as_the_browser_names_it(case):
     the browser's `addressableName` reads off the live page."""
     document = SourceDocument(model.leaf_page("Names", case["markup"]))
     node = _element(document.authoring.content, "it")
+    assert node is not None
     assert element_name(node, case.get("registry", {})) == case["name"]
 
 
@@ -1274,7 +1191,7 @@ def test_record_obligations_validate_input_and_label_at_their_boundaries():
     registry = deepcopy(model.model_layer("visual-review"))
     entry = registry["lf-visual-review"]
     entry["x-awaits"]["records"]["input"] = "missing"
-    with pytest.raises(RegistryError, match="x-awaits.records"):
+    with pytest.raises(RegistryError, match=r"x-awaits\.records"):
         validate_registry(registry, "test")
     entry["x-awaits"]["records"]["input"] = "run"
     entry["x-awaits"]["records"]["label"] = "missing"
@@ -1284,9 +1201,9 @@ def test_record_obligations_validate_input_and_label_at_their_boundaries():
             / "examples/developer/visual-review-gallery.data.json"
         ).read_text()
     )["gallery-visual-run"]
-    assert "obligation label 'missing'" in payload_error(
-        "run", "visual-run", source, registry
-    )
+    value_2 = payload_error("run", "visual-run", source, registry)
+    assert value_2 is not None
+    assert "obligation label 'missing'" in value_2
     entry["x-awaits"]["records"]["label"] = "title"
     assert payload_error("run", "visual-run", source, registry) is None
     entry["x-awaits"]["answered"]["review"]["detail"] = {"approved": "yes"}

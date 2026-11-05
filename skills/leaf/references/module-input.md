@@ -5,14 +5,38 @@ module owes.
 
 ## Commands and keyboard routes
 
-A widget declares each command once, at upgrade, with
-`commands(element, title, rows, options)`; `options` is the scope's `when`, alone or as
-`{when}`.
+A widget declares its commands as data on the element they apply in: set the element's
+`lfCommands` to the scope and call `commandsChanged(element)`. The scope holds `title`,
+the heading the command reference lists it under, and `rows` ("Command rows"). It may
+also hold `when`, whether the page has the scope at all, which gates the reference as a
+row's own `when` gates its press; `ready` (`module-authoring.md`, "Startup and
+presentation"); `claims` ("How scopes compose"); and `escape: "inner"`, for a scope
+whose own Escape step comes before every step outside it.
+
+Leaf reads the declaration when `commandsChanged` runs, binds its keys, lists them in
+the command reference and hints, and is the only writer of `aria-keyshortcuts`. A page
+without Leaf reads nothing, so a widget that also runs there (`module-authoring.md`, "A
+widget that also runs off Leaf") binds no key. Declare at upgrade, once the element
+exists; it may still be out of the page.
+
+Assigning a new object to `lfCommands` and calling `commandsChanged` replaces the
+scope, and Leaf checks the new rows then: `commandsChanged` throws where one is
+malformed. `null` withdraws the scope. Calling `commandsChanged` with the same object
+only has Leaf read its rows' titles and availability again, so a row or title edited in
+place goes unchecked; assign a new object to change them.
+
+```javascript
+this.lfCommands = {
+  title: "On a code block",
+  rows: [{ id: "code.wrap", keys: ["w"], title: "wrap lines", run: toggleWrap }],
+};
+commandsChanged(this);
+```
 
 For controls Leaf draws, such as margin entries, build the scope as a value with
 `commandScope(title, rows, options)` and put it on the entry's `scope`
 (`module-annotations.md`, "Margin contributions"). Where the same commands also apply to
-the widget's own elements, attach that value with `commands(element, scope)`:
+the widget's own elements, that value is their `lfCommands`:
 
 ```javascript
 const actions = commandScope("In a classifier", [
@@ -28,7 +52,8 @@ const actions = commandScope("In a classifier", [
     run: () => classify("pass"),
   },
 ]);
-commands(classifier, actions);
+classifier.lfCommands = actions;
+commandsChanged(classifier);
 ```
 
 In a template, `commandsOn(title, rows, options)` attaches a scope to the element it is
@@ -40,8 +65,12 @@ Where the rows need the element, pass a function of it, such as
 
 A row's `id` is a stable, lowercase dotted name such as `draft.save`; keep it when keys
 or words change. `title` names the command and may be a function where state changes
-it; `description` is the command reference's tooltip for it, and `label` replaces the
-keycap.
+it, and `label` replaces the keycap. `description` is the command reference's tooltip
+for it and the line under its title where a touch menu or an On me card offers it. A
+`decision: true` row answers an obligation, `recommended: true` marks the answer
+the page advises, which an On me card names, and `commits: true` marks the press that
+commits an answer the user composed, such as a group's Done, which an On me card draws
+as that commit rather than as one more answer.
 
 `keys` lists bindings in canonical spelling, such as `"a"`, `"Shift+a"` or
 `"Mod+Enter"`, or is a function returning them. `repeat: true` also runs on a held key's
@@ -54,28 +83,47 @@ row's keys mean different things, `routes` lists subcommands, each with its own 
 `title`, `binding` or `contextKeys`, and optional `when`; the command reference lists
 and runs each route.
 
-`run(binding, context)` performs the command; a row without `run` names a press the
-browser or an outer handler makes. `control` is the visible element that activates it.
+`run()` performs a command whose meaning is independent of its key. Use
+`runKey(binding)` instead when the binding determines the action; Leaf supplies the
+actual binding that invoked it, including when the command reference selects a route.
+A row declares at most one of these handlers. A row without either names a press the
+browser or an outer handler makes, and one that names a `control` is pressed by a
+click on it. `control` is the visible element that activates it. `lands(from)` says
+where the user stands after Leaf runs the row for a key, a command-reference pick or
+a click on its `control`: Leaf calls it right after the run, so it reads the state the
+run left, with the element the press came from (where the user was for a key or a
+pick, the button for a click), and puts the user on the element it returns as a move,
+or leaves them for `null`. A margin entry's activation keeps its own focus handling.
 `when` says whether it is available, and a route may have its own. `reach` is the short
 phrase the command reference shows while it isn't, such as `in an open draft editor`.
 Set `runFromCommandReference: false` for a step the reference can't run without a choice
 it lacks. `ready` is described in `module-authoring.md`, "Startup and presentation".
 
+Android's back gesture takes the step Escape would. A row whose `run` throws away words
+the user wrote and hasn't sent, such as an editor's Escape, also declares `keep`, which
+back runs instead: it closes the editor without losing the changed words. Where a press
+away from the editor saves them, `keep` saves them too, as `lf-draft` does; otherwise it
+keeps them where reopening finds them, shows that the widget holds them, and says so
+with `notice("Edit kept")`.
+
 Leaf re-evaluates a `when` or a computed field when the readings it uses change, such as
 a widget's state or the threads. For any other state it reads, hold the value in a
-`signal` or call `paintKeys()` after changing it.
+`signal` or call `commandsChanged(element)` after changing it.
 
 ### How scopes compose
 
 A key goes first to the scope on the focused control, then to the widgets around it,
-then to the page. A scope takes only keys whose rows have a `run`, so other keys pass
-outward. A row keeps its key while unavailable, so the key never falls through to a
+then to the page. A scope takes only keys whose rows make a press, by a `run` or by
+naming a `control` Leaf clicks, so other keys pass outward. A row keeps its key while unavailable, so the key never falls through to a
 different meaning further out; an unavailable Escape, though, passes on to the next
-Escape. Text fields keep their editing keys ahead of every widget scope.
+Escape. Text fields keep their editing keys ahead of every widget scope. While the user
+has scrolled the focused control out of sight, its widgets' scopes don't answer: a key
+other than typing or Escape goes to the page, so a widget's command never acts on what
+the user can't see. A native control keeps the browser's own Enter and Space.
 
-A menu or other scope that covers the page passes `allButCommandReference` as its
-`claims` option, so the page's keys wait while the user is in it and only the command
-reference still opens.
+A menu or other scope that covers the page gives `allButCommandReference` as its
+declaration's `claims`, so the page's keys wait while the user is in it and only the
+command reference still opens.
 
 Give a native button's row both `control` and `run`, and Leaf runs `run` for its click
 and its key alike. Don't add a click listener, and don't call the button's own `click()`
@@ -123,6 +171,10 @@ End reach the ends, and each step announces a position such as `Option 3 of 7`. 
 returns the list at each press, `landed(row)` runs after a move, and `scroll: false`
 keeps the page still.
 
+A row whose press carries the user along a list of its own, as a timeline's arrows
+carry a user on its step list to the new step's row, declares `lands(from)` ("Command
+rows") rather than moving focus in its `run`.
+
 A widget that steps through something itself, such as a diff's hunks, calls
 `beginWalk(key, noun, read)` at each step and announces what it returns, such as
 `Hunk 3 of 7`. `read()` returns the position, usually from
@@ -164,9 +216,24 @@ A live revision moves focus from a generated control to its replacement by a
 `data-lf-carry` key, unique within the control's nearest authored ancestor with an id.
 
 `focused()` is the focused element across shadow trees, and `currentLocationIn(scope)` says
-whether focus is in a scope. `whenLeft(element, leave)` runs `leave` once when focus
-leaves an element. A group the user moves through with arrow keys offers one Tab stop
-with `rove(items, stop)`.
+whether focus is in a scope. `placeOf(node)` returns the page node a place stands for,
+so focus on a margin entry or in a thread card reads as being at its passage or
+obligation; a module asks it whether the user is on its content from either.
+`whenLeft(element, leave)` runs `leave` once when focus
+leaves an element. `onPressAway(away, dismiss)` hears each primary press that begins and
+ends where `away(path)` is true of its composed path, as an open editor that a tap
+elsewhere should save does, and calls `dismiss(path, from)` before the press's click; it
+ignores a touch scroll the browser cancels, and returns its unsubscribe function. A group
+the user moves through with arrow keys offers one Tab stop with `rove(items, stop)`.
+
+`onPress(begin)` follows the primary pointer's press through its native compatibility
+events. `begin(pointerdown, path)` may return `end(event, completed)`: release calls
+it with `completed: true`; cancellation, a native context menu, or leaving the document
+calls it with `false`. The function returned by `end` runs when that press is over,
+after any compatibility mouseup and click it owes. Keep press-local work in these
+callbacks. Register inside `whileConnected`; the returned unsubscribe stops new
+presses, and the connection's abort signal ends any work still running when the widget
+disconnects.
 
 `onCurrentLocation(read)` calls `read(node, cause, left)` synchronously when focus
 changes, including inside a declared shadow root, and returns its unsubscribe function;
@@ -193,6 +260,16 @@ Open a native dialog or popover with `showNativeLayer(layer, {source})`, adding
 Inside a live sample they suppress the browser's own focus moves, so place the arrival
 with `focusDestination`. `isNativeLayer(node)` says whether a popover is open or a
 dialog modal.
+
+A control that opens a popover, such as a menu of choices, names it with
+`popovertarget`, or passes itself as the source of `showNativeLayer(popover, {source})`.
+Leaf puts the user on a `popovertarget` control as the popover opens, so closing it
+returns them there. Every such control declares `aria-expanded="false"`, and Leaf keeps
+it current as the popover opens and closes, however it opened. To land the user on a
+control inside the popover, call `focusDestination(control, "move")` from the
+popover's `toggle` event when its `newState` is `"open"`. The `lf-popover` class gives an open
+popover Leaf's raised surface and names it as the ground its controls paint; its own
+rule sets only its place, size and padding.
 
 ### Delayed work
 
@@ -247,21 +324,25 @@ place until then, so the scroller doesn't shrink.
 
 Wire the box with `wireInput(box, options)`. Enter sends on a physical keyboard,
 Shift+Enter writes a newline, and Mod+Enter sends anywhere; on a touch screen the
-visible control sends. The options are `sendBtn`, the send control; `sends`, its action
-in words; `hint`, the placeholder; `save(value)`, called with the whole draft on each
+visible control sends. A box for one line, such as a name, carries
+`aria-multiline="false"` before it is wired: Enter then sends from every keyboard, a
+phone's included, Shift+Enter writes nothing, and a pasted line break becomes a space.
+The options are `sendClass`, placement classes for the generated send control (default
+empty); `sends`, its action in words; `hint`, the placeholder, after which a focused box on a physical keyboard names its send key and, where Enter sends a box that holds lines, the key for a new line; `save(value)`, called with the whole draft on each
 edit; `send(text, raw, owns)`, called on send with the trimmed and raw draft; `busy()`
-and `hasContent(raw)`, which hold sending back; and `paint()`, the widget's own drawing
-from the box. Write `.value` only to seed the box before wiring it.
+and `hasContent(raw)`, which hold sending back. Write `.value` only to seed the box
+before wiring it.
 
 `wireInput` returns `sync`, which reads or sets the whole draft, a pasted image
 included: `sync.value()` reads it, `sync.load(value)` replaces it, and `sync()` repaints
-after the box's state changes.
+after the box's state changes. `sync.button` is the generated send control.
 
 Drafts survive a reload, a new version and a closed tab, and every tab of the page
 shares them. Keep each under a context string unique on the page, such as `option:` and
 its id:
 
-- `loadDraft(ctx)` returns the words to seed the box, or `null`.
+- `loadDraft(ctx)` returns the stored draft record, or `null`. Seed the box with
+  `loadDraft(ctx)?.text ?? ""`; its `payload` holds the saved send data.
 - `saveDraft(ctx, text, payload)` records an edit, from `save`, with any `payload` the
   send needs.
 - `watchDraft(ctx, callback, {input: box})` calls `callback(text, payload)` when the
@@ -276,5 +357,6 @@ its id:
 
 `lf-options`' box for adding an option (`lf-options-addition.js`) is the worked example.
 
-For a CodeMirror editor, construct `LeafEditorView` in place of `EditorView`, so focus
-and reveals go through Leaf.
+For a CodeMirror editor, construct the class `leafEditorView(codemirror)` returns in
+place of `EditorView`, so focus and reveals go through Leaf. Pass the module your widget
+imports (`import * as codemirror from "/vendor/codemirror.esm.js"`).

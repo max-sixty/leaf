@@ -10,6 +10,7 @@ import uuid
 
 import pytest
 from interact_support import STATED_TIMEOUT, wait_for
+
 from leaf_dev.arms import environment
 
 
@@ -54,7 +55,7 @@ def test_compare_follows_shared_source_and_stops_both_arms(
             assert process.poll() is None, log.read_text()
             return dict(
                 re.findall(
-                    r"^(baseline|candidate): (http://\S+)$",
+                    r"^(base|head): (http://\S+)$",
                     log.read_text(),
                     re.MULTILINE,
                 )
@@ -76,9 +77,9 @@ def test_compare_follows_shared_source_and_stops_both_arms(
                 failure=log.read_text,
             )
         if user:
-            baseline = next((tmp_path / "previews").glob("*-baseline"))
+            base = next((tmp_path / "previews").glob("*-base"))
             subprocess.run(
-                [sys.executable, "-m", "leaf", "server", "stop", str(baseline)],
+                [sys.executable, "-m", "leaf", "server", "stop", str(base)],
                 env=env,
                 check=True,
                 capture_output=True,

@@ -16,23 +16,23 @@ import os
 import shutil
 import tempfile
 import threading
-from collections.abc import Iterator
+from collections.abc import Generator
 from contextlib import contextmanager
 from pathlib import Path
 
 import click
-import leaf_website
 from PIL import Image
 from playwright.sync_api import Page
 
+import leaf_website
 from leaf.hosting import LeafHTTPServer
 from leaf.render_gate.scheme import collect_page_exceptions
-from leaf_dev.browser import headless_shell, load, tab
+from leaf_dev.browser import Window, headless_shell, load, screenshot, tab
 from leaf_dev.commands import site as site_build
 from leaf_dev.example_data import catalog_sources
 from leaf_dev.leaf_assets import pinned_assets, publish, stage
 
-VIEWPORT = (1120, 700)
+WINDOW = Window((1120, 700))
 # docs/index.html and docs/examples.html reserve this 8:5 box before a preview loads.
 OUTPUT_SIZE = (896, 560)
 REQUIRED_FONTS = {
@@ -43,7 +43,7 @@ REQUIRED_FONTS = {
 
 
 @contextmanager
-def serve_examples(site: Path) -> Iterator[str]:
+def serve_examples(site: Path) -> Generator[str]:
     """Host the capture scene through the production route adapter in isolation."""
     # As in the demo recorder, the host's open pages are not part of the scene.
     # Isolate their discovery before serving so `All leaves` cannot change the
@@ -122,10 +122,10 @@ def refresh_previews() -> None:
         staging = Path(raw_site)
         assets = bootstrap_assets(staging / "assets")
         site = staging / "site"
-        # `serve_examples` runs this checkout's website adapter, which serves only the
-        # pages this checkout's Leaf vendored.
+        # `serve_examples` runs this checkout's website adapter, which serves only
+        # pages at this checkout's page protocol.
         site_build.build_examples(site, site_build.checkout_leaf(), assets=assets)
-        with serve_examples(site) as origin, tab(browser, VIEWPORT) as page:
+        with serve_examples(site) as origin, tab(browser, WINDOW) as page:
             errors = []
             collect_page_exceptions(page, errors)
             for source in catalog_sources():
@@ -133,7 +133,7 @@ def refresh_previews() -> None:
                 load(page, f"{origin}/examples/{source.stem}/")
                 if not captures:
                     require_capture_fonts(page)
-                png = page.screenshot(animations="disabled", caret="hide")
+                png = screenshot(page)
                 image = Image.open(io.BytesIO(png)).convert("RGB")
                 image = image.resize(OUTPUT_SIZE, Image.Resampling.LANCZOS)
                 target = f"example-{source.stem}.jpg"

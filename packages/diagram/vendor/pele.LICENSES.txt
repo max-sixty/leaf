@@ -1,6 +1,6 @@
 Third-party licenses for pele
 
-===== pele 1.8.0 (MIT) =====
+===== pele 1.9.0 (MIT) =====
 MIT License
 
 Copyright (c) 2026 kepano

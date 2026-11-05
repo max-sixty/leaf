@@ -15,6 +15,7 @@ from render_harness import (
     leaf_page,
     margins_laid_out,
     open_page,
+    open_threads,
     panel_settled,
     resized,
     sending,
@@ -398,12 +399,35 @@ or roll every tenant into a single partitioned archive?</h2>
 )
 
 
-def test_an_obligation_marker_s_label_and_name_identify_its_question(browser, serve):
-    """Hovering an obligation's marker shows the obligation's question, where it used to show only
+def test_an_obligation_marker_names_its_question_once_the_user_points_at_it(
+    browser, serve
+):
+    """Arriving at an obligation with `m` paints its On me marker selected, and only its
+    marker. Its label appears only when the user points at the marker: the ask's heading
+    already says the question, and a label nobody pointed at covers the ask's controls.
+
+    Hovering an obligation's marker shows the obligation's question, where it used to show only
     "Ask…", which the marker's glyph already says. Its accessible name identifies
     the question too, independently of how the visible label fits."""
     page = open_page(browser, serve(OBLIGATION_MARKERS_PAGE))
     resized(page, 1440, 900)
+
+    def on_me_marker(item):
+        return page.locator(
+            f'[data-lf-margin-for="{item}"] .lf-margin-marker[data-lf-kinds~="on-me"]'
+        )
+
+    shown = "label => label.checkVisibility({opacityProperty: true, visibilityProperty: true})"
+    page.keyboard.press("m")
+    expect(on_me_marker("short-ask")).to_have_attribute("data-lf-target-selected", "")
+    expect(on_me_marker("long-ask")).not_to_have_attribute(
+        "data-lf-target-selected", re.compile(".*")
+    )
+    rendered(page)
+    assert (
+        not on_me_marker("short-ask").locator(".lf-margin-entry-label").evaluate(shown)
+    )
+
     read = """(marker) => {
         const word = marker.querySelector('.lf-margin-entry-label-word');
         return {text: word.textContent, name: marker.getAttribute('aria-label'),
@@ -411,9 +435,7 @@ def test_an_obligation_marker_s_label_and_name_identify_its_question(browser, se
     }"""
     seen = {}
     for item in ("short-ask", "long-ask"):
-        marker = page.locator(
-            f'[data-lf-margin-for="{item}"] .lf-margin-marker[data-lf-kinds~="on-me"]'
-        )
+        marker = on_me_marker(item)
         marker.scroll_into_view_if_needed()
         marker.hover()
         expect(marker.locator(".lf-margin-entry-label")).to_be_visible()
@@ -426,24 +448,6 @@ def test_an_obligation_marker_s_label_and_name_identify_its_question(browser, se
     assert seen["long-ask"]["text"] == question, seen
     # The accessible route includes the question's distinguishing alternative.
     assert "roll every tenant" in seen["long-ask"]["name"], seen
-
-
-def test_the_obligation_the_user_stands_in_selects_its_marker(browser, serve):
-    """Arriving at an obligation with `m` paints its On me marker selected, and only its
-    marker."""
-    page = open_page(browser, serve(OBLIGATION_MARKERS_PAGE))
-    resized(page, 1440, 900)
-
-    def marker(item):
-        return page.locator(
-            f'[data-lf-margin-for="{item}"] .lf-margin-marker[data-lf-kinds~="on-me"]'
-        )
-
-    page.keyboard.press("m")
-    expect(marker("short-ask")).to_have_attribute("data-lf-target-selected", "")
-    expect(marker("long-ask")).not_to_have_attribute(
-        "data-lf-target-selected", re.compile(".*")
-    )
 
 
 LABEL_CLEARANCE = """control => {
@@ -607,6 +611,10 @@ def test_lit_margin_projection_reorders_retained_controls_without_moving_the_use
     box = action_a.bounding_box()
     page.mouse.move(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
     page.mouse.down()
+    # Native pointer focus leaves B before arriving at A. That transfer stays
+    # inside the cluster, so it must not fold the options under the held press.
+    expect(action_a).to_be_focused()
+    expect(host).to_have_attribute("data-lf-options-open", "")
     page.evaluate("() => window.lfRetainedMargin.change()")
     expect(action_a).to_have_accessible_name("Action A now")
     assert action_a.evaluate("node => node === window.lfRetainedMarginA")
@@ -627,8 +635,7 @@ def test_lit_inline_margin_projection_keys_controls_inside_thread_chrome(
 ):
     """The inline Lit seat reorders one retained control tree and completes its press."""
     page = open_page(browser, serve(PANEL_PAGE))
-    page.locator(".lf-fp-threads").click()
-    panel_settled(page, view="threads")
+    open_threads(page)
     page.evaluate(
         """async () => {
           const {contributionEntry, registerContribution} =
@@ -639,7 +646,7 @@ def test_lit_inline_margin_projection_keys_controls_inside_thread_chrome(
           const nextTarget = document.createElement('span');
           nextTarget.id = 'inline-margin-next';
           nextTarget.textContent = 'Next inline decision';
-          document.querySelector('.lf-fp-view[data-view="threads"] .lf-fp-list')
+          document.querySelector('.lf-fp-view[data-lf-route="threads"] .lf-fp-list')
             .prepend(target, nextTarget);
           let swapped = false;
           let changed = false;
@@ -741,20 +748,19 @@ def test_a_margin_row_is_unseen_until_its_first_placement_lands(browser, serve):
         """async () => {
           const {contributionEntry, registerContribution} =
             await window.__lfWidgetApi();
-          return new Promise(resolve => requestAnimationFrame(() => {
-            const registration = registerContribution({
-              key: 'first-placement', target: document.querySelector('#how-cap'),
-              read: () => ({entries: [contributionEntry({
-                key: 'act', icon: 'dot', label: 'New margin action'
-              })]}), activate: () => {}
-            });
-            const row = registration.control('act', 'margin')
-              .closest('.lf-margin-cluster');
-            const rect = row.getBoundingClientRect();
-            resolve({place: row.dataset.lfPlace ?? null,
-              visibility: getComputedStyle(row).visibility,
-              width: rect.width, height: rect.height});
-          }));
+          await new Promise(requestAnimationFrame);
+          const registration = registerContribution({
+            key: 'first-placement', target: document.querySelector('#how-cap'),
+            read: () => ({entries: [contributionEntry({
+              key: 'act', icon: 'dot', label: 'New margin action'
+            })]}), activate: () => {}
+          });
+          const row = registration.control('act', 'margin')
+            .closest('.lf-margin-cluster');
+          const rect = row.getBoundingClientRect();
+          return {place: row.dataset.lfPlace ?? null,
+            visibility: getComputedStyle(row).visibility,
+            width: rect.width, height: rect.height};
         }"""
     )
     assert unplaced["place"] is None
@@ -860,40 +866,6 @@ def test_a_margin_row_leaves_with_its_target_before_the_next_paint(
             expect(action).to_be_hidden()
 
 
-def test_margin_projection_keeps_opaque_owner_and_entry_identities_distinct(
-    browser, serve
-):
-    """Owner and entry keys are a coordinate, not a delimiter-encoded string."""
-    page = open_page(browser, serve(PANEL_PAGE))
-    readings = page.evaluate(
-        """async () => {
-          const {contributionEntry, registerContribution} =
-            await window.__lfWidgetApi();
-          const target = document.querySelector('#how-cap');
-          const first = registerContribution({
-            key: 'a:b', target,
-            read: () => ({entries: [contributionEntry({
-              key: 'c', glyph: '1', label: 'First opaque action'
-            })]}), activate: () => {}
-          });
-          const second = registerContribution({
-            key: 'a', target,
-            read: () => ({entries: [contributionEntry({
-              key: 'b:c', glyph: '2', label: 'Second opaque action'
-            })]}), activate: () => {}
-          });
-          return {
-            first: Boolean(first.control('c', 'margin', true)),
-            second: Boolean(second.control('b:c', 'margin', true)),
-          };
-        }"""
-    )
-    assert readings == {"first": True, "second": True}
-    host = page.locator('[data-lf-margin-for="how-cap"]')
-    expect(host.get_by_role("button", name="First opaque action")).to_be_visible()
-    expect(host.get_by_role("button", name="Second opaque action")).to_be_visible()
-
-
 def test_every_pin_entry_shares_its_face_and_keeps_its_behavior(browser, serve):
     """The pin face marks placement; status, actions and disclosures keep their meanings."""
     source = leaf_page(
@@ -914,6 +886,10 @@ def test_every_pin_entry_shares_its_face_and_keeps_its_behavior(browser, serve):
   </lf-column>
 </lf-board>
 """,
+        head="""<style>:root {
+          --pin-fill: light-dark(#e7cbff, #4a236b);
+          --pin-ink: light-dark(#241343, #fbe8a3);
+        }</style>""",
     ).replace("<body>", '<body data-rail="none">')
     events = [
         _comment_on("discussion"),
@@ -934,7 +910,7 @@ def test_every_pin_entry_shares_its_face_and_keeps_its_behavior(browser, serve):
     page = open_page(browser, url)
     resized(page, 1440, 900)
     cluster = page.locator('[data-lf-margin-for="schedule"]')
-    accept = cluster.locator(".lf-sug-accept")
+    accept = cluster.locator("[data-lf-margin-entry-key=accept]")
     more = cluster.locator(":scope > .lf-margin-more")
     thread = page.locator('[data-lf-margin-for="discussion"] .lf-margin-marker')
     status = page.locator('.lf-margin-entry[data-lf-kinds="sent"]')
@@ -966,13 +942,13 @@ def test_every_pin_entry_shares_its_face_and_keeps_its_behavior(browser, serve):
         assert faces[0]["radius"] == "6px 6px 6px 0px", faces[0]
         assert faces[0]["background"] == token_colour(page, "--pin-fill"), faces[0]
         assert faces[0]["border"] == ["2px", token_colour(page, "--paper")], faces[0]
-        assert faces[0]["ink"] == "rgb(255, 255, 255)", faces[0]
+        assert faces[0]["ink"] == token_colour(page, "--pin-ink"), faces[0]
         status.hover()
         assert status.evaluate(read_face) == faces[0]
         page.mouse.move(0, 0)
 
         more.click()
-        reject = cluster.locator(".lf-sug-reject")
+        reject = cluster.locator("[data-lf-margin-entry-key=reject]")
         expect(reject).to_be_visible()
         page.mouse.move(0, 0)
         page.keyboard.press("Tab")

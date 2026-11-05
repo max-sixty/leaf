@@ -30,6 +30,7 @@ from render_harness import (
     EXAMPLE_PACKAGES,
     draft_control,
     expect_obligations_answered,
+    expect_on_me,
     expect_panel_offers,
     holding,
     leaf_page,
@@ -55,6 +56,7 @@ from browser.threads import open_panel_thread
 from leaf import data as data_model
 from leaf import event_log as events_model
 from leaf import render_checks as render_checks_model
+from leaf.registry.storage import layer_record
 from leaf.render_checks import wait_until_ready
 from leaf.render_gate.readings import DevtoolsIssues
 
@@ -68,7 +70,7 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
 <h1 id="title">Request call change</h1>
 <pre id="code-surface">reference code surface</pre>
 <lf-call-diff id="request-calls" source="request-call-diff" diff="patch"></lf-call-diff>
-<lf-diff id="patch" source="review-patch" collapsed><pre></pre></lf-diff>
+<lf-diff id="patch" source="review-patch" collapsed></lf-diff>
 """,
     )
     url = serve(authored, packages=("diff",))
@@ -109,7 +111,14 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
                 {
                     "path": "gateway/limits.py",
                     "patch": patch,
-                }
+                },
+                # A second file, so the diff draws the filter a reveal clears.
+                {
+                    "path": "gateway/README.md",
+                    "patch": "diff --git a/gateway/README.md b/gateway/README.md\n"
+                    "--- a/gateway/README.md\n+++ b/gateway/README.md\n"
+                    "@@ -1 +1 @@\n-Limits by address.\n+Limits by token.\n",
+                },
             ]
         },
     )
@@ -142,7 +151,7 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
     expect(widget.locator(".lf-call-toggle")).to_have_attribute(
         "aria-label", "Collapse all 1 call-tree root"
     )
-    expect(lines.nth(0)).to_have_attribute("data-meta", "")
+    expect(lines.nth(0)).to_have_attribute("data-lf-meta", "")
     expect(lines.nth(0).locator(".lf-call-body")).to_have_text(
         "calldiff diff main → feature"
     )
@@ -173,15 +182,17 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
     expect(widget.locator(".lf-call-toggle")).to_have_attribute(
         "aria-label", "Collapse all 1 call-tree root"
     )
-    file_row = page.locator("#patch .lf-diff-file").first
-    expect(file_row).to_have_attribute("data-lf-datum", '["gateway/limits.py","file"]')
-    expect(file_row).to_have_attribute(
+    file_header = page.locator("#patch .lf-diff-file summary").first
+    expect(file_header).to_have_attribute(
+        "data-lf-datum", '["gateway/limits.py","file"]'
+    )
+    expect(file_header).to_have_attribute(
         "data-lf-datum-label", "gateway/limits.py · file"
     )
-    expect(lines.nth(1)).to_have_attribute("data-root", "")
+    expect(lines.nth(1)).to_have_attribute("data-lf-root", "")
     expect(lines.nth(1)).to_have_attribute("data-lf-projection", "request-calls")
     expect(lines.nth(1)).to_have_attribute("data-lf-datum", re.compile(r".+"))
-    expect(lines.nth(2)).to_have_attribute("data-status", "added")
+    expect(lines.nth(2)).to_have_attribute("data-lf-status", "added")
     expect(lines.nth(2).locator(".lf-call-marker")).to_have_text("+")
     expect(lines.nth(2)).to_have_attribute(
         "data-lf-datum-label",
@@ -418,7 +429,7 @@ def test_a_live_revision_preserves_a_reply_after_native_tab(browser, serve):
     expect(send).to_be_focused()
 
     (serve.page_dir / "index.html").write_text(second)
-    expect(page.locator(".lf-fp-on-user")).to_have_attribute("aria-label", "On me: 1")
+    expect_on_me(page, 1)
     expect(send).to_be_focused()
 
     third = second.replace('<p id="subject">Work under discussion.</p>', "")
@@ -431,18 +442,11 @@ def test_a_live_revision_preserves_a_reply_after_native_tab(browser, serve):
 
     # A fresh document cannot claim native retention and still waits for composition.
     (serve.page_dir / "index.html").write_text(executable_revision(third, "reload"))
-    # The menu holds the rows it opened with, so it opens once the page has heard. It
-    # is reached by keys: a press on the leaf is a press away from the reply's row,
-    # which ends its composition (thread/replies.js), and then only the open menu
-    # would hold the fresh document back. A state read after the menu closes asks
-    # again whether the page may follow, and the composition still says no.
+    # The page has heard of it once the row, beside the open thread, says it shows an
+    # older version and offers the latest. A state read after that asks again whether
+    # the page may follow, and the composition still says no.
     told(page)
-    page.locator(".lf-fp-leaf").press("Enter")
-    expect(
-        page.locator('.lf-fp-menu .lf-fp-item[data-row="latest"]:not(:disabled)')
-    ).to_have_count(1)
-    page.keyboard.press("Escape")
-    expect(page.locator(".lf-floating-panel")).not_to_have_attribute("data-menu", "")
+    expect(page.locator(".lf-fp-row-notice button")).to_be_enabled()
     nudge(serve.page_dir)
     told(page)
     assert editor.evaluate("node => node === window.heldReply")
@@ -450,7 +454,7 @@ def test_a_live_revision_preserves_a_reply_after_native_tab(browser, serve):
     expect(editor).to_be_focused()
     editor.press("Escape")
     page.wait_for_function("window.heldReply === undefined")
-    expect(page.locator(".lf-fp-on-user")).to_have_attribute("aria-label", "On me: 1")
+    expect_on_me(page, 1)
 
 
 def test_an_old_document_state_request_cannot_update_the_new_revision(browser, serve):
@@ -513,9 +517,9 @@ def test_an_old_document_state_request_cannot_update_the_new_revision(browser, s
         assert held[0].request.headers.get("leaf-view-revision") == "1", (
             "the held read was not the one taken on the first revision"
         )
-        generation = json.loads((serve.page_dir / "registry.json").read_text())[
-            "$layer"
-        ]["generation"]
+        layer = layer_record(serve.page_dir)
+        assert layer is not None
+        generation = layer["generation"]
         assert held[0].request.headers.get("leaf-layer") == generation
         release_the_held_read()
         told(page)
@@ -572,7 +576,7 @@ def test_command_hub_an_absorbed_input_stays_fulfilled(browser, serve, provided)
     page = open_page(browser, live_url(url))
     draft = page.locator("#ledger-cargo")
     draft_control(page, "edit", "ledger-cargo").click()
-    editor = draft.get_by_role("textbox", name="Edit ledger-cargo")
+    editor = draft.locator("leaf-text")
     if provided.startswith("\n"):
         # CodeMirror's bulk insertText reading drops an initial LF;
         # create that line through the editor's ordinary key route instead.
@@ -662,10 +666,10 @@ def test_atlas_send_and_pause_is_one_thread_fold(browser, serve):
     told(page)
     expect(goal).to_have_attribute("data-lf-held", root["id"])
     # The reply landed where the user was looking, so it waits for them to open it.
-    seat.get_by_role("button", name="1 new reply").click()
+    seat.get_by_role("button", name="1 new", exact=True).click()
     inline_link = seat.locator('a[href="https://example.com/run"]')
     expect(inline_link).to_have_attribute("target", "_blank")
-    expect(inline_link.locator(":scope > svg.lf-external-mark")).to_be_visible()
+    expect(inline_link).to_have_attribute("data-lf-external", "")
     # The record stands in the hub's track, which stays in view beside the goal, so
     # the reply waits behind its news as the pause did.
     page.locator("#atlas-record .lf-activity-news").click()
@@ -677,7 +681,7 @@ def test_atlas_send_and_pause_is_one_thread_fold(browser, serve):
 
     open_panel_thread(page, root["id"])
     with sending(page, "the resolution"):
-        page.locator(".lf-fp-settle").click()
+        page.locator(".lf-fp-thread-controls :is(.lf-resolve, .lf-reopen)").click()
     expect(goal).not_to_have_attribute("data-lf-held")
     page.locator("#atlas-record .lf-activity-news").click()
     released = page.locator("#atlas-record .lf-activity-row").first
@@ -774,9 +778,11 @@ def test_activity_held_targets_follow_the_current_document(browser, serve, fresh
         serve.page_dir, source(restored, restored_executable), "Restore a destination"
     )
     if fresh:
+        # Generated history is drawn by the runtime, after the authored destination
+        # has parsed. Holding that runtime must not wait for its own drawing.
         page.wait_for_function("""() => document.readyState === 'interactive' &&
-          document.querySelector('#feed a.lf-activity-target')?.getAttribute('href') === '#route'""")
-        assert blocked, "startup module must remain pending during the parsed drawing"
+          document.getElementById('route') !== null""")
+        assert blocked, "startup module must remain pending after parsing"
         assert page.locator("body").get_attribute("data-lf-presented") is None
         page.unroute("**/leaf.js")
         for route in blocked:

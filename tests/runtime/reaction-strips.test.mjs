@@ -22,14 +22,15 @@ function strip(inForce) {
     latest: true,
     choices: tokenChoices({ ok: { glyph: "👍" }, no: { glyph: "👎" } }, inForce),
   });
-  const press = (token) => view.node.querySelector(`[data-token="${token}"]`).click();
+  const press = (token) =>
+    view.node.querySelector(`[data-lf-token="${token}"]`).click();
   return { asked, press, view };
 }
 
 test("pressing a reaction the user has takes it back", () => {
   const { asked, press, view } = strip([{ id: "r1", token: "ok" }]);
   assert.equal(
-    view.node.querySelector('[data-token="ok"]').getAttribute("aria-pressed"),
+    view.node.querySelector('[data-lf-token="ok"]').getAttribute("aria-pressed"),
     "true",
   );
   press("ok");
@@ -40,4 +41,44 @@ test("pressing a reaction the user does not have puts it on", () => {
   const { asked, press } = strip([{ id: "r1", token: "ok" }]);
   press("no");
   assert.deepEqual(asked, [["t1", "m1", "no", true]]);
+});
+
+test("a trigger drawn again is the one the picker opens from", async () => {
+  const { html, nothing, render } = await import("/runtime/framework.js");
+  const registered = [];
+  const view = new ReactionStripView({
+    registerSurface: (_surface, { trigger }) => {
+      registered.push(trigger);
+      return { close() {}, toggle() {} };
+    },
+  });
+  view.present({ thread: "t1", message: "m1", latest: true, choices: [] });
+  const head = document.createElement("div");
+  document.body.replaceChildren(head, view.node);
+  const draw = (shown) => render(html`${shown ? view.trigger : nothing}`, head);
+  draw(true);
+  draw(false);
+  draw(true);
+  assert.equal(registered.at(-1), head.querySelector(".lf-react-trigger"));
+});
+
+test("a mounted reaction sends before closing the picker and revealing held news", async () => {
+  const { html, render } = await import("/runtime/framework.js");
+  const order = [];
+  const view = new ReactionStripView({
+    registerSurface: () => ({ close: () => order.push("close"), toggle() {} }),
+    actions: { setReaction: () => order.push("send") },
+    pressed: () => order.push("news"),
+  });
+  const head = document.createElement("div");
+  view.present({
+    thread: "t1",
+    message: "m1",
+    latest: true,
+    choices: tokenChoices({ ok: { glyph: "👍" } }, []),
+  });
+  document.body.replaceChildren(head, view.node);
+  render(html`${view.trigger}`, head);
+  view.node.querySelector('[data-lf-token="ok"]').click();
+  assert.deepEqual(order, ["send", "close", "news"]);
 });

@@ -34,14 +34,12 @@ from render_cases_navigation import (
 from render_harness import (
     EXAMPLE_PACKAGES,
     IMPORTER_CARD,
-    PANEL_THREAD,
     REPLAYED_PAGE,
     REPLY_HOST_PAGE,
     TOKEN,
     consume_browser_errors,
     example_media,
     expect_obligations_answered,
-    expect_panel_says,
     holding,
     leaf_page,
     names,
@@ -66,10 +64,12 @@ from leaf import hosting as hosting_model
 from leaf import http as http_model
 from leaf import render_checks as render_checks_model
 from leaf import structure as structure_model
+from leaf.page_snapshot import capture_page_snapshot
 from leaf.registry import storage as registry_storage
 from leaf.render_checks import rendered
 from leaf.render_gate import version as render_gate_model
 from leaf.render_gate.preview import preview_server
+from leaf_dev.browser import PANEL_THREAD
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -109,7 +109,7 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
         "locale": "en-US",
         "timezone": "America/Los_Angeles",
     }
-    record = {
+    record: dict = {
         "title": "Docs navigation · candidate 7b921ac",
         "base": {"revision": "4c118aa", "url": "https://base.example/rev/"},
         "candidate": {
@@ -186,7 +186,7 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
     assert origin["path"] == ["cases", 0]
     expect(first.locator("lf-shot img")).to_have_count(2)
     expect(
-        first.locator(f'.lf-page-thread[data-thread="{case_thread["id"]}"]')
+        first.locator(f'.lf-page-thread[data-lf-thread="{case_thread["id"]}"]')
     ).to_have_count(1)
     first.get_by_role("button", name="Capture details").click()
     for label, href in (
@@ -195,10 +195,8 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
         ("Capture trace", "https://trace.example/runs/17"),
     ):
         expect(first.get_by_role("link", name=label)).to_have_attribute("href", href)
-    expect(first.locator(".lf-vr-provenance")).to_contain_text("Chrome 140.0.7339.80")
-    expect(first.locator(".lf-vr-provenance")).to_contain_text(
-        "120, 80 · 640 × 220 CSS px"
-    )
+    expect(first.locator(".lf-facts")).to_contain_text("Chrome 140.0.7339.80")
+    expect(first.locator(".lf-facts")).to_contain_text("120, 80 · 640 × 220 CSS px")
     page.keyboard.press("Escape")
     first.get_by_role("button", name="Image options").click()
     first.get_by_role("checkbox", name="Full frame").check()
@@ -214,10 +212,10 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
     widget.locator(".lf-vr-case-button").nth(1).click()
     expect(first).to_be_hidden()
     expect(second).to_be_visible()
-    second.get_by_role("button", name="Slider").click()
+    second.get_by_role("radio", name="Slider").click()
 
     inserted = record["cases"][1] | {"id": "run-middle", "title": "Inserted run case"}
-    changed = record | {
+    changed: dict = record | {
         "base": {"revision": record["base"]["revision"]},
         "cases": [
             record["cases"][0],
@@ -239,8 +237,8 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
         "node => node === document.querySelector('.lf-vr-case[data-lf-datum=\"run-detail\"]')"
     )
     expect(second).to_be_visible()
-    expect(second.get_by_role("button", name="Slider")).to_have_attribute(
-        "aria-pressed", "true"
+    expect(second.get_by_role("radio", name="Slider")).to_have_attribute(
+        "aria-checked", "true"
     )
     expect(
         first.get_by_role("checkbox", name="Looks right", include_hidden=True)
@@ -251,9 +249,7 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
         )
     ).to_have_count(1)
     second.get_by_role("button", name="Capture details").click()
-    expect(second.locator(".lf-vr-provenance")).to_contain_text(
-        "2026-10-08T10:00:00-07:00"
-    )
+    expect(second.locator(".lf-facts")).to_contain_text("2026-10-08T10:00:00-07:00")
     expect(second.get_by_role("link", name="Open before page")).to_have_count(0)
     expect(second.get_by_role("link", name="Open after page")).to_have_attribute(
         "href", "https://candidate.example/rev/runs/17"
@@ -398,7 +394,10 @@ def test_render_allows_authored_state_the_log_replays_over(browser, serve):
         "</lf-card></lf-column>", f"</lf-card>{IMPORTER_CARD}</lf-column>"
     )
     document = structure_model.SourceDocument(contradicted)
-    with preview_server(d, document, files_model.latest_revision(d) + 1) as at:
+    revision = files_model.latest_revision(d)
+    assert revision is not None
+    snapshot = capture_page_snapshot(d, document, revision + 1, url="/")
+    with preview_server(d, snapshot) as at:
         assert render_gate_model.render_version(browser, at).failures == []
     stamp_page(d, contradicted, "t")
     page = open_page(browser, url.replace("v1.html", "v2.html"))
@@ -689,7 +688,7 @@ def test_a_moved_card_identifies_its_user_origin_across_tabs(browser, serve):
     second.keyboard.press("g")
     second.keyboard.press("Shift+p")
     expect(
-        second.get_by_role("button", name=re.compile(r"^Open sent: Sent"))
+        second.get_by_role("button", name=re.compile(r"^Open queued: Queued for "))
     ).to_be_visible()
     expect(
         second.get_by_role("button", name=re.compile(r"^Open my change"))
@@ -777,8 +776,8 @@ def test_a_settled_third_party_holder_wears_the_layers_mark(
     page = open_page(browser, url)
     expect(page.locator("#th-cache")).to_have_attribute("data-lf-state", "shelve")
     expect(page.locator("#th-cache lf-proposed")).to_be_hidden()
-    expect(first_thread_quote(page, serve.page_dir)).to_have_class(
-        re.compile(r"\bdetached\b")
+    expect(first_thread_quote(page, serve.page_dir)).to_have_attribute(
+        "data-lf-detached", ""
     )
     assert painted(page, "lf-mark") == "", (
         "the quote matched inside a slot the logged decision retired: nothing wrote "
@@ -810,8 +809,8 @@ def test_a_settled_third_party_holder_wears_the_layers_mark(
     page = open_page(browser, url)
     assert page.locator("#th-cache").get_attribute("data-lf-state") is None
     expect(page.locator("#th-cache lf-proposed")).to_be_visible()
-    expect(first_thread_quote(page, serve.page_dir)).not_to_have_class(
-        re.compile(r"\bdetached\b")
+    expect(first_thread_quote(page, serve.page_dir)).not_to_have_attribute(
+        "data-lf-detached", ""
     )
     assert painted(page, "lf-mark") != "", (
         "the displaced decision's slot is back on the page, so its quote must "
@@ -825,11 +824,12 @@ def test_the_render_gate_holds_a_settled_slot_to_the_logs_decision(
     """Bug-back for the settlement reading, in both directions. The bare family first
     proves the gate accepts a holder that brings nothing of its own — the layer's
     default hide is the whole of its disappearance. Then two independent faults go in
-    together. The one generic hide rule is stripped from the vendored theme, standing
-    in for whatever re-shows a retired slot (a later layer's rule outranking the
-    default, a module re-showing what it folded): the words stay on screen where the
-    user can select what no comment can anchor to, and the gate must say so. And the
-    vendored module marks every trial after the controller publishes: on the undecided
+    together. The page's own unlayered style outranks the one generic hide rule,
+    standing in for whatever re-shows a retired slot (a later layer's rule
+    outranking the default, a module re-showing what it folded): the words stay on
+    screen where the user can select what no comment can anchor to, and the gate
+    must say so. And the page's own module for the family marks every trial after
+    the controller publishes: on the undecided
     spare that is a settlement the log never decided, styling as settled words the
     page still reads, and the gate must say that too. Both failures render perfectly, which
     is why each is put back deliberately."""
@@ -850,12 +850,8 @@ def test_the_render_gate_holds_a_settled_slot_to_the_logs_decision(
     )
     assert render_gate_model.render_version(browser, url).failures == []
 
-    hide = "  [data-lf-retired] {\n    display: none;\n  }"
-    vendored = serve.page_dir / "theme.css"
-    css = vendored.read_text()
-    assert css.count(hide) == 1
-    vendored.write_text(css.replace(hide, ""))
-    module = serve.page_dir / "widgets" / "lf-trial.js"
+    module = serve.page_dir / "page" / "widgets" / "lf-trial.js"
+    module.parent.mkdir(parents=True, exist_ok=True)
     module.write_text(
         """\
 import {keeps, LeafElement} from "/runtime/widget-api.js";
@@ -882,7 +878,11 @@ customElements.define("lf-trial", class extends LeafElement {
     )
     stamp_page(
         serve.page_dir,
-        (serve.page_dir / "index.html").read_text(),
+        (serve.page_dir / "index.html")
+        .read_text()
+        .replace(
+            "</head>", "<style>[data-lf-retired] { display: block; }</style>\n</head>"
+        ),
         "capture the visible settled slot and the false settlement mark",
     )
     failures = render_gate_model.render_version(browser, live_url(url)).failures
@@ -967,7 +967,7 @@ def test_a_thread_obligation_waits_until_answered(browser, serve):
     expect_obligations_answered(page, "0/2")
 
     page.keyboard.press("m")
-    one = page.locator(f'{PANEL_THREAD}[data-thread="c-which"]')
+    one = page.locator(f'{PANEL_THREAD}[data-lf-thread="c-which"]')
     expect(one).to_be_visible()
     # The arrival stands on the question's own region; its picks are the next Tab stops.
     expect(page.locator("#tq-one-decision")).to_be_focused()
@@ -990,9 +990,9 @@ def test_a_thread_obligation_waits_until_answered(browser, serve):
     open_panel_thread(page, "c-any")
     expect(page.locator("#tq-set .lf-done")).to_be_visible()
 
-    # The group's hairline belongs to the upper neighbour, so the Done press keeps its
-    # own frame whole. Drawn by the lower neighbour instead, the divider recolored the
-    # press's top edge and left the seam above it to nothing.
+    # The group's hairline stands between the cells, so the Done press keeps its own
+    # frame whole. Drawn on the press instead, the divider recolored its top edge and
+    # left the seam above it to nothing.
     assert page.locator("#tq-set .lf-done").evaluate(
         """el => { const s = getComputedStyle(el);
                    return s.borderTopColor === s.borderBottomColor
@@ -1019,7 +1019,8 @@ def test_a_thread_obligation_waits_until_answered(browser, serve):
         "the Done press no longer fills the column, so what follows is about a shape "
         "this test no longer describes"
     )
-    assert seam["gap"] < 0.5, (
+    # The hairline is the group's ground in a 1px gap; more is dead ground.
+    assert seam["gap"] < 1.5, (
         f"the hairline above the Done press floats {seam['gap']}px above it"
     )
 
@@ -1030,7 +1031,7 @@ def test_a_thread_obligation_waits_until_answered(browser, serve):
         page.locator("#tq-set .lf-done").click()
     expect_obligations_answered(page, "2/2")
     expect(page.locator("#tq-set .lf-done")).to_have_attribute("aria-pressed", "true")
-    expect_panel_says(page, "Marked answered — sent")
+    expect(page.locator(".lf-live")).to_have_text("Marked answered")
     # Said once, by the log's answer. An `answered` attribute on the group said it
     # again in the author's namespace, where the entry admits nothing undeclared and no
     # version could ever have carried a record of a thread verb — invisible to every

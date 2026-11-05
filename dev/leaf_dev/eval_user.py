@@ -33,14 +33,18 @@ from playwright.sync_api import Page
 
 from leaf_dev.arms import (
     MODELS,
-    claude_child,
+    environment,
     run_agent,
     scratch,
     trace_result,
     trace_summary,
 )
-from leaf_dev.browser import headless_shell, load, settle, tab
+from leaf_dev.browser import Window, headless_shell, load, settle, tab
 from leaf_dev.eval_cases import definition
+
+# A decision can leave the page through Copy. User and judge browsers accept that
+# permission alike; the headless shell otherwise refuses a normal clicked write.
+CLIPBOARD_PERMISSIONS = ["clipboard-read", "clipboard-write"]
 
 # Elements a reader clicks to open what a list or a disclosure holds.
 OPENERS = (
@@ -48,15 +52,19 @@ OPENERS = (
     "[role=link], [role=row], [role=treeitem], [tabindex]"
 )
 
-# The words the browser draws, each mapped back to its text node, with runs of
-# space collapsed as rendering collapses them; hidden and script text is skipped.
-DRAWN = """() => {
+# The words a reader can comment on that the browser draws, each mapped back to its
+# text node, with runs of space collapsed as rendering collapses them. `quotable` is
+# the set of text nodes in the page's own reading (`pageText`, passages.js), which
+# keeps a tab label or a board's column heading and leaves out Leaf's chrome and the
+# copies its routes echo, such as a contents outline's copy of a heading; hidden text
+# is skipped too.
+DRAWN = """(quotable) => {
   const chars = [], map = [];
   const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
   let space = true;
   for (let node; (node = walker.nextNode()); ) {
     const parent = node.parentElement;
-    if (!parent || parent.closest("script, style, template, noscript")) continue;
+    if (!parent || !quotable.has(node)) continue;
     if (!parent.checkVisibility({ visibilityProperty: true, opacityProperty: true }))
       continue;
     for (let i = 0; i < node.data.length; i++) {
@@ -71,10 +79,12 @@ DRAWN = """() => {
 }"""
 
 SELECT = (
-    """(quotes) => {
+    """async (quotes) => {
+  const { pageText } = await import("/runtime/check-api.js");
+  const quotable = new Set(pageText().segments.map((segment) => segment.node));
   const { text, map } = ("""
     + DRAWN
-    + """)();
+    + """)(quotable);
   for (const quote of quotes) {
     const at = text.indexOf(quote);
     if (at < 0) continue;
@@ -189,16 +199,16 @@ def comment_on_passage(
     fallback: str,
     target: str = "",
     *,
-    viewport: tuple[int, int],
+    window: Window,
 ) -> dict:
-    """Comment as the reader of the Leaf page at `url`: on the first drawn
-    occurrence of the first of `quotes` the page draws, which the selection's own
-    context anchors, opening `target` first where none is drawn, or otherwise
+    """Comment as the reader of the Leaf page at `url`, in `window`: on the first
+    drawn occurrence of the first of `quotes` the page draws, which the selection's
+    own context anchors, opening `target` first where none is drawn, or otherwise
     on the page whole with `fallback`. Return the route, the quote, and the
     `attempt` key that finds the admitted comment in the log."""
     with (
         headless_shell() as browser,
-        tab(browser, viewport=viewport) as view,
+        tab(browser, window) as view,
     ):
         load(view, url)
         quote = view.evaluate(SELECT, list(quotes))
@@ -206,21 +216,21 @@ def comment_on_passage(
         if quote is None and target:
             opened = reveal(view, target, "|".join(map(re.escape, quotes)))
             quote = view.evaluate(SELECT, list(quotes))
+        if quote is not None:
+            view.dispatch_event("body", "mouseup")
+            view.locator('.lf-fp-field leaf-text[data-lf-says="selection"]').click()
+            box = view.locator(".lf-composer leaf-text")
+        else:
+            box = view.locator(".lf-fp-field leaf-text")
+            box.click()
+        box.focus()
+        view.keyboard.insert_text(text if quote is not None else fallback)
         with view.expect_response(
             lambda response: (
                 response.url.split("?")[0].endswith("/api/event")
                 and response.request.method == "POST"
             )
         ) as answer:
-            if quote is not None:
-                view.dispatch_event("body", "mouseup")
-                view.locator('.lf-fp-field leaf-text[data-says="selection"]').click()
-                box = view.locator(".lf-composer leaf-text")
-            else:
-                box = view.locator(".lf-fp-field leaf-text")
-                box.click()
-            box.focus()
-            view.keyboard.insert_text(text if quote is not None else fallback)
             box.press("ControlOrMeta+Enter")
         posted = answer.value
         if not posted.ok:
@@ -253,38 +263,38 @@ def cli() -> list[str]:
         raise click.ClickException(
             "Browser agents need Node and eval dependencies; run pnpm install --frozen-lockfile"
         )
-    return [str(Path(node).resolve()), str(script), "cli"]
+    return [node, str(script), "cli"]
 
 
-def decide(url: str, task: str, evidence: Path, *, viewport: tuple[int, int]) -> dict:
+def decide(url: str, task: str, evidence: Path, *, window: Window) -> dict:
     """Have the user agent make the decision `task` on the page at `url`, in a
-    tab at the declared viewport. Return what it reported (`made`, `copied`,
-    `notes`), what the page put on the clipboard (`copies`), and what the agent
-    spent (`trace`)."""
+    tab in `window`. Return what it reported (`made`, `copied`, `notes`), what the
+    page put on the clipboard (`copies`), and what the agent spent (`trace`)."""
     evidence.mkdir(parents=True, exist_ok=True)
     with socket.socket() as probe:
         probe.bind(("127.0.0.1", 0))
         port = probe.getsockname()[1]
     with (
         headless_shell(args=[f"--remote-debugging-port={port}"]) as browser,
-        tab(browser, viewport=viewport, motion="no-preference") as view,
+        tab(browser, window, motion="no-preference") as view,
         scratch() as cwd,
         tempfile.TemporaryDirectory(prefix="leaf-pw-", dir="/tmp") as sockets,
     ):
-        view.context.grant_permissions(["clipboard-read", "clipboard-write"])
+        view.context.grant_permissions(CLIPBOARD_PERMISSIONS)
         view.context.add_init_script(COPY_SPY)
         view.goto(url, wait_until="load")
         session = f"leaf-user-{cwd.parent.name}"
-        # The daemon keeps its socket in `sockets`, whose path is short enough for
-        # one, under the user agent's own home, so it must run in the agent's
-        # environment.
-        env = claude_child(cwd, "", env={"PWTEST_SOCKETS_DIR": sockets})["env"]
+        # Both the harness and its user attach through the same private daemon.
+        variables = {
+            "PWTEST_SOCKETS_DIR": sockets,
+            "PWTEST_DAEMON_SESSION_DIR": str(cwd / "daemon"),
+        }
 
         def playwright(*args: str) -> subprocess.CompletedProcess:
             return subprocess.run(
                 [*cli(), f"-s={session}", *args],
                 cwd=cwd,
-                env=env,
+                env=environment(**variables),
                 capture_output=True,
                 text=True,
                 check=False,
@@ -308,9 +318,10 @@ def decide(url: str, task: str, evidence: Path, *, viewport: tuple[int, int]) ->
                 json.dumps(REPORT),
                 out=evidence / "stream.jsonl",
                 err=evidence / "err.txt",
-                env={"PWTEST_SOCKETS_DIR": sockets},
+                env=variables,
+                harness="codex",
+                dirs=[Path(sockets)],
                 model=MODELS["user"],
-                sandbox=False,
                 limit=DECIDING_LIMIT,
             )
             copies = view.evaluate("() => globalThis.__leafEvalCopies ?? []")

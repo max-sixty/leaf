@@ -8,7 +8,7 @@
 
    A widget whose tag declares `x-data` names the items it drew from its bound value
    with plain attributes, and Leaf stamps them (`projectMarked`) once the widget
-   reports the value it drew (leaf-element.js, "Bound values"):
+   reports the value it drew (element-data.js, "Bound values"):
 
    - `data-lf-datum`, the key: a non-empty string unique within the seat, which core
      never interprets;
@@ -35,13 +35,17 @@
    This identity contract is experimental and open to change as more producers establish
    what persists through a replacement.
 
-   A selection wholly inside a derived datum captures `{section, datum, quote}`. A datum
+   A selection wholly inside a derived datum captures `{section, datum, quote}`, with a
+   `prefix` and `suffix` read from the datum's own words, never its neighbours', and
+   detaches where those can't tell the quote from another copy in the datum. A datum
    projected from a bound input also captures `{source, source_revision}`. A datum whose
    emitter supplies an identity follows that subject across value replacements, even if
    its rendering key changes. Other keys may name locations within one value, so their
    placements remain pinned to the captured revision. If the original words
    still stand, Leaf marks them. If their display changes, Leaf outlines the same datum
-   and keeps the old quote in the thread. A different source makes the placement
+   and keeps the old quote in the thread, where the quote was all of the datum's words;
+   a passage within a datum, captured with words of it around the quote, stands nowhere
+   on the page once its words are gone. A different source makes the placement
    outdated; a duplicate key detaches rather than guessing. Selections crossing datum
    boundaries remain ordinary quote anchors because they name a passage, not one fact.
 
@@ -64,39 +68,44 @@ import { registry } from "../registry.js";
 import { reachScrollers } from "../reach.js";
 import { composedParentNode, shadowRootsIn } from "../shadow.js";
 import { keeps } from "../keeps.js";
+import { PAGE_PAINT_ATTRIBUTE } from "../page-paint.js";
 
 // The nodes a projection stamped under its root, in the trees that hold the page's
 // words: the ones anchor resolution can find (`pageQueryAll`), so what a replacement
 // clears and what a thread resolves to are one set. A marking widget may already have
 // dropped the key from a node it retired, so this reads Leaf's own stamp.
+/** @param {Element} root */
 const projectedDescendants = (root) =>
   [root, ...shadowRootsIn(root)]
     .flatMap((scope) => [...scope.querySelectorAll("[data-lf-projection]")])
-    .filter((element) => element.dataset.lfProjection === root.id);
+    .filter((element) => element.getAttribute("data-lf-projection") === root.id);
 
+/** @param {Element} node */
 const markOwner = (node) => {
   for (let at = composedParentNode(node); at; at = composedParentNode(at))
-    if (at.nodeType === Node.ELEMENT_NODE && registry[at.localName]?.["x-data"])
-      return at;
+    if (at instanceof Element && registry[at.localName]?.["x-data"]) return at;
   return null;
 };
 
 // The items a widget marked under `root`. An attribute is always a string, so the
 // stamp's refusals reduce to emptiness, duplicates and a malformed path.
+/** @param {Element} root */
 const markedDatums = (root) =>
   [root, ...shadowRootsIn(root)]
     .flatMap((scope) => [...scope.querySelectorAll("[data-lf-datum]")])
     .filter((node) => markOwner(node) === root)
     .map((node) => ({
       node,
-      key: node.dataset.lfDatum,
-      label: node.dataset.lfDatumLabel,
-      identity: node.dataset.lfIdentity,
-      path: node.dataset.lfOriginPath,
+      key: node.getAttribute("data-lf-datum") ?? undefined,
+      label: node.getAttribute("data-lf-datum-label") ?? undefined,
+      identity: node.getAttribute("data-lf-identity") ?? undefined,
+      path: node.getAttribute("data-lf-origin-path") ?? undefined,
     }));
 
 // A mark's origin path, a JSON array of field names and indices.
+/** @param {string} who @param {string} key @param {string} text */
 const originPath = (who, key, text) => {
+  /** @type {unknown} */
   let path;
   try {
     path = JSON.parse(text);
@@ -106,7 +115,10 @@ const originPath = (who, key, text) => {
   if (
     !Array.isArray(path) ||
     !path.every(
-      (step) => typeof step === "string" || (Number.isInteger(step) && step >= 0),
+      /** @param {unknown} step @returns {step is string | number} */
+      (step) =>
+        typeof step === "string" ||
+        (typeof step === "number" && Number.isInteger(step) && step >= 0),
     )
   )
     throw new TypeError(
@@ -115,19 +127,25 @@ const originPath = (who, key, text) => {
   return path;
 };
 
+/** @type {{projectMarked: (root: Element, snapshot: import("../data.js").DataSnapshot | null) => void} | null} */
 let constructed = null;
-/** Stamp the items a widget marked under `root` (`createDataProjection`). */
+/** Stamp the items a widget marked under `root` (`createDataProjection`).
+ * @param {Element} root @param {import("../data.js").DataSnapshot | null} snapshot */
 export function projectMarked(root, snapshot) {
   if (!constructed) throw new Error("Leaf's data projection has not been constructed");
   constructed.projectMarked(root, snapshot);
 }
 
+/** @param {{invalidateDom: () => void}} options */
 export function createDataProjection({ invalidateDom }) {
   let dataPaintQueued = false;
+  /** @type {Set<Element>} */
   const changedRoots = new Set();
   // The label Leaf last mirrored into each datum's aria-description, so a new label
   // replaces only what Leaf wrote, whoever wrote `data-lf-datum-label`.
+  /** @type {WeakMap<Element, string>} */
   const mirrored = new WeakMap();
+  /** @param {Element} root */
   function applyProjection(root) {
     changedRoots.add(root);
     if (dataPaintQueued) return;
@@ -142,18 +160,20 @@ export function createDataProjection({ invalidateDom }) {
   }
 
   /** Stamp the items a widget marked under `root` with the snapshot that supplied the
-   *  value it drew, or null for words no bound value supplied; leaf-element.js has
+   *  value it drew, or null for words no bound value supplied; element-data.js has
    *  matched the value to the snapshot.
-   *  @param {Element} root @param {any} snapshot */
+   *  @param {Element} root @param {import("../data.js").DataSnapshot | null} snapshot */
   function projectMarked(root, snapshot) {
     if (!root.id)
       throw new TypeError(`<${root.localName}> needs an id to name its drawn data`);
     const who = `<${root.localName} id=${root.id}>`;
+    /** @param {Element} node */
     const stampBasis = (node) => {
       keeps(node, "data-lf-source", snapshot?.source ?? null);
       keeps(node, "data-lf-source-revision", snapshot?.revision ?? null);
     };
     stampBasis(root);
+    keeps(root, PAGE_PAINT_ATTRIBUTE.drawReported, "");
     const projected = projectedDescendants(root);
     const keys = new Set();
     const identities = new Set();
@@ -199,16 +219,17 @@ export function createDataProjection({ invalidateDom }) {
 
     for (const node of projected)
       if (!nodes.has(node)) {
-        delete node.dataset.lfGen;
-        delete node.dataset.lfProjection;
-        delete node.dataset.lfSource;
-        delete node.dataset.lfSourceRevision;
-        delete node.dataset.lfOrigin;
+        node.removeAttribute("data-lf-gen");
+        node.removeAttribute("data-lf-projection");
+        node.removeAttribute("data-lf-source");
+        node.removeAttribute("data-lf-source-revision");
+        node.removeAttribute("data-lf-origin");
         unmirror(node);
       }
     applyProjection(root);
   }
 
+  /** @param {Element} node */
   function unmirror(node) {
     const label = mirrored.get(node);
     if (label === undefined) return;

@@ -2,7 +2,7 @@
    This diagnostic entry is separate from package authoring. Pure rules are tested
    at their source owner in Node; optional physical geometry lives in the overlay's
    check-api.js so core checks never load that renderer. */
-export { exceptionText } from "./layer-client.js";
+export { exceptionText } from "./exception.js";
 export { validationWidgetStates } from "./validation.js";
 export { visualPartProblems } from "./visual-parts.js";
 export {
@@ -26,7 +26,6 @@ export {
 export {
   shownBand,
   shownBox,
-  skipped,
   shownRect,
   visibleBand,
   landingBand,
@@ -35,9 +34,12 @@ export {
   growthAfterIsSeen,
   stuckBox,
   stackLevel,
+  shownParts,
 } from "./geometry.js";
+export { skipped } from "./shown-box.js";
+export { windowHoldsRail } from "./content-layout.js";
 export { renderedParent, uiInside, upFrom } from "./shadow.js";
-export { authoredBody } from "./initial-render.js";
+export { authoredBody } from "./widget-elements.js";
 export {
   readingRegions,
   shownRegionBounds,
@@ -51,10 +53,10 @@ export {
 export {
   layoutBox,
   pageDocument,
+  inPage,
   quoteFrom,
   verbatimBoundaryIdentity,
   verbatimOwnerIdentity,
-  pageRange,
   closestAcross,
   pageText,
   fencePassageParts,
@@ -62,6 +64,7 @@ export {
   segmentsIn,
   spanIn,
   settledAway,
+  textNodesUnder,
 } from "./passages.js";
 export { shallowSigs } from "./projection/presentation.js";
 export { commandDeclarationsWithin } from "./keyboard/scopes.js";
@@ -76,14 +79,21 @@ export { availableCommandRoutes, stack, executeCommand } from "./keyboard/dispat
 export { whereDraft, storedDraft, captureDraftEditing } from "./drafts.js";
 export { onCurrentLocation, releaseFocus, takesLetters, tabStops } from "./focus.js";
 export { selectionAnchor } from "./composing/capture.js";
-export { TEXT_BLOCK } from "./passage-facts.js";
+export { TEXT_BLOCK } from "./kernel-facts.js";
 export { renderingState } from "./rendering.js";
-export { readingBlock, blocksOnScreen } from "./reading-place.js";
+export {
+  readingBlock,
+  blocksOnScreen,
+  capturePlace,
+  placeNode,
+} from "./reading-place.js";
 export { walkOrigin, heldObligation, placeOf } from "./current-target.js";
 export { walkPosition } from "./walk-position.js";
+export { threadCounts } from "./thread/model.js";
 export { nativeLayers } from "./keyboard/layer-stack.js";
 export { scrollAxes, elementFrame } from "./element-frame.js";
 export { fitsWhole, alreadyShown } from "./landing-scroll.js";
+export { holdScroll, scrolling, watchScrollEnds } from "./arrivals.js";
 export { pageScopes } from "./keyboard/register.js";
 export {
   chromeSheet,
@@ -93,15 +103,15 @@ export {
   annotationMarkSheets,
 } from "./stylesheets.js";
 export { claimed } from "./thread/surfaces.js";
-export { runtimeRootState } from "./root-state.js";
-export { tabStore, draftStore, userStore, PAGE_SCOPE } from "./storage.js";
+export { draftStore, userStore, PAGE_SCOPE } from "./storage.js";
+export { tabStore } from "./tab-store.js";
 export {
   frameVisibility,
   onFrameVisibility,
   readSampleVisibility,
 } from "./frame-visibility.js";
 export { observeQueuedWork, bindQueuedWork } from "./queued-work.js";
-export { createPresentationSchedule } from "/vendor/browser-runtime.js";
+export { createPresentationSchedule } from "/runtime/framework.js";
 export { reachScrollers, releaseReachStop } from "./reach.js";
 export { reveal, dragHeld } from "./widget-elements.js";
 export { flashDuration, agentArrivalDuration } from "./motion.js";
@@ -113,4 +123,8 @@ export { recordInteraction } from "./interaction-log.js";
 export { bringBackSurfaceOf } from "./off-flow.js";
 export { WORKS } from "./control-selectors.js";
 export { readingReturn, completeReadingReturn } from "./reading-continuity.js";
-export { selfComparison, servedElements } from "./version.js";
+
+export { observeOutputs } from "./data.js";
+export { servedElements } from "./version.js";
+
+export { pageRange } from "./native-selection.js";

@@ -3,12 +3,13 @@
 import json
 import shutil
 
-from leaf_dev import ROOT
-from leaf_dev.commands import refresh_previews
 from process.website_server import (
     _no_harness_outlives_its_test_fixture,  # noqa: F401 (fixtures)
     get,
 )
+
+from leaf_dev.commands import refresh_previews
+from leaf_dev.example_data import named_source
 
 
 def test_the_preview_generator_bootstraps_a_new_catalog_entry(tmp_path, monkeypatch):
@@ -18,13 +19,13 @@ def test_the_preview_generator_bootstraps_a_new_catalog_entry(tmp_path, monkeypa
     shutil.copytree(pinned / "demo", current / "demo")
     existing = current / "examples" / "example-existing.jpg"
     shutil.copy2(next((pinned / "examples").glob("example-*.jpg")), existing)
-    source = ROOT / "examples" / "ideas-to-implement.html"
+    source = named_source("ideas-to-implement")
     sources = [source]
     monkeypatch.setattr(refresh_previews, "pinned_assets", lambda: current)
     monkeypatch.setattr(refresh_previews, "catalog_sources", lambda: sources)
     monkeypatch.setattr(refresh_previews.site_build, "catalog_sources", lambda: sources)
     monkeypatch.setattr(
-        refresh_previews.site_build, "published_page_sources", lambda: sources
+        refresh_previews.site_build, "published_sources", lambda: sources
     )
 
     assets = refresh_previews.bootstrap_assets(tmp_path / "assets")

@@ -55,6 +55,7 @@ ACTION_ON_OBLIGATION = {
             "unit": "widget",
             "record": {"kind": "attribute", "attr": "chosen"},
             "creates": None,
+            "decides": False,
             "detail": {
                 "type": "object",
                 "properties": {
@@ -171,11 +172,10 @@ MARGIN_ACTIONS_PAGE = leaf_page(
 )
 
 
-# The right edge of the column's words, inside `main`'s padding. A thread card beside
-# them stands clear of it, over the margin cluster if its measure needs that room.
+# The heading shares the prose track. A thread card stands clear of its words,
+# over the margin cluster if its measure needs that room.
 WORDS_RIGHT = """() => {
-  const main = document.querySelector('main');
-  return main.getBoundingClientRect().right - parseFloat(getComputedStyle(main).paddingRight);
+  return document.querySelector('main h1').getBoundingClientRect().right;
 }"""
 
 
@@ -191,6 +191,40 @@ LONG_THREAD_PAGE = leaf_page(
 </section>
 """,
 )
+
+
+# A passage low on a page that scrolls, so a scroll stands the card or comment box
+# beside it with its foot anywhere against the window's.
+LOW_PASSAGE_PAGE = leaf_page(
+    "A box at the window's foot",
+    '<div style="height: 100vh"></div>'
+    '<p id="open">Review the open questions.</p>'
+    '<div style="height: 200vh"></div>',
+)
+
+
+# Whether the margin card's motion has ended (box-motion.js).
+CARD_AT_REST = (
+    "() => !document.querySelector('.lf-margin-preview').getAnimations({subtree: true})"
+    ".some(a => Number.isFinite(a.effect?.getComputedTiming().endTime))"
+)
+
+# Every motion held at its first frame is finished, until the card rests.
+CARD_RELEASED = (
+    "() => { window.__lfHeld.splice(0).forEach(motion => motion.finish());"
+    " return (" + CARD_AT_REST + ")(); }"
+)
+
+
+# The card's outline as its surface's ring is cut (box-motion.js): its top and its foot.
+CARD_OUTLINE = """card => {
+  const ring = card.querySelector('.lf-margin-preview-ground > .lf-box-ring');
+  const ground = card.querySelector('.lf-margin-preview-ground').getBoundingClientRect();
+  const [top, , bottom = top] = getComputedStyle(ring).clipPath
+    .match(/inset\\(([^)]*)\\)/)[1].split(' round')[0].trim().split(/\\s+/)
+    .map(Number.parseFloat);
+  return [ground.top + top, ground.bottom - bottom];
+}"""
 
 
 LONG_THREAD_ROOT = {
@@ -266,16 +300,10 @@ ON_THE_PAGE = (
 )
 
 
-def leave_card_by_its_target(page):
-    """Escape from a card's thread onto the target it is about, then let go of both.
-
-    The card stays beside the target the first press lands on, because the user still
-    stands at it; letting go of the target is what takes the card down.
-    """
+def leave_card(page):
+    """Escape from a card's thread takes the card down in one press, whatever opened it,
+    and leaves the user beside the target it is about rather than on any control."""
     preview = page.locator(".lf-margin-preview")
-    page.keyboard.press("Escape")
-    expect(preview).to_be_visible()
-    assert page.evaluate(ON_THE_PAGE)
     page.keyboard.press("Escape")
     expect(preview).to_be_hidden()
     assert page.evaluate("() => document.activeElement === document.body")
@@ -290,7 +318,7 @@ def seeded_thread(page, page_dir, passage):
         page.keyboard.press("ControlOrMeta+Enter")
     sent = events_model.read_events(page_dir)[-1]
     expect(page.locator(".lf-margin-preview .lf-page-thread")).to_be_focused()
-    leave_card_by_its_target(page)
+    leave_card(page)
     return sent
 
 
@@ -366,8 +394,8 @@ CARD_AND_REPLY = """async () => {
           send: card.querySelector('.lf-thread-reply .lf-compose-field > button:not([hidden])')
             .getBoundingClientRect().top,
           placement: card.dataset.lfThreadPlacement,
-          head: geometry.shownWindow({gap: 8}).top,
-          foot: geometry.shownWindow({gap: 8}).bottom};
+          head: geometry.shownWindow({gap: 8, across: box}).top,
+          foot: geometry.shownWindow({gap: 8, across: box}).bottom};
 }"""
 
 

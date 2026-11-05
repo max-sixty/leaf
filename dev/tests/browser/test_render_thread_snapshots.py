@@ -5,6 +5,7 @@ import json
 import shutil
 
 import pytest
+
 from leaf_dev.commands.thread_snapshots import COMPARED
 
 
@@ -15,6 +16,7 @@ def test_accept_publishes_only_a_successful_unchanged_capture(
 ):
     """Publication consumes reviewed bytes; a partial or changed capture cannot publish."""
     from click.testing import CliRunner
+
     from leaf_dev import leaf_assets
     from leaf_dev.commands import thread_snapshots
     from leaf_dev.commands.thread_snapshots import accept, capture_files, render_profile

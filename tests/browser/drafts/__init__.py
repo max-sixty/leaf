@@ -16,21 +16,11 @@ from render_harness import (
 
 
 def choose_comment_target(page, selector):
-    """Choose one visible element through the user's target-hint route."""
+    """Choose the exact element through the user's target picker."""
     page.locator(selector).scroll_into_view_if_needed()
     page.keyboard.press("s")
     expect(page.locator(".lf-target-picker-hint")).not_to_have_count(0)
-    code = page.evaluate(
-        """selector => {
-          const top = document.querySelector(selector).getBoundingClientRect().top;
-          return [...document.querySelectorAll('.lf-target-picker-hint')]
-            .sort((a, b) => Math.abs(a.getBoundingClientRect().top - top)
-                          - Math.abs(b.getBoundingClientRect().top - top))[0]
-            .dataset.lfHintCode;
-        }""",
-        selector,
-    )
-    page.keyboard.type(code)
+    page.locator(selector).click()
     expect(page.locator(".lf-fab-input")).to_be_focused()
 
 
@@ -50,13 +40,14 @@ window.__rendererLifetime={birth:performance.timeOrigin,hits:0,version:'MODE'};
 addEventListener('renderer-lifetime-probe',()=>window.__rendererLifetime.hits++);
 // Native prototype activation route: activate the panel's offered Latest, its row
 // notice's press, without transferring the editor's focus to the panel before the
-// carry is captured.
+// carry is captured. It listens in capture, since a key typed into a Leaf field never
+// bubbles to the page (field-keys.js).
 addEventListener('keydown',event=>{
   if(event.code==='KeyR' && event.ctrlKey && event.altKey){
     event.preventDefault();
     document.querySelector('.lf-floating-panel .lf-fp-row-notice-press')?.click();
   }
-});
+},true);
 </script>""".replace("MODE", mode)
     return leaf_page("Editor continuity", body).replace("</head>", module + "</head>")
 

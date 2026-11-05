@@ -21,6 +21,12 @@
         min-height: 40rem;
       }
 
+      /* A margin card opens only in a window that holds the column with a rail on
+         either side (--lf-rail-room); half the grid never does. */
+      #panel-on-you {
+        grid-column: 1 / -1;
+      }
+
       @media (max-width: 1100px) {
         #thread-panel-views {
           grid-template-columns: minmax(0, 1fr);
@@ -39,7 +45,7 @@
       const views = {
         "overview-sample": { surface: "panel" },
         "on-you-sample": { thread: "98850286", surface: "page" },
-        "resolved-sample": { surface: "panel", status: "resolved" },
+        "resolved-sample": { surface: "panel" },
         "summary-sample": { thread: "c1a39980", surface: "panel" },
       };
       function showView(sample) {
@@ -60,14 +66,14 @@
       <h1>Threads</h1>
       <p>
         These views share Leaf's conversation renderer across the panel and anchored
-        card. Each is a separate page with its own event log. Open a thread, filter the
+        card. Each is a separate page with its own event log. Open a thread, search the
         list, reply, or Reset a sample to return to the starting view.
       </p>
       <nav id="thread-panel-jumps" aria-label="Panel views">
         <a href="#panel-overview">Open threads</a>
-        <a href="#panel-on-you">On me</a>
         <a href="#panel-resolved">Resolved</a>
         <a href="#panel-summary">Long discussion</a>
+        <a href="#panel-on-you">On me</a>
       </nav>
 
       <section
@@ -103,26 +109,12 @@
           </lf-sample>
         </section>
 
-        <section id="panel-on-you">
-          <h2>On me, beside the page</h2>
-          <p>
-            The anchored card shares the panel's message hierarchy and reply field. Open
-            Threads inside the sample to read the same discussion there.
-          </p>
-          <lf-sample id="on-you-sample" label="anchored conversation" window>
-            <template id="on-you-page" data-sample data-sample-threads="98850286">
-              <h1>Room photo</h1>
-              <p id="tpg-photo">
-                <strong>Agenda and room photo.</strong> Practice moves before lunch. The
-                room photo still needs a crop attendees can use.
-              </p>
-            </template>
-          </lf-sample>
-        </section>
-
         <section id="panel-resolved">
           <h2>Resolved</h2>
-          <p>The Resolved filter shows the closed discussion and its Reopen action.</p>
+          <p>
+            Threads folds the closed discussion under Resolved; pressing the heading
+            lists it, and opening it offers Reopen.
+          </p>
           <lf-sample id="resolved-sample" label="resolved thread">
             <template id="resolved-page" data-sample data-sample-threads="edf09a41">
               <h1>Workshop room</h1>
@@ -142,6 +134,23 @@
               <h1>Afternoon workshop</h1>
               <p id="tpg-summary">
                 The afternoon workshop will pair people for hands-on debugging.
+              </p>
+            </template>
+          </lf-sample>
+        </section>
+
+        <section id="panel-on-you">
+          <h2>On me, beside the page</h2>
+          <p>
+            The anchored card shares the panel's message hierarchy and reply field. Open
+            Threads inside the sample to read the same discussion there.
+          </p>
+          <lf-sample id="on-you-sample" label="anchored conversation" window>
+            <template id="on-you-page" data-sample data-sample-threads="98850286">
+              <h1>Room photo</h1>
+              <p id="tpg-photo">
+                <strong>Agenda and room photo.</strong> Practice moves before lunch. The
+                room photo still needs a crop attendees can use.
               </p>
             </template>
           </lf-sample>

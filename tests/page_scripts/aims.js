@@ -42,6 +42,52 @@
     }
     return false;
   };
+  // Where a press on a control is judged. A part of a control outside a scroller's view
+  // is reached by scrolling it there, as a part outside the window is reached by
+  // scrolling the page, so a press is judged only inside the view of every scroller that
+  // holds the control: its scrollport, less the `scroll-padding` it keeps for what
+  // stands over its edges on each side it can still scroll toward, such as a tab
+  // strip's paging edge or a page's sticky header.
+  function viewOf(el) {
+    const root = document.scrollingElement;
+    let [left, top, right, bottom] = [0, 0, innerWidth, innerHeight];
+    const up = (at) => at.assignedSlot || at.parentNode || at.host;
+    for (let at = up(el); at; at = up(at)) {
+      if (at.nodeType !== 1) continue;
+      const overX = at.scrollWidth - at.clientWidth;
+      const overY = at.scrollHeight - at.clientHeight;
+      if (overX < 1 && overY < 1) continue;
+      const style = getComputedStyle(at);
+      const box = at === root ? new DOMRect() : at.getBoundingClientRect();
+      const [x0, y0] = [box.left + at.clientLeft, box.top + at.clientTop];
+      const pad = (side, size) => {
+        const value = style[`scrollPadding${side}`];
+        return (parseFloat(value) || 0) * (value.endsWith("%") ? size / 100 : 1);
+      };
+      if (overX >= 1 && /auto|scroll/.test(style.overflowX)) {
+        const before =
+          style.direction === "rtl" ? overX + at.scrollLeft : at.scrollLeft;
+        left = Math.max(left, x0 + (before >= 1 ? pad("Left", at.clientWidth) : 0));
+        right = Math.min(
+          right,
+          x0 +
+            at.clientWidth -
+            (overX - before >= 1 ? pad("Right", at.clientWidth) : 0),
+        );
+      }
+      if (overY >= 1 && /auto|scroll/.test(style.overflowY)) {
+        const before = at.scrollTop;
+        top = Math.max(top, y0 + (before >= 1 ? pad("Top", at.clientHeight) : 0));
+        bottom = Math.min(
+          bottom,
+          y0 +
+            at.clientHeight -
+            (overY - before >= 1 ? pad("Bottom", at.clientHeight) : 0),
+        );
+      }
+    }
+    return { left, top, right, bottom };
+  }
   // Whether a reach that takes a press at a point lies over a field there, which then
   // loses that press: a control's reach is for room nothing else uses. What would take
   // the press without the reach is the first box beneath the control, so a field a
@@ -91,37 +137,70 @@
   // outside layout rather than make the visible line or row taller. A reach only counts
   // as far as a press there lands on the control: a box that clips it, or a neighbour
   // standing over it, cuts it short, which its computed size would not show. So where
-  // the control is in the window, each end of its reach is pressed, and a reach either
-  // end of which lands elsewhere counts for nothing; a control out of the window keeps
-  // its computed reach, unpressed. A control whose own face a neighbour stands over at
-  // an edge has no aim worth the name, and reads as none.
-  function aim(control) {
+  // the control is in view (`viewOf`), each end of its reach is pressed, and a reach
+  // either end of which lands elsewhere counts for nothing; a control out of view keeps
+  // its computed reach, unpressed. With a finite floor, only a central box of that
+  // size must be clear; without one, the whole face is checked.
+  function aim(control, floor = Infinity) {
     const el = actionable(control);
     const box = el.getBoundingClientRect();
     let [w, h] = [box.width, box.height];
+    let [x, y] = [box.left + w / 2, box.top + h / 2];
     for (const pseudo of ["::before", "::after"]) {
       const at = getComputedStyle(el, pseudo);
       if (at.content === "none" || at.position !== "absolute") continue;
       if (at.pointerEvents === "none") continue;
-      w = Math.max(w, parseFloat(at.width) || 0);
-      h = Math.max(h, parseFloat(at.height) || 0);
+      const width = parseFloat(at.width) || 0;
+      const height = parseFloat(at.height) || 0;
+      // A static control's reach can fill an ancestor, as a command's fills its
+      // row. Its centre is that containing block's, not the label's: on touch the
+      // description stands below the label. Computed insets locate the reach;
+      // keep the label's centre on axes where its face already meets the floor.
+      const owner = getComputedStyle(el).position === "static" ? el.offsetParent : el;
+      if (owner && (width > w || height > h)) {
+        const origin = owner.getBoundingClientRect();
+        if (width > w && box.width < floor)
+          x =
+            origin.left +
+            owner.clientLeft -
+            owner.scrollLeft +
+            (parseFloat(at.left) || 0) +
+            (parseFloat(at.marginLeft) || 0) +
+            width / 2;
+        if (height > h && box.height < floor)
+          y =
+            origin.top +
+            owner.clientTop -
+            owner.scrollTop +
+            (parseFloat(at.top) || 0) +
+            (parseFloat(at.marginTop) || 0) +
+            height / 2;
+      }
+      w = Math.max(w, width);
+      h = Math.max(h, height);
     }
-    const x = box.left + box.width / 2;
-    const y = box.top + box.height / 2;
-    const shown = (px, py) => px >= 0 && py >= 0 && px < innerWidth && py < innerHeight;
+    const view = viewOf(el);
+    const shown = (px, py) =>
+      px >= view.left && py >= view.top && px < view.right && py < view.bottom;
     // A host that takes the press at its button's very middle stands over all of the
     // button, as a reach of the host's own would.
     if (el !== control && shown(x, y) && pressed(x, y) === control)
       return { box, w: 0, h: 0, by: landed(x, y) };
+    if (shown(x, y) && cut(el, x, y)) return { box, w: 0, h: 0, by: landed(x, y) };
     if (shown(x, y) && takes(el, x, y)) {
-      // A face whose own edge another control lies over, by its face or its reach,
-      // loses presses there too.
+      // A minimum-size reading asks for a usable floor-sized box, not every
+      // point of a wider face. A version row shares its end with Compare but
+      // still offers a large independent target in the middle.
+      const faceW = Math.min(box.width, floor);
+      const faceH = Math.min(box.height, floor);
       const edges = [
-        [x, box.top + 1],
-        [x, box.bottom - 1],
-        [box.left + 1, y],
-        [box.right - 1, y],
-      ].filter(([px, py]) => shown(px, py));
+        [y - faceH / 2 >= view.top, x, y - faceH / 2 + 1],
+        [y + faceH / 2 <= view.bottom, x, y + faceH / 2 - 1],
+        [x - faceW / 2 >= view.left, x - faceW / 2 + 1, y],
+        [x + faceW / 2 <= view.right, x + faceW / 2 - 1, y],
+      ]
+        .filter(([inside]) => inside)
+        .map(([, px, py]) => [px, py]);
       const over = edges.find(([px, py]) => reachedBy(el, px, py));
       if (over) return { box, w: 0, h: 0, by: landed(...over) };
       const [top, bottom] = [y - h / 2 + 1, y + h / 2 - 1];
@@ -148,8 +227,8 @@
     return { box, w, h };
   }
 
-  // Every control the layer's floor rule names, in the document and every shadow tree,
-  // measured under whatever pointer the page is shown to. A box and not
+  // Every control the layer's floor rule names in `roots`, in each and every shadow tree
+  // within, measured under whatever pointer the page is shown to. A box and not
   // checkVisibility(): the corpus renders much of itself inside content-visibility
   // sections, which this browser answers no for, and a control laid out inside one is a
   // control a user reaches by scrolling to it. Each control is held to the floor it
@@ -158,7 +237,7 @@
   // so by setting its own `--aim-floor` to 0px. Only the control's own declaration
   // lowers its floor; one it inherits from a container holds it to the document's, and
   // an aim another box covers to nothing is short under any floor.
-  function flooredAims(selectors) {
+  function flooredAims(roots, selectors) {
     const floor = parseFloat(
       getComputedStyle(document.documentElement).getPropertyValue("--aim-floor"),
     );
@@ -166,10 +245,13 @@
     let seen = 0;
     const sweep = (root) => {
       for (const el of root.querySelectorAll(selectors)) {
-        const { box, w, h, by } = aim(el);
-        if (!box.width || !box.height) continue;
+        // An inactive tab's panel is `hidden`, its content skipped rather than laid
+        // out, so the boxes it leaves are stale and press nothing.
+        if (closestAcross(el.parentNode || el.host, "[hidden]")) continue;
         const shown = getComputedStyle(el);
         if (shown.visibility === "hidden" || shown.pointerEvents === "none") continue;
+        const { box, w, h, by } = aim(el);
+        if (!box.width || !box.height) continue;
         seen += 1;
         const own = parseFloat(shown.getPropertyValue("--aim-floor"));
         const parent = el.parentElement ?? el.getRootNode().host;
@@ -178,13 +260,14 @@
           parseFloat(getComputedStyle(parent).getPropertyValue("--aim-floor")) === own;
         if (Math.min(w, h) < Math.max(inherited ? floor : own, 1) - 0.5)
           short.push(
-            `${Math.round(w)}x${Math.round(h)} ${el.className}${by ? ` under ${by}` : ""}`,
+            `${Math.round(w)}x${Math.round(h)} ${el.className || el.localName}${by ? ` under ${by}` : ""}` +
+              ` in ${el.closest("[id]")?.id ?? el.getRootNode().host?.closest?.("[id]")?.id ?? "?"}`,
           );
       }
-      for (const el of root.querySelectorAll("*"))
+      for (const el of [root, ...root.querySelectorAll("*")])
         if (el.shadowRoot) sweep(el.shadowRoot);
     };
-    sweep(document);
+    for (const root of roots) sweep(root);
     return { floor, seen, short };
   }
 
@@ -218,7 +301,7 @@
       // exemption: its box is being rewritten alongside the group's pressable rule, and
       // this line goes with that change. It stands at 11x11 today.
       if (el.classList.contains("lf-pick")) continue;
-      const { box, w, h, by } = aim(el);
+      const { box, w, h, by } = aim(el, floor);
       if (!box.width || !box.height) continue;
       const name =
         (el.className || el.tagName).toString().trim().split(/\s+/)[0] +

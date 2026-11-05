@@ -19,19 +19,25 @@ const message = (id, extra = {}) => ({
   author: "agent",
   agent: "Agent",
   kind: "reply",
+  text: `Words of ${id}.`,
   // The served content version: its latest rewrite's id, else its own.
   content_version: extra.edited?.id ?? id,
   ...extra,
 });
+// A notice's parts as the live region hears them.
+const words = (parts) => parts.map((part) => part.text).join("");
+const said = (news) => words(semanticNewsNotice(news));
 const thread = (id, msgs, attention = null) =>
   servedThread(
     msgs.map(({ unread: _unread, ...served }) => served),
     {
       id,
       attention,
-      unread: msgs
-        .filter((item) => item.unread !== false)
-        .map((item) => ({ message: item.id, version: item.content_version })),
+      unread: Object.fromEntries(
+        msgs
+          .filter((item) => item.unread !== false)
+          .map((item) => [item.id, item.content_version]),
+      ),
     },
   );
 const item = (id, thread = null) => ({
@@ -41,31 +47,23 @@ const item = (id, thread = null) => ({
   source: { kind: "widget", id },
   next_actor: "user",
 });
-// A question asked in words, an lf-ask in the agent's message `id`.
+// A question asked in words: the agent's message `id` carrying `obligation`.
 const replyObligation = (id) => ({
   id,
   thread: "t",
   message: id,
-  source: { kind: "widget", id, tag: "lf-ask" },
+  source: { kind: "message", id },
   next_actor: "user",
-});
-const activity = (kind = "away", extra = {}) => ({
-  kind,
-  held: true,
-  reply: null,
-  ...extra,
 });
 const reading = ({
   threads = [],
   pageObligations = [],
   threadObligations = [],
   workflows = [],
-  pageActivity = activity(),
 } = {}) => ({
   obligations: [...pageObligations, ...threadObligations],
   thread: { threads },
   workflows,
-  activity: pageActivity,
 });
 const kinds = (result) => result.news.map((item) => item.kind);
 const responseFailure = (source, kind = "failed") =>
@@ -149,7 +147,7 @@ test("structural questions own their thread obligation and reopening starts a ne
     reopened.news.map(({ kind, thread, source }) => [kind, thread, source]),
     [["user_obligation", "t", "choice"]],
   );
-  assert.equal(semanticNewsNotice(reopened.news), "Input needed");
+  assert.equal(said(reopened.news), "New on me");
   const queued = combineSemanticNews(first.news, reopened.news);
   assert.equal(queued.length, 4);
   const current = currentSemanticNews(queued, reopenedReading, reopened.observed);
@@ -160,7 +158,7 @@ test("structural questions own their thread obligation and reopening starts a ne
       ["user_obligation", "t", "choice"],
     ],
   );
-  assert.equal(semanticNewsNotice(current), "2 waiting on me");
+  assert.equal(said(current), "2 new on me");
   assert.deepEqual(combineSemanticNews(reopened.news, reopened.news), reopened.news);
   assert.deepEqual(observeSemanticNews(reopened.observed, owed).news, []);
 });
@@ -219,8 +217,8 @@ test("current content versions and admitted messages determine arrivals", () => 
   assert.equal(changed.news[0].version, "last-edit");
   assert.equal(changed.news[0].message.id, "original");
   assert.equal(
-    semanticNewsNotice(currentSemanticNews(changed.news, next, changed.observed)),
-    "Agent edited a reply; Response failed",
+    said(currentSemanticNews(changed.news, next, changed.observed)),
+    "Edited: Words of original. · Not answered",
   );
   const same = observeSemanticNews(
     changed.observed,
@@ -278,13 +276,10 @@ test("a response failure announces once per attempt and retrying is not recovery
   );
   assert.deepEqual(stale.news, []);
   const interruptedReading = reading({
-    pageActivity: activity("working", {
-      reply: { attempt: "attempt", state: "interrupted", responds: "input" },
-    }),
     workflows: [responseFailure({ attempt: "attempt" }, "interrupted")],
   });
   const failed = observeSemanticNews(stale.observed, interruptedReading);
-  assert.deepEqual(kinds(failed), ["response_failure", "agent_available"]);
+  assert.deepEqual(kinds(failed), ["response_failure"]);
   assert.deepEqual(
     failed.news
       .filter(({ kind }) => kind === "response_failure")
@@ -296,17 +291,13 @@ test("a response failure announces once per attempt and retrying is not recovery
     failed.observed,
     reading({
       workflows: [responseFailure({ attempt: "another-attempt" }, "interrupted")],
-      pageActivity: activity("working"),
     }),
   );
   assert.deepEqual(kinds(anotherAttempt), ["response_failure"]);
-  assert.equal(combineSemanticNews(failed.news, anotherAttempt.news).length, 3);
+  assert.equal(combineSemanticNews(failed.news, anotherAttempt.news).length, 2);
   const retrying = observeSemanticNews(
     anotherAttempt.observed,
     reading({
-      pageActivity: activity("working", {
-        reply: { attempt: "attempt", state: "active", responds: "input" },
-      }),
       workflows: [],
     }),
   );
@@ -315,7 +306,6 @@ test("a response failure announces once per attempt and retrying is not recovery
     retrying.observed,
     reading({
       threads: [thread("t", [message("answered", { responds: "input", seq: 4 })])],
-      pageActivity: activity("working"),
     }),
   );
   assert.deepEqual(kinds(recovered), ["agent_content"]);
@@ -341,50 +331,6 @@ test("a settled failure before one read cannot announce a stale failure", () => 
   );
 });
 
-test("agent availability is an episode, not a work-stage notice", () => {
-  const baseline = observeSemanticNews(null, reading());
-  const available = observeSemanticNews(
-    baseline.observed,
-    reading({
-      pageActivity: activity("listening"),
-    }),
-  );
-  assert.deepEqual(kinds(available), ["agent_available"]);
-  assert.deepEqual(
-    observeSemanticNews(
-      available.observed,
-      reading({
-        pageActivity: activity("working"),
-      }),
-    ).news,
-    [],
-  );
-  const stalled = observeSemanticNews(
-    available.observed,
-    reading({
-      pageActivity: activity("stalled"),
-    }),
-  );
-  assert.deepEqual(stalled.news, []);
-  const restored = observeSemanticNews(
-    stalled.observed,
-    reading({
-      pageActivity: activity("working"),
-    }),
-  );
-  assert.deepEqual(kinds(restored), ["agent_available"]);
-  const queued = combineSemanticNews(available.news, restored.news);
-  assert.equal(queued.length, 2);
-  assert.deepEqual(
-    currentSemanticNews(
-      queued,
-      reading({ pageActivity: activity("working") }),
-      restored.observed,
-    ),
-    restored.news,
-  );
-});
-
 test("page obligations come from the shown revision, not a waiting activation", () => {
   const shown = reading({ pageObligations: [item("shown")] });
   const waiting = reading({ pageObligations: [item("waiting")] });
@@ -399,29 +345,43 @@ test("page obligations come from the shown revision, not a waiting activation", 
         },
       },
       workflows: [],
-      activity: shown.activity,
     },
   });
   assert.deepEqual(selected.obligations, [item("shown")]);
 });
 
-test("one producer notice states a reply and new obligation as separate facts", () => {
+test("a new message speaks for itself, with what it asks of the user", () => {
   const baseline = observeSemanticNews(null, reading());
   const current = reading({
     threadObligations: [replyObligation("answer")],
     threads: [
-      thread("t", [message("answer", { agent: "Sam" })], {
-        kind: "needs_user",
-        reason: "obligation",
-      }),
+      thread(
+        "t",
+        [message("answer", { agent: "Sam", text: "Does this answer your question?" })],
+        {
+          kind: "needs_user",
+          reason: "obligation",
+        },
+      ),
     ],
   });
   const result = observeSemanticNews(baseline.observed, current);
   assert.equal(
-    semanticNewsNotice(currentSemanticNews(result.news, current, result.observed)),
-    "Sam replied; Input needed",
+    said(currentSemanticNews(result.news, current, result.observed)),
+    "Does this answer your question?",
   );
   assert.deepEqual(combineSemanticNews(result.news, result.news), result.news);
+  // Something else new on the user's list is its own fact, counted by the list's name.
+  const more = reading({
+    pageObligations: [item("elsewhere")],
+    threadObligations: [replyObligation("answer")],
+    threads: current.thread.threads,
+  });
+  const both = observeSemanticNews(baseline.observed, more);
+  assert.equal(
+    said(currentSemanticNews(both.news, more, both.observed)),
+    "Does this answer your question? · New on me",
+  );
 });
 
 test("deferred news drops superseded failures and edits", () => {
@@ -449,27 +409,53 @@ test("deferred news drops superseded failures and edits", () => {
       ["agent_content", "t", "recovered"],
     ],
   );
-  assert.equal(semanticNewsNotice(current), "2 replies in 1 thread");
+  assert.equal(said(current), "2 replies in 1 thread");
 });
 
-test("deferred failure wording follows its current condition and stale availability disappears", () => {
+test("a notice sets the agent's words apart from Leaf's news", () => {
+  // The agent's words stand as it wrote them, and its acts as Leaf relays them; what
+  // became of an answer and what else is new are Leaf's, in italic where the seat
+  // draws them.
+  const voices = (news) =>
+    semanticNewsNotice(news).map((part) => [part.text, part.voice]);
+  assert.deepEqual(
+    voices([
+      { kind: "agent_content", key: "content:m1", thread: "a", message: message("m1") },
+      { kind: "response_failure", key: "failure:f1", condition: "failed" },
+      { kind: "user_obligation", key: "obligation:o1", message: "another" },
+    ]),
+    [
+      ["Words of m1.", "agent"],
+      [" · ", "leaf"],
+      ["Not answered", "leaf"],
+      [" · ", "leaf"],
+      ["New on me", "leaf"],
+    ],
+  );
+  const edited = message("m2", { edited: { id: "edit", seq: 2 } });
+  assert.deepEqual(
+    voices([
+      { kind: "agent_content", key: "content:m2", thread: "a", message: edited },
+    ]),
+    [["Edited: Words of m2.", "agent"]],
+  );
+  assert.deepEqual(semanticNewsNotice([]), []);
+});
+
+test("deferred failure wording follows its current condition and a cleared failure disappears", () => {
   const baseline = observeSemanticNews(null, reading());
   const interrupted = observeSemanticNews(
     baseline.observed,
     reading({
       workflows: [responseFailure({ attempt: "attempt" }, "interrupted")],
-      pageActivity: activity("working"),
     }),
   );
   const latest = reading({
     workflows: [responseFailure({ attempt: "attempt" }, "failed")],
-    pageActivity: activity("away"),
   });
   assert.equal(
-    semanticNewsNotice(
-      currentSemanticNews(interrupted.news, latest, interrupted.observed),
-    ),
-    "Response failed",
+    said(currentSemanticNews(interrupted.news, latest, interrupted.observed)),
+    "Not answered",
   );
   assert.deepEqual(
     currentSemanticNews(interrupted.news, reading(), interrupted.observed),
@@ -492,8 +478,8 @@ test("agent content is news while it is unread, including on the first reading",
     [["agent_content", "t", "away"]],
   );
   assert.equal(
-    semanticNewsNotice(currentSemanticNews(opened.news, waiting, opened.observed)),
-    "Agent replied",
+    said(currentSemanticNews(opened.news, waiting, opened.observed)),
+    "Words of away.",
   );
   // Taken in before the notice could show — here, or in another tab — it drops out.
   const taken = reading({
@@ -576,7 +562,7 @@ test("held producer batches preserve interrupted news and merge later arrivals",
     await delivered.promise;
   };
   await announce(news.slice(0, 2));
-  assert.equal(noticeReading().message, "2 replies in 2 threads");
+  assert.equal(words(noticeReading().message), "2 replies in 2 threads");
   assert.equal(noticeReading().visible, true);
   holdStatus(10000);
   assert.equal(noticeReading().visible, false);
@@ -584,13 +570,13 @@ test("held producer batches preserve interrupted news and merge later arrivals",
   assert.equal(noticeReading().visible, false);
   assert.deepEqual(announcements, [
     "2 replies in 2 threads",
-    "Codex replied",
-    "Codex replied",
+    "Words of queued-2.",
+    "Words of queued-3.",
   ]);
   const before = [...announcements];
   holdStatus(1);
   t.mock.timers.tick(1);
-  assert.equal(noticeReading().message, "4 replies in 2 threads");
+  assert.equal(words(noticeReading().message), "4 replies in 2 threads");
   assert.equal(noticeReading().visible, true);
   t.mock.timers.tick(30);
   await window.happyDOM.whenAsyncComplete();

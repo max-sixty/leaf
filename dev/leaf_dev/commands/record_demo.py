@@ -27,11 +27,13 @@ import click
 from PIL import Image
 from playwright.sync_api import Page
 
+from leaf import inference, thread_titles
 from leaf.delivery import freeze_delivery, receive_held
 from leaf.harness import detached_environment, session_harness
 from leaf.hook_transport import read_plans
 from leaf.hosting import claim_and_start, cmd_stop
-from leaf.projection import folded_positions
+from leaf.interaction_log import read_interactions
+from leaf.projection import AuthoredOrders, folded_positions
 from leaf.publishing import cmd_stamp
 from leaf.render_checks import wait_until_ready
 from leaf.render_gate.scheme import rendered_revision
@@ -44,22 +46,32 @@ from leaf.thread import post_reply
 from leaf.todos import cmd_start
 from leaf.vendoring import cmd_init
 from leaf_dev import LEAF_COMMAND
-from leaf_dev.browser import headless_shell, settle, tab
+from leaf_dev.arms import PageClient
+from leaf_dev.browser import (
+    Window,
+    headless_shell,
+    open_threads,
+    panel_view,
+    screenshot,
+    settle,
+    tab,
+)
 from leaf_dev.leaf_assets import publish, stage
+from leaf_dev.page_fixtures import fixture_environment
 from leaf_dev.recording import write_gif
 
-GIF_SIZE = (1120, 700)
-# The viewport used for the README's representative stills.
-STILL_SIZE = (1280, 953)
+GIF_WINDOW = Window((1120, 700))
+# The window the README's representative stills are shot in.
+STILL_WINDOW = Window((1280, 953))
 # The card a shared link unfurls into, shot at the 1.91:1 an unfurler draws rather
 # than cropped from a still, which cut off Leaf's chrome.
-CARD_SIZE = (1200, 630)
+CARD_WINDOW = Window((1200, 630))
 # What one staged scene is photographed as: the README's light and dark stills,
 # and the card.
 STILLS = (
-    ("session-light", STILL_SIZE, "light"),
-    ("session-dark", STILL_SIZE, "dark"),
-    ("session-card", CARD_SIZE, "light"),
+    ("session-light", STILL_WINDOW, "light"),
+    ("session-dark", STILL_WINDOW, "dark"),
+    ("session-card", CARD_WINDOW, "light"),
 )
 
 
@@ -98,15 +110,15 @@ def folded_board(page_dir: Path) -> dict[str, list[str]]:
     with PageTransaction(page_dir) as page:
         context = read_page(page_dir, page.events)
         state, reading, _ = read_served_page(context)
+        assert reading is not None
         document = reading.documents[state["active"]["revision"]]
         registry = context.registry
+        assert registry is not None
         order = folded_positions(
             "punch-list",
             "move",
             registry["lf-board"]["x-state"]["move"]["record"],
-            document.document.by_id,
-            document.spoken,
-            registry,
+            AuthoredOrders(document.document.by_id, registry),
             document.projection,
         )
         return {column: order[column] for column, _label in COLUMNS}
@@ -252,7 +264,9 @@ class DemoWaiter:
             payload = freeze_delivery(
                 [plan.batch for plan in read_plans(harness.session) if plan.batch]
             )
-            receive_held(payload, harness.session, session_record(harness.session))
+            record = session_record(harness.session)
+            assert record is not None
+            receive_held(payload, harness.session, record)
         else:
             payload = json.loads(stdout)
         batches = payload.get("batches", [])
@@ -281,21 +295,11 @@ class DemoWaiter:
             self.process.wait(timeout=5)
 
 
-def wait_for_listening(page: Page) -> dict:
-    """Hold the canonical listening reading and wait for the page to present it."""
-    # Polled here: `wait_for_function` takes an async predicate's promise as a truthy
-    # answer and returns at once.
+def wait_for_listening(page: Page, client: PageClient) -> dict:
+    """Wait until the server reads the demo's agent as listening and the page has
+    applied that reading, and return it."""
     deadline = time.monotonic() + 30
-    while True:
-        state = page.evaluate(
-            """async () => {
-            const response = await fetch('/api/state');
-            if (!response.ok) throw new Error(`Leaf state: HTTP ${response.status}`);
-            return response.json();
-        }"""
-        )
-        if state["activity"]["kind"] == "listening":
-            break
+    while (state := client.state())["activity"]["kind"] != "listening":
         if time.monotonic() > deadline:
             raise click.ClickException(
                 f"the page never listened; its activity is {state['activity']!r}"
@@ -305,27 +309,57 @@ def wait_for_listening(page: Page) -> dict:
     return state
 
 
+# The interaction rows a page server writes as its request for a thread's title ends.
+TITLE_ENDS = ("thread_title_generated", "thread_title_failed", "thread_title_skipped")
+
+
+def wait_for_title(page_dir: Path) -> None:
+    """Wait until the page server has written the title the harness's model gave the
+    demo's one thread (`thread_titles.name_admitted_thread`), or fail with what its
+    request recorded. The model words the title afresh each run. A request ends by its
+    last retry for rate limits plus one request's time."""
+    patience = thread_titles.RETRY_FOR + inference.TIMEOUT
+    deadline = time.monotonic() + patience
+    # The reader keeps its own gap rows under any type filter.
+    while not (
+        ended := [
+            row
+            for row in read_interactions(page_dir, types=TITLE_ENDS)
+            if row["type"] in TITLE_ENDS
+        ]
+    ):
+        if time.monotonic() > deadline:
+            raise click.ClickException(
+                f"no request for the thread's title ended in {patience} s"
+            )
+        time.sleep(0.2)
+    # A generated title the server didn't write leaves the thread untitled.
+    if ended[0]["type"] != "thread_title_generated" or not ended[0]["written"]:
+        raise click.ClickException(f"the demo's thread got no title: {ended[0]}")
+
+
 def record(
-    page: Page, waiter: DemoWaiter, page_dir: Path
+    page: Page, client: PageClient, waiter: DemoWaiter, page_dir: Path
 ) -> tuple[list[Image.Image], list[int]]:
     frames: list[Image.Image] = []
     durations: list[int] = []
 
     def shot(duration: int) -> None:
-        png = page.screenshot(animations="disabled", caret="hide")
-        frames.append(Image.open(io.BytesIO(png)).convert("RGB"))
+        # Each frame shows the page once it has applied the server's current reading.
+        wait_until_ready(page, client.state())
+        frames.append(Image.open(io.BytesIO(screenshot(page))).convert("RGB"))
         durations.append(duration)
 
     # The page's own readiness, not the document's stamp: a gesture taken before the
     # log's replay finishes reads a half-written page.
-    wait_for_listening(page)
+    wait_for_listening(page, client)
     live_url = page.url
     shot(1600)
 
     select_text(page, "#p2", "Backfill history")
     # The panel's field offers the selected words, quoting them. A press there opens
     # their comment before typing, then the focused field sends with Mod+Enter.
-    page.locator('.lf-fp-field leaf-text[data-says="selection"]').click()
+    page.locator('.lf-fp-field leaf-text[data-lf-says="selection"]').click()
     field = page.locator(".lf-fab-input")
     field.focus()
     page.keyboard.insert_text("Can the backfill stay online?")
@@ -337,22 +371,26 @@ def record(
 
     field.press("ControlOrMeta+Enter")
     page.wait_for_selector(".lf-margin-thread")
-    shot(1500)
-    page.locator(".lf-fp-threads").click()
-    thread = page.locator(".lf-fp-view[data-view=threads] .lf-fp-thread").first
-    thread.wait_for()
-
+    # The agent takes the comment, says what it is doing and waits again, and Leaf
+    # titles its thread, before the frame. The wait ends the moment the comment
+    # arrives, so a frame taken sooner read Ready or Away by how far it had got, and
+    # later ones caught the title on its way.
     comment_id = next(
         event["id"] for event in waiter.receive() if event["kind"] == "comment"
     )
     cmd_start(page_dir, comment_id, "answering the backfill question")
+    wait_for_title(page_dir)
     # The floating panel's empty field says what the agent is doing, once any passing
     # notice has had its seat.
     page.wait_for_function(
         """() => document.querySelector(
-            '.lf-fp-field leaf-text[data-says="status"]'
+            '.lf-fp-field leaf-text[data-lf-says="status"]'
         )?.getAttribute('placeholder')?.includes('answering')"""
     )
+    shot(1500)
+    open_threads(page)
+    thread = page.locator(f"{panel_view('threads')} .lf-fp-thread").first
+    thread.wait_for()
     shot(900)
 
     post_reply(
@@ -373,7 +411,7 @@ def record(
     wait_until_ready(page)
     # The thread opened from Threads shows its answer in the floating panel's view.
     thread.click()
-    page.locator(".lf-fp-view[data-view=thread] .lf-msg.agent").get_by_text(
+    page.locator(f"{panel_view('thread')} .lf-msg[data-lf-author=agent]").get_by_text(
         "Yes. The fixed rate limit keeps the backfill online.", exact=True
     ).wait_for(state="visible")
     shot(2300)
@@ -387,8 +425,10 @@ def record(
     applied_before_move = page.locator("body").get_attribute("data-lf-applied")
     grip = page.locator("#card-oncall .lf-grip").bounding_box()
     destination = page.locator("#col-during").bounding_box()
+    assert grip is not None
     page.mouse.move(grip["x"] + grip["width"] / 2, grip["y"] + grip["height"] / 2)
     page.mouse.down()
+    assert destination is not None
     page.mouse.move(
         destination["x"] + destination["width"] / 2,
         destination["y"] + destination["height"] / 2,
@@ -396,17 +436,13 @@ def record(
     )
     page.mouse.up()
     page.wait_for_selector("#col-during #card-oncall")
-    # The floating panel's field acknowledges the move in its status's place.
-    page.wait_for_function(
-        """() => document.querySelector(
-            '.lf-fp-field leaf-text[data-says="notice"]'
-        )?.getAttribute('placeholder')?.startsWith('Moved to During')"""
-    )
-    shot(2400)
+    # The last frame shows the page once it has applied the server's reading of the
+    # move, so what that reading draws stands in every recording.
     page.wait_for_function(
         "before => document.body.getAttribute('data-lf-applied') !== before",
         arg=applied_before_move,
     )
+    shot(2400)
     if "card-oncall" not in folded_board(page_dir)["col-during"]:
         raise RuntimeError("the board move did not reach the page's current log")
     return frames, durations
@@ -426,11 +462,12 @@ def shoot_stills(browser, url: str, page_dir: Path, into: Path) -> None:
     cmd_stamp(page_dir, "On-call staffing moved into During, as the board now reads")
     cmd_waiting(page_dir)
 
-    for name, size, scheme in STILLS:
-        with tab(browser, size, scheme) as page:
+    client = PageClient(url)
+    for name, window, scheme in STILLS:
+        with tab(browser, window, scheme) as page:
             page.goto(url)
             # Hold the server's state and authored revision before taking the still.
-            state = wait_for_listening(page)
+            state = wait_for_listening(page, client)
             revision = rendered_revision(url, state)
             page.wait_for_function(
                 "revision => document.querySelector("
@@ -438,22 +475,21 @@ def shoot_stills(browser, url: str, page_dir: Path, into: Path) -> None:
                 ")?.content === String(revision)",
                 arg=revision,
             )
-            page.locator(".lf-fp-threads").click()
-            page.locator(".lf-fp-filters button", has_text="Open").click()
+            open_threads(page)
             page.locator(".lf-fp-thread").first.click()
-            page.wait_for_selector(".lf-fp-view[data-view=thread] .lf-msg.agent")
+            page.wait_for_selector(
+                f"{panel_view('thread')} .lf-msg[data-lf-author=agent]"
+            )
             page.locator("#top").scroll_into_view_if_needed()
             settle(page)
-            page.screenshot(
-                path=into / f"{name}.png", animations="disabled", caret="hide"
-            )
+            (into / f"{name}.png").write_bytes(screenshot(page))
 
 
 @contextmanager
 def demo_session(scratch: Path):
     """Own the recorder's state and delivery loop, independently of its invoking agent."""
     previous = os.environ.copy()
-    recording_environment = detached_environment(None) | {
+    recording_environment = fixture_environment(detached_environment(None)) | {
         "XDG_STATE_HOME": str(scratch / "state"),
         "CLAUDE_CODE_SESSION_ID": f"leaf-demo-{uuid4()}",
         "CLAUDE_PID": str(os.getpid()),
@@ -494,10 +530,10 @@ def record_demo(output: Path | None) -> None:
         try:
             with (
                 headless_shell() as browser,
-                tab(browser, GIF_SIZE) as page,
+                tab(browser, GIF_WINDOW) as page,
             ):
                 page.goto(url)
-                frames, durations = record(page, waiter, page_dir)
+                frames, durations = record(page, PageClient(url), waiter, page_dir)
                 write_gif(frames, durations, recording / "demo.gif")
                 shoot_stills(browser, url, page_dir, recording)
         finally:

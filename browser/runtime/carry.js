@@ -16,7 +16,7 @@
  * has moved. Continuity keeps no sideways place, so a region's sideways offset crosses
  * here like any other box's. A box in skipped content (a tab not chosen, a closed
  * disclosure) carries no offset at all: reading one would make the browser style and
- * lay out all of that content first (`skipped`, geometry.js), a pass per hidden panel
+ * lay out all of that content first (`skipped`, shown-box.js), a pass per hidden panel
  * on every revision.
  * Restoring this state creates no event and leaves draft values unsent.
  *
@@ -26,20 +26,26 @@
  * Modules restore their own stored state, such as tabs and drafts, through their own
  * lifecycles. `version.js` owns when capture and restoration run for each install.
  */
+import { setScroll } from "./arrivals.js";
 import { focusDestination, readCaret, focused } from "./focus.js";
 import { TEXT_BOX } from "./control-selectors.js";
-import { skipped } from "./geometry.js";
+import { skipped } from "./shown-box.js";
+import { isHTML } from "./shadow-tree.js";
 import { readingRegions } from "./reading-regions.js";
+import { elementById, inPage, pageDocument } from "./passages.js";
 
-/** @returns {node is HTMLInputElement | HTMLTextAreaElement | HTMLElementTagNameMap["leaf-text"]} */
+/** @param {Element} node @returns {node is HTMLInputElement | HTMLTextAreaElement | HTMLElementTagNameMap["leaf-text"]} */
 const holdsValue = (node) =>
-  node.matches(TEXT_BOX) || (node.tagName === "INPUT" && node.type !== "file");
-/** @returns {node is HTMLInputElement} */
+  isHTML(node) &&
+  (node.matches(TEXT_BOX) || (isHTML(node, "input") && node.type !== "file"));
+/** @param {Element} node @returns {node is HTMLInputElement} */
 const holdsTick = (node) =>
-  node.tagName === "INPUT" && (node.type === "checkbox" || node.type === "radio");
+  isHTML(node, "input") && (node.type === "checkbox" || node.type === "radio");
 
 // Capture before replacement. JSON records can cross a reload; held nodes remain local
 // so an in-place install can skip restoration on the nodes it kept.
+/** @typedef {{id: string, name: string, focus?: boolean, part?: string, partName?: string, open?: boolean, scrollTop?: number, scrollLeft?: number, value?: string, checked?: boolean, caret?: import("./focus.js").Caret}} CarryRecord */
+/** @param {ParentNode} root @param {ParentNode} authored */
 export function captureCarry(root, authored) {
   const active = focused(document);
   const partOwner = active?.hasAttribute("data-lf-carry")
@@ -49,25 +55,29 @@ export function captureCarry(root, authored) {
   const held = new Map();
   const regionBodies = new Set(readingRegions().map(({ body }) => body));
   for (const node of root.querySelectorAll("[id]")) {
+    if (!inPage(node)) continue;
     const wrote = authored.querySelector(`#${CSS.escape(node.id)}`);
     if (wrote?.localName !== node.localName) continue;
+    /** @type {CarryRecord} */
     const record = { id: node.id, name: node.localName };
-    const focusPart = node === partOwner;
+    const focusPart = active && node === partOwner ? active : null;
     if (node === active || focusPart) {
       record.focus = true;
       if (focusPart) {
-        record.part = active.getAttribute("data-lf-carry");
-        record.partName = active.localName;
+        const part = focusPart.getAttribute("data-lf-carry");
+        if (part !== null) record.part = part;
+        record.partName = focusPart.localName;
       }
     }
-    if (node.localName === "details" && node.open !== wrote.open)
+    if (isHTML(node, "details") && isHTML(wrote, "details") && node.open !== wrote.open)
       record.open = node.open;
     if (!skipped(node)) {
       if (node.scrollTop && !regionBodies.has(node)) record.scrollTop = node.scrollTop;
       if (node.scrollLeft) record.scrollLeft = node.scrollLeft;
     }
-    if (holdsValue(node) && node.value !== wrote.value) record.value = node.value;
-    if (holdsTick(node) && node.checked !== wrote.checked)
+    if (holdsValue(node) && holdsValue(wrote) && node.value !== wrote.value)
+      record.value = node.value;
+    if (holdsTick(node) && holdsTick(wrote) && node.checked !== wrote.checked)
       record.checked = node.checked;
     if (node === active || focusPart) {
       const caret = readCaret(active);
@@ -86,30 +96,35 @@ export function captureCarry(root, authored) {
 // upgrade: their focus joins scroll in the returned post-layout correction, which
 // runs while the install still owns navigation.
 // Kept nodes never lost their state, and a changed tag is a different control.
+/** @param {readonly CarryRecord[] | null | undefined} records
+ * @param {ReadonlyMap<string, Element>} [held]
+ * @param {(move: () => void) => unknown} [handoffFocus] */
 export function restoreCarry(
   records,
   held = new Map(),
   handoffFocus = (move) => move(),
 ) {
+  /** @type {{arrived: Element, record: CarryRecord}[]} */
   const positions = [];
   for (const record of records ?? []) {
-    const arrived = document.getElementById(record.id);
+    const arrived = elementById(record.id, pageDocument());
     if (!arrived || arrived === held.get(record.id)) continue;
     if (arrived.localName !== record.name) continue;
     // Only a disclosure's record says whether it was open.
-    if (record.open !== undefined)
-      /** @type {HTMLDetailsElement} */ (arrived).open = record.open;
+    if (record.open !== undefined && isHTML(arrived, "details"))
+      arrived.open = record.open;
     if (record.value !== undefined && holdsValue(arrived)) arrived.value = record.value;
     if (record.checked !== undefined && holdsTick(arrived))
       arrived.checked = record.checked;
-    positions.push([arrived, record]);
+    positions.push({ arrived, record });
   }
   // Values and disclosures are owed even when a connected widget took focus during
   // replacement. Only focus yields to that newer owner; its handoff keeps the same
   // input generation and adopts the synchronous transfer when still permitted.
+  /** @param {boolean} parts */
   const restoreFocus = (parts) =>
     handoffFocus(() => {
-      for (const [arrived, record] of positions) {
+      for (const { arrived, record } of positions) {
         if (!record.focus || (record.part !== undefined) !== parts) continue;
         const target =
           record.part === undefined
@@ -123,18 +138,26 @@ export function restoreCarry(
                   node.parentElement?.closest("[id]") === arrived &&
                   node.localName === record.partName,
               );
-        if (target) focusDestination(target, "return", { caret: record.caret });
+        if (target)
+          focusDestination(
+            target,
+            "return",
+            record.caret ? { caret: record.caret } : {},
+          );
       }
     });
   restoreFocus(false);
   return () => {
-    for (const [arrived, record] of positions) {
+    for (const { arrived, record } of positions) {
       if (!arrived.isConnected) continue;
-      if (record.scrollTop) arrived.scrollTop = record.scrollTop;
-      if (record.scrollLeft) arrived.scrollLeft = record.scrollLeft;
+      if (record.scrollTop || record.scrollLeft)
+        setScroll(arrived, {
+          top: record.scrollTop || arrived.scrollTop,
+          left: record.scrollLeft || arrived.scrollLeft,
+        });
     }
     // Initial generated controls have boxes but stay hidden until upgrade
-    // (theme.css). Their focus joins the post-layout correction; authored fields
+    // (base.css). Their focus joins the post-layout correction; authored fields
     // already took focus above so typing can continue while presentation is held.
     restoreFocus(true);
   };

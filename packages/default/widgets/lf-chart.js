@@ -13,9 +13,9 @@
  * What the host adds is what a drawing needs from the page it sits in. It is drawn for the
  * room it has and drawn again when that room changes, since a drawing scaled into a new
  * box takes its labels below legibility with it: the width is the host's, and the body
- * reads it to fit its ticks to the room. The height is stated (x-height, or the
- * occurrence's data-height, painted as data-lf-height), and the page lays that box out
- * before the drawing arrives, so the drawing and any legend Plot sets beside it are
+ * reads it to fit its ticks to the room. The height is the box's too: on a Leaf page it
+ * is stated (x-height, or the occurrence's data-height), and the theme holds the box at
+ * it before the drawing arrives, so the drawing and any legend Plot sets beside it are
  * drawn to fill it and move nothing below it. Its type and ink are the theme's, and so
  * are its series colours, because Plot takes `var(--series-N)` wherever it takes a colour. A user
  * who cannot see it hears Plot's `ariaLabel` in its place. It is one comment target,
@@ -23,30 +23,40 @@
  *
  * The vendored bundle loads once, on the first draw rather than with this module: a chart
  * in a shut panel has no box, so measure holds its draw, and the 384KB bundle waits with
- * it instead of loading in front of a user who never opens that panel. */
+ * it instead of loading in front of a user who never opens that panel.
+ *
+ * It imports only the helpers that load in any document, so a plain HTML page that maps
+ * `/runtime/` and `/vendor/` draws it too, into the box that page gives it. A
+ * Leaf page hears its drawing and its refusals from outside it: the drawing under way
+ * as a `pending-task` event, which holds the page's presentation until it is in, and a
+ * refusal as the `error` event `failSoft` dispatches, which the page reports to the
+ * author. */
 import {
+  PendingTaskEvent,
   bodyText,
-  frameFor,
   whileConnected,
   failSoft,
   inBaseLayer,
   measure,
   once,
   sizeObserver,
-  widgetController,
-} from "/runtime/widget-api.js";
+} from "/runtime/portable-api.js";
 
 let plotReady;
 const loadPlot = () => (plotReady ??= import("/vendor/plot.esm.js"));
 
 /* The body as a function of Plot and the width, which returns the chart's options. The
  * newline before the closing parenthesis ends a trailing line comment. */
+/** @param {string} source */
 const compile = (source) =>
   new Function("Plot", "width", `"use strict";\nreturn (\n${source}\n);`);
 
 /* The options one drawing is made from, made afresh for each so that no mark Plot has
  * already rendered is handed to it a second time. */
+/** @param {Function} body @param {typeof import("@observablehq/plot")} Plot
+ * @param {number} width @param {number} height */
 function drawOptions(body, Plot, width, height) {
+  /** @type {import("@observablehq/plot").PlotOptions} */
   const spec = body(Plot, width);
   // Plot's own examples end in Plot.plot(...), which returns the drawing rather than
   // its options, at a width the body chose.
@@ -70,7 +80,9 @@ function drawOptions(body, Plot, width, height) {
  * function there, such as a dy chosen per datum to keep end labels apart, becomes NaN,
  * and all the page hears is the browser's "Trailing garbage" about a transform, logged
  * from Plot's bundle. The chart names the mark and the option instead. */
+/** @type {("dx" | "dy" | "marginTop" | "marginRight" | "marginBottom" | "marginLeft")[]} */
 const OFFSETS = ["dx", "dy", "marginTop", "marginRight", "marginBottom", "marginLeft"];
+/** @param {import("@observablehq/plot").Markish} marks @param {string} [place] */
 function offsetsAreNumbers(marks, place = "marks") {
   if (!Array.isArray(marks)) return;
   marks.forEach((mark, index) => {
@@ -88,6 +100,13 @@ function offsetsAreNumbers(marks, place = "marks") {
 customElements.define(
   "lf-chart",
   class extends HTMLElement {
+    // The height every drawing takes, read at the first (`paint`).
+    /** @type {number | undefined} */
+    #height;
+    drawing = document.createElement("div");
+    /** @type {number | undefined} */
+    drawn;
+
     connectedCallback() {
       if (!once(this)) return;
       // A chart is drawn to the room it has, so the first draw waits for a box. On the
@@ -95,7 +114,7 @@ customElements.define(
       // view restore and the first anchor pass until the drawing is in and the page's
       // geometry is final. In a shut panel there is no box at all and measure holds the
       // draw instead of the page.
-      measure(this, () => widgetController(this).present(this.draw()));
+      measure(this, () => this.dispatchEvent(new PendingTaskEvent(this.draw())));
     }
 
     async draw() {
@@ -110,19 +129,19 @@ customElements.define(
         // The box each drawing goes in. A redraw replaces what is in it and nothing else,
         // because by then the runtime may have hung its own words on the widget — the
         // line saying a comment stands on this chart is a child of the element.
-        this.drawing = document.createElement("div");
         this.drawing.className = "lf-chart-drawing";
         this.replaceChildren(this.drawing);
         this.paint(Plot, body);
         this.classList.add("lf-rendered");
         // Only the width is watched, and only when it lands on a new whole pixel; the
-        // height is stated and stays. The redraw is scheduled after ResizeObserver
-        // delivery, so the layout a paint reads never lands inside the delivery cycle
-        // that asked for it, which the browser reports as undelivered notifications.
+        // height is the first drawing's and stays. Draw during resize delivery so
+        // labels fit the new width in the same paint. The fixed drawing height
+        // keeps this redraw from resizing the host it watches.
         // A failed redraw ends the watch: the failure replaced the drawing, and a
         // chart that returns to the page keeps showing it rather than drawing again.
+        /** @type {() => void} */
         let stop;
-        const paint = frameFor(this, () => {
+        const paint = () => {
           if (!this.clientWidth || Math.round(this.clientWidth) === this.drawn) return;
           try {
             this.paint(Plot, body);
@@ -130,7 +149,7 @@ customElements.define(
             stop();
             failSoft(this, err, source);
           }
-        });
+        };
         stop = whileConnected(this, () => {
           const watching = sizeObserver(paint);
           watching.observe(this);
@@ -141,9 +160,14 @@ customElements.define(
       }
     }
 
+    // Drawn to the box's height as well as its width. The height is read once, at the
+    // first drawing, while the page still holds the box at it: once drawn the box is
+    // the drawing's, and a box a grid or flex row stretches would hand a redraw the
+    // row's height, a taller neighbour's.
+    /** @param {typeof import("@observablehq/plot")} Plot @param {Function} body */
     paint(Plot, body) {
       const width = Math.round(this.clientWidth);
-      const box = Number(this.getAttribute("data-lf-height"));
+      const box = (this.#height ??= this.clientHeight);
       this.drawing.replaceChildren(this.plot(Plot, body, width, box));
       // A legend Plot sets beside the drawing takes its own height, which only laying it
       // out says, so a chart with one is drawn again into the room the legend leaves.
@@ -153,7 +177,10 @@ customElements.define(
       this.drawn = width;
     }
 
+    /** @param {typeof import("@observablehq/plot")} Plot @param {Function} body
+     * @param {number} width @param {number} height */
     plot(Plot, body, width, height) {
+      /** @type {HTMLElement | SVGSVGElement} */
       let built = Plot.plot(drawOptions(body, Plot, width, Math.max(1, height)));
       // With a legend, Plot returns a <figure> holding it and the drawing. The page gives
       // its own figures margins and reads them as blocks a comment can stand on, and this
@@ -161,7 +188,7 @@ customElements.define(
       // it becomes a plain box, keeping the class Plot styles it by.
       if (built.matches("figure")) {
         const box = document.createElement("div");
-        box.className = built.getAttribute("class");
+        box.className = built.classList.value;
         box.append(...built.childNodes);
         built = box;
       } else {
@@ -182,10 +209,13 @@ customElements.define(
       // `<g>` elements carrying no role, which axe reports as a serious WCAG failure.
       // Kept as data, because what Plot calls each group is the only thing that names
       // one: it is how a test asks for the x axis's words.
-      for (const named of built.querySelectorAll("g[aria-label]")) {
-        named.dataset.lfPart = named.getAttribute("aria-label");
+      for (const named of built.querySelectorAll("g")) {
+        const label = named.getAttribute("aria-label");
+        if (label === null) continue;
+        named.dataset.lfPart = label;
         named.removeAttribute("aria-label");
       }
+      if (!drawing) throw new Error("Plot did not draw its labelled SVG");
       drawing.setAttribute("role", "img");
       // Dependency defaults join the same tier as widget defaults. Leaf's chart
       // face and paper remain stylesheet-owned; authored Plot style options keep

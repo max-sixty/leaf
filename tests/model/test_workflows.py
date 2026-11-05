@@ -8,6 +8,7 @@ from pathlib import Path
 
 import pytest
 from interact_support import (
+    ModelPage,
     _start,
     append_carried_log_record,
     append_command,
@@ -31,6 +32,7 @@ from interact_support import (
 
 from leaf import activity as activity_model
 from leaf import delivery as delivery_model
+from leaf import event_contracts as event_contracts_model
 from leaf import event_log as events_model
 from leaf import events as event_folds_model
 from leaf import hooks as hooks_model
@@ -42,8 +44,12 @@ from leaf import service as service_model
 from leaf import session as session_model
 from leaf import state as cleanup_model
 from leaf import thread as thread_model
+from leaf.event_meaning import AdmissionReadings
+from leaf.registry import storage as registry_storage
 from leaf.served_state import browser as browser_served_model
 from leaf.served_state import work as work_served_model
+from leaf.thread_context import ThreadStructure
+from leaf.workflows import attention_reading
 
 
 @pytest.mark.parametrize(
@@ -294,8 +300,8 @@ def test_unrelated_agent_update_does_not_clear_an_open_user_obligation(page_dir)
             "author": "agent",
             "parent": root["id"],
             "responds": root["id"],
-            "text": "One question:",
-            "markup": '<lf-ask id="option">Which option?</lf-ask>',
+            "text": "Which option?",
+            "obligation": True,
             "revision": 1,
         },
     )
@@ -324,7 +330,7 @@ def test_unrelated_agent_update_does_not_clear_an_open_user_obligation(page_dir)
 def test_settling_reaction_closes_an_agent_root_obligation(page_dir):
     publish(page_dir)
     question = thread_model.cmd_comment(
-        page_dir, "", "", "", "One question:", '<lf-ask id="forty">Forty?</lf-ask>'
+        page_dir, "", "", "", "Forty?", "", obligation=True
     )
     browser = page_state(page_dir)["browser"]
     [before] = served_thread(browser)["threads"]
@@ -451,7 +457,7 @@ def test_a_frozen_move_that_answers_no_obligation_keeps_a_receipt_and_owes_nothi
     thread the agent's, and the agent's next turn in the thread takes it in."""
     activated = revisioning_model.activate_source(page_dir)
     assert activated.error is None and activated.revision == 1
-    registry = json.loads((page_dir / "registry.json").read_text())
+    registry = registry_storage.active_registry(page_dir)
     asked = append_carried_log_record(
         page_dir,
         {
@@ -461,6 +467,7 @@ def test_a_frozen_move_that_answers_no_obligation_keeps_a_receipt_and_owes_nothi
             "text": "Lay the feeder work out on a board.",
         },
     )
+    assert registry is not None
     append_carried_log_record(
         page_dir,
         {
@@ -575,6 +582,60 @@ def test_a_frozen_move_that_answers_no_obligation_keeps_a_receipt_and_owes_nothi
     assert attention is None
 
 
+def test_settings_the_user_has_not_sent_ask_nothing_of_the_agent():
+    """A verb declaring `unsent`, a playground's tune, is no update: before
+    the submission and while the agent works on it, recording the settings asks for no
+    attention and leaves the submission the agent's one input on the widget."""
+    page = ModelPage(
+        '<lf-ask id="ask"><h2>Which tone?</h2><lf-playground id="tone-playground">'
+        '<lf-playground-control name="tone" label="Tone" kind="choice" value="calm">'
+        '<lf-playground-choice value="calm" label="Calm"></lf-playground-choice>'
+        '<lf-playground-choice value="urgent" label="Urgent"></lf-playground-choice>'
+        "</lf-playground-control>"
+        "<lf-playground-preview><p>Deployed.</p></lf-playground-preview>"
+        "<lf-playground-output>Build it.</lf-playground-output>"
+        "</lf-playground></lf-ask>",
+        packages=("playground",),
+    )
+    log = []
+
+    def admit(event):
+        seq = len(log) + 1
+        log.append(
+            event_contracts_model.admitted_event(
+                page,
+                log,
+                {
+                    "id": f"e{seq}",
+                    "seq": seq,
+                    "ts": "2026-10-30T12:00:00+00:00",
+                    **event,
+                },
+            )
+        )
+        return log[-1]
+
+    action = {"kind": "action", "author": "user", "revision": 1}
+    action |= {"widget": "tone-playground"}
+    tune = {**action, "action": "tune", "detail": {"values": {"tone": "urgent"}}}
+    assert admit(tune)["attention"] is False
+    chosen = admit(
+        {
+            **action,
+            "action": "choose",
+            "detail": {"values": {"tone": "urgent"}, "instruction": "Build it."},
+        }
+    )
+    assert chosen["attention"] is True
+    voice = {"author": "agent", "agent": "Agent", "session": "s"}
+    admit({"kind": "start", **voice, "item": chosen["id"], "text": "Building"})
+    working = attention_reading(AdmissionReadings(page, log, page.registry(1)))
+    assert working["work"] == [{"id": chosen["id"], "inputs": [chosen["id"]]}]
+
+    assert admit({**tune, "detail": {"values": {"tone": "calm"}}})["attention"] is False
+    assert attention_reading(AdmissionReadings(page, log, page.registry(1))) == working
+
+
 def test_thread_attention_names_the_workflow_the_thread_waits_on():
     """A thread's status reads the records open in it, and names the strongest
     workflow serving the one it waits on. An input a newer one covers serves the newer
@@ -621,11 +682,15 @@ def test_thread_attention_names_the_workflow_the_thread_waits_on():
         ),
     ]
     # Only which thread the board widget stands in matters here.
-    frozen = projection_model.FrozenThreadReading(None, {}, {}, {"board": "root"}, None)
+    empty = projection_model.StateProjection(
+        {}, {}, {}, {}, {}, frozenset(), frozenset()
+    )
+    frozen = projection_model.FrozenThreadReading(
+        ThreadStructure(set(), {}, {}), {}, {}, {"board": "root"}, empty
+    )
     todos = [
         {
             "id": "t1",
-            "owner": "agent",
             "subject": {"kind": "thread", "id": "root"},
             "title": "Rebuild",
             "thread": "root",
@@ -708,7 +773,12 @@ def test_served_workflows_list_the_strongest_first():
             ["back", "working"],
         ),
     ]
-    frozen = projection_model.FrozenThreadReading(None, {}, {}, {}, None)
+    empty = projection_model.StateProjection(
+        {}, {}, {}, {}, {}, frozenset(), frozenset()
+    )
+    frozen = projection_model.FrozenThreadReading(
+        ThreadStructure(set(), {}, {}), {}, {}, {}, empty
+    )
     records = obligations_model.collection([handed_back])
     for workflows, expected in cases:
         served = work_served_model.served_workflows(workflows, frozen, records)
@@ -777,7 +847,7 @@ def test_fresh_exact_reply_supersedes_an_older_workflow_condition():
     present = {
         "status": {"state": "idle", "ts": now.isoformat()},
         "claim_session": "session-1",
-        "claim_turn": "turn-1",
+        "turn": "turn-1",
         "cursor": 0,
         "turn_closed": None,
         "listening": True,
@@ -822,10 +892,13 @@ def test_pickup_from_an_older_turn_has_a_stale_work_condition(claimed, capsys):
     assert session_model.cmd_wait(claimed) == 0
     delivered(capsys)
     old = service_model.page_claim(claimed)
+    assert old is not None
     cleanup_model.close_session_turn(old["id"])
     cleanup_model.prompt_turn("s1")
     assert service_model.claim_page(claimed)
-    assert service_model.page_claim(claimed)["turn"] != old["turn"]
+    claim_record = service_model.page_claim(claimed)
+    assert claim_record is not None
+    assert claim_record["turn"] != old["turn"]
 
     [workflow] = page_state(claimed)["workflows"]
     assert workflow["stage"] == "picked_up"
@@ -890,9 +963,10 @@ def test_settling_a_frozen_widget_move_does_not_revive_its_superseded_move(
     page_dir = claimed
     session_model.cmd_waiting(page_dir)
     session = service_model.page_claim(page_dir)
-    lease = leases_model.take_lease(
-        leases_model.waiter_lease_path(page_dir, session["id"])
-    )
+    assert session is not None
+    lease_path = leases_model.waiter_lease_path(page_dir, session["id"])
+    assert lease_path is not None
+    lease = leases_model.take_wait_lease(lease_path)
     assert lease
     activated = revisioning_model.activate_source(page_dir)
     assert activated.error is None and activated.revision == 1

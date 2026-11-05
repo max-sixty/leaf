@@ -23,9 +23,8 @@ def declared_records() -> dict:
     import importlib
     import pkgutil
 
-    import leaf_website
-
     import leaf
+    import leaf_website
     from leaf.state import RECORDS
 
     for package in (leaf, leaf_website):

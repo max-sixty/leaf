@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <title>Skim an incident report, then read the part you need</title>
+    <meta
+      name="description"
+      content="Turn an incident report from each section's gist to every closed detail with Leaf's detail dial, keeping your place as the page closes up or opens out."
+    />
+  </head>
+  <body>
+    <main class="layout-column">
+      <hgroup id="detail-title">
+        <p class="eyebrow">detail package</p>
+        <h1>Why checkout got twice as slow on Tuesday</h1>
+      </hgroup>
+      <p class="lede" id="detail-lede">
+        The 4.2 release added the currency to the cart cache key, so no cached cart
+        matched and every checkout read the cart from Postgres. Rolling the key back
+        restored latency; the lasting fix needs your pick below.
+      </p>
+      <lf-dial id="detail-dial"></lf-dial>
+
+      <section id="detail-impact" class="layout-flow">
+        <h2>Impact</h2>
+        <p class="gist" id="detail-impact-gist">
+          For 3 hours 40 minutes, checkout p99 sat at 410 ms instead of 180 ms; no
+          orders failed, but conversion fell 2.1% against the same hours last week.
+        </p>
+        <p id="detail-impact-1">
+          The slowdown began at 14:02, the minute 4.2 reached the first region, and
+          ended at 17:44 when the rollback finished. Every region was affected once its
+          deploy landed, in the order the release train visits them.
+        </p>
+        <p id="detail-impact-2">
+          Error rates stayed flat: Postgres absorbed the extra reads with headroom to
+          spare, peaking at 61% CPU. The cost was time, which shoppers felt as a pause
+          after pressing Pay. The conversion figure compares the affected hours with the
+          same weekday window a week earlier and carries the usual ±0.8% weekly noise.
+        </p>
+        <table id="detail-impact-table">
+          <thead>
+            <tr>
+              <th>Measure</th>
+              <th>Before</th>
+              <th>During</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Checkout p99</td>
+              <td class="num">180 ms</td>
+              <td class="num">410 ms</td>
+            </tr>
+            <tr>
+              <td>Cart cache hit rate</td>
+              <td class="num">94%</td>
+              <td class="num">3%</td>
+            </tr>
+            <tr>
+              <td>Postgres CPU</td>
+              <td class="num">22%</td>
+              <td class="num">61%</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="detail-cause" class="layout-flow">
+        <h2>Cause</h2>
+        <p class="gist" id="detail-cause-gist">
+          The release appended the currency to the cart's cache key, and nothing warmed
+          the new keys, so the cache missed on every cart until it refilled one shopper
+          at a time.
+        </p>
+        <p id="detail-cause-1">
+          Multi-currency carts needed the currency in the key so a shopper switching
+          currency would not see stale prices. The change was correct for that case.
+          What it missed is that every existing entry became unreachable at once: 1.9
+          million warm carts turned into misses the moment the new code read them.
+        </p>
+        <p id="detail-cause-2">
+          A cold cart refills on its first read, so the hit rate would have recovered on
+          its own as shoppers returned, but most carts are read once per session, and
+          the refill was slower than the rate at which new sessions arrived.
+        </p>
+        <details id="detail-cause-key">
+          <summary>The key, before and after</summary>
+          <pre>
+cart:{user_id}            →  cart:{user_id}:{currency}
+      cart:8812004              →  cart:8812004:EUR</pre>
+        </details>
+      </section>
+
+      <section id="detail-missed" class="layout-flow">
+        <h2>Why the checks missed it</h2>
+        <p class="gist" id="detail-missed-gist">
+          Staging starts every test run with an empty cache, so it measures the cold
+          path both before and after the change and could not see a warm cache go cold.
+        </p>
+        <p id="detail-missed-1">
+          The load test compares p99 against the previous release on the same staging
+          stack. Both runs started cold, so both paid the database read on every cart,
+          and the difference was within noise. Production is the only place the cache is
+          ever warm.
+        </p>
+        <p id="detail-missed-2">
+          The canary region did show the jump, but its alert compares against a fixed
+          500 ms threshold, which 410 ms stayed under.
+        </p>
+      </section>
+
+      <section id="detail-fix" class="layout-flow">
+        <h2>What to do next</h2>
+        <p class="gist" id="detail-fix-gist">
+          Rolling back fixed Tuesday; shipping multi-currency carts again needs either a
+          dual-read migration or a cache warmed before the switch.
+        </p>
+        <lf-ask id="detail-fix-ask" class="gist">
+          <h3>How should 4.3 change the cache key?</h3>
+          <p>
+            Both ship multi-currency carts without a cold cache; they differ in risk and
+            effort.
+          </p>
+          <lf-options id="detail-fix-choice" choose>
+            <lf-option id="detail-fix-dual"
+              ><strong>Read both keys for a week</strong> Two days of work; old entries
+              keep hitting while new ones fill.</lf-option
+            >
+            <lf-option id="detail-fix-warm"
+              ><strong>Warm the new keys before switching</strong> Half a day; one
+              backfill job, but a slow backfill delays the release.</lf-option
+            >
+          </lf-options>
+        </lf-ask>
+        <p id="detail-fix-1">
+          Either way, the canary alert should compare against the previous release
+          rather than a fixed threshold, so a 2× jump fires whatever the absolute
+          number. That change is independent of the choice above and is already in
+          review.
+        </p>
+        <details id="detail-fix-ruled-out">
+          <summary>Ruled out: a short cache lifetime during the rollout</summary>
+          <p>
+            Expiring entries after five minutes would bound staleness but keeps the cold
+            path for every returning shopper, which is the cost we are trying to avoid.
+          </p>
+        </details>
+      </section>
+
+      <section id="detail-timeline" class="layout-flow">
+        <h2>Timeline</h2>
+        <p class="gist" id="detail-timeline-gist">
+          From the first region's deploy to a finished rollback took 3 hours 42 minutes,
+          2 hours of it before anyone connected the slowdown to the release.
+        </p>
+        <ol id="detail-timeline-list">
+          <li>14:02 4.2 reaches the first region; p99 starts climbing.</li>
+          <li>14:40 Support reports slow checkouts in two tickets.</li>
+          <li>16:05 On-call links the slowdown to the deploy times.</li>
+          <li>16:30 Cache hit rate found at 3%; key change identified.</li>
+          <li>17:44 Rollback complete in every region; p99 back to 180 ms.</li>
+        </ol>
+        <details id="detail-timeline-log">
+          <summary>The on-call channel, abridged</summary>
+          <pre>
+16:05 jo: checkout p99 tracks the deploy wave region by region
+      16:12 sam: postgres reads 3x, nothing else changed
+      16:30 jo: cart hit rate is 3%. 4.2 changed the key.
+      16:34 sam: rolling back</pre>
+        </details>
+      </section>
+    </main>
+  </body>
+</html>

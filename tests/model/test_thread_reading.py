@@ -95,6 +95,43 @@ def test_thread_read_is_exact_and_paginated(page_dir):
     assert continued["history"]["next_after"] is None
 
 
+def test_a_page_threads_later_readings_keep_what_the_user_had_on_screen(page_dir):
+    """A page comment's "this one" points into the sections it records as `viewing`
+    (events.md, "Anchors"). The delivery that carries the comment shows the event
+    whole; a later one shows it only as the thread's opening message, and so does
+    `page state`, so both keep the field there."""
+    root = append_carried_log_record(
+        page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "text": "Drop this one",
+            "viewing": ["results"],
+        },
+    )
+    answer = append_carried_log_record(
+        page_dir,
+        {"kind": "reply", "author": "agent", "parent": root["id"], "text": "Gone."},
+    )
+    latest = append_carried_log_record(
+        page_dir,
+        {"kind": "reply", "author": "user", "parent": answer["id"], "text": "Thanks"},
+    )
+
+    [digest] = thread_context_model.batch_threads(
+        events_model.read_events(page_dir),
+        [latest],
+        page_view_model.PageView(page_dir).within,
+    )
+    reading = CliRunner().invoke(
+        cli_model.cli, ["page", "state", str(page_dir), root["id"]]
+    )
+    assert reading.exit_code == 0, reading.output
+    assert digest["anchor"] is None
+    assert digest["messages"][0]["viewing"] == ["results"]
+    assert json.loads(reading.output)["content"][0]["viewing"] == ["results"]
+
+
 def test_thread_summary_is_admitted_as_one_ordered_thread_range(page_dir):
     root = append_carried_log_record(
         page_dir,

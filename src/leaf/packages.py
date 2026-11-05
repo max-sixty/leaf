@@ -1,6 +1,5 @@
 """Package authoring commands and filesystem safety gates."""
 
-import contextlib
 import os
 import re
 import secrets
@@ -9,12 +8,14 @@ import sys
 import tempfile
 from pathlib import Path
 
+from .event_log import initialized
 from .files import read_json, replace_files
 from .layer import (
     LayerComposition,
     checked_inputs,
     checked_layer_inputs,
     compose_layer,
+    imported_sheets,
     input_paths,
     layer_inputs,
     named_package,
@@ -24,51 +25,41 @@ from .locations import (
     located,
     location_is_within,
     path_location,
-    path_lock_key,
+    path_lock,
     paths_same,
 )
 from .machine import package_store
 from .refusals import Refused
 from .schema import (
-    BROWSER_DIRS,
-    ELEMENT_ID,
     HTML_NAME,
     PACKAGE_DIRS,
+    PACKAGE_FILES,
     PAGE_OWNED_DIRS,
     PAGE_OWNED_FILES,
     SCRIPTS_DIR,
-    VENDORED_FILES,
     WIDGET_NAME,
     WIDGET_NAME_RULE,
 )
-from .state import EVENTS_FILE, flocked, fsync_parents, json_bytes
+from .state import fsync_parents, json_bytes
+from .themes import DEFAULT_THEME
 
 
-@contextlib.contextmanager
 def package_write_lock(*packages: Path):
     """Serialize mutations only where their package contracts share destinations.
 
     Registry read/modify/write and shared member directories stay together. An
-    install holds its source and destination in the same ordered lock set, so source
-    init finishes before copying and destination init cannot race publication.
-    Symlinked contract members use their resolved destinations. Independent packages
-    never hold an exclusive lock in common.
-
-    The lock home is machine-local, independent of XDG_STATE_HOME and TMPDIR: two
-    environments writing the same authored package still share its locks. Nothing
-    is written beside authored code or inside a not-yet-validated package.
+    install holds its source and destination in the same ordered lock set
+    (`locations.path_lock`), so source init finishes before copying and destination
+    init cannot race publication. Symlinked contract members use their resolved
+    destinations. Independent packages never hold an exclusive lock in common.
     """
-    root = Path("/tmp") / f"leaf-package-locks-{os.getuid()}"
-    root.mkdir(mode=0o700, exist_ok=True)
-    keys = {
-        path_lock_key(package / name)
-        for package in packages
-        for name in (*VENDORED_FILES, *PACKAGE_DIRS, SCRIPTS_DIR)
-    }
-    with contextlib.ExitStack() as held:
-        for key in sorted(keys):
-            held.enter_context(flocked(root / f"{key}.lock"))
-        yield
+    return path_lock(
+        *(
+            package / name
+            for package in packages
+            for name in (*PACKAGE_FILES, *PACKAGE_DIRS, SCRIPTS_DIR)
+        )
+    )
 
 
 def create_package_files(package: Path, files: list[tuple[Path, bytes]]) -> list:
@@ -86,7 +77,7 @@ def create_package_files(package: Path, files: list[tuple[Path, bytes]]) -> list
                 raise Refused(
                     f"package member {path.relative_to(package)} was created "
                     "while package init was running; nothing was replaced"
-                )
+                ) from None
             with os.fdopen(descriptor, "wb") as stream:
                 identity = os.fstat(stream.fileno())
                 stream.write(contents)
@@ -123,12 +114,7 @@ def starter_element_declaration(tag: str) -> dict:
             "id."
         ),
         "type": "object",
-        "properties": {
-            "id": {
-                "type": "string",
-                "pattern": f"^{ELEMENT_ID}$",
-            }
-        },
+        "properties": {"id": {"type": "string"}},
         "required": ["id"],
         "additionalProperties": False,
         "x-content": "markup",
@@ -186,13 +172,9 @@ def initialized_page_owning(path: Path):
     resolved = path.resolve()
     at = path_location(resolved)
     for root in (resolved, *resolved.parents):
-        # The append-only event log is the successful-init marker. Disposable
-        # runtime state cannot identify the page whose owned paths this gate protects.
-        if not (
-            (root / EVENTS_FILE).is_file()
-            and all((root / name).is_file() for name in VENDORED_FILES)
-            and all((root / name).is_dir() for name in BROWSER_DIRS)
-        ):
+        # Disposable runtime state cannot identify the page whose owned paths this
+        # gate protects.
+        if not initialized(root):
             continue
         if (
             at == path_location(root)
@@ -265,19 +247,22 @@ def validate_package_dir(package: Path) -> list:
         raise Refused(
             f"package path {target} is owned by initialized page {page}; "
             "packages must stay separate from page-owned paths, "
-            "then run `page init` to re-vendor the page"
+            "then run `page init` again"
         )
     refuse_package_overlap(paths, protected)
     return protected
 
 
 def package_layer_inputs(package: Path) -> list[Path]:
-    """The complete mandatory layer, with this package when it is not already in it."""
+    """The layer a new page selecting this package composes: the mandatory layer and
+    Leaf's default theme before this package when it is not already in it."""
     inputs = layer_inputs()
-    for root in inputs:
-        if paths_same(package, root):
-            return inputs
-    return [*inputs, package]
+    theme = named_package(DEFAULT_THEME)
+    if theme is not None and not any(paths_same(theme, root) for root in inputs):
+        inputs.append(theme)
+    if not any(paths_same(package, root) for root in inputs):
+        inputs.append(package)
+    return inputs
 
 
 def check_package(
@@ -303,7 +288,7 @@ def copy_package_contract(package: Path, staged: Path) -> None:
     as `package init` creates them; `scripts/` is copied only when it exists,
     since most packages ship none.
     """
-    for name in VENDORED_FILES:
+    for name in PACKAGE_FILES:
         source = package / name
         if source.is_file():
             shutil.copy2(source, staged / name)
@@ -316,6 +301,16 @@ def copy_package_contract(package: Path, staged: Path) -> None:
             target.mkdir()
     if (package / SCRIPTS_DIR).is_dir():
         shutil.copytree(package / SCRIPTS_DIR, staged / SCRIPTS_DIR)
+    # A sheet's imports are part of it (`layer.stylesheet`), wherever in the package
+    # they stand; one inside a directory copied above is already staged.
+    for name in PACKAGE_FILES:
+        if not name.endswith(".css") or not (package / name).is_file():
+            continue
+        for imported in imported_sheets(package / name, package):
+            target = staged / imported.relative_to(package.resolve())
+            if not target.exists():
+                target.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(imported, target)
 
 
 def validate_starter_candidate(package: Path, files: dict[str, bytes]) -> None:
@@ -347,12 +342,12 @@ def init_starter_widget(
         raise Refused(f"invalid widget tag {widget!r}: {WIDGET_NAME_RULE}")
     module_name = f"{widget}.js"
     module_path = package / "widgets" / module_name
-    if widget in composition.registry:
+    if widget in composition.vocabulary.registry:
         raise Refused(f"widget tag <{widget}> already exists in the composed layer")
     if (
         module_path.exists()
         or module_path.is_symlink()
-        or module_name in composition.directory_files["widgets"]
+        or module_name in composition.vocabulary.widgets
     ):
         raise Refused(
             f"widget module widgets/{module_name} already exists in the composed layer"
@@ -367,7 +362,7 @@ def init_starter_widget(
     }
     validate_starter_candidate(package, files)
     refuse_package_overlap(
-        [package, *(package / name for name in (*VENDORED_FILES, *PACKAGE_DIRS))],
+        [package, *(package / name for name in (*PACKAGE_FILES, *PACKAGE_DIRS))],
         protected,
     )
 
@@ -375,8 +370,10 @@ def init_starter_widget(
     for name in PACKAGE_DIRS:
         (package / name).mkdir(exist_ok=True)
     creates = [(module_path, files[f"widgets/{module_name}"])]
-    if not ((package / "theme.css").exists() or (package / "theme.css").is_symlink()):
-        creates.append((package / "theme.css", b""))
+    if not (
+        (package / "defaults.css").exists() or (package / "defaults.css").is_symlink()
+    ):
+        creates.append((package / "defaults.css", b""))
     created = create_package_files(package, creates)
     try:
         replace_files([(registry_path, files["registry.json"], True)])
@@ -393,13 +390,13 @@ def cmd_package_init(package: Path, widget: str | None = None) -> dict:
             return {"package": str(package), "widget": widget}
 
         refuse_package_overlap(
-            [package, *(package / name for name in (*VENDORED_FILES, *PACKAGE_DIRS))],
+            [package, *(package / name for name in (*PACKAGE_FILES, *PACKAGE_DIRS))],
             protected,
         )
 
         files = {
             "registry.json": b"{}\n",
-            "theme.css": b"",
+            "overrides.css": b"",
         }
         package.mkdir(parents=True, exist_ok=True)
         for name in PACKAGE_DIRS:

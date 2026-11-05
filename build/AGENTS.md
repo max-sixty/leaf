@@ -1,10 +1,11 @@
 # Committed bundles
 
 This directory builds every browser file Leaf commits but doesn't write by hand: the
-framework compiled from `browser/framework/`, the third-party bundles, the stylesheets,
-the registry's runtime modules and the kernel in `dist/kernel/`. Installation, page init
-and export use the committed files and never run a compiler, and package authors write
-native JavaScript with no build.
+third-party bundles and stylesheets and the runtime's table of the bundles' grammars.
+Installation, page init and export use the committed files and never run a compiler,
+and package authors write native JavaScript with no build. It also holds the kernel
+compiler (`runtime-bundle.mjs`), which only a prepared installation runs, so the
+tree commits no kernel and a runtime edit needs no rebuild.
 
 `browser/build.mjs` is the one builder, and its header lists every output and the
 script that writes it. `pnpm run build:browser` type-checks and writes them all;
@@ -12,10 +13,7 @@ script that writes it. `pnpm run build:browser` type-checks and writes them all;
 committed bytes without writing.
 
 After `pnpm install --frozen-lockfile`, a build reproduces the committed bytes, so a
-diff after rebuilding means the lock, a build script, a runtime module or a registry
-input changed. A change to `browser/leaf.js`, or to a `.js` module under its
-`runtime/`, `vendor/` or `widgets/`, takes a rebuild in the same change. Resolve a
-kernel file that conflicts in a merge by merging `main` and rebuilding, never by hand.
+diff after rebuilding means the lock, a build script or a registry input changed.
 
 `package.json` pins each package an entry imports, and the lock pins the rest.
 `litModule` in `browser/build.mjs` says why `lit-html` is held at 3.3.0 and when to

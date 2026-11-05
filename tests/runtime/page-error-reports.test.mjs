@@ -1,7 +1,9 @@
 /* One fault reaches the agent once, however many consumers carry it.
 
    A producer reports each failure it sees, even where owners share one exception; a
-   consumer that carries a fault up reports it only where no producer did. */
+   consumer that carries a fault up reports it only where no producer did. A widget's
+   failure reaches it as the `error` event the widget dispatches (widget-upgrade.js),
+   named for the widget. */
 import assert from "node:assert/strict";
 import test from "node:test";
 
@@ -13,6 +15,13 @@ document.head.append(canonical);
 // The log's door answers every report; only what reaches the console is read here.
 globalThis.fetch = async () => new Response(null, { status: 204 });
 const { reportCarried, reportPageError } = await import("/runtime/layer-client.js");
+const { failSoft } = await import("/runtime/widget-upgrade.js");
+
+let flushReports;
+test.beforeEach((t) => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  flushReports = () => t.mock.timers.tick(0);
+});
 
 const reported = (run) => {
   const lines = [];
@@ -20,6 +29,7 @@ const reported = (run) => {
   console.error = (line) => lines.push(line.split("\n")[0]);
   try {
     run();
+    flushReports();
   } finally {
     console.error = original;
   }
@@ -46,6 +56,24 @@ test("a carried fault no producer saw is reported by its consumer", () => {
   );
 });
 
+test("a syntax error keeps the browser's source location when its stack has no frames", () => {
+  const fault = new SyntaxError("Invalid or unexpected token");
+  // Chromium supplies only the message in a parse error's stack. Its ErrorEvent
+  // still carries the file, line and column that let an author find the bad code.
+  fault.stack = "SyntaxError: Invalid or unexpected token";
+  const event = Object.assign(new Event("error"), {
+    error: fault,
+    message: "Uncaught SyntaxError: Invalid or unexpected token",
+    filename: "https://leaf.test/page/tuner.js",
+    lineno: 63,
+    colno: 17,
+  });
+  assert.deepEqual(
+    reported(() => window.dispatchEvent(event)),
+    ["leaf: https://leaf.test/page/tuner.js:63:17: Invalid or unexpected token"],
+  );
+});
+
 test("owners sharing one exception each report it", () => {
   const fault = new Error("grammar failed to load");
   assert.deepEqual(
@@ -68,6 +96,45 @@ test("a primitive reason stands for itself by its text", () => {
     }),
     ["leaf: Presentation failed: boom"],
   );
+});
+
+test("a widget's failure reaches the agent named for its widget, in the page or out of it", () => {
+  const widget = (id) => Object.assign(document.createElement("lf-probe"), { id });
+  const shown = widget("shown");
+  document.body.append(shown);
+  // A message body the panel holds while its thread is shut stands in no document.
+  const cached = widget("cached");
+  assert.deepEqual(
+    reported(() => {
+      failSoft(shown, new Error("drew nothing"));
+      failSoft(cached, new Error("plot failed to load"));
+    }),
+    [
+      'leaf: <lf-probe id="shown"> failed: drew nothing',
+      'leaf: <lf-probe id="cached"> failed: plot failed to load',
+    ],
+  );
+  shown.remove();
+});
+
+test("a failure with no Error gives every listener one and reports the reason as thrown", () => {
+  const widget = Object.assign(document.createElement("lf-probe"), { id: "bare" });
+  document.body.append(widget);
+  const heard = [];
+  const hear = (event) => heard.push(event.error);
+  window.addEventListener("error", hear);
+  try {
+    assert.deepEqual(
+      reported(() => failSoft(widget, undefined)),
+      ['leaf: <lf-probe id="bare"> failed: undefined'],
+    );
+  } finally {
+    window.removeEventListener("error", hear);
+    widget.remove();
+  }
+  assert.equal(heard.length, 1);
+  assert.ok(heard[0] instanceof Error, "the event carries an Error");
+  assert.equal(heard[0].stack, undefined, "no stack names a site the failure isn't at");
 });
 
 test("a departing document holds its faults until it stays, and drops them as it goes", (t) => {
@@ -100,6 +167,7 @@ test("a departing document holds its faults until it stays, and drops them as it
   startupFault("startup a download aborted");
   window.dispatchEvent(new Event("wheel"));
   window.dispatchEvent(new Event("pageshow"));
+  flushReports();
   assert.deepEqual(errors, []);
   assert.deepEqual(faults, []);
   // The user's next key shows the document stayed, and the faults are reported then.
@@ -116,20 +184,31 @@ test("a departing document holds its faults until it stays, and drops them as it
   window.dispatchEvent(new Event("pageswap"));
   window.dispatchEvent(new Event("keydown"));
   reportPageError(new Error("swapped document canceled"));
+  flushReports();
   assert.equal(errors.length, 0);
   assert.deepEqual(faults, []);
   assert.equal(root.hasAttribute("data-lf-startup-error"), false);
-  // Pagehide is also the retirement boundary on engines without pageswap.
+  // Iframe removal may reject a fetch before pagehide ends the lifetime. The
+  // report must read the departure after the native removal has finished.
   window.dispatchEvent(returning());
-  window.dispatchEvent(new Event("pagehide"));
   reportPageError(new Error("hidden document canceled"));
   startupFault("hidden startup canceled");
+  window.dispatchEvent(new Event("pagehide"));
+  flushReports();
   assert.equal(errors.length, 0);
   assert.deepEqual(faults, []);
-  // BFCache restores this realm, including its original error listeners.
+  // A queued report can be frozen with the page and resume after BFCache restores
+  // it. It still belongs to the lifetime that departed, unlike a new fault.
   window.dispatchEvent(returning());
+  reportPageError(new Error("frozen cancellation"));
+  window.dispatchEvent(new Event("pagehide"));
+  window.dispatchEvent(returning());
+  flushReports();
+  assert.deepEqual(errors, []);
+  // BFCache restores this realm, including its original error listeners.
   reportPageError(new Error("restored real fault"));
   startupFault("restored startup fault");
+  flushReports();
   assert.match(errors[0], /restored real fault/);
   assert.deepEqual(faults, ["restored startup fault"]);
   assert.equal(root.dataset.lfStartupError, "restored startup fault");

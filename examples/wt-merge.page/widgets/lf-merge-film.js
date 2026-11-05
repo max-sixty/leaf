@@ -30,7 +30,8 @@ import {
   preserveReadingRegions,
   registerReadingRegion,
   registerVisualParts,
-  scrollIntoReadingBand,
+  scrollIntoView,
+  shownWindow,
   sizeObserver,
   whileConnected,
 } from "/runtime/widget-api.js";
@@ -241,7 +242,7 @@ customElements.define(
     #reveal() {
       if (this.hasAttribute("data-phone")) {
         if (this.settings.open) this.settings.open = false;
-        scrollIntoReadingBand(this, this, "start", "smooth");
+        scrollIntoView(this, { block: "start", behavior: "smooth" });
       }
     }
 
@@ -322,7 +323,7 @@ customElements.define(
           offset(10),
           shift({
             boundary: this.stage,
-            rootBoundary: this.hasAttribute("data-phone") ? "viewport" : "document",
+            rootBoundary: this.hasAttribute("data-phone") ? shownWindow() : "document",
             padding: 10,
             crossAxis: true,
           }),
@@ -367,7 +368,10 @@ customElements.define(
       this.#pause();
       if (this.hasAttribute("data-phone")) {
         this.settings.open = false;
-        scrollIntoReadingBand(this.playBtn.parentElement, this, "start", "instant");
+        scrollIntoView(this.playBtn.parentElement, {
+          block: "nearest",
+          behavior: "instant",
+        });
       }
       const parts = this.painter.parts();
       if (!parts.length) return;
@@ -417,7 +421,7 @@ customElements.define(
       if (painter !== this.painter)
         void preserveReadingRegions(this, () => {
           this.#draw(narrow, painter);
-          return layoutChanged(this);
+          layoutChanged(this);
         });
       else this.#draw(narrow, painter);
     }
@@ -482,7 +486,7 @@ customElements.define(
         )
       ) {
         const destination = document.activeElement;
-        scrollIntoReadingBand(destination, destination, "nearest", "instant");
+        scrollIntoView(destination, { block: "nearest", behavior: "instant" });
       }
     }
   },

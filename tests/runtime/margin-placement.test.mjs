@@ -6,12 +6,16 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
+import { overlaps } from "/runtime/rect.js";
+
 import {
   arrivals,
-  packRows,
+  inSeatingOrder,
+  packRow,
   pinSpot,
   rowPlacement,
-  seatRows,
+  seatRow,
+  seatsBy,
 } from "/runtime/annotation-overlay/margin-placement.js";
 
 const posture = (blockRight, over = {}) =>
@@ -109,6 +113,22 @@ test("rows are packed from the top, so a push carries on down the stack", () => 
   assert.deepEqual(Object.fromEntries(pushes), { a: 0, c: 32, b: 36 });
 });
 
+// The layout seats both postures in one shared order, carrying each final footprint.
+const packRows = (rows, gap, occupied = []) => {
+  const placed = [...occupied];
+  return new Map(
+    inSeatingOrder(rows).map((row) => {
+      const push = packRow(row, gap, placed);
+      placed.push({
+        ...row.rect,
+        top: row.rect.top + push,
+        bottom: row.rect.bottom + push,
+      });
+      return [row.key, push];
+    }),
+  );
+};
+
 // A card at a phone's width, 342px of column in a 390px window, and its pin's seats as
 // the layout pass offers them for a 44px marker: just outside the card's top-right
 // corner, just inside it, and just above it. The first stands past the window's edge.
@@ -119,20 +139,41 @@ const above = box(322, 52, 366, 96);
 const heading = box(24, 60, 366, 96);
 const title = box(24, 104, 362, 140);
 const action = box(300, 104, 362, 140);
-const pin = (over = {}) => ({
-  key: "card",
-  came: 1,
-  held: null,
-  seats: [outside, corner, above],
-  corner: 1,
-  floor: 144,
-  cover: [],
-  controls: [],
-  bounds: box(4, -Infinity, 386, Infinity),
-  folds: null,
-  folded: false,
-  ...over,
+const seatSet = (seats) => ({
+  before: seats.slice(0, 1),
+  home: seats[1],
+  after: seats.slice(2),
 });
+const pin = (over = {}) => {
+  const value = {
+    key: "card",
+    came: 1,
+    held: null,
+    seats: [outside, corner, above],
+    corner: 1,
+    floor: 144,
+    cover: [],
+    controls: [],
+    bounds: box(4, -Infinity, 386, Infinity),
+    folds: null,
+    folded: false,
+    ...over,
+  };
+  if (Array.isArray(value.seats)) value.seats = seatSet(value.seats);
+  if (value.folds && Array.isArray(value.folds.seats))
+    value.folds = { ...value.folds, seats: seatSet(value.folds.seats) };
+  return value;
+};
+const seatRows = (pins, { gap, occupied = [] }) => {
+  const placed = [...occupied];
+  return new Map(
+    inSeatingOrder(pins.map((pin) => ({ ...pin, rect: pin.seats.home }))).map((pin) => {
+      const seat = seatRow(pin, { gap, occupied: placed });
+      placed.push(seat.rect);
+      return [pin.key, seat];
+    }),
+  );
+};
 const seatOf = (...pins) => seatRows(pins, { gap: 4 });
 
 test("a pin takes the first of its seats that stands inside its bounds and covers nothing", () => {
@@ -158,9 +199,25 @@ test("with no clear seat, a pin stands over words but keeps off a control", () =
   assert.deepEqual(seatOf(pin({ cover: [heading, title] })).get("card").rect, corner);
   const short = box(24, 60, 330, 96);
   assert.deepEqual(seatOf(pin({ cover: [short, title] })).get("card").rect, above);
-  // A control at the corner sends the pin over the heading's words instead.
+  // A control at the corner, an option's mark beside a short title, slides the pin left
+  // past it into the room the title leaves, rather than over the heading's words.
   assert.deepEqual(
     seatOf(pin({ cover: [heading, action], controls: [action] })).get("card").rect,
+    box(252, 100, 296, 144),
+  );
+  // A title set right against the control leaves its room on its other side.
+  const right = box(200, 104, 296, 140);
+  assert.deepEqual(
+    seatOf(pin({ cover: [heading, right, action], controls: [action] })).get("card")
+      .rect,
+    box(152, 100, 196, 144),
+  );
+  // Where the title runs from the control to the target's left edge, every room along
+  // the top is words, and the pin takes the heading's end instead.
+  const long = box(24, 104, 296, 140);
+  assert.deepEqual(
+    seatOf(pin({ cover: [heading, long, action], controls: [action] })).get("card")
+      .rect,
     above,
   );
   // Controls in every seat slide the pin left along its target's top, past them.
@@ -255,6 +312,67 @@ test("a folded pin stands only where its opened actions stay inside its bounds",
   const seat = seatOf(input).get("card");
   assert.deepEqual(seat, { rect: corner, folded: true });
   assert.ok(seat.rect.right - folds.open >= 200, JSON.stringify(seat));
+});
+
+test("a seat the layout pass does not offer is passed over, at either size", () => {
+  // The outside seat is not offered, as where another block stands beside the card.
+  assert.deepEqual(
+    seatOf(pin({ seats: [null, corner, above] })).get("card").rect,
+    corner,
+  );
+  // With every offered seat over words, the pin takes the one covering least of them.
+  const crowded = pin({ seats: [null, corner, above], cover: [box(24, 40, 386, 150)] });
+  assert.deepEqual(seatOf(crowded).get("card").rect, corner);
+  // Folded, its width is read from the corner seat, which is always offered.
+  const input = pin({
+    seats: [null, wide(corner), wide(above)],
+    cover: [box(24, 60, 300, 96), box(250, 104, 300, 140)],
+    controls: [box(250, 104, 300, 140)],
+    folds: { ...folds, seats: [null, ...folds.seats.slice(1)] },
+  });
+  assert.deepEqual(seatOf(input).get("card"), { rect: corner, folded: true });
+});
+
+test("a seat beside its subject is offered only where no other block stands level", () => {
+  // A 44px pin by a run of words whose last line, 27px tall, ends short of the first.
+  const lines = [box(24, 600, 300, 627), box(24, 627, 270, 654)];
+  const home = box(256, 600, 300, 644);
+  const blocks = (...standing) => ({
+    cover: [],
+    beside: (rect) => standing.some((block) => overlaps(block, rect)),
+  });
+  const seats = (room) => seatsBy(lines, home, true, true, room, 44, 4);
+  const corner = box(304, 600, 348, 644);
+  const afterWord = box(274, 627, 318, 671);
+  assert.deepEqual(seats(blocks()).before, [corner, afterWord]);
+  // The next block starts 15px below the last line: the pin after it overhangs that
+  // block and still reads as the line's, so both seats stay offered.
+  const below = box(24, 669, 400, 720);
+  assert.deepEqual(seats(blocks(below)).before, [corner, afterWord]);
+  // A block level with the words, as the next column's card stands, takes both away;
+  // the seat inside the corner keeps its index.
+  const offered = seats(blocks(box(308, 560, 400, 720)));
+  assert.deepEqual(
+    { before: offered.before, home: offered.home },
+    { before: [null, null], home: { ...home, left: 256 } },
+  );
+});
+
+test("a pin level with a code line stands at the block's edge, or left of a control there", () => {
+  // A line of code running to the block's right edge, and Copy over that edge.
+  const line = box(24, 100, 366, 116);
+  const edge = box(318, 95, 362, 121);
+  const copy = box(334, 92, 362, 120);
+  const level = (over) =>
+    seatOf(
+      pin({ level: true, seats: [null, edge], floor: 121, cover: [line], ...over }),
+    ).get("card").rect;
+  // Over the line's last words, where seats beside it would leave the line.
+  assert.deepEqual(level({}), edge);
+  // Off a control, slid left along the line rather than up, down or to the window's edge.
+  assert.deepEqual(level({ controls: [copy] }), box(286, 95, 330, 121));
+  const held = box(200, 95, 244, 121);
+  assert.deepEqual(level({ held }), held);
 });
 
 test("a held pin keeps its seat, and one that no longer fits its bounds is seated again", () => {

@@ -15,9 +15,10 @@ hook-provided path needed to observe that source.
 
 Codex's startup hook captures the native source before a page is claimed, including
 for a dispatched chat whose first input runs no prompt hook. The prompt hook records
-the provider turn. Once the session has claimed a page (`state.holds_claims`), its PostToolUse hook identifies an
-unknown session-scoped turn once, or renews only the provider turn already observed
-running, and offers one immutable envelope between steps (`codex.offer_hook_delivery`).
+the provider turn. Once the session has claimed a page (`state.held_claims`), its
+PostToolUse hook identifies an unknown session-scoped turn once, or renews only the
+provider turn already observed running, and offers one immutable envelope between
+steps (`codex.offer_hook_delivery`).
 The observation's revision advances on a prompt, an ending or a tool step, and the
 queue rechecks it under the delivery lock before reserving its transport, so even a
 renewed step in the same turn invalidates an idle reading taken before it. Completing
@@ -32,18 +33,21 @@ prompt protects its generation and turn.
 import json
 import os
 from dataclasses import dataclass, field
-from datetime import datetime
 from functools import lru_cache
 from pathlib import Path
 from threading import RLock
 
-from .leases import session_state_path
+from .registry.schema import aware_instant
 from .state import (
     advance_turn,
     flocked,
     new_session,
+    session_file,
+    session_live,
     session_lock_path,
     session_record,
+    turn_closed,
+    turn_open,
     write_session,
 )
 
@@ -66,8 +70,8 @@ def transcript_event(line: bytes) -> tuple[str, str, str] | None:
         raise ValueError("Codex transcript turn id must be a string")
     if not isinstance(timestamp, str):
         raise TypeError("Codex transcript timestamp must be a string")
-    if datetime.fromisoformat(timestamp).tzinfo is None:
-        raise ValueError("Codex transcript timestamp needs a time zone")
+    if aware_instant(timestamp) is None:
+        raise ValueError("Codex transcript timestamp must be RFC 3339 with an offset")
     return event, turn, timestamp
 
 
@@ -218,7 +222,7 @@ def sync_transcript_turn(
     native evidence alone determines whether a turn has opened.
     """
     expected = session_record(session_id)
-    if expected is not None and expected["ended"] is not None:
+    if expected is not None and not session_live(expected):
         return expected
     source = transcript_path or (expected.get("transcript_path") if expected else None)
     if source is None:
@@ -254,13 +258,13 @@ def sync_transcript_turn(
             if current["provider"] and not ordered:
                 return current
             current = advance_turn(session_id, turn, running=True, observed_at=opened)
-        if closed is not None and current["turn_closed"] is None:
+        if closed is not None and not turn_closed(current):
             current = advance_turn(session_id, turn, running=False, observed_at=closed)
         return current
 
 
 def delivery_dir(session_id: str) -> Path:
-    return session_state_path(session_id, "deliveries")
+    return session_file(session_id, "deliveries")
 
 
 def delivery_lock_path(session_id: str) -> Path:
@@ -276,14 +280,7 @@ def hook_turn(session_id: str) -> dict | None:
     record = session_record(session_id)
     if record is None:
         return None
-    return {
-        **record,
-        "running": bool(
-            record["ended"] is None
-            and record["turn"] is not None
-            and record["turn_closed"] is None
-        ),
-    }
+    return {**record, "running": turn_open(record)}
 
 
 def delivery_turn(session_id: str) -> str | None:

@@ -1,4 +1,5 @@
-"""Read the authored catalog, regression inputs, and page companions."""
+"""Read the authored pages, the catalog that selects among them, and their
+companions."""
 
 import json
 import re
@@ -11,8 +12,6 @@ from jsonschema import Draft202012Validator
 from leaf.structure import SourceDocument
 from leaf_dev import ROOT
 from leaf_dev.leaf_assets import pinned_copy
-
-TEST_PAGES = ROOT / "tests" / "fixtures" / "pages"
 
 # Captures are live authored inputs: an intermediate JSON save must fail through
 # the preview's refusal path, rather than a missing key stopping its watcher.
@@ -38,42 +37,60 @@ _DATA_COMPANION = Draft202012Validator(
 )
 
 
-# Where a page named on a command line is looked up.
-NAMED_SOURCE_DIRS = (ROOT / "examples", ROOT / "examples" / "developer", TEST_PAGES)
+# Where authored pages live in a checkout: the worked examples and the developer
+# galleries, which the public site publishes, and the full-page regression fixtures.
+# A command line or a test names a page by its file's stem.
+WORKED_EXAMPLES = Path("examples")
+DEVELOPER_GALLERIES = WORKED_EXAMPLES / "developer"
+PUBLISHED_DIRS = (WORKED_EXAMPLES, DEVELOPER_GALLERIES)
+SOURCE_DIRS = (*PUBLISHED_DIRS, Path("tests/fixtures/pages"))
+# The product documents (`leaf_dev.docs`): a name picks one as it picks an authored
+# page, but the corpus and the sweeps over authored pages leave them out.
+PRODUCT_DOCS = Path("docs")
+
+# `leaf-dev corpus` composes every authored page into this ignored path among the
+# worked examples, so it is a source a name picks but never an authored page.
+CORPUS = WORKED_EXAMPLES / "corpus.html"
+
+
+def source_directories(root: Path = ROOT) -> list[Path]:
+    return [root / directory for directory in SOURCE_DIRS]
+
+
+def authored_sources(
+    root: Path = ROOT, directories: tuple[Path, ...] = SOURCE_DIRS
+) -> list[Path]:
+    """Every authored page in `directories`, by directory and then name."""
+    return [
+        path
+        for directory in directories
+        for path in sorted((root / directory).glob("*.html"))
+        if path != root / CORPUS
+    ]
+
+
+def published_sources(root: Path = ROOT) -> list[Path]:
+    """The authored pages the public site publishes."""
+    return authored_sources(root, PUBLISHED_DIRS)
 
 
 def named_source(name: str, *, root: Path = ROOT) -> Path:
-    """The one authored source a name picks out of `NAMED_SOURCE_DIRS`; a ValueError
-    says why a name picks none, or several. The generated corpus is built on demand."""
+    """The one source a name picks out of the authored pages, the product documents
+    and the corpus; a ValueError says why a name picks none, or several. The corpus
+    is generated on demand."""
     name = name.removesuffix(".html")
-    if name == "corpus":
-        from leaf_dev.commands.corpus import generate
-
-        return generate(root)
-    directories = [root / path.relative_to(ROOT) for path in NAMED_SOURCE_DIRS]
-    found = [
-        path
-        for directory in directories
-        if (path := directory / f"{name}.html").is_file()
-    ]
+    sources = [root / CORPUS, *authored_sources(root, (*SOURCE_DIRS, PRODUCT_DOCS))]
+    found = [path for path in sources if path.stem == name]
     if len(found) > 1:
         raise ValueError(f"{name} names more than one source: {found}")
     if not found:
-        available = sorted(
-            {"corpus"}
-            | {
-                path.stem
-                for directory in directories
-                for path in directory.glob("*.html")
-            }
-        )
-        raise ValueError(f"no source named {name}; available: {', '.join(available)}")
+        names = sorted({path.stem for path in sources})
+        raise ValueError(f"no source named {name}; available: {', '.join(names)}")
+    if found[0] == root / CORPUS:
+        from leaf_dev.commands.corpus import generate
+
+        return generate(root)
     return found[0]
-
-
-def regression_sources(root: Path = ROOT) -> list[Path]:
-    """Full-page regression inputs that are neither examples nor website routes."""
-    return sorted((root / "tests" / "fixtures" / "pages").glob("*.html"))
 
 
 def catalog_sources(root: Path = ROOT) -> list[Path]:
@@ -85,14 +102,15 @@ def catalog_sources(root: Path = ROOT) -> list[Path]:
     """
 
     document = SourceDocument(
-        (root / "docs" / "examples.html").read_text(encoding="utf-8")
+        (root / PRODUCT_DOCS / "examples.html").read_text(encoding="utf-8")
     )
-    return [
-        root
-        / "examples"
-        / f"{link.attrs['href'].removeprefix('/examples/').strip('/')}.html"
-        for link in document.tree.select("a.example-link")
-    ]
+    sources = []
+    for link in document.tree.select("a.example-link"):
+        href = link.attrs["href"]
+        assert isinstance(href, str)
+        stem = href.removeprefix("/examples/").strip("/")
+        sources.append(root / WORKED_EXAMPLES / f"{stem}.html")
+    return sources
 
 
 def document_metadata(source: Path) -> tuple[str, str]:
@@ -145,13 +163,16 @@ def example_versions(source: Path) -> list[Path]:
     order, so the page a user opens carries the version picker, the changes-since
     marks, and a thread opened against the document before the revision.
     """
-    priors = sorted(
-        prior_version_files(source),
-        key=lambda path: int(PRIOR_VERSION.search(path.stem).group(1)),
-    )
+
+    def number(path: Path) -> int:
+        matched = PRIOR_VERSION.search(path.stem)
+        assert matched is not None
+        return int(matched.group(1))
+
+    priors = sorted(prior_version_files(source), key=number)
     # The published number is the position in this list, so a gap in the file names
     # would renumber every later version without a word; refuse it instead.
-    numbers = [int(PRIOR_VERSION.search(path.stem).group(1)) for path in priors]
+    numbers = [number(path) for path in priors]
     if numbers != list(range(1, len(numbers) + 1)):
         raise ValueError(
             f"{source.name}: prior versions must run v1 to v{len(numbers)} without "
@@ -214,7 +235,7 @@ def data_companion(source: Path) -> dict:
     if not companion.exists():
         return {}
     document = json.loads(companion.read_text(encoding="utf-8"))
-    if error := next(_DATA_COMPANION.iter_errors(document), None):
+    if error := next(iter(_DATA_COMPANION.iter_errors(document)), None):
         raise ValueError(f"{companion}: {error.json_path}: {error.message}")
     return document
 
@@ -225,7 +246,9 @@ def capture_file(source: Path, spec: dict) -> Path:
     (`leaf_dev.leaf_assets`), for evidence too large for the tree, such as an imported
     Playwright trace."""
     if "asset" in spec:
-        return pinned_copy(source.parent / spec["asset"])
+        path = pinned_copy(source.parent / spec["asset"])
+        assert path is not None
+        return path
     return source.parent / spec["file"]
 
 

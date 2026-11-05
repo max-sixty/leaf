@@ -10,12 +10,27 @@ import { nextFrame } from "../rendering.js";
 import { pageUpgraded } from "../page-paint.js";
 import { runtime } from "../context.js";
 import { UPGRADE, PRESENTATION } from "../presentation.js";
+import { readLeavingKeys } from "../field-keys.js";
+// A document the runtime gives up on before it upgrades, because it reloads or waits on
+// a server serving another layer, ends bootstrap's hold: nothing in it will run what
+// was held, so those keys are dropped and later ones reach the page as they come.
+export function letHeldKeysGo() {
+  /** @type {DocumentEventMap["lf-held-keys"]} */
+  const taking = new CustomEvent("lf-held-keys", {
+    detail: { ready: () => false, keep: () => false },
+  });
+  document.dispatchEvent(taking);
+  taking.detail.release?.();
+}
+
+/** @param {{goToSequenceActive: () => boolean, setGoToSequence: (on: boolean) => void, reactArmed: () => boolean, setReact: (on: boolean) => void}} options */
 export function mountKeyboard({
   goToSequenceActive,
   setGoToSequence,
   reactArmed,
   setReact,
 }) {
+  /** @param {KeyboardEvent} event */
   const run = (event) => {
     const handled = dispatchKey(event);
     // A declared Leaf command wins before a nested widget can interpret the
@@ -23,6 +38,7 @@ export function mountKeyboard({
     if (handled && event.defaultPrevented) event.stopPropagation();
     return handled;
   };
+  /** @param {KeyboardEvent} ev */
   const press = (ev) => {
     if (ev.isComposing) return;
     if (run(ev)) return;
@@ -49,8 +65,15 @@ export function mountKeyboard({
     },
     { capture: true },
   );
-  document.addEventListener("keydown", (ev) => {
+  /** @param {KeyboardEvent} ev */
+  const afterControl = (ev) => {
     if (ev.key.length !== 1) press(ev);
+  };
+  document.addEventListener("keydown", afterControl);
+  // A key typed in a Leaf field stops at the field (field-keys.js), so this
+  // pass reads it there.
+  readLeavingKeys((ev) => {
+    if (ev.type === "keydown") afterControl(ev);
   });
   document.addEventListener("lf-keyboard-preference", () => {
     paintKeys();
@@ -75,12 +98,12 @@ export function mountKeyboard({
     pressingHeld = true;
     const next = () => {
       if (!quickShortcuts()) keys.length = 0;
-      if (!keys.length) {
+      const [key] = keys;
+      if (!key) {
         release();
         pressingHeld = false;
         return;
       }
-      const key = keys[0];
       if (!typesText(focused()) && !keyReady(key)) {
         pause();
         pressingHeld = false;

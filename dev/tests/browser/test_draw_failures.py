@@ -4,6 +4,7 @@ import json
 import subprocess
 
 from conftest import LEAF_COMMAND
+
 from leaf_dev import draw_failures
 
 # A control whose value lies outside its range, which plain `page check` leaves

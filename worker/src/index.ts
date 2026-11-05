@@ -38,11 +38,11 @@ import type {
   ServedEventAnswer,
   ServedSampleAnswer,
   ServedState,
-} from "../../browser/framework/contract.js";
+} from "../../browser/types/contract.js";
 import {
   CHUNK_BYTES,
   PageStore,
-  dateStateDelivery,
+  prepareStateDelivery,
   readPublication,
   readPublicationCommit,
 } from "./storage";
@@ -178,6 +178,31 @@ export class LeafWebsiteSession extends Container<Env> {
     this.pages.publish(commit, manifest);
   }
 
+  private async forward(request: Request): Promise<Response> {
+    const response = await super.fetch(request);
+    if (response.status >= 500) {
+      // The Containers SDK converts connection loss into an ordinary 500 without
+      // logging an exception. Python stamps its own answers and logs page_fault;
+      // retain the missing proxy evidence, never the body or private request URL.
+      const adapter = response.headers.has("Leaf-Release");
+      const body = adapter
+        ? null
+        : await readBoundedText(response.clone(), 1024).catch(() => null);
+      console.error({
+        component: "leaf-container",
+        event: "http_error",
+        method: request.method,
+        status: response.status,
+        source: adapter
+          ? "adapter"
+          : body === "Container suddenly disconnected, try again"
+            ? "disconnected"
+            : "unclassified",
+      });
+    }
+    return response;
+  }
+
   override async fetch(request: Request): Promise<Response> {
     if (!this.ctx.container?.running) {
       const url = new URL(request.url);
@@ -190,7 +215,7 @@ export class LeafWebsiteSession extends Container<Env> {
           return new Response(null, { status: 204 });
         }
         if (request.method !== "GET" && request.method !== "HEAD") {
-          return super.fetch(request);
+          return this.forward(request);
         }
         let path = route.inside;
         if (path === "api/state") {
@@ -205,15 +230,11 @@ export class LeafWebsiteSession extends Container<Env> {
             key: url.searchParams.get("key") ?? "",
           })}`;
         }
-        const response = await this.pages.response(
-          route.root,
-          path,
-          request.method === "HEAD",
-        );
+        const response = await this.pages.response(route.root, path, request);
         if (response !== null) return response;
       }
     }
-    return super.fetch(request);
+    return this.forward(request);
   }
 }
 
@@ -274,7 +295,7 @@ function containerId(sessionId: string, release: string): string {
 // The body as text, or null once it passes maxBytes, whether the client declared that
 // length or streamed it without one. A request with no body reads as "".
 async function readBoundedText(
-  request: Request,
+  request: Request | Response,
   maxBytes: number,
 ): Promise<string | null> {
   if (Number(request.headers.get("Content-Length")) > maxBytes) return null;
@@ -288,7 +309,9 @@ async function readBoundedText(
     if (done) break;
     bytes += value.byteLength;
     if (bytes > maxBytes) {
-      await reader.cancel();
+      // A cloned response shares its source: cancellation completes only when
+      // the caller consumes the other branch. Release this reader without waiting.
+      void reader.cancel().catch(() => {});
       return null;
     }
     raw += decoder.decode(value, { stream: true });
@@ -438,28 +461,14 @@ async function recordInteractions(
   return new Response(null, { status: 204, headers: { "Cache-Control": "no-store" } });
 }
 
-async function acceptedEvent(
-  postedRequest: Request,
-  response: Response,
-): Promise<AcceptedEvent | null> {
+// The event an accepted POST's answer names, and whether it owes the agent an
+// answer, as the event door says (`event_endpoint.with_state`).
+async function acceptedEvent(response: Response): Promise<AcceptedEvent | null> {
   if (!response.ok) return null;
   try {
-    const posted = (await postedRequest.json()) as { attempt?: unknown };
-    if (typeof posted.attempt !== "string") return null;
-    // An accepted event's answer carries the page's state (`event_endpoint.accept_event`).
     const answer = (await response.clone().json()) as ServedEventAnswer;
     if (answer.ok !== true) return null;
-    const { state } = answer;
-    const event = state.events.find(
-      (candidate) => candidate.attempt === posted.attempt,
-    );
-    if (!event) return null;
-    // An update the agent owes an answer publishes its own obligation, on the agent
-    // until it answers (`obligations.update_obligation`).
-    return {
-      event,
-      needsReply: state.activity.obligations.includes(`update:${event.id}`),
-    };
+    return { event: answer.event, needsReply: answer.needs_reply };
   } catch {
     return null;
   }
@@ -554,7 +563,7 @@ async function staticState(
   const response = await env.ASSETS.fetch(new Request(url));
   if (!response.ok) return new Response("state unavailable", { status: 503 });
   const state = (await response.json()) as ServedState;
-  dateStateDelivery(state);
+  prepareStateDelivery(state, request);
   const answer = Response.json(state, {
     headers: { "Cache-Control": "no-store", "Leaf-Session": "passive" },
   });
@@ -743,10 +752,7 @@ export default {
         return response;
       }
     }
-    const postedRequest =
-      request.method === "POST" && route.inside === "api/event"
-        ? request.clone()
-        : null;
+    const posted = request.method === "POST" && route.inside === "api/event";
     const response = await getContainer(env.PAGES, privateContainer).fetch(request);
     const containerRelease = response.headers.get("Leaf-Release");
     if (containerRelease !== null && containerRelease !== manifest.release) {
@@ -754,8 +760,8 @@ export default {
       if (existing === null) cookies.push(sessionCookie(sessionId, secure));
       return rollingOut(request, env, manifest, route, reference, cookies);
     }
-    if (postedRequest) {
-      const accepted = await acceptedEvent(postedRequest, response);
+    if (posted) {
+      const accepted = await acceptedEvent(response);
       if (accepted) {
         recordAcceptedEvent(env, route, manifest.release, reference, accepted);
       }

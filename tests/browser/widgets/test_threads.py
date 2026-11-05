@@ -2,8 +2,6 @@
 anchored on a widget, an edited agent message, and the composer that writes a
 comment."""
 
-import re
-
 import pytest
 from interact_support import append_carried_log_record
 from playwright.sync_api import expect
@@ -18,7 +16,6 @@ from render_cases_interaction import (
 from render_harness import (
     LONG_PAGE,
     PANEL,
-    PANEL_THREAD,
     REPLY_HOST_PAGE,
     compare_with,
     open_page,
@@ -34,6 +31,7 @@ from render_harness import (
 from browser.threads import open_panel_thread
 from leaf import event_log as events_model
 from leaf.render_checks import rendered
+from leaf_dev.browser import PANEL_THREAD
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -313,17 +311,17 @@ def test_an_agent_message_edit_updates_the_panel_and_its_inline_thread(browser, 
     )
     page = open_page(browser, url)
     resized(page, 1200, 900)
-    inline = page.locator(f'#cd-q .lf-msg[data-event="{message["id"]}"]')
+    inline = page.locator(f'#cd-q .lf-msg[data-lf-event="{message["id"]}"]')
     expect(inline.locator(".lf-msg-text")).to_have_text("The north bracket fit.")
     panel_thread = open_panel_thread(page, "edited-agent-message")
-    panel = panel_thread.locator(f'.lf-msg[data-event="{message["id"]}"]')
+    panel = panel_thread.locator(f'.lf-msg[data-lf-event="{message["id"]}"]')
     expect(panel.locator(".lf-msg-text")).to_have_text("The north bracket fit.")
     page.evaluate(
         """([message]) => {
           window.__editedInline = document.querySelector(
-            `#cd-q .lf-msg[data-event="${message}"]`);
+            `#cd-q .lf-msg[data-lf-event="${message}"]`);
           window.__editedPanel = document.querySelector(
-            `.lf-fp-view .lf-msg[data-event="${message}"]`);
+            `.lf-fp-view .lf-msg[data-lf-event="${message}"]`);
           window.__editedWidget = document.querySelector('#edited-message-choice');
         }""",
         [message["id"]],
@@ -348,9 +346,7 @@ def test_an_agent_message_edit_updates_the_panel_and_its_inline_thread(browser, 
     )
     told(page)
     # Revealing the edit in either view settles the thread's shared unread state.
-    page.locator(".lf-fp-controls").get_by_role(
-        "button", name="1 message edited", exact=True
-    ).click()
+    page.locator(".lf-fp-head").get_by_role("button", name="1 new", exact=True).click()
 
     expect(inline.locator(".lf-msg-body")).to_contain_text("The north bracket fits.")
     expect(panel.locator(".lf-msg-text")).to_contain_text("The north bracket fits.")
@@ -358,12 +354,12 @@ def test_an_agent_message_edit_updates_the_panel_and_its_inline_thread(browser, 
     # Editing updates the original message's disclosure in both views.
     expect(inline.locator(":scope > .lf-msg-head .lf-edited")).to_have_text("edited")
     expect(panel.locator(":scope > .lf-msg-head .lf-edited")).to_have_text("edited")
-    expect(page.locator(f'.lf-msg[data-event="{revision["id"]}"]')).to_have_count(0)
+    expect(page.locator(f'.lf-msg[data-lf-event="{revision["id"]}"]')).to_have_count(0)
     assert page.evaluate(
         f"""() => window.__editedInline === document.querySelector(
-          '#cd-q .lf-msg[data-event="{message["id"]}"]')
+          '#cd-q .lf-msg[data-lf-event="{message["id"]}"]')
           && window.__editedPanel === document.querySelector(
-            '.lf-fp-view .lf-msg[data-event="{message["id"]}"]')
+            '.lf-fp-view .lf-msg[data-lf-event="{message["id"]}"]')
           && window.__editedWidget === document.querySelector('#edited-message-choice')"""
     ), "the edit replaced an existing message or its frozen widget"
     assert (
@@ -423,9 +419,26 @@ def thread_on_a_sent_widget(serve):
     return url
 
 
-def test_a_detached_thread_on_a_widget_an_agent_sent_stays_detached(browser, serve):
-    """An anchor captured detached names no passage the user selected, so finding the
-    widget its section names in a message identifies nothing: the thread still reads as
+def test_a_thread_on_a_widget_an_agent_sent_stands_in_its_message(
+    browser, serve, subtests
+):
+    """A thread about a widget an agent sent stands in the message that carried it.
+
+    The panel draws a message's widgets only while it has their thread open, and anchor
+    placement looked for the widget only among the nodes the page held, so whenever that
+    thread was closed the thread about the widget read as detached ("can't be
+    identified") and had no way to what it was about. Placement now finds the widget in
+    the message that keeps it: the head quotes it as found, and Show in message opens the
+    message's thread on the widget and lands there.
+
+    The quote reads the widget's opening words rather than its bare id. An element
+    anchor is labelled with them when the node is built, and on the reconcile that first
+    builds this node, the message body carrying the widget has not been connected yet,
+    so the element did not exist and the reading came back empty. A node the reconcile
+    keeps is never built again, so it is repainted with the quote now.
+
+    An anchor captured detached names no passage the user selected, so finding the
+    widget its section names in a message identifies nothing: that thread still reads as
     detached, with no Show in message to offer."""
     url = thread_on_a_sent_widget(serve)
     append_carried_log_record(
@@ -441,60 +454,26 @@ def test_a_detached_thread_on_a_widget_an_agent_sent_stays_detached(browser, ser
     )
     page = open_page(browser, url)
     resized(page, 1200, 900)
-    thread = open_panel_thread(page, "c-lost")
-    expect(thread.locator(".lf-fp-quote")).to_have_class(re.compile(r"\bdetached\b"))
-    expect(
-        page.locator(".lf-fp-aux").get_by_role("button", name="Show in message")
-    ).to_have_count(0)
 
+    with subtests.test("a detached anchor stays detached"):
+        thread = open_panel_thread(page, "c-lost")
+        expect(thread.locator(".lf-thread-quote")).to_have_attribute(
+            "data-lf-detached", ""
+        )
+        expect(
+            page.locator(".lf-fp-aux").get_by_role("button", name="Show in message")
+        ).to_have_count(0)
 
-def test_a_thread_on_a_widget_an_agent_sent_names_it_and_stands_apart(browser, serve):
-    """A question the agent asked is not one of the runtime's own buttons.
-
-    Design mode lets a user comment on anything the layer draws, so a thread can be
-    anchored on a widget that arrived in a reply. Two things were then said about it and
-    both were wrong. The panel filed it under "The page's own layer", which groups the
-    agent's question with the composer and the version picker — the layer's parts wear
-    the runtime's id namespace, which authored markup may not take, and that is what
-    tells one from the other. And the thread's label read `§ ps-decision`, the bare id.
-
-    The label is the part with the mechanism worth naming. An element anchor is labelled
-    with its element's opening words, read when the node is built — and on the reconcile
-    that first builds this node, the message body carrying the widget has not been
-    connected yet, so the element did not exist and the reading came back empty. A node the
-    reconcile keeps is never built again, so nothing asked a second time. It is repainted
-    with the quote now, which is the pass that already exists for records whose subject
-    the reconcile has just written."""
-    url = thread_on_a_sent_widget(serve)
-    page = open_page(browser, url)
-    resized(page, 1200, 900)
     thread = open_panel_thread(page, "c-on-sent")
-    label = thread.locator(".lf-fp-quote").inner_text()
-    assert "Which store should I write up?" in label, label
-    assert "ps-decision-region" not in label, label
-
-
-def test_a_thread_on_a_widget_an_agent_sent_stands_in_its_message(browser, serve):
-    """A thread about a widget an agent sent stands in the message that carried it.
-
-    The panel draws a message's widgets only while it has their thread open, and anchor
-    placement looked for the widget only among the nodes the page held, so whenever that
-    thread was closed the thread about the widget read as detached ("can't be
-    identified") and had no way to what it was about. Placement now finds the widget in
-    the message that keeps it: the head quotes it as found, and Show in message opens the
-    message's thread on the widget and lands there."""
-    url = thread_on_a_sent_widget(serve)
-    page = open_page(browser, url)
-    resized(page, 1200, 900)
-    thread = open_panel_thread(page, "c-on-sent")
-    quote = thread.locator(".lf-fp-quote")
+    quote = thread.locator(".lf-thread-quote")
     expect(quote).to_contain_text("Which store should I write up?")
-    expect(quote).not_to_have_class(re.compile(r"\bdetached\b"))
+    assert "ps-decision-region" not in quote.inner_text()
+    expect(quote).not_to_have_attribute("data-lf-detached", "")
 
     page.locator(".lf-fp-aux").get_by_role(
         "button", name="Show in message", exact=True
     ).click()
-    held = page.locator(f'{PANEL_THREAD}[data-thread="c-sent"]')
+    held = page.locator(f'{PANEL_THREAD}[data-lf-thread="c-sent"]')
     expect(held).to_be_visible()
     widget = held.locator("#ps-decision-region")
     expect(widget).to_be_in_viewport()

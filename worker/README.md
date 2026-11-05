@@ -96,6 +96,19 @@ uv run leaf-dev journey website-worker
 journey that `publish-site` runs against <https://leaf.page/> after it deploys. Neither
 builds the site, so rerun `leaf-dev site` after a change.
 
+When the agent's environment cannot access Docker, `verify-website` can run this
+build and local verifier on its GitHub runner, without deploying or running the
+product suites. Replace `YOUR_BRANCH` with the branch to verify:
+
+```sh
+gh workflow run verify-website --ref YOUR_BRANCH
+```
+
+Read the run's `website` job and confirm its head SHA matches the intended revision.
+The `website-verification-<run>-<attempt>` artifact retains the Worker/container log
+and any completed startup profile. The ordinary PR gate still runs the verifier;
+this dispatch supplies the same check when a reproduction needs its own runner.
+
 For a quicker check of the agent alone, `uv run leaf-dev journey website-adapter` runs
 one real agent turn against the adapter on this machine, without the Worker, container
 limits, credential proxy or Docker. It uses a temporary `CODEX_HOME` with the
@@ -103,7 +116,7 @@ website's Codex config and shares the host's Codex login. It prints the containe
 records and keeps them, with the plugin install's output, under
 `.tmp/verify-site/run-*/` (`website-adapter.log`, `plugin-install.log`). In its JSON
 result, `sinceSendMs.responseVisible` is when the
-open Threads view first showed a non-empty agent reply; `sinceAdmissionMs.replied` is
+open Threads view first showed a non-empty agent reply; `milestones.answered` is
 when the container admitted that reply, not when the user could see it.
 
 ## Dev environment
@@ -516,6 +529,14 @@ The records to read first:
 | `container_continuation_receipted`                                       | The container wrote `startup_failed` for a waiting message it could not start, and whether that settled it                                                                   |
 | `thread_title_generated`, `thread_title_skipped`, `thread_title_failed`  | The title request for an untitled thread                                                                                                                                     |
 | `page_fault`                                                             | The adapter answered `500`: route, method, page path, exception class, and `detail`                                                                                          |
+
+The session's `component=leaf-container`, `event=http_error` records identify
+forwarded HTTP 5xx responses by status, method and `source`: `adapter` means the
+response carried Python's `Leaf-Release` stamp; `disconnected` means it matched
+the Containers SDK's fixed connection-loss response; `unclassified` means neither
+was established. These records retain no URL or response body. Use their native
+trace ID to join the request's invocation records. A `disconnected` response
+identifies the proxy boundary, not why its container connection was lost.
 
 The page's private `observations.jsonl` also records these hosted-turn boundaries.
 Only that private diagnostic stream retains the complete published reply updates,

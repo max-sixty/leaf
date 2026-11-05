@@ -5,9 +5,9 @@
  * generated for the diff, but still page text a user can select and comment on. Paper
  * places those same words after the phrase.
  *
- * Hover is only the fastest route. The phrase is the visible affordance; an ordinary
- * Leaf offer at the same place gives Tab, Enter, and Space their native route without
- * adding a second mark to the prose. Clicking the phrase pins the card for touch and
+ * Hover is only the fastest route. The phrase is the visible affordance; a proxy at the
+ * same place (control-faces.js, `proxy`) gives Tab, Enter, and Space their native route
+ * without adding a second mark to the prose. Clicking the phrase pins the card for touch and
  * careful reading. An auto popover owns the top-layer lifecycle and light dismissal;
  * CSS anchors keep the card with its phrase. */
 import {
@@ -15,13 +15,13 @@ import {
   showNativeLayer,
   closeNativeLayer,
   isNativeLayer,
-  offer,
+  offerAction,
   generatedElement,
   once,
-  paintKeys,
   reachedForWords,
   worksInside,
   whileConnected,
+  commandsChanged,
 } from "/runtime/widget-api.js";
 
 let nextId = 0;
@@ -29,18 +29,18 @@ let nextId = 0;
 customElements.define(
   "lf-gloss",
   class extends HTMLElement {
-    #bubble = null;
+    #bubble = document.createElement("span");
     #dismissed = false;
     #focused = false;
     #hovered = false;
-    #mark = null;
+    #mark = offerAction("proxy", "lf-gloss-mark");
     #pinned = false;
     #shown = false;
 
     connectedCallback() {
       if (!once(this)) return;
       this.#build();
-      whileConnected(this, (signal) => {
+      whileConnected(this, (/** @type {AbortSignal} */ signal) => {
         this.#listen(signal);
         this.#sync();
         return () => {
@@ -54,14 +54,12 @@ customElements.define(
 
     #build() {
       const phrase = this.textContent.replace(/\s+/g, " ").trim();
-      this.#mark = offer("button", "lf-gloss-mark");
       this.#mark.setAttribute("aria-label", `Explain “${phrase}”`);
       this.#mark.setAttribute("aria-expanded", "false");
 
-      this.#bubble = document.createElement("span");
       do this.#bubble.id = `lf-gloss-tip-${++nextId}`;
       while (document.getElementById(this.#bubble.id));
-      this.#bubble.className = "lf-gloss-popover";
+      this.#bubble.className = "lf-gloss-popover lf-popover";
       this.#bubble.dataset.lfSaid = "tip";
       generatedElement(this.#bubble, { says: true });
       this.#bubble.setAttribute("popover", "auto");
@@ -76,6 +74,17 @@ customElements.define(
       // trailing generated chrome. Writing that declared span here lets this module
       // also make it the popover; renderSaid sees the same marker and adds no duplicate.
       this.append(this.#bubble, this.#mark);
+      // A comment can rest on the x-says tip itself, and following it opens the tip as
+      // Leaf opens any closed popover holding a destination. Opened by anyone but this
+      // module, the tip stays pinned open, as a click pins it.
+      this.#bubble.addEventListener("beforetoggle", (event) => {
+        if (event.newState !== "open" || this.#shown) return;
+        this.#dismissed = false;
+        this.#pinned = true;
+        this.#shown = true;
+        this.#mark.setAttribute("aria-expanded", "true");
+        commandsChanged(this);
+      });
       this.#bubble.addEventListener("toggle", (event) => {
         if (event.newState !== "closed" || !this.#shown || isNativeLayer(this.#bubble))
           return;
@@ -83,10 +92,11 @@ customElements.define(
         this.#pinned = false;
         this.#dismissed = true;
         this.#mark.setAttribute("aria-expanded", "false");
-        paintKeys();
+        commandsChanged(this);
       });
     }
 
+    /** @param {AbortSignal} signal */
     #listen(signal) {
       this.addEventListener(
         "pointerenter",
@@ -130,28 +140,17 @@ customElements.define(
         },
         { signal },
       );
-      this.addEventListener(
-        "lf-reveal",
-        (event) => {
-          // A comment can rest on the x-says tip itself. Following it asks every
-          // ancestor to reveal the target before scrolling; open only for that hidden
-          // span, not for an ordinary comment on the phrase beside it.
-          const target = event.detail?.target;
-          if (target !== this.#bubble && !this.#bubble.contains(target)) return;
-          this.#dismissed = false;
-          this.#pinned = true;
-          this.#sync();
-        },
-        { signal },
-      );
       this.addEventListener("click", (event) => this.#click(event), { signal });
     }
 
+    /** @param {MouseEvent} event */
     #click(event) {
       if (event.defaultPrevented || reachedForWords(this)) return;
-      const nested = worksInside(event.target, this);
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+      const nested = worksInside(target, this);
       if (nested && nested !== this.#mark) return;
-      if (event.target.closest(".lf-gloss-popover")) return;
+      if (event.composedPath().includes(this.#bubble)) return;
       this.#dismissed = false;
       this.#pinned = !this.#pinned;
       this.#sync();
@@ -164,7 +163,7 @@ customElements.define(
       if (show === this.#shown && show === open) return;
       this.#shown = show;
       keeps(this.#mark, "aria-expanded", show);
-      paintKeys();
+      commandsChanged(this);
 
       if (show) {
         showNativeLayer(this.#bubble);

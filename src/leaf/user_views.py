@@ -61,7 +61,9 @@ _VISUAL_VIEWPORT = _object(
 _SHOWN_WINDOW = _object(
     {"x": _NUMBER, "y": _NUMBER, "width": _NONNEGATIVE, "height": _NONNEGATIVE}
 )
+_IDENTITY = {"type": "object"}
 _CHECK_BASIS = {
+    "identity": _IDENTITY,
     "revision": _REVISION,
     "through_seq": _THROUGH_SEQ,
     "viewport": _VIEWPORT,
@@ -73,6 +75,9 @@ _CHECKS = _object(
     {"sequence": _SEQUENCE, **_CHECK_BASIS, "reading": {"type": "object"}}
 )
 _PROPERTIES = {
+    "identity": described(
+        "The rendering identity captured by this document.", _IDENTITY
+    ),
     "session": described(
         "The document's random session id.",
         {"type": "string", "pattern": "^[0-9a-f]{32}$"},
@@ -155,7 +160,7 @@ USER_VIEWS = Record(
             },
         ),
     ),
-    since=16,
+    since=27,
 )
 
 

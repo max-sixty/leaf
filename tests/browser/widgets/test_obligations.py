@@ -20,9 +20,9 @@ from render_cases_interaction import (
     answered_comment,
     live_url,
 )
+from render_cases_layout import SHOT_SRC, SHOTS
 from render_cases_navigation import BINDING_BADGE_PAGE, actions
 from render_harness import (
-    ROOT,
     active_digit_bindings,
     available_commands,
     expect_comment_notes,
@@ -45,6 +45,7 @@ from browser.widgets import (
     observe_live_region,
 )
 from leaf.render_checks import rendered
+from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -57,7 +58,7 @@ ACROSS_OBLIGATION = """
       <tbody><tr><td>Hot</td><td class="num">40</td></tr>
         <tr><td>Warm</td><td class="num">120</td></tr></tbody>
     </table></figure>
-    <lf-options id="{id}-choice" choose>
+    <lf-options id="{id}-choice" choose{across}>
       <lf-option id="{id}-7"><strong>7 days</strong> The cheapest.
         <lf-options id="{id}-nested" choose>
           <lf-option id="{id}-hot"><strong>Hot only</strong> Drop warm at once.</lf-option>
@@ -74,14 +75,16 @@ ACROSS_OBLIGATION = """
 
 ACROSS_OBLIGATION_PAGE = leaf_page(
     "options laid across",
-    "<h1>Retention</h1>" + ACROSS_OBLIGATION.format(id="across", width=""),
+    "<h1>Retention</h1>"
+    + ACROSS_OBLIGATION.format(id="across", width="", across=" across")
+    + ACROSS_OBLIGATION.format(id="down", width="", across=""),
 )
 
 
 ACROSS_WIDE_OBLIGATION_PAGE = leaf_page(
     "options laid across a widened obligation",
     "<div>"
-    + ACROSS_OBLIGATION.format(id="wide", width=' data-width="wide"')
+    + ACROSS_OBLIGATION.format(id="wide", width=' data-width="wide"', across=" across")
     + "</div>",
     layout="sidebar",
 )
@@ -127,44 +130,108 @@ PLATED_OPTION = """
       </lf-option>"""
 
 
+CAPTURED_OPTION = """
+      <lf-option id="captured-{side}"><strong>{title}</strong>
+        <a href="{src}"><img id="captured-{side}-picture" src="{src}" alt="{title}"></a>
+      </lf-option>"""
+
+
+ROWED_OPTION = """
+      <lf-option id="rowed-{side}">{title}
+        <svg id="rowed-{side}-picture" class="drawing" viewBox="0 0 300 60" width="300"
+          height="60" role="img" aria-label="{title}">
+          <rect width="300" height="60" fill="none" stroke="currentColor" /></svg>
+      </lf-option>"""
+
+
 PICTURED_OBLIGATION_PAGE = leaf_page(
     "options holding their pictures",
     "<h1>Plan context</h1>"
     + PICTURED_OBLIGATION.format(id="pictured", width="")
     + PICTURED_OBLIGATION.format(id="widened", width=' data-width="wide"')
+    + PICTURED_OBLIGATION.format(id="across", width=' data-width="wide" across')
     + '<lf-ask id="plated"><h3>Which latency?</h3><lf-options id="plated-choice" choose>'
     + PLATED_OPTION.format(side="yes", title="Backend")
     + PLATED_OPTION.format(side="no", title="Frontend")
+    + "</lf-options></lf-ask>"
+    + '<lf-ask id="captured"><h3>Which panel?</h3><lf-options id="captured-choice" choose>'
+    + CAPTURED_OPTION.format(side="yes", title="Both lines", src=SHOT_SRC["before"])
+    + CAPTURED_OPTION.format(side="no", title="One line", src=SHOT_SRC["after"])
+    + "</lf-options></lf-ask>"
+    + '<lf-ask id="rowed"><h3>Which route?</h3><lf-options id="rowed-choice" choose>'
+    + ROWED_OPTION.format(side="yes", title="Along the fence")
+    + ROWED_OPTION.format(side="no", title="Under the lawn")
+    + "</lf-options></lf-ask>"
+    + '<lf-ask id="worded"><h3>Which order?</h3><lf-options id="worded-choice" choose>'
+    + '<lf-option id="worded-yes"><strong>By owner</strong> Grouped.</lf-option>'
+    + '<lf-option id="worded-no"><strong>By age</strong> As today.</lf-option>'
     + "</lf-options></lf-ask>",
 )
 
 
-def test_options_holding_pictures_lay_across(browser, serve):
-    """An obligation whose options each hold a picture of what choosing it gives, with
-    no figure before them, sets the cards side by side, so each picture stands over its
-    own pick and the two compare in one row, though each is wrapped in a link. A widget
-    whose entry declares it draws a picture (`x-visual`), such as a chart, counts as one.
-    A group given `data-width` lays them across its own width, with each picture
-    growing toward its authored size as the group gains room."""
+def test_options_holding_pictures_stand_apart(browser, serve):
+    """Joined into one control, a hairline was the only boundary between one option's
+    picture and the next option's title, so a live group whose options hold a picture
+    draws them as standalone cards a gap apart, each framed, bare rows and the add field
+    as well as titled cards, while a group of words stays one control with hairlines
+    between its cells. A
+    picture is a drawing, a capture or a widget whose entry declares it draws one
+    (`x-visual`), wrapped in the link that opens it or not.
+
+    The cards read down unless the author asks for `across`, so each picture stands at
+    the size its author gave it, in the reading column or a group given `data-width`;
+    laid across, the cards keep the same gap between them."""
+    media = {SHOT_SRC[name]: data for name, data in SHOTS.items()}
     page = open_page(
-        browser, serve(PICTURED_OBLIGATION_PAGE, layer_registry=PLATE_PACKAGE)
+        browser,
+        serve(PICTURED_OBLIGATION_PAGE, layer_registry=PLATE_PACKAGE, media=media),
     )
     resized(page, 1440, 900)
+    page.wait_for_function("[...document.images].every((i) => i.complete)")
     at = page.evaluate(
-        """() => Object.fromEntries(['pictured', 'widened', 'plated'].map((id) => {
-          const box = (s) => document.getElementById(`${id}-${s}`).getBoundingClientRect();
-          return [id, {
-            tops: ['yes', 'no'].map((s) => Math.round(box(s).top)),
-            lefts: ['yes', 'no'].map((s) => Math.round(box(s).left)),
-            pictures: ['yes', 'no'].map((s) => Math.round(box(`${s}-picture`).width)),
-          }];
-        }))"""
+        """() => Object.fromEntries(
+          ['pictured', 'widened', 'across', 'plated', 'captured', 'rowed', 'worded'].map((id) => {
+            const el = (s) => document.getElementById(`${id}-${s}`);
+            const edge = (node) => parseFloat(getComputedStyle(node).borderTopWidth);
+            const [yes, no] = ['yes', 'no'].map((s) => el(s).getBoundingClientRect());
+            const group = el('choice');
+            return [id, {
+              tops: [yes, no].map((r) => Math.round(r.top)),
+              lefts: [yes, no].map((r) => Math.round(r.left)),
+              gap: Math.round(
+                no.top >= yes.bottom ? no.top - yes.bottom : no.left - yes.right),
+              spacing: parseFloat(getComputedStyle(group).getPropertyValue('--sp-3')),
+              edges: {group: edge(group), options: ['yes', 'no'].map((s) => edge(el(s))),
+                      add: edge(group.querySelector(':scope > .lf-another'))},
+              pictures: ['yes', 'no'].map((s) =>
+                Math.round(el(`${s}-picture`)?.getBoundingClientRect().width ?? 0)),
+            }];
+          }))"""
     )
-    for id in ("pictured", "widened", "plated"):
-        assert at[id]["tops"][0] == at[id]["tops"][1], at
-        assert at[id]["lefts"][0] < at[id]["lefts"][1], at
-    assert at["widened"]["pictures"][0] == at["widened"]["pictures"][1], at
-    assert at["pictured"]["pictures"][0] < at["widened"]["pictures"][0] < 480, at
+    pictured = ("pictured", "widened", "across", "plated", "captured", "rowed")
+    for id in pictured:
+        assert at[id]["edges"] == {"group": 0, "options": [1, 1], "add": 1}, (id, at)
+        assert at[id]["gap"] == at[id]["spacing"], (id, at)
+    assert at["worded"]["edges"] == {"group": 1, "options": [0, 0], "add": 0}, at
+    assert at["worded"]["gap"] == 1, at
+    for id in ("pictured", "widened", "plated", "captured", "rowed", "worded"):
+        assert at[id]["tops"][0] < at[id]["tops"][1], (id, at)
+        assert at[id]["lefts"][0] == at[id]["lefts"][1], (id, at)
+    assert at["across"]["tops"][0] == at["across"]["tops"][1], at
+    for id in ("pictured", "widened"):
+        assert at[id]["pictures"] == [480, 480], at
+    assert at["captured"]["pictures"] == [600, 600], at
+    # Apart or joined changes only the frame: a pick fills and rings a card as it does
+    # a cell, so it reads among pictures as plainly as among words.
+    for id in ("pictured", "worded"):
+        page.locator(f"#{id}-yes > strong").click()
+        expect(page.locator(f"#{id}-yes")).to_have_attribute("chosen", "")
+    page.mouse.move(0, 0)
+    face = """el => { const s = getComputedStyle(el);
+                      return [s.backgroundColor, s.boxShadow]; }"""
+    picked = page.locator("#pictured-yes").evaluate(face)
+    assert picked == page.locator("#worded-yes").evaluate(face), picked
+    assert picked != page.locator("#pictured-no").evaluate(face), picked
 
 
 ACROSS_GEOMETRY = """(id) => {
@@ -182,14 +249,15 @@ ACROSS_GEOMETRY = """(id) => {
 }"""
 
 
-def test_an_obligation_framing_a_figure_lays_its_options_across(browser, serve):
-    """An obligation holding a figure before its option list sets the titled options side by
-    side under the figure in columns of one width, so the question, its figure and every
+def test_options_marked_across_lay_across(browser, serve):
+    """A group the author marks `across` sets its titled options side by side in columns
+    of one width, under the figure before it, so the question, its figure and every
     option share a window. Where the row can't hold them all, they stack one to a row
     rather than leaving a card alone on a second. Where the heading sits, in an hgroup
     after an eyebrow, and a paragraph after the list change nothing. The arrangement
-    belongs to that obligation's own list: a group nested in one of its options keeps
-    its options one to a row."""
+    belongs to the group marked: a group nested in one of its options keeps its options
+    one to a row, and the same obligation, figure and all, keeps its cards reading down
+    without `across`."""
     page = open_page(browser, serve(ACROSS_OBLIGATION_PAGE))
     resized(page, 1440, 900)
     wide = page.evaluate(ACROSS_GEOMETRY, "across")
@@ -197,11 +265,92 @@ def test_an_obligation_framing_a_figure_lays_its_options_across(browser, serve):
     assert wide["tops"][0] >= wide["figureBottom"], wide
     assert wide["lefts"] == sorted(set(wide["lefts"])), wide
     assert wide["nested"][0] < wide["nested"][1], wide
+    down = page.evaluate(ACROSS_GEOMETRY, "down")
+    assert down["tops"] == sorted(set(down["tops"])), down
+    assert len(set(down["lefts"])) == 1, down
     # Two of the three would fit across at this width.
     resized(page, 700, 900)
     middle = page.evaluate(ACROSS_GEOMETRY, "across")
     assert middle["tops"] == sorted(set(middle["tops"])), middle
     assert len(set(middle["lefts"])) == 1, middle
+
+
+def chipped_obligation(id, cards):
+    """An obligation framing a drawing, its titled cards laid across; each card is
+    (chips, title, attributes)."""
+    options = "".join(
+        f'<lf-option id="{id}-{n}"{attributes}>'
+        + "".join(f'<small class="tag">{chip}</small>' for chip in chips)
+        + f"<strong>{title}</strong><p>Its consequence.</p></lf-option>"
+        for n, (chips, title, attributes) in enumerate(cards)
+    )
+    return (
+        f'<lf-ask id="{id}"><h3>Which fix first?</h3>'
+        '<svg class="drawing" viewBox="0 0 480 60" role="img" aria-label="Loss by fix">'
+        '<rect width="480" height="60" fill="none" stroke="currentColor" /></svg>'
+        f'<lf-options id="{id}-choice" choose across>{options}</lf-options></lf-ask>'
+    )
+
+
+CHIPPED_CARDS_PAGE = leaf_page(
+    "cards laid across opening with chips",
+    "<h1>Heat loss</h1>"
+    + chipped_obligation(
+        "some",
+        [
+            (["recommended"], "Seal the hatch", ""),
+            ([], "Glaze the bay", ""),
+            (["risky"], "Insulate the floor", " chosen"),
+        ],
+    )
+    + chipped_obligation(
+        "all",
+        [
+            (
+                ["recommended", "£180", "one afternoon", "needs the installer"],
+                "Seal the hatch",
+                "",
+            ),
+            (["£1,180"], "Glaze the bay", ""),
+            (["risky"], "Insulate the floor", ""),
+        ],
+    ),
+)
+
+
+@pytest.mark.parametrize(
+    ("engine", "rows"),
+    [("browser", ("some",)), ("firefox_browser", ("some", "all"))],
+)
+def test_cards_laid_across_align_their_titles_whatever_chips_open_them(
+    request, serve, engine, rows
+):
+    """Cards side by side read as one comparison, so each title, and the sentence under
+    it, stands on one line across the row whether its card opens with chips, with
+    none, or with the "selected" state beside them. A card whose chips wrap to several
+    lines moves its neighbours' contents down with it, which needs baseline
+    content-alignment: Chromium lacks it, so there only chips that fit beside the
+    state seat keep the row aligned (`notes/browser-support.md`)."""
+    page = open_page(request.getfixturevalue(engine), serve(CHIPPED_CARDS_PAGE))
+    resized(page, 1440, 900)
+    at = page.evaluate(
+        """(rows) => Object.fromEntries(rows.map((id) => {
+          const cards = [...document.querySelectorAll(`#${id}-choice > lf-option`)];
+          const top = (card, part) =>
+            Math.round(card.querySelector(`:scope > ${part}`).getBoundingClientRect().top);
+          return [id, {
+            cards: cards.map((card) => Math.round(card.getBoundingClientRect().top)),
+            titles: cards.map((card) => top(card, 'strong')),
+            sentences: cards.map((card) => top(card, 'p')),
+          }];
+        }))""",
+        list(rows),
+    )
+    for id in rows:
+        row = at[id]
+        assert len(set(row["cards"])) == 1, f"{id}: the cards share a row: {row}"
+        assert len(set(row["titles"])) == 1, f"{id}: titles misaligned: {row}"
+        assert len(set(row["sentences"])) == 1, f"{id}: sentences misaligned: {row}"
 
 
 def test_options_laid_across_take_a_widened_obligations_width(browser, serve):
@@ -215,13 +364,14 @@ def test_options_laid_across_take_a_widened_obligations_width(browser, serve):
     assert at["obligation"] > 720, at
     assert abs(at["list"] - at["obligation"]) <= 1, at
     assert len(set(at["tops"])) == 1, at
-    # The group's frame takes 2px of its width.
-    assert abs(sum(at["widths"]) - (at["list"] - 2)) <= 2, at
+    # The group's frame takes 2px of its width, and each hairline between cards 1px.
+    hairlines = len(at["widths"]) - 1
+    assert abs(sum(at["widths"]) - (at["list"] - 2 - hairlines)) <= 2, at
 
 
 def test_ideas_shortlist_survives_revision_and_can_reopen(browser, serve):
     """Ordinary choices retain the implementation set and a reversible Done."""
-    example = ROOT / "examples/ideas-to-implement.html"
+    example = named_source("ideas-to-implement")
     context = browser.new_context(
         viewport={"width": 390, "height": 844}, has_touch=True
     )
@@ -330,7 +480,9 @@ def test_the_obligation_reading_counts_completed_obligations_against_the_active_
     # is in the log alone, so that one follows the round trip.
     page.locator("#lq-token").click()
     expect_obligations_answered(page, "2/5")
-    page.locator("[data-lf-margin-for='sug-refill'] .lf-sug-accept").click()
+    page.locator(
+        "[data-lf-margin-for='sug-refill'] [data-lf-margin-entry-key=accept]"
+    ).click()
     expect_obligations_answered(page, "3/5")
     expect_accept_all(page, 0)
 
@@ -340,7 +492,7 @@ def test_the_obligation_reading_counts_completed_obligations_against_the_active_
     expect_obligations_answered(page, "2/5")
 
 
-def test_a_key_walks_the_page_s_open_obligations(browser, serve):
+def test_a_key_walks_the_page_s_open_obligations(browser, serve, subtests):
     """t/T step the open threads; m/M step the things the page is waiting on the user
     for. The category letter stays under one finger: lowercase advances and Shift goes
     back. Both walks repeat when held because walking often takes several presses.
@@ -354,6 +506,37 @@ def test_a_key_walks_the_page_s_open_obligations(browser, serve):
     the controls themselves remain the next Tab stops."""
     page = open_page(browser, serve(OBLIGATIONS_PAGE))
     expect_obligations_answered(page, "1/5")
+
+    with subtests.test("the obligation stood on survives the window losing focus"):
+        # Another app taking key focus for a moment, such as macOS verifying a newly
+        # installed binary, blurs the obligation the user is located on but leaves it the
+        # document's focused area, and the browser puts them back on it when the window
+        # returns. The tab stop the walk lent the obligation is held through that blur.
+        # Taking it back made the obligation unfocusable while focused, the browser
+        # dropped the user to the body, and the window returned without preserving their
+        # current location.
+        #
+        # Headless Playwright cannot take system focus from its window, so the test
+        # delivers the platform's blur at the obligation while it stays the focused area,
+        # which is what the window losing focus does.
+        first = page.locator(f"#{OBLIGATIONS_IN_ORDER[0]}")
+        page.keyboard.press("m")
+        expect(first).to_be_focused()
+        first.evaluate("ask => ask.dispatchEvent(new FocusEvent('blur'))")
+        expect(first).to_be_focused()
+        expect(first).to_have_attribute("tabindex", "-1")
+
+        # Moving off within the page still gives the stop back.
+        page.keyboard.press("m")
+        expect(page.locator(f"#{OBLIGATIONS_IN_ORDER[1]}")).to_be_focused()
+        expect(first).not_to_have_attribute("tabindex", re.compile(".*"))
+
+    # Off the walk and back at the page's start, so it starts from its first stop.
+    page.locator("#h").click()
+    page.evaluate("scrollTo({top: 0, behavior: 'instant'})")
+    scroll_settled(page)
+    expect(page.locator(CURRENT_OBLIGATION)).to_have_count(0)
+
     walked = []
     for expected in [*OBLIGATIONS_IN_ORDER, OBLIGATIONS_IN_ORDER[0]]:
         page.keyboard.press("m")
@@ -416,39 +599,14 @@ def test_a_key_walks_the_page_s_open_obligations(browser, serve):
     # the user now stands, and the next press reaches what followed it rather than the
     # change they have just settled. The control the user answered from keeps the
     # focus. It leaves the open walk while the completed/total count advances.
-    page.locator("[data-lf-margin-for='sug-refill'] .lf-sug-accept").click()
+    page.locator(
+        "[data-lf-margin-for='sug-refill'] [data-lf-margin-entry-key=accept]"
+    ).click()
     expect_obligations_answered(page, "2/5")
     page.keyboard.press("m")
     expect(page.locator("#t-baffles-decision[data-lf-obligation]")).to_have_count(1)
     expect(page.locator("#t-baffles-decision")).to_be_focused()
     expect_obligations_answered(page, "2/5")
-
-
-def test_an_obligation_the_user_stands_on_survives_the_window_losing_focus(
-    browser, serve
-):
-    """Another app taking key focus for a moment, such as macOS verifying a newly
-    installed binary, blurs the obligation the user is located on but leaves it the document's
-    focused area, and the browser puts them back on it when the window returns. The tab
-    stop the walk lent the obligation is held through that blur. Taking it back made the obligation
-    unfocusable while focused, the browser dropped the user to the body, and the window
-    returned without preserving their current location.
-
-    Headless Playwright cannot take system focus from its window, so the test delivers
-    the platform's blur at the obligation while it stays the focused area, which is what the
-    window losing focus does."""
-    page = open_page(browser, serve(OBLIGATIONS_PAGE))
-    first = page.locator(f"#{OBLIGATIONS_IN_ORDER[0]}")
-    page.keyboard.press("m")
-    expect(first).to_be_focused()
-    first.evaluate("ask => ask.dispatchEvent(new FocusEvent('blur'))")
-    expect(first).to_be_focused()
-    expect(first).to_have_attribute("tabindex", "-1")
-
-    # Moving off within the page still gives the stop back.
-    page.keyboard.press("m")
-    expect(page.locator(f"#{OBLIGATIONS_IN_ORDER[1]}")).to_be_focused()
-    expect(first).not_to_have_attribute("tabindex", re.compile(".*"))
 
 
 def test_an_obligation_arrival_starts_with_the_context_that_frames_it(browser, serve):
@@ -592,10 +750,14 @@ def test_the_obligation_itself_binds_each_contributed_action(browser, serve):
     expect(page.locator("#sug-refill")).to_be_focused()
     assert active_digit_bindings(page) == "1–2"
     expect(
-        page.locator("[data-lf-margin-for='sug-refill'] .lf-sug-accept")
+        page.locator(
+            "[data-lf-margin-for='sug-refill'] [data-lf-margin-entry-key=accept]"
+        )
     ).to_have_attribute("aria-keyshortcuts", "1")
     expect(
-        page.locator("[data-lf-margin-for='sug-refill'] .lf-sug-reject")
+        page.locator(
+            "[data-lf-margin-for='sug-refill'] [data-lf-margin-entry-key=reject]"
+        )
     ).to_have_attribute("aria-keyshortcuts", "2")
     page.keyboard.press("2")
     round_trip(page)
@@ -611,7 +773,7 @@ def test_obligation_contextual_bindings_are_independent_of_widget_bindings(
 
     page.evaluate(
         """async () => {
-          const {commands} = await window.__lfWidgetApi();
+          const {commandsChanged} = await window.__lfWidgetApi();
           const suggestion = document.getElementById('sug');
           const source = document.createElement('span');
           const inspect = document.createElement('button');
@@ -619,7 +781,7 @@ def test_obligation_contextual_bindings_are_independent_of_widget_bindings(
           inspect.textContent = 'Inspect';
           source.append(inspect);
           suggestion.append(source);
-          commands(source, 'Suggestion action', [
+          source.lfCommands = { title: 'Suggestion action', rows: [
             {
               id: 'test.inspect',
               keys: ['x', 'y'], contextKeys: ['3'],
@@ -630,7 +792,8 @@ def test_obligation_contextual_bindings_are_independent_of_widget_bindings(
               line: 'Inspect',
               run: () => { inspect.dataset.activated = '1'; },
             },
-          ]);
+          ] };
+          commandsChanged(source);
         }"""
     )
 
@@ -638,7 +801,7 @@ def test_obligation_contextual_bindings_are_independent_of_widget_bindings(
     page.keyboard.press("?")
     page.keyboard.press("?")
     inspect_reference = page.locator(
-        '.lf-command-reference [role=row][data-lf-command="test.inspect"]'
+        '.lf-command-reference [role=option][data-lf-command="test.inspect"]'
     )
     expect(inspect_reference.locator("kbd")).to_have_text("I")
     expect(inspect_reference.locator(".lf-binding-sequence")).to_have_attribute(
@@ -682,14 +845,15 @@ def test_obligation_contextual_bindings_are_independent_of_widget_bindings(
     # collapsing the command's equivalent bindings into whichever one came first.
     page.evaluate(
         """async () => {
-          const {commands} = await window.__lfWidgetApi();
+          const {commandsChanged} = await window.__lfWidgetApi();
           const inspect = document.getElementById('inspect-action');
-          commands(inspect, 'Inspect control', [{
+          inspect.lfCommands = { title: 'Inspect control', rows: [{
             id: 'test.dead-local-x', keys: ['x'],
             title: 'Run an unavailable local command',
             line: 'unavailable local command', when: () => false,
             run: () => { inspect.dataset.deadLocalX = '1'; },
-          }]);
+          }] };
+          commandsChanged(inspect);
         }"""
     )
     rendered(page)
@@ -710,7 +874,7 @@ def test_obligation_contextual_bindings_are_independent_of_widget_bindings(
     page.keyboard.press("?")
     page.keyboard.press("?")
     focused_inspect = page.locator(
-        '.lf-command-reference [role=row][data-lf-command="test.inspect"]'
+        '.lf-command-reference [role=option][data-lf-command="test.inspect"]'
     )
     expect(focused_inspect.locator("kbd")).to_have_text("I")
 
@@ -721,12 +885,12 @@ def test_a_widget_digit_shadows_only_the_matching_obligation_alias(browser, serv
     page = open_page(browser, serve(SHORT_SUGGESTION))
     page.evaluate(
         """async () => {
-          const {commands} = await window.__lfWidgetApi();
+          const {commandsChanged} = await window.__lfWidgetApi();
           const suggestion = document.getElementById('sug');
           const inspect = document.createElement('button');
           inspect.textContent = 'Inspect';
           suggestion.append(inspect);
-          commands(inspect, 'Inspect control', [
+          inspect.lfCommands = { title: 'Inspect control', rows: [
             {
               id: 'test.inspect', keys: ['1'], contextKeys: ['3'], control: inspect, label: 'I',
               decision: true, title: 'Inspect', line: 'Inspect',
@@ -737,7 +901,8 @@ def test_a_widget_digit_shadows_only_the_matching_obligation_alias(browser, serv
               title: 'Run the local third command', line: 'local three',
               run: () => { inspect.dataset.localThree = '1'; },
             },
-          ]);
+          ] };
+          commandsChanged(inspect);
         }"""
     )
 
@@ -771,7 +936,7 @@ def test_an_obligation_alias_runs_the_original_command_in_its_own_scope(browser,
 
     page.evaluate(
         """async () => {
-          const { commands } = await window.__lfWidgetApi();
+          const { commandsChanged } = await window.__lfWidgetApi();
           const suggestion = document.getElementById('sug');
           const control = document.createElement('button');
           control.textContent = 'Configure';
@@ -782,16 +947,18 @@ def test_an_obligation_alias_runs_the_original_command_in_its_own_scope(browser,
           inside.textContent = 'Inside configuration';
           layer.append(inside);
           suggestion.append(control, layer);
-          commands(control, 'Configuration action', [{
+          control.lfCommands = { title: 'Configuration action', rows: [{
             id: 'test.configure', keys: [], contextKeys: ['3'], control,
             decision: true, title: 'Configure', line: 'configure',
             run: () => { layer.hidden = false; inside.focus(); },
-          }]);
-          commands(inside, 'In the configuration layer', [{
+          }] };
+          commandsChanged(control);
+          inside.lfCommands = { title: 'In the configuration layer', rows: [{
             id: 'test.configure.close', keys: ['Escape'],
             title: 'Close configuration', line: 'close configuration',
             run: () => { layer.hidden = true; control.focus(); },
-          }]);
+          }] };
+          commandsChanged(inside);
         }"""
     )
 
@@ -851,15 +1018,20 @@ def test_obligation_action_binding_badges_use_the_available_card_action_seats(
         assert obligation_point["x"] == pytest.approx(focused_point["x"], abs=0.5)
         assert obligation_point["y"] == pytest.approx(focused_point["y"], abs=0.5)
 
-    # The Add press must enter the tab order in the input event itself. A paint on
-    # the next frame can come after the next Tab and send focus to the next obligation.
-    page.evaluate("""() => document.addEventListener('input', () => {
-      window.__addEmptyAtInput = document.querySelector(
-        '#live-question .lf-compose-submit').hasAttribute('data-lf-empty');
-    }, {once: true})""")
+    # Add must be ready before the next frame and the next keyboard gesture.
+    # Lit may commit in a microtask after the input event has finished bubbling.
+    page.evaluate("""() => {
+      window.__addEmptyBeforeFrame = new Promise(resolve => {
+        document.addEventListener('input', () => requestAnimationFrame(() => {
+          resolve(document.querySelector(
+            '#live-question .lf-compose-submit').hasAttribute('data-lf-empty'));
+        }), {once: true});
+      });
+    }""")
     write(addition.get_by_role("textbox", name="Another option"), "A fourth option")
-    assert page.evaluate("window.__addEmptyAtInput") is False
     page.keyboard.press("Tab")
+    expect(submit).to_be_focused()
+    assert page.evaluate("window.__addEmptyBeforeFrame") is False
     binding_badge = addition.locator("> .lf-key-badge[data-lf-binding-badge]")
     expect(binding_badge).to_be_visible()
     expect(submit).to_be_visible()
@@ -892,7 +1064,7 @@ def test_obligation_actions_replace_unusable_package_binding_badge_faces(
 
     page.evaluate(
         """async () => {
-           const {commands} = await window.__lfWidgetApi();
+           const {commandsChanged} = await window.__lfWidgetApi();
            const source = document.getElementById('sug');
            const face = (id, top) => {
              const bindingBadge = document.createElement('span');
@@ -908,11 +1080,12 @@ def test_obligation_actions_replace_unusable_package_binding_badge_faces(
             control.textContent = id;
             control.style.cssText = `position: fixed; left: 560px; top: ${top}px;`;
             source.append(control);
-            commands(control, id, [{
+            control.lfCommands = { title: id, rows: [{
                id: `test.${id}`, keys: [], contextKeys: [String(nextKey++)], control, bindingBadge,
               decision: true, title: `Activate ${id}`, line: id,
               run: () => { control.dataset.activated = '1'; },
-            }]);
+            }] };
+            commandsChanged(control);
           };
 
            add('disconnected-face', 220, face('detached-binding-badge', 100));
@@ -970,6 +1143,18 @@ def test_obligation_actions_replace_unusable_package_binding_badge_faces(
                 has_text=binding,
             )
         ).to_have_count(1)
+    # A covered or clipped face's chip takes the face's place, which the widget chose,
+    # rather than its control's corner, where a field's chip covered its first words.
+    for face, binding in (
+        ("#covered-binding-badge", "6"),
+        ("#clipped-binding-badge", "7"),
+    ):
+        seat = page.locator(face).bounding_box()
+        chip = page.locator(
+            ".lf-command-binding-badges .lf-command-binding-badge", has_text=binding
+        ).bounding_box()
+        assert abs(chip["x"] + chip["width"] / 2 - seat["x"] - seat["width"] / 2) <= 1
+        assert abs(chip["y"] + chip["height"] / 2 - seat["y"] - seat["height"] / 2) <= 1
 
 
 def test_obligation_binding_badges_do_not_cover_their_key_line(browser, serve):
@@ -1041,12 +1226,29 @@ def test_obligation_binding_badges_do_not_cover_their_key_line(browser, serve):
     ), geometry
 
 
-def test_an_obligation_that_cannot_name_itself_arrives_on_the_words_that_explain_it(
-    browser, serve
+def walked_to(page, key, target):
+    """Press `key`, then wait for the walk to put focus on `target` and its travel to end.
+
+    The arrival focuses and issues its smooth scroll in one task, but the page's scroll
+    position first moves frames later, and `scroll_settled` counts those frames as
+    stillness. So the travel must be seen to start before its end is waited for, which
+    holds only for a destination the arrival moves the page to.
+    """
+    before = page.evaluate("document.scrollingElement.scrollTop")
+    page.keyboard.press(key)
+    expect(page.locator(target)).to_be_focused()
+    page.wait_for_function(
+        "(before) => document.scrollingElement.scrollTop !== before", arg=before
+    )
+    scroll_settled(page)
+
+
+def test_an_arrival_on_a_change_takes_in_the_words_that_explain_it_and_stops_there(
+    browser, serve, subtests
 ):
     """A change to a phrase has no region to declare, so the document supplies one.
 
-    An enclosing widget (`x-awaits.encloses`) states its own arrival region: a heading, the
+    An enclosing widget (`x-encloses`) states its own arrival region: a heading, the
     context, then the control. A suggestion can stand mid-sentence, so it can never satisfy "an obligation must
     name itself without context outside the obligation" and no region can be written round it.
     Arriving on the change alone put its own top edge at the window's head and took the
@@ -1070,9 +1272,7 @@ def test_an_obligation_that_cannot_name_itself_arrives_on_the_words_that_explain
         }"""
     ), "the fixture already shows the change on the first screen"
 
-    page.keyboard.press("m")
-    expect(page.locator("#sc-sug")).to_be_focused()
-    scroll_settled(page)
+    walked_to(page, "m", "#sc-sug")
 
     landed = page.evaluate(
         """() => {
@@ -1096,47 +1296,88 @@ def test_an_obligation_that_cannot_name_itself_arrives_on_the_words_that_explain
     )
     assert landed["foot"] <= landed["view"], "the change itself ran off the screen"
 
+    with subtests.test(
+        "an obligation already in front of the user is not travelled to"
+    ):
+        # The press moves the ring and the focus and leaves the page where it stands.
+        # Rebuilding a view the user is already looking at is motion that says nothing,
+        # and it costs them whatever adjustment they had made within it. The gate reads
+        # what the page shows of the obligation rather than what its own box claims,
+        # which is the reading commentOnAddressable makes before its own travel.
+        #
+        # The walk above is the control: it did travel, from a page that opens above
+        # the change, so a second press standing still is this gate rather than a walk
+        # that never moves the page at all.
+        arrived = page.evaluate("() => document.scrollingElement.scrollTop")
+        assert arrived > 0, "the walk did not travel to the obligation at all"
 
-def test_an_arrival_region_fits_above_the_floating_panel(browser, serve):
-    """The region an arrival takes in is measured against the landing band.
+        # A little above that arrival: the region's start is still in the window and
+        # the change's foot is still on screen, so this is the same view with the user's
+        # own adjustment in it.
+        page.evaluate("() => document.scrollingElement.scrollBy(0, -40)")
+        scroll_settled(page)
+        held = page.evaluate("() => document.scrollingElement.scrollTop")
+        assert held == arrived - 40, "the page did not take the user's own adjustment"
 
-    The floating panel's row stands over the window's foot, so a region measured against
-    the whole window put the heading at the top of the screen and the change it was
-    chosen for under the row. The window is sized so the heading's region fits in the
-    window but not above the panel's band: the arrival takes a narrower region, and the
-    change stays where the user can read it.
-    """
-    page = open_page(browser, serve(SUGGESTION_IN_CONTEXT_PAGE))
-    resized(page, 900, 500)
-    measure = """() => {
-      const at = (id) => document.getElementById(id).getBoundingClientRect();
-      const style = getComputedStyle(document.scrollingElement);
-      return {
-        span: at('sc-sug').bottom - at('sc-api-heading').top,
-        foot: at('sc-sug').bottom,
-        view: document.scrollingElement.clientHeight,
-        top: parseFloat(style.scrollPaddingTop),
-        bottom: parseFloat(style.scrollPaddingBottom),
-      };
-    }"""
-    before = page.evaluate(measure)
-    assert before["bottom"] > 0, "the fixture has no panel band to land clear of"
-    # The region misses the room above the band by a few pixels; the change alone fits.
-    resized(page, 900, round(before["span"] + before["top"] + before["bottom"] - 8))
+        # The press's own announcement is the edge this absence stands behind.
+        # `goToObligation` travels before it announces, so a live region that has spoken
+        # again is a press whose travel has already been decided and begun. Waiting on
+        # the scroll alone cannot say that: frames held still before a glide starts read
+        # the same as a page that never moved, and only the announcement puts the read
+        # behind the decision.
+        observe_live_region(page)
+        page.keyboard.press("m")  # one obligation, so the walk stays on it
+        page.wait_for_function(
+            "() => window.__lfLiveRegionChanges.some("
+            "words => words.includes('waiting on me'))"
+        )
+        expect(page.locator(".lf-live")).to_have_text(re.compile(r"waiting on me"))
+        assert "" in page.evaluate("window.__lfLiveRegionChanges")
+        expect(page.locator("#sc-sug")).to_be_focused()
+        scroll_settled(page)
+        assert page.evaluate("() => document.scrollingElement.scrollTop") == held, (
+            "the walk travelled to an obligation the user could already see"
+        )
 
-    page.keyboard.press("m")
-    expect(page.locator("#sc-sug")).to_be_focused()
-    scroll_settled(page)
+    with subtests.test("the region an arrival takes in fits above the floating panel"):
+        # The region is measured against the landing band. The floating panel's row
+        # stands over the window's foot, so a region measured against the whole window
+        # put the heading at the top of the screen and the change it was chosen for
+        # under the row. The window is sized so the heading's region fits in the window
+        # but not above the panel's band: the arrival takes a narrower region, and the
+        # change stays where the user can read it.
+        measure = """() => {
+          const at = (id) => document.getElementById(id).getBoundingClientRect();
+          const style = getComputedStyle(document.scrollingElement);
+          return {
+            span: at('sc-sug').bottom - at('sc-api-heading').top,
+            foot: at('sc-sug').bottom,
+            view: document.scrollingElement.clientHeight,
+            top: parseFloat(style.scrollPaddingTop),
+            bottom: parseFloat(style.scrollPaddingBottom),
+          };
+        }"""
+        before = page.evaluate(measure)
+        assert before["bottom"] > 0, "the fixture has no panel band to land clear of"
+        # The region misses the room above the band by a few pixels; the change alone
+        # fits.
+        resized(page, 900, round(before["span"] + before["top"] + before["bottom"] - 8))
+        # Off the change and back to the page's start, so the walk travels again.
+        page.locator("#sc-h").click()
+        page.evaluate("scrollTo({top: 0, behavior: 'instant'})")
+        scroll_settled(page)
 
-    landed = page.evaluate(measure)
-    assert landed["span"] == pytest.approx(before["span"], abs=1), (
-        "the resize reflowed the region, so the window no longer falls between the two "
-        "readings of the room"
-    )
-    assert landed["foot"] <= landed["view"] - landed["bottom"] + 0.5, (
-        f"the arrival put the change's foot at {landed['foot']:.1f}px, under the foot "
-        f"band that starts at {landed['view'] - landed['bottom']:.1f}px"
-    )
+        walked_to(page, "m", "#sc-sug")
+
+        landed = page.evaluate(measure)
+        assert landed["span"] == pytest.approx(before["span"], abs=1), (
+            "the resize reflowed the region, so the window no longer falls between the "
+            "two readings of the room"
+        )
+        assert landed["foot"] <= landed["view"] - landed["bottom"] + 0.5, (
+            f"the arrival put the change's foot at {landed['foot']:.1f}px, under the "
+            f"foot band that starts at {landed['view'] - landed['bottom']:.1f}px"
+        )
 
 
 def test_an_arrival_does_not_reach_back_into_the_obligation_before_it(browser, serve):
@@ -1161,11 +1402,8 @@ def test_an_arrival_does_not_reach_back_into_the_obligation_before_it(browser, s
     )
     scroll_settled(page)
 
-    page.keyboard.press(
-        "Shift+m"
-    )  # back to the nearest obligation above, which is the change
-    expect(page.locator("#ar-sug")).to_be_focused()
-    scroll_settled(page)
+    # Back to the nearest obligation above, which is the change.
+    walked_to(page, "Shift+m", "#ar-sug")
 
     landed = page.evaluate(
         """() => {
@@ -1255,55 +1493,6 @@ def test_an_obligation_inside_a_card_is_brought_into_that_card(browser, serve):
     assert seen["onScreen"], "the change is in its card's band but off the window"
 
 
-def test_an_obligation_already_in_front_of_the_user_is_not_travelled_to(browser, serve):
-    """The press moves the ring and the focus and leaves the page where it stands.
-
-    Rebuilding a view the user is already looking at is motion that says nothing, and
-    it costs them whatever adjustment they had made within it. The gate reads what the
-    page shows of the obligation rather than what its own box claims, which is the reading
-    commentOnAddressable makes before its own travel.
-
-    The first press is the control: the walk does travel, from a page that opens above
-    the change, so a second press standing still is this gate rather than a walk that
-    never moves the page at all.
-    """
-    page = open_page(browser, serve(SUGGESTION_IN_CONTEXT_PAGE))
-    resized(page, 900, 500)
-
-    page.keyboard.press("m")
-    expect(page.locator("#sc-sug")).to_be_focused()
-    scroll_settled(page)
-    arrived = page.evaluate("() => document.scrollingElement.scrollTop")
-    assert arrived > 0, "the walk did not travel to the obligation at all"
-
-    # A little above that arrival: the region's start is still in the window and
-    # the change's foot is still on screen, so this is the same view with the user's
-    # own adjustment in it.
-    page.evaluate("() => document.scrollingElement.scrollBy(0, -40)")
-    scroll_settled(page)
-    held = page.evaluate("() => document.scrollingElement.scrollTop")
-    assert held == arrived - 40, "the page did not take the user's own adjustment"
-
-    # The press's own announcement is the edge this absence stands behind. `goToObligation`
-    # travels before it announces, so a live region that has spoken again is a press whose
-    # travel has already been decided and begun. Waiting on the scroll alone cannot say
-    # that: frames held still before a glide starts read the same as a page that never
-    # moved, and only the announcement puts the read behind the decision.
-    observe_live_region(page)
-    page.keyboard.press("m")  # one obligation, so the walk stays on it
-    page.wait_for_function(
-        "() => window.__lfLiveRegionChanges.some("
-        "words => words.includes('waiting on me'))"
-    )
-    expect(page.locator(".lf-live")).to_have_text(re.compile(r"waiting on me"))
-    assert "" in page.evaluate("window.__lfLiveRegionChanges")
-    expect(page.locator("#sc-sug")).to_be_focused()
-    scroll_settled(page)
-    assert page.evaluate("() => document.scrollingElement.scrollTop") == held, (
-        "the walk travelled to an obligation the user could already see"
-    )
-
-
 def test_the_obligation_walk_starts_from_where_the_user_is(browser, serve):
     """The walk measures from the user, the way Space page travel measures from the scroll position
     and t/T from the focused thread. It kept an id of its own instead, so every walk
@@ -1311,36 +1500,30 @@ def test_the_obligation_walk_starts_from_where_the_user_is(browser, serve):
     halfway down and press `d` and you were taken back past everything you had read,
     and so was anyone who had just selected a paragraph to comment on.
 
-    With focus in the chrome, the walk measures from what they are reading, which the
-    last walk's landing scroll put in front of them. The panel's On me mark is no place:
-    pressing it opens On me and leaves the focus in the panel, so a walk measured from
-    the focus after it would restart on every press, and the ring is gone from the page
-    by then, the user being in the panel. A selected passage now enters its comment field immediately;
-    while that field stands, letters are text rather than page-navigation keys."""
+    Reading an obligation is being at it without being on it, so the walk arrives
+    there. The panel's On me mark is no place: pressing it opens On me and leaves the
+    focus in the panel, which holds the user's place on the page, so the walk after it
+    steps on from the obligation they stood on rather than restarting. A selected
+    passage now enters its comment field immediately; while that field stands, letters
+    are text rather than page-navigation keys."""
     page = open_page(browser, serve(OBLIGATIONS_PAGE))
 
     # A window short enough that reading down the page leaves the top of it behind,
     # which is the whole of what the user has to do to be somewhere.
     resized(page, 900, 400)
 
-    # Scrolled to the change with nothing selected and nothing focused: the decision after
-    # it, not the question above it. They are located *in* that suggestion, which is
-    # why it is the decision they step off rather than the one they step to.
-    page.locator("#refill-now").evaluate("el => el.scrollIntoView({block: 'center'})")
+    # Scrolled to the change with nothing selected and nothing focused: the change
+    # itself, not the question above it nor the decision after it.
+    page.locator("#refill-was").evaluate("el => el.scrollIntoView({block: 'start'})")
     page.keyboard.press("m")
-    expect(page.locator("#t-baffles-decision")).to_have_attribute(
-        "data-lf-obligation", "1"
-    )
-    # The walk scrolls to the obligation it arrived at, and the next walk measures from what
-    # that scroll leaves in front of the user, so the scroll has to have landed.
+    expect(page.locator("#sug-refill")).to_have_attribute("data-lf-obligation", "1")
     scroll_settled(page)
 
-    # The mark's press opens On me and takes the focus into the panel, so the walk
-    # after it measures from the current location in the page and steps on rather
-    # than restarting — the panel being no place to measure from.
+    # The mark's press opens On me and takes the focus into the panel, which holds the
+    # suggestion as the user's place, so the walk steps on rather than restarting.
     panel_control(page, "queue").click()
     page.keyboard.press("m")
-    expect(page.locator("#t-bath-decision")).to_have_attribute(
+    expect(page.locator("#t-baffles-decision")).to_have_attribute(
         "data-lf-obligation", "1"
     )
 
@@ -1418,7 +1601,8 @@ def test_the_ring_is_one_box_around_the_whole_change(browser, serve):
     # promise.
     marks = page.evaluate("""() => [...document.querySelectorAll('main [data-lf-obligation]')].map(e => {
       return { what: e.id || e.tagName, fragments: e.getClientRects().length,
-               ring: getComputedStyle(e).outlineStyle !== 'none' };
+               ring: e.hasAttribute('data-lf-projected-location')
+                 && getComputedStyle(e).outlineStyle === 'solid' };
     })""")
     assert [m["what"] for m in marks] == ["sug-refill"]
     assert marks[0]["ring"]
@@ -1450,8 +1634,17 @@ def test_the_walk_travels_to_an_obligation_a_page_left_boxless(browser, serve):
     comment's outline gives, so the walk's mark and the thread's cannot disagree about
     where a boxless decision is. The outermost mark still names the decision, one place for the
     user to be located."""
-    styled = OBLIGATIONS_PAGE.replace(
-        "</head>", "<style>#sug-refill { display: contents; }</style>\n</head>"
+    # Keep the boxless element's slots in one prose cell. As direct children of
+    # main they become separate grid items, so the fixture no longer describes
+    # one decision below the preceding question.
+    styled = (
+        OBLIGATIONS_PAGE.replace(
+            '<lf-suggestion id="sug-refill">', '<div><lf-suggestion id="sug-refill">'
+        )
+        .replace("</lf-suggestion>", "</lf-suggestion></div>", 1)
+        .replace(
+            "</head>", "<style>#sug-refill { display: contents; }</style>\n</head>"
+        )
     )
     page = open_page(browser, serve(styled))
     resized(page, 900, 400)
@@ -1494,6 +1687,13 @@ def test_the_walk_travels_to_an_obligation_a_page_left_boxless(browser, serve):
         "LF-NEW",
     ], f"the mark went somewhere else than the decision and its shown boxes: {marks}"
     expect(page.locator(CURRENT_OBLIGATION)).to_have_count(1)
+    # The decision draws no box, so each box it shows through draws the location ring
+    # round itself (target-paint.js, `paintLocation`).
+    rings = page.evaluate("""() => ['lf-old', 'lf-new'].map(tag => {
+      const slot = document.querySelector(`#sug-refill > ${tag}`);
+      return slot.hasAttribute('data-lf-projected-location')
+        && getComputedStyle(slot).outlineStyle === 'solid'; })""")
+    assert rings == [True, True], f"a slot of the decision wears no ring: {rings}"
 
 
 def test_a_commented_obligation_does_not_wear_its_ring_on_the_runtime_s_own_note(

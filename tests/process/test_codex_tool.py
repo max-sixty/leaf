@@ -5,6 +5,7 @@ sandbox."""
 import json
 import os
 import shutil
+import signal
 import subprocess
 import sys
 import time
@@ -136,7 +137,7 @@ def test_a_call_ends_before_codex_gives_up_on_it(tmp_path, monkeypatch):
     ended = codex_tool.run({"args": ["wait"], "cwd": str(tmp_path)}, None, 0.5)
     assert ended["isError"]
     assert "leaf ended this command after 0.5 s" in ended["content"][0]["text"]
-    assert not _alive(int((tmp_path / "wait.pid").read_text()))
+    assert ended["content"][-1]["text"] == f"exit status {-signal.SIGTERM}"
 
 
 def _written_pid(path) -> int:
@@ -158,10 +159,18 @@ def _alive(pid: int) -> bool:
 @pytest.mark.skipif(not shutil.which("sandbox-exec"), reason="macOS's sandbox")
 def test_a_codex_sandbox_refusal_names_the_tool(tmp_path, monkeypatch):
     """Where Codex's sandbox refuses a `leaf` command what it needs, the refusal
-    tells the agent to rerun it with the tool."""
+    tells the agent to rerun it with the tool. The sandbox refuses writes to uv's
+    cache too, which the launcher must not need there."""
     monkeypatch.setenv("CODEX_SANDBOX", "seatbelt")
     page = tmp_path / "page"
-    profile = f'(version 1)(allow default)(deny file-write* (subpath "{os.path.realpath(tmp_path)}"))'
+    uv_cache = subprocess.run(
+        ["uv", "cache", "dir"], capture_output=True, text=True, check=True
+    ).stdout.strip()
+    profile = (
+        "(version 1)(allow default)(deny file-write*"
+        f' (subpath "{os.path.realpath(tmp_path)}")'
+        f' (subpath "{os.path.realpath(uv_cache)}"))'
+    )
     refused = subprocess.run(
         ["sandbox-exec", "-p", profile, ROOT / "bin" / "leaf", "page", "init", page],
         capture_output=True,

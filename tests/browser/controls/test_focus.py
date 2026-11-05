@@ -7,9 +7,12 @@ import pytest
 from interact_support import append_carried_log_record
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
+from render_cases_interaction import PANEL_PAGE, panel_comment
 from render_cases_layout import (
     PANEL_DIFF_MARKUP,
     WIDE_DIFF_PAGE,
+    current_location_ring,
+    rings_drawn,
     serious_axe_violations,
 )
 from render_cases_navigation import DIFF_PAGE
@@ -36,6 +39,7 @@ from render_harness import (
 from browser.threads import open_panel_thread
 from leaf import event_log as events_model
 from leaf.render_checks import rendered
+from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -45,7 +49,7 @@ def test_the_keyboard_reference_is_a_modal_tab_loop_and_returns_to_its_door(
 ):
     """A dialog-shaped command reference behaves like a dialog for the native Tab walk."""
     page = open_page(browser, serve(LONG_PAGE))
-    door = page.locator(".lf-fp-threads")
+    door = page.locator(".lf-fp-on-user")
     door.focus()
     page.keyboard.press("?")
     reference = page.locator(".lf-command-reference")
@@ -64,6 +68,86 @@ def test_the_keyboard_reference_is_a_modal_tab_loop_and_returns_to_its_door(
     page.keyboard.press("Escape")
     expect(reference).to_be_hidden()
     expect(door).to_be_focused()
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_tab_from_the_pages_last_control_reaches_the_panels_leaf(
+    engine, request, serve
+):
+    """The chrome's foreground is an empty box holding the panel and the overlays, so a
+    Tab never stops on it. Firefox gave the open dialog a Tab stop of its own, which
+    drew nothing between the page's last control and the leaf."""
+    page = open_page(
+        request.getfixturevalue(engine),
+        serve(leaf_page("Tab order", '<p>Words <button id="last">Last</button></p>')),
+    )
+    page.evaluate(RELEASE_FOCUS)
+    page.keyboard.press("Tab")
+    expect(page.locator("#last")).to_be_focused()
+    page.keyboard.press("Tab")
+    expect(page.locator(".lf-fp-leaf")).to_be_focused()
+
+
+def test_the_keys_into_and_out_of_a_panel_thread_land_where_keys_act(browser, serve):
+    """`g T` from the page stands Threads on its first row, which wears a ring, and
+    Escape from a thread's reply in the panel stands the user on the thread's view,
+    which wears none (floating-panel.css, `.lf-fp-view:focus`)."""
+    url = serve(PANEL_PAGE)
+    panel_comment(
+        serve.page_dir, "Where should this explanation go?", {"section": "lede"}
+    )
+    page = open_page(browser, url)
+    page.evaluate(RELEASE_FOCUS)
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+t")
+    row = page.locator(f"{panel_view('threads')} .lf-fp-thread").first
+    expect(row).to_be_focused()
+    assert current_location_ring(page), "Threads opened by key showed no ring"
+    page.keyboard.press("Enter")
+    reply = page.locator('.lf-fp-field leaf-text[name="reply"]')
+    expect(reply).to_be_focused()
+    page.keyboard.press("Escape")
+    expect(page.locator(panel_view("thread"))).to_be_focused()
+    # The box follows the Escape's layout on the next rendering, so wait for that
+    # motion to start, then finish it.
+    rendered(page)
+    panel_settled(page, view="thread")
+    drawn = rings_drawn(page)
+    assert not [seen for seen in drawn if seen["here"]], drawn
+
+
+def test_an_empty_threads_opened_by_key_wears_its_ring_on_the_stage(browser, serve):
+    """`g T` on a page with no threads stands the user on Threads' view itself, which
+    wears its ring on the stage it fills, as every view but a thread's does
+    (floating-panel.css, `.lf-fp-stage`)."""
+    page = open_page(browser, serve(PANEL_PAGE))
+    page.evaluate(RELEASE_FOCUS)
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+t")
+    expect(page.locator(panel_view("threads"))).to_be_focused()
+    rendered(page)
+    panel_settled(page, view="threads")
+    drawn = rings_drawn(page)
+    worn = [seen["who"].split(" ")[0] for seen in drawn if seen["here"]]
+    assert worn == ["div.lf-fp-stage"], drawn
+
+
+def test_show_from_on_me_lands_in_the_card_it_opens(browser, serve):
+    """On me's Show on a question asked in a thread's words opens the thread's card on
+    the page with the user in it. The arrival stood them on the message On me drew,
+    and On me closing then dropped them on the page."""
+    page = open_page(browser, serve(named_source("ship-review")))
+    page.locator(".lf-fp-on-user").click()
+    card = page.locator(f"{panel_view('queue')} .lf-fp-on-item").filter(
+        has_text="The vendor release is the only schedule"
+    )
+    card.locator(".lf-fp-show").click()
+    preview = page.locator(".lf-margin-preview")
+    expect(preview).to_be_visible()
+    page.wait_for_function(
+        "() => document.querySelector('.lf-margin-preview')"
+        ".contains(document.activeElement)"
+    )
 
 
 def test_a_press_on_the_pages_words_is_a_newer_word_than_a_waiting_hold(browser, serve):
@@ -147,7 +231,7 @@ def test_a_page_nobody_has_touched_scrolls_from_the_keyboard(browser, serve):
 
 
 def test_esc_hands_the_page_back_after_it_has_closed_the_last_panel(browser, serve):
-    """Putting Threads away hands the user back the page, however they opened it.
+    """Putting On me away hands the user back the page, however they opened it.
 
     Opened with the pointer, the view takes focus; opened from the keyboard, its first
     row does. Either way Escape lands on the page rather than on the mark that opened
@@ -158,9 +242,9 @@ def test_esc_hands_the_page_back_after_it_has_closed_the_last_panel(browser, ser
     focused button still owns Space; focus therefore returns to the page rather than
     merely blurring to nowhere."""
     page = open_page(browser, serve(LONG_PAGE, comments=1))
-    toggle = page.locator(".lf-fp-threads")
-    panel = page.locator(panel_view("threads"))
-    ringed = """() => getComputedStyle(document.querySelector('.lf-fp-threads'))
+    toggle = page.locator(".lf-fp-on-user")
+    panel = page.locator(panel_view("queue"))
+    ringed = """() => getComputedStyle(document.querySelector('.lf-fp-on-user'))
       .outlineStyle !== 'none'"""
     top = "() => document.scrollingElement.scrollTop"
     on_body = "() => document.activeElement === document.body"
@@ -201,7 +285,11 @@ def test_esc_hands_the_page_back_after_it_has_closed_the_last_panel(browser, ser
     assert page.evaluate(ringed), "the control the user is located on says nothing"
     page.keyboard.press("Enter")
     expect(panel).to_be_visible()
-    expect(panel.locator(".lf-fp-thread").first).to_be_focused()
+    # Opened by a key, the user stands in the view, on its first row where it has one.
+    page.wait_for_function(
+        "view => document.querySelector(view)?.contains(document.activeElement)",
+        arg=panel_view("queue"),
+    )
     page.keyboard.press("Escape")
     panel_settled(page, open=False)
     assert page.evaluate(on_body)
@@ -248,31 +336,6 @@ def test_a_scroll_box_inside_a_widgets_shadow_tree_takes_the_keyboard(browser, s
     assert all(item["tab"] == -1 for item in fitted), (
         "a diff that fits added a keyboard stop with nowhere to scroll"
     )
-
-
-def test_scroll_surfaces_added_after_upgrade_gain_keyboard_reach(browser, serve):
-    page = open_page(browser, serve(leaf_page("Late scroll", "<h1>Late scroll</h1>")))
-    page.evaluate(
-        """() => {
-          const authored = document.createElement('div');
-          authored.id = 'late-authored';
-          authored.className = 'scroll';
-          authored.style.cssText = 'width:220px;overflow-x:auto;white-space:nowrap';
-          authored.textContent = 'a'.repeat(500);
-          const native = document.createElement('pre');
-          native.id = 'late-native';
-          native.style.width = '220px';
-          native.textContent = 'b'.repeat(500);
-          document.querySelector('main').append(authored, native);
-        }"""
-    )
-    for selector in ("#late-authored", "#late-native"):
-        surface = page.locator(selector)
-        expect(surface).to_have_attribute("data-lf-more-after", "")
-        measured = surface.evaluate(
-            "el => ({scrolls: el.scrollWidth > el.clientWidth, tab: el.tabIndex})"
-        )
-        assert measured == {"scrolls": True, "tab": 0}, (selector, measured)
 
 
 def test_a_hidden_control_does_not_take_a_scroll_boxes_keyboard_route(browser, serve):
@@ -456,50 +519,75 @@ DISCLOSURE_TABLE_PAGE = leaf_page(
 )
 
 
-def test_a_disclosure_is_a_scrolling_box_s_own_stop(browser, serve):
-    """A box holding a control of its own is reached through that control, and a
-    disclosure's `summary` is one: Tab stands on it, and moving along the box from
-    there scrolls it. Counted as nothing, it gave the table a second stop of the
-    sweep's in front of the one it already had."""
+def test_a_scrolling_box_takes_a_stop_unless_tab_reaches_a_control_in_it(
+    browser, serve, subtests
+):
+    """Which boxes the sweep lends a Tab stop; each case's box stands apart on one page."""
     page = open_page(browser, serve(DISCLOSURE_TABLE_PAGE))
     resized(page, 420, 900)
-    table = page.locator("#sessions")
-    assert table.evaluate("t => t.scrollWidth > t.clientWidth"), (
-        "this table fits, so it proves nothing"
-    )
-    expect(table).not_to_have_attribute("tabindex", "0")
-    assert page.locator("#more > summary").evaluate("s => s.tabIndex") == 0
 
+    with subtests.test("a disclosure is a scrolling box's own stop"):
+        # A box holding a control of its own is reached through that control, and a
+        # disclosure's `summary` is one: Tab stands on it, and moving along the box from
+        # there scrolls it. Counted as nothing, it gave the table a second stop of the
+        # sweep's in front of the one it already had.
+        table = page.locator("#sessions")
+        assert table.evaluate("t => t.scrollWidth > t.clientWidth"), (
+            "this table fits, so it proves nothing"
+        )
+        expect(table).not_to_have_attribute("tabindex", "0")
+        assert page.locator("#more > summary").evaluate("s => s.tabIndex") == 0
 
-def test_a_control_tab_skips_leaves_a_scrolling_box_its_own_stop(browser, serve):
-    """A control inside a shadow tree whose host is out of the order is one Tab never
-    reaches, so a scrolling box holding only that is still the sweep's to give a stop;
-    with the host in the order, its control is the box's own."""
-    page = open_page(browser, serve(DISCLOSURE_TABLE_PAGE))
-    resized(page, 420, 900)
-    # A box a script builds is swept when its builder asks, as a module's would be.
-    boxes = page.evaluate(
-        """async () => {
-          const {reachScrollers} = await window.__lfCheckApi();
-          const ids = ["out", "in"].map((order) => {
-          const box = document.createElement("div");
-          box.id = `box-${order}`;
-          box.classList.add("scroll");
-          box.style.cssText = "width:200px;overflow-x:auto;white-space:nowrap";
-          const host = document.createElement("span");
-          if (order === "out") host.setAttribute("tabindex", "-1");
-          host.attachShadow({mode: "open"}).innerHTML = "<button>Inside</button>";
-          box.append(host, "x".repeat(400));
-          document.querySelector("main").append(box);
-          return box.id;
-          });
-          reachScrollers(document.querySelector("main"));
-          return ids;
-        }"""
-    )
-    out, inside = (page.locator(f"#{box}") for box in boxes)
-    expect(out).to_have_attribute("tabindex", "0")
-    expect(inside).not_to_have_attribute("tabindex", "0")
+    with subtests.test("a control Tab skips leaves a scrolling box its own stop"):
+        # A control inside a shadow tree whose host is out of the order is one Tab never
+        # reaches, so a scrolling box holding only that is still the sweep's to give a
+        # stop; with the host in the order, its control is the box's own.
+        # A box a script builds is swept when its builder asks, as a module's would be.
+        boxes = page.evaluate(
+            """async () => {
+              const {reachScrollers} = await window.__lfCheckApi();
+              const ids = ["out", "in"].map((order) => {
+              const box = document.createElement("div");
+              box.id = `box-${order}`;
+              box.classList.add("scroll");
+              box.style.cssText = "width:200px;overflow-x:auto;white-space:nowrap";
+              const host = document.createElement("span");
+              if (order === "out") host.setAttribute("tabindex", "-1");
+              host.attachShadow({mode: "open"}).innerHTML = "<button>Inside</button>";
+              box.append(host, "x".repeat(400));
+              document.querySelector("main").append(box);
+              return box.id;
+              });
+              reachScrollers(document.querySelector("main"));
+              return ids;
+            }"""
+        )
+        out, inside = (page.locator(f"#{box}") for box in boxes)
+        expect(out).to_have_attribute("tabindex", "0")
+        expect(inside).not_to_have_attribute("tabindex", "0")
+
+    with subtests.test("scroll surfaces added after upgrade gain keyboard reach"):
+        page.evaluate(
+            """() => {
+              const authored = document.createElement('div');
+              authored.id = 'late-authored';
+              authored.className = 'scroll';
+              authored.style.cssText = 'width:220px;overflow-x:auto;white-space:nowrap';
+              authored.textContent = 'a'.repeat(500);
+              const native = document.createElement('pre');
+              native.id = 'late-native';
+              native.style.width = '220px';
+              native.textContent = 'b'.repeat(500);
+              document.querySelector('main').append(authored, native);
+            }"""
+        )
+        for selector in ("#late-authored", "#late-native"):
+            surface = page.locator(selector)
+            expect(surface).to_have_attribute("data-lf-more-after", "")
+            measured = surface.evaluate(
+                "el => ({scrolls: el.scrollWidth > el.clientWidth, tab: el.tabIndex})"
+            )
+            assert measured == {"scrolls": True, "tab": 0}, (selector, measured)
 
 
 # Controls to Tab onto at a scroller's edge. Each wears its ring on a different box:
@@ -905,7 +993,7 @@ def test_a_reference_command_finishes_its_gesture_before_a_newer_control(
     page.keyboard.press("?")
     search = page.get_by_role("combobox", name="Search commands")
     search.fill("comment on the control")
-    command = page.get_by_role("button", name="Comment on the control", exact=True)
+    command = page.get_by_role("option", name="Comment on the control", exact=True)
     expect(command).to_be_visible()
     expect(command).to_have_attribute("data-lf-available", "true")
     with held_frames(page):

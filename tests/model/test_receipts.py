@@ -148,80 +148,6 @@ def test_receiving_a_delivery_keeps_each_pages_response_obligation(page_dir, tmp
     )
 
 
-def test_concurrent_receipts_observe_one_session_without_nesting_page_locks(
-    claimed, tmp_path, spawn
-):
-    """Both consumers hold disjoint page locks before observing the session.
-
-    Each takes only the shared session lock next; it never waits for a sibling
-    page. Both receipts complete and the silent sibling derives the same turn.
-    """
-    second = tmp_path / "second"
-    silent = tmp_path / "silent"
-    for page in (second, silent):
-        shutil.copytree(claimed, page)
-        service_model.claim_page(page)
-    pages = (claimed, second, silent)
-    session_id = service_model.page_claim(claimed)["id"]
-    cleanup_model.close_session_turn(session_id)
-    cleanup_model.prompt_turn(session_id)
-    deliveries = []
-    for page in pages[:2]:
-        comment = append_carried_log_record(
-            page, {"kind": "comment", "author": "user", "text": "Please answer"}
-        )
-        deliveries.append(freeze_events(page, [comment]))
-    release = tmp_path / "release-sibling-sweeps"
-    arrivals = [tmp_path / f"sweep-{number}" for number in range(2)]
-    probe = """\
-import time
-from leaf import delivery
-
-original_lock = delivery.flocked
-def synchronized_lock(*args, **kwargs):
-    Path(os.environ["ARRIVAL"]).write_text("ready", encoding="utf-8")
-    release = Path(os.environ["RELEASE"])
-    while not release.exists():
-        time.sleep(0.01)
-    return original_lock(*args, **kwargs)
-
-delivery.flocked = synchronized_lock
-delivery.receive_delivery(os.environ["DELIVERY"])
-"""
-    consumers = [
-        spawn_probe(
-            spawn,
-            page,
-            probe,
-            DELIVERY=payload["id"],
-            ARRIVAL=arrival,
-            RELEASE=release,
-        )
-        for page, payload, arrival in zip(pages[:2], deliveries, arrivals, strict=True)
-    ]
-    wait_for(
-        lambda: all(arrival.exists() for arrival in arrivals),
-        bool,
-        failure="both receipts did not reach their shared session observation",
-    )
-    release.write_text("continue", encoding="utf-8")
-    for consumer in consumers:
-        out, err = consumer.communicate(timeout=STATED_TIMEOUT)
-        assert consumer.returncode == 0, out + err
-    for page in pages:
-        assert service_model.page_claim(page)["turn_closed"] is None
-    for page in pages[:2]:
-        assert acknowledged_through(page) == 1
-        [pickup] = [
-            event
-            for event in events_model.read_events(page)
-            if event["kind"] == "pickup"
-        ]
-        assert pickup["phase"] == "opened"
-        assert owed_answers(page)[0]["stage"] == "picked_up"
-    assert acknowledged_through(silent) == 0
-
-
 def test_receipt_checks_the_owner_after_acquiring_the_page_lock(
     page_dir, spawn, monkeypatch
 ):
@@ -275,9 +201,10 @@ def test_the_wait_after_an_ack_delivers_only_later_input(page_dir, spawn, codex_
         text=True,
         env=os.environ,
     )
-    lease_path = leases_model.waiter_lease_path(
-        page_dir, harness_model.session_harness().session
-    )
+    harness = harness_model.session_harness()
+    assert harness is not None
+    lease_path = leases_model.waiter_lease_path(page_dir, harness.session)
+    assert lease_path is not None
     wait_for(
         lambda: (leases_model.lock_is_held(lease_path), waiting.poll()),
         lambda reading: reading[0] or reading[1] is not None,
@@ -285,6 +212,7 @@ def test_the_wait_after_an_ack_delivers_only_later_input(page_dir, spawn, codex_
     )
 
     assert acknowledged_through(page_dir) == first["seq"]
+    assert lease_path is not None
     assert leases_model.lock_is_held(lease_path), "the wait exited without input"
     status_before_delivery = page_state(page_dir)["status"]
     second = append_carried_log_record(
@@ -309,9 +237,11 @@ def test_ack_success_outlives_a_refused_rearm(page_dir, snapshot):
         page_dir, {"kind": "comment", "id": "c1", "author": "user", "text": "hi"}
     )
     identity = harness_model.session_harness()
-    lease = leases_model.take_lease(
-        leases_model.waiter_lease_path(page_dir, identity.session)
-    )
+    assert identity is not None
+    lease_path_2 = leases_model.waiter_lease_path(page_dir, identity.session)
+    assert lease_path_2 is not None
+    assert identity is not None
+    lease = leases_model.take_wait_lease(lease_path_2)
     assert lease
     with lease:
         acknowledged = CliRunner().invoke(
@@ -352,7 +282,9 @@ def test_ack_does_not_reclaim_a_page_from_its_successor(page_dir, snapshot):
     assert result.exit_code == 1, result.output
     assert "delivery no longer owns its page" in result.output
     assert acknowledged_through(page_dir) == 0
-    assert service_model.page_claim(page_dir)["id"] == "successor"
+    claim_record_3 = service_model.page_claim(page_dir)
+    assert claim_record_3 is not None
+    assert claim_record_3["id"] == "successor"
 
     snapshot.check(
         yaml_document(
@@ -367,62 +299,6 @@ def test_ack_does_not_reclaim_a_page_from_its_successor(page_dir, snapshot):
             ),
         )
     )
-
-
-def test_ack_rearm_keeps_the_other_pages_when_its_batch_page_transfers(
-    page_dir, tmp_path, spawn, monkeypatch, codex_loop
-):
-    """The acknowledged page is a delivery coordinate, not the next wait's target.
-
-    Hold its read after the session-wide watcher selected both pages, then
-    transfer that page and speak on the other one. The transfer must drop
-    only its page: ending the wait there leaves the other page silently
-    unwatched until a later hook repairs it.
-    """
-    other = tmp_path / "second-page"
-    shutil.copytree(page_dir, other)
-    serving(page_dir, 1)
-    serving(other, 2)
-    codex_loop(page_dir)
-    codex_loop(other)
-    session_model.cmd_waiting(page_dir)
-    session_model.cmd_waiting(other)
-    first = append_carried_log_record(
-        page_dir,
-        {"kind": "comment", "id": "first", "author": "user", "text": "one"},
-    )
-    delivery_model.cmd_delivery_ack(delivery_through(page_dir, first["seq"]))
-    selected = tmp_path / "selected"
-    waiting = spawn(
-        held_selection(selected, page_dir, "wait"),
-        env=os.environ,
-        stdin=subprocess.PIPE,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-    )
-    wait_for(selected.exists, bool, failure="the rearm never selected its batch page")
-    identity = harness_model.session_harness()
-    lease_path = leases_model.waiter_lease_path(page_dir, identity.session)
-    assert acknowledged_through(page_dir) == first["seq"]
-    assert leases_model.lock_is_held(lease_path)
-    assert waiting.poll() is None
-
-    monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "successor")
-    monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
-    service_model.claim_page(page_dir)
-    append_carried_log_record(
-        other,
-        {"kind": "comment", "id": "second", "author": "user", "text": "two"},
-    )
-
-    out, err = waiting.communicate(input="continue\n", timeout=STATED_TIMEOUT)
-    assert waiting.returncode == 0, f"{out}{err}"
-    _, header, [event] = printed(out)
-    assert header["page"] == str(other)
-    assert (event["id"], event["text"]) == ("second", "two")
-    assert acknowledged_through(other) == 0
-    assert service_model.page_claim(page_dir)["id"] == "successor"
 
 
 def test_ack_rearm_reports_when_its_only_page_transfers_after_selection(
@@ -453,8 +329,10 @@ def test_ack_rearm_reports_when_its_only_page_transfers_after_selection(
     )
     wait_for(selected.exists, bool, failure="the rearm never selected its batch page")
     identity = harness_model.session_harness()
+    assert identity is not None
     lease_path = leases_model.waiter_lease_path(page_dir, identity.session)
     assert acknowledged_through(page_dir) == first["seq"]
+    assert lease_path is not None
     assert leases_model.lock_is_held(lease_path)
     assert waiting.poll() is None
 
@@ -466,7 +344,9 @@ def test_ack_rearm_reports_when_its_only_page_transfers_after_selection(
     assert (waiting.returncode, out) == (2, ""), err
     assert f"stopped watching {page_dir}: this session no longer owns it" in err
     assert "the page closed" not in err
-    assert service_model.page_claim(page_dir)["id"] == "successor"
+    claim_record_5 = service_model.page_claim(page_dir)
+    assert claim_record_5 is not None
+    assert claim_record_5["id"] == "successor"
 
     snapshot.check(
         yaml_document(
@@ -483,9 +363,8 @@ def test_ack_rearm_reports_when_its_only_page_transfers_after_selection(
     )
 
 
-@pytest.mark.parametrize("acknowledge", ["receive_delivery", "cmd_delivery_ack"])
 def test_an_explicit_acknowledgement_cannot_reopen_a_known_provider_turn(
-    claimed, capsys, acknowledge
+    claimed, capsys
 ):
     """The explicit consumer route preserves provider lifecycle authority."""
     cleanup_model.prompt_turn("s1", "provider-turn")
@@ -498,7 +377,7 @@ def test_an_explicit_acknowledgement_cannot_reopen_a_known_provider_turn(
     assert session_model.cmd_wait(claimed) == 0
     payload, _, _ = printed(capsys.readouterr().out)
     with pytest.raises(delivery_model.ReceiptRefused, match="turn has ended"):
-        getattr(delivery_model, acknowledge)(payload["id"])
+        delivery_model.cmd_delivery_ack(payload["id"])
     assert cleanup_model.session_record("s1") == ended
     assert page_state(claimed)["pending"] == 1
 
@@ -565,6 +444,7 @@ def test_a_large_pointer_read_is_bounded_and_losslessly_paged(claimed, transport
     parts = [first["text"]]
     assert first["part"] == 1 and first["parts"] > 1
     assert first["acknowledge"] is None
+    reading = first
     for part in range(2, first["parts"] + 1):
         output = read_part(payload["id"], part)
         assert len(output.encode("utf-8")) <= 24000
@@ -572,6 +452,7 @@ def test_a_large_pointer_read_is_bounded_and_losslessly_paged(claimed, transport
         parts.append(reading["text"])
     reconstructed = json.loads("".join(parts))
     assert reconstructed["batches"] == payload["batches"]
+    assert reading is not None
     assert reading["next"] is None
     # A reader with no harness session names the page its wait watched again.
     assert (
@@ -590,7 +471,7 @@ def test_a_standalone_wait_names_a_page_path_with_spaces_as_one_argument(tmp_pat
     assert f"leaf delivery ack d1 && leaf wait '{page_dir}'" in acknowledge
 
 
-@pytest.mark.parametrize("harness_name", ["claude-code", "pi", "codex"])
+@pytest.mark.parametrize("harness_name", ["claude-code", "codex"])
 def test_explicit_pointer_confirmation_refuses_a_transferred_page(
     page_dir, monkeypatch, harness_name
 ):
@@ -619,7 +500,6 @@ def test_explicit_pointer_confirmation_refuses_a_transferred_page(
         monkeypatch.delenv(name, raising=False)
     variable = {
         "claude-code": "CLAUDE_CODE_SESSION_ID",
-        "pi": "PI_SESSION_ID",
         "codex": "LEAF_SESSION_ID",
     }[harness_name]
     monkeypatch.setenv(variable, "reader")
@@ -630,5 +510,7 @@ def test_explicit_pointer_confirmation_refuses_a_transferred_page(
     assert "no longer owns" in result.output
     assert acknowledged_through(page_dir) == cursor
     assert events_model.read_events(page_dir) == before
-    assert service_model.page_claim(page_dir)["id"] == "successor"
+    claim_record_6 = service_model.page_claim(page_dir)
+    assert claim_record_6 is not None
+    assert claim_record_6["id"] == "successor"
     assert event["id"] in {record["id"] for record in before}

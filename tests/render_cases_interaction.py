@@ -1,19 +1,16 @@
 """Shared interaction browser-integration cases and readings."""
 
-import hashlib
 import json
 from datetime import datetime, timedelta
 
 from browser_sources import browser_source
 from interact_support import add_test_widget, append_carried_log_record, append_command
 from render_harness import (
-    CORPUS_SOURCES,
-    EXAMPLES,
     TOKEN,
     leaf_page,
 )
 
-from leaf.schema import ELEMENT_ID
+from leaf_dev.example_data import authored_sources, named_source
 
 # A page with an outline: three headings, and passages under each to hang threads on.
 # LONG_PAGE has one heading and sixty paragraphs, which cannot tell an order that
@@ -57,28 +54,27 @@ LIST_ORDER = """async () => {
   const {readThreads} = await window.__lfWidgetApi();
   const ids = new Map(readThreads().threads.map((t) => [t.key, t.id]));
   return [...document.querySelectorAll(
-    '.lf-fp-view[data-view="threads"]:not([data-leaving]) .lf-fp-thread')]
-    .map((row) => ids.get(row.dataset.key));
+    '.lf-fp-view[data-lf-route="threads"]:not([data-lf-leaving]) .lf-fp-thread')]
+    .map((row) => ids.get(row.dataset.lfKey));
 }"""
 
 
-def panel_comment(d, text, anchor=None, author="user", *, question=None):
+def panel_comment(d, text, anchor=None, author="user", *, obligation=False):
     """One thread's opening message, written straight to the log. An agent's that
-    waits on the user carries its `question` in an lf-ask."""
+    waits on the user for an answer in words carries `obligation`."""
     event = {"kind": "comment", "author": author, "revision": 1, "text": text}
     if author == "agent":
         event["agent"] = "Claude"
     if anchor:
         event["anchor"] = anchor
-    if question:
-        identity = "question-" + hashlib.sha256(question.encode()).hexdigest()[:6]
-        event["markup"] = f'<lf-ask id="{identity}">{question}</lf-ask>'
+    if obligation:
+        event["obligation"] = True
     return append_carried_log_record(d, event)["id"]
 
 
 def answered_comment(d, text, anchor):
     """A user's thread the agent has replied to, so an obligation it is about waits on the
-    user again rather than on that reply (`obligations.sections_with_agent`)."""
+    user again rather than on that reply (`obligations.anchors_with_agent`)."""
     root = panel_comment(d, text, anchor)
     append_carried_log_record(
         d,
@@ -319,7 +315,7 @@ EXHIBIT_EXTENT = """
 }
 """
 
-SAMPLE_EXAMPLES = [p for p in CORPUS_SOURCES if "<lf-sample" in p.read_text()]
+SAMPLE_EXAMPLES = [p for p in authored_sources() if "<lf-sample" in p.read_text()]
 assert SAMPLE_EXAMPLES, (
     "no authored fixture holds a sample — the sweep below would drive the fixture "
     "page alone, and the rule it holds is one the corpus is the whole test of"
@@ -684,18 +680,20 @@ MESSAGE_ROOM_PAGE = leaf_page(
 )
 
 
-# What each card of the panel's On me view says: its obligation's kind and id (queue-api.js,
-# `queueItemKey`), the list it stands in ("you", "agent" or "done"), its title, its
-# prompt and what it says of its ending (such as "Answered: …"), each null where the
-# card has none, and its box.
+# What each item of the panel's On view says, as On me's card or On <agent>'s line: its
+# obligation's kind and id (queue-api.js, `queueItemKey`), the list it stands in ("you",
+# "agent" or "done"), its title, its prompt where its card is open, and what it says of
+# its ending (such as "Answered: …"), each null where the item has none, and its box.
 ON_ITEM_SAYS = """() => [...document.querySelectorAll(
-    '.lf-fp-view[data-view="queue"]:not([data-leaving]) .lf-fp-on-item')].map((c) => ({
-  kind: JSON.parse(c.dataset.key)[0],
-  id: JSON.parse(c.dataset.key)[1],
-  list: c.dataset.list,
-  title: c.querySelector('.lf-fp-on-title')?.textContent ?? null,
+    '.lf-fp-view[data-lf-route="queue"]:not([data-lf-leaving]) .lf-fp-on-item')].map((c) => ({
+  kind: JSON.parse(c.dataset.lfKey)[0],
+  id: JSON.parse(c.dataset.lfKey)[1],
+  list: c.dataset.lfList,
+  title: c.querySelector('.lf-fp-on-title, .lf-fp-on-line .lf-fp-label')?.textContent
+    ?? null,
   prompt: c.querySelector('.lf-fp-prompt')?.textContent ?? null,
-  said: c.querySelector('.lf-fp-said')?.textContent ?? null,
+  said: (c.querySelector('.lf-fp-said')
+    ?? c.querySelector('.lf-fp-on-says > .lf-fp-value'))?.textContent ?? null,
   w: Math.round(c.getBoundingClientRect().width),
   h: Math.round(c.getBoundingClientRect().height),
 }))"""
@@ -947,6 +945,14 @@ WRAP_TOP = """() => { const r = document.createRange();
 # that matched in width and not in colour would be two rings that look like one.
 RING = """(el) => { const s = getComputedStyle(el);
     return [s.outlineStyle, s.outlineWidth, s.outlineColor]; }"""
+# The location ring round the decision `el` (target-paint.js, `paintLocation`), which
+# `el` draws as its own outline while it wears `data-lf-projected-location`, read as RING
+# reads an outline: its band's style, width and colour, or "none" where `el` stands in
+# no ring.
+LOCATION_RING = """(el) => { if (!el.hasAttribute('data-lf-projected-location'))
+      return ['none'];
+    const s = getComputedStyle(el);
+    return [s.outlineStyle, s.outlineWidth, s.outlineColor]; }"""
 # One parent over two leaves, so a status report has to move both the marker and
 # the parent's computed done-fraction — the state a stylesheet cannot recount.
 REPORT_PAGE = leaf_page(
@@ -961,9 +967,7 @@ REPORT_PAGE = leaf_page(
 </lf-test-tasks>
 """,
 )
-COMMAND_HUB_EXAMPLE = next(
-    example for example in EXAMPLES if example.stem == "command-hub"
-)
+COMMAND_HUB_EXAMPLE = named_source("command-hub")
 COMMAND_HUB_PAGE = COMMAND_HUB_EXAMPLE.read_text()
 # Two workers, one claiming work and one idle, because silence is only news against a
 # claim: the elapsed line is about what a row said it was doing, not about the clock.
@@ -1120,6 +1124,7 @@ ACTIONS_IN_FORCE = [
         "review",
         {"case": "status-column", "approved": True},
     ),
+    ("ab-card", "tune", {"values": {"radius": 20, "tone": "bold"}}),
     (
         "ab-card",
         "choose",
@@ -1318,7 +1323,7 @@ THREAD_OBLIGATIONS = [
 # A widget the shipped packages no longer have: one the user owes an answer on that
 # also seats a thread of its own. A thread anchored on any obligation splits the user's list
 # from the unanswered decisions while the agent has the next word, taking the obligation off
-# the list without answering it (`obligations.sections_with_agent`); a seat is where a
+# the list without answering it (`obligations.anchors_with_agent`); a seat is where a
 # user most often starts one. `lf-options` supplied the pair until 292de9c made the
 # user's cell an add form and dropped `x-thread-seat`, so the pair is declared here
 # rather than borrowed from whichever shipped entry happens to carry it: the reading
@@ -1332,7 +1337,7 @@ SEATED_OBLIGATION_ENTRY = {
     ),
     "type": "object",
     "properties": {
-        "id": {"type": "string", "pattern": f"^{ELEMENT_ID}$"},
+        "id": {"type": "string"},
         "asks": {"type": "boolean"},
         "restated": {"type": "boolean"},
     },
@@ -1444,9 +1449,8 @@ WORKSHOP_THREAD_EVENTS = tuple(
             "parent": PHOTO_THREAD,
             "responds": PHOTO_THREAD,
             "id": PHOTO_QUESTION,
-            "text": "One question about the photo:",
-            "markup": '<lf-ask id="photo-question">Does the room photo show enough, or'
-            " should I reshoot it wider?</lf-ask>",
+            "text": "Does the room photo show enough, or should I reshoot it wider?",
+            "obligation": True,
             "ts": "2026-09-02T00:12:55-07:00",
         },
         # Newer than the question and not one: the thread stays on the user for the

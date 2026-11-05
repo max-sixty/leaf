@@ -10,7 +10,7 @@ from click.testing import CliRunner
 from interact_support import append_carried_log_record, declare_idle, record_claim
 from playwright.sync_api import expect
 from render_cases_interaction import OBLIGATION_PAGE, PANEL_PAGE, live_url
-from render_cases_layout import token_colour
+from render_cases_layout import MARK, assert_drawn_in, token_colour
 from render_cases_navigation import go_to_address
 from render_cases_widgets import (
     GENERIC_VISUAL_LAYER,
@@ -19,6 +19,7 @@ from render_cases_widgets import (
 )
 from render_harness import (
     BOARD_PAGE,
+    RELEASE_FOCUS,
     leaf_page,
     margins_laid_out,
     open_page,
@@ -34,7 +35,7 @@ from render_harness import (
 
 from browser.margin import (
     COMMENT_ON_OBLIGATION,
-    leave_card_by_its_target,
+    leave_card,
 )
 from browser.threads import open_panel_thread
 from leaf import cli as cli_model
@@ -47,8 +48,8 @@ pytestmark = pytest.mark.shifts_unsurveyed
 
 
 RECEIPT_PHASES = {
-    "Sent": "sent",
-    "Waiting for delivery": "waiting",
+    "Queued for Claude": "sent",
+    "Still queued for Claude": "waiting",
     "Delivered": "pickup",
 }
 
@@ -56,11 +57,12 @@ RECEIPT_PHASES = {
 UNID_SELECTION_PAGE = PANEL_PAGE.replace('<p id="how-cap">', "<p>")
 
 
-@pytest.mark.parametrize("scheme", ["light", "dark"])
 def test_margin_entry_tone_stays_distinct_from_control_and_agent_state(
-    browser, serve, scheme
+    browser, serve, subtests
 ):
-    """Tone keeps its meaning through interaction and agent-workflow states."""
+    """Tone keeps its meaning through interaction and agent-workflow states, in either
+    colour scheme. Each case starts with nothing held or pointed at, and ends with the
+    states it walked put back."""
     page = open_page(
         browser,
         serve(
@@ -72,7 +74,7 @@ def test_margin_entry_tone_stays_distinct_from_control_and_agent_state(
             )
         ),
     )
-    page.emulate_media(color_scheme=scheme, reduced_motion="reduce")
+    page.emulate_media(reduced_motion="reduce")
     resized(page, 1440, 900)
     page.evaluate(
         """async () => {
@@ -130,63 +132,75 @@ def test_margin_entry_tone_stays_distinct_from_control_and_agent_state(
         assert readings[0]["mark"] == readings[1]["mark"] == readings[2]["mark"]
         assert len({reading["icon"] for reading in readings}) == 3
 
-    for state in ("idle", "engaged", "busy", "failed"):
-        page.evaluate("state => window.setToneState(state)", state)
-        for button in buttons:
-            expect(button).to_have_attribute("data-lf-state", state)
-            expect(button).to_have_css("opacity", "0.5" if state == "busy" else "1")
-        readings = [button.evaluate(read) for button in buttons]
-        assert all(reading["mark"] is None for reading in readings)
-        assert [reading["shape"] for reading in readings] == [["solid"] * 4] * len(
-            buttons
-        )
-        animation = "lf-runtime-4f3c2a8d-working" if state == "busy" else "none"
-        assert all(reading["animation"] == animation for reading in readings)
-        assert_icon_only(readings)
+    for scheme in ("light", "dark"):
+        with subtests.test(scheme=scheme):
+            page.emulate_media(color_scheme=scheme)
+            page.mouse.move(0, 0)
+            page.evaluate(RELEASE_FOCUS)
+            # What a case that failed partway can leave standing for the next.
+            page.evaluate("() => window.setToneReceiptPhase(null)")
+            buttons[0].evaluate("button => { delete button.dataset.lfAgentWorkflow; }")
+            for state in ("idle", "engaged", "busy", "failed"):
+                page.evaluate("state => window.setToneState(state)", state)
+                for button in buttons:
+                    expect(button).to_have_attribute("data-lf-state", state)
+                    expect(button).to_have_css(
+                        "opacity", "0.5" if state == "busy" else "1"
+                    )
+                readings = [button.evaluate(read) for button in buttons]
+                assert all(reading["mark"] is None for reading in readings)
+                assert [reading["shape"] for reading in readings] == [
+                    ["solid"] * 4
+                ] * len(buttons)
+                animation = "lf-runtime-4f3c2a8d-working" if state == "busy" else "none"
+                assert all(reading["animation"] == animation for reading in readings)
+                assert_icon_only(readings)
 
-    page.evaluate("() => window.setToneState('busy')")
-    buttons[0].evaluate("button => { button.dataset.lfAgentWorkflow = 'working'; }")
-    expect(buttons[0]).to_have_css("opacity", "0.5")
-    buttons[0].evaluate("button => { delete button.dataset.lfAgentWorkflow; }")
+            page.evaluate("() => window.setToneState('busy')")
+            buttons[0].evaluate(
+                "button => { button.dataset.lfAgentWorkflow = 'working'; }"
+            )
+            expect(buttons[0]).to_have_css("opacity", "0.5")
+            buttons[0].evaluate("button => { delete button.dataset.lfAgentWorkflow; }")
 
-    page.evaluate("() => window.setToneState('idle')")
-    ordinary = [button.evaluate(read) for button in buttons]
-    page.evaluate("() => window.setToneReceiptPhase('picked_up')")
-    picked_up = [button.evaluate(read) for button in buttons]
-    assert [reading["shell"] for reading in picked_up] == [
-        reading["shell"] for reading in ordinary
-    ]
-    assert [reading["icon"] for reading in picked_up] == [
-        token_colour(page, "--accent"),
-        ordinary[1]["icon"],
-        ordinary[2]["icon"],
-    ]
-    page.evaluate("() => window.setToneReceiptPhase('working')")
-    working = [button.evaluate(read) for button in buttons]
-    assert [reading["shell"] for reading in working] == [
-        reading["shell"] for reading in ordinary
-    ]
-    assert [reading["icon"] for reading in working] == [
-        token_colour(page, "--accent"),
-        ordinary[1]["icon"],
-        ordinary[2]["icon"],
-    ]
-    page.evaluate("() => window.setToneReceiptPhase(null)")
+            page.evaluate("() => window.setToneState('idle')")
+            ordinary = [button.evaluate(read) for button in buttons]
+            page.evaluate("() => window.setToneReceiptPhase('picked_up')")
+            picked_up = [button.evaluate(read) for button in buttons]
+            assert [reading["shell"] for reading in picked_up] == [
+                reading["shell"] for reading in ordinary
+            ]
+            assert [reading["icon"] for reading in picked_up] == [
+                token_colour(page, "--accent"),
+                ordinary[1]["icon"],
+                ordinary[2]["icon"],
+            ]
+            page.evaluate("() => window.setToneReceiptPhase('working')")
+            working = [button.evaluate(read) for button in buttons]
+            assert [reading["shell"] for reading in working] == [
+                reading["shell"] for reading in ordinary
+            ]
+            assert [reading["icon"] for reading in working] == [
+                token_colour(page, "--accent"),
+                ordinary[1]["icon"],
+                ordinary[2]["icon"],
+            ]
+            page.evaluate("() => window.setToneReceiptPhase(null)")
 
-    hovered = []
-    focused = []
-    for button in buttons:
-        button.hover()
-        hovered.append(button.evaluate(read))
-        page.mouse.move(0, 0)
-        button.focus()
-        page.keyboard.press("Tab")
-        page.keyboard.press("Shift+Tab")
-        expect(button).to_be_focused()
-        assert button.evaluate("node => node.matches(':focus-visible')")
-        focused.append(button.evaluate(read))
-    assert_icon_only(hovered)
-    assert_icon_only(focused)
+            hovered = []
+            focused = []
+            for button in buttons:
+                button.hover()
+                hovered.append(button.evaluate(read))
+                page.mouse.move(0, 0)
+                button.focus()
+                page.keyboard.press("Tab")
+                page.keyboard.press("Shift+Tab")
+                expect(button).to_be_focused()
+                assert button.evaluate("node => node.matches(':focus-visible')")
+                focused.append(button.evaluate(read))
+            assert_icon_only(hovered)
+            assert_icon_only(focused)
 
 
 @pytest.mark.parametrize("reduced_motion", ["no-preference", "reduce"])
@@ -305,7 +319,7 @@ def test_agent_progress_stays_on_the_thread_control(browser, serve, reduced_moti
     else:
         expect(marker).to_have_css("animation-name", "none")
     expect(marker).not_to_have_attribute("data-lf-agent-arrival", re.compile(".*"))
-    expect(marker).to_have_attribute("title", f"Threads · Working · {detail}")
+    expect(marker).to_have_attribute("title", f"Threads · On it · {detail}")
 
     # An unchanged claim neither replays its arrival nor restates its accessible
     # workflow text. Observe every write, including a remove followed by a restore.
@@ -344,7 +358,7 @@ def test_agent_progress_stays_on_the_thread_control(browser, serve, reduced_moti
     expect(preview.locator(".lf-margin-thread")).to_have_count(1)
     expect(preview).to_contain_text("Check the return visit too.")
     expect(preview).not_to_contain_text(COMMENT_ON_OBLIGATION["text"])
-    leave_card_by_its_target(page)
+    leave_card(page)
     page.keyboard.press("g")
     page.keyboard.press("Shift+p")
     dialog = page.locator(".lf-page-map-dialog")
@@ -394,11 +408,11 @@ def test_agent_progress_stays_on_the_thread_control(browser, serve, reduced_moti
     expect(carrier).to_be_visible()
     expect(carrier).to_have_attribute("data-lf-agent-workflow", "working")
     expect(carrier).to_have_attribute(
-        "aria-description", f"Edit the proposed bracket · Working · {detail}"
+        "aria-description", f"Edit the proposed bracket · On it · {detail}"
     )
     expect(carrier).to_have_css("background-color", initial["background"])
     expect(carrier).to_have_css("box-shadow", "none")
-    expect(carrier).to_have_attribute("title", f"Edit · Working · {detail}")
+    expect(carrier).to_have_attribute("title", f"Edit · On it · {detail}")
     assert page.evaluate("window.agentArrivals.length") == expected_arrivals, (
         "moving the same work claim to another semantic carrier replayed its arrival"
     )
@@ -413,8 +427,8 @@ def test_agent_progress_stays_on_the_thread_control(browser, serve, reduced_moti
     cluster.locator(":scope > .lf-margin-more").click()
     proxy = cluster.locator('[data-lf-margin-entry-key="cancel"]')
     expect(proxy).to_be_visible()
-    expect(proxy).to_have_attribute("title", f"Cancel · Working · {detail}")
-    expect(proxy).to_have_attribute("aria-description", f"Working · {detail}")
+    expect(proxy).to_have_attribute("title", f"Cancel · On it · {detail}")
+    expect(proxy).to_have_attribute("aria-description", f"On it · {detail}")
     assert workflow_text_mutations(proxy) == []
     page.evaluate("""async () => {
       window.agentContribution.unregister();
@@ -422,9 +436,9 @@ def test_agent_progress_stays_on_the_thread_control(browser, serve, reduced_moti
     expect(marker).to_be_visible()
     resized(page, 390, 760)
     working_thread = open_panel_thread(page, roots[0]["id"])
-    workflow = working_thread.locator(".lf-msg-sending", has_text="Working")
-    expect(workflow).to_have_text("Working")
-    expect(workflow).to_have_attribute("title", f"Working · {detail}")
+    workflow = working_thread.locator(".lf-msg-sending", has_text="On it")
+    expect(workflow).to_have_text("On it")
+    expect(workflow).to_have_attribute("title", f"On it · {detail}")
 
 
 @pytest.mark.parametrize("annotations", ["margin", "page"])
@@ -583,8 +597,15 @@ def test_a_thread_waiting_on_the_user_colors_its_margin_entry(
     whose authored obligation has been handed to the agent by its comment.
     """
     comment = {**COMMENT_ON_OBLIGATION, "anchor": {"section": target}}
+    source = OBLIGATION_PAGE.replace(
+        "</head>",
+        """<style>:root {
+      --pin-on-user: light-dark(#d8f1b0, #e4e8aa);
+      --pin-on-user-ink: light-dark(#244714, #334017);
+    }</style></head>""",
+    )
     page = open_page(
-        browser, live_url(serve(OBLIGATION_PAGE, events=[comment])), color_scheme=scheme
+        browser, live_url(serve(source, events=[comment])), color_scheme=scheme
     )
     resized(page, 1440, 900)
     cluster = page.locator(f'[data-lf-margin-for="{target}"]')
@@ -602,17 +623,17 @@ def test_a_thread_waiting_on_the_user_colors_its_margin_entry(
             "author": "agent",
             "agent": "Claude",
             "revision": 1,
-            "text": "Two of them can share a visit; the third cannot.",
-            "markup": '<lf-ask id="shared-visit">Which two share it?</lf-ask>',
+            "text": "Two of them can share a visit; the third cannot. Which two share it?",
+            "obligation": True,
             "anchor": {"section": target},
         },
     )
     told(page)
     expect(marker).to_have_attribute("data-lf-turn", "user")
     expect(marker).to_have_attribute("data-identity-probe", "retained")
-    expect(marker.locator(".lf-margin-entry-context")).to_have_text("My turn to answer")
+    expect(marker.locator(".lf-margin-entry-context")).to_have_text("Your turn")
     expect(marker).to_have_attribute(
-        "aria-label", re.compile(r"^Threads \(2\), My turn to answer,")
+        "aria-label", re.compile(r"^Threads \(2\), Your turn,")
     )
     on_user = _margin_entry_paint(marker)
     assert on_user == {
@@ -646,8 +667,8 @@ def test_a_thread_waiting_on_the_user_colors_its_margin_entry(
             "agent": "Claude",
             "parent": agent_comment["id"],
             "revision": 1,
-            "text": "One question:",
-            "markup": '<lf-ask id="which-visit">Which visit should we choose?</lf-ask>',
+            "text": "Which visit should we choose?",
+            "obligation": True,
         },
     )
     told(page)
@@ -667,7 +688,7 @@ def test_a_thread_waiting_on_the_user_colors_its_margin_entry(
           node.dataset.lfTurn ?? null,
           node.querySelector('.lf-page-map-action-context')?.textContent ?? null,
         ])"""
-    ) == [[None, None], ["user", "My turn to answer"]]
+    ) == [[None, None], ["user", "Your turn"]]
     page.keyboard.press("Escape")
     expect(dialog).to_be_hidden()
 
@@ -708,22 +729,26 @@ def test_a_thread_waiting_on_the_user_colors_its_margin_entry(
     expect(cluster).to_have_attribute("data-lf-place", "pin")
     expect(marker).to_have_css("background-color", token_colour(page, "--pin-on-user"))
     expect(marker.locator(".lf-margin-entry-icon")).to_have_css(
-        "color", "rgb(255, 255, 255)"
+        "color", token_colour(page, "--pin-on-user-ink")
     )
     pin_contrast = marker.evaluate("""node => {
       const canvas = document.createElement('canvas');
       canvas.width = canvas.height = 1;
       const ctx = canvas.getContext('2d', {willReadFrequently: true});
-      ctx.fillStyle = getComputedStyle(node).backgroundColor;
-      ctx.fillRect(0, 0, 1, 1);
-      const channels = [...ctx.getImageData(0, 0, 1, 1).data.slice(0, 3)]
-        .map(value => value / 255)
-        .map(value => value <= .04045 ? value / 12.92 : ((value + .055) / 1.055) ** 2.4);
-      const luminance = channels.reduce(
-        (sum, value, index) => sum + value * [.2126, .7152, .0722][index], 0);
-      return 1.05 / (luminance + .05);
+      const luminance = color => {
+        ctx.fillStyle = color;
+        ctx.fillRect(0, 0, 1, 1);
+        const channels = [...ctx.getImageData(0, 0, 1, 1).data.slice(0, 3)]
+          .map(value => value / 255)
+          .map(value => value <= .04045 ? value / 12.92 : ((value + .055) / 1.055) ** 2.4);
+        return channels.reduce(
+          (sum, value, index) => sum + value * [.2126, .7152, .0722][index], 0);
+      };
+      const ground = luminance(getComputedStyle(node).backgroundColor);
+      const ink = luminance(getComputedStyle(node.querySelector('.lf-margin-entry-icon')).color);
+      return (Math.max(ground, ink) + .05) / (Math.min(ground, ink) + .05);
     }""")
-    assert pin_contrast >= 3, f"the white thread glyph lacks contrast: {pin_contrast}"
+    assert pin_contrast >= 3, f"the thread glyph lacks contrast: {pin_contrast}"
 
     # Answering is what ends the user's turn, and the gallery tells a developer to
     # watch for exactly that. Both agent threads have to be answered, because the
@@ -752,7 +777,7 @@ def test_a_thread_waiting_on_the_user_colors_its_margin_entry(
 def test_a_thread_an_open_to_do_holds_says_so_beside_the_page(browser, serve):
     """A thread with no title yet, held by a to-do its agent opened, reads as
     Threads states it on every surface that shows it: the margin entry's line, which
-    its name says too, and its Page Map row say To-do open as the card's status does,
+    its name says too, and its Page Map row say Still to do as the card's status does,
     and Threads, Page Map and the activity feed name the thread by the words its
     opening renders, not that opening's Markdown, until a title names it on all of
     them."""
@@ -777,11 +802,11 @@ def test_a_thread_an_open_to_do_holds_says_so_beside_the_page(browser, serve):
     page.keyboard.press("g")
     page.keyboard.press("Shift+m")
     panel_settled(page, view="queue")
-    page.locator(".lf-floating-panel .lf-fp-filters button").nth(1).click()
+    page.locator(".lf-floating-panel .lf-fp-filters button").nth(2).click()
     queue = page.locator(panel_view("queue"))
-    owed = queue.locator('.lf-fp-on-item[data-list="agent"]')
+    owed = queue.locator('.lf-fp-on-item[data-lf-list="agent"]')
     expect(owed).to_have_count(1)
-    expect(owed.locator(".lf-fp-on-title, .lf-fp-prompt").first).to_have_text(named)
+    expect(owed.get_by_role("button").locator(".lf-fp-label")).to_have_text(named)
     page.keyboard.press("Escape")
     # The agent's answer settles the comment and opens the to-do that holds it.
     append_carried_log_record(
@@ -799,8 +824,8 @@ def test_a_thread_an_open_to_do_holds_says_so_beside_the_page(browser, serve):
     )
     told(page)
     marker = page.locator('[data-lf-margin-for="bracket"] > .lf-margin-marker')
-    expect(marker.locator(".lf-margin-entry-context")).to_have_text("To-do open")
-    expect(marker).to_have_attribute("aria-label", re.compile(r"^Thread, To-do open,"))
+    expect(marker.locator(".lf-margin-entry-context")).to_have_text("Still to do")
+    expect(marker).to_have_attribute("aria-label", re.compile(r"^Thread, Still to do,"))
 
     page.locator("#feed .lf-activity-news").click()
     feed = page.locator("#feed .lf-activity-row", has_text="replied in")
@@ -809,16 +834,16 @@ def test_a_thread_an_open_to_do_holds_says_so_beside_the_page(browser, serve):
     page.keyboard.press("Shift+p")
     dialog = page.get_by_role("dialog", name="Page Map", exact=True)
     row = dialog.locator('.lf-page-map-action[data-lf-map-item^="comment:"]')
-    expect(row.locator(".lf-page-map-action-context")).to_have_text("To-do open")
+    expect(row.locator(".lf-page-map-action-context")).to_have_text("Still to do")
     expect(row.locator(".lf-page-map-action-label-word")).to_have_text(named)
     page.keyboard.press("Escape")
     expect(dialog).to_be_hidden()
     page.keyboard.press("g")
     page.keyboard.press("Shift+T")
     panel_settled(page, view="threads")
-    listed = page.locator(f'.lf-fp-thread[data-key="{root["id"]}"]')
+    listed = page.locator(f'.lf-fp-thread[data-lf-key="{root["id"]}"]')
     expect(listed.locator(".lf-fp-label")).to_have_text(named)
-    expect(listed.locator(".lf-fp-value")).to_contain_text("To-do open")
+    expect(listed.locator(".lf-row-end")).to_contain_text("Still to do")
 
     # A title names it on every surface, the margin's included.
     append_carried_log_record(
@@ -953,7 +978,7 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
 ):
     """A margin entry keeps the margin entry family visible without promising a press.
 
-    Sent, Waiting for delivery, and Picked up report a move already made. Their status
+    Queued for Claude, Still queued for Claude, and Delivered report a move already made. Their status
     margin entry therefore keeps the family silhouette and full ink, while leaving the
     accessibility tree as a status rather than a control and showing no hover fill.
     Hovering the status draws a soft neutral trace to the
@@ -1054,7 +1079,7 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
             expect(marker).to_have_attribute("data-identity-probe", "kept")
         page.evaluate("() => document.activeElement.blur()")
         page.mouse.move(0, 0)
-        expect(page.locator(".lf-target-trace")).to_be_hidden()
+        expect(page.locator("[data-lf-traced]")).to_have_count(0)
         expect(control.locator(":scope > .lf-margin-entry-label")).to_be_hidden()
         words_still()
         current = face(control)
@@ -1092,8 +1117,8 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
             for key in ("background", "border", "ink", "iconInk", "opacity")
         }
         control.hover()
-        trace_box = page.locator('.lf-target-trace[data-for="jobs"]')
-        expect(trace_box).to_be_visible()
+        traced = page.locator("#jobs")
+        expect(traced).to_have_attribute("data-lf-traced", "")
         label = control.locator(":scope > .lf-margin-entry-label")
         expect(label).to_be_visible()
         words_still()
@@ -1106,39 +1131,27 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
         assert hovered["wordOpacity"] == "1"
         assert hovered["wordPosition"] == "absolute"
         assert hovered["wordBackground"] != "rgba(0, 0, 0, 0)"
-        # The trace is the whole of what a hovered status says about its target: the item
-        # draws no leader out to it, so the box alone spends both declared tokens. Width
-        # is read through a probe wearing the same token for the same reason ink is: the
-        # theme states 1.5px and the platform lays a border down in whole device pixels,
-        # so what the box must match is the token as this display resolves it.
-        trace = page.evaluate(
-            """() => {
-              const box = getComputedStyle(document.querySelector('.lf-target-trace'));
-              const probe = document.createElement('span');
-              probe.style.borderTop = 'var(--target-trace-w) solid';
-              document.body.append(probe);
-              const declaredWidth = getComputedStyle(probe).borderTopWidth;
-              probe.remove();
-              return {
-                declaredToken: box.getPropertyValue('--target-trace-w').trim(),
-                declaredWidth,
-                boxWidth: box.borderTopWidth,
-                boxColor: box.borderTopColor,
-                leader: getComputedStyle(
-                  document.querySelector('.lf-margin-cluster'), '::before',
-                ).content,
-              };
-            }"""
+        # A rectangular trace uses the same outside stroke as target focus, on the
+        # region's perimeter, in the trace's quiet ink, cut to brackets.
+        mark = traced.evaluate(MARK)
+        region = page.evaluate(
+            "() => parseFloat(getComputedStyle(document.documentElement)"
+            ".getPropertyValue('--focus-region-gap'))"
         )
-        declared_width = trace.pop("declaredWidth")
-        assert trace == {
-            "declaredToken": "1.5px",
-            "boxWidth": declared_width,
-            "boxColor": resolved_color("--target-trace-ink"),
-            "leader": "none",
-        }
+        leader = page.evaluate(
+            "() => getComputedStyle(document.querySelector('.lf-margin-cluster'),"
+            " '::before').content"
+        )
+        assert mark and mark["offset"] == region, (mark, region)
+        assert (mark["style"], mark["width"], mark["color"], mark["brackets"]) == (
+            "solid",
+            2,
+            resolved_color("--target-trace-ink"),
+            True,
+        ), mark
+        assert leader == "none"
 
-    assert_status("Sent", "just now")
+    assert_status("Queued for Claude", "just now")
     result = Axe().run(
         page,
         options={
@@ -1191,9 +1204,9 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
     declare_idle(page_dir)
     told(page)
     expect(marker).to_have_attribute(
-        "aria-label", re.compile(r"^Waiting for delivery,")
+        "aria-label", re.compile(r"^Still queued for Claude,")
     )
-    assert_status("Waiting for delivery", "3m ago")
+    assert_status("Still queued for Claude", "3m ago")
 
     # Pickup belongs to an active agent turn; an unclaimed pickup is stale work.
     record_claim(page_dir)
@@ -1234,12 +1247,12 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
     expect(mapped).to_have_count(1)
     expect(mapped.locator(".lf-margin-kind")).to_have_attribute("data-lf-icon", "edit")
     # The row is the carrier drawn again, so pickup inks its glyph as it inks the
-    # carrier's: one rule set in theme.css paints both.
+    # carrier's: one rule set in base.css paints both.
     ink = "el => getComputedStyle(el).color"
     assert (
         mapped.locator(".lf-margin-kind").evaluate(ink)
         == carrier.locator(".lf-margin-entry-icon").evaluate(ink)
-        != mapped.locator(".lf-page-map-action-label").evaluate(ink)
+        != mapped.locator(".lf-page-map-action-label-word").evaluate(ink)
     )
     page.keyboard.press("Escape")
     page.evaluate("() => window.lfReceiptSecondary.unregister()")
@@ -1266,13 +1279,13 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
     assert working["behavior"] == "disclosure"
     assert working["role"] == "button"
     assert working["icon"] == "activity"
-    assert working["word"] == "Working…"
+    assert working["word"] == "On it…"
     assert working["context"] == "just now · checking the mounts"
     assert working["cursor"] == "pointer"
     assert working["opacity"] == "1"
     assert working["background"] != "rgba(0, 0, 0, 0)"
     assert working["border"] != "rgba(0, 0, 0, 0)"
-    expect(page.get_by_role("button", name=re.compile(r"^Working,"))).to_have_count(1)
+    expect(page.get_by_role("button", name=re.compile(r"^On it,"))).to_have_count(1)
 
     honored = single.replace(
         '<lf-option id="job-mounts"', '<lf-option id="job-mounts" chosen'
@@ -1307,7 +1320,7 @@ def test_a_reaction_receipt_keeps_an_unided_selected_blocks_visual_coordinate(
     expect(reactions).to_be_visible()
 
     with sending(page, "the keep reaction"):
-        reactions.locator('.lf-react[data-token="keep"]').click()
+        reactions.locator('.lf-react[data-lf-token="keep"]').click()
     expect(bar).to_be_hidden()
     sent = events_model.read_events(serve.page_dir)[-1]
     assert sent["anchor"]["section"] == "s-how" and sent["anchor"]["quote"]
@@ -1354,41 +1367,12 @@ def test_status_hover_trace_uses_a_registered_visual_surface(browser, serve):
     expect(status).to_have_attribute("tabindex", "-1")
     assert status.evaluate("node => node.tagName") == "SPAN"
     status.hover()
-    trace = page.locator('.lf-target-trace[data-for="outer"]')
-    expect(trace).to_be_visible()
-    expect(trace).to_have_class(re.compile(r"\blf-shaped\b"))
-    assert trace.locator(".lf-target-trace-shape > g > *").evaluate_all(
-        "nodes => nodes.map(node => node.localName)"
-    ) == ["rect"]
-    geometry = page.evaluate(
-        """() => {
-          const surface = document.querySelector('#outer-surface').getBoundingClientRect();
-          const trace = document.querySelector('.lf-target-trace');
-          const box = trace.getBoundingClientRect();
-          const shape = trace.querySelector('rect');
-          const style = getComputedStyle(shape);
-          const swatch = document.createElement('span');
-          swatch.style.color = 'var(--target-trace-ink)';
-          document.head.append(swatch);
-          const traceInk = getComputedStyle(swatch).color;
-          swatch.remove();
-          return {
-            sameCenter: Math.abs(box.x + box.width / 2 - (surface.x + surface.width / 2)) < .5
-              && Math.abs(box.y + box.height / 2 - (surface.y + surface.height / 2)) < .5,
-            surrounds: box.width > surface.width && box.height > surface.height,
-            stroke: style.stroke,
-            traceInk,
-            fill: style.fill,
-          };
-        }"""
-    )
-    assert geometry == {
-        "sameCenter": True,
-        "surrounds": True,
-        "stroke": geometry["traceInk"],
-        "traceInk": geometry["stroke"],
-        "fill": "none",
-    }
+    # The surface draws the trace along its own edge, whole, in the trace's ink; the
+    # part it stands for, which holds a decoration too, draws none.
+    surface = page.locator("#outer-surface")
+    expect(surface).to_have_attribute("data-lf-traced", "")
+    expect(page.locator("#outer")).not_to_have_attribute("data-lf-traced", "")
+    assert_drawn_in(surface, token_colour(page, "--target-trace-ink"), 2)
 
     page.mouse.move(0, 0)
-    expect(trace).to_be_hidden()
+    expect(page.locator("[data-lf-traced]")).to_have_count(0)

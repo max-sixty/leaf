@@ -11,7 +11,6 @@ from render_harness import leaf_page, open_page
 
 from browser.navigation import offered_routes
 from leaf.render_checks import rendered
-from leaf.schema import ELEMENT_ID
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -113,7 +112,7 @@ KEYBOARD_HINT_REGISTRY = {
         "description": "Exercises declared keyboard commands and their controls.",
         "type": "object",
         "properties": {
-            "id": {"type": "string", "pattern": f"^{ELEMENT_ID}$"},
+            "id": {"type": "string"},
             "asks": {"type": "boolean"},
             "restated": {"type": "boolean"},
         },
@@ -128,7 +127,7 @@ KEYBOARD_HINT_REGISTRY = {
 
 
 KEYBOARD_HINT_MODULE = """\
-import {commandScope, commands, keeps, keepsText, offer, paintKeys} from '/runtime/widget-api.js';
+import {commandScope, keeps, keepsText, offer, commandsChanged} from '/runtime/widget-api.js';
 
 customElements.define('lf-keyboard-probe', class extends HTMLElement {
   connectedCallback() {
@@ -144,21 +143,21 @@ customElements.define('lf-keyboard-probe', class extends HTMLElement {
     const disable = offer('button', '', 'Toggle disabled');
     disable.onclick = () => {
       this.disabled = !this.disabled;
-      paintKeys();
+      commandsChanged(this);
     };
     const ariaDisable = offer('button', '', 'Toggle ARIA disabled');
     ariaDisable.onclick = () => {
       this.ariaRefused = !this.ariaRefused;
-      paintKeys();
+      commandsChanged(this);
     };
     const guard = offer('button', '', 'Toggle availability');
-    guard.onclick = () => { this.allowed = !this.allowed; paintKeys(); };
+    guard.onclick = () => { this.allowed = !this.allowed; commandsChanged(this); };
     const replace = offer('button', '', 'Replace action control');
     replace.onclick = () => {
       const prior = this.seat;
       this.makeControl();
       prior.replaceWith(this.seat);
-      paintKeys();
+      commandsChanged(this);
     };
     const quiet = offer('button', '', 'Quiet action');
     this.append(disable, ariaDisable, guard, replace, quiet);
@@ -176,12 +175,15 @@ customElements.define('lf-keyboard-probe', class extends HTMLElement {
         run: () => keepsText(quiet, 'Quiet action applied'),
       },
     ]);
-    commands(this, scope);
-    commands(editor, scope);
-    commands(this.closest('main'), 'Outside the widget', [{
+    this.lfCommands = scope;
+    commandsChanged(this);
+    editor.lfCommands = scope;
+    commandsChanged(editor);
+    this.closest('main').lfCommands = { title: 'Outside the widget', rows: [{
       id: 'probe.outer', title: 'Outer digit', keys: ['1'],
       run: () => keepsText(this.result, 'Outer applied'),
-    }]);
+    }] };
+    commandsChanged(this.closest('main'));
   }
 
   makeControl() {
@@ -424,7 +426,7 @@ def test_widget_context_keys_work_without_an_obligation(
 
 
 KEYBOARD_ROUTE_MODULE = """\
-import {commands, keepsText, offer} from '/runtime/widget-api.js';
+import {keepsText, offer, commandsChanged} from '/runtime/widget-api.js';
 
 customElements.define('lf-keyboard-probe', class extends HTMLElement {
   connectedCallback() {
@@ -445,7 +447,7 @@ customElements.define('lf-keyboard-probe', class extends HTMLElement {
     const firstUnavailable = DISABLE_FIRST
     const apply = (binding) => keepsText(result, binding === '1' ? 'First applied' : 'Second applied');
     this.append(firstSeat, secondSeat, result);
-    commands(this, 'In parameterized actions', [{
+    this.lfCommands = { title: 'In parameterized actions', rows: [{
       id: 'probe.apply', keys: ['1', '2'], title: 'Apply an action', line: 'apply',
       routes: [
         {id: 'probe.first', binding: '1', control: first, when: () => !firstUnavailable,
@@ -454,11 +456,13 @@ customElements.define('lf-keyboard-probe', class extends HTMLElement {
          bindingBadge: secondHint, title: 'Apply the second action'},
       ],
       run: apply,
-    }]);
-    commands(this.closest('section'), 'Outside parameterized actions', [{
+    }] };
+    commandsChanged(this);
+    this.closest('section').lfCommands = { title: 'Outside parameterized actions', rows: [{
       id: 'probe.outer', keys: ['1'], title: 'Apply the outer action', line: 'outer action',
       run: () => keepsText(result, 'Outer applied'),
-    }]);
+    }] };
+    commandsChanged(this.closest('section'));
   }
 });
 """
@@ -530,7 +534,7 @@ def test_disabled_command_route_keeps_its_key_and_enabled_sibling(
 
 
 CONTEXT_COMMAND_MODULE = """\
-import {commands, keepsText, offer, paintKeys} from '/runtime/widget-api.js';
+import {keepsText, offer, commandsChanged} from '/runtime/widget-api.js';
 
 customElements.define('lf-keyboard-probe', class extends HTMLElement {
   connectedCallback() {
@@ -545,12 +549,14 @@ customElements.define('lf-keyboard-probe', class extends HTMLElement {
         keys: index === 12 ? ['F12'] : [], control, run: apply});
     }
     this.append(result);
-    commands(this, 'In explicit actions', rows);
+    this.lfCommands = { title: 'In explicit actions', rows: rows };
+    commandsChanged(this);
     const replace = offer('button', '', 'Replace declaration');
     replace.onclick = () => {
-      commands(this, 'In explicit actions', [{id: 'probe.replacement', title: 'Replacement',
-        contextKeys: ['2'], run: () => keepsText(result, 'Replacement applied')}]);
-      paintKeys();
+      this.lfCommands = { title: 'In explicit actions', rows: [{id: 'probe.replacement', title: 'Replacement',
+        contextKeys: ['2'], run: () => keepsText(result, 'Replacement applied')}] };
+      commandsChanged(this);
+      commandsChanged(this);
     };
     this.append(replace);
   }
@@ -597,13 +603,11 @@ def test_context_commands_keep_widget_assigned_aliases_and_source_lifetime(
     expect(result).to_have_text("Action 11 applied")
     page.keyboard.press("?")
     unbound = page.locator(
-        '.lf-command-reference [role=row][data-lf-command="probe.action-11"]'
+        '.lf-command-reference [role=option][data-lf-command="probe.action-11"]'
     )
-    expect(unbound.locator(".lf-command-reference-command")).to_have_attribute(
-        "data-lf-available", "true"
-    )
+    expect(unbound).to_have_attribute("data-lf-available", "true")
     expect(unbound).to_contain_text("Action 11")
-    unbound.locator(".lf-command-reference-command").click()
+    unbound.click()
     expect(result).to_have_text("Action 11 applied")
 
     page.get_by_role("button", name="Replace declaration").click()
@@ -659,7 +663,7 @@ def test_restoring_obligation_focus_can_execute_its_command_in_the_same_turn(
 def test_contextual_escape_agrees_across_dispatch_hints_and_reference(browser, serve):
     """Escape forwarding stays live when its context scope is read more than once."""
     module = """\
-import {commands, keepsText, offer} from '/runtime/widget-api.js';
+import {keepsText, offer, commandsChanged} from '/runtime/widget-api.js';
 
 customElements.define('lf-keyboard-probe', class extends HTMLElement {
   connectedCallback() {
@@ -667,9 +671,10 @@ customElements.define('lf-keyboard-probe', class extends HTMLElement {
     const result = offer('output', '', 'No action');
     let count = 0;
     this.append(control, result);
-    commands(this, 'In escape operation', [{id: 'probe.escape', title: 'Apply operation',
+    this.lfCommands = { title: 'In escape operation', rows: [{id: 'probe.escape', title: 'Apply operation',
       keys: ['x'], contextKeys: ['Escape'], control, bindingBadge: null,
-      run: () => keepsText(result, `Applied ${++count}`)}]);
+      run: () => keepsText(result, `Applied ${++count}`)}] };
+    commandsChanged(this);
   }
 });
 """
@@ -706,7 +711,7 @@ customElements.define('lf-keyboard-probe', class extends HTMLElement {
     expect(result).to_have_text("Applied 1")
     page.keyboard.press("?")
     reference_action = page.locator(
-        '.lf-command-reference [role=row][data-lf-command="probe.escape"] '
+        '.lf-command-reference [role=option][data-lf-command="probe.escape"]'
         ".lf-command-reference-command"
     )
     expect(reference_action).to_have_attribute("data-lf-available", "true")
@@ -715,7 +720,7 @@ customElements.define('lf-keyboard-probe', class extends HTMLElement {
     expect(page.locator("#question")).to_be_focused()
     page.keyboard.press("Tab")
     expect(
-        page.get_by_role("button", name="Apply operation", exact=True)
+        page.locator("#probe").get_by_role("button", name="Apply operation", exact=True)
     ).to_be_focused()
     page.keyboard.press("x")
     expect(result).to_have_text("Applied 3")
@@ -726,7 +731,7 @@ customElements.define('lf-keyboard-probe', class extends HTMLElement {
 def test_context_aliases_do_not_collide_with_authored_command_ids(browser, serve):
     """A contextual projection keeps both commands when an authored id ends in .context."""
     module = """\
-import {commands, keepsText, offer} from '/runtime/widget-api.js';
+import {keepsText, offer, commandsChanged} from '/runtime/widget-api.js';
 
 customElements.define('lf-keyboard-probe', class extends HTMLElement {
   connectedCallback() {
@@ -735,12 +740,13 @@ customElements.define('lf-keyboard-probe', class extends HTMLElement {
     const result = offer('output', '', 'No action');
     let count = 0;
     this.append(control, neighbour, result);
-    commands(this, 'In named operations', [
+    this.lfCommands = { title: 'In named operations', rows: [
       {id: 'probe.apply', title: 'Apply operation', keys: ['F8'], contextKeys: ['1'],
         control, run: () => keepsText(result, `Applied ${++count}`)},
       {id: 'probe.apply.context', title: 'Neighbour operation', keys: ['F9'],
         control: neighbour, run: () => keepsText(result, 'Neighbour applied')},
-    ]);
+    ] };
+    commandsChanged(this);
   }
 });
 """
@@ -766,11 +772,11 @@ customElements.define('lf-keyboard-probe', class extends HTMLElement {
             ("probe.apply.context", "Neighbour operation"),
         ]:
             row = page.locator(
-                f'.lf-command-reference [role=row][data-lf-command="{command_id}"]'
+                f'.lf-command-reference [role=option][data-lf-command="{command_id}"]'
             )
             expect(row).to_have_count(1)
             expect(row).to_contain_text(title)
-            expect(row.locator(".lf-command-reference-command")).to_have_attribute(
+            expect(row).to_have_attribute(
                 "data-lf-available",
                 str(
                     current_location == "question" and command_id == "probe.apply"
@@ -787,7 +793,7 @@ customElements.define('lf-keyboard-probe', class extends HTMLElement {
     expect(result).to_have_text("Applied 1")
     page.keyboard.press("Tab")
     expect(
-        page.get_by_role("button", name="Apply operation", exact=True)
+        page.locator("#probe").get_by_role("button", name="Apply operation", exact=True)
     ).to_be_focused()
     page.keyboard.press("F8")
     expect(result).to_have_text("Applied 2")
@@ -798,16 +804,17 @@ customElements.define('lf-keyboard-probe', class extends HTMLElement {
 def test_context_forwarding_preserves_reference_activation_opt_out(browser, serve):
     """A contextual alias cannot turn a reading-only reference row into an action."""
     module = """\
-import {commands, keepsText, offer} from '/runtime/widget-api.js';
+import {keepsText, offer, commandsChanged} from '/runtime/widget-api.js';
 
 customElements.define('lf-keyboard-probe', class extends HTMLElement {
   connectedCallback() {
     const result = offer('output', '', 'No action');
     let count = 0;
     this.append(result);
-    commands(this, 'In guarded operation', [{id: 'probe.guarded', title: 'Guarded operation',
+    this.lfCommands = { title: 'In guarded operation', rows: [{id: 'probe.guarded', title: 'Guarded operation',
       contextKeys: ['F8'], runFromCommandReference: false,
-      run: () => keepsText(result, `Applied ${++count}`)}]);
+      run: () => keepsText(result, `Applied ${++count}`)}] };
+    commandsChanged(this);
   }
 });
 """
@@ -830,11 +837,11 @@ customElements.define('lf-keyboard-probe', class extends HTMLElement {
     expect(result).to_have_text("Applied 1")
     page.keyboard.press("?")
     reference_row = page.locator(
-        '.lf-command-reference [role=row][data-lf-command="probe.guarded"]'
+        '.lf-command-reference [role=option][data-lf-command="probe.guarded"]'
     )
     expect(reference_row).to_contain_text("Guarded operation")
-    expect(reference_row.locator(".lf-command-reference-command")).to_have_count(0)
-    reference_row.click()
+    expect(reference_row).to_have_attribute("aria-disabled", "true")
+    reference_row.click(force=True)
     rendered(page)
     expect(result).to_have_text("Applied 1")
     page.keyboard.press("Escape")
@@ -844,7 +851,7 @@ customElements.define('lf-keyboard-probe', class extends HTMLElement {
 
 
 ROUTE_HINT_OVERRIDE_MODULE = """\
-import {commands, keepsText, offer} from '/runtime/widget-api.js';
+import {keepsText, offer, commandsChanged} from '/runtime/widget-api.js';
 
 customElements.define('lf-verdict', class extends HTMLElement {
   connectedCallback() {
@@ -854,15 +861,16 @@ customElements.define('lf-verdict', class extends HTMLElement {
     const result = offer('output', '', '0');
     let count = 0;
     this.append(control, inheritedHint, result);
-    commands(this, 'In the inspection', [{
+    this.lfCommands = { title: 'In the inspection', rows: [{
       id: 'probe.inspect', keys: ['x'], title: 'Inspect the proposal', line: 'inspect',
       bindingBadge: inheritedHint,
       routes: [{
         id: 'probe.inspect-proposal', binding: 'x', contextKeys: ['1'], decision: true,
         control, bindingBadge: null, title: 'Inspect the proposal',
       }],
-      run: binding => keepsText(result, `${binding}:${++count}`),
-    }]);
+      runKey: binding => keepsText(result, `${binding}:${++count}`),
+    }] };
+    commandsChanged(this);
   }
 });
 """

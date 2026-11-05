@@ -5,8 +5,9 @@ import json
 import re
 
 import pytest
-from leaf_dev.example_data import patch_manifest
 from playwright.sync_api import expect
+from render_cases_interaction import panel_comment
+from render_cases_layout import MARK
 from render_cases_widgets import (
     DIFF_CLIPPING,
     DIFF_LANDING,
@@ -35,6 +36,7 @@ from render_harness import (
     write,
 )
 
+from browser.threads import append_agent_reply
 from browser.widgets import (
     _bound_diff,
     expect_walk_says,
@@ -42,6 +44,7 @@ from browser.widgets import (
 from leaf import data as data_model
 from leaf import event_log as events_model
 from leaf.render_checks import rendered, wait_until_ready
+from leaf_dev.example_data import patch_manifest
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -59,6 +62,33 @@ LONG_DIFF_PATCH = (
 
 def long_diff(id):
     return f'<lf-diff id="{id}"><pre>{LONG_DIFF_PATCH}</pre></lf-diff>'
+
+
+def test_an_unbound_diff_draws_and_clears_a_host_value(browser, serve):
+    page = open_page(browser, serve(leaf_page("Host value", long_diff("patch"))))
+    diff = page.locator("#patch")
+    expect(diff.locator(".lf-diff-file")).to_contain_text(LONG_DIFF_PATH)
+    replacement = LONG_DIFF_PATCH.replace(LONG_DIFF_PATH, "host.txt")
+    page.evaluate(
+        """async value => {
+          const diff = document.querySelector('#patch');
+          window.drawings = [];
+          diff.addEventListener('drawn', event => drawings.push({
+            value: event.detail.value,
+            marks: [...diff.shadowRoot.querySelectorAll('[data-lf-datum]')]
+              .map(node => node.dataset.lfDatum),
+          }));
+          diff.value = value;
+          await diff.updateComplete;
+        }""",
+        replacement,
+    )
+    assert "host.txt" in diff.locator(".lf-diff-file").inner_text()
+    drawn = page.evaluate("drawings.at(-1)")
+    assert drawn["value"] == replacement
+    assert drawn["marks"] and all("host.txt" in key for key in drawn["marks"])
+    page.evaluate("document.querySelector('#patch').value = null")
+    expect(diff.locator("[data-lf-datum]")).to_have_count(0)
 
 
 def test_a_rewrite_reads_its_deletions_above_its_additions(browser, serve):
@@ -138,6 +168,12 @@ FIRST_PAINT_PAGE = leaf_page(
     + _patch_file("src/app.py", 1200, ["x = 1", "y = 2"])
     + _patch_file("src/util.py", 1, ["z = 3"])
     + "</pre></lf-diff>"
+    # One file draws no filter row.
+    + '<lf-diff id="single"><pre>'
+    + _patch_file("src/only.py", 1, ["w = 0"])
+    + '</pre><lf-diff-note file="src/only.py" side="new" at="2">'
+    + "This authored explanation wraps within the reader. " * 4
+    + "</lf-diff-note></lf-diff>"
     # Prose wraps at the drawing's column: words, runs of spaces, and words longer
     # than the column by every count up to a few columns, so a column more or less
     # than the drawing's changes some row's lines at either width.
@@ -161,6 +197,16 @@ FIRST_PAINT_PAGE = leaf_page(
     + '<lf-diff id="folded" collapsed><pre>'
     + _patch_file("src/app.py", 1, ["x = 1"])
     + _patch_file("src/util.py", 1, ["z = 3"])
+    + "</pre></lf-diff>"
+    # A selected-file reader opens only its first file, even when authored collapsed.
+    # A later metadata-only file contributes no height to that first reading.
+    + '<lf-diff id="file-view" view="file" collapsed><pre>'
+    + _patch_file("docs/first.md", 1, ["The first file remains readable. " * 12])
+    + "diff --git a/later.txt b/later.txt\nold mode 100644\nnew mode 100755\n"
+    + '</pre></lf-diff><lf-diff id="relative-font" style="--code-size:1em" overflow="wrap"><pre>'
+    + _patch_file(
+        "docs/font.md", 1, ["A wrapped row uses its inherited code font. " * 12]
+    )
     + "</pre></lf-diff><p id='after'>After the diffs.</p>",
 )
 
@@ -168,13 +214,11 @@ FIRST_PAINT_PAGE = leaf_page(
 @pytest.mark.parametrize(
     "viewport, touch", [((1280, 900), False), ((390, 844), True)], ids=["wide", "touch"]
 )
-def test_an_inline_patch_first_paints_at_the_height_it_draws_at(
+def test_an_inline_patch_stays_readable_until_its_drawing_arrives(
     browser, serve, viewport, touch
 ):
-    """An inline patch's first paint holds the height its drawing lands at, so nothing
-    after it moves when it upgrades: each file's frame and name row, a row per line
-    and hunk separator, and each prose row as many lines as it wraps to at the column
-    the drawing gives it. Under a finger the name rows stand at a finger's reach."""
+    """Authored source is readable with modules held; the live drawing then keeps
+    file selection, collapsed files, and wrapped prose at desktop and touch widths."""
     context = browser.new_context(
         viewport={"width": viewport[0], "height": viewport[1]},
         has_touch=touch,
@@ -183,30 +227,58 @@ def test_an_inline_patch_first_paints_at_the_height_it_draws_at(
     page = context.new_page()
     boot = []
     page.route("**/leaf.js", lambda route: boot.append(route))
-    heights = "() => [...document.querySelectorAll('lf-diff')].map(d => [d.id, d.getBoundingClientRect().height])"
     try:
         with page.expect_request("**/leaf.js"):
             page.goto(serve(FIRST_PAINT_PAGE), wait_until="commit")
         displayed(page)
         assert boot, "the runtime was not held"
-        first = page.evaluate(heights)
+        # First paint can precede later patches; measure their complete authored input.
+        page.wait_for_function("document.readyState !== 'loading'")
+        sources = page.locator("lf-diff > pre")
+        expect(sources).to_have_count(6)
+        for source in sources.all():
+            expect(source).to_be_visible()
+            expect(source).to_contain_text("diff --git")
+        expect(page.locator("#single > lf-diff-note")).to_be_visible()
+        note_width = page.locator("#single > lf-diff-note").evaluate(
+            "note => note.getBoundingClientRect().width"
+        )
         boot.pop().continue_()
         wait_until_ready(page)
         page.wait_for_function(
             "() => [...document.querySelectorAll('lf-diff')].every(d => d.matches('.lf-rendered'))"
         )
-        drawn = page.evaluate(heights)
+        expect(page.locator("#code [data-line]").last).to_contain_text("z = 3")
+        expect(page.locator("#single lf-diff-note")).to_be_visible()
+        assert page.locator("#single lf-diff-note").evaluate(
+            "note => note.getBoundingClientRect().width"
+        ) == pytest.approx(note_width)
+        expect(page.locator("#folded details[open]")).to_have_count(0)
+        expect(page.locator("#file-view [data-line]").last).to_contain_text(
+            "The first file remains readable."
+        )
+        expect(page.locator("#file-view .lf-diff-fold:visible")).to_have_count(1)
+        expect(page.locator("#relative-font [data-line]").last).to_contain_text(
+            "A wrapped row uses its inherited code font."
+        )
+        # A code size the page sets on one diff sizes that diff's source, here the
+        # 1em of the text it stands in, while a diff that sets none keeps the theme's.
+        sizes = page.evaluate("""() => {
+          const size = (el) => getComputedStyle(el).fontSize;
+          const code = (id) => document.getElementById(id)
+            .shadowRoot.querySelector('code[data-code]');
+          const relative = document.getElementById('relative-font');
+          return {
+            text: size(relative.parentElement),
+            relative: size(code('relative-font')),
+            theme: size(code('code')),
+          };
+        }""")
+        assert sizes["relative"] == sizes["text"] != sizes["theme"], sizes
     finally:
         for route in boot:
             route.continue_()
         page.unroute_all(behavior="wait")
-        context.close()
-    moved = [
-        (id, before, after)
-        for (id, before), (_, after) in zip(first, drawn, strict=True)
-        if abs(after - before) >= 1
-    ]
-    assert not moved, moved
 
 
 def test_diff_wraps_prose_by_default_and_accepts_an_overflow_choice(browser, serve):
@@ -283,18 +355,20 @@ def test_diff_wraps_prose_by_default_and_accepts_an_overflow_choice(browser, ser
 
 
 # Scrolls the box with the given id 400px down and reads how far below the top of its
-# content the diff's file header inside it stands. A sticky box stops at its scroller's
-# padding edge, so a box that states no start of its own pins it below its padding.
+# content and scrollport the diff's file header inside it stands. Ordinary scrollers
+# pin below their padding; tab panels put the header at the scrollport's edge.
 PINNED_IN_BOX = """async (id) => {
     const box = document.getElementById(id);
     box.scrollTop = 400;
     await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
     const head = box.querySelector('lf-diff').shadowRoot
         .querySelector('.lf-diff-file > details > summary');
+    const edge = box.getBoundingClientRect().top + box.clientTop;
     return {
         scrolled: box.scrollTop,
-        gap: head.getBoundingClientRect().top - (box.getBoundingClientRect().top
-            + box.clientTop + parseFloat(getComputedStyle(box).paddingTop)),
+        gap: head.getBoundingClientRect().top - (edge
+            + parseFloat(getComputedStyle(box).paddingTop)),
+        scrollportGap: head.getBoundingClientRect().top - edge,
     };
 }"""
 
@@ -313,15 +387,16 @@ def test_any_box_that_scrolls_starts_the_sticky_header_slot_again(browser, serve
         serve(
             leaf_page(
                 "Scrolling boxes",
-                f'<aside class="sidebar" id="side">{long_diff("in-side")}</aside>'
-                f'<h1>Scrolling boxes</h1><div id="box" class="scroll">{long_diff("in-box")}</div>'
+                f'<aside><div class="layout-track" id="side">{long_diff("in-side")}</div></aside>'
+                f'<div class="layout-column"><h1>Scrolling boxes</h1><div id="box" class="scroll">{long_diff("in-box")}</div>'
                 '<div id="inline" class="scroll" style="max-height: 320px; overflow: auto">'
                 f"{long_diff('in-inline')}</div>"
                 '<div id="hidden" class="scroll" style="max-height: 320px; overflow: hidden">'
                 f"{long_diff('in-hidden')}</div>"
                 '<div id="panel" class="tall"><p>Panel.</p></div>'
-                + "<p>Filler.</p>"
-                * 60,
+                + "<p>Filler.</p>" * 60
+                + "</div>",
+                layout="sidebar",
                 head="<style>:root:root { --lf-safe-top: 40px; }"
                 "html { overflow-y: scroll; }"
                 "#box, .tall { max-height: 320px; overflow: auto; }"
@@ -330,9 +405,7 @@ def test_any_box_that_scrolls_starts_the_sticky_header_slot_again(browser, serve
         ),
     )
     resized(page, 1600, 1000)
-    expect(page.locator("main")).to_have_attribute(
-        "data-lf-margin", re.compile("sidebar")
-    )
+    expect(page.locator("#side")).to_have_css("position", "sticky")
     page.wait_for_function(
         "() => document.querySelectorAll('lf-diff.lf-rendered').length === 4"
     )
@@ -356,16 +429,16 @@ def test_any_box_that_scrolls_starts_the_sticky_header_slot_again(browser, serve
 
 
 def test_a_diff_pins_to_its_page_tab_panel_or_past_an_option_card(browser, serve):
-    """A page tab panel the page makes scroll is the box its diff's header pins to, though
-    the tab strip stacks its height onto what the panel holds: the panel's own scroll
-    restarts `--lf-top`. An undecided option card clips its rounded corners and scrolls
+    """A page tab panel the page makes scroll pins its diff's header to the scrollport
+    edge, leaving no padding band where scrolled rows can show above the header.
+    An undecided option card clips its rounded corners and scrolls
     nothing, so a diff in an option pins at the root's slot as the page scrolls past it."""
     page = open_page(
         browser,
         serve(
             leaf_page(
                 "Panel and option",
-                '<lf-tabs id="tabs"><lf-tab id="tab" label="Diff">'
+                '<lf-tabs id="tabs" class="layout-flow"><lf-tab id="tab" label="Diff">'
                 f"{long_diff('in-tab')}</lf-tab></lf-tabs>"
                 '<lf-ask id="ask"><h2>Which?</h2><lf-options id="opts" choose>'
                 f'<lf-option id="opt-a"><strong>A</strong>{long_diff("in-option")}'
@@ -376,7 +449,7 @@ def test_a_diff_pins_to_its_page_tab_panel_or_past_an_option_card(browser, serve
         ),
     )
     resized(page, 1280, 900)
-    expect(page.locator("lf-tabs")).to_have_attribute("data-lf-views-flow", "page")
+    expect(page.locator("lf-tabs")).to_have_css("--lf-views-flow", "page")
     page.wait_for_function(
         "() => document.querySelectorAll('lf-diff.lf-rendered').length === 2"
     )
@@ -397,7 +470,7 @@ def test_a_diff_pins_to_its_page_tab_panel_or_past_an_option_card(browser, serve
     }}"""
     )
     assert read["tab"]["scrolled"] == 400, read
-    assert read["tab"]["gap"] == pytest.approx(0, abs=1.5), read
+    assert read["tab"]["scrollportGap"] == pytest.approx(0, abs=1.5), read
     assert read["option"] == pytest.approx(read["top"], abs=1), read
 
 
@@ -415,7 +488,9 @@ def test_inline_diff_lines_and_files_can_start_comments(browser, serve):
             )
         ),
     )
-    file = page.locator('lf-diff [data-lf-datum=\'["app.py","file"]\']')
+    file = page.locator("lf-diff .lf-diff-file").filter(
+        has=page.locator('[data-lf-datum=\'["app.py","file"]\']')
+    )
     line = page.locator('lf-diff [data-lf-datum=\'["app.py","new",1]\']')
     expect(file.locator(".lf-diff-file-comment")).to_have_count(1)
     expect(line).to_have_count(1)
@@ -426,8 +501,21 @@ def test_inline_diff_lines_and_files_can_start_comments(browser, serve):
     with sending(page, "inline file comment"):
         page.keyboard.press("ControlOrMeta+Enter")
     line.hover()
-    page.locator("lf-diff .lf-diff-line-comment").last.click()
+    press = page.locator("lf-diff .lf-diff-line-comment").last
+    press.click()
     expect(page.locator(".lf-composer")).to_be_visible()
+    # The line's draft wears its brackets one band inside the line's edges, and the
+    # press's + stands clear of that band, so the left bracket shows beside it.
+    expect(line).to_have_attribute("data-lf-mark", re.compile(r"\bpending\b"))
+    band = line.evaluate(MARK)
+    assert band and band["brackets"] and band["offset"] + band["width"] <= 0, band
+    plus = press.evaluate(
+        """press => {
+          const s = getComputedStyle(press, '::before');
+          return [s.left, s.top, s.bottom].map(parseFloat);
+        }"""
+    )
+    assert min(plus) >= -band["offset"], (plus, band)
     write(page.locator(".lf-composer leaf-text"), "Line note")
     with sending(page, "inline line comment"):
         page.keyboard.press("ControlOrMeta+Enter")
@@ -444,7 +532,8 @@ def test_inline_diff_lines_and_files_can_start_comments(browser, serve):
 
 def test_filtering_a_diff_keeps_its_field_and_toolbar_controls_fixed(browser, serve):
     """The matching count leaves the filter field in place at every result count, on a
-    phone and on a desktop window."""
+    phone and on a desktop window. A patch of one file has nothing to filter, so it
+    draws no filter."""
     url = serve(MANIFEST_DIFF_PAGE)
 
     def patch(count):
@@ -460,7 +549,7 @@ def test_filtering_a_diff_keeps_its_field_and_toolbar_controls_fixed(browser, se
     diff = page.locator("#patch")
     search = diff.locator(".lf-diff-search input")
     progress = diff.locator(".lf-diff-progress")
-    rows = diff.locator(".lf-diff-file:not(.lf-diff-filtered)")
+    rows = diff.locator(".lf-diff-file:not([hidden])")
     geometry = """host => Object.fromEntries(
       ['.lf-diff-search', '.lf-diff-progress']
         .map(selector => {
@@ -472,7 +561,7 @@ def test_filtering_a_diff_keeps_its_field_and_toolbar_controls_fixed(browser, se
 
     for width in (390, 1280):
         resized(page, width, 844)
-        for total in (12, 1):
+        for total in (12, 2):
             data_model.cmd_data_set(
                 serve.page_dir, "review-patch", patch_manifest(patch(total))
             )
@@ -494,6 +583,11 @@ def test_filtering_a_diff_keeps_its_field_and_toolbar_controls_fixed(browser, se
                 after = diff.evaluate(geometry)
                 assert after == before, (width, query, before, after)
                 expect(search).to_be_focused()
+
+    data_model.cmd_data_set(serve.page_dir, "review-patch", patch_manifest(patch(1)))
+    told(page)
+    expect(rows).to_have_count(1)
+    expect(diff.locator(".lf-diff-search")).to_have_count(0)
 
 
 def test_a_diff_refresh_keeps_the_readers_inspection(browser, serve):
@@ -574,9 +668,9 @@ def two_diff_page(serve):
     page."""
     return serve(
         LONG_LINE_DIFF_PAGE.replace(
-            '<lf-diff id="patch" source="review-patch"><pre></pre></lf-diff>',
-            '<lf-diff id="patch" source="review-patch"><pre></pre></lf-diff>'
-            '<lf-diff id="manifest-patch" source="review-manifest"><pre></pre></lf-diff>',
+            '<lf-diff id="patch" source="review-patch"></lf-diff>',
+            '<lf-diff id="patch" source="review-patch"></lf-diff>'
+            '<lf-diff id="manifest-patch" source="review-manifest"></lf-diff>',
         )
     )
 
@@ -641,31 +735,28 @@ def diff_refresh_keeps_selection(page, serve, diff, source, value, edit):
     told(page)
     rendered(page)
     assert page.evaluate("() => getSelection().toString()") == before, diff
-    gutters = page.evaluate(
-        """diff => {
-      const widget = document.querySelector(diff);
-      const entry = widget.fileEntries[0];
-      return entry.lines.map(line => {
-        const row = line.node.parentElement;
-        const comment = row.querySelector('.lf-diff-line-comment');
-        const number = String(line.side === 'old' ? line.oldLine : line.newLine);
-        return {
-          datum: line.node.dataset.lfDatum,
-          commentInRow: comment.isConnected && comment.nextElementSibling === line.node,
-          label: comment.textContent,
-          expected: number,
-          lineTypeMatches: row.dataset.lineType === line.node.dataset.lineType,
-          commentCount: row.querySelectorAll('.lf-diff-line-comment').length,
-        };
-      });
-    }""",
-        diff,
+    # Each drawn row pairs its own numbered control with its source line: the
+    # number is the line's own in its datum (the new number for a context line).
+    gutters = page.locator(f"{diff} .lf-diff-line").evaluate_all(
+        """rows => rows.map(row => {
+      const comments = row.querySelectorAll('.lf-diff-line-comment');
+      const line = comments[0]?.nextElementSibling;
+      const datum = JSON.parse(line?.dataset.lfDatum ?? 'null');
+      return {
+        datum: line?.dataset.lfDatum,
+        commentCount: comments.length,
+        label: comments[0]?.textContent,
+        expected: datum && String(datum.at(-1)),
+        lineTypeMatches: row.dataset.lineType === line?.dataset.lineType,
+      };
+    })"""
     )
+    assert gutters, diff
     assert all(
-        gutter["commentInRow"]
+        gutter["commentCount"] == 1
+        and gutter["datum"]
         and gutter["label"] == gutter["expected"]
         and gutter["lineTypeMatches"]
-        and gutter["commentCount"] == 1
         for gutter in gutters
     ), gutters
 
@@ -741,10 +832,12 @@ def test_a_diff_file_keeps_focus_when_its_evidence_changes_kind(browser, serve):
         "similarity index 100%\nrename from old.py\nrename to app/handlers.py\n"
     )
     url = two_diff_page(serve)
-    for (_, source, value), initial in zip(DIFF_FORMS, (rename, MULTI_HUNK_PATCH)):
+    for (_, source, value), initial in zip(
+        DIFF_FORMS, (rename, MULTI_HUNK_PATCH), strict=True
+    ):
         data_model.cmd_data_set(serve.page_dir, source, value(initial))
     page = open_page(browser, url)
-    for form, starts_as_rename in zip(DIFF_FORMS, (True, False)):
+    for form, starts_as_rename in zip(DIFF_FORMS, (True, False), strict=True):
         diff_file_keeps_focus(page, serve, *form, rename, starts_as_rename)
 
 
@@ -758,7 +851,7 @@ def diff_file_keeps_focus(page, serve, diff, source, value, rename, starts_as_re
     if starts_as_rename:
         page.locator(f"{diff} .lf-diff-file-comment").first.click()
         page.keyboard.press("Escape")
-        assert owner.evaluate("node => node === node.getRootNode().activeElement")
+        assert owner.evaluate("node => node.contains(node.getRootNode().activeElement)")
     else:
         page.locator(f"{diff} summary").first.click()
         page.keyboard.press("ArrowRight")
@@ -771,8 +864,6 @@ def diff_file_keeps_focus(page, serve, diff, source, value, rename, starts_as_re
         assert owner.evaluate("node => node.isConnected")
         assert comment.evaluate("node => node.isConnected")
         assert owner.evaluate("node => node.contains(node.getRootNode().activeElement)")
-        if starts_as_rename:
-            assert owner.evaluate("node => node === node.getRootNode().activeElement")
         assert page.evaluate("() => scrollY") == before, diff
         if patch == regular:
             expect(
@@ -820,7 +911,7 @@ def test_a_file_row_a_revision_brings_reads_its_cut_path(browser, serve):
     told(page)
     rendered(page)
     head = page.locator("lf-diff .lf-diff-head").first
-    expect(head).to_have_attribute("data-path-cut", "")
+    expect(head).to_have_attribute("data-lf-path-cut", "")
     expect(head.locator(".lf-diff-path")).to_have_attribute("title", path)
 
     # A changed source path can retain exactly the old clipped width. Its title
@@ -842,6 +933,55 @@ def test_a_file_row_a_revision_brings_reads_its_cut_path(browser, serve):
             "title", f"{source} → {path}"
         )
         assert head.evaluate("node => node === window.retainedDiffHead")
+
+
+@pytest.mark.parametrize("engine", ["browser", "webkit_browser"])
+def test_a_diff_revision_leaves_a_line_thread_where_it_stands(request, serve, engine):
+    """A revision that redraws a thread's own line, and puts another file before its
+    file, leaves the thread's outlet where it stands, so a frame in a reply keeps the
+    document it loaded. Clearing the host's light DOM with `replaceChildren()` on each
+    revision unloaded it in WebKit, which lacks `moveBefore` too."""
+
+    def patch(path, body):
+        return f"diff --git a/{path} b/{path}\n--- a/{path}\n+++ b/{path}\n{body}"
+
+    first = patch("a.py", "@@ -1,3 +1,3 @@\n one\n-old\n+new\n three\n")
+    url = serve(LONG_LINE_DIFF_PAGE)
+    root = panel_comment(
+        serve.page_dir, "Why?", {"section": "patch", "datum": '["a.py","new",2]'}
+    )
+    append_agent_reply(
+        serve.page_dir,
+        root,
+        "Here is the plan.",
+        '<iframe title="Plan" srcdoc="<p>The plan</p>"></iframe>',
+    )
+    data_model.cmd_data_set(serve.page_dir, "review-patch", patch_manifest(first))
+    page = open_page(request.getfixturevalue(engine), url)
+    frame = page.locator("lf-diff .lf-diff-thread-outlet iframe")
+    expect(frame).to_be_attached()
+    frame.evaluate("""frame => new Promise(loaded => {
+      const settle = () => {
+        frame.contentWindow.lfKept = true;
+        window.lfFrameLoads = 0;
+        window.lfOutlet = frame.closest('.lf-diff-thread-outlet');
+        frame.addEventListener("load", () => window.lfFrameLoads++);
+        loaded();
+      };
+      if (frame.contentDocument?.readyState === "complete") settle();
+      else frame.addEventListener("load", settle, {once: true});
+    })""")
+    redrawn = patch("0.py", "@@ -1 +1 @@\n-x\n+y\n") + first.replace("+new", "+newer")
+    data_model.cmd_data_set(serve.page_dir, "review-patch", patch_manifest(redrawn))
+    told(page)
+    rendered(page)
+    expect(
+        page.locator('lf-diff [data-lf-datum=\'["a.py","new",2]\']')
+    ).to_contain_text("newer")
+    assert frame.evaluate(
+        """frame => [frame.closest('.lf-diff-thread-outlet') === window.lfOutlet,
+          frame.contentWindow?.lfKept, window.lfFrameLoads]"""
+    ) == [True, True, 0]
 
 
 @pytest.mark.parametrize("manifest, changes_kind", [(False, True), (True, False)])
@@ -1236,6 +1376,60 @@ def test_tab_onto_a_seat_under_the_pinned_file_name_brings_it_out(browser, serve
     assert read["top"] >= read["head"], read
 
 
+def test_a_diff_conversation_s_reply_rests_as_a_press_that_c_opens(browser, serve):
+    """A conversation in a diff ends in a Reply press, one control high and with no
+    frame or microphone, rather than an open field. A press opens the field, which
+    rests again once the user leaves it empty, and `c` from the conversation opens it
+    with the caret in it."""
+    datum = json.dumps([LONG_DIFF_PATH, "new", 3], separators=(",", ":"))
+    page = open_page(
+        browser,
+        serve(
+            leaf_page("Seated", f"<h1>Seated</h1>{long_diff('patch')}"),
+            events=[
+                {
+                    "kind": "comment",
+                    "author": "user",
+                    "revision": 1,
+                    "text": "Why this value?",
+                    "anchor": {"section": "patch", "datum": datum},
+                }
+            ],
+        ),
+    )
+    resized(page, 1280, 720)
+    thread = page.locator("lf-diff .lf-diff-thread-outlet .lf-page-thread")
+    reply = thread.get_by_role("textbox", name="Reply", exact=True)
+    face = """field => {
+      const box = field.parentElement;
+      return {
+        height: field.getBoundingClientRect().height,
+        frame: getComputedStyle(box).borderTopColor,
+        mic: getComputedStyle(box.querySelector('.lf-compose-dictate')).display,
+      };
+    }"""
+    resting = {"height": 24, "frame": "rgba(0, 0, 0, 0)", "mic": "none"}
+    expect(reply).to_be_visible()
+    assert reply.evaluate(face) == resting
+    reply.click()
+    expect(reply).to_be_focused()
+    opened = reply.evaluate(face)
+    assert opened["height"] > resting["height"] and opened["mic"] != "none", opened
+    page.keyboard.press("Escape")
+    expect(reply).not_to_be_focused()
+    assert reply.evaluate(face) == resting
+    thread.locator(".lf-msg-body").first.click()
+    page.keyboard.press("c")
+    expect(reply).to_be_focused()
+    reached = reply.evaluate(face)
+    assert (reached["height"], reached["mic"]) == (opened["height"], opened["mic"])
+    page.keyboard.insert_text("Keep this draft open")
+    page.keyboard.press("Escape")
+    expect(reply).not_to_be_focused()
+    assert reply.evaluate(face)["height"] == opened["height"]
+    expect(reply).to_have_js_property("value", "Keep this draft open")
+
+
 def test_a_diff_in_a_pane_pins_the_file_name_at_the_pane_top_and_lands_below_it(
     browser, serve
 ):
@@ -1307,7 +1501,7 @@ def test_a_diff_in_a_pane_pins_the_file_name_at_the_pane_top_and_lands_below_it(
     )
     # The pane's body is a Tab stop because it scrolls, and it fills its pane, so its
     # band stays inside the pane: the pane draws it inset over the body's cell
-    # (theme.css), where outset on the body the workspace body clipped its right and
+    # (base.css), where outset on the body the workspace body clipped its right and
     # lower runs.
     # The selected row retargets document focus to this host. Leave it first so
     # focusing the host itself publishes a new location and its pane band.
@@ -1364,16 +1558,18 @@ def test_horizontal_wheel_reaches_the_diff_reader(
         '-return "The previous release remains available for inspection."\n'
         '+return "The current release remains available for inspection."\n'
     )
+    # Force the outer-scroll case past the layer's default 100% widget width cap.
     source = leaf_page(
         "Nested patch reader",
         "<h1>Review</h1>"
         + "".join(
-            f'<div id="reader-{host}" class="reader" data-bound="start">'
+            f'<div id="reader-{host}" class="reader">'
             f'<lf-diff id="patch-{host}"><pre>{patch}</pre></lf-diff></div>'
             for host in hosts
         ),
-        head="<style>.reader { width: 500px; }"
-        "#patch-wide { width: 1000px; } #patch-narrow { width: 300px; }</style>",
+        head="<style>.reader { width: 500px; overflow: auto; }"
+        "#patch-wide { width: 1000px; max-inline-size: none; }"
+        "#patch-narrow { width: 300px; }</style>",
     )
     page = open_page(request.getfixturevalue(engine), serve(source))
     resized(page, 1000, 900)
@@ -1407,10 +1603,10 @@ def test_a_diff_hunk_landing_preserves_sideways_reading_outside_its_shadow_tree(
     source = leaf_page(
         "Sideways patch",
         '<h1>Review</h1><div id="sideways">'
-        '<lf-diff id="patch" source="review-patch"><pre></pre></lf-diff>'
+        '<lf-diff id="patch" source="review-patch"></lf-diff>'
         "</div>",
         head="<style>#sideways { width: 500px; overflow: auto; }"
-        "#patch { width: 1000px; }</style>",
+        "#patch { width: 1000px; max-inline-size: none; }</style>",
     )
     url = serve(source)
     data_model.cmd_data_set(serve.page_dir, "review-patch", MULTI_HUNK_PATCH)
@@ -1700,3 +1896,88 @@ def test_a_file_row_says_its_whole_path_to_the_keyboard_and_a_held_finger(
     rendered(page)
     assert head.evaluate(read)["word"] == whole, "a narrowed row hides its path"
     assert head.evaluate(titled) == path
+
+
+def test_author_notes_follow_source_lines_and_survive_deferred_refresh(browser, serve):
+    """Author prose is independent of patch data, including when its line disappears."""
+    from leaf import anchor_capture, passages, structure
+    from leaf.registry.storage import read_page_registry
+
+    source = leaf_page(
+        "Annotated patch",
+        '<lf-diff id="patch" source="review-patch" collapsed>'
+        '<lf-diff-note id="old-note" file="app.py" side="old" at="2">'
+        "Explain the old line.</lf-diff-note>"
+        '<lf-diff-note id="new-note" file="app.py" side="new" at="2">'
+        "Explain the new line.</lf-diff-note>"
+        '<lf-diff-note id="context-note" file="app.py" side="new" at="1">'
+        "Explain the context.</lf-diff-note></lf-diff>",
+    )
+    patch = (
+        "diff --git a/app.py b/app.py\n--- a/app.py\n+++ b/app.py\n"
+        "@@ -1,2 +1,2 @@\n context\n-old line\n+new line\n"
+    )
+    url = serve(source)
+    data_model.cmd_data_set(serve.page_dir, "review-patch", patch_manifest(patch))
+    registry = read_page_registry(serve.page_dir).registry
+    file_reading = passages.page_passages(structure.SourceDocument(source), registry)
+    assert "Explain the new line." in file_reading.text
+    anchor = anchor_capture.capture_anchor(
+        structure.SourceDocument(source), registry, "Explain the new line.", "new-note"
+    )
+    page = open_page(browser, url)
+    note = page.locator("#new-note")
+    expect(note).to_be_hidden()
+    # The native disclosure gives the same result to keyboard and touch readers.
+    page.locator("lf-diff summary").focus()
+    page.keyboard.press("Enter")
+    expect(note).to_be_visible()
+    page.wait_for_function(
+        "() => document.querySelector('lf-diff').fileEntries[0].loaded"
+    )
+    placement = page.locator("lf-diff-note").evaluate_all("""notes => notes.map(note => ({
+      id: note.id,
+      datum: note.previousElementSibling?.querySelector('[data-lf-datum]')?.dataset.lfDatum,
+      width: note.getBoundingClientRect().width,
+      reader: note.closest('code').getBoundingClientRect().width,
+    }))""")
+    assert {row["id"]: json.loads(row["datum"]) for row in placement} == {
+        "old-note": ["app.py", "old", 2],
+        "new-note": ["app.py", "new", 2],
+        "context-note": ["app.py", "both", 1, 1],
+    }
+    for row in placement:
+        assert abs(row["width"] - row["reader"]) < 2, row
+    captured = note.evaluate("""async note => {
+      const range = document.createRange();
+      range.selectNodeContents(note);
+      return (await window.__lfCheckApi()).anchorForRange(range);
+    }""")
+    assert captured == anchor
+    # File-side and browser-side anchors agree on the preserved prose node.
+    assert page.evaluate(
+        """async anchor => {
+      const resolved = (await window.__lfCheckApi()).resolveAnchor(anchor);
+      return resolved?.exact === true;
+    }""",
+        anchor,
+    )
+    # Keep the authored object itself through a replacement, not just a copied label.
+    held = note.element_handle()
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "review-patch",
+        patch_manifest(
+            patch.replace(
+                "@@ -1,2 +1,2 @@\n context\n-old line\n+new line",
+                "@@ -1 +1 @@\n-context\n+changed context",
+            )
+        ),
+    )
+    told(page)
+    rendered(page)
+    expect(note).to_have_attribute(
+        "data-lf-unmatched", "app.py · new 2 — line unavailable"
+    )
+    assert held.evaluate("node => node.isConnected")
+    expect(note).to_be_visible()

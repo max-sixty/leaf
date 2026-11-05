@@ -3,6 +3,7 @@ grips, narrow and phone layouts, releasing a detached board, and cards that show
 section's answer."""
 
 import re
+from itertools import pairwise
 
 import pytest
 from interact_support import stamp
@@ -168,10 +169,10 @@ def test_a_board_says_which_column_each_card_is_in(browser, serve):
         '- list "Todo":\n'
         "  - listitem:\n"
         "    - strong: Heated perch\n"
-        "    - 'button \"Move: Heated perch — Todo\"': ⠿\n"
+        "    - 'button \"Move: Heated perch — Todo\"'\n"
         "  - listitem:\n"
         "    - strong: Squirrel baffle\n"
-        "    - 'button \"Move: Squirrel baffle — Todo\"': ⠿\n"
+        "    - 'button \"Move: Squirrel baffle — Todo\"'\n"
         '- list "Done"'  # empty, and still announced: it is a drop target
     )
 
@@ -194,19 +195,25 @@ def test_a_board_says_which_column_each_card_is_in(browser, serve):
         '- list "Todo":\n'
         "  - listitem:\n"
         "    - strong: Heated perch\n"
-        "    - 'button \"Move: Heated perch — Todo\"': ⠿\n"
+        "    - 'button \"Move: Heated perch — Todo\"'\n"
         '- list "Done":\n'
         "  - listitem:\n"
         "    - strong: Squirrel baffle\n"
         "    - text: my change\n"
-        "    - 'button \"Move: Squirrel baffle — Done\"': ⠿"
+        "    - 'button \"Move: Squirrel baffle — Done\"'"
     )
 
 
+# The width at which the eight-column board stands wider than 640px, so it scrolls
+# sideways rather than stacking, and narrower than its columns' floor.
+SIDEWAYS = 720
+
+
 # Each scroller pairs with one motion setting: the board's own scrollport tracks the
-# card's FLIP, and the document follows a move made at once.
+# card's FLIP, and the document follows a move made at once. A column move on a
+# stacked board travels the document too, down to the column below.
 @pytest.mark.parametrize(
-    ("axis", "source", "key", "steps", "reduced_motion"),
+    ("axis", "source", "key", "steps", "reduced_motion", "width"),
     [
         pytest.param(
             "column",
@@ -214,18 +221,28 @@ def test_a_board_says_which_column_each_card_is_in(browser, serve):
             "ArrowRight",
             4,
             "no-preference",
+            SIDEWAYS,
             id="columns",
         ),
-        pytest.param("row", TALL_BOARD_PAGE, "ArrowDown", 7, "reduce", id="rows"),
+        pytest.param("row", TALL_BOARD_PAGE, "ArrowDown", 7, "reduce", 390, id="rows"),
+        pytest.param(
+            "stacked",
+            SQUEEZED_BOARD_PAGE,
+            "ArrowRight",
+            4,
+            "no-preference",
+            390,
+            id="stacked",
+        ),
     ],
 )
 def test_a_keyboard_move_keeps_the_card_in_view(
-    browser, serve, reduced_motion, axis, source, key, steps
+    browser, serve, reduced_motion, axis, source, key, steps, width
 ):
     """A move and its Escape return keep the focused card on screen."""
     page = open_page(browser, serve(source))
     page.emulate_media(reduced_motion=reduced_motion)
-    resized(page, 390, 500)
+    resized(page, width, 500)
     board = page.locator("#crowd")
     card = page.locator("#sq-card-0")
     grip = card.locator(".lf-grip")
@@ -234,10 +251,19 @@ def test_a_keyboard_move_keeps_the_card_in_view(
         assert board.evaluate("el => el.scrollWidth > el.clientWidth"), (
             "the board fits, so the keyboard move has no hidden column to reveal"
         )
-    else:
+    elif axis == "row":
         assert page.locator("#sq-card-7").evaluate(
             "el => el.getBoundingClientRect().bottom > innerHeight"
         ), "the lane fits, so the row move has no hidden destination to reveal"
+    else:
+        assert board.evaluate(
+            """el => {
+              const [first, second] = [...el.querySelectorAll(':scope > lf-column')]
+                .map(column => column.getBoundingClientRect());
+              return second.top >= first.bottom
+                && el.querySelector('#sq-col-4').getBoundingClientRect().top > innerHeight;
+            }"""
+        ), "the board is not stacked past the window, so the move reveals nothing"
 
     def wait_for_placement(column, row):
         placement = """([column, row, axis]) => {
@@ -255,8 +281,8 @@ def test_a_keyboard_move_keeps_the_card_in_view(
         }"""
         where = [column, row, axis]
         page.wait_for_function(placement, arg=where)
-        # A move along the columns travels the board's own scrollport; a move down a
-        # column travels the document.
+        # A move along side-by-side columns travels the board's own scrollport; a move
+        # down a column, or along stacked columns, travels the document.
         if axis == "column":
             scroll_settled(page, scroller="#crowd", axis="x")
         else:
@@ -269,9 +295,7 @@ def test_a_keyboard_move_keeps_the_card_in_view(
         page.keyboard.press(key)
         # Each key gets its own rendered placement. Otherwise a later press can cancel
         # the prior FLIP before the test has exercised its scroll tracking.
-        wait_for_placement(
-            step if axis == "column" else 0, step if axis == "row" else 0
-        )
+        wait_for_placement(step if axis != "row" else 0, step if axis == "row" else 0)
 
     page.keyboard.press("Escape")
     wait_for_placement(0, 0)
@@ -279,43 +303,165 @@ def test_a_keyboard_move_keeps_the_card_in_view(
     expect(grip).to_be_focused()
 
 
-def test_tabbing_to_a_grip_reveals_its_whole_card(browser, serve):
-    """The browser scrolls a sideways board only far enough to show the focused 30px
-    grip, which at a narrow width left the card's words cut off at the board's edge."""
+def test_a_sideways_board_keeps_a_card_s_words_whole(browser, serve, subtests):
+    """A board that runs past its width keeps each card's words whole: at its floor it
+    scrolls rather than breaking them across lines, and Tab onto a grip brings the
+    whole card in, where the browser's own scroll would stop at the grip."""
     page = open_page(browser, serve(SQUEEZED_BOARD_PAGE))
-    resized(page, 390, 500)
-    # A restored focus is not an arrival: it leaves the board where the user put it.
-    assert page.evaluate(
-        """() => {
-          const board = document.querySelector('#crowd');
-          const before = board.scrollLeft;
-          document.querySelector('#sq-card-5 .lf-grip').focus({preventScroll: true});
-          return board.scrollLeft === before;
+
+    with subtests.test("at its floor it scrolls rather than breaking a word"):
+        # A board lays its columns into whatever width it is given and scrolls once they
+        # are as narrow as they go, which is the right order, but the floor has to know
+        # what a column costs before it can say where narrow enough stops. Stated as the
+        # column's own box (10rem), 70 of those 160 pixels were the column's inset and
+        # border, the card's inset and border, and the column the drag grip hangs in,
+        # and the card's prose got 90: `documented` is 92px of the page's own serif, so
+        # the shipped board broke ordinary words across lines the moment the thread strip
+        # took its margin.
+        #
+        # The reading is the visible failure and not the number behind it. A word set
+        # across two lines with no hyphen is what the user sees, and it is what the
+        # page-wide `overflow-wrap` does with a box narrower than the word it has to
+        # show. The premise is asserted first: the board must be at its floor and
+        # scrolling for the rest, or a board that simply fitted would pass this while
+        # proving nothing.
+        measured = page.evaluate(
+            """() => {
+            const board = document.getElementById('crowd');
+            const columns = [...board.querySelectorAll('lf-column')];
+            // A word broken to fit lands on two lines with no break opportunity in it, so
+            // the rects a range over it returns sit at two different tops. Ordinary words
+            // only: a path or a sha has nowhere to break and breaking one is the page's
+            // own bargain, not this floor's business.
+            const range = document.createRange(), broken = [];
+            for (const card of board.querySelectorAll('lf-card')) {
+                const walker = document.createTreeWalker(card, NodeFilter.SHOW_TEXT);
+                for (let node = walker.nextNode(); node; node = walker.nextNode())
+                    for (const m of node.textContent.matchAll(/[^\\s]+/g)) {
+                        if (!/^[A-Za-z]+[.,;:]?$/.test(m[0])) continue;
+                        range.setStart(node, m.index);
+                        range.setEnd(node, m.index + m[0].length);
+                        const rects = [...range.getClientRects()];
+                        if (new Set(rects.map((r) => Math.round(r.top))).size > 1)
+                            broken.push(m[0]);
+                    }
+            }
+            const card = board.querySelector('lf-card');
+            const style = getComputedStyle(card), box = card.getBoundingClientRect();
+            const measure = box.width - parseFloat(style.paddingLeft)
+                - parseFloat(style.paddingRight) - parseFloat(style.borderLeftWidth)
+                - parseFloat(style.borderRightWidth);
+            return { broken,
+                     scrolls: board.scrollWidth - board.clientWidth,
+                     widths: columns.map((c) => c.getBoundingClientRect().width),
+                     measure,
+                     titleMeasure: measure - parseFloat(getComputedStyle(card, '::before').width) };
         }"""
-    )
-    page.locator("#sq-card-0 .lf-grip").focus()
-    whole = """() => {
-      const card = document.activeElement.closest('lf-card');
-      const outer = card.closest('lf-board').getBoundingClientRect();
-      const inner = card.getBoundingClientRect();
-      return inner.left >= outer.left - 1 && inner.right <= outer.right + 1;
-    }"""
-    for i in range(1, 4):
-        page.keyboard.press("Tab")
-        expect(page.locator(f"#sq-card-{i} .lf-grip")).to_be_focused()
-        page.wait_for_function(whole)
-    # Grabbing it says so with the card's contour, not a shadow the dark paper hides.
+        )
+        # The premise, read off the layout rather than off the property behind it: a grid
+        # of `1fr` tracks that scrolls has every track at its minimum, so a board that
+        # scrolls is a board at its floor whatever the floor is written as. A board with
+        # room to spare would pass the reading below while asking it nothing.
+        assert measured["scrolls"] > 1 and len(set(measured["widths"])) == 1, (
+            f"this board is not at its floor, so its words prove nothing: {measured}"
+        )
+        # The default board promises 136px for title words beside the grip. Check that
+        # available line measure directly: a particular long word may exceed it in
+        # another platform's font even when the allocation is correct.
+        assert measured["titleMeasure"] >= 136 - 1, measured
+        assert measured["broken"] == [], (
+            f"a board at its floor gave each card {measured['measure']:.0f}px of measure "
+            f"and broke {', '.join(sorted(set(measured['broken'])))} across two lines"
+        )
+
+    with subtests.test("Tab onto a grip reveals its whole card"):
+        # The browser scrolls a sideways board only far enough to show the focused 30px
+        # grip, which at a narrow width left the card's words cut off at the board's edge.
+        resized(page, SIDEWAYS, 500)
+        assert page.locator("#crowd").evaluate(
+            "el => el.scrollWidth > el.clientWidth"
+        ), "the board fits, so Tab has no hidden card to reveal"
+        # A restored focus is not an arrival: it leaves the board where the user put it.
+        assert page.evaluate(
+            """() => {
+              const board = document.querySelector('#crowd');
+              const before = board.scrollLeft;
+              document.querySelector('#sq-card-5 .lf-grip').focus({preventScroll: true});
+              return board.scrollLeft === before;
+            }"""
+        )
+        page.locator("#sq-card-0 .lf-grip").focus()
+        whole = """() => {
+          const card = document.activeElement.closest('lf-card');
+          const outer = card.closest('lf-board').getBoundingClientRect();
+          const inner = card.getBoundingClientRect();
+          return inner.left >= outer.left - 1 && inner.right <= outer.right + 1;
+        }"""
+        for i in range(1, 4):
+            page.keyboard.press("Tab")
+            expect(page.locator(f"#sq-card-{i} .lf-grip")).to_be_focused()
+            page.wait_for_function(whole)
+        # Grabbing it says so with the card's contour, not a shadow the dark paper hides.
+        page.keyboard.press("Enter")
+        card = page.locator("#sq-card-3")
+        expect(card).to_have_class(re.compile(r"\blf-lift\b"))
+        accent, border = card.evaluate(
+            """el => [getComputedStyle(document.documentElement).getPropertyValue('--accent'),
+                      getComputedStyle(el).borderTopColor]"""
+        )
+        rest = page.locator("#sq-card-2").evaluate(
+            "el => getComputedStyle(el).borderTopColor"
+        )
+        assert border != rest, (border, rest, accent)
+
+
+def test_on_a_stacked_board_a_vertical_step_past_a_column_s_end_enters_the_next(
+    browser, serve
+):
+    """Where the columns stack, the column below is the next slot the user sees, so Down
+    past a column's last card enters it at its top and Up past a first card enters the
+    column above at its end; side by side, the step past an end still does nothing."""
+    page = open_page(browser, serve(SQUEEZED_BOARD_PAGE))
+    page.emulate_media(reduced_motion="reduce")
+    resized(page, 390, 500)
+    card = page.locator("#sq-card-0")
+    grip = card.locator(".lf-grip")
+
+    def placed(column, row):
+        expect(page.locator(f"#sq-col-{column} > #sq-card-0")).to_have_count(1)
+        assert (
+            card.evaluate(
+                "el => [...el.parentElement.querySelectorAll(':scope > lf-card')].indexOf(el)"
+            )
+            == row
+        )
+
+    grip.focus()
     page.keyboard.press("Enter")
-    card = page.locator("#sq-card-3")
-    expect(card).to_have_class(re.compile(r"\blf-lift\b"))
-    accent, border = card.evaluate(
-        """el => [getComputedStyle(document.documentElement).getPropertyValue('--accent'),
-                  getComputedStyle(el).borderTopColor]"""
-    )
-    rest = page.locator("#sq-card-2").evaluate(
-        "el => getComputedStyle(el).borderTopColor"
-    )
-    assert border != rest, (border, rest, accent)
+    page.keyboard.press("ArrowDown")
+    placed(1, 0)
+    page.keyboard.press("ArrowDown")
+    placed(1, 1)
+    page.keyboard.press("ArrowDown")
+    placed(2, 0)
+    page.keyboard.press("ArrowUp")
+    placed(1, 1)
+    page.keyboard.press("ArrowUp")
+    placed(1, 0)
+    page.keyboard.press("ArrowUp")
+    placed(0, 0)
+    page.keyboard.press("ArrowUp")
+    placed(0, 0)
+    page.keyboard.press("Escape")
+    placed(0, 0)
+    expect(grip).to_be_focused()
+
+    resized(page, SIDEWAYS, 500)
+    page.keyboard.press("Enter")
+    page.keyboard.press("ArrowDown")
+    placed(0, 0)
+    page.keyboard.press("Escape")
+    placed(0, 0)
 
 
 def test_cancelling_a_keyboard_move_stops_its_scroll(browser, serve):
@@ -402,15 +548,19 @@ def test_reversing_a_move_continues_from_the_painted_card(browser, serve, route)
     page.keyboard.press("Escape")
 
 
-@pytest.mark.parametrize("cancel", ["Escape", "pointercancel", "touchcancel"])
+@pytest.mark.parametrize(
+    "cancels",
+    [("Escape", "pointercancel"), ("touchcancel",)],
+    ids=["pointer-listeners", "touch-fallback"],
+)
 def test_cancelling_a_pointer_drag_restores_the_card_without_a_move(
-    browser, serve, cancel
+    browser, serve, subtests, cancels
 ):
     """Cancelling tears down the drag; a later release cannot record its old preview."""
     # Safari uses Sortable's mouse/touch fallback instead of its pointer listeners.
     context = (
         browser.new_context(user_agent="Version/26.0 Safari/605.1.15")
-        if cancel == "touchcancel"
+        if "touchcancel" in cancels
         else None
     )
     page = open_page(browser, serve(BOARD_PAGE), context=context)
@@ -419,95 +569,35 @@ def test_cancelling_a_pointer_drag_restores_the_card_without_a_move(
         "request",
         lambda request: posts.append(request) if "/api/event" in request.url else None,
     )
-    grip = page.locator("#card-heater .lf-grip").bounding_box()
-    dest = page.locator("#col-done").bounding_box()
-    page.mouse.move(grip["x"] + grip["width"] / 2, grip["y"] + grip["height"] / 2)
-    page.mouse.down()
-    page.mouse.move(
-        dest["x"] + dest["width"] / 2, dest["y"] + dest["height"] / 2, steps=15
-    )
-    expect(page.locator("#col-done #card-heater")).to_have_count(1)
-    if cancel == "Escape":
-        page.keyboard.press("Escape")
-    else:
-        page.evaluate(
-            "type => document.dispatchEvent(type === 'pointercancel' ? new PointerEvent(type) : new TouchEvent(type))",
-            cancel,
-        )
-    expect(page.locator("#col-todo #card-heater")).to_have_count(1)
-    expect(page.locator(".lf-ghost, .lf-lift, .lf-inhand")).to_have_count(0)
-    page.mouse.up()
+    for cancel in cancels:
+        with subtests.test(cancel=cancel):
+            grip = page.locator("#card-heater .lf-grip").bounding_box()
+            dest = page.locator("#col-done").bounding_box()
+            page.mouse.move(
+                grip["x"] + grip["width"] / 2, grip["y"] + grip["height"] / 2
+            )
+            page.mouse.down()
+            page.mouse.move(
+                dest["x"] + dest["width"] / 2, dest["y"] + dest["height"] / 2, steps=15
+            )
+            expect(page.locator("#col-done #card-heater")).to_have_count(1)
+            if cancel == "Escape":
+                page.keyboard.press("Escape")
+            else:
+                page.evaluate(
+                    "type => document.dispatchEvent(type === 'pointercancel' ? new PointerEvent(type) : new TouchEvent(type))",
+                    cancel,
+                )
+            expect(page.locator("#col-todo #card-heater")).to_have_count(1)
+            expect(page.locator(".lf-ghost, .lf-lift, .lf-inhand")).to_have_count(0)
+            page.mouse.up()
+            # The card glides home, and the next drag presses its grip where it rests.
+            page.wait_for_function(
+                "() => !document.querySelector('#card-heater').getAnimations().length"
+            )
     page.reload()
     expect(page.locator("#col-todo #card-heater")).to_have_count(1)
     assert not posts
-
-
-def test_a_board_at_its_floor_scrolls_rather_than_breaking_a_card_s_words(
-    browser, serve
-):
-    """A board lays its columns into whatever width it is given and scrolls once they
-    are as narrow as they go, which is the right order — but the floor has to know what
-    a column costs before it can say where narrow enough stops. Stated as the column's
-    own box (10rem), 70 of those 160 pixels were the column's inset and border, the
-    card's inset and border, and the column the drag grip hangs in, and the card's prose
-    got 90: `documented` is 92px of the page's own serif, so the shipped board broke
-    ordinary words across lines the moment the thread strip took its margin.
-
-    The reading is the visible failure and not the number behind it. A word set across
-    two lines with no hyphen is what the user sees, and it is what the page-wide
-    `overflow-wrap` does with a box narrower than the word it has to show — the bargain
-    leaf makes for paths and shas, arriving here on an English sentence. The premise is
-    asserted first: the board must be at its floor and scrolling for the rest, or a
-    board that simply fitted would pass this while proving nothing."""
-    page = open_page(browser, serve(SQUEEZED_BOARD_PAGE))
-    measured = page.evaluate(
-        """() => {
-        const board = document.getElementById('crowd');
-        const columns = [...board.querySelectorAll('lf-column')];
-        // A word broken to fit lands on two lines with no break opportunity in it, so
-        // the rects a range over it returns sit at two different tops. Ordinary words
-        // only: a path or a sha has nowhere to break and breaking one is the page's
-        // own bargain, not this floor's business.
-        const range = document.createRange(), broken = [];
-        for (const card of board.querySelectorAll('lf-card')) {
-            const walker = document.createTreeWalker(card, NodeFilter.SHOW_TEXT);
-            for (let node = walker.nextNode(); node; node = walker.nextNode())
-                for (const m of node.textContent.matchAll(/[^\\s]+/g)) {
-                    if (!/^[A-Za-z]+[.,;:]?$/.test(m[0])) continue;
-                    range.setStart(node, m.index);
-                    range.setEnd(node, m.index + m[0].length);
-                    const rects = [...range.getClientRects()];
-                    if (new Set(rects.map((r) => Math.round(r.top))).size > 1)
-                        broken.push(m[0]);
-                }
-        }
-        const card = board.querySelector('lf-card');
-        const style = getComputedStyle(card), box = card.getBoundingClientRect();
-        const measure = box.width - parseFloat(style.paddingLeft)
-            - parseFloat(style.paddingRight) - parseFloat(style.borderLeftWidth)
-            - parseFloat(style.borderRightWidth);
-        return { broken,
-                 scrolls: board.scrollWidth - board.clientWidth,
-                 widths: columns.map((c) => c.getBoundingClientRect().width),
-                 measure,
-                 titleMeasure: measure - parseFloat(getComputedStyle(card, '::before').width) };
-    }"""
-    )
-    # The premise, read off the layout rather than off the property behind it: a grid of
-    # `1fr` tracks that scrolls has every track at its minimum, so a board that scrolls
-    # is a board at its floor whatever the floor is written as. A board with room to
-    # spare would pass the reading below while asking it nothing.
-    assert measured["scrolls"] > 1 and len(set(measured["widths"])) == 1, (
-        f"this board is not at its floor, so its words prove nothing: {measured}"
-    )
-    # The default board promises 136px for title words beside the grip. Check that
-    # available line measure directly: a particular long word may exceed it in
-    # another platform's font even when the allocation is correct.
-    assert measured["titleMeasure"] >= 136 - 1, measured
-    assert measured["broken"] == [], (
-        f"a board at its floor gave each card {measured['measure']:.0f}px of measure "
-        f"and broke {', '.join(sorted(set(measured['broken'])))} across two lines"
-    )
 
 
 GRIPPED_CARD_PAGE = leaf_page(
@@ -520,7 +610,11 @@ GRIPPED_CARD_PAGE = leaf_page(
       Three partners rate limit us during their own deploys, and we back off on a fixed
       schedule that ignores what they asked for.</lf-card>
   </lf-column>
-  <lf-column id="col-b" label="Defer"></lf-column>
+  <lf-column id="col-b" label="Defer">
+    <lf-card id="plain"><strong>Plain</strong> The importer is wired.</lf-card>
+    <lf-card id="element"><strong>Element</strong> The <em>importer</em> is wired.</lf-card>
+    <lf-card id="paragraph"><strong>Paragraph</strong><p>The importer is wired.</p></lf-card>
+  </lf-column>
   <lf-column id="col-c" label="Repro"></lf-column>
 </lf-board>
 """,
@@ -529,38 +623,65 @@ GRIPPED_CARD_PAGE = leaf_page(
 )
 
 
-def test_only_a_card_s_title_clears_its_grip(browser, serve):
-    """The grip stands at the card's top corner and the lines beside it, the title's,
-    stop short of it; the prose below runs the card's whole width, where it used to be
-    set in a column that kept clear of the grip down the card's full height. No line
-    stands under the grip's box, so a press there is always the grip's."""
+def test_a_card_s_title_clears_its_grip_and_its_prose_starts_under_it(
+    browser, serve, subtests
+):
+    """Below the title a card's prose reads alike, however the author wrote it, and runs
+    the card's whole width."""
     page = open_page(browser, serve(GRIPPED_CARD_PAGE))
-    measured = page.locator("#card-a").evaluate(
-        """(card) => {
-        const grip = card.querySelector(':scope > .lf-grip').getBoundingClientRect();
-        const range = document.createRange(), lines = [];
-        const walker = document.createTreeWalker(card, NodeFilter.SHOW_TEXT);
-        for (let node = walker.nextNode(); node; node = walker.nextNode()) {
-            if (node.parentElement.closest('.lf-grip') || !node.textContent.trim()) continue;
-            range.selectNodeContents(node);
-            for (const r of range.getClientRects())
-                lines.push({title: node.parentElement.localName === 'strong',
-                            top: r.top, bottom: r.bottom, right: r.right});
-        }
-        const beside = (l) => l.top < grip.bottom && l.bottom > grip.top;
-        return {
-            under: lines.filter((l) => beside(l) && l.right > grip.left).length,
-            titleBeside: lines.some((l) => l.title && beside(l)),
-            // Past the grip's left edge is the room the column held back.
-            prose: lines.filter((l) => !l.title && !beside(l)).slice(0, -1)
-                .map((l) => Math.round(l.right - grip.left)),
-        };
-    }"""
-    )
-    assert measured["titleBeside"], measured
-    assert measured["under"] == 0, measured
-    # Every full line of prose below the grip runs into the room beneath it.
-    assert measured["prose"] and all(d > 0 for d in measured["prose"]), measured
+
+    with subtests.test("only the title clears the grip"):
+        # The grip stands at the card's top corner and the lines beside it, the title's,
+        # stop short of it; the prose below runs the card's whole width, where it used to
+        # be set in a column that kept clear of the grip down the card's full height. No
+        # line stands under the grip's box, so a press there is always the grip's.
+        measured = page.locator("#card-a").evaluate(
+            """(card) => {
+            const grip = card.querySelector(':scope > .lf-grip').getBoundingClientRect();
+            const range = document.createRange(), lines = [];
+            const walker = document.createTreeWalker(card, NodeFilter.SHOW_TEXT);
+            for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+                if (node.parentElement.closest('.lf-grip') || !node.textContent.trim()) continue;
+                range.selectNodeContents(node);
+                for (const r of range.getClientRects())
+                    lines.push({title: node.parentElement.localName === 'strong',
+                                top: r.top, bottom: r.bottom, right: r.right});
+            }
+            const beside = (l) => l.top < grip.bottom && l.bottom > grip.top;
+            return {
+                under: lines.filter((l) => beside(l) && l.right > grip.left).length,
+                titleBeside: lines.some((l) => l.title && beside(l)),
+                // Past the grip's left edge is the room the column held back.
+                prose: lines.filter((l) => !l.title && !beside(l)).slice(0, -1)
+                    .map((l) => Math.round(l.right - grip.left)),
+            };
+        }"""
+        )
+        assert measured["titleBeside"], measured
+        assert measured["under"] == 0, measured
+        # Every full line of prose below the grip runs into the room beneath it.
+        assert measured["prose"] and all(d > 0 for d in measured["prose"]), measured
+
+    with subtests.test("the prose starts under its title in every shape"):
+        # Authors follow a card's title with a plain sentence, one holding an inline
+        # element, or a paragraph, and each card reads alike: the title's margin set a
+        # sentence holding an element 2px lower than a plain one, and a paragraph's
+        # margin set it 13px lower.
+        gaps = page.evaluate(
+            """() => Object.fromEntries(['plain', 'element', 'paragraph'].map((id) => {
+              const card = document.getElementById(id);
+              const title = card.querySelector(':scope > strong');
+              const walk = document.createTreeWalker(card, NodeFilter.SHOW_TEXT);
+              walk.currentNode = title.lastChild;
+              let text = walk.nextNode();
+              while (!text.data.trim()) text = walk.nextNode();
+              const range = document.createRange();
+              range.selectNodeContents(text);
+              return [id, range.getClientRects()[0].top - title.getBoundingClientRect().bottom];
+            }))"""
+        )
+        for shape in ("element", "paragraph"):
+            assert gaps[shape] == pytest.approx(gaps["plain"], abs=1), gaps
 
 
 GRIPPED_BLOCK_CARD_PAGE = leaf_page(
@@ -613,35 +734,40 @@ def test_a_finger_s_taller_grip_leaves_the_blocks_under_a_title_their_width(
     assert measured["under"] == 0, measured
 
 
-def test_a_phone_board_gives_its_column_room_and_keeps_the_next_one_discoverable(
+def test_a_phone_board_stacks_its_columns_and_moves_a_card_by_its_destination_buttons(
     browser, serve
 ):
-    """A phone shows one readable column and moves a card without a distant drop target.
+    """A phone stacks the board's columns, each the board's width and its own height,
+    and moves a card without a distant drop target.
 
-    The desktop grid divided its wide target across every column even after the board
-    itself had narrowed to the page. On a phone that left most of a second column on
-    screen and squeezed the first into a narrow card. Wide columns then put the next
-    pointer drop target off screen, so the phone offers every other column on the card.
+    The board paged sideways here, one column wide with a sliver of the next as the
+    cue, which left one column on screen, every other behind a sideways swipe nothing
+    else on the page asks for, and each column stretched to the tallest one's height.
+    Stacked, every column is a scroll down away, and a card still cannot be dragged to a
+    distant column under a finger, so the phone offers every other column on the card
+    and a move follows the card to where it landed.
     """
     context = browser.new_context(
         viewport={"width": 390, "height": 900}, has_touch=True
     )
     page = open_page(browser, serve(SQUEEZED_BOARD_PAGE), context=context)
-    measured = page.locator("#crowd").evaluate(
-        """board => {
+    columns_of = """board => {
         const box = board.getBoundingClientRect();
         const columns = [...board.querySelectorAll(':scope > lf-column')]
-          .slice(0, 2).map(column => column.getBoundingClientRect());
+          .map(column => column.getBoundingClientRect());
         return {board: box, columns,
                 scrolls: board.scrollWidth > board.clientWidth};
     }"""
-    )
+    measured = page.locator("#crowd").evaluate(columns_of)
     board = measured["board"]
-    first, second = measured["columns"]
-    assert first["width"] > board["width"] * 0.85, measured
-    assert first["right"] <= board["right"] + 1, measured
-    assert first["right"] < second["left"] < board["right"], measured
-    assert measured["scrolls"], measured
+    columns = measured["columns"]
+    assert len(columns) == 8, measured
+    for column in columns:
+        assert abs(column["left"] - board["left"]) <= 1, measured
+        assert abs(column["right"] - board["right"]) <= 1, measured
+    for above, below in pairwise(columns):
+        assert above["bottom"] <= below["top"], measured
+    assert not measured["scrolls"], measured
 
     card = page.locator("#sq-card-0")
     expect(card.locator(".lf-grip")).to_be_visible()
@@ -651,22 +777,21 @@ def test_a_phone_board_gives_its_column_room_and_keeps_the_next_one_discoverable
         to_lane_1.tap()
     expect(page.locator("#sq-col-1 > #sq-card-0")).to_have_count(1)
     expect(card.locator(".lf-grip")).to_be_focused()
-    # The card passes through the visible area while its move is still animating.
+    # The move carries the view to the card where it landed, among its new neighbours.
     page.wait_for_function(
         """() => {
           const moved = document.querySelector('#sq-card-0');
           if (moved.getAnimations().length) return false;
-          const board = document.querySelector('#crowd').getBoundingClientRect();
           const card = moved.getBoundingClientRect();
-          return card.left >= board.left - 1 && card.right <= board.right + 1;
+          return card.top >= 0 && card.bottom <= innerHeight;
         }"""
     )
-    moved = card.bounding_box()
-    board = page.locator("#crowd").bounding_box()
-    assert moved and board
-    assert board["x"] <= moved["x"] and moved["x"] + moved["width"] <= (
-        board["x"] + board["width"] + 1
-    )
+    # Each column is its own height: the emptied lane stands at its floor above the lane
+    # now holding two cards.
+    after = page.locator("#crowd").evaluate(columns_of)
+    emptied, filled = after["columns"][:2]
+    assert emptied["height"] < filled["height"], after
+    assert emptied["bottom"] <= filled["top"], after
 
     to_lane_0 = card.get_by_role("button", name="Move Perch 0 to Lane 0")
     expect(to_lane_0).to_be_visible()

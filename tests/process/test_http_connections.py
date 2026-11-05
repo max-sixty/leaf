@@ -40,7 +40,7 @@ def upstream(monkeypatch):
                 else b'{"items":["hello"]}'
             )
 
-        def log_message(self, *args):
+        def log_message(self, format, *args):
             pass
 
     def cleartext_tls(handler, request):
@@ -202,6 +202,7 @@ def test_connections_are_unavailable_in_read_only_previews(page_dir, upstream):
     bind(page_dir, "source", origin, credential_env="CONNECTION_TEST_TOKEN")
     publish(page_dir)
     revision = latest_revision(page_dir)
+    assert revision is not None
     snapshot = capture_page_snapshot(
         page_dir, read_revision(page_dir, revision).document, revision, url="test"
     )

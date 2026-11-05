@@ -1,0 +1,40 @@
+{
+  "lf-generated-document": {
+    "description": "A live generation document, published for the standard text document reader.",
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "data-part": {
+        "type": "string",
+        "enum": ["request", "instructions"]
+      }
+    },
+    "required": ["id"],
+    "additionalProperties": false,
+    "x-content": "markup",
+    "x-output": {
+      "document": {
+        "contract": "text-document"
+      }
+    },
+    "x-upgrade": false
+  },
+  "lf-widget-builder": {
+    "description": "Live comparison of Leaf composition and HTML generation.",
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "aria-label": {
+        "type": "string"
+      }
+    },
+    "required": ["id"],
+    "additionalProperties": false,
+    "x-content": "markup",
+    "x-upgrade": true
+  }
+}

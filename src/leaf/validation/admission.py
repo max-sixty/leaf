@@ -1,18 +1,23 @@
 """What an agent's writer hands in: message markup, bodies, and the ids it names."""
 
+from collections.abc import Set as AbstractSet
 from pathlib import Path
 
 from leaf.activity import answer_command
 from leaf.data import read_contracts
 from leaf.data_contracts import data_binding_errors
 from leaf.events import build_threads
-from leaf.files import list_revisions
 from leaf.findings import Finding, Rejected
 from leaf.passages import SourceReading
 from leaf.piped_input import NO_BODY
 from leaf.registry.kernel import kinds_declaring
 from leaf.registry.storage import require_registry
-from leaf.revision_artifact import read_revision
+from leaf.revision_artifact import (
+    document_drops,
+    read_revision,
+    revision_history,
+    uncaptured_errors,
+)
 from leaf.structure import SourceDocument
 from leaf.thread_context import thread_ids, thread_names, thread_structure
 
@@ -25,7 +30,6 @@ from .markup import (
     document_declaration_errors,
     fragment_style_errors,
     id_errors,
-    media_errors,
     text_media_errors,
 )
 
@@ -124,13 +128,6 @@ def logged_id(page_dir: Path, events: list, value: str, responses: dict) -> str 
     return f"{held} — {answer_command(owed, page_dir)} answers it"
 
 
-def version_ids(page_dir: Path) -> set:
-    ids = set()
-    for revision in list_revisions(page_dir):
-        ids.update(read_revision(page_dir, revision).inventory.ids)
-    return ids
-
-
 def revision_publication(page_dir: Path, revision: int | None) -> SourceReading:
     """What a message stored at `revision` is published against: that revision, or
     before the page has one, the candidate's vocabulary over an empty document."""
@@ -174,7 +171,7 @@ def check_markup(
         events,
         registry,
         page,
-        version_ids(page_dir),
+        revision_history(page_dir).ids,
         extra_errors,
         read_contracts(page_dir),
         thread,
@@ -189,7 +186,7 @@ def message_markup_errors(
     events: list,
     registry: dict,
     page: SourceDocument,
-    prior_ids: set[str],
+    prior_ids: AbstractSet[str],
     extra_errors: list[Finding],
     contracts: dict,
     thread_id: str | None,
@@ -208,7 +205,7 @@ def message_markup_errors(
         + extra_errors
         + fragment_style_errors(frag)
         + document_declaration_errors(frag)
-        + media_errors(frag, page_dir)
+        + uncaptured_errors(frag, page_dir)
     ):
         return errs
     if names := id_errors(frag):
@@ -237,6 +234,16 @@ def message_markup_errors(
     # A live sample's child is a page of its own, built from this message once it is
     # logged. Imported here because checking a child calls this gate back for each
     # fixture message in its history.
-    from .source import sample_errors
+    from .source import sample_errors, uncaptured_sample_errors
 
-    return sample_errors(page_dir, page, events, frag, registry, contracts)
+    # A message has no check to report a lesser finding beside, such as a dropped
+    # declaration (`styles.DROPPED_SEVERITY`), so only a refusal is returned.
+    return [
+        error
+        for error in [
+            *sample_errors(page_dir, page, events, frag, registry, contracts),
+            *uncaptured_sample_errors(page_dir, frag),
+            *document_drops(frag),
+        ]
+        if error.severity == "error"
+    ]

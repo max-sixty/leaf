@@ -3,7 +3,7 @@
 <!-- A leaf whose midrib is a page's left margin, with the text hanging off it:
      the name drawn as one shape. A single filled path — the paragraph is cut
      out of the blade as negative space, so the mark scales without stroke
-     weights drifting. The two palettes are theme.css's accent pair, spelled
+     weights drifting. The two palettes are base.css's accent pair, spelled
      out because a favicon cannot link a stylesheet.
 
      The whole mark is `lf-tone`, and that is a contract with the runtime:

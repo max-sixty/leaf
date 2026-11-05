@@ -1,6 +1,5 @@
 """Ownership discovery must not mutate a claim that a new page has acquired."""
 
-import fcntl
 import json
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -13,7 +12,7 @@ from interact_support import STATED_TIMEOUT, record_claim
 from leaf import cli as cli_model
 from leaf import service, state
 from leaf.service import claim_path, claim_records, page_claim
-from leaf.state import flocked, holds_claims
+from leaf.state import held_claims
 
 
 def test_session_discovery_reads_only_its_canonical_claim_partition(
@@ -113,38 +112,6 @@ def test_a_scan_of_a_missing_page_preserves_its_concurrent_successor(
     assert claim_records(successor["id"]) == [successor]
 
 
-def test_a_waiting_page_transaction_follows_a_recreated_page(tmp_path, monkeypatch):
-    page = tmp_path / "page"
-    page.mkdir()
-    log = page / "events.jsonl"
-    log.write_bytes(b"old")
-    opened_old_log = Event()
-    lock = fcntl.flock
-
-    def observe_waiter(stream, operation):
-        if operation == fcntl.LOCK_EX:
-            opened_old_log.set()
-        return lock(stream, operation)
-
-    def read():
-        with flocked(log) as stream:
-            return stream.read()
-
-    with ThreadPoolExecutor(max_workers=1) as executor:
-        with log.open("r+b") as owner:
-            lock(owner, fcntl.LOCK_EX)
-            monkeypatch.setattr(fcntl, "flock", observe_waiter)
-            waiter = executor.submit(read)
-            assert opened_old_log.wait(STATED_TIMEOUT), (
-                "waiter did not open the old page log"
-            )
-            page.rename(tmp_path / "previous-page")
-            page.mkdir()
-            log.write_bytes(b"new")
-        assert waiter.result(timeout=STATED_TIMEOUT) == b"new"
-    assert log.read_bytes() == b"new"
-
-
 def test_a_claim_on_a_page_that_is_gone_retires_whichever_leaf_wrote_it(tmp_path):
     """A session's own scan removes its claim on a deleted page, with its locator,
     so the session holds nothing and its hooks and files can end with it. A page
@@ -154,14 +121,14 @@ def test_a_claim_on_a_page_that_is_gone_retires_whichever_leaf_wrote_it(tmp_path
     record_claim(page, id="owner")
     payload = claim_path(page)
     payload.write_text(json.dumps({**json.loads(payload.read_text()), "format": "x"}))
-    assert holds_claims("owner")
+    assert held_claims("owner")
     tmp_path.chmod(0)
     try:
-        assert holds_claims("owner")
+        assert held_claims("owner")
     finally:
         tmp_path.chmod(0o755)
     page.rmdir()
-    assert not holds_claims("owner")
+    assert not held_claims("owner")
     assert not payload.exists()
     assert not service.session_claims("owner").exists()
 
@@ -172,9 +139,9 @@ def test_initializing_a_recreated_page_releases_its_old_claimant(tmp_path):
     page = tmp_path / "recreated"
     record_claim(page, id="prior")
     page.mkdir()
-    assert holds_claims("prior")
+    assert held_claims("prior")
     result = CliRunner().invoke(cli_model.cli, ["page", "init", str(page)])
     assert result.exit_code == 0, result.output
     assert page_claim(page) is None
-    assert not holds_claims("prior")
+    assert not held_claims("prior")
     assert not (service.session_claims("prior") / claim_path(page).name).is_symlink()

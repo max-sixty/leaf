@@ -13,6 +13,7 @@ from interact_support import (
     ModelPage,
     append_carried_log_record,
     comment,
+    element_declaration,
     fetch,
     lock_contention,
     model_layer,
@@ -20,6 +21,7 @@ from interact_support import (
     published,
     queue_board_registry,
     refused_on,
+    served_state_error,
     wait_for,
 )
 
@@ -31,7 +33,11 @@ from leaf import schema as schema_model
 from leaf import structure as structure_model
 from leaf import thread as thread_model
 from leaf.findings import Finding
+from leaf.projection import page_reading, retirement_outcomes
 from leaf.registry import contract as registry_contract
+from leaf.registry.layer import stamp_composition
+from leaf.registry.validation import validate_registry
+from leaf.validation.instances import widget_errors
 
 # One question quoted back and the same question live. The pair is what makes the
 # exhibit refusal below the exhibit's doing: the two groups are the same markup
@@ -76,6 +82,274 @@ STATED_LOG = [
 
 
 STATED_PICK = {"kind": "action", "author": "user", "revision": 1, "action": "choose"}
+
+
+@pytest.mark.parametrize("unit", ["row", "widget"])
+def test_an_outcome_field_does_not_make_a_domain_action_a_decision(unit):
+    registry = deepcopy(model_layer())
+    entry = element_declaration("lf-review", upgrade=True)
+    entry["properties"]["restated"] = {"type": "boolean"}
+    entry["x-state"] = {
+        "review": {
+            "unit": unit,
+            "detail": {
+                "type": "object",
+                "properties": {
+                    "row": {"type": "string"},
+                    "outcome": {"enum": ["pass", "fail"]},
+                },
+                "required": ["row", "outcome"],
+                "additionalProperties": False,
+            },
+        }
+    }
+    registry["lf-review"] = entry
+    validate_registry(registry, "review package")
+    stamp_composition(registry)
+    assert "lf-review" not in registry["$decisions"]
+    page = ModelPage('<lf-review id="review"></lf-review>', registry=registry)
+    action = event_contracts_model.admitted_event(
+        page,
+        [],
+        {
+            **STATED_PICK,
+            "id": "e1",
+            "seq": 1,
+            "widget": "review",
+            "action": "review",
+            "detail": {"row": "test-row", "outcome": "pass"},
+        },
+    )
+    reading = page_reading(page.reading(1, registry), [action], 1)
+    assert list(reading.projection.actions) == [
+        ("review", "test-row" if unit == "row" else "review", "review")
+    ]
+    assert retirement_outcomes(reading.projection.actions) == {}
+    assert action["meaning"]["state"]["decides"] is False
+
+    # Reusing the verb as a whole-widget decision does not reinterpret that answer.
+    entry["x-state"]["review"] |= {"unit": "widget", "decides": True}
+    validate_registry(registry, "revised review package")
+    assert page_reading(page.reading(1, registry), [action], 1).projection.actions == {}
+
+
+def test_an_ordinary_outcome_answers_its_condition_without_withdrawing_a_proposal():
+    registry = deepcopy(model_layer())
+    entry = registry["lf-suggestion"]
+    entry["x-state"]["review"] = {
+        key: value
+        for key, value in entry["x-state"]["decide"].items()
+        if key != "decides"
+    }
+    entry["x-awaits"]["answered"]["review"] = {"detail": {"outcome": "reject"}}
+    validate_registry(registry, "review package")
+    stamp_composition(registry)
+    source = (
+        '<lf-suggestion id="proposal" resolves="e1">'
+        '<lf-new><p id="new">Proposed work.</p></lf-new></lf-suggestion>'
+    )
+    commands: list[dict] = [{"kind": "comment", "text": "Review it."}]
+    for outcome, answers in (("accept", False), ("reject", True)):
+        commands.append(
+            {
+                **STATED_PICK,
+                "widget": "proposal",
+                "action": "review",
+                "detail": {"outcome": outcome},
+            }
+        )
+        state = model.served_reading(source, commands, registry=registry)
+        meaning = state["events"][-1]["meaning"]
+        assert ("answer" in meaning) is answers
+        if answers:
+            assert meaning["answer"] == "e1"
+
+
+@pytest.fixture
+def instance_input_registry():
+    """A generic custom payload with instance-selected, self-contained schemas."""
+    registry = deepcopy(model_layer())
+    entry = element_declaration("lf-input-box", upgrade=True)
+    entry["properties"]["restated"] = {"type": "boolean"}
+    entry["properties"]["shape"] = {"type": "string"}
+    entry["x-state"] = {
+        "submit": {
+            "unit": "widget",
+            "contract": {"field": "payload", "attribute": "shape"},
+            "detail": {
+                "type": "object",
+                "properties": {"payload": {"type": "object"}},
+                "required": ["payload"],
+                "additionalProperties": False,
+            },
+        }
+    }
+    registry["lf-input-box"] = entry
+    for name, maximum in (("small", 2), ("large", 9)):
+        registry["$data"]["contracts"][name] = {
+            "description": f"A count no larger than {maximum}.",
+            "schema": {
+                "$defs": {"count": {"type": "integer", "maximum": maximum}},
+                "type": "object",
+                "properties": {"count": {"$ref": "#/$defs/count"}},
+                "required": ["count"],
+                "additionalProperties": False,
+            },
+        }
+    validate_registry(registry, "input package")
+    stamp_composition(registry)
+    return registry
+
+
+def test_instance_contracts_validate_complete_values_at_admission(
+    instance_input_registry,
+):
+    registry = instance_input_registry
+    page = ModelPage(
+        '<lf-input-box id="small" shape="small"></lf-input-box>'
+        '<lf-input-box id="large" shape="large"></lf-input-box>'
+        '<lf-input-box id="open"></lf-input-box>',
+        registry=registry,
+    )
+
+    def submit(widget, payload):
+        return event_contracts_model.admitted_event(
+            page,
+            [],
+            {
+                **STATED_PICK,
+                "widget": widget,
+                "action": "submit",
+                "detail": {"payload": payload},
+            },
+        )
+
+    assert submit("small", {"count": 2})["detail"] == {"payload": {"count": 2}}
+    assert submit("large", {"count": 7})["detail"] == {"payload": {"count": 7}}
+    assert submit("open", {"unconstrained": True})["detail"]["payload"]["unconstrained"]
+    for payload, field in (
+        ({"count": 7}, "/payload/count"),
+        ({"count": "two"}, "/payload/count"),
+        ({}, "/payload"),
+        ({"count": 2, "extra": True}, "/payload"),
+    ):
+        with pytest.raises(events_model.EventRefused) as refused:
+            submit("small", payload)
+        finding = refused_on(refused.value)
+        assert (finding.code, finding.values["field"]) == ("invalid-detail", field)
+
+    unknown = structure_model.SourceDocument(
+        '<lf-input-box id="unknown" shape="missing"></lf-input-box>'
+    )
+    [finding] = widget_errors(unknown.lf_elements, registry)
+    assert finding.code == "instance-contract"
+    assert finding.values["contract"] == "missing"
+
+
+def test_instance_contracts_read_the_sending_revision_and_recheck_changed_domains(
+    instance_input_registry,
+):
+    registry = instance_input_registry
+    large = '<lf-input-box id="input" shape="large"></lf-input-box>'
+    small = large.replace('shape="large"', 'shape="small"')
+    page = ModelPage(large, small, large, registry=registry)
+    action = event_contracts_model.admitted_event(
+        page,
+        [],
+        {
+            **STATED_PICK,
+            "id": "e1",
+            "seq": 1,
+            "widget": "input",
+            "action": "submit",
+            "detail": {"payload": {"count": 7}},
+        },
+    )
+    for revision, remains in ((1, True), (2, False), (3, True)):
+        reading = page_reading(page.reading(revision, registry), [action], revision)
+        assert bool(reading.projection.actions) is remains
+    command = {
+        key: value
+        for key, value in action.items()
+        if key not in {"meaning", "attention"}
+    }
+    with pytest.raises(events_model.EventRefused) as refused:
+        event_contracts_model.admitted_event(page, [], {**command, "revision": 2})
+    assert refused_on(refused.value).code == "invalid-detail"
+
+
+def test_two_playgrounds_on_one_page_validate_their_own_values(instance_input_registry):
+    registry = deepcopy(model_layer("playground"))
+    registry["$data"]["contracts"].update(instance_input_registry["$data"]["contracts"])
+    page = ModelPage(
+        '<lf-playground id="small" contract="small"></lf-playground>'
+        '<lf-playground id="large" contract="large"></lf-playground>',
+        registry=registry,
+    )
+    log = []
+    for seq, (widget, count) in enumerate((("small", 2), ("large", 7)), 1):
+        log.append(
+            event_contracts_model.admitted_event(
+                page,
+                log,
+                {
+                    **STATED_PICK,
+                    "id": f"e{seq}",
+                    "seq": seq,
+                    "widget": widget,
+                    "detail": {
+                        "values": {"count": count},
+                        "instruction": "Use this count.",
+                    },
+                },
+            )
+        )
+    with pytest.raises(events_model.EventRefused) as refused:
+        event_contracts_model.admitted_event(
+            page,
+            log,
+            {
+                **STATED_PICK,
+                "widget": "small",
+                "detail": log[-1]["detail"],
+            },
+        )
+    assert refused_on(refused.value).code == "invalid-detail"
+    assert [(e["widget"], e["detail"]["values"]) for e in log] == [
+        ("small", {"count": 2}),
+        ("large", {"count": 7}),
+    ]
+
+
+def test_instance_contracts_follow_the_widget_in_frozen_thread_markup(
+    instance_input_registry,
+):
+    commands: list[dict] = [
+        {"kind": "comment", "text": "Choose a count."},
+        {
+            "kind": "reply",
+            "author": "agent",
+            "parent": "e1",
+            "text": "Choose here:",
+            "markup": '<lf-input-box id="thread-input" shape="large"></lf-input-box>',
+        },
+        {
+            "kind": "action",
+            "widget": "thread-input",
+            "action": "submit",
+            "detail": {"payload": {"count": 7}},
+        },
+    ]
+    state = model.served_reading(
+        "<p>Page</p>", commands, registry=instance_input_registry
+    )
+    action = state["events"][-1]
+    assert action["meaning"]["scope"] == "thread"
+    assert action["detail"] == {"payload": {"count": 7}}
+    commands[-1]["detail"]["payload"]["count"] = 10
+    with pytest.raises(events_model.EventRefused) as refused:
+        model.served_reading("<p>Page</p>", commands, registry=instance_input_registry)
+    assert refused_on(refused.value).code == "invalid-detail"
 
 
 # A queue with two cards: only the final move answers its obligation.
@@ -185,6 +459,8 @@ def test_history_reaches_only_a_page_that_renders_it_and_keeps_a_pick_as_made(
     )
 
     history = model.reading({1: question, 2: retired}, events)["history"]
+    for row in history:
+        assert served_state_error(row, "HistoryRow") is None
     assert [(row["id"], row["gesture"], row["undone"]) for row in history] == [
         ("e2", {"form": "choice", "chosen": ["Slow path"]}, True),
         ("e1", {"form": "choice", "chosen": ["Fast path"]}, False),
@@ -233,6 +509,8 @@ def test_history_words_a_pick_of_an_added_option_by_what_the_user_wrote():
     )
 
     history = model.reading(question, events)["history"]
+    for row in history:
+        assert served_state_error(row, "HistoryRow") is None
     assert [(row["id"], row["gesture"]) for row in history] == [
         ("e6", {"form": "choice", "chosen": ["Ship everything"]}),
         ("e5", {"form": "add", "words": "Ship everything"}),
@@ -346,9 +624,8 @@ def test_server_takes_back_only_a_gesture_in_force_of_the_users_own(server, page
     """`undoes` is checked completely where it enters, so nothing downstream asks a
     second time whether it points at something real. What an undo may name is one
     unwithdrawn gesture of the user's own: an agent's `leaf thread resolve` is not
-    theirs to take back, a comment is speech rather than state, an undo is not
-    itself undoable (that would be a redo), and one gesture cannot be taken back
-    twice."""
+    theirs to take back, an undo is not itself undoable (that would be a redo), and
+    one gesture cannot be taken back twice."""
     publish(page_dir)
     posted = json.loads(
         fetch(
@@ -368,12 +645,11 @@ def test_server_takes_back_only_a_gesture_in_force_of_the_users_own(server, page
 
     for bad, says in [
         ({"kind": "undo", "undoes": "nope"}, "unknown"),
-        # The user's own gestures only, and only the kinds that carry state.
+        # The user's own gestures only.
         (
             {"kind": "undo", "undoes": agent_closed["id"]},
             "not the user's own gesture",
         ),
-        ({"kind": "undo", "undoes": posted["id"]}, "is not a reaction"),
         # The one field it carries, and the door refuses it in any other shape.
         ({"kind": "undo"}, "'undoes' is a required property"),
         (
@@ -446,9 +722,9 @@ def test_two_concurrent_undos_cannot_both_take_back_one_gesture(
     )
     validation_calls = 0
 
-    def expose_validation_gap(event, events, within, absorbed):
+    def expose_validation_gap(event, events, absorbed):
         nonlocal validation_calls
-        error = real_undo_error(event, events, within, absorbed)
+        error = real_undo_error(event, events, absorbed)
         with validation_lock:
             validation_calls += 1
             call = validation_calls
@@ -525,8 +801,7 @@ def test_the_door_admits_a_reaction_only_as_a_token_the_layer_declares(
     """A reaction is a comment or reply carrying `token` in place of `text`: one of
     the two and never both, a word the merged vocabulary declares, and no
     suggestion, hold, or markup riding beside it. What the door lets through it
-    also lets the user take back — while it is still a mark. An answer under it
-    makes it a thread, and a message with words in it was never a mark."""
+    also lets the user take back, answered or not."""
     publish(page_dir)
     root = json.loads(
         fetch(
@@ -583,12 +858,6 @@ def test_the_door_admits_a_reaction_only_as_a_token_the_layer_declares(
     )["state"]["events"][-1]
     assert nod["token"] == "keep" and nod["parent"] == root["id"]
 
-    # A message with words in it is said rather than unsaid.
-    status, body = fetch(
-        f"{server}/api/event",
-        data=json.dumps({"kind": "undo", "undoes": root["id"]}).encode(),
-    )
-    assert status == 400 and refused_on(body).code == "said-message"
     # The mark on the thread comes off with one press.
     status, body = fetch(
         f"{server}/api/event",
@@ -608,8 +877,8 @@ def test_the_door_admits_a_reaction_only_as_a_token_the_layer_declares(
     answer = json.loads(body)
     assert answer["final"] is True, body
     assert refused_on(answer).code == "withdrawn-gesture", body
-    # Every thread fold drops a withdrawn message, so nothing may name it as a parent:
-    # a reply to it would open a thread with no root.
+    # Nothing stood on it, so every thread fold drops it, and nothing may name it as a
+    # parent: a reply to it would open a thread with no root.
     status, body = fetch(
         f"{server}/api/event",
         data=json.dumps(
@@ -617,7 +886,9 @@ def test_the_door_admits_a_reaction_only_as_a_token_the_layer_declares(
         ).encode(),
     )
     assert status == 400 and refused_on(body).code == "withdrawn-parent"
-    # Nor may a message another stands on be withdrawn, a reaction to it included.
+    # A reaction something answered is the user's to take back too, here a reaction to
+    # it and the agent's reply. Its thread keeps its place (`events.build_threads`), so
+    # the agent may go on answering there.
     mark = json.loads(
         fetch(
             f"{server}/api/event",
@@ -632,19 +903,15 @@ def test_the_door_admits_a_reaction_only_as_a_token_the_layer_declares(
         )[1]
     )["state"]["events"][-1]
     assert mark["parent"] == reaction["id"]
-    status, body = fetch(
-        f"{server}/api/event",
-        data=json.dumps({"kind": "undo", "undoes": reaction["id"]}).encode(),
-    )
-    assert status == 400 and refused_on(body).code == "answered-reaction"
-    # Answered, the page reaction is a thread, and the withdrawal would orphan
-    # the answer; the user's move is in the thread it opened.
     thread_model.post_reply(page_dir, {"parent": reaction["id"]}, "Which part is long?")
     status, body = fetch(
         f"{server}/api/event",
         data=json.dumps({"kind": "undo", "undoes": reaction["id"]}).encode(),
     )
-    assert status == 400 and refused_on(body).code == "answered-reaction"
+    assert status == 200, body
+    assert thread_model.post_reply(
+        page_dir, {"parent": reaction["id"]}, "Keeping it as it is, then."
+    )
 
 
 def test_admission_names_dependencies_and_revendoring_preserves_their_meaning(
@@ -678,6 +945,7 @@ def test_admission_names_dependencies_and_revendoring_preserves_their_meaning(
     assert json.loads(retried)["state"]["events"][-1]["id"] == accepted["id"]
     assert set(accepted["meaning"]["depends"]) == {"picks", "flag-first"}
     within = passages_model.enclosing_ids(structure_model.SourceDocument(source))
+    assert revision is not None
     assert event_folds_model.action_retracted(
         accepted, {"flag-first": revision + 1}, within
     )
@@ -691,7 +959,7 @@ def test_created_ids_cannot_collide_across_page_and_frozen_content():
     markup = (
         '<p id="reserved">Page</p><lf-options id="page-options" choose></lf-options>'
     )
-    commands = [
+    commands: list[dict] = [
         {"kind": "comment", "text": "Pick a seed."},
         {
             "kind": "reply",

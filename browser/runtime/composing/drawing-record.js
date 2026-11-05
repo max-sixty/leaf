@@ -19,20 +19,27 @@
  * takes the target away. It is the draft's alone: `sentDrawing` leaves it out of the
  * comment.
  */
-import { drawingSchema } from "./drawing-schema.js";
+import { drawingSchema } from "../kernel-facts.js";
 
-// Every bound is read from the schema admission holds a comment's drawing to,
-// generated from registry.json, each field from its own declaration, so a bound
-// changes there alone.
+/** @typedef {NonNullable<import("../../types/contract.js").EventMap["comment"]["drawing"]>} Drawing
+ * @typedef {Pick<Drawing, "strokes" | "frame">} DrawingInk
+ * @typedef {Drawing & {at?: readonly [number, number, number, number, number, number]}} DraftDrawing
+ */
+
+// Every bound is read from the schema admission holds a comment's drawing to, in the
+// kernel registry, each field from its own declaration, so a bound changes there
+// alone.
 const FIELDS = drawingSchema.properties;
 export const MAX_DRAWING_STROKES = FIELDS.strokes.maxItems;
 export const MAX_DRAWING_FRAME_DEPTH = FIELDS.frame.properties.path.maxItems;
 export const MAX_DRAWING_POINTS = FIELDS.strokes.items.maxItems;
-export const DRAWING_COORDINATE_LIMIT =
-  FIELDS.strokes.items.items.prefixItems[0].maximum;
+export const DRAWING_COORDINATE_LIMIT = Math.min(
+  ...FIELDS.strokes.items.items.prefixItems.map((axis) => axis.maximum),
+);
 export const MAX_DRAWING_SAYS_LENGTH = FIELDS.says.maxLength; // code points
 
 // The drawing as a comment carries it.
+/** @param {DraftDrawing} drawing */
 export function sentDrawing(drawing) {
   const { at, ...sent } = drawing;
   return sent;

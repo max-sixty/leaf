@@ -1,16 +1,17 @@
-"""Compare how long `leaf page check --render` takes, base vs HEAD.
+"""Compare how long `leaf page check --render` takes, base vs this working tree.
 
-    uv run leaf-dev bench-check [BASE_REF]
+    uv run leaf-dev bench-check [--base REF]
 
-Each arm is the plugin payload at a ref (`leaf_dev.arms.build_pair`): BASE_REF, by
-default the merge base with `main`, and HEAD, so commit what you want measured. Each
-page in PAGES is built from this checkout's example by the arm's own launcher, then
-checked RUNS times by that arm's `bin/leaf`, alternating arms so drift in machine load
-falls on both. Wall time is the child process's, launcher included. Other processes'
-load moves every run, so read the spread and the load average before the median;
-`leaf-dev profile` says where a browser transition's time goes.
+The base is the merge base with `main` unless `--base` names another commit, and the
+head is this working tree, uncommitted edits included (`leaf_dev.arms.choose_arms`).
+Each page in PAGES is built from this checkout's example by the arm's own launcher,
+then checked RUNS times by that arm's `bin/leaf`, alternating arms so drift in machine
+load falls on both. Wall time is the child process's, launcher included. Other
+processes' load moves every run, so read the spread and the load average before the
+median; `leaf-dev bench-latency --profile` says where a browser transition's
+time goes.
 
-Each invocation builds its arms, pages, and state in a unique run directory under
+Each invocation builds its base, pages, and state in a unique run directory under
 `.tmp/bench-check/` and prints that directory.
 """
 
@@ -21,13 +22,14 @@ import click
 
 from leaf_dev import ROOT
 from leaf_dev.arms import (
-    build_pair,
+    base_option,
     build_source,
+    choose_arms,
+    describe,
     load_average,
     run_directory,
     run_leaf,
 )
-from leaf_dev.commands.distribution import cached_installation
 from leaf_dev.example_data import named_source
 
 OUT = ROOT / ".tmp" / "bench-check"
@@ -42,41 +44,44 @@ def spread(walls: list[float]) -> str:
 
 
 @click.command()
-@click.argument("base_ref", required=False)
-def bench_check(base_ref: str | None) -> None:
-    """Time `page check --render`, base vs HEAD.
+@base_option(paired=True)
+def bench_check(base: str) -> None:
+    """Time `page check --render`, base vs this working tree.
 
-    Runs `leaf page check --render` on a few examples with BASE_REF's plugin and
-    HEAD's, with no model; BASE_REF defaults to the merge base with main. Prints each
-    arm's median (min-max) wall seconds per page.
+    Runs `leaf page check --render` on a few examples with the base's plugin and
+    this working tree's, with no model. Prints each arm's median (min-max) wall
+    seconds per page.
     """
     out = run_directory(OUT)
-    arms, commits = build_pair(base_ref, out / "arms")
-    arms = {name: cached_installation(arm) for name, arm in arms.items()}
+    arms = choose_arms(base, out)
     pages = {}
-    for arm, arm_dir in arms.items():
+    for arm, version in arms.items():
         for name in PAGES:
             page = pages[arm, name] = out / "pages" / arm / name
             page.parent.mkdir(parents=True, exist_ok=True)
-            build_source(arm_dir, out / "state" / arm, named_source(name), page)
+            build_source(
+                version.directory, out / "state" / arm, named_source(name), page
+            )
     before = load_average()
     walls = {key: [] for key in pages}
     for run in range(RUNS):
         for name in PAGES:
-            for arm, arm_dir in arms.items():
+            for arm, version in arms.items():
                 click.echo(f"run {run + 1}/{RUNS} {name} {arm}", err=True)
                 started = time.perf_counter()
                 run_leaf(
-                    arm_dir, out / "state" / arm,
+                    version.directory, out / "state" / arm,
                     "page", "check", str(pages[arm, name]), "--render", check=True,
                 )  # fmt: skip
                 walls[arm, name].append(time.perf_counter() - started)
-    click.echo(f"base {commits['base'][:10]} vs head {commits['head'][:10]}")
+    click.echo(describe(arms))
     click.echo(f"load average {before} before, {load_average()} after")
     click.echo(f"wall seconds, median (min-max) of {RUNS} runs\n")
     click.echo("| page | base | head | change |\n|---|---:|---:|---:|")
     for name in PAGES:
-        base, head = walls["base", name], walls["head", name]
-        change = statistics.median(head) - statistics.median(base)
-        click.echo(f"| {name} | {spread(base)} | {spread(head)} | {change:+.2f} |")
+        base_walls, head_walls = walls["base", name], walls["head", name]
+        change = statistics.median(head_walls) - statistics.median(base_walls)
+        click.echo(
+            f"| {name} | {spread(base_walls)} | {spread(head_walls)} | {change:+.2f} |"
+        )
     click.echo(f"files in {out}")

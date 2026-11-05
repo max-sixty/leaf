@@ -1,16 +1,21 @@
 """The website route adapter preserves Leaf's canonical served-page contract."""
 
+import base64
+import gzip
+import hashlib
+import json
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import pytest
 from interact_support import (
     running_http_server,
 )
-from leaf_dev import startup
-from leaf_dev.commands import journey, verify_site
 from render_harness import (
     consume_browser_errors,
 )
+
+from leaf_dev import startup
+from leaf_dev.commands import journey, verify_site
 
 
 def shown_by(page, id):
@@ -44,11 +49,54 @@ def test_a_failed_verifier_page_reports_its_browser_errors(browser):
         verify_site.await_presentation(page, url, failures, timeout=never_presents_ms)
     assert "widget resource unavailable" in str(caught.value)
     assert "runtime initialization failed" in str(caught.value)
-    assert "no startup milestone" in str(caught.value)
+    assert "the runtime never started" in str(caught.value)
     # The same two faults the verifier reported are what this page said.
     consume_browser_errors(
         page, "widget resource unavailable", "runtime initialization failed"
     )
+
+
+def test_failed_reload_retains_the_script_bytes_the_browser_received(browser, capsys):
+    page = browser.new_page()
+    url = "https://site-verifier.test/revision/"
+    module = b"export const broken = (; // \xe2\x98\x83"
+    page.route(
+        url,
+        lambda route: route.fulfill(
+            content_type="text/html",
+            body='<script type="module" src="runtime.js"></script>',
+        ),
+    )
+    page.route(
+        url + "runtime.js",
+        lambda route: route.fulfill(
+            content_type="text/javascript",
+            headers={"Leaf-State-Source": "durable", "Set-Cookie": "private=value"},
+            body=module,
+        ),
+    )
+    failures = verify_site.observe_startup(page)
+    page.goto(url)
+    with pytest.raises(RuntimeError, match="never presented"):
+        with verify_site.capture_script_responses(page):
+            page.reload()
+            verify_site.await_presentation(page, url, failures, timeout=100)
+    evidence = json.loads(capsys.readouterr().err)
+    (script,) = evidence["scriptResponses"]
+    assert script["url"] == url + "runtime.js"
+    assert script["status"] == 200
+    assert script["headers"]["leaf-state-source"] == "durable"
+    assert "set-cookie" not in script["headers"]
+    assert script["sha256"] == hashlib.sha256(module).hexdigest()
+    assert gzip.decompress(base64.b64decode("".join(script["gzipBase64"]))) == module
+    consume_browser_errors(page, "Unexpected token")
+    # Success emits no bodies, and leaving either scope detaches its observer.
+    module = b"export const healthy = true;"
+    with verify_site.capture_script_responses(page):
+        page.reload()
+    assert capsys.readouterr().err == ""
+    page.reload()
+    assert capsys.readouterr().err == ""
 
 
 def test_the_agent_response_clock_waits_until_the_reply_is_on_screen(browser):
@@ -61,7 +109,7 @@ def test_the_agent_response_clock_waits_until_the_reply_is_on_screen(browser):
             content_type="text/html",
             body="""<div class="lf-threads" style="height: 100px; overflow: auto">
                   <div style="height: 500px"></div>
-                  <div class="lf-msg agent" data-mid="answer"><span class="lf-msg-text">Visible reply</span></div>
+                  <div class="lf-msg" data-lf-author="agent" data-mid="answer"><span class="lf-msg-text">Visible reply</span></div>
                 </div>""",
         ),
     )
@@ -71,7 +119,7 @@ def test_the_agent_response_clock_waits_until_the_reply_is_on_screen(browser):
     reply = {"thread": "comment", "id": "answer", "ts": "2026-10-08T09:00:00Z"}
     assert page.evaluate("window.__leafVerifier.replyShownAt", reply) is None
     before = page.evaluate("Date.now()")
-    page.locator(".lf-msg.agent").scroll_into_view_if_needed()
+    page.locator(".lf-msg[data-lf-author=agent]").scroll_into_view_if_needed()
     page.wait_for_function(
         "reply => window.__leafVerifier.replyShownAt(reply)", arg=reply
     )
@@ -88,9 +136,9 @@ def test_the_agent_response_clock_ignores_an_earlier_failure_receipt(browser):
         url,
         lambda route: route.fulfill(
             content_type="text/html",
-            body="""<div class="lf-threads"><div class="lf-msg agent" data-mid="failed">
+            body="""<div class="lf-threads"><div class="lf-msg" data-lf-author="agent" data-mid="failed">
                       <span class="lf-msg-text">Could not start</span></div>
-                    <div class="lf-msg agent" data-mid="answer" style="display: none">
+                    <div class="lf-msg" data-lf-author="agent" data-mid="answer" style="display: none">
                       <span class="lf-msg-text">Deployment verified</span></div></div>""",
         ),
     )
@@ -114,7 +162,7 @@ def test_the_agent_response_clock_follows_a_stream_into_its_durable_reply(browse
         url,
         lambda route: route.fulfill(
             content_type="text/html",
-            body="""<div class="lf-threads"><div class="lf-msg agent" data-mid="stream:turn">
+            body="""<div class="lf-threads"><div class="lf-msg" data-lf-author="agent" data-mid="stream:turn">
                       <span class="lf-msg-text">Answer in progress</span></div></div>""",
         ),
     )
@@ -151,7 +199,7 @@ def test_the_agent_verifier_opens_news_arriving_after_an_earlier_notice(browser)
                 };
                 document.querySelector('.lf-thread').append(next);
               }, 0)">Stream update waiting</button>
-              <div class="lf-msg agent" data-mid="stream:turn">
+              <div class="lf-msg" data-lf-author="agent" data-mid="stream:turn">
                 <span class="lf-msg-text">Complete answer</span></div>
               </div></div>""",
         ),
@@ -159,11 +207,11 @@ def test_the_agent_verifier_opens_news_arriving_after_an_earlier_notice(browser)
     page.goto(url)
     page.evaluate("window.__leafVerifier.startVisibleReplyClock")
     session = journey.Session(
-        None, page, [], url, url, {}, {}, None,
+        page.context, page, [], url, url, {}, {}, None,
         pause=lambda seconds: page.wait_for_timeout(seconds * 1000),
     )  # fmt: skip
     answer = {"parent": "comment", "id": "answer", "ts": "2026-10-08T09:00:00Z"}
-    shown = journey.await_reply_shown(journey.BrowserEnd(session), answer)
+    shown = journey.await_reply_shown(journey.BrowserEnd(session, None), answer)
     assert shown["by"] == "message"
     assert page.locator(".lf-thread-news").count() == 0
 
@@ -191,7 +239,7 @@ def test_startup_resources_outlive_the_browser_timing_buffer(browser):
             self.end_headers()
             self.wfile.write(body)
 
-        def log_message(self, *_arguments):
+        def log_message(self, format, *_arguments):
             pass
 
     httpd = ThreadingHTTPServer(("127.0.0.1", 0), Resources)

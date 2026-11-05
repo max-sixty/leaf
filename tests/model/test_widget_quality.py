@@ -1,7 +1,4 @@
-"""The widget quality report (`leaf/render_gate/widget_quality.py`): Leaf's own widgets
-held to it, and `package check --render` telling a package's author what it found. And
-the first box a widget keeps where the report's served examples do not reach: a tab set
-opening on a later panel, and an export."""
+"""Widget quality examples and their data contracts."""
 
 from known_widget_findings import KNOWN, PACKAGES
 
@@ -17,7 +14,7 @@ def test_example_data_validates_bound_sources():
     from leaf.registry.contract import RegistryError
     from leaf.validation.composition import validate_registry_examples
 
-    registry = {
+    registry: dict[str, dict] = {
         "$data": {
             "contracts": {
                 "rows": {"schema": {"type": "array", "items": {"type": "string"}}}
@@ -46,7 +43,7 @@ def test_example_data_validates_bound_sources():
 def test_examples_reusing_sources_keep_independent_values():
     from leaf.render_gate.widget_quality import example_pages
 
-    registry = {
+    registry: dict[str, dict] = {
         name: {
             "x-data": {"rows": {"source": "source", "contract": "rows"}},
             "x-example": f'<{name} id="{name}" source="rows"></{name}>',

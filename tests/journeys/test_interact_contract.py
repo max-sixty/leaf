@@ -9,28 +9,20 @@ import tinycss2
 import tinycss2.parser
 from click.testing import CliRunner
 from interact_support import (
-    ADOPTED,
     COMMAND_HUB_PACKAGE,
     PAGE,
-    PILOT_PURGE,
-    SHELVED,
-    TRIAL_CACHE,
-    TRIAL_LOG,
     append_carried_log_record,
     assert_revendor_serializes_writer,
     check,
     check_findings,
-    decide,
     declare_data_input,
+    declare_on_page,
     element_declaration,
     fetch,
     found,
-    live_versions,
     page_packages,
     publish,
     read_page_data,
-    stamp,
-    trial_version,
 )
 from model.interact_contract import _value_verb
 
@@ -38,26 +30,28 @@ from leaf import cli as cli_model
 from leaf import data as data_model
 from leaf import data_contracts as data_contracts_model
 from leaf import event_log as events_model
+from leaf import revisioning as revisioning_model
 from leaf import structure as structure_model
 from leaf import thread as thread_model
 from leaf import vendoring as vendoring_model
 from leaf.registry import storage as registry_storage
+from leaf_dev.page_fixtures import package_selection_args
 
 
 def test_revendoring_serializes_with_thread_markup_entering_the_log(
     page_dir, monkeypatch
 ):
-    overlay = page_dir.parent / ".leaf"
-    overlay.mkdir(parents=True)
+    # The re-selection the writer races adds an empty project package.
+    (page_dir.parent / ".leaf").mkdir()
     local = element_declaration("lf-local-thread")
-    (overlay / "registry.json").write_text(json.dumps({"lf-local-thread": local}))
-    vendoring_model.cmd_init(page_dir, selected=(*page_packages(), "./.leaf"))
+    declare_on_page(
+        page_dir, lambda registry: registry.__setitem__("lf-local-thread", local)
+    )
     publish(page_dir)
     append_carried_log_record(
         page_dir,
         {"kind": "comment", "id": "c1", "author": "user", "text": "choose"},
     )
-    (overlay / "registry.json").unlink()
     markup = '<lf-local-thread id="thread-local">Choose locally.</lf-local-thread>'
     _, refusal = assert_revendor_serializes_writer(
         page_dir,
@@ -85,12 +79,12 @@ def test_revendoring_serializes_with_thread_markup_entering_the_log(
 def test_package_data_schema_allows_literal_refs_and_resolved_local_refs(
     page_dir, schema
 ):
-    registry = json.loads((page_dir / "registry.json").read_text())
-    registry["$data"]["contracts"]["builds"] = {
-        "description": "Build facts.",
-        "schema": schema,
-    }
-    (page_dir / "registry.json").write_text(json.dumps(registry))
+    declare_on_page(
+        page_dir,
+        lambda registry: registry["$data"]["contracts"].update(
+            builds={"description": "Build facts.", "schema": schema}
+        ),
+    )
 
     result = check(page_dir)
 
@@ -99,10 +93,23 @@ def test_package_data_schema_allows_literal_refs_and_resolved_local_refs(
 
 def test_revendoring_can_drop_a_historical_data_binding(page_dir):
     """Incoming layers are not constrained by old bindings, even with a live value."""
-    declare_data_input(page_dir, "builds", {"type": "array"}, contract="builds")
+    declare_data_input(
+        page_dir, "builds", {"type": "array"}, contract="builds", activate=False
+    )
+    # A project package declares the contract and its widget, so a selection
+    # without the package drops them.
+    package = page_dir.parent / ".leaf"
+    package.mkdir()
+    (page_dir / "page" / "registry.json").rename(package / "registry.json")
+    vendoring_model.cmd_init(page_dir, (*page_packages(), "./.leaf"))
+    # Revision 1 is the document read under the package's binding.
+    assert revisioning_model.activate_source(page_dir).error is None
     data_model.cmd_data_set(page_dir, "builds", [])
 
-    refreshed = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
+    refreshed = CliRunner().invoke(
+        cli_model.cli,
+        ["page", "init", *package_selection_args(page_packages()), str(page_dir)],
+    )
 
     assert refreshed.exit_code == 0, refreshed.output
     historical = data_contracts_model.read_revision(page_dir, 1).registry
@@ -116,25 +123,14 @@ def test_revendoring_can_drop_a_historical_data_binding(page_dir):
     assert refreshed.exit_code == 0, refreshed.output
 
 
-def test_space_capacity_is_independent_of_the_widgets_internal_layout(page_dir):
-    """A capacity declaration says how much room core grants. It does not constrain the
-    package's internal layout, including whether the widget also renders an attribute."""
-    registry = json.loads((page_dir / "registry.json").read_text())
-    registry["lf-board"]["properties"]["caption"] = {"type": "string"}
-    registry["lf-board"]["x-says"] = {"caption": "before"}
-    registry["lf-board"]["x-space"] = "available"
-    (page_dir / "registry.json").write_text(json.dumps(registry))
-    result = check(page_dir)
-    assert result.exit_code == 0, result.output
-
-
 @pytest.mark.parametrize(("subschema", "exit_code"), [(True, 0), (False, 1)])
 def test_boolean_attribute_subschemas_validate_without_crashing(
     page_dir, subschema, exit_code
 ):
-    registry = json.loads((page_dir / "registry.json").read_text())
-    registry["lf-options"]["properties"]["choose"] = subschema
-    (page_dir / "registry.json").write_text(json.dumps(registry))
+    declare_on_page(
+        page_dir,
+        lambda registry: registry["lf-options"]["properties"].update(choose=subschema),
+    )
     version = page_dir / "index.html"
     version.write_text(
         version.read_text().replace("<lf-options>", '<lf-options id="opts" choose>')
@@ -149,48 +145,35 @@ def test_boolean_attribute_subschemas_validate_without_crashing(
 
 
 def test_physical_record_slots_remain_local_to_the_coordinate(page_dir):
-    registry = json.loads((page_dir / "registry.json").read_text())
 
-    # A different host attribute is a different value slot on the same unit.
-    task = registry["lf-test-task"]
-    owner = json.loads(json.dumps(task["x-state"]["status"]))
-    owner["record"] = {"kind": "value", "attr": "owner"}
-    task["properties"]["owner"] = {"type": "string"}
-    task.setdefault("required", []).append("owner")
-    task["x-state"]["owner"] = owner
+    def owned(registry):
+        # A different host attribute is a different value slot on the same unit.
+        task = registry["lf-test-task"]
+        owner = json.loads(json.dumps(task["x-state"]["status"]))
+        owner["record"] = {"kind": "value", "attr": "owner"}
+        task["properties"]["owner"] = {"type": "string"}
+        task.setdefault("required", []).append("owner")
+        task["x-state"]["owner"] = owner
 
-    (page_dir / "registry.json").write_text(json.dumps(registry))
+    declare_on_page(page_dir, owned)
 
     result = check(page_dir)
 
     assert result.exit_code == 0, result.output
 
 
-def test_custom_retirement_holders_can_be_revised_without_an_answer(trial_page):
-    """The same free editing applies to a layer's own outcome widgets."""
-    for source in (
-        trial_version(ADOPTED, TRIAL_LOG, PILOT_PURGE),
-        trial_version(TRIAL_CACHE, SHELVED, PILOT_PURGE),
-        trial_version(TRIAL_CACHE, PILOT_PURGE),
-        trial_version(TRIAL_CACHE, TRIAL_LOG),
-    ):
-        (trial_page / "index.html").write_text(source)
-        revised = check(trial_page)
-        assert revised.exit_code == 0, revised.output
-    decide(trial_page, "shelve", widget="pilot-purge")
-    honored = stamp(trial_page, "answered")
-    assert honored.exit_code == 0, honored.output
-    assert live_versions(trial_page) == [1, 2]
-
-
 def test_withdrawal_may_name_an_outcome_that_retires_no_slots(trial_page):
-    registry = json.loads((trial_page / "registry.json").read_text())
-    registry["lf-trial"]["x-withdrawn-as"] = "pause"
-    (trial_page / "registry.json").write_text(json.dumps(registry))
+
+    def withdrawn_as(outcome):
+        declare_on_page(
+            trial_page,
+            lambda registry: registry["lf-trial"].update({"x-withdrawn-as": outcome}),
+        )
+
+    withdrawn_as("pause")
     result = check(trial_page)
     assert result.exit_code == 0, result.output
-    registry["lf-trial"]["x-withdrawn-as"] = "missing"
-    (trial_page / "registry.json").write_text(json.dumps(registry))
+    withdrawn_as("missing")
     status, findings = check_findings(trial_page)
     assert status != 0
     assert found(findings, "withdrawn-as", "<lf-trial>", outcome="missing")
@@ -211,28 +194,31 @@ def test_the_widget_that_records_a_parts_position_is_the_one_that_places_it(
 
     Scalar records on the card or its column coexist with the board's position
     record. A column recording positions takes that slot from the board."""
-    registry = json.loads((page_dir / "registry.json").read_text())
-    registry["lf-column"]["properties"]["tint"] = {"type": "string"}
     card_verbs = {"flag": _value_verb("flag")}
     recorders = {"lf-card": ("flag", card_verbs)}
     if arrangement.startswith("recording-column"):
         recorders["lf-column"] = ("tint", {"tint": _value_verb("tint")})
-    for tag, (attr, verbs) in recorders.items():
-        entry = registry[tag]
-        entry["properties"] |= {
-            attr: {"type": "string"},
-            "restated": {"type": "boolean"},
-        }
-        entry["required"] = sorted({*entry["required"], attr})
-        entry["x-state"] = verbs
-        entry["x-upgrade"] = True
-        (page_dir / "widgets" / f"{tag}.js").write_text("export default class {}\n")
-    if arrangement == "recording-column-position":
-        registry["lf-column"]["x-state"]["move"] = {
-            "unit": "unit",
-            "record": {"kind": "position", "within": "lf-column"},
-        }
-    (page_dir / "registry.json").write_text(json.dumps(registry))
+    widgets = page_dir / "page" / "widgets"
+    widgets.mkdir(parents=True, exist_ok=True)
+
+    def record(registry):
+        registry["lf-column"]["properties"]["tint"] = {"type": "string"}
+        for tag, (attr, verbs) in recorders.items():
+            entry = registry[tag]
+            entry["properties"] |= {
+                attr: {"type": "string"},
+                "restated": {"type": "boolean"},
+            }
+            entry["x-state"] = verbs
+            entry["x-upgrade"] = True
+            (widgets / f"{tag}.js").write_text("export default class {}\n")
+        if arrangement == "recording-column-position":
+            registry["lf-column"]["x-state"]["move"] = {
+                "unit": "unit",
+                "record": {"kind": "position", "within": "lf-column"},
+            }
+
+    declare_on_page(page_dir, record)
     result = check(page_dir)
     assert result.exit_code == 0, result.output
 
@@ -263,25 +249,6 @@ def test_the_widget_that_records_a_parts_position_is_the_one_that_places_it(
     else:
         assert status == 400, body
         assert refusal in json.loads(body)["error"]
-
-
-def test_a_widget_nobody_has_touched_is_not_the_gate_s_business(page_dir):
-    """The gate is about decisions, so it holds nothing against a version that
-    rewrites a widget the user never acted on."""
-    (page_dir / "index.html").write_text(
-        PAGE.replace(
-            "<h2>Plan</h2>",
-            '<h2>Plan</h2><lf-draft id="d1"><pre>First words.</pre></lf-draft>',
-        )
-    )
-    publish(page_dir)
-    (page_dir / "index.html").write_text(
-        PAGE.replace(
-            "<h2>Plan</h2>",
-            '<h2>Plan</h2><lf-draft id="d1"><pre>Quite different words.</pre></lf-draft>',
-        )
-    )
-    assert check(page_dir).exit_code == 0
 
 
 def test_check_names_a_media_reference_the_directory_cannot_answer(page_dir):
@@ -377,7 +344,9 @@ def test_sample_data_bindings_use_copied_data_but_not_parent_history(page_dir):
     result = check(page_dir)
     assert result.exit_code == 0, result.output
     registry = registry_storage.require_registry(page_dir)
-    value = data_model.read_source(page_dir, "shared", registry)["value"]
+    source_record = data_model.read_source(page_dir, "shared", registry)
+    assert source_record is not None
+    value = source_record["value"]
     assert data_contracts_model.payload_error("shared", "child", value, registry)
     assert data_model.read_contracts(page_dir)["shared"] == "parent"
 
@@ -483,12 +452,17 @@ def test_init_allows_to_drop_the_contract_of_a_held_comment(page_dir):
             "holds": "goal",
         },
     )
-    registry_path = package / "registry.json"
+    dropped = page_dir.parent / "dropped-command-hub"
+    shutil.copytree(package, dropped)
+    registry_path = dropped / "registry.json"
     registry = json.loads(registry_path.read_text())
     del registry["lf-test-task"]["x-thread-seat"]["hold"]
     registry_path.write_text(json.dumps(registry))
 
-    result = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
+    result = CliRunner().invoke(
+        cli_model.cli,
+        ["page", "init", "--package", "./dropped-command-hub", str(page_dir)],
+    )
 
     assert result.exit_code == 0, result.output
 

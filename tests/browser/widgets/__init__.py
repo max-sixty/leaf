@@ -5,7 +5,13 @@ import re
 
 from playwright.sync_api import expect
 from render_cases_widgets import LONG_LINE_DIFF_PAGE, MULTI_HUNK_PATCH
-from render_harness import PANEL, leaf_page, open_page, panel_field, panel_menu
+from render_harness import (
+    close_panel_menu,
+    leaf_page,
+    open_page,
+    panel_field,
+    panel_menu,
+)
 
 from leaf import data as data_model
 
@@ -22,19 +28,13 @@ def expect_accept_all(page, count):
     """Read the leaf's menu offering Accept all for `count` pending suggestions, enabled,
     then put the menu away; `count` 0 reads no such row at all."""
     menu = panel_menu(page)
-    row = menu.locator('.lf-fp-item[data-row="blanket:accept"]')
+    row = menu.locator('.lf-fp-item[data-lf-row="blanket:accept"]')
     if count:
         expect(row).to_be_enabled()
         expect(row).to_contain_text(f"Accept all ({count})")
     else:
         expect(row).to_have_count(0)
-    put_menu_away(page)
-
-
-def put_menu_away(page):
-    """Close the leaf's menu by its leaf, which keeps the focus the press gave it."""
-    page.locator(".lf-fp-leaf").click()
-    expect(page.locator(PANEL)).not_to_have_attribute("data-menu", "")
+    close_panel_menu(page)
 
 
 def observe_live_region(page):

@@ -5,31 +5,35 @@
  * Declared creations also need shared shadow rules before their first connection;
  * their constructors remain imports of the creating module.
  */
+import { isElement } from "./shadow-tree.js";
+
 import { isElementName } from "./registry-contract.js";
 
+/** @typedef {Document | DocumentFragment | Element} Scope
+ * @typedef {Record<string, import("../types/contract.js").WidgetDeclaration>} Registry */
+/** @param {Scope} scope @param {Registry} registry */
 export function registeredTags(scope, registry) {
   const tags = new Set([
-    ...(scope.localName ? [scope.localName] : []),
+    ...(isElement(scope) ? [scope.localName] : []),
     ...[...scope.querySelectorAll("*")].map((element) => element.localName),
   ]);
   return [...tags].filter((tag) => isElementName(tag) && Object.hasOwn(registry, tag));
 }
 
+/** @param {Scope} scope @param {Registry} registry */
 export function widgetImports(scope, registry) {
-  const initializers = [];
   const modules = [];
   const tags = registeredTags(scope, registry);
   for (const tag of tags) {
     const entry = registry[tag];
-    if (entry?.["x-initial"]) initializers.push({ tag, path: entry["x-initial"] });
     if (entry?.["x-upgrade"]) modules.push(tag);
   }
   const shadow = tags.some(
     (tag) =>
-      registry[tag]["x-shadow"] ||
-      Object.values(registry[tag]["x-state"] ?? {}).some(
-        (state) => state.creates && registry[state.creates.child]["x-shadow"],
+      registry[tag]?.["x-shadow"] ||
+      Object.values(registry[tag]?.["x-state"] ?? {}).some(
+        (state) => state.creates && registry[state.creates.child]?.["x-shadow"],
       ),
   );
-  return { initializers, modules, shadow };
+  return { modules, shadow };
 }

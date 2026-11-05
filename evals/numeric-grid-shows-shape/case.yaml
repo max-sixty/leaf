@@ -19,8 +19,147 @@ assert:
   - type: llm-rubric
     metric: judgment
     value: |
-      Pass only if the HTML leads with an `lf-chart` that plots the three groups
-      against the five weeks, making their shared rise and fall visible. The exact
+      Pass only if the HTML leads with a chart that plots the three groups on
+      shared axes against the five weeks, making their shared rise and fall visible.
+      Any chart implementation can qualify; a list of values cannot. The exact
       measurements remain available in a table below the chart, preferably inside
       `<details>`. Fail if the table is the primary presentation, or if the chart
       omits a group or the five-week sequence.
+variants:
+  experiment-comparison:
+    # From #4662: a page reporting a prompt A/B copied the grid its analysis script
+    # printed, one column per wording and model, so each wording sat two or four
+    # columns from its baseline, and quoted the tested sentences only in another
+    # section. The prompt carries that printout and the agent's earlier reply that
+    # repeated it. On Claude Code, base 2a9d00dc5 failed effect-against-baseline in
+    # 14 of 14 runs and change-beside-effect in 11 of 11; with the experiment sentence
+    # in page-authoring.md, "Composing a page", 4 of 4 passed both. Asked plainly,
+    # with the grid and no earlier turns, base failed effect-against-baseline in 15 of
+    # 15 and passed it in 4 of 4 with the sentence, but base already quoted the added
+    # sentences beside its table in 10 of 12, so that form was dropped.
+    metadata:
+      purpose: "Experiment results: each variant's effect reads against its baseline, beside what the variant changed."
+      tags:
+        - authoring
+        - charts
+    vars:
+      prompt: |
+        Earlier in this session you wrote a Leaf page for our migration-review prompt
+        experiment. Its first section, "Wordings", quotes the three instructions we
+        are testing: Current is "Review the migration for correctness." Flag appends
+        "Flag any statement that locks a large table." Ask appends "If a statement
+        could lock a table, ask before approving." Each wording reviews the same 10
+        migrations once on each model.
+
+        Then I asked you to run the analysis on last night's batch, and you ran
+        `uv run python analyze.py runs/2026-10-07`, which printed:
+
+        ```
+        behaviour               current/opus  current/haiku  flag/opus  flag/haiku  ask/opus  ask/haiku
+        flags-risky-lock                2/10           1/10       9/10        7/10      8/10       6/10
+        notes-missing-rollback          6/10           4/10       8/10        5/10      6/10       4/10
+        no-false-alarm                 10/10           9/10       7/10        8/10      9/10       9/10
+        under-300-words                 8/10           9/10       8/10        9/10      5/10       6/10
+        ```
+
+        You replied:
+
+        > Last night's batch is in.
+        >
+        > | Behaviour | Current, Opus | Current, Haiku | Flag, Opus | Flag, Haiku | Ask, Opus | Ask, Haiku |
+        > | --- | ---: | ---: | ---: | ---: | ---: | ---: |
+        > | Flags a risky table lock | 2/10 | 1/10 | 9/10 | 7/10 | 8/10 | 6/10 |
+        > | Notes a missing rollback | 6/10 | 4/10 | 8/10 | 5/10 | 6/10 | 4/10 |
+        > | No false alarm | 10/10 | 9/10 | 7/10 | 8/10 | 9/10 | 9/10 |
+        > | Under 300 words | 8/10 | 9/10 | 8/10 | 9/10 | 5/10 | 6/10 |
+        >
+        > Want me to put these on the page?
+
+        Yes, add a Results section to the page. The page directory isn't reachable
+        from here, so reply with the section's HTML fragment rather than writing a
+        file.
+    assert:
+      - type: llm-rubric
+        metric: effect-against-baseline
+        value: |
+          Pass when the section's main presentation lets the reader see each
+          wording's effect against Current, for every behaviour and both models,
+          without subtracting across distant cells: each model's Current beside Flag
+          and Ask (adjacent cells, bars or dots), one shared chart axis per model, or
+          the differences shown. Fail when the main presentation keeps the printed
+          column order, where each model's Current sits two or four columns from the
+          wording it is compared with, even if prose or a later element states some of
+          the effects. Don't require a particular widget or a chart.
+      - type: llm-rubric
+        metric: change-beside-effect
+        value: |
+          Pass when the sentence Flag adds and the sentence Ask adds each appear
+          directly above, below or inside the table or chart that shows that
+          wording's results. Fail when the section names the wordings only by their
+          labels, or quotes them only in a separate part of the section or page.
+      - type: llm-rubric
+        metric: faithful-values
+        value: |
+          Pass when every behaviour, model and wording appears with the counts the
+          analysis printed, and any difference shown is computed correctly from them.
+          Fail on an omitted or misread count.
+  traffic-mix:
+    # Added after ordinary Leaf reports repeatedly described useful experiences
+    # without showing them. Unlike the complete configuration tasks, this request
+    # names an exploratory goal but no control or presentation form. Native page
+    # authoring tests the result; the source rubric cannot prove browser operation,
+    # which was checked separately on the retained samples. On 2026-10-24 both HEAD
+    # and an experimental authoring frame passed 1/1, choosing calculators and charts
+    # without a requested form; live probes confirmed the meaningful controls worked.
+    metadata:
+      authoring: true
+      purpose: "Choose a useful way to explore changing assumptions in an ordinary decision page."
+      tags:
+        - authoring
+        - charts
+        - drawing
+    vars:
+      prompt: |
+        Help me choose between these two deployments and make the page useful when
+        our traffic mix changes again.
+
+        We serve interactive requests and bulk requests. In a fixed-load benchmark,
+        deployment A's mean latency was 80 ms for interactive requests and 900 ms
+        for bulk requests. Deployment B's means were 140 ms and 350 ms respectively.
+        Interactive requests used to be 70% of our traffic and are now 95%. The
+        plausible range for the next quarter is 50% to 99% interactive requests;
+        the remainder is bulk requests. Both deployments meet our other requirements.
+
+        For this decision, estimate overall mean latency by weighting those measured
+        means by request share. Only the traffic mix changes in this estimate. These
+        measurements do not establish tail latency or behavior under different load,
+        queuing or concurrency. We care about the lower overall mean, and want to
+        understand when that choice would change.
+
+        Write the decision page in the initialized Leaf page directory.
+    assert:
+      - type: llm-rubric
+        metric: explores-changing-mix
+        value: |
+          The page lets the reader investigate how changing traffic mix affects the
+          choice, rather than only read a recommendation for today's mix. Pass for a
+          meaningful input that changes the visible means or comparison for both
+          deployments, or a continuous comparison across the plausible range whose
+          values and marked crossover make clear when each deployment wins. A chart
+          can answer this without controls. No particular control, chart library or
+          widget is required. A fixed table of only the old and current mix is not
+          enough. The useful comparison and its assumptions should be easy to inspect
+          together; decorative controls, unexplained numbers, or long repeated
+          descriptions do not suffice.
+          Judge the submitted implementation, not promises to add the exploration.
+      - type: llm-rubric
+        metric: preserves-model-and-decision
+        value: |
+          The comparison uses request-weighted means: A = 80p + 900(1-p),
+          B = 140p + 350(1-p), where p is interactive share. At 70%, A is 326 ms
+          and B 203 ms; at 95%, A is 121 ms and B 150.5 ms. The crossover is about
+          90.164% interactive, with B better below and A above. The page need not print
+          every check value or the formula if its visible outputs and recommendation
+          are correct. It clearly presents this as a fixed-load mean estimate, without
+          inferring tail, queueing, concurrency or changed-load performance. Fail on
+          materially wrong arithmetic, inverted recommendations, or erased limits.

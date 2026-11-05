@@ -1,7 +1,8 @@
 """The probe records real Leaf and ordinary web journeys, including failures."""
 
-from leaf_dev.recording import write_gif
 from PIL import Image
+
+from leaf_dev.recording import write_gif
 
 
 def test_gif_retains_the_viewport_when_startup_frame_dimensions_change(tmp_path):

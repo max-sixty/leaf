@@ -26,9 +26,10 @@
    shows it in place of the title for the row ↑↓ selects, so the keyboard reaches it
    too. As a grey line under the title it made the catalog harder to scan for the few
    rows that have one, so that line shows only where there is no hover to raise the
-   tooltip. The meta line stacks every description's line, hidden, in the cell it
-   shows in, so it is as tall as the longest from opening and the results never move
-   under the walk.
+   tooltip. The meta line keeps one line, cutting a long description short, as the
+   selected row does, so the results never move under the walk; a screen reader hears
+   it whole. It once stacked every description, hidden, to stand as tall as the
+   longest, which left the resting count over a blank line or two.
 
    The catalog is deliberately frozen while open. A command that becomes live waits until
    the next opening; one that becomes unavailable is rejected by fresh dispatch and causes
@@ -38,13 +39,15 @@
    door as their Keyboard shortcuts row (page-controls.js), for a pointer. That row
    opens it from where the user was before pressing it, and Escape returns to the row's
    door. */
+import { labelWords } from "../words.js";
+import { setScroll } from "../arrivals.js";
 import {
   showNativeLayer,
   closeNativeLayer,
   dismissPopoversOutside,
 } from "./layer-stack.js";
 import { scrollIntoView } from "../landing-scroll.js";
-import { html, nothing, render, repeat } from "/vendor/browser-runtime.js";
+import { html, nothing, render, repeat } from "/runtime/framework.js";
 
 import {
   bindings,
@@ -53,7 +56,9 @@ import {
   quickShortcuts,
   setQuickShortcuts,
   clampedRow,
+  hasRows,
   commandPresentations,
+  commandBinding,
   contextBindings,
   allBindings,
   descriptionOf,
@@ -66,10 +71,11 @@ import {
 } from "./bindings.js";
 import { beginWalk, listWalkPosition } from "../walk-position.js";
 import {
+  completeRowKeySteps,
   completeRowSteps,
+  stepText,
   keySequenceModel,
   keySequenceTemplate,
-  neutralStates,
 } from "./key-sequence.js";
 import {
   handBack,
@@ -80,21 +86,15 @@ import {
   openerOf,
   rove,
   currentLocationIn,
-  deepFocus,
+  blurFocused,
 } from "../focus.js";
-import { closeControl, searchField } from "../widget-elements.js";
+import { closeControl, offeredAction, searchField } from "../widget-elements.js";
 import { keeps } from "../keeps.js";
 import { renderedOrder } from "../shadow.js";
 import { ELEMENTS, pageCommand, pageScope, pageScopes } from "./register.js";
 import { PAGE_CONTROL_RANK, registerPageControl } from "../page-controls.js";
 import { EVERYTHING } from "./text-entry.js";
-import {
-  merge,
-  pruneScopedElements,
-  scopeRefs,
-  scopesAt,
-  scopesFor,
-} from "./scopes.js";
+import { pruneScopedElements, scopeRefs, scopesAt, scopesFor } from "./scopes.js";
 import { repaint } from "../repaint.js";
 import { pageSelection } from "../composing/capture.js";
 import { availableCommandRoutes, executeCommand, userIn } from "./dispatch.js";
@@ -110,6 +110,7 @@ commandReferenceDialog.setAttribute("closedby", "any");
 commandReferenceDialog.setAttribute("aria-modal", "true");
 // Focused on open, so the dialog is not silent to a screen reader.
 commandReferenceDialog.tabIndex = -1;
+/** @type {(() => void) | null} */
 let stopReferenceReading = null;
 const commandReferenceSearch = searchField("lf-command-reference-search", {
   name: "shortcut-search",
@@ -130,17 +131,61 @@ commandReferenceClose.setAttribute("aria-label", "Close the command reference");
 // and command wiring are ready before the first opening. Local renders only seat them.
 commandReferenceDialog.append(commandReferenceSearch, commandReferenceClose);
 
+/** @typedef {import("./bindings.js").Command} Command
+ * @typedef {import("./bindings.js").CommandRoute} CommandRoute
+ * @typedef {import("./bindings.js").Scope} Scope
+ * @typedef {{row: Command, sequence: Scope["sequence"]}} ReferenceRow
+ * @typedef {{title?: Scope["title"], reach?: Scope["reach"], when?: Scope["when"], at?: Scope["at"], liveInCommandReference?: Scope["liveInCommandReference"]}} ReferenceMetadata
+ * @typedef {ReferenceMetadata & {rows: Map<string | symbol, ReferenceRow>}} ReferenceSection
+ * @typedef {{id: string, rowId: string, keyId: string, descriptionId: string, sectionId: string, sectionTitle: string,
+ * order: number, sequenceControl: boolean, keyLabel: boolean, steps: readonly string[], keySequence: ReturnType<typeof keySequenceModel> | null,
+ * title: string, description: string, actionable: boolean, available: boolean, unavailableMessage: string,
+ * bindingForms: readonly {display: string, spoken: string}[], directWords: string, familyWords: string}} ReferenceEntry
+ * @typedef {{id: string, title: string, words: string, order: number, entries: readonly ReferenceEntry[]}} CatalogSection
+ * @typedef {{total: number, entries: readonly ReferenceEntry[], sections: readonly CatalogSection[]}} ReferenceCatalog
+ * @typedef {{query: string, selectedCommandId: string | null, metaOverride: string | null}} ReferenceState
+ * @typedef {({kind: "heading", id: string, title: string} | {kind: "entry", entry: ReferenceEntry, promoted: boolean}) & {key: string, order?: number, hidden?: boolean}} ReferenceItem
+ * @typedef {(id: string) => boolean} InvokeCommand
+ */
+// Contributor scope liveness is joined; the innermost active contributor supplies each row.
+/** @param {Scope["when"]} left @param {Scope["when"]} right */
+const either = (left, right) => (left && right ? () => left() || right() : undefined);
+/** @param {Map<Scope["title"], ReferenceSection>} sections
+ * @param {ReferenceMetadata & {rows: Iterable<readonly [string | symbol, ReferenceRow]>}} section */
+function merge(sections, { title, reach, when, at, liveInCommandReference, rows }) {
+  if (when && !when()) return;
+  const seen = sections.get(title);
+  if (!seen) {
+    sections.set(title, {
+      title,
+      reach,
+      when,
+      at,
+      liveInCommandReference,
+      rows: new Map(rows),
+    });
+    return;
+  }
+  for (const [key, row] of rows) seen.rows.set(key, row);
+  seen.when = either(seen.when, when);
+  seen.at = either(seen.at, at);
+  seen.liveInCommandReference ||= liveInCommandReference;
+}
+
 // Every scope the page has, gathered by title, for the reference. This is not the current
 // stack: the catalog answers what the user could do here, so it includes a card grip's
 // commands even while that grip does not hold focus. Rows in the active scope still apply
 // their liveness because a visible command must not promise a press that would be refused.
+/** @param {Element | null} origin */
 function declaredStack(origin) {
   pruneScopedElements();
+  /** @type {Map<Scope["title"], ReferenceSection>} */
   const sections = new Map();
   // Capture this before the dialog takes focus. Repeated widgets share command ids, but
   // their words can name the particular thing in front of the user; active contributors
   // therefore get the last word in their section.
   const activeScopes = scopesFor(origin);
+  /** @param {ReferenceSection} section */
   const named = (section) =>
     activeScopes.some(
       (scope) => scope.title === section.title && (!scope.when || scope.when()),
@@ -150,32 +195,41 @@ function declaredStack(origin) {
   // Intrinsic and contextual presentations share a canonical command id, but must survive
   // the section merge independently until reachability chooses one. Internal map keys
   // occupy a separate identity space; no authored command id can collide with them.
+  /** @type {Map<string, symbol>} */
   const contextualIds = new Map();
+  /** @param {Scope} scope @param {Command} row */
   const referenceIdentity = (scope, row) => {
     if (!scope.contextual) return row.id;
-    if (!contextualIds.has(row.id)) contextualIds.set(row.id, Symbol(row.id));
-    return contextualIds.get(row.id);
+    let id = contextualIds.get(row.id);
+    if (!id) {
+      id = Symbol(row.id);
+      contextualIds.set(row.id, id);
+    }
+    return id;
   };
+  /** @param {Scope} scope @returns {[string | symbol, ReferenceRow][]} */
   const referenceRows = (scope) =>
     scope.rows.map((row) => [
       referenceIdentity(scope, row),
       // Presentation metadata belongs beside the registered row. Cloning a sequence
       // row loses the identity used by the dispatcher's route-availability snapshot.
-      { row, sequence: scope.sequencePrefix ?? scope.sequence ?? row.sequence },
+      { row, sequence: scope.sequencePrefix ?? scope.sequence },
     ]);
   for (const scope of pageScopes().toReversed()) {
     if (scope !== ELEMENTS) {
       merge(sections, { ...scope, rows: referenceRows(scope) });
       continue;
     }
+    /** @type {Map<Scope["title"], ReferenceSection>} */
     const declared = new Map();
     // Registration order follows asynchronous upgrade. Document order gives the reference
     // a stable shape across loads.
-    const held = [...scopeRefs]
-      .map((ref) => ref.deref())
-      .filter(
-        (node) => node?.isConnected && scopesAt(node).some((scope) => scope.title),
-      );
+    const held = [...scopeRefs].flatMap((ref) => {
+      const node = ref.deref();
+      return node?.isConnected && scopesAt(node).some((scope) => scope.title)
+        ? [node]
+        : [];
+    });
     held.sort(renderedOrder);
     const seen = new Set();
     for (const node of held) {
@@ -195,6 +249,7 @@ function declaredStack(origin) {
       merge(sections, { ...section, at: () => named(section) });
   }
   // A way out reads after the interaction it exits.
+  /** @param {Command} row */
   const exit = (row) => (bindings(row).includes("Escape") ? 1 : 0);
   return [...sections.values()].map((section) => ({
     ...section,
@@ -204,23 +259,25 @@ function declaredStack(origin) {
   }));
 }
 
+/** @type {{on: ReturnType<typeof availableCommandRoutes>, off: ReturnType<typeof availableCommandRoutes>}} */
 let commandRoutesAtOpen = { on: new Map(), off: new Map() };
-let commandReferenceIsOpen = false;
+/** @type {InvokeCommand | null} */
 let commandReferenceInvoke = null;
 
 const EMPTY_CATALOG = Object.freeze({
   total: 0,
   entries: Object.freeze([]),
   sections: Object.freeze([]),
-  describedMeta: Object.freeze([]),
 });
-/** @type {ReturnType<typeof captureCommandReferenceCatalog>} */
+/** @type {ReferenceCatalog} */
 let commandReferenceCatalog = EMPTY_CATALOG;
+/** @type {ReferenceState} */
 let commandReferenceState = {
   query: "",
   selectedCommandId: null,
   metaOverride: null,
 };
+/** @type {ReturnType<typeof projectCommandReference>} */
 let commandReferenceView = {
   shown: 0,
   metadata: "",
@@ -232,14 +289,12 @@ let commandReferenceView = {
   tabStopCommandId: null,
 };
 
-const commandReferenceWords = (value) =>
-  String(value ?? "")
-    .toLocaleLowerCase()
-    .replace(/\s+/g, " ")
-    .trim();
+/** @param {string | null | undefined} value */
+const commandReferenceWords = (value) => labelWords(value).toLocaleLowerCase();
 
 // A binding query retains a trailing separator: `g ` means the routes below the `g`
 // prefix. Case is retained for the first rank so `g t` and `g T` remain distinct.
+/** @param {string | null | undefined} value */
 const commandReferenceBinding = (value) =>
   String(value ?? "")
     .replace(/^\s+/, "")
@@ -248,26 +303,41 @@ const commandReferenceBinding = (value) =>
 // Titles are written for the surface that shows them most: a compact lowercase word
 // for a hint, a sentence for a route only the reference shows. Listed
 // together, the reference starts every one with a capital, as a menu does.
+/** @param {string} title */
 const listedTitle = (title) =>
   `${title.charAt(0).toLocaleUpperCase()}${title.slice(1)}`;
 
+/** @param {Command} row @param {string} scopeTitle @param {Scope["reach"]} scopeReach */
 const availableWhere = (row, scopeTitle, scopeReach) => {
   const place = word(row.reach) ?? word(scopeReach) ?? scopeTitle;
   return `Available ${place.charAt(0).toLocaleLowerCase()}${place.slice(1)}`;
 };
 
-const spokenReferenceSteps = (row, route, steps, declared) => {
-  const alternatives = route ? [route.binding] : declared;
-  if (alternatives.length !== 1) return steps;
-  const binding = alternatives[0];
-  const spoken = [...steps];
-  const index = spoken.lastIndexOf(spell(binding));
-  if (index !== -1) spoken[index] = spokenBinding(binding);
-  return spoken;
+/** @param {import("./bindings.js").CommandRoute | null} route
+ * @param {readonly (readonly string[])[]} keys @param {readonly string[]} declared
+ * @returns {import("./key-sequence.js").KeySequenceStep[]} */
+const referenceKeySteps = (route, keys, declared) => {
+  const alternatives = route?.binding === undefined ? declared : [route.binding];
+  const [binding, ...rest] = alternatives;
+  const spokenIndex =
+    binding !== undefined && !rest.length
+      ? keys.map(stepText).lastIndexOf(spell(binding))
+      : -1;
+  return keys.map((one, index) => {
+    const text = stepText(one);
+    return {
+      text,
+      keys: one,
+      spoken:
+        index === spokenIndex && binding !== undefined ? spokenBinding(binding) : text,
+      state: "neutral",
+    };
+  });
 };
 
 // Evaluate every dynamic declaration once while opening. Search never calls back into the
 // register, and rendered records retain no executable command or liveness function.
+/** @returns {ReferenceCatalog} */
 function captureCommandReferenceCatalog() {
   const referenceScopes = declaredStack(openerOf(commandReferenceDialog))
     .map((scope) => {
@@ -299,19 +369,23 @@ function captureCommandReferenceCatalog() {
               : [],
             presentations: commandPresentations(row, declared, {
               includeUnavailable: true,
-            }).map(({ id, route }) => ({
-              id,
-              route:
-                route && route.binding == null
-                  ? { ...route, binding: contextBindings(route)[0] }
-                  : route,
-            })),
+            }).map(({ id, route }) => {
+              const [binding] = route ? contextBindings(route) : [];
+              return {
+                id,
+                route:
+                  route && route.binding === undefined && binding !== undefined
+                    ? { ...route, binding }
+                    : route,
+              };
+            }),
           };
         });
       return { scope, rows };
     })
     .filter(({ rows }) => rows.length);
 
+  /** @param {(typeof referenceScopes)[number]["rows"][number]} rowInfo @param {CommandRoute | null} route */
   const available = (rowInfo, route) => {
     const routes =
       commandRoutesAtOpen[quickShortcuts() ? "on" : "off"].get(rowInfo.row) ??
@@ -321,9 +395,14 @@ function captureCommandReferenceCatalog() {
       ? routes.has(undefined)
       : alternatives.some((binding) => routes.has(binding));
   };
+  // Whether the reference can run a row is a fact of its declaration, and whether it
+  // can run it now is `available`'s.
+  /** @param {Command} row @param {CommandRoute | null} route */
   const actionable = (row, route) =>
     Boolean(
-      (row.run || routedCommand(route)) &&
+      (row.run ||
+        (commandBinding(row, route) != null && row.runKey) ||
+        routedCommand(route)) &&
       (routedCommand(route)?.row ?? row).runFromCommandReference !== false,
     );
 
@@ -334,6 +413,7 @@ function captureCommandReferenceCatalog() {
   // prefer the reachable one (an obligation digit can replace a shadowed intrinsic key).
   // Invoking the reference names the capability, so any executable route makes the
   // entry available even when its displayed sequence has not been entered yet.
+  /** @type {Map<string, {row: Command, binding: string | null, available: boolean, actionable: boolean, keyed: boolean}>} */
   const preferred = new Map();
   const executable = new Set();
   for (const { rows } of referenceScopes)
@@ -361,12 +441,15 @@ function captureCommandReferenceCatalog() {
       }
 
   const presented = new Set();
+  /** @type {CatalogSection[]} */
   const sections = [];
+  /** @type {ReferenceEntry[]} */
   const entries = [];
   let entryIndex = 0;
   for (const { scope, rows } of referenceScopes) {
     const sectionOrder = sections.length;
     const sectionTitle = scope.title ?? "On this page";
+    /** @type {ReferenceEntry[]} */
     const sectionEntries = [];
     for (const rowInfo of rows) {
       for (const { id, route } of rowInfo.presentations) {
@@ -383,19 +466,19 @@ function captureCommandReferenceCatalog() {
           route?.description !== undefined
             ? descriptionOf(route)
             : rowInfo.baseDescription;
-        const alternatives = (route ? [route.binding] : rowInfo.declared).filter(
-          bindingEnabled,
-        );
-        const steps = alternatives.length
-          ? [...rowInfo.sequence, ...completeRowSteps(rowInfo.referenceRow, route)]
+        const alternatives = (
+          route?.binding === undefined ? rowInfo.declared : [route.binding]
+        ).filter(bindingEnabled);
+        const keySteps = alternatives.length
+          ? [
+              ...rowInfo.sequence.map((step) => [step]),
+              ...completeRowKeySteps(rowInfo.referenceRow, route),
+            ]
           : [];
+        const steps = keySteps.map(stepText);
         const isAvailable = executable.has(id);
-        const spokenSteps = spokenReferenceSteps(
-          rowInfo.row,
-          route,
-          steps,
-          rowInfo.declared,
-        );
+        const spokenSteps = referenceKeySteps(route, keySteps, rowInfo.declared);
+        /** @type {ReferenceEntry} */
         const entry = Object.freeze({
           id,
           rowId: `lf-command-reference-row-${entryIndex}`,
@@ -407,9 +490,7 @@ function captureCommandReferenceCatalog() {
           sequenceControl: Boolean(rowInfo.row.sequenceControl),
           keyLabel: rowInfo.declared.length === 0 && word(rowInfo.row.label) == null,
           steps: Object.freeze(steps),
-          keySequence: steps.length
-            ? keySequenceModel(steps, neutralStates(steps), spokenSteps)
-            : null,
+          keySequence: steps.length ? keySequenceModel(spokenSteps) : null,
           title,
           description,
           actionable: actionable(rowInfo.row, route),
@@ -449,21 +530,18 @@ function captureCommandReferenceCatalog() {
     total: entries.length,
     entries: Object.freeze(entries),
     sections: Object.freeze(sections),
-    describedMeta: Object.freeze(
-      entries
-        .filter((entry) => entry.actionable && entry.description)
-        .map(selectionMeta),
-    ),
   });
 }
 
 // What the meta line says of the row ↑↓ selects. The row already shows its title.
+/** @param {ReferenceEntry} entry */
 const selectionMeta = (entry) =>
   [entry.description || entry.title, entry.steps[0], "⏎ activate"]
     .filter(Boolean)
     .join(" · ");
 
 // Rank the frozen catalog without reading or moving its rendered rows.
+/** @param {ReferenceCatalog} catalog @param {ReferenceState} state */
 function projectCommandReference(catalog, state) {
   const query = commandReferenceWords(state.query);
   const bindingQuery = commandReferenceBinding(state.query);
@@ -555,6 +633,7 @@ function projectCommandReference(catalog, state) {
   const bindingHeading = bindingMatches.length
     ? Object.freeze({ order: presentationOrder++ })
     : null;
+  /** @type {{entry: ReferenceEntry, promoted: boolean, order: number}[]} */
   const entryPresentations = bindingMatches.map(({ entry }) =>
     Object.freeze({ entry, promoted: true, order: presentationOrder++ }),
   );
@@ -598,6 +677,7 @@ function updateCommandReferenceView() {
   commandReferenceView = view;
 }
 
+/** @param {ReferenceEntry} entry */
 function activateCommandEntry(entry) {
   if (!entry.available) {
     commandReferenceState = {
@@ -628,72 +708,85 @@ function activateCommandEntry(entry) {
   });
 }
 
+// A command is one option of the results' listbox, a row (control-faces.js,
+// `ACTION_FACES`) holding its title, its keys and its description, so the whole row is
+// the press and wears the row's wash and ring. One that can't run from the catalog, a
+// gesture with no command to run, stands as a disabled option at the same face.
+/** @param {ReferenceEntry} entry @param {boolean} [promoted] @param {boolean} [shown] */
 function commandEntryTemplate(entry, promoted = false, shown = true) {
   const selected = commandReferenceView.selectedCommandId === entry.id;
-  const action = entry.actionable
-    ? html`<button
-        type="button"
-        class="lf-command-reference-command"
-        data-lf-command=${entry.id}
-        data-lf-available=${String(entry.available)}
-        data-lf-selected=${String(selected)}
-        aria-describedby=${[
-          entry.keySequence ? entry.keyId : null,
-          entry.description ? entry.descriptionId : null,
-        ]
-          .filter(Boolean)
-          .join(" ")}
-        title=${
-          [entry.description, entry.available ? "" : entry.unavailableMessage]
-            .filter(Boolean)
-            .join("\n") || nothing
-        }
-        @click=${() => activateCommandEntry(entry)}
-        .textContent=${entry.title}
-      ></button>`
-    : entry.title;
+  const titleId = `${entry.rowId}-title`;
   const scope = promoted
     ? html`<span class="lf-command-reference-scope">${entry.sectionTitle}</span>`
     : nothing;
   // Whitespace in these cells is observable to accessibility and command consumers.
   // prettier-ignore
-  const actionCell = html`<div role="gridcell" class="lf-command-reference-action">${action}${scope}</div>`;
-  // prettier-ignore
-  const descriptionCell = entry.description ? html`<div role="gridcell" id=${entry.descriptionId} class="lf-command-reference-description">${entry.description}</div>` : nothing;
-  return html`
-    <div
+  const cells = html`<span class="lf-command-reference-action"><span id=${titleId} class="lf-command-reference-title-words">${entry.title}</span>${scope}</span><span class="lf-command-reference-key">${
+      entry.keySequence
+        ? keySequenceTemplate(entry.keySequence, {
+            id: entry.keyId,
+            label: entry.keyLabel,
+          })
+        : nothing
+    }</span>${entry.description ? html`<span id=${entry.descriptionId} class="lf-command-reference-description">${entry.description}</span>` : nothing}`;
+  const rowClass = `lf-command-reference-row${entry.sequenceControl ? " lf-sequence-command" : ""}`;
+  // Every option says its keys and its description to a screen reader, whether or not
+  // it runs from here.
+  const describedBy =
+    [
+      entry.keySequence ? entry.keyId : null,
+      entry.description ? entry.descriptionId : null,
+    ]
+      .filter(Boolean)
+      .join(" ") || nothing;
+  if (!entry.actionable)
+    return html`<div
       id=${entry.rowId}
-      role="row"
-      class=${`lf-command-reference-row${entry.sequenceControl ? " lf-sequence-command" : ""}`}
+      role="option"
+      ${offeredAction("row", rowClass)}
       data-lf-command=${entry.id}
-      aria-selected=${entry.actionable ? String(selected) : nothing}
+      aria-disabled="true"
+      aria-labelledby=${titleId}
+      aria-describedby=${describedBy}
       ?hidden=${!shown}
     >
-      ${actionCell}
-      <div role="gridcell" class="lf-command-reference-key">
-        ${
-          entry.keySequence
-            ? keySequenceTemplate(entry.keySequence, {
-                id: entry.keyId,
-                label: entry.keyLabel,
-              })
-            : nothing
-        }
-      </div>
-      ${descriptionCell}
-    </div>
-  `;
+      ${cells}
+    </div>`;
+  return html`<button
+    type="button"
+    id=${entry.rowId}
+    role="option"
+    ${offeredAction("row", `${rowClass} lf-command-reference-command`)}
+    data-lf-command=${entry.id}
+    data-lf-available=${String(entry.available)}
+    data-lf-selected=${String(selected)}
+    aria-selected=${String(selected)}
+    aria-labelledby=${titleId}
+    aria-describedby=${describedBy}
+    title=${
+      [entry.description, entry.available ? "" : entry.unavailableMessage]
+        .filter(Boolean)
+        .join("\n") || nothing
+    }
+    ?hidden=${!shown}
+    @click=${() => activateCommandEntry(entry)}
+  >
+    ${cells}
+  </button>`;
 }
 
+// A section's heading names the group of each command under it (`aria-labelledby`), as
+// a listbox holds only options and their groups, so it stands out of the
+// accessibility tree itself.
+/** @param {string} id @param {string} title @param {boolean} [hidden] */
 const headingRow = (id, title, hidden = false) => html`
-  <div role="rowgroup" ?hidden=${hidden}>
-    <div role="row">
-      <div role="gridcell"><h3 class="lf-label" id=${id}>${title}</h3></div>
-    </div>
+  <div role="none" ?hidden=${hidden}>
+    <h3 class="lf-rows-head" id=${id} aria-hidden="true">${title}</h3>
   </div>
 `;
 
 const commandReferenceItems = () => {
+  /** @type {(ReferenceItem & {order: number})[]} */
   const visible = [];
   if (commandReferenceView.bindingHeading)
     visible.push({
@@ -723,6 +816,7 @@ const commandReferenceItems = () => {
   // Keep every catalog row under this one keyed parent. Filtering and binding promotion
   // then reorder retained rows instead of recreating their native controls and keycaps.
   const visibleKeys = new Set(visible.map(({ key }) => key));
+  /** @type {ReferenceItem[]} */
   const hidden = [
     {
       kind: "heading",
@@ -730,28 +824,38 @@ const commandReferenceItems = () => {
       id: "lf-command-reference-binding-matches",
       title: "Matching shortcuts",
     },
-    ...commandReferenceCatalog.sections.map((section) => ({
-      kind: "heading",
-      key: `heading:${section.id}`,
-      id: section.id,
-      title: section.title,
-    })),
-    ...commandReferenceCatalog.sections.flatMap((section) =>
-      section.entries.map((entry) => ({
-        kind: "entry",
-        key: `entry:${entry.id}`,
-        entry,
-        promoted: false,
-      })),
+    ...commandReferenceCatalog.sections.map(
+      /** @returns {ReferenceItem} */ (section) => ({
+        kind: "heading",
+        key: `heading:${section.id}`,
+        id: section.id,
+        title: section.title,
+      }),
     ),
-  ].filter(({ key }) => !visibleKeys.has(key));
-  return [...visible, ...hidden.map((item) => ({ ...item, hidden: true }))];
+    ...commandReferenceCatalog.sections.flatMap((section) =>
+      section.entries.map(
+        /** @returns {ReferenceItem} */ (entry) => ({
+          kind: "entry",
+          key: `entry:${entry.id}`,
+          entry,
+          promoted: false,
+        }),
+      ),
+    ),
+  ];
+  return [
+    ...visible,
+    ...hidden
+      .filter(({ key }) => !visibleKeys.has(key))
+      .map((item) => ({ ...item, hidden: true })),
+  ];
 };
 
+/** @param {ReferenceItem} item */
 function commandReferenceItemTemplate(item) {
   if (item.kind === "heading") return headingRow(item.id, item.title, item.hidden);
   return html`<div
-    role="rowgroup"
+    role="group"
     aria-labelledby=${
       item.promoted ? "lf-command-reference-binding-matches" : item.entry.sectionId
     }
@@ -765,11 +869,11 @@ function commandReferenceItemTemplate(item) {
 function commandReferenceTemplate() {
   const items = commandReferenceItems();
   return html`
-    <div class="lf-command-reference-head">
-      <div class="lf-command-reference-title">Command reference</div>
+    <div class="lf-dialog-head lf-command-reference-head">
+      <div class="lf-dialog-title">Command reference</div>
       ${commandReferenceClose}
     </div>
-    <label class="lf-command-reference-preference">
+    <label class="lf-choice lf-command-reference-preference">
       <input
         type="checkbox"
         name="quick-keyboard-shortcuts"
@@ -777,12 +881,14 @@ function commandReferenceTemplate() {
         .checked=${quickShortcuts()}
         aria-labelledby="lf-quick-keyboard-label"
         aria-describedby="lf-quick-keyboard-help"
-        @change=${(event) => {
-          setQuickShortcuts(event.currentTarget.checked);
-          commandReferenceCatalog = captureCommandReferenceCatalog();
-          presentCommandReference();
-          repaint();
-        }}
+        @change=${
+          /** @param {Event & {currentTarget: HTMLInputElement}} event */ (event) => {
+            setQuickShortcuts(event.currentTarget.checked);
+            commandReferenceCatalog = captureCommandReferenceCatalog();
+            presentCommandReference();
+            repaint();
+          }
+        }
       />
       <span id="lf-quick-keyboard-label">Quick keyboard shortcuts</span>
       <small id="lf-quick-keyboard-help"
@@ -790,30 +896,36 @@ function commandReferenceTemplate() {
       >
     </label>
     ${commandReferenceSearch}
-    <div class="lf-command-reference-meta-box">
-      ${commandReferenceCatalog.describedMeta.map(
-        (text) => html`<span aria-hidden="true">${text}</span>`,
-      )}
-      <div
-        class="lf-command-reference-meta"
-        aria-live="polite"
-        .textContent=${commandReferenceView.metadata}
-      ></div>
-    </div>
+    <div
+      class="lf-command-reference-meta"
+      aria-live="polite"
+      .textContent=${commandReferenceView.metadata}
+    ></div>
     <div
       id="lf-command-reference-results"
       class="lf-command-reference-results"
-      role="grid"
+      role="listbox"
       aria-label="Command reference"
     >
       ${repeat(items, (item) => item.key, commandReferenceItemTemplate)}
-      <div role="row" ?hidden=${commandReferenceView.shown !== 0}>
-        <div class="lf-command-reference-empty" role="gridcell">
-          No matching commands
-        </div>
+      <div
+        class="lf-rows-empty"
+        role="option"
+        aria-disabled="true"
+        ?hidden=${commandReferenceView.shown !== 0}
+      >
+        No matching commands.
       </div>
     </div>
   `;
+}
+
+/** @param {string} selector */
+function referenceElement(selector) {
+  /** @type {HTMLElement | null} */
+  const element = commandReferenceDialog.querySelector(selector);
+  if (!element) throw new Error(`Command reference template is missing ${selector}`);
+  return element;
 }
 
 function presentCommandReference() {
@@ -825,8 +937,8 @@ function presentCommandReference() {
   keeps(search, "role", "combobox");
   keeps(search, "aria-autocomplete", "list");
   keeps(search, "aria-expanded", "true");
-  keeps(search, "aria-haspopup", "grid");
-  const results = commandReferenceDialog.querySelector(".lf-command-reference-results");
+  keeps(search, "aria-haspopup", "listbox");
+  const results = referenceElement(".lf-command-reference-results");
   if (search.ariaControlsElements?.[0] !== results)
     search.ariaControlsElements = [results];
   const selected = commandReferenceView.visibleCommands.find(
@@ -843,12 +955,13 @@ function presentCommandReference() {
     commandReferenceDialog.querySelectorAll(".lf-command-reference-command"),
     commandButton(commandReferenceView.tabStopCommandId),
   );
+  return results;
 }
 
-function readCommandReferenceSearch(event) {
+function readCommandReferenceSearch() {
   commandReferenceState = {
     ...commandReferenceState,
-    query: event.currentTarget.value,
+    query: commandReferenceSearch.value ?? "",
     metaOverride: null,
   };
   presentCommandReference();
@@ -860,10 +973,12 @@ commandReferenceDialog.addEventListener("cancel", (event) => {
   closeCommandReference();
 });
 
+/** @type {Element | null} */
 let commandReferenceReturn = null;
 
-function showCommandReference(open, restoreFocus, invokeCommand, returnTo) {
-  const fresh = open && !commandReferenceIsOpen;
+/** @param {boolean} open @param {boolean} restoreFocus @param {InvokeCommand | null} invokeCommand @param {Element | null} returnTo @param {string} [query] */
+function showCommandReference(open, restoreFocus, invokeCommand, returnTo, query) {
+  const fresh = open && !commandReferenceDialog.open;
   // Focusing a text input replaces the document selection. Keep a passage the user has
   // in hand and focus Close instead; an ordinary opening lands directly in search.
   const preserveSelection = fresh && Boolean(pageSelection());
@@ -888,31 +1003,24 @@ function showCommandReference(open, restoreFocus, invokeCommand, returnTo) {
       off: availableCommandRoutes({ commands: true, quick: false }),
     };
   }
-  commandReferenceIsOpen = open;
   if (fresh) {
     commandReferenceCatalog = captureCommandReferenceCatalog();
     commandReferenceState = {
-      query: "",
+      query: query ?? "",
       selectedCommandId: null,
       metaOverride: null,
     };
-    presentCommandReference();
-    /** @type {HTMLInputElement} */
-    const search = commandReferenceDialog.querySelector(".lf-command-reference-search");
-    const results = commandReferenceDialog.querySelector(
-      ".lf-command-reference-results",
-    );
+    const results = presentCommandReference();
     // Native editing and scrolling values begin fresh and remain untouched by local Lit
     // renders.
-    search.value = "";
-    results.scrollTo({ top: 0, behavior: "instant" });
+    commandReferenceSearch.value = query ?? "";
+    setScroll(results, { top: 0, behavior: "instant" });
     stopReferenceReading = registerReadingRegion({
       id: "lf-region:command-reference",
       host: commandReferenceDialog,
       body: results,
     });
   }
-  commandReferenceDialog.classList.toggle("open", open);
   if (open && !commandReferenceDialog.open) showNativeLayer(commandReferenceDialog);
   // The reference is a bounded interaction rather than a level of the page: it claims the
   // whole keyboard while it stands and hands the user back itself, to the control the
@@ -928,8 +1036,7 @@ function showCommandReference(open, restoreFocus, invokeCommand, returnTo) {
     closeLayer(
       () => {
         if (commandReferenceDialog.open) closeNativeLayer(commandReferenceDialog);
-        if (currentLocationIn(commandReferenceDialog))
-          /** @type {HTMLElement | null} */ (deepFocus())?.blur();
+        if (currentLocationIn(commandReferenceDialog)) blurFocused();
         repaint();
       },
       handingBack && (() => handBack(restore)),
@@ -939,53 +1046,50 @@ function showCommandReference(open, restoreFocus, invokeCommand, returnTo) {
   // The results are a real overflow region, so they take a Tab stop of their own.
   reachScrollers(commandReferenceDialog);
   focusDestination(
-    commandReferenceDialog.querySelector(
-      preserveSelection
-        ? ".lf-command-reference-close"
-        : ".lf-command-reference-search",
-    ),
+    preserveSelection ? commandReferenceClose : commandReferenceSearch,
     "move",
   );
   repaint();
 }
 
-const commandButton = (id) =>
-  [
-    .../** @type {NodeListOf<HTMLElement>} */ (
-      commandReferenceDialog.querySelectorAll(".lf-command-reference-command")
-    ),
-  ].find((button) => button.dataset.lfCommand === id) ?? null;
+/** @param {string | null | undefined} id */
+const commandButton = (id) => {
+  /** @type {NodeListOf<HTMLElement>} */
+  const buttons = commandReferenceDialog.querySelectorAll(
+    ".lf-command-reference-command",
+  );
+  return [...buttons].find((button) => button.dataset.lfCommand === id) ?? null;
+};
 
-const focusedCommandId = () =>
-  focused()?.matches?.(".lf-command-reference-command")
-    ? focused().dataset.lfCommand
+const focusedCommandId = () => {
+  const current = focused();
+  return current?.matches(".lf-command-reference-command")
+    ? current.getAttribute("data-lf-command")
     : null;
+};
 
 const commandReferenceCommandActive = () =>
   commandReferenceView.visibleCommands.length > 0 &&
   (focused() === commandReferenceSearch.input || focusedCommandId() !== null);
 
+/** @param {import("./bindings.js").Step} dir */
 function moveCommandReferenceSelection(dir) {
-  const ids = commandReferenceView.visibleCommands.map(({ entry }) => entry.id);
-  if (!ids.length) return;
+  const records = commandReferenceView.visibleCommands;
+  if (!hasRows(records)) return;
   const focusedId = focusedCommandId();
-  const nextId = clampedRow(
-    ids,
-    focusedId ?? commandReferenceState.selectedCommandId,
-    dir,
-  );
-  const nextRecord = commandReferenceView.visibleCommands.find(
-    ({ entry }) => entry.id === nextId,
-  );
+  const currentId = focusedId ?? commandReferenceState.selectedCommandId;
+  const current = records.find(({ entry }) => entry.id === currentId);
+  const nextRecord = clampedRow(records, current, dir);
+  const nextId = nextRecord.entry.id;
   commandReferenceState = {
     ...commandReferenceState,
     selectedCommandId: nextId,
     metaOverride: selectionMeta(nextRecord.entry),
   };
   presentCommandReference();
-  const next = commandButton(nextId);
+  const next = referenceElement(`#${nextRecord.entry.rowId}`);
   if (focusedId) focusDestination(next, "move");
-  scrollIntoView(next.closest('[role="row"]'), { block: "nearest" });
+  scrollIntoView(next, { block: "nearest" });
   beginWalk("shortcut-command", "Command", () => {
     const current = focusedCommandId() ?? commandReferenceState.selectedCommandId;
     return listWalkPosition(
@@ -1009,13 +1113,13 @@ function activateSelectedCommand() {
   return true;
 }
 
-const commandReferenceOpen = () => commandReferenceIsOpen;
 // The opening command supplies the action chosen from this particular reference. The
 // rendered catalog retains only ids and sends one back through that injected authority.
-const openCommandReference = (invokeCommand, returnTo = null) =>
-  showCommandReference(true, true, invokeCommand, returnTo);
+/** @param {InvokeCommand | null} invokeCommand @param {Element | null} [returnTo] @param {string} [query] */
+const openCommandReference = (invokeCommand, returnTo = null, query = "") =>
+  showCommandReference(true, true, invokeCommand, returnTo, query);
 const closeCommandReference = (restoreFocus = true) =>
-  showCommandReference(false, restoreFocus, null, null);
+  showCommandReference(false, restoreFocus, null, null, "");
 
 // The dialog's own keys. It is a modal search context and claims the whole keyboard while
 // it stands, so its rows are the only ones the user can reach; the boundary's one route
@@ -1025,7 +1129,7 @@ pageScope("command reference", {
   title: "In the command reference",
   escape: "inner",
   root: () => commandReferenceDialog,
-  at: () => commandReferenceOpen(),
+  at: () => commandReferenceDialog.open,
   claims: EVERYTHING,
   rows: [
     {
@@ -1079,13 +1183,19 @@ pageScope("command reference", {
 // What a press must end before the reference opens over it, such as an armed Go-to
 // sequence or react mode, which boot supplies (`mountCommandReference`).
 let closeInteractions = () => {};
+/** @param {{beforeOpening: () => unknown}} options */
 export function mountCommandReference({ beforeOpening }) {
   closeInteractions = beforeOpening;
 }
-const openReference = (returnTo = null) => {
+/** @param {Element | null} [returnTo] @param {string} [query] */
+const openReference = (returnTo = null, query = "") => {
   closeInteractions();
-  openCommandReference((id) => executeCommand(id), returnTo);
+  openCommandReference((id) => executeCommand(id), returnTo, query);
 };
+// The reference opened on words already typed, as the leaf's menu passes on those its
+// own search holds, so one catalog answers every search for a command.
+/** @param {string} query @param {Element | null} [returnTo] */
+export const findCommands = (query, returnTo = null) => openReference(returnTo, query);
 
 // `?`, from wherever a key reaches.
 pageCommand({

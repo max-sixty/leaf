@@ -15,34 +15,32 @@ import { elementDeclarations, exhibits } from "./registry.js";
 import { isElementName } from "./registry-contract.js";
 import { authoredParents } from "./projection/authored.js";
 import { elementById } from "./passages.js";
-import { initialOrigin, initialParent, initialSource } from "./initial-render.js";
 
+/** @typedef {import("./framework/application.js").WidgetDescriptor} WidgetDescriptor */
+/** @type {WeakMap<Element, WidgetDescriptor>} */
 const byElement = new WeakMap();
+/** @type {Map<string, WidgetDescriptor>} */
 const byId = new Map();
+/** @type {Map<string, Element>} */
 const elements = new Map();
 
 const declaredTags = () => elementDeclarations().map(([tag]) => tag);
 
+/** @param {Document | Element | DocumentFragment} root */
 const candidates = (root) => {
   const tags = declaredTags();
   if (!tags.length) return [];
   const selector = tags.join(",");
   const found = [...root.querySelectorAll(selector)];
-  if (root.nodeType === Node.ELEMENT_NODE && root.matches(selector))
-    found.unshift(root);
+  if (root instanceof Element && root.matches(selector)) found.unshift(root);
   return found;
 };
 
-const parentOf = (element) => {
-  if (authoredParents.has(element)) return authoredParents.get(element);
-  if (element.parentElement) return element.parentElement;
-  // A copied arriving root is detached, although its authored coordinate was
-  // captured against the parent it will join before insertion. Only that outer
-  // edge leaves the reconstructed source tree; descendants use its own ancestry.
-  const live = initialOrigin(element);
-  return authoredParents.has(live) ? authoredParents.get(live) : initialParent(live);
-};
+/** @param {Element} element @returns {Element | null} */
+const parentOf = (element) =>
+  authoredParents.has(element) ? authoredParents.get(element) : element.parentElement;
 
+/** @param {Element} element */
 const declaredAncestors = (element) => {
   const ancestors = [];
   for (let parent = parentOf(element); parent; parent = parentOf(parent))
@@ -61,6 +59,7 @@ const declaredAncestors = (element) => {
 // `tests/exhibit_cases.json` holds both runtimes to one set of cases. Asked of
 // authored parents, so a widget layout has moved still answers for where it was
 // written.
+/** @param {Element} element */
 const quotedBy = (element) => {
   for (let node = parentOf(element); node; node = parentOf(node))
     if (exhibits(node, runtime.registry[node.localName])) return true;
@@ -68,22 +67,24 @@ const quotedBy = (element) => {
 };
 
 /** @param {Document | Element | DocumentFragment} [root]
- * @param {{kind: "page" | "thread", revision?: number, thread?: string, message?: string}} [documentContext] */
+ * @param {WidgetDescriptor["document"]} [documentContext] */
 export function stageWidgetDescriptors(
   root = document,
   documentContext = { kind: "page", revision: runtime.currentRevision },
 ) {
+  /** @type {Map<string, WidgetDescriptor>} */
   const captured = new Map();
+  /** @type {{element: Element, descriptor: WidgetDescriptor}[]} */
   const bindings = [];
-  for (const element of candidates(initialSource(root))) {
+  for (const element of candidates(root)) {
     if (!element.id) continue;
-    const live = initialOrigin(element);
-    const existing = byElement.get(live);
+    const existing = byElement.get(element);
     if (
       existing &&
       existing.document.kind === documentContext.kind &&
       (documentContext.kind === "thread" ||
-        existing.document.revision === documentContext.revision)
+        (existing.document.kind === "page" &&
+          existing.document.revision === documentContext.revision))
     ) {
       captured.set(element.id, existing);
       continue;
@@ -99,7 +100,7 @@ export function stageWidgetDescriptors(
       ancestors,
       quoted: quotedBy(element),
     };
-    bindings.push({ element: live, descriptor });
+    bindings.push({ element, descriptor });
     captured.set(element.id, descriptor);
   }
   return Object.freeze({
@@ -108,6 +109,7 @@ export function stageWidgetDescriptors(
   });
 }
 
+/** @param {Pick<ReturnType<typeof stageWidgetDescriptors>, "bindings">} stage @param {Set<string>} [retired] */
 export function commitWidgetDescriptors(stage, retired = new Set()) {
   // A revision that rewrites a widget's authored markup retires the descriptor taken
   // from the markup it replaced. The id survives the revision and the element does not,
@@ -126,8 +128,10 @@ export function commitWidgetDescriptors(stage, retired = new Set()) {
 
 // The element standing for a widget id: the one the document holds under it, else the
 // bound node not yet mounted (a message's frozen markup before the thread places it).
+/** @param {string} id */
 export const widgetElement = (id) => elementById(id) ?? elements.get(id) ?? null;
 
+/** @param {Element} owner */
 export function widgetDescriptor(owner) {
   const captured = byElement.get(owner);
   if (captured) return captured;
@@ -144,8 +148,10 @@ export function widgetDescriptor(owner) {
 // renders, a quoted settled group still collapses. The answer is the one its
 // controller's actions read, the descriptor's, or the same rule for an element with
 // no descriptor.
+/** @param {Element} element */
 export const quoted = (element) =>
   widgetDescriptor(element)?.quoted ?? quotedBy(element);
 
+/** @param {Element} owner @param {WidgetDescriptor} descriptor */
 export const descriptorStillMatches = (owner, descriptor) =>
   owner.id === descriptor.id && owner.localName === descriptor.tag;

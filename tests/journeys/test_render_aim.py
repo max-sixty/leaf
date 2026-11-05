@@ -158,7 +158,7 @@ def test_an_aimed_press_does_only_what_the_outline_promised(
     # but a press there is one the page answers, so the sweep takes it as well.
     targets = (
         f"{aim_targets(serve.page_dir)}, "
-        ".lf-margin-cluster :is(.lf-sug-accept, .lf-sug-reject)"
+        ".lf-margin-cluster :is([data-lf-margin-entry-key=accept], [data-lf-margin-entry-key=reject])"
     )
     total = page.locator(targets).count()
     pressed = aimed = 0
@@ -188,7 +188,7 @@ def test_an_aimed_press_does_only_what_the_outline_promised(
                   [el.matches('.lf-pick') || !!el.closest('lf-option'), 'option click'],
                   [el.matches('lf-draft') || !!el.closest('lf-draft'),
                    'draft mousedown'],
-                  [el.matches('.lf-sug-accept, .lf-sug-reject'),
+                  [el.matches('[data-lf-margin-entry-key=accept], [data-lf-margin-entry-key=reject]'),
                    'suggestion control'],
                 ].filter(([reached]) => reached).map(([, name]) => name)"""
             )
@@ -308,7 +308,9 @@ def test_design_mode_comments_on_a_margin_action_without_performing_it(browser, 
     page = open_page(browser, serve(SUGGESTION_PAGE))
     resized(page, 1440, 900)
     page.keyboard.press("l")
-    accept = page.locator('[data-lf-margin-for="sug-refill"] .lf-sug-accept')
+    accept = page.locator(
+        '[data-lf-margin-for="sug-refill"] [data-lf-margin-entry-key=accept]'
+    )
     expect(accept).to_be_visible()
 
     accept.hover()
@@ -367,7 +369,9 @@ def test_design_mode_comments_on_a_margin_action_without_performing_it(browser, 
     # The thread opens with the caret in its reply; Escape stands on the thread.
     page.keyboard.press("Escape")
     page.keyboard.press("l")
-    accept = page.locator('[data-lf-margin-for="reply-suggestion"] .lf-sug-accept')
+    accept = page.locator(
+        '[data-lf-margin-for="reply-suggestion"] [data-lf-margin-entry-key=accept]'
+    )
     expect(accept).to_be_visible()
 
     accept.click()
@@ -530,6 +534,17 @@ def test_open_draft_retains_words_when_responsive_layout_hides_its_target(
         for width in (480, 1200):
             resized(page, width, 900)
             rendered(page)
+            if reply and width == 480:
+                # A window with no room for the rail shows the thread in the floating
+                # panel, whether or not the page draws its target, and the user goes
+                # on there in the editor they typed in.
+                panel_field = page.locator(".lf-fp-field leaf-text")
+                expect(
+                    page.locator(".lf-fp-view:not([data-lf-leaving])")
+                ).to_have_count(1)
+                assert panel_field.evaluate("el => el === window.lfTypedIn")
+                assert _draft_in_view(page, words, panel_field)
+                continue
             expect(field).to_have_js_property("value", words)
             if target == "#bg-contents a" and width == 480:
                 # Authored CSS hides the sidebar at this width. The editor retains
@@ -543,12 +558,11 @@ def test_open_draft_retains_words_when_responsive_layout_hides_its_target(
                         "data-lf-plane", "page"
                     )
                 else:
-                    # The thread shows once: the floating panel, which took it while the
-                    # page drew its target nowhere, gives it back to the card, and the
-                    # user goes on in the editor they typed in, with its caret and undo
-                    # history.
+                    # The thread shows once: the floating panel, which took it on the
+                    # narrow window, gives it back to the card, and the user goes on in
+                    # the editor they typed in, with its caret and undo history.
                     expect(
-                        page.locator(".lf-fp-view:not([data-leaving])")
+                        page.locator(".lf-fp-view:not([data-lf-leaving])")
                     ).to_have_count(0)
                     assert field.evaluate("el => el === window.lfTypedIn")
                 assert _draft_in_view(page, words, field)
@@ -561,7 +575,6 @@ def test_resume_reveals_an_open_draft_when_its_existing_subject_hides(browser, s
             "disclosure",
             "#detail-word",
             "document.getElementById('disclosure').open=false",
-            "document.getElementById('disclosure').open=true",
         ),
         (
             "inactive-tab",
@@ -571,21 +584,15 @@ def test_resume_reveals_an_open_draft_when_its_existing_subject_hides(browser, s
               const {retainUserIntent} = await window.__lfWidgetApi();
               reveal(document.getElementById('other-view'), retainUserIntent());
             }""",
-            """async () => {
-              const {reveal} = await window.__lfCheckApi();
-              const {retainUserIntent} = await window.__lfWidgetApi();
-              reveal(document.getElementById('active-view'), retainUserIntent());
-            }""",
         ),
         (
             "offscreen",
             "#offscreen-word",
             "scrollTo(0,document.documentElement.scrollHeight)",
-            "document.getElementById('offscreen-word').scrollIntoView({block:'center'})",
         ),
     )
     results = []
-    for name, target, hide, show in cases:
+    for name, target, hide in cases:
         page, words = _open_attachment_draft(browser, url, target)
         page.evaluate(hide)
         rendered(page)

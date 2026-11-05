@@ -19,8 +19,17 @@ import { inChrome } from "./passages.js";
 import { placePoints } from "./pointed-place.js";
 import { threadKey, threadNames } from "./thread/model.js";
 import { messageHolding } from "./thread/messages.js";
-import { signal } from "/vendor/browser-runtime.js";
+import { signal } from "/runtime/framework.js";
+import { tick } from "./version-signal.js";
 
+/** @typedef {import("../types/domain.js").Anchor} Anchor */
+/** @typedef {ReturnType<typeof import("./thread/state.js").allThreads>[number]} Thread */
+/** @typedef {import("../types/contract.js").CompleteUnion<import("./resolved-target.js").ResolvedTarget & {message?: string}>} ResolvedTarget */
+/** @typedef {ResolvedTarget & {messageTarget: ReturnType<typeof messageHolding>,
+ * point: Element | null, pointRow: string | null, pointWords: string | null}} Placement */
+/** @typedef {{open: boolean, anchor: Anchor | null, about: string | null,
+ * drawing: import("./composing/drawing-record.js").DraftDrawing | null}} ThreadDraft */
+/** @param {Placement | undefined} a @param {Placement | undefined} b */
 const samePlacement = (a, b) =>
   a?.kind === b?.kind &&
   a?.status === b?.status &&
@@ -32,11 +41,13 @@ const samePlacement = (a, b) =>
   a?.message === b?.message &&
   a?.point === b?.point &&
   a?.pointRow === b?.pointRow &&
-  a?.pointWords === b?.pointWords;
+  a?.pointWords === b?.pointWords &&
+  a?.messageTarget?.element === b?.messageTarget?.element;
 
 // The message of these threads that keeps the element an anchor names, if any. An anchor
 // captured detached names no passage the user selected, so finding its element's message
 // identifies nothing and it stays detached.
+/** @param {Anchor} anchor @param {readonly Thread[]} threads */
 function heldIn(anchor, threads) {
   const held =
     anchor.section && !anchor.detached ? messageHolding(anchor.section) : null;
@@ -47,11 +58,15 @@ function heldIn(anchor, threads) {
 }
 
 export function createAnchorPlacement() {
+  /** @type {Map<string, Placement>} */
   const placed = new Map();
   const version = signal(0);
+  /** @type {ReturnType<typeof resolveAnchor>} */
   let pendingPlaced = null;
+  /** @type {Map<string, Thread>} */
   let names = new Map();
 
+  /** @param {{threads: readonly Thread[], draft: ThreadDraft, actionAnchor: Anchor | null}} options */
   function read({ threads, draft, actionAnchor }) {
     if (!anchoringIsReady()) return null;
     const before = new Map(placed);
@@ -74,6 +89,7 @@ export function createAnchorPlacement() {
       if (!resolved) continue;
       const target = targetElement(resolved) ?? resolved.place;
       const placement = Object.assign(resolved, {
+        messageTarget: held,
         point: null,
         pointRow: null,
         pointWords: null,
@@ -81,13 +97,13 @@ export function createAnchorPlacement() {
       placed.set(thread.id, placement);
       readings.push({ thread, placement });
       if (!thread.resolved && !thread.anchor.quote && !thread.anchor.visual && target)
-        pointable.push({ id: thread.id, key: threadKey(thread), target });
+        pointable.push({ id: thread.id, key: threadKey(thread), target, placement });
     }
     const pointed = placePoints(pointable, new Set(threads.map(threadKey)));
-    for (const { id, key } of pointable) {
+    for (const { placement, key } of pointable) {
       const point = pointed.get(key);
       if (point)
-        Object.assign(placed.get(id), {
+        Object.assign(placement, {
           point: point.element,
           pointRow: point.row,
           pointWords: point.words,
@@ -102,14 +118,14 @@ export function createAnchorPlacement() {
       before.size !== placed.size ||
       [...placed].some(([id, placement]) => !samePlacement(before.get(id), placement))
     )
-      version.value += 1;
+      tick(version);
     return { readings, draft: { ...draft, resolved: resolvedDraft }, action };
   }
   return Object.freeze({
     read,
-    placedAt: (id) => {
+    placedAt: (/** @type {string | null | undefined} */ id) => {
       version.value;
-      return placed.get(names.get(id)?.id ?? id);
+      return id == null ? undefined : placed.get(names.get(id)?.id ?? id);
     },
     pendingAt: () => pendingPlaced,
   });

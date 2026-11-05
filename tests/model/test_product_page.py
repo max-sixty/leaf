@@ -7,29 +7,30 @@ from pathlib import Path
 
 import click
 from click.testing import CliRunner
-from leaf_dev.page_fixtures import authored_markup
 from unidiff import PatchSet
 
-from leaf import __main__ as leaf_entry
 from leaf import cli as cli_model
 from leaf import event_contracts as event_contracts_model
 from leaf import event_log as events_model
 from leaf import service as service_model
 from leaf.registry import validation as registry_validation
 from leaf.registry.schema import check_schema
+from leaf.registry.storage import load_registry
+from leaf.state import kernel_registry
 from leaf.structure import SourceDocument
 from leaf.validation import composition as validation_model
+from leaf_dev import declared_records, docs
+from leaf_dev.docs import EXAMPLES, product_sources
+from leaf_dev.example_data import named_source, published_sources
+from leaf_dev.page_fixtures import authored_markup
 
 ROOT = Path(__file__).parents[2]
 ASSETS = ROOT / "browser"
 DEFAULT_PACKAGE = ROOT / "packages" / "default"
-DOCS = ROOT / "docs"
-EXAMPLES = ROOT / "examples"
-DEVELOPER_PAGES = tuple(sorted((EXAMPLES / "developer").glob("*.html")))
 
 
 def test_kernel_event_contracts_declare_closed_records():
-    events = json.loads((ASSETS / "registry.json").read_text())["$events"]["kinds"]
+    events = kernel_registry()["$events"]["kinds"]
     assert events
     envelope = {"id", "ts", "author", "kind", "seq"}
     for kind, contract in events.items():
@@ -47,9 +48,7 @@ def test_kernel_event_contracts_declare_closed_records():
 
 
 def test_docs_pages_leave_delivery_markup_to_leaf():
-    pages = sorted(DOCS.glob("*.html"))
-    assert pages
-    for page in pages:
+    for page in product_sources():
         text = page.read_text()
         assert 'href="/theme.css"' not in text, page.name
         assert 'src="/leaf.js"' not in text, page.name
@@ -63,11 +62,7 @@ def test_every_published_source_says_what_its_page_is():
     The build composes the rest of a page's card from these two and refuses a page
     without them, so the failure this catches is one that would stop a deploy.
     """
-    sources = [
-        *DOCS.glob("*.html"),
-        *(page for page in EXAMPLES.glob("*.html") if page.stem != "corpus"),
-        *DEVELOPER_PAGES,
-    ]
+    sources = [*product_sources(), *published_sources()]
     descriptions = {}
     for page in sorted(sources):
         parsed = SourceDocument(page.read_text())
@@ -87,28 +82,35 @@ def test_every_published_source_says_what_its_page_is():
 
 def links(name: str) -> set[tuple[str, str]]:
     """Each link one product source authors, as its target and its text."""
-    tree = SourceDocument((DOCS / name).read_text()).tree
-    return {(link.attrs["href"], link.text) for link in tree.select("a[href]")}
+    tree = SourceDocument(named_source(name).read_text()).tree
+    found = set()
+    for link in tree.select("a[href]"):
+        href = link.attrs["href"]
+        assert isinstance(href, str)
+        found.add((href, link.text))
+    return found
 
 
 def test_extension_references_follow_the_concepts_they_explain():
-    extending = {href for href, _ in links("extending.html")}
+    extending = {href for href, _ in links("extending")}
     assert {"/registry/", "/event-log/"} <= extending
     assert {("/registry/", "registry"), ("/event-log/", "event log")} <= links(
-        "how-it-works.html"
+        "how-it-works"
     )
-    assert "/extending/" in {href for href, _ in links("registry.html")}
+    assert "/extending/" in {href for href, _ in links("registry")}
 
 
 def test_package_catalog_routes_every_optional_package_to_inspectable_content():
-    tree = SourceDocument((DOCS / "extending.html").read_text()).tree
+    tree = SourceDocument(named_source("extending").read_text()).tree
     cards = tree.select("a.package-card")
     declared = json.loads((EXAMPLES / "layer.json").read_text())
 
     assert [card.attrs["data-package"] for card in cards] == declared
     for card in cards:
         href = card.attrs["href"]
+        assert isinstance(href, str)
         if href.startswith("/examples/"):
+            assert href is not None
             assert href.endswith("/")
         else:
             source_prefix = "https://github.com/max-sixty/leaf/blob/main/"
@@ -117,20 +119,24 @@ def test_package_catalog_routes_every_optional_package_to_inspectable_content():
 
 
 def test_package_tutorial_registry_entry_is_valid(page_dir):
-    tree = SourceDocument((DOCS / "extending.html").read_text()).tree
-    entry = json.loads(tree.select_one("#callout-registry").text)
-    registry = json.loads((page_dir / "registry.json").read_text()) | entry
+    tree = SourceDocument(named_source("extending").read_text()).tree
+    select_one_result = tree.select_one("#callout-registry")
+    assert select_one_result is not None
+    entry = json.loads(select_one_result.text)
+    registry = load_registry(page_dir) | entry
 
     registry_validation.validate_registry(registry, "package tutorial")
     validation_model.validate_registry_examples(registry, "package tutorial")
 
 
-EVENT_LOG = DOCS / "event-log.html"
+EVENT_LOG = named_source("event-log")
 
 
 def code_block(page: SourceDocument, block_id: str) -> str:
     """The text of one authored `lf-code`'s `<pre>`."""
-    return page.tree.select_one(f"lf-code#{block_id} > pre").text
+    select_one_result_2 = page.tree.select_one(f"lf-code#{block_id} > pre")
+    assert select_one_result_2 is not None
+    return select_one_result_2.text
 
 
 def test_pr_walkthrough_excerpts_match_the_captured_patch():
@@ -139,10 +145,12 @@ def test_pr_walkthrough_excerpts_match_the_captured_patch():
     Source excerpts and the inline orchestration hunk must agree with the same
     capture the complete patch widget presents, including their source locations.
     """
-    source = (EXAMPLES / "pr-walkthrough.html").read_text()
+    source = named_source("pr-walkthrough").read_text()
     page = SourceDocument(source)
     manifest = json.loads((EXAMPLES / "pr-walkthrough.data.json").read_text())
-    patch_source = page.tree.select_one("#pr-exact-patch").attrs["source"]
+    select_one_result_3 = page.tree.select_one("#pr-exact-patch")
+    assert select_one_result_3 is not None
+    patch_source = select_one_result_3.attrs["source"]
     capture = manifest["$captures"][patch_source]
     patch = PatchSet((EXAMPLES / capture["file"]).read_text())
     files = {file.path: file for file in patch}
@@ -151,7 +159,10 @@ def test_pr_walkthrough_excerpts_match_the_captured_patch():
     for block in blocks:
         block_id = block.attrs["id"]
         label = page.tree.select_one(f"#{block_id}-source")
-        path = label.select_one("code").text
+        assert label is not None
+        select_one_result_4 = label.select_one("code")
+        assert select_one_result_4 is not None
+        path = select_one_result_4.text
         right = {
             line.target_line_no: line.value
             for hunk in files[path]
@@ -159,15 +170,21 @@ def test_pr_walkthrough_excerpts_match_the_captured_patch():
             if line.target_line_no is not None
         }
         numbers = []
-        for interval in block.attrs["lines"].split(","):
+        line_numbers = block.attrs["lines"]
+        assert isinstance(line_numbers, str)
+        for interval in line_numbers.split(","):
             bounds = [int(bound) for bound in interval.split("-")]
             numbers.extend(range(bounds[0], bounds[-1] + 1))
         assert numbers == sorted(set(numbers)), block_id
-        assert block.select_one("pre").text.lstrip("\n") == "".join(
+        select_one_result_5 = block.select_one("pre")
+        assert select_one_result_5 is not None
+        assert select_one_result_5.text.lstrip("\n") == "".join(
             right[n] for n in numbers
         ), block_id
 
-    inline = page.tree.select_one("#pr-key-hunk pre").text.lstrip("\n")
+    select_one_result_6 = page.tree.select_one("#pr-key-hunk pre")
+    assert select_one_result_6 is not None
+    inline = select_one_result_6.text.lstrip("\n")
     [shown] = PatchSet(inline)
     captured = files[shown.path]
     assert shown
@@ -221,7 +238,9 @@ def test_the_event_log_page_shows_the_records_the_door_writes(page_dir):
     what the door stores now has to be what the page shows, `id` and `ts` aside.
     A changed field, meaning, or refusal fails here with the records to paste."""
     source = SourceDocument(EVENT_LOG.read_text())
-    sample = source.tree.select_one("lf-sample#try-sample").inner_html
+    select_one_result_7 = source.tree.select_one("lf-sample#try-sample")
+    assert select_one_result_7 is not None
+    sample = select_one_result_7.inner_html
     (page_dir / "index.html").write_text(
         '<!doctype html><html lang="en"><head><title>Release question</title>'
         '<meta name="description" content="The sample."></head>'
@@ -309,9 +328,12 @@ def test_the_event_log_page_shows_the_records_the_door_writes(page_dir):
     ]
     notes = source.tree.select("lf-code#captured-log > lf-note")
     assert '"answer": ' in lines[expected[3] - 1]
-    assert [int(note.attrs["at"]) for note in notes] == expected, (
-        f"place #captured-log's notes at {expected}"
-    )
+    positions = []
+    for note in notes:
+        position = note.attrs["at"]
+        assert isinstance(position, str)
+        positions.append(int(position))
+    assert positions == expected, f"place #captured-log's notes at {expected}"
 
 
 def test_the_event_log_page_quotes_the_registry():
@@ -336,8 +358,7 @@ def test_every_command_the_docs_show_is_one_leaf_has():
     to every other gate here, so a stale command would go on being published
     indefinitely. The names are resolved against click's own tree rather than listed
     in this file, because a list here is a second copy of the command surface and goes
-    stale the same way the page does; the harness entries, which no click group holds,
-    are read from the application entry that routes them.
+    stale the same way the page does.
     """
 
     def shown_in(tree):
@@ -350,7 +371,7 @@ def test_every_command_the_docs_show_is_one_leaf_has():
 
     shown = [
         (source.name, line)
-        for source in sorted(DOCS.glob("*.html"))
+        for source in product_sources()
         for line in shown_in(SourceDocument(authored_markup(source)).tree)
     ]
     assert len(shown) > 10, (
@@ -359,15 +380,12 @@ def test_every_command_the_docs_show_is_one_leaf_has():
     )
 
     def named(tokens):
-        """The subcommand path these tokens walk, greedily, from the root group, or
-        the harness entry the application routes before the group loads."""
-        if tokens[:1] and tokens[0] in leaf_entry.HARNESS_ENTRIES:
-            return tokens[:1]
+        """The subcommand path these tokens walk from the root Click group."""
         command, path = cli_model.cli, []
         for token in tokens:
             if not isinstance(command, click.Group):
                 break
-            sub = command.get_command(None, token)
+            sub = command.get_command(click.Context(command), token)
             if sub is None:
                 break
             path.append(token)
@@ -382,3 +400,28 @@ def test_every_command_the_docs_show_is_one_leaf_has():
     assert not unknown, "these pages show commands leaf hasn't got:\n  " + "\n  ".join(
         unknown
     )
+
+
+def test_data_structures_page_lists_every_declared_schema():
+    """Each served definition, event kind and record gets an entry, and every link
+    between entries lands on one."""
+    source = named_source("data-structures")
+    tree = SourceDocument(docs.compose(source, source.read_text())).tree
+    entries = {entry.attrs["id"] for entry in tree.select("section.schema-entry")}
+    registry = docs.read_json(docs.KERNEL_REGISTRY)["$events"]
+    expected = {
+        "served-state",
+        "event-envelope",
+        "interaction-batch",
+        "record-draft",
+        *(f"served-{name}" for name in docs.read_json(docs.SERVED_SCHEMA)["$defs"]),
+        *(f"event-{kind}" for kind in registry["kinds"]),
+        *(f"record-{kind}" for kind in declared_records()),
+    }
+    assert entries == expected
+    targets = set()
+    for link in tree.select('a[href^="#"]'):
+        href = link.attrs["href"]
+        assert isinstance(href, str)
+        targets.add(href[1:])
+    assert targets - entries <= {"events"}

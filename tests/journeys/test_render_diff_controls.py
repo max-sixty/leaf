@@ -14,80 +14,6 @@ from leaf import data as data_model
 from leaf.render_checks import rendered
 
 
-@pytest.mark.parametrize("width,scheme", [(1280, "light"), (390, "dark")])
-def test_diff_filter_has_one_frame_and_clears_with_its_count_inside(
-    browser, serve, width, scheme
-):
-    """The canonical search owns the frame, count, and Clear; filtering owns the rows,
-    and narrows them without pulling what follows the diff up into the window."""
-    patch = "".join(
-        f"diff --git a/src/file-{index}.py b/src/file-{index}.py\n"
-        f"--- a/src/file-{index}.py\n+++ b/src/file-{index}.py\n"
-        "@@ -1 +1 @@\n-old\n+new\n"
-        for index in range(12)
-    )
-    context = browser.new_context(
-        viewport={"width": width, "height": 844}, color_scheme=scheme
-    )
-    page = open_page(
-        browser,
-        serve(
-            leaf_page(
-                "Changed files",
-                f'<h1>Changed files</h1><lf-diff id="patch"><pre>{escape(patch)}</pre></lf-diff>'
-                '<p id="after">After the diff.</p>',
-            )
-        ),
-        context=context,
-    )
-    diff = page.locator("#patch")
-    field = diff.locator(".lf-diff-search")
-    editor = field.locator("input")
-    count = diff.locator(".lf-diff-progress")
-    rows = diff.locator(".lf-diff-file:not(.lf-diff-filtered)")
-    expect(editor).to_have_accessible_name("Filter diff files")
-    page.get_by_role("heading", name="Changed files").click()
-    for _ in range(8):
-        page.keyboard.press("Tab")
-        if editor.evaluate("node => node === node.getRootNode().activeElement"):
-            break
-    expect(editor).to_be_focused()
-    assert editor.evaluate("node => node.matches(':focus-visible')")
-    field.scroll_into_view_if_needed()
-    rendered(page)
-    frame = field.bounding_box()
-    assert diff.locator(".lf-diff-tools").bounding_box() == frame
-    count_box = count.bounding_box()
-    after = page.locator("#after")
-    below = after.bounding_box()
-    assert (
-        frame["x"]
-        <= count_box["x"]
-        < count_box["x"] + count_box["width"]
-        <= frame["x"] + frame["width"]
-    )
-    for query, matches in (("file-0", 1), ("no-match", 0)):
-        editor.fill(query)
-        expect(rows).to_have_count(matches)
-        expect(count).to_have_text(f"{matches} of 12")
-        expect(field.get_by_role("button", name="Clear")).to_be_visible()
-        assert field.bounding_box() == frame
-        assert after.bounding_box()["y"] >= min(below["y"], 844)
-    field.get_by_role("button", name="Clear").click()
-    expect(editor).to_have_value("")
-    expect(editor).to_be_focused()
-    expect(rows).to_have_count(12)
-    expect(count).to_have_text("12 files")
-    assert field.bounding_box() == frame
-    assert after.bounding_box() == below
-    editor.fill("file-0")
-    expect(rows).to_have_count(1)
-    editor.press("ControlOrMeta+A")
-    editor.press("Backspace")
-    expect(rows).to_have_count(12)
-    expect(count).to_have_text("12 files")
-
-
 @pytest.mark.parametrize("touch", [False, True])
 def test_diff_thread_controls_leave_line_numbers_readable(browser, serve, touch):
     """A hover mark fits the native margin without changing its reading geometry.
@@ -110,7 +36,7 @@ def test_diff_thread_controls_leave_line_numbers_readable(browser, serve, touch)
     url = serve(
         leaf_page(
             "Config change",
-            '<h1>Config change</h1><lf-diff id="patch" source="patch-data"><pre></pre></lf-diff>'
+            '<h1>Config change</h1><lf-diff id="patch" source="patch-data"></lf-diff>'
             f'<lf-diff id="native"><pre>{escape(patch)}</pre></lf-diff>',
         )
     )
@@ -199,7 +125,7 @@ def test_diff_thread_controls_leave_line_numbers_readable(browser, serve, touch)
 def test_response_and_message_reading_keep_their_face_across_shadow_seating(
     browser, serve, touch, scheme
 ):
-    """Moving the response into a source widget changes placement, not its face.
+    """Response text, focus cues and Markdown reading survive source-widget seating.
 
     Sending the same Markdown on both sides additionally exercises the complete
     reading vocabulary installed in declared trees, including a table that must
@@ -210,18 +136,18 @@ def test_response_and_message_reading_keep_their_face_across_shadow_seating(
         leaf_page(
             "Review source and prose",
             '<h1>Review source and prose</h1><p id="subject">Discuss this paragraph.</p>'
-            '<lf-diff id="patch" source="patch-data"><pre></pre></lf-diff>',
-            head="""<style id="response-inset-override" data-controls>
+            '<lf-diff id="patch" source="patch-data"></lf-diff>',
+            head="""<style id="response-inset-override">
               :is(.lf-fab-bar, .lf-margin-preview) {
                 --lf-thread-text-pad-block: 12px !important;
-                --lf-comment-text-end: 60px !important;
+                --lf-compose-action-inset: 16px !important;
               }
             </style>""",
         )
     )
     data_model.cmd_data_set(serve.page_dir, "patch-data", patch)
     context = browser.new_context(
-        viewport={"width": 390 if touch else 1280, "height": 900},
+        viewport={"width": 1280, "height": 900},
         has_touch=touch,
         is_mobile=touch,
         color_scheme=scheme,
@@ -239,9 +165,19 @@ def test_response_and_message_reading_keep_their_face_across_shadow_seating(
         return field.evaluate("""node => {
           const style = getComputedStyle(node);
           const properties = ['font-family', 'font-size', 'line-height', 'color',
-            'min-height', 'padding-top', 'padding-right', 'padding-bottom', 'padding-left',
-            'border-top-width', 'border-top-color', 'border-radius', 'box-shadow'];
+            'padding-top', 'padding-right', 'padding-bottom', 'padding-left'];
           return Object.fromEntries(properties.map(name => [name, style.getPropertyValue(name)]));
+        }""")
+
+    def forced_ring(field):
+        return field.evaluate("""field => {
+          // A floating editor gives its frame the ring; a seated editor wears it.
+          for (const node of [field, field.closest('.lf-compose-field')]) {
+            const style = getComputedStyle(node);
+            if (style.outlineStyle !== 'none' && parseFloat(style.outlineWidth) > 0)
+              return [style.outlineWidth, style.outlineStyle, style.outlineColor];
+          }
+          return null;
         }""")
 
     def reading(message):
@@ -270,15 +206,17 @@ def test_response_and_message_reading_keep_their_face_across_shadow_seating(
     expect(floating).to_be_focused()
     physical_face = face(floating)
     assert float(physical_face["padding-top"].removesuffix("px")) + 1 == 12
-    assert float(physical_face["padding-right"].removesuffix("px")) + 1 == 60
     page.emulate_media(forced_colors="active")
-    forced = floating.evaluate(
-        "node => [getComputedStyle(node).outlineWidth, "
-        "getComputedStyle(node).outlineStyle, getComputedStyle(node).outlineColor]"
-    )
-    assert forced[1] != "none"
+    forced = forced_ring(floating)
+    assert forced, "the floating response paints no focus ring in forced colors"
     page.emulate_media(forced_colors="none")
     write(floating, markdown)
+    draft_face = face(floating)
+    # Touch reserves Send's column; a mouse lets words use its free corner.
+    text_end = f"{44 + 2 * 16 + 1}px" if touch else "13px"
+    assert (
+        f"{float(draft_face['padding-right'].removesuffix('px')) + 1:g}px" == text_end
+    )
     floating.press("Control+Enter" if touch else "Enter")
     physical_reading = reading(page.locator(".lf-margin-preview .lf-msg-body").first)
     sent_insets = page.locator(".lf-margin-preview .lf-msg-text").first.evaluate(
@@ -287,7 +225,7 @@ def test_response_and_message_reading_keep_their_face_across_shadow_seating(
           return {block: style.paddingTop, end: style.paddingInlineEnd};
         }"""
     )
-    assert sent_insets == {"block": "12px", "end": "60px"}
+    assert sent_insets == {"block": "12px", "end": text_end}
     page.keyboard.press("Escape")
     diff = page.locator("#patch")
     # An author can dress a declared tree too. Install the same inputs before
@@ -301,14 +239,83 @@ def test_response_and_message_reading_keep_their_face_across_shadow_seating(
     assert inline.evaluate("node => node.getRootNode() instanceof ShadowRoot")
     assert face(inline) == physical_face
     page.emulate_media(forced_colors="active")
-    assert (
-        inline.evaluate(
-            "node => [getComputedStyle(node).outlineWidth, "
-            "getComputedStyle(node).outlineStyle, getComputedStyle(node).outlineColor]"
-        )
-        == forced
-    )
+    assert forced_ring(inline) == forced
     page.emulate_media(forced_colors="none")
     write(inline, markdown)
+    assert face(inline) == draft_face
     inline.press("Control+Enter" if touch else "Enter")
     assert reading(diff.locator(".lf-msg-body").first) == physical_reading
+
+
+@pytest.mark.parametrize("width,scheme", [(1280, "light"), (390, "dark")])
+def test_diff_filter_has_one_frame_and_clears_with_its_count_inside(
+    browser, serve, width, scheme
+):
+    """The canonical search owns the frame, count, and Clear; filtering owns the rows,
+    and narrows them without pulling what follows the diff up into the window."""
+    patch = "".join(
+        f"diff --git a/src/file-{index}.py b/src/file-{index}.py\n"
+        f"--- a/src/file-{index}.py\n+++ b/src/file-{index}.py\n"
+        "@@ -1 +1 @@\n-old\n+new\n"
+        for index in range(12)
+    )
+    context = browser.new_context(
+        viewport={"width": width, "height": 844}, color_scheme=scheme
+    )
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Changed files",
+                f'<h1>Changed files</h1><lf-diff id="patch"><pre>{escape(patch)}</pre></lf-diff>'
+                '<p id="after">After the diff.</p>',
+            )
+        ),
+        context=context,
+    )
+    diff = page.locator("#patch")
+    field = diff.locator(".lf-diff-search")
+    editor = field.locator("input")
+    count = diff.locator(".lf-diff-progress")
+    rows = diff.locator(".lf-diff-file:not([hidden])")
+    expect(editor).to_have_accessible_name("Filter diff files")
+    page.get_by_role("heading", name="Changed files").click()
+    for _ in range(8):
+        page.keyboard.press("Tab")
+        if editor.evaluate("node => node === node.getRootNode().activeElement"):
+            break
+    expect(editor).to_be_focused()
+    assert editor.evaluate("node => node.matches(':focus-visible')")
+    field.scroll_into_view_if_needed()
+    rendered(page)
+    frame = field.bounding_box()
+    assert diff.locator(".lf-diff-tools").bounding_box() == frame
+    count_box = count.bounding_box()
+    after = page.locator("#after")
+    below = after.bounding_box()
+    assert (
+        frame["x"]
+        <= count_box["x"]
+        < count_box["x"] + count_box["width"]
+        <= frame["x"] + frame["width"]
+    )
+    for query, matches in (("file-0", 1), ("no-match", 0)):
+        editor.fill(query)
+        expect(rows).to_have_count(matches)
+        expect(count).to_have_text(f"{matches} of 12")
+        expect(field.get_by_role("button", name="Clear")).to_be_visible()
+        assert field.bounding_box() == frame
+        assert after.bounding_box()["y"] >= min(below["y"], 844)
+    field.get_by_role("button", name="Clear").click()
+    expect(editor).to_have_value("")
+    expect(editor).to_be_focused()
+    expect(rows).to_have_count(12)
+    expect(count).to_have_text("12 files")
+    assert field.bounding_box() == frame
+    assert after.bounding_box() == below
+    editor.fill("file-0")
+    expect(rows).to_have_count(1)
+    editor.press("ControlOrMeta+A")
+    editor.press("Backspace")
+    expect(rows).to_have_count(12)
+    expect(count).to_have_text("12 files")

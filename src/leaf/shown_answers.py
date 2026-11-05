@@ -112,6 +112,7 @@ def shown_errors(document, registry: dict) -> list[Finding]:
         owner = by_id.get(target) if target else None
         if owner is None:
             continue
+        assert target is not None
         shows = registry[rec["tag"]]["x-shows"]
         entry = registry.get(owner["tag"]) or {}
         declared = answer_declaration(entry)

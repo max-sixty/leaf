@@ -2,10 +2,11 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { servedReading, servedThread, servedWorkflow } from "../served.mjs";
 
-const { lastMovedAt, moved, readThreadRecords } =
+const { foldThreads, lastMovedAt, moved, readThreadRecords, threadRecordReader } =
   await import("/runtime/thread/model.js");
 const { threadAttention } = await import("/runtime/thread/workflow.js");
-const { threadName, threadSummary } = await import("/runtime/thread/messages.js");
+const { threadName, threadSummary, prepareAuthoredMessage, messageReading } =
+  await import("/runtime/thread/messages.js");
 const { loadMarkdown } = await import("/runtime/markdown.js");
 const { createThreadDestinations } = await import("/runtime/thread/destination.js");
 
@@ -14,21 +15,21 @@ test("Thread destinations without a page preview retain canonical targets and sh
   const shadow = owner.attachShadow({ mode: "open" });
   const thread = document.createElement("section");
   thread.className = "lf-page-thread";
-  thread.dataset.thread = "thread-without-preview";
+  thread.dataset.lfThread = "thread-without-preview";
   const control = document.createElement("button");
   thread.append(control);
   shadow.append(thread);
   document.body.append(owner);
   const destinations = createThreadDestinations({
     threadIdsAt: () => [],
-    placedAt: (id) => (id === thread.dataset.thread ? { place: owner } : null),
+    placedAt: (id) => (id === thread.dataset.lfThread ? { place: owner } : null),
   });
   control.focus();
   assert.equal(destinations.threadHere(), thread);
-  assert.equal(destinations.threadAtCurrentLocation(), thread.dataset.thread);
-  assert.equal(destinations.threadTarget(thread.dataset.thread), owner);
+  assert.equal(destinations.threadAtCurrentLocation(), thread.dataset.lfThread);
+  assert.equal(destinations.threadTarget(thread.dataset.lfThread), owner);
   assert.equal(destinations.threadTarget("detached"), null);
-  assert.equal(destinations.threadFocusTarget(thread.dataset.thread), null);
+  assert.equal(destinations.threadFocusTarget(thread.dataset.lfThread), null);
   owner.remove();
 });
 
@@ -48,10 +49,7 @@ test("a thread's unread is the server reading less what this tab is acknowledgin
   const reply = agent("reply", { seq: 2, edited: { id: "edit", seq: 4, ts: "x" } });
   const threads = [
     servedThread([root, reply], {
-      unread: [
-        { message: "root", version: "root" },
-        { message: "reply", version: "edit" },
-      ],
+      unread: { root: "root", reply: "edit" },
     }),
   ];
   const read = (acknowledging) =>
@@ -77,6 +75,139 @@ test("a thread's unread is the server reading less what this tab is acknowledgin
     [true, false],
   );
   assert.deepEqual(current.unread, [{ message: "root", version: "root" }]);
+});
+
+test("a reading keeps the record of every thread nothing it reads has changed", () => {
+  const threads = ["a", "b", "c"].map((id) =>
+    servedThread([agent(id, { kind: "comment" })]),
+  );
+  const workflows = threads.map(({ id }) =>
+    servedWorkflow({ id: `w-${id}`, input: id, message: id, thread: id }),
+  );
+  const read = threadRecordReader();
+  const first = read(threads, NO_DOCUMENT, new Map(), workflows);
+  // The same inputs, or new lists holding the same records, keep every record.
+  assert.deepEqual(
+    read([...threads], NO_DOCUMENT, new Map(), [...workflows]).map(
+      (record, at) => record === first[at],
+    ),
+    [true, true, true],
+  );
+  // A new thread, and a workflow that moved on in another, read again only theirs.
+  const added = servedThread([agent("d", { kind: "comment" })]);
+  const moving = { ...workflows[1], stage: "picked_up" };
+  const next = read([...threads, added], NO_DOCUMENT, new Map(), [
+    workflows[0],
+    moving,
+    workflows[2],
+  ]);
+  assert.deepEqual(
+    next.slice(0, 3).map((record, at) => record === first[at]),
+    [true, false, true],
+  );
+  assert.deepEqual(next[1].workflows, [moving]);
+  assert.deepEqual(next[1].root.workflows, [moving]);
+  // A record is the one a fresh reading would make.
+  assert.deepEqual(
+    next,
+    readThreadRecords([...threads, added], NO_DOCUMENT, new Map(), [
+      workflows[0],
+      moving,
+      workflows[2],
+    ]),
+  );
+});
+
+test("a reply to a thread reads its own message and the reactions it moves", () => {
+  const reacting = {
+    ...NO_DOCUMENT,
+    registry: { $reactions: { tokens: { yes: { glyph: "+" } } } },
+  };
+  const root = agent("root", { kind: "comment", author: "user" });
+  const first = agent("first", { seq: 2 });
+  const liked = {
+    ...agent("liked", { seq: 3, author: "user" }),
+    parent: "first",
+    token: "yes",
+  };
+  const second = agent("second", { seq: 4 });
+  const thread = servedThread([root, first, liked, second]);
+  const read = threadRecordReader();
+  const [before] = read([thread], reacting, new Map(), []);
+  const third = agent("third", { seq: 5 });
+  const [after] = read(
+    [{ ...thread, msgs: [...thread.msgs, third] }],
+    reacting,
+    new Map(),
+    [],
+  );
+  // The new message is the agent's latest now, which moves the one that was; every
+  // other message keeps the record it had, the reaction in force on one included.
+  assert.deepEqual(
+    after.msgs.map((message, at) => message === before.msgs[at]),
+    [true, true, true, false, false],
+  );
+  assert.deepEqual(
+    after.msgs.map((message) => message.reactions?.latest ?? null),
+    [null, false, null, false, true],
+  );
+  assert.equal(after.msgs[1].reactions?.choices[0]?.inForce?.id, "liked");
+  assert.deepEqual(
+    [after],
+    readThreadRecords(
+      [{ ...thread, msgs: [...thread.msgs, third] }],
+      reacting,
+      new Map(),
+      [],
+    ),
+  );
+});
+
+test("marking one thread read reads that thread's record again, and no other", () => {
+  const threads = ["a", "b", "c"].map((id) =>
+    servedThread([agent(id, { kind: "comment" })], { unread: { [id]: id } }),
+  );
+  const read = threadRecordReader();
+  const before = read(threads, NO_DOCUMENT, new Map(), [], [], [], []);
+  const after = read(
+    threads,
+    NO_DOCUMENT,
+    new Map(),
+    [],
+    [],
+    [],
+    [{ message: "a", version: "a" }],
+  );
+  assert.deepEqual(
+    after.map((record, at) => record === before[at]),
+    [false, true, true],
+  );
+  assert.deepEqual(
+    after.map((record) => record.unread.length),
+    [0, 1, 1],
+  );
+});
+
+test("a gesture copies only the thread it stands in", () => {
+  const threads = ["a", "b"].map((id) =>
+    servedThread([agent(id, { kind: "comment" })]),
+  );
+  const reply = {
+    ...agent("pending:r", { author: "user" }),
+    parent: "b",
+    pending: true,
+  };
+  const [a, b] = foldThreads(threads, [reply]);
+  assert.equal(a, threads[0]);
+  assert.notEqual(b, threads[1]);
+  assert.deepEqual(
+    b.msgs.map(({ id }) => id),
+    ["b", "pending:r"],
+  );
+  assert.deepEqual(
+    threads[1].msgs.map(({ id }) => id),
+    ["b"],
+  );
 });
 
 test("a message moves when it is edited, and a thread when any turn moves", () => {
@@ -135,51 +266,63 @@ test("attention names the outstanding question rather than the latest message", 
     attention: { kind: "needs_user", reason: "obligation", workflow: null },
   });
   const [thread] = readThreadRecords([source], NO_DOCUMENT, new Map(), []);
-  const attention = threadAttention(thread);
-  assert.equal(attention.label, "My turn to answer");
+  const attention = threadAttention(thread, "Claude");
+  assert.equal(attention.word.text, "Your turn");
   assert.equal(
-    threadAttention({
-      ...thread,
-      attention: { kind: "needs_user", reason: "resend", workflow: "send" },
-      workflows: [
-        servedWorkflow({
-          id: "send",
-          subject: { kind: "thread", id: "question" },
-          thread: "question",
-        }),
-      ],
-    }).label,
-    "My turn to resend",
+    threadAttention(
+      {
+        ...thread,
+        attention: { kind: "needs_user", reason: "resend", workflow: "send" },
+        workflows: [
+          servedWorkflow({
+            id: "send",
+            subject: { kind: "thread", id: "question" },
+            thread: "question",
+          }),
+        ],
+      },
+      "Claude",
+    ).word.text,
+    "Send it again",
   );
   assert.equal(
-    threadAttention({
-      ...thread,
-      attention: { kind: "needs_user", reason: "resend", workflow: "move" },
-      workflows: [
-        servedWorkflow({
-          id: "move",
-          subject: { kind: "widget", id: "choice" },
-          thread: "question",
-        }),
-      ],
-    }).label,
-    "My turn to retry",
+    threadAttention(
+      {
+        ...thread,
+        attention: { kind: "needs_user", reason: "resend", workflow: "move" },
+        workflows: [
+          servedWorkflow({
+            id: "move",
+            subject: { kind: "widget", id: "choice" },
+            thread: "question",
+          }),
+        ],
+      },
+      "Claude",
+    ).word.text,
+    "Try it again",
   );
   assert.equal(
-    threadAttention({
-      ...thread,
-      attention: { kind: "waiting", reason: "uncertain", workflow: null },
-    }).label,
+    threadAttention(
+      {
+        ...thread,
+        attention: { kind: "waiting", reason: "uncertain", workflow: null },
+      },
+      "Claude",
+    ).word.text,
     "Uncertain",
   );
   assert.equal(
-    threadAttention({
-      ...thread,
-      attention: { kind: "waiting", reason: "workflow", workflow: null },
-    }).label,
+    threadAttention(
+      {
+        ...thread,
+        attention: { kind: "waiting", reason: "workflow", workflow: null },
+      },
+      "Claude",
+    ).word.text,
     "Waiting",
   );
-  assert.equal(threadAttention({ ...thread, attention: null }), null);
+  assert.equal(threadAttention({ ...thread, attention: null }, "Claude"), null);
 });
 
 test("superseding a blocked primary destination completes its prior navigation", async () => {
@@ -316,4 +459,192 @@ test("prepared thread readings consume only their own held-news release", async 
       })(earlier),
       true,
     );
+});
+
+test("held news keeps a reaction taken back elsewhere as it was drawn", async () => {
+  const { HeldNews } = await import("/runtime/thread/held-news.js");
+  /** @param {boolean} taken */
+  const reading = (taken) => {
+    const said = (id, seq, author, parent, text) => ({
+      id,
+      seq,
+      kind: parent ? "reply" : "comment",
+      author,
+      ...(parent ? { parent } : {}),
+      text,
+      body: { text },
+    });
+    const mark = {
+      ...said("mark", 3, "user", "answer", ""),
+      ...(taken
+        ? { withdrawn: { id: "undo", ts: "now", was: "keep" } }
+        : { token: "keep" }),
+    };
+    if (!taken) delete mark.text;
+    const source = servedThread([
+      said("opening", 1, "user", null, "Ship it?"),
+      said("answer", 2, "agent", "opening", "Ready."),
+      mark,
+      said("kept", 4, "agent", "mark", "Keeping it."),
+    ]);
+    const descriptor = (source) => ({
+      id: source.id,
+      key: source.key,
+      source,
+      messages: source.msgs,
+      resolved: source.resolved,
+      summaries: source.summaries,
+      reread: descriptor,
+    });
+    return { threads: [descriptor(source)] };
+  };
+  const owner = document.createElement("section");
+  document.body.append(owner);
+  const held = new HeldNews(
+    owner,
+    () => ({ node: owner, newsMoves: () => true }),
+    () => {},
+  );
+  held.hold(reading(false), { row: false });
+  const next = held.prepare(reading(true), { row: false });
+  const mark = next.reading.threads[0].source.msgs.find(({ id }) => id === "mark");
+  held.dispose();
+  owner.remove();
+  assert.equal(mark?.token, "keep");
+  assert.equal(mark?.withdrawn, undefined);
+});
+
+test("a thread commits when drawn, and abandoned renders call nothing", async (t) => {
+  const { createPrimaryReader } = await import("/runtime/thread/primary-reader.js");
+  const { applicationState } = await import("/runtime/semantic-state.js");
+  applicationState.identify(1);
+  applicationState.adopt(servedReading("suggestion closes a thread"));
+  await loadMarkdown();
+  const owner = document.createElement("section");
+  const outlet = document.createElement("div");
+  owner.append(outlet);
+  document.body.append(owner);
+  const root = agent("commit-question", { kind: "comment", author: "user" });
+  const collection = (text = null) => ({
+    phase: "ready",
+    threads: readThreadRecords(
+      [
+        servedThread([
+          root,
+          ...(text ? [agent("commit-answer", { seq: 2, text })] : []),
+        ]),
+      ],
+      NO_DOCUMENT,
+      new Map(),
+      [],
+      [],
+      [],
+      [],
+    ),
+  });
+  let intent = "opening";
+  let deferred = null;
+  const drawn = [];
+  const reader = createPrimaryReader(
+    owner,
+    (reading, parts) => {
+      const captured = intent;
+      parts.thread(reading.threads[0].key, outlet, {
+        drawn: (answer) => drawn.push({ captured, answer, text: outlet.textContent }),
+      });
+      return deferred?.promise;
+    },
+    {
+      // Every thread draws its reply box; this stands in for the box's input wiring,
+      // which composing-input.test.mjs covers.
+      reply: {
+        wireInput: () =>
+          Object.assign(() => {}, {
+            value: () => "",
+            button: null,
+            load() {},
+            cancelDictation() {},
+          }),
+      },
+      reaction: {},
+      read: { observeMessage: () => () => {}, observeFeedback: () => () => {} },
+    },
+    () => Promise.resolve(),
+    { answersAtOnce: true },
+  );
+  t.after(() => {
+    reader.unregister();
+    owner.remove();
+  });
+  const never = new Promise(() => {});
+  await reader.prepare(collection(), never).paint();
+  assert.equal(drawn.length, 1);
+  assert.equal(drawn[0].answer, null);
+
+  for (const abandoned of ["superseded", "cancelled"]) {
+    intent = abandoned;
+    const cancellation = Promise.withResolvers();
+    deferred = Promise.withResolvers();
+    const pending = reader.prepare(collection("Never drawn"), cancellation.promise);
+    deferred = null;
+    intent = "later navigation";
+    const count = drawn.length;
+    let accepted;
+    if (abandoned === "superseded")
+      accepted = reader.prepare(collection("Drawn answer"), never);
+    else cancellation.resolve();
+    assert.equal(await pending, null);
+    assert.equal(drawn.length, count);
+    accepted ??= reader.prepare(collection("Drawn answer"), never);
+    const painted = accepted.paint();
+    // The callback follows synchronous placement, before asynchronous preparation.
+    assert.equal(drawn.at(-1).captured, "later navigation");
+    assert.match(drawn.at(-1).text, /Drawn answer/);
+    assert.deepEqual(drawn.at(-1).answer, {
+      turn: collection().threads[0].msgs[0].key,
+      reply: collection("Drawn answer").threads[0].msgs[1].key,
+    });
+    assert.equal(Object.isFrozen(drawn.at(-1).answer), true);
+    await painted;
+    await reader.prepare(collection(), never).paint();
+  }
+});
+
+test("news answers only a user turn that still stands", async () => {
+  const { threadChange } = await import("/runtime/thread/held-news.js");
+  const root = { id: "question", key: "question", author: "user", body: "Question" };
+  const turn = { id: "followup", key: "followup", author: "user", body: "And this?" };
+  const reading = (messages, words) => ({
+    messages,
+    source: { msgs: messages },
+    summaries: [],
+    working: { words },
+  });
+  const before = reading([root, turn], "Working");
+  assert.deepEqual(threadChange(before, reading([root, turn], "More work")).answers, {
+    turn: "followup",
+    reply: null,
+  });
+  // Undo removes the interjection while work on the original question continues.
+  assert.equal(threadChange(before, reading([root], "More work")).answers, null);
+});
+
+test("Copy retains the original authored HTML after the public thread reading", async () => {
+  const { adoptRegistry } = await import("/runtime/registry.js");
+  adoptRegistry({ $layer: { generation: "authored-copy" } });
+  const markup = "<p>A <strong>captured</strong> answer.</p>";
+  const source = agent("authored-copy", {
+    kind: "comment",
+    text: "Agent words",
+    markup,
+  });
+  const prepared = await prepareAuthoredMessage(source, source.id);
+  const [thread] = readThreadRecords(
+    [servedThread([source])],
+    { ...NO_DOCUMENT, messageBodies: new Map([[source.id, prepared.body]]) },
+    new Map(),
+    [],
+  );
+  const message = messageReading(thread.root, { workflows: [] });
+  assert.equal(message.markdown, `Agent words\n\n${markup}`);
 });

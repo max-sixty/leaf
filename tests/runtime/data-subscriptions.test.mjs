@@ -305,11 +305,8 @@ test("data readiness does not wait for an unrelated widget region", async () => 
     const { notifyDataSubscribers } = await import("/runtime/data.js");
     const { attachApplicationPresentation } =
       await import("/runtime/semantic-state.js");
-    const unrelated = attachApplicationPresentation(
-      "widget:unrelated:render",
-      document.body,
-    );
-    const held = unrelated.present("held");
+    const unrelated = attachApplicationPresentation("widget:unrelated:render");
+    const held = unrelated.present();
     let ready = false;
     const data = notifyDataSubscribers().then(() => {
       ready = true;
@@ -365,7 +362,8 @@ function outputScene(draw) {
 const settleOutput = async () => new Promise((resolve) => setTimeout(resolve));
 
 test("typed output readers retain authored scope and producer instance identity", async () => {
-  const { publishOutput, dataReader } = await import("/runtime/data.js");
+  const { dataReader } = await import("/runtime/data.js");
+  const { publishOutput } = await import("/runtime/widget-output.js");
   const readings = new Map();
   const { producerTag, consumerTag } = outputScene((element, value) => {
     const history = readings.get(element.id) ?? [];
@@ -378,6 +376,12 @@ test("typed output readers retain authored scope and producer instance identity"
   const pageConsumer = document.querySelector("#page");
   await settleOutput();
   const current = dataReader(pageConsumer, "rows");
+  assert.throws(
+    () => publishOutput(pageProducer, "undeclared", { rows: [] }),
+    /output is not declared/,
+  );
+  const unnamed = document.createElement(producerTag);
+  assert.throws(() => publishOutput(unnamed, "rows", null), /requires a widget id/);
   const pageValue = { rows: ["page"] };
   publishOutput(pageProducer, "rows", pageValue);
   pageValue.rows[0] = "mutated";
@@ -429,7 +433,7 @@ test("typed output readers retain authored scope and producer instance identity"
 });
 
 test("source readiness includes asynchronous LeafElement output consumers", async () => {
-  const { publishOutput } = await import("/runtime/data.js");
+  const { publishOutput } = await import("/runtime/widget-output.js");
   let release;
   let started;
   const begun = new Promise((resolve) => (started = resolve));

@@ -14,7 +14,7 @@
      authoritative settlement, whether or not its module renders anything.
    - `renderRetired` marks slots retired by the declared holder relation.
    - The obligation model (obligations/model.js) reads `x-awaits`, while the obligation view (obligations/view.js)
-     projects the enclosing widget (`x-awaits.encloses`) around that source where one exists;
+     projects the enclosing widget (`x-encloses`) around that source where one exists;
      neither names a tag.
    - the internal validation adapter exposes replay winners to the render gate,
      the panel's own folds included: a widget an agent sent folds the way a page widget
@@ -46,21 +46,28 @@
    The runtime may inject its own words inside a widget: a quiet word, or an attribute
    the registry says aloud. A module reading its slot or body must call `says` so
    runtime words do not become authored or user content. */
+import { isElement } from "./shadow-tree.js";
 
+import { markViews } from "./storage.js";
 import { elementDeclarations, exhibits, registry, tagsDeclaring } from "./registry.js";
 import { watchArrivals } from "./arrivals.js";
 import { highlightBlocks } from "./syntax.js";
 import { keeps } from "./keeps.js";
 import { move } from "./dom-move.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
-import { marks } from "./marks.js";
+import { marks } from "./kernel-facts.js";
 import { generatedElement } from "./widget-elements.js";
 
+/** @typedef {Document | DocumentFragment | Element} Scope
+ * @typedef {{target: string | null, rel: string | null, "aria-describedby": string | null}} LinkAttributes
+ * @typedef {{baseline: LinkAttributes, painted: LinkAttributes | null, markId: string | null, addedNoopener: boolean}} ExternalLinkState */
+/** @type {Set<string>} */
 const PAGE_PAINT_ATTRIBUTES = new Set(Object.values(PAGE_PAINT_ATTRIBUTE));
 // Whether an attribute on the page's own element is paint rather than the author's: the
 // runtime's, or a declared mark, which delivery paints into the served document and
-// `markDeclared` into a message. The version diff reads the live DOM against a file
-// nothing has painted, and paint it did not look past is a change the author never made.
+// `markDeclared` into a message. A reading of the author's attributes on the live DOM
+// (`shallowSigs`) looks past it, since paint is no change the author made.
+/** @param {string} name */
 export const isPagePaint = (name) =>
   PAGE_PAINT_ATTRIBUTES.has(name) ||
   Object.values(marks).some((mark) => mark.paint === name);
@@ -68,7 +75,7 @@ export const isPagePaint = (name) =>
 // A word for a user listening, silent on screen: real text — the one thing every
 // screen reader announces in every mode — placed after the element's leading title,
 // wearing .lf-ui (an invisible word is apparatus the anchor pass must not offer),
-// .lf-quiet (the shared clip), and data-lf-gen (the diff looks away). One writer per
+// .lf-quiet (the shared clip), and data-lf-gen (no author wrote it). One writer per
 // element, and the empty word removes what stands: a fact the page has stopped painting
 // must stop being said too, so a caller states the whole of what this element says
 // quietly and never appends to it. Content widgets once hand-copied this idiom
@@ -80,7 +87,8 @@ export const isPagePaint = (name) =>
 // has only the parts it builds — a suggestion's two slots, a code line. Two writers on
 // one element would each remove the other's word on every state application, which the
 // user would hear as the element re-reading itself.
-export function quietWord(el, word) {
+/** @param {Element} el @param {string | null} word */
+function quietWord(el, word) {
   const title = el.querySelector(":scope > strong");
   const seat = title ? title.nextSibling : el.firstChild;
   const existing = el.querySelector(":scope > .lf-quiet");
@@ -103,17 +111,153 @@ export function quietWord(el, word) {
   move(el, span, title ? title.nextSibling : el.firstChild);
 }
 
+// The quiet word a module declares on a part it builds, as `data-lf-quiet`, such as a
+// code line's "highlighted" or a suggestion slot's "proposed deletion": Leaf writes it
+// there while the part stands and declares it. Declared rather than written by the
+// module, because the word is only quiet where Leaf's theme clips it, so a widget that
+// also runs off Leaf (portable-api.js) must not write it there, and on a page without
+// Leaf nothing reads the declaration.
+export function watchQuietWords() {
+  const { quiet } = PAGE_PAINT_ATTRIBUTE;
+  watchArrivals(`[${quiet}]`, [quiet], {
+    arrive: (el) => quietWord(el, el.getAttribute(quiet)),
+    leave: (el) => quietWord(el, ""),
+  });
+}
+
 // Parser paint and later arrivals share one treatment and its per-link ownership.
 // Prepaint seats the mark before authored prose first paints; this watch carries the
 // same owner through revisions, generated content and declared shadow stages.
+/** @type {(keyof LinkAttributes)[]} */
+const EXTERNAL_LINK_ATTRIBUTES = ["target", "rel", "aria-describedby"];
+/** @type {WeakMap<Element, ExternalLinkState>} */
+const externalLinkState = new WeakMap();
+let externalDescriptionSequence = 0;
+/** @type {WeakMap<Node, HTMLSpanElement>} */
+const externalDescriptions = new WeakMap();
+/** @param {string | null} href */
+export const opensElsewhere = (href) => window.lfLinks.opensElsewhere(href);
+/** @param {Element} link */
 export const isExternalPageLink = (link) =>
-  document.documentElement.lfInitial.externalLinks.matches(link);
-export function watchExternalLinks() {
-  const links = document.documentElement.lfInitial.externalLinks;
-  watchArrivals("a", ["href", ...links.attributes], {
-    arrive: links.arrive,
-    leave: links.leave,
+  link instanceof HTMLAnchorElement && opensElsewhere(link.getAttribute("href"));
+export function externalMark() {
+  return Object.assign(document.createElement("span"), {
+    className: "lf-ui lf-external-mark",
+    ariaHidden: "true",
   });
+}
+/** @param {HTMLAnchorElement} link */
+function externalDescription(link) {
+  const root = link.getRootNode();
+  let description = externalDescriptions.get(root);
+  if (!description) {
+    description = generatedElement(document.createElement("span"), { says: false });
+    description.id = `lf-external-description-${++externalDescriptionSequence}`;
+    description.hidden = true;
+    description.dataset.lfRuntime = "";
+    description.textContent = "opens in a new tab";
+    externalDescriptions.set(root, description);
+  }
+  const holder = root instanceof Document ? root.body : root;
+  if (description.parentNode !== holder) move(holder, description);
+  return description.id;
+}
+// The text field draws the same mark after a link it shows (composing/text-field.js).
+/** @param {Element} link @returns {LinkAttributes} */
+const linkAttributes = (link) => ({
+  target: link.getAttribute("target"),
+  rel: link.getAttribute("rel"),
+  "aria-describedby": link.getAttribute("aria-describedby"),
+});
+/** @param {string | null} value */
+const tokens = (value) => value?.split(/\s+/).filter(Boolean) ?? [];
+/** @param {string | null} value @param {string} token */
+function withToken(value, token, insensitive = false) {
+  const values = tokens(value);
+  const wanted = insensitive ? token.toLowerCase() : token;
+  if (!values.some((value) => (insensitive ? value.toLowerCase() : value) === wanted))
+    values.push(token);
+  return values.join(" ");
+}
+/** @param {string | null} value @param {string | null} token */
+function withoutToken(value, token, insensitive = false) {
+  if (value === null) return null;
+  const unwanted = insensitive ? token?.toLowerCase() : token;
+  return tokens(value)
+    .filter((value) => (insensitive ? value.toLowerCase() : value) !== unwanted)
+    .join(" ");
+}
+/** @param {Element} link @param {LinkAttributes} values */
+function writeLinkAttributes(link, values) {
+  for (const [name, value] of Object.entries(values)) keeps(link, name, value);
+}
+/** @param {Element} link @param {ExternalLinkState} state */
+function rememberExternalLinkChanges(link, state) {
+  if (!state.painted) return;
+  const current = linkAttributes(link);
+  for (const name of EXTERNAL_LINK_ATTRIBUTES) {
+    if (current[name] === state.painted[name]) continue;
+    let value = current[name];
+    if (name === "rel" && state.addedNoopener)
+      value = withoutToken(value, "noopener", true);
+    if (name === "aria-describedby") value = withoutToken(value, state.markId);
+    state.baseline[name] = value;
+  }
+}
+/** @param {Element} link @param {ExternalLinkState} state */
+function clearExternalLink(link, state) {
+  rememberExternalLinkChanges(link, state);
+  writeLinkAttributes(link, state.baseline);
+  link.removeAttribute(PAGE_PAINT_ATTRIBUTE.external);
+  externalLinkState.delete(link);
+}
+/** @param {Element} link */
+function leaveExternalLink(link) {
+  const state = externalLinkState.get(link);
+  if (state) clearExternalLink(link, state);
+}
+/** @param {Element} link */
+function renderExternalLink(link) {
+  // SVG links share this selector but not the HTML anchor API, and they have no
+  // dependable inline box in which an HTML text mark could stand.
+  if (!(link instanceof HTMLAnchorElement)) return;
+  window.lfLinks.markExternalLink(link);
+  if (!isExternalPageLink(link)) {
+    leaveExternalLink(link);
+    return;
+  }
+  let state = externalLinkState.get(link);
+  if (!state) {
+    state = {
+      baseline: linkAttributes(link),
+      painted: null,
+      markId: null,
+      addedNoopener: false,
+    };
+    externalLinkState.set(link, state);
+  } else rememberExternalLinkChanges(link, state);
+  state.markId = externalDescription(link);
+  state.addedNoopener = !tokens(state.baseline.rel).some(
+    (value) => value.toLowerCase() === "noopener",
+  );
+  writeLinkAttributes(link, {
+    target: "_blank",
+    rel: withToken(state.baseline.rel, "noopener", true),
+    "aria-describedby": withToken(state.baseline["aria-describedby"], state.markId),
+  });
+  state.painted = linkAttributes(link);
+}
+
+export function watchNativeContent() {
+  const { keepDisclosure, finishEarlyContent } = window.lfStorage;
+  watchArrivals("a, details", ["href", ...EXTERNAL_LINK_ATTRIBUTES], {
+    arrive: (element) => {
+      if (element instanceof HTMLDetailsElement) keepDisclosure(element);
+      else renderExternalLink(element);
+    },
+    leave: leaveExternalLink,
+  });
+  finishEarlyContent();
 }
 
 // What an upgraded subtree owes beyond its module's own work: the words a widget says
@@ -123,7 +267,8 @@ export function watchExternalLinks() {
 // layer at all. Written once because it happens twice, over the page at the upgrade and
 // over each root a live revision brings into it, and a near-copy of it would go stale
 // the day the vocabulary grows a fourth pass. A link's treatment is not among them: it
-// is the link's for as long as it stands, whoever rendered it (`watchExternalLinks`).
+// is the link's for as long as it stands, whoever rendered it (`watchNativeContent`).
+/** @param {Scope} root */
 export function paintDeclaredWords(root) {
   renderSaid(root);
   renderQuiet(root);
@@ -138,9 +283,8 @@ export function paintDeclaredWords(root) {
 // and stays at it; a board's columns and a diagram's graph are as wide as what they hold,
 // and a page carrying one had to be either a cramped board or a page whose every
 // paragraph was widened to suit it. Neither is a choice a page should have to make, so
-// the widget declares its capacity (x-space) and the theme spends the room the layout
-// resolved by the CSS shell (--lf-room): `wide` uses the shared evidence cap, and
-// `available` uses all remaining room.
+// the widget declares its capacity (x-space) and the Layout gives it the room:
+// `wide` uses the shared evidence cap, and `available` uses all remaining room.
 // Internal arrangement remains package-owned.
 //
 // Whether the widget is set among the words around it is the second (x-inline). What
@@ -172,8 +316,8 @@ export function paintDeclaredWords(root) {
 // An attribute, because the theme cannot read the registry — the same arrangement x-says
 // already has with data-lf-said. Which declarations are marks, the attribute each is
 // painted as, the attribute an occurrence overrides it with, and whether it holds in a
-// message are one table, the kernel registry's `$marks`, which this runtime imports as
-// generated `marks.js`. A page's document arrives painted from it: delivery writes
+// message are one table, the kernel registry's `$marks`, which this runtime imports from
+// `kernel-facts.js`. A page's document arrives painted from it: delivery writes
 // the marks into the served source (revision_delivery.py, `mark_declared`), so the first
 // paint already gives a board its room and a workspace its panes, before any module or
 // the registry loads, and a revision the page patches in arrives painted the same way. A
@@ -181,22 +325,30 @@ export function paintDeclaredWords(root) {
 // renders, with the marks that hold there: every one but the room, which is the
 // document's to hand out, while a message renders in the panel's.
 
+/** @param {Scope} root @param {string} selector */
 function* elementsIn(root, selector) {
-  if (root.matches?.(selector)) yield root;
+  if (isElement(root) && root.matches(selector)) yield root;
   yield* root.querySelectorAll(selector);
 }
 
 // Paint a message's declared marks, the root alongside its descendants: each tag's
 // declaration, and an occurrence's authored override over it.
+/** @param {Scope} root */
 export function markDeclared(root) {
   for (const [key, mark] of Object.entries(marks)) {
     const { paint, authored, message } = mark;
     if (!message) continue;
-    const tags = tagsDeclaring((entry) => entry[key]);
+    const tags = tagsDeclaring(
+      /** @param {Record<string, unknown>} entry */ (entry) => entry[key],
+    );
     for (const tag of tags) {
       const declared = registry[tag][key];
       for (const el of elementsIn(root, tag)) {
         const value = key === "x-exhibit" ? exhibits(el, registry[tag]) : declared;
+        if (key === "x-views") {
+          markViews(el);
+          continue;
+        }
         keeps(el, paint, !value ? null : value === true || mark.presence ? "" : value);
       }
     }
@@ -206,23 +358,6 @@ export function markDeclared(root) {
       for (const el of elementsIn(root, `[${authored}]`))
         if (mark.authored_on !== "declared" || tags.includes(el.localName))
           keeps(el, paint, el.getAttribute(authored));
-  }
-}
-
-// Write each widget's declared first-paint structure (`x-prepaint`) into a message's
-// markup while it is still inert, as delivery writes it into a page's document
-// (revision_delivery.py, `mark_declared`), so a widget a message holds lays out its
-// drawing's structure before its module draws there too. Its module takes it out.
-export function writePrepaint(root) {
-  for (const tag of tagsDeclaring((entry) => entry["x-prepaint"])) {
-    // Its own, or that of the widget it first paints as (`as`).
-    const declared = registry[tag]["x-prepaint"];
-    const markup = document.createElement("template");
-    markup.innerHTML = declared.as ? registry[declared.as]["x-prepaint"] : declared;
-    const written = /** @type {HTMLElement} */ (markup.content.firstElementChild);
-    written.toggleAttribute("data-lf-prepaint", true);
-    generatedElement(written, { says: false });
-    for (const el of elementsIn(root, tag)) el.prepend(written.cloneNode(true));
   }
 }
 
@@ -244,9 +379,8 @@ export function writePrepaint(root) {
 //
 // The theme's pseudo rules stay as the no-script fallback; they stand down where this
 // pass has been, asked by :has(), so the two are never both on. The span is data-lf-gen
-// and not .lf-ui: the
-// diff parses the base version unupgraded and must not read it as text that version
-// lacked, and the user must be able to quote it.
+// and not .lf-ui: no source holds it, so the authored reading leaves it out, and the
+// user must be able to quote it.
 //
 // data-lf-said names the attribute here and stands bare on a label generatedElement
 // wrote, because the two are one claim — these words are the page's, whoever rendered
@@ -254,6 +388,7 @@ export function writePrepaint(root) {
 // attribute in particular, which is this pass (so it writes no second span over its
 // own) and the theme, whose every rule names the attribute it styles rather than
 // matching the bare marker.
+/** @param {Scope} root */
 export function renderSaid(root) {
   for (const [tag, entry] of elementDeclarations()) {
     if (!entry["x-says"]) continue;
@@ -293,10 +428,10 @@ export function renderSaid(root) {
         // second reading also settles the order of two attributes declared at this edge,
         // though no shipped declaration names two.
         const pastTrailingChrome = [...el.childNodes].filter(
-          (n) => !(n.nodeType === 1 && n.dataset.lfGen),
+          (n) => !(isElement(n) && n.getAttribute("data-lf-gen")),
         );
         const beforeLeadingChrome = [...el.childNodes].find(
-          (n) => !(n.nodeType === 1 && n.dataset.lfSaid),
+          (n) => !(isElement(n) && n.getAttribute("data-lf-said")),
         );
         move(
           el,
@@ -315,6 +450,7 @@ export function renderSaid(root) {
 // technology.
 // They compose into the element's one quiet span, so independent verbs can name user,
 // report, and restatement origins without three writers fighting over the same seat.
+/** @param {Element} el */
 function quietFacts(el) {
   const words = el.hasAttribute(PAGE_PAINT_ATTRIBUTE.restated)
     ? ["rewritten since the decision"]
@@ -324,14 +460,19 @@ function quietFacts(el) {
   return words.join(", ");
 }
 
-/** @param {Element} root @param {Iterable<Element>} [also] */
+/** @param {Scope} root @param {Iterable<Element>} [also] */
 export function renderQuiet(root, also = []) {
-  const painting = [
-    `[${PAGE_PAINT_ATTRIBUTE.restated}]`,
-    `[${PAGE_PAINT_ATTRIBUTE.userOverride}]`,
-    `[${PAGE_PAINT_ATTRIBUTE.reported}]`,
-  ].join(", ");
-  const targets = new Set(elementsIn(root, painting));
+  // One query a mark: a single attribute's query is answered far faster than one for the
+  // three as a selector list, which tests every element of the page against each, on
+  // every repaint of a page holding long text documents.
+  /** @type {Set<Element>} */
+  const targets = new Set();
+  for (const mark of [
+    PAGE_PAINT_ATTRIBUTE.restated,
+    PAGE_PAINT_ATTRIBUTE.userOverride,
+    PAGE_PAINT_ATTRIBUTE.reported,
+  ])
+    for (const el of elementsIn(root, `[${mark}]`)) targets.add(el);
   for (const el of also) if (el === root || root.contains(el)) targets.add(el);
   for (const el of targets) quietWord(el, quietFacts(el));
 }

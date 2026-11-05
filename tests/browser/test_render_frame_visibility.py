@@ -1,5 +1,6 @@
 """A framed Leaf document reads as visible while its frame shows on screen
-(runtime/frame-visibility.js), whatever its own styles do."""
+(runtime/frame-visibility.js), whatever its own styles do, and places focus only once
+the user enters it (runtime/focus.js, `canPlaceFocus`)."""
 
 from playwright.sync_api import expect
 from render_harness import leaf_page, open_page
@@ -123,11 +124,14 @@ def test_a_same_origin_frame_reads_hidden_and_settled_off_screen(browser, serve)
     }""")
 
 
-def test_a_framed_page_arriving_leaves_the_user_where_they_are(browser, serve):
-    """A page arriving starts Tab at its first control by focusing its body, which in
-    a page framed in another would take the user out of the page they are working in:
-    the embedding page's control they just pressed loses its focus to the frame. A
-    framed page holds no user until they enter it, so its arrival moves nobody."""
+def test_a_framed_page_moves_nobody_until_the_user_enters_it(browser, serve):
+    """A page arriving starts Tab at its first control by focusing its body, and travel
+    to a fragment puts the user on the heading it names. In a page framed in another,
+    either would take the user out of the page they are working in: the embedding
+    page's control they just pressed would lose its focus to the frame. A framed page
+    holds no user until they enter it, so neither its arrival nor the embedding page
+    sending it to a fragment moves anybody; a press inside it still lands them where
+    Leaf puts them, here the composer an ⌥-press opens."""
     page = open_page(
         browser,
         serve(
@@ -136,7 +140,11 @@ def test_a_framed_page_arriving_leaves_the_user_where_they_are(browser, serve):
                 """
 <h1>Embedding page</h1>
 <button id="here" type="button">Stay here</button>
-<iframe id="frame" title="Embedded page" style="width: 600px; height: 250px"></iframe>
+<a id="go" href="#far" target="embedded">Read on in the frame</a>
+<iframe id="frame" name="embedded" title="Embedded page"
+  style="width: 600px; height: 250px"></iframe>
+<p id="passage">A passage to comment on.</p>
+<h2 id="far" style="margin-top: 1500px">Far heading</h2>
 """,
             )
         ),
@@ -147,3 +155,21 @@ def test_a_framed_page_arriving_leaves_the_user_where_they_are(browser, serve):
     embedded = page.locator("#frame").element_handle().content_frame()
     embedded.wait_for_function("() => document.body.hasAttribute('data-lf-presented')")
     expect(here).to_be_focused()
+
+    go = page.locator("#go")
+    go.evaluate("(go, url) => go.href = url + '#far'", embedded.url)
+    # Travel is the navigation's handler (history.js), so the navigation succeeds once
+    # travel has landed and put focus wherever it was going to.
+    embedded.evaluate("""() => {
+      window.travelled = new Promise((resolve) =>
+        navigation.addEventListener('navigatesuccess', resolve, { once: true }));
+    }""")
+    go.click()
+    assert (
+        embedded.evaluate("() => window.travelled.then(() => location.hash)") == "#far"
+    )
+    assert page.evaluate("document.activeElement.id") == "go"
+    assert not embedded.evaluate("document.hasFocus()")
+
+    embedded.locator("#passage").click(modifiers=["Alt"])
+    expect(embedded.locator(".lf-composer leaf-text")).to_be_focused()

@@ -8,9 +8,9 @@
    resolves only in `present`, when the receipt is presented. */
 import { applicationState, readApplication } from "../semantic-state.js";
 
-/** @typedef {import("../../framework/domain.ts").Event} Event */
-/** @typedef {import("../../framework/domain.ts").PendingCommand} PendingCommand */
-/** @typedef {import("../../framework/domain.ts").Command} Command */
+/** @typedef {import("../../types/domain.js").Event} Event */
+/** @typedef {import("../../types/domain.js").PendingCommand} PendingCommand */
+/** @typedef {import("../../types/domain.js").Command} Command */
 /** @typedef {NonNullable<ReturnType<typeof applicationState.entry>>} Entry */
 /** @typedef {{
  * event: Command, admitted: Event | null,
@@ -77,11 +77,13 @@ export function createPendingLedger({ newAttempt, enqueue }) {
     accept(entry, event) {
       applicationState.accept(entry.event.attempt, event);
     },
-    /** @param {Event[]} receipts */
-    present(receipts) {
-      applicationState.present(receipts);
-      for (const receipt of receipts)
-        if (receipt.attempt) handles.get(receipt.attempt)?.resolveRead(receipt);
+    // A document pass drawing these logged events has run; each that carries an
+    // attempt is that gesture's receipt.
+    /** @param {readonly Event[]} events */
+    present(events) {
+      applicationState.present(events);
+      for (const event of events)
+        if (event.attempt) handles.get(event.attempt)?.resolveRead(event);
     },
     /** @param {DeliveryHandle} entry */
     nameEvents(entry) {

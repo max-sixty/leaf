@@ -1,6 +1,6 @@
 """Capture authored anchor requests against the file-side passage reading."""
 
-from .passages import collapse, page_passages, section_span
+from .passages import collapse, page_passages
 from .registry.contract import visual_parts
 from .registry.kernel import kernel_passages
 from .structure import SourceDocument
@@ -25,7 +25,10 @@ def enclosing_section(owner: list, lo: int, hi: int):
 
 def occurrences(text: str, quote: str, lo: int, hi: int, fences=frozenset()) -> list:
     """Where `quote` sits in text[lo:hi], as absolute indices. A match that runs across a
-    fence is not one: the page has words there that this text doesn't."""
+    fence is not one: the page has words there that this text doesn't. An empty quote
+    names no passage, as in the browser's `findQuote`."""
+    if not quote:
+        return []
     found = []
     at = text.find(quote, lo, hi)
     while at != -1:
@@ -58,7 +61,7 @@ def resolve_quote(passages, anchor: dict) -> int | None:
     quote = collapse(anchor["quote"])
     lo, hi = 0, len(passages.text)
     if section := anchor.get("section"):
-        span = section_span(passages.owner, section)
+        span = passages.spans.get(section)
         if span is None:
             return None
         lo, hi = span
@@ -80,7 +83,7 @@ def capture_anchor(
     document: SourceDocument,
     registry,
     quote: str,
-    section: str,
+    section: str | None,
     decided=None,
     rewrites=None,
     part: str | None = None,
@@ -116,6 +119,7 @@ def capture_anchor(
         if section not in enclosing:
             raise ValueError(f"no element id {section!r} in this version")
         if section in retired:
+            assert decided is not None
             sid = retired[section]
             raise ValueError(
                 f"§ {section} left the page when the user chose to {decided[sid]} "
@@ -144,7 +148,7 @@ def capture_anchor(
     wanted = collapse(quote)
     lo_bound, hi_bound = 0, len(text)
     if section:
-        span = section_span(owner, section)
+        span = passages.spans.get(section)
         if span is None:
             raise ValueError(
                 f"§ {section} holds no quotable text — a widget's data body is its source, "

@@ -18,7 +18,7 @@ from render_harness import (
 from browser.threads import open_panel_thread
 from leaf import cli as cli_model
 from leaf.event_log import read_events
-from leaf.passages import page_passages, section_span
+from leaf.passages import page_passages
 from leaf.render_checks import wait_until_ready
 from leaf.structure import SourceDocument
 
@@ -162,7 +162,7 @@ def test_work_status_is_a_generated_browser_passage(browser, serve, owner):
     def check_generated_status(markup, status, *, reported=False):
         registry = page_registry(page)
         file_reading = page_passages(SourceDocument(markup), registry)
-        lo, hi = section_span(file_reading.owner, "goal")
+        lo, hi = file_reading.spans["goal"]
         file_words = file_reading.text[lo:hi]
         assert status not in file_words, file_words
         line = page.locator('#goal > [data-lf-said="status"]')
@@ -257,7 +257,7 @@ def test_work_status_is_a_generated_browser_passage(browser, serve, owner):
     ):
         quote = open_panel_thread(page, comment["id"]).locator(".lf-quote")
         expect(quote).to_have_text(said)
-        assert ("detached" in quote.get_attribute("class").split()) is detached
+        assert (quote.get_attribute("data-lf-detached") is not None) is detached
     assert [
         event for event in read_events(serve.page_dir) if event["kind"] == "comment"
     ] == [blocked, active]

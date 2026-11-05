@@ -14,7 +14,7 @@ from .activity import (
     current_turn,
     declaration,
     declared_at,
-    takes_input,
+    nudge_due,
     undeclared,
 )
 from .files import file_stamp
@@ -32,7 +32,7 @@ from .service import (
     read_stream,
     unacknowledged,
 )
-from .state import now_iso, state_home
+from .state import now_iso, state_home, turn_closed
 
 # Presence is deliberately a short-lived reading: process and lock leases can change
 # without touching a page file. Readers share one observation for two seconds, while
@@ -157,13 +157,15 @@ def other_leaves(page_dir: Path) -> list:
     return [entry for candidate, entry in live_leaves() if candidate != own]
 
 
-def live_leaves(among: set[Path] | None = None) -> list:
-    """Each live page that is not closed, by its directory, with its row entry, in
-    title order (`other_leaves` says what each costs and holds); only those `among`
-    resolved page directories, where given, whose leases alone it then checks."""
-    from .server_rows import read_row, row_path
+def live_servers(among: set[Path] | None = None):
+    """Each page a row names whose server holds its lease, by its directory, with
+    its row record and running service (`server.running_server`); only those
+    `among` resolved page directories, where given, whose leases alone it then
+    checks. Every such server serves with this state home's key
+    (`server.host_key`). The row of a page whose lease no process holds is deleted
+    here (`other_leaves`)."""
+    from .server_rows import row_path
 
-    leaves = []
     for candidate, record in neighbor_candidates():
         if among is not None and candidate not in among:
             continue
@@ -173,12 +175,23 @@ def live_leaves(among: set[Path] | None = None) -> list:
         # every open page's state read on the machine, blaming the page that asked.
         try:
             info = running_server(candidate)
-            if info is None:
-                if not lock_is_held(candidate / SERVER_LOCK):
-                    row_path(candidate).unlink(missing_ok=True)
-                continue
-            if record is None:
-                continue
+            if info is None and not lock_is_held(candidate / SERVER_LOCK):
+                row_path(candidate).unlink(missing_ok=True)
+        except Exception:
+            continue
+        if info is not None:
+            yield candidate, record, info
+
+
+def live_leaves(among: set[Path] | None = None) -> list:
+    """Each live page that is not closed, by its directory, with its row entry, in
+    title order (`other_leaves` says what each costs and holds); only those `among`
+    resolved page directories, where given, whose leases alone it then checks."""
+    from .server_rows import read_row
+
+    leaves = []
+    for candidate, record, info in live_servers(among):
+        try:
             row = read_row(candidate, info, record=record)
             if row is not None and row["activity"]["kind"] != "closed":
                 leaves.append(
@@ -191,7 +204,7 @@ def live_leaves(among: set[Path] | None = None) -> list:
                         },
                     )
                 )
-        except Exception:  # noqa: BLE001, S112 - whatever shape its fault takes
+        except Exception:
             continue
     return sorted(leaves, key=lambda leaf: leaf[1]["title"].lower())
 
@@ -256,7 +269,13 @@ def live_facts(page_dir: Path, claim: dict | None, *, process: bool = True) -> d
         "session_alive": active is not None if claim else None,
         "live_turn": claim_harness(active).live_turn() if active else None,
         "session_name": claim_harness(claim).session_name() if claim else None,
+        # Whether a nudge would start the claimant's next turn (`Harness.input_wakes`).
+        "input_wakes": bool(active and claim_harness(active).input_wakes()),
     }
+
+
+# The keys `live_facts` returns.
+LIVE_FACTS = ("listening", "session_alive", "live_turn", "session_name", "input_wakes")
 
 
 def page_agent(claim: dict | None, events: list) -> str:
@@ -328,8 +347,10 @@ def presence_with_activity(
         "claim_session": claim["id"] if claim else None,
         # Opaque identity of the claiming session's current turn on this page.
         # An opened delivery names this value; equality, rather than timestamps,
-        # is what says that exact update is in the turn running now.
-        "claim_turn": claim["turn"] if claim else None,
+        # is what says that exact update is in the turn running now. It and the
+        # stamps below keep the session record's names, so `state.turn_open` and
+        # `state.turn_closed` read this state as they read a claim.
+        "turn": claim["turn"] if claim else None,
         # When the claiming session's current turn closed, or None while it is open.
         # A `working` claim older than this is one that no later turn renewed
         # across the boundary — the same judgment the runtime's grace
@@ -374,13 +395,7 @@ def presence(page_dir: Path, events: list) -> dict:
 def presence_fingerprint(present: dict, others: list) -> str:
     """The half of a reading that file stamps cannot supply, from the facts a state
     already carries: its `live_facts`, and the neighbours as All pages shows them."""
-    facts = (
-        [
-            present[key]
-            for key in ("listening", "session_alive", "live_turn", "session_name")
-        ],
-        others,
-    )
+    facts = ([present[key] for key in LIVE_FACTS], others)
     return hashlib.sha256(
         json.dumps(facts, sort_keys=True, default=str).encode()
     ).hexdigest()[:8]
@@ -402,7 +417,8 @@ def presence_reading(page_dir: Path, files: str) -> str:
     # stamp of its own: `live_facts` checks it on every refresh, while its stamp
     # here invalidates the token when the lease is first created or removed. An
     # unclaimed page's lease is in the page directory, so `files` covers it.
-    lease = file_stamp(waiter_lease_path(None, claim["id"])) if claim else None
+    lease_path = waiter_lease_path(None, claim["id"]) if claim else None
+    lease = file_stamp(lease_path) if lease_path is not None else None
     neighbors = neighbor_reading(page_dir)
     stamp = (files, lease, neighbors)
     now = time.monotonic()
@@ -424,12 +440,10 @@ def nudge_unwatched(page: PageTransaction) -> None:
     """Message the claimant of a page holding input nothing will carry, once per
     ending of its turn.
 
-    Nothing carries it when no wait lease is held and the claimant takes no input
-    by the activity fold's own reading (`activity.takes_input`), because its turn
-    was seen to end: closed by the Stop hook, or interrupted as its harness's record
-    says. A turn Leaf only stopped believing in may still be running a long step,
-    and a running turn needs no nudge, because its Stop hook refuses to end with the
-    input unpicked. Each ending gets one nudge per page, named by the claim's turn
+    Nothing carries it when no wait lease is held and the activity fold reads a
+    nudge as due (`activity.nudge_due`): the claimant takes no input, because its
+    turn was seen to end, closed by the Stop hook or interrupted as its harness's
+    record says. Each ending gets one nudge per page, named by the claim's turn
     and the stamp that ended or last renewed it, so a user ticking three boxes queues
     one turn or one approval rather than three, while a turn interrupted again after
     a new prompt is messaged again. The claimant's harness decides whether its
@@ -446,8 +460,7 @@ def nudge_unwatched(page: PageTransaction) -> None:
     present, turn = claimant_reading(page_dir, page.events)
     mark = turn_ending(claim)
     if (
-        turn.ended is not None
-        and not takes_input(present, turn)
+        nudge_due(present, turn)
         and claim.get("messaged_ending") != mark
         and claim_harness(claim).nudge(page_dir)
     ):
@@ -487,7 +500,7 @@ def nudge_interrupted(page_dir: Path) -> None:
         claim = page.active_claim
         if (
             claim is not None
-            and claim["turn_closed"] is None
+            and not turn_closed(claim)
             and wake_inputs(page, deliverable(page))
         ):
             nudge_unwatched(page)

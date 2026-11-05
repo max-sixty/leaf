@@ -1,6 +1,8 @@
 """What a new version or an arriving edit leaves of each open editor: its words, caret,
 focus and session, and the revision a draft aims at."""
 
+import os
+
 import pytest
 from interact_support import append_carried_log_record, append_command
 from playwright.sync_api import expect
@@ -12,6 +14,7 @@ from render_harness import (
     open_page,
     panel_field,
     refuse,
+    reported_browser_errors,
     resized,
     restarting,
     round_trip,
@@ -34,10 +37,12 @@ from browser.drafts import (
     replace_editing_document,
 )
 from browser.threads import open_panel_thread
+from leaf import event_endpoint as endpoint_model
 from leaf import event_log as events_model
 from leaf import hosting as hosting_model
 from leaf import revisioning as revisioning_model
 from leaf import vendoring as vendoring_model
+from leaf.registry.storage import layer_packages
 from leaf.render_checks import one_frame, rendered, wait_until_ready
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -51,7 +56,7 @@ def test_an_automatic_revision_keeps_the_empty_panel_reply_focused(
     reply box, an open thread's, focused and empty."""
     url = live_url(serve(REPLY_HOST_PAGE))
     root = panel_comment(
-        serve.page_dir, "Should reads fall back?", author="agent", question="Fall back?"
+        serve.page_dir, "Should reads fall back?", author="agent", obligation=True
     )
     page = open_page(browser, url)
     open_panel_thread(page, root)
@@ -172,7 +177,7 @@ def test_an_untouched_and_an_emptied_reply_follow_live_revisions(browser, serve)
 
     sent = events_model.read_events(serve.page_dir)[-1]
     thread = page.locator(
-        f'.lf-margin-thread .lf-page-thread[data-thread="{sent["id"]}"]'
+        f'.lf-margin-thread .lf-page-thread[data-lf-thread="{sent["id"]}"]'
     )
     reply = thread.locator("leaf-text")
     expect(thread).to_be_focused()
@@ -277,6 +282,7 @@ def test_executable_revision_preserves_each_editor_identity(browser, serve, kind
     assert page.evaluate("window.__rendererLifetime.hits") == 1
     after = editing_read(editor) if editor.count() else None
     if kind == "authored":
+        assert after is not None
         after["scroll"] = editor.evaluate("el=>el.scrollTop")
     assert after == before
 
@@ -346,14 +352,29 @@ def test_a_re_vendor_waits_for_the_reply_being_written(browser, serve):
         write(page.locator(".lf-composer leaf-text"), "An anchored root.")
         page.keyboard.press("Control+Enter")
         round_trip(page)
+        root = next(
+            event["id"]
+            for event in events_model.read_events(page_dir)
+            if event["kind"] == "comment"
+        )
         page.keyboard.press("c")
         editor = page.locator(".lf-margin-preview .lf-thread-reply leaf-text")
         words = "Half a thought the reload must not take"
         write(editor, words)
         birth = page.evaluate("performance.timeOrigin")
-        theme = page_dir / "theme.css"
-        theme.write_text(theme.read_text() + "\n/* a newer layer */\n")
-        vendoring_model.cmd_init(page_dir)
+        # A newer layer: the page selects one more package. Its record names each
+        # package copy relative to the page, and init resolves a path from where it
+        # runs.
+        newer = page_dir.parent / "newer-layer"
+        newer.mkdir()
+        (newer / "overrides.css").write_text("/* a newer layer */\n")
+        held = tuple(
+            "./" + os.path.relpath(page_dir / value)
+            if value.startswith("./")
+            else value
+            for value in layer_packages(page_dir)
+        )
+        vendoring_model.cmd_init(page_dir, (*held, "./" + os.path.relpath(newer)))
         revised = revisioning_model.activate_source(page_dir)
         assert revised.error is None
         with restarting(page):
@@ -376,9 +397,23 @@ def test_a_re_vendor_waits_for_the_reply_being_written(browser, serve):
     expect(editor).to_be_focused()
     expect(editor).to_have_js_property("value", words)
     page.keyboard.press("Control+Enter")
+    assert revised.revision is not None
     wait_for_revision(page, revised.revision)
     assert page.evaluate("performance.timeOrigin") != birth
-    assert events_model.read_events(page_dir)[-1]["text"] == words
+    # Bookkeeping may follow delivery; make that order deterministic.
+    accepted, _ = endpoint_model.accept_event(
+        page_dir,
+        {"kind": "seen", "revision": revised.revision},
+    )
+    assert accepted == 200
+    replies = [
+        event
+        for event in events_model.read_events(page_dir)
+        if event["kind"] == "reply" and event["parent"] == root
+    ]
+    assert len(replies) == 1
+    assert replies[0]["author"] == "user"
+    assert replies[0]["text"] == words
 
 
 @pytest.mark.parametrize("kind", ["edit", "first-message", "option"])
@@ -485,7 +520,13 @@ def test_a_mechanical_revision_failure_leaves_accepted_publication_ready(
             route for route in later_readings if route.request == requested.value
         )
         answer = first.fetch()
-        first_reading = answer.json()["reading"]
+        # The tab names the reading it holds, so the answer patches it
+        # (`served_state/tail.py`) and carries the new reading's name as a change.
+        first_reading = next(
+            change["value"]
+            for change in answer.json()["patch"]
+            if change["at"] == ["reading"]
+        )
         assert first_reading != before_reading
         later_readings.remove(first)
         first.fulfill(response=answer)
@@ -534,7 +575,7 @@ def test_a_fresh_revision_caret_failure_does_not_strand_deferred_arrivals(
     told(page)
     page.keyboard.press("Control+Alt+r")
     wait_for_revision(page, 2)
-    errors = consume_browser_errors(page, "fresh mechanical caret fixture failed")
+    errors = reported_browser_errors(page, "fresh mechanical caret fixture failed")
     assert page.evaluate("Boolean(window.__presentationDispatched)")
     page.wait_for_function("window.__deferredArrivalRan===true")
     assert len(errors) == 1, errors

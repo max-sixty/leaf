@@ -7,7 +7,6 @@ import shutil
 import threading
 from types import SimpleNamespace
 
-import leaf_website as website_server
 import pytest
 from conftest import app_server_message_error
 from interact_support import (
@@ -21,6 +20,7 @@ from interact_support import (
 from interact_support import append_carried_log_record as append_event
 from websockets.exceptions import ConnectionClosedError
 
+import leaf_website as website_server
 from leaf import codex as leaf_codex
 from leaf.codex import AppServerRequestRejected, delivery_records
 from leaf.event_log import read_events
@@ -221,8 +221,8 @@ def test_an_active_thread_has_its_unwatched_turn_stopped_before_the_next_starts(
     assert [method for method, _ in sent] == ["turn/interrupt", "turn/start"]
     assert sent[0][1] == {"threadId": "hosted-thread", "turnId": ""}
     for method, params in sent:
-        request = {"method": method, "id": 0, "params": params}
-        assert app_server_message_error(request, "Client") is None
+        message = {"method": method, "id": 0, "params": params}
+        assert app_server_message_error(message, "Client") is None
     assert app_server_message_error(json.loads(Socket().recv(1)), "Server") is None
     assert sent[1][1]["clientUserMessageId"]
     [(_, queue)] = delivery_records("hosted-thread")
@@ -468,7 +468,9 @@ def test_a_follower_that_cannot_start_releases_its_delivery(page_dir, monkeypatc
         assert harness.following_threads == set()
         assert closed == [True]
         assert interrupted == [("hosted-thread", "")]
-        assert session_record("hosted-thread")["turn_closed"] is not None
+        turn_record = session_record("hosted-thread")
+        assert turn_record is not None
+        assert turn_record["turn_closed"] is not None
         assert website_server.write_failure_receipt(
             page_dir, event["id"], "startup_failed"
         )
@@ -681,7 +683,9 @@ def test_an_acknowledged_start_answers_a_user_with_no_turn_started_notification(
     [reply] = [event for event in events if event["kind"] == "reply"]
     assert (reply["responds"], reply["text"]) == (comment["id"], "Deployment verified.")
     assert "failure" not in reply
-    assert website_server.page_claim(page_dir)["turn_closed"] is not None
+    claim_record = website_server.page_claim(page_dir)
+    assert claim_record is not None
+    assert claim_record["turn_closed"] is not None
     assert (activity["kind"], activity["obligations"]) == ("listening", [])
     assert socket.closed
 
@@ -745,6 +749,7 @@ def test_hosted_start_retains_its_admitted_epoch_until_it_begins(
             )
             page.set_status("waiting")
         current = session_record("hosted-thread")
+        assert current is not None
         leaf_codex.set_stream_activity(
             "hosted-thread",
             current["turn"],

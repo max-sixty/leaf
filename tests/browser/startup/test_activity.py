@@ -21,8 +21,8 @@ from render_cases_layout import token_colour
 from render_cases_navigation import TAB_AND_DOT, TAB_TONE, live_watcher
 from render_harness import (
     LONG_PAGE,
-    PANEL,
     open_page,
+    open_threads,
     panel_settled,
     panel_view,
     shown,
@@ -42,7 +42,7 @@ pytestmark = pytest.mark.shifts_unsurveyed
 
 # Where the leaf's peek says the status's whole sentence.
 PEEK = ".lf-fp-peek"
-LEAF_DOT = ".lf-fp-leaf .lf-dot"
+LEAF = ".lf-fp-leaf"
 
 
 def expect_status_says(page, words):
@@ -58,59 +58,16 @@ def expect_status_says(page, words):
 def workflow_of(scope, message):
     """The workflow line on `message`'s head where `scope` draws it."""
     return scope.locator(
-        f'.lf-msg[data-event="{message}"] > .lf-msg-head .lf-msg-sending'
+        f'.lf-msg[data-lf-event="{message}"] > .lf-msg-head .lf-msg-sending'
     )
 
 
 def thread_row_says(page, thread, resolved=False):
-    """Open the panel's Threads at Open, or Resolved, and return what `thread`'s row says
-    of where it stands, beside its name."""
-    if page.locator(PANEL).get_attribute("data-open") != "threads":
-        page.locator(".lf-fp-threads").click()
-        panel_settled(page, view="threads")
-    page.locator(".lf-fp-filters button").filter(
-        has_text="Resolved" if resolved else "Open"
-    ).click()
-    return page.locator(f'.lf-fp-thread[data-key="{thread}"] .lf-fp-value')
-
-
-def test_the_page_dates_a_claim_by_the_clock_that_wrote_it(browser, serve):
-    """Every timestamp a seat reads out was written by the server; `Date.now()` is the
-    machine holding the tab. A laptop an hour fast therefore called a claim made this
-    minute an hour stale — on the leaf, on a roster row and under every question at
-    once, always in the same direction, with nothing in the timestamp to give it away.
-    The poll carries the server's own now, so the offset is measured rather than
-    assumed.
-
-    It is the user's clock that moves here, because that is the one of the two a page
-    has to survive: the server writes the timestamps it later reads back and cannot
-    disagree with itself, while the user's machine is not the page's to correct."""
-    page = open_page(browser, serve(LONG_PAGE))
-    d = serve.page_dir
-    dot = page.locator(LEAF_DOT)
-
-    def claim(detail):
-        record_claim(d, id="s")
-        declare_work(d, detail)
-        told(page)
-
-    claim("running the migration")
-    expect_status_says(
-        page,
-        re.compile(r"^\s*Claude is working — running the migration \(just now\)\."),
-    )
-
-    # An hour fast. A fixed time rather than an installed clock, so the page's own
-    # polling keeps running and the next reading is a real one.
-    page.clock.set_fixed_time(datetime.now().astimezone() + timedelta(hours=1))
-    # New words, so the line under test can only be one this user painted after the
-    # clock moved: an unchanged sentence would pass on the render before it.
-    claim("waiting on the shard")
-    expect_status_says(
-        page,
-        re.compile(r"^\s*Claude is working — waiting on the shard \(just now\)\."),
-    )
-    expect(dot).to_have_class(re.compile(r"\bworking\b"))
+    """Open the panel's Threads and return what `thread`'s row says of where it stands,
+    beside its name, among the open threads or, where `resolved`, under Resolved."""
+    open_threads(page)
+    state = "[data-lf-resolved]" if resolved else ":not([data-lf-resolved])"
+    return page.locator(f'.lf-fp-thread[data-lf-key="{thread}"]{state} .lf-row-end')
 
 
 def test_a_thread_says_what_the_agent_is_doing_about_it(
@@ -128,16 +85,56 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     Nothing deletes the line directly. The agent's next reply answers the claim;
     resolution hides it while the thread is closed, and reopening reveals it
     again. The thread's view in the panel draws the line on its message, and Threads
-    names the stage on the thread's row."""
-    page = open_page(browser, serve(LONG_PAGE, comments=2))
+    names the stage on the thread's row.
+
+    A phase change updates that metadata without moving or replacing it: the line
+    belongs beside the outgoing message's relative time, heartbeats leave it alone, and
+    a semantic transition changes its words in place. Re-inserting the node would lose
+    its identity and could replay presentation. Silence changes the wording, not the
+    durable phase or the interaction seat."""
+    url = serve(LONG_PAGE, comments=2)
     d = serve.page_dir
     comments = [e for e in events_model.read_events(d) if e["kind"] == "comment"]
     held, other = comments[0]["id"], comments[1]["id"]
+    unpicked = append_carried_log_record(
+        d,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "Did this reach anyone?",
+            "ts": (datetime.now().astimezone() - timedelta(minutes=3)).isoformat(
+                timespec="seconds"
+            ),
+        },
+    )
+    page = open_page(browser, url)
+    late = workflow_of(open_panel_thread(page, unpicked["id"]), unpicked["id"])
+    expect(late).to_have_text(re.compile(r"^Still queued for "))
+    expect(late).to_have_attribute("title", re.compile(r"^Still queued for "))
+
     view = open_panel_thread(page, held)
     held_workflow = workflow_of(view, held)
     expect(view.locator(".lf-msg-sending")).to_have_count(1)
-    expect(held_workflow).to_have_text("Sent")
-    held_workflow.evaluate("node => { node.dataset.identityProbe = 'kept' }")
+    expect(held_workflow).to_be_visible()
+    expect(held_workflow).to_have_text(re.compile(r"^Queued for "))
+    beside_the_time = (
+        "node => node.parentElement.matches('.lf-msg-meta') "
+        "&& node.previousElementSibling.matches('time')"
+    )
+    assert held_workflow.evaluate(beside_the_time)
+    expect(held_workflow.locator("time")).to_have_count(0)
+    expect(view.locator(":scope > .lf-msg-sending")).to_have_count(0)
+    held_workflow.evaluate(
+        """node => {
+          node.dataset.identityProbe = 'kept';
+          window.__workflowMoves = 0;
+          new MutationObserver((records) => {
+            for (const record of records)
+              if ([...record.removedNodes].includes(node)) window.__workflowMoves += 1;
+          }).observe(node.parentElement, { childList: true });
+        }"""
+    )
 
     # The old page-wide start is deliberately stale: delivery into this exact turn,
     # rather than a fresh start, must be what changes the shared activity reading.
@@ -165,7 +162,7 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
 
     cleanup_model.close_session_turn("s")
     told(page)
-    expect(held_workflow).to_have_text("Turn ended")
+    expect(held_workflow).to_have_text("Stopped")
     cleanup_model.open_session_turn("s")
 
     def start(item, line):
@@ -178,22 +175,53 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     start(held, "reading the reconnect traces")
     # One line, on the thread it names: a mark that stood on every open thread would
     # say only that the agent is busy, which the leaf already says.
-    expect(held_workflow).to_have_text("Working")
+    expect(held_workflow).to_have_text("On it")
     expect(held_workflow).to_have_attribute(
-        "title", "Working · reading the reconnect traces"
+        "title", "On it · reading the reconnect traces"
     )
     expect(held_workflow).to_have_attribute("data-identity-probe", "kept")
     expect(held_workflow).to_have_count(1)
     # The move's state is metadata on the exact outgoing message, closing that row
     # rather than taking a full-width row of its own.
     expect(view.locator(":scope > .lf-msg-sending")).to_have_count(0)
-    assert held_workflow.evaluate(
-        "node => node.parentElement.matches('.lf-msg-meta') "
-        "&& node.previousElementSibling.matches('time')"
+    assert held_workflow.evaluate(beside_the_time)
+    # At a narrow width the head keeps its author and whole time beside the line, and
+    # the heartbeats that follow leave the line where it stands.
+    page.set_viewport_size({"width": 340, "height": 800})
+    told(page)
+    expect(held_workflow).to_have_text("On it")
+    header_reading = held_workflow.evaluate(
+        """node => {
+          const head = node.closest('.lf-msg-head');
+          const author = head.querySelector(':scope > b');
+          const metadata = head.querySelector(':scope > .lf-msg-meta');
+          const time = metadata.querySelector(':scope > time');
+          const contains = (outer, inner) => {
+            const bounds = outer.getBoundingClientRect();
+            const part = inner.getBoundingClientRect();
+            return part.width > 0 && part.height > 0
+              && part.left >= bounds.left - 0.5 && part.right <= bounds.right + 0.5;
+          };
+          return {
+            authorVisible: contains(head, author),
+            timeVisible: contains(head, time) && contains(metadata, time),
+            timeWhole: time.scrollWidth <= time.clientWidth,
+          };
+        }"""
     )
+    assert all(header_reading.values()), header_reading
+    ticked(page)
+    ticked(page)
+    expect(held_workflow).to_have_attribute("data-identity-probe", "kept")
+    assert page.evaluate("() => window.__workflowMoves") == 0
+    assert (
+        held_workflow.evaluate("node => node.getAnimations({ subtree: true }).length")
+        == 0
+    )
+    page.set_viewport_size({"width": 1200, "height": 900})
     # Threads names the stage on each row, the held thread's and not the other's.
-    expect(thread_row_says(page, held)).to_contain_text("Working")
-    expect(thread_row_says(page, other)).to_contain_text("Sent")
+    expect(thread_row_says(page, held)).to_contain_text("On it")
+    expect(thread_row_says(page, other)).to_contain_text("Queued for ")
 
     # New words do not detach the claim from the comment that started the work.
     followup = append_carried_log_record(
@@ -210,8 +238,8 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     view = open_panel_thread(page, held)
     held_workflow = workflow_of(view, held)
     followup_workflow = workflow_of(view, followup["id"])
-    expect(held_workflow).to_have_text("Working")
-    expect(followup_workflow).to_have_text("Sent")
+    expect(held_workflow).to_have_text("On it")
+    expect(followup_workflow).to_have_text(re.compile(r"^Queued for "))
     expect(view.locator(":scope > .lf-msg-sending")).to_have_count(0)
 
     # A later start on the page's own task is not an answer to the thread, so the
@@ -220,7 +248,7 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     told(page)
     expect(held_workflow).to_have_count(1)
     expect(held_workflow).to_have_attribute(
-        "title", "Working · reading the reconnect traces"
+        "title", "On it · reading the reconnect traces"
     )
 
     # The answer is what ends it.
@@ -236,7 +264,7 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
         },
     )
     told(page)
-    expect(view.locator(".lf-msg.agent")).to_have_count(1)
+    expect(view.locator(".lf-msg[data-lf-author=agent]")).to_have_count(1)
     expect(held_workflow).to_have_count(0)
     # The answer responds to the follow-up, whose line goes with it.
     expect(view.locator(".lf-msg-sending")).to_have_count(0)
@@ -261,13 +289,13 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     told(page)
     expect(held_workflow).to_have_count(0)
     # No message carries this work, so the thread's row still says it.
-    expect(thread_row_says(page, held)).to_contain_text("Working")
+    expect(thread_row_says(page, held)).to_contain_text("On it")
 
     # A thread the user has closed asks nothing: its row no longer says the agent is
     # working on it.
     append_carried_log_record(d, {"kind": "resolve", "author": "user", "parent": held})
     told(page)
-    expect(thread_row_says(page, held, resolved=True)).not_to_contain_text("Working")
+    expect(thread_row_says(page, held, resolved=True)).not_to_contain_text("On it")
 
     # Reopening restores the task, which no reply ends. Its start goes with the page
     # claim it is part of: once nothing holds the page, the task is open but nothing
@@ -276,154 +304,62 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
         d, {"kind": "unresolve", "author": "user", "parent": held}
     )
     told(page)
-    expect(thread_row_says(page, held)).to_contain_text("Working")
+    expect(thread_row_says(page, held)).to_contain_text("On it")
     record_claim(d, id="s", pid=dead_pid)
     told(page)
-    expect(thread_row_says(page, held)).to_contain_text("To-do open")
+    expect(thread_row_says(page, held)).to_contain_text("Still to do")
 
 
 def test_the_leaf_and_all_pages_say_the_served_activity(browser, serve, other_leaf):
     """The served activity reaches the leaf's name, its peek and dot, and this page's
-    row in All pages. What each says for every reading is
-    `tests/runtime/activity-words.test.mjs`'s, and which reading a log and claim come
-    to is `tests/model/test_activity.py`'s."""
+    row in All pages, dated by the clock that wrote it. What each says for every reading
+    is `tests/runtime/activity-words.test.mjs`'s, and which reading a log and claim come
+    to is `tests/model/test_activity.py`'s.
+
+    Every timestamp a seat reads out was written by the server; `Date.now()` is the
+    machine holding the tab. A laptop an hour fast therefore called a claim made this
+    minute an hour stale — on the leaf, on a roster row and under every question at
+    once, always in the same direction, with nothing in the timestamp to give it away.
+    The poll carries the server's own now, so the offset is measured rather than
+    assumed.
+
+    It is the user's clock that moves here, because that is the one of the two a page
+    has to survive: the server writes the timestamps it later reads back and cannot
+    disagree with itself, while the user's machine is not the page's to correct."""
     page = open_page(browser, serve(LONG_PAGE))
     record_claim(serve.page_dir, id="s", pid=os.getpid(), agent="Claude")
     declare_work(serve.page_dir, "Writing the page")
     told(page)
     expect(page.locator(".lf-fp-leaf")).to_have_attribute(
-        "aria-label", "Page menu · Claude working — Writing the page"
+        "aria-label", "Page menu · Writing the page"
     )
     expect_status_says(
         page,
-        re.compile(r"^\s*Claude is working — Writing the page \(just now\)\."),
+        re.compile(r"^\s*Writing the page \(just now\)\."),
     )
-    expect(page.locator(LEAF_DOT)).to_have_class(re.compile(r"\bworking\b"))
+    expect(page.locator(LEAF)).to_have_attribute("data-lf-tone", "working")
+
+    # An hour fast. A fixed time rather than an installed clock, so the page's own
+    # polling keeps running and the next reading is a real one.
+    page.clock.set_fixed_time(datetime.now().astimezone() + timedelta(hours=1))
+    # New words, so the line under test can only be one this user painted after the
+    # clock moved: an unchanged sentence would pass on the render before it.
+    record_claim(serve.page_dir, id="s", pid=os.getpid(), agent="Claude")
+    declare_work(serve.page_dir, "Waiting on the shard")
+    told(page)
+    expect_status_says(
+        page,
+        re.compile(r"^\s*Waiting on the shard \(just now\)\."),
+    )
+    expect(page.locator(LEAF)).to_have_attribute("data-lf-tone", "working")
+
     page.locator("body").focus()
     page.keyboard.press("g")
     page.keyboard.press("Shift+l")
     this_page = page.locator(f"{panel_view('leaves')} .lf-fp-page").first
     expect(this_page).to_contain_text("This page")
     # The row names the page; what its agent is doing is said whole on hover.
-    expect(this_page).to_have_attribute(
-        "title", re.compile("Working — Writing the page$")
-    )
-
-
-def test_an_unpicked_move_says_it_is_waiting_after_the_short_grace(browser, serve):
-    """Silence changes the wording, not the durable phase or the interaction seat."""
-    url = serve(LONG_PAGE)
-    d = serve.page_dir
-    old = (datetime.now().astimezone() - timedelta(minutes=3)).isoformat(
-        timespec="seconds"
-    )
-    comment = append_carried_log_record(
-        d,
-        {
-            "kind": "comment",
-            "author": "user",
-            "revision": 1,
-            "text": "Did this reach anyone?",
-            "ts": old,
-        },
-    )
-    page = open_page(browser, url)
-    workflow = workflow_of(open_panel_thread(page, comment["id"]), comment["id"])
-    expect(workflow).to_have_text("Waiting for delivery")
-    expect(workflow).to_have_attribute("title", "Waiting for delivery")
-
-
-def test_a_message_workflow_changes_phase_in_place_and_then_stands_still(
-    browser, serve
-):
-    """A phase change updates message metadata without moving or replacing it.
-
-    The workflow belongs beside the outgoing message's relative time. Heartbeats leave
-    it alone, while a semantic transition changes its words in place.
-    Re-inserting the node would lose its identity and could replay presentation."""
-    url = serve(LONG_PAGE)
-    d = serve.page_dir
-    comment = append_carried_log_record(
-        d,
-        {
-            "kind": "comment",
-            "author": "user",
-            "revision": 1,
-            "text": "Did this reach anyone?",
-        },
-    )
-    record_claim(d)
-    page = open_page(browser, url)
-    thread = open_panel_thread(page, comment["id"])
-    workflow = workflow_of(thread, comment["id"])
-    expect(workflow).to_be_visible()
-    expect(workflow).to_have_text("Sent")
-    assert workflow.evaluate(
-        "node => node.parentElement.matches('.lf-msg-meta') "
-        "&& node.previousElementSibling.matches('time')"
-    )
-    expect(workflow.locator("time")).to_have_count(0)
-    expect(thread.locator(":scope > .lf-msg-sending")).to_have_count(0)
-    workflow.evaluate(
-        """node => {
-          node.dataset.identityProbe = 'kept';
-          window.__workflowMoves = 0;
-          new MutationObserver((records) => {
-            for (const record of records)
-              if ([...record.removedNodes].includes(node)) window.__workflowMoves += 1;
-          }).observe(node.parentElement, { childList: true });
-        }"""
-    )
-    with service_model.PageTransaction(d) as transaction:
-        delivery_model.record_pickup(transaction, [comment])
-    told(page)
-    expect(workflow).to_have_text("Delivered")
-    active = CliRunner().invoke(
-        cli_model.cli,
-        [
-            "task",
-            "start",
-            str(d),
-            comment["id"],
-            "--text",
-            "comparing the replacement against every narrow thread surface",
-        ],
-    )
-    assert active.exit_code == 0, active.output
-    page.set_viewport_size({"width": 340, "height": 800})
-    told(page)
-    expect(workflow).to_have_text("Working")
-    expect(workflow).to_have_attribute(
-        "title",
-        "Working · comparing the replacement against every narrow thread surface",
-    )
-    header_reading = workflow.evaluate(
-        """node => {
-          const head = node.closest('.lf-msg-head');
-          const author = head.querySelector(':scope > b');
-          const metadata = head.querySelector(':scope > .lf-msg-meta');
-          const time = metadata.querySelector(':scope > time');
-          const contains = (outer, inner) => {
-            const bounds = outer.getBoundingClientRect();
-            const part = inner.getBoundingClientRect();
-            return part.width > 0 && part.height > 0
-              && part.left >= bounds.left - 0.5 && part.right <= bounds.right + 0.5;
-          };
-          return {
-            authorVisible: contains(head, author),
-            timeVisible: contains(head, time) && contains(metadata, time),
-            timeFixed: getComputedStyle(time).flexShrink === '0',
-          };
-        }"""
-    )
-    assert all(header_reading.values()), header_reading
-    ticked(page)
-    ticked(page)
-    expect(workflow).to_have_attribute("data-identity-probe", "kept")
-    assert page.evaluate("() => window.__workflowMoves") == 0
-    assert (
-        workflow.evaluate("node => node.getAnimations({ subtree: true }).length") == 0
-    )
+    expect(this_page).to_have_attribute("title", re.compile("\nWaiting on the shard$"))
 
 
 def test_an_exact_workflow_reports_stale_work_beside_a_live_page_claim(
@@ -431,14 +367,14 @@ def test_an_exact_workflow_reports_stale_work_beside_a_live_page_claim(
 ):
     """A stale exact-input workflow says so beside its message even while a fresh
     start on the page's own task keeps the leaf working. Starting the move again
-    restores Working; a closed turn matters only when it belongs to the session that
+    restores On it; a closed turn matters only when it belongs to the session that
     started it."""
     page = open_page(browser, serve(LONG_PAGE, anchored=[("p1", "Paragraph 1.")]))
     d = serve.page_dir
     held = next(e for e in events_model.read_events(d) if e["kind"] == "comment")["id"]
     work_line = workflow_of(open_panel_thread(page, held), held)
     work_button = page.locator('.lf-margin-marker[data-lf-kinds~="comment"]')
-    page_work = re.compile(r"^\s*Claude is working — rerunning the failing shard")
+    page_work = re.compile(r"^\s*rerunning the failing shard")
 
     def claim(claim_ts, session="s"):
         """A start on the comment last renewed whenever, beside a start on the page's
@@ -458,7 +394,7 @@ def test_an_exact_workflow_reports_stale_work_beside_a_live_page_claim(
     claim(cleanup_model.now_iso())
     # A claim somebody is keeping says nothing about silence.
     expect(work_line).to_have_count(1)
-    expect(work_line).to_have_text("Working")
+    expect(work_line).to_have_text("On it")
     expect(work_button).to_have_count(1)
     expect(work_button).to_have_attribute("data-lf-agent-workflow", "working")
 
@@ -466,9 +402,9 @@ def test_an_exact_workflow_reports_stale_work_beside_a_live_page_claim(
         timespec="seconds"
     )
     claim(quiet_ts)
-    expect(work_line).to_have_text("Update stale")
+    expect(work_line).to_have_text("Gone quiet")
     expect(work_line).to_have_attribute(
-        "title", "Update stale · reading the reconnect traces"
+        "title", "Gone quiet · reading the reconnect traces"
     )
     expect(work_line.locator("time")).to_have_count(0)
     expect(work_button).not_to_have_attribute(
@@ -478,7 +414,7 @@ def test_an_exact_workflow_reports_stale_work_beside_a_live_page_claim(
     # The page's own line is as fresh as it was, which is the whole case: this is one
     # claim going quiet beside a live one, not a page that has gone quiet all over.
     expect_status_says(page, page_work)
-    expect(thread_row_says(page, held)).to_contain_text("Update stale")
+    expect(thread_row_says(page, held)).to_contain_text("Gone quiet")
 
     # The exact claim is stale when its own turn has ended, even while the newer page
     # declaration remains active.
@@ -495,7 +431,7 @@ def test_an_exact_workflow_reports_stale_work_beside_a_live_page_claim(
             timespec="seconds"
         )
     )
-    expect(work_line).to_have_text("Update stale")
+    expect(work_line).to_have_text("Gone quiet")
     expect(work_line.locator("time")).to_have_count(0)
     assert work_line.evaluate("node => getComputedStyle(node).color") == token_colour(
         page, "--muted"
@@ -518,7 +454,7 @@ def test_an_exact_workflow_reports_stale_work_beside_a_live_page_claim(
         ),
         session="page-task",
     )
-    expect(work_line).to_have_text("Working")
+    expect(work_line).to_have_text("On it")
     expect(work_line.locator("time")).to_have_count(0)
     expect(work_button).to_have_attribute("data-lf-agent-workflow", "working")
 
@@ -526,7 +462,7 @@ def test_an_exact_workflow_reports_stale_work_beside_a_live_page_claim(
     # than latching on the first time it is late.
     record_claim(d, id="s")
     claim(cleanup_model.now_iso())
-    expect(work_line).to_have_text("Working")
+    expect(work_line).to_have_text("On it")
     expect(work_line).to_have_count(1)
     expect(work_button).to_have_attribute("data-lf-agent-workflow", "working")
     # The semantic Target button carries the workflow; the thread card it opens does
@@ -534,12 +470,14 @@ def test_an_exact_workflow_reports_stale_work_beside_a_live_page_claim(
     page.locator(".lf-fp-close").click()
     panel_settled(page, open=False)
     work_button.click()
-    inline = page.locator(f'.lf-margin-preview .lf-page-thread[data-thread="{held}"]')
+    inline = page.locator(
+        f'.lf-margin-preview .lf-page-thread[data-lf-thread="{held}"]'
+    )
     expect(inline).to_be_visible()
     expect(inline).not_to_have_attribute("data-lf-agent-workflow", re.compile(".+"))
     assert inline.evaluate("node => getComputedStyle(node).boxShadow") == "none"
     claim(quiet_ts)
-    expect(inline.locator(".lf-msg-sending")).to_have_text("Update stale")
+    expect(inline.locator(".lf-msg-sending")).to_have_text("Gone quiet")
     expect(inline).not_to_have_attribute("data-lf-agent-workflow", re.compile(".+"))
     assert inline.evaluate("node => getComputedStyle(node).boxShadow") == "none"
     expect(inline.locator(".lf-msg-sending")).to_have_css(

@@ -1,7 +1,7 @@
 # The examples
 
 Each top-level HTML file here is both a complete user page and an integration fixture,
-and the website publishes it with the same vendored layer. The active cards in
+and the website publishes it with the same layer. The active cards in
 `docs/examples.html` decide which pages the catalog lists, and in what groups and order.
 
 ## Catalog pages
@@ -53,12 +53,20 @@ An example's markup is its current version. Beside it may sit:
   declarations, modules or styles;
 - `versions/<stem>.vN.html`, earlier versions, read in filename order;
 - `<stem>.jsonl`, seeded events for what markup can't describe: a thread, a user
-  decision, or a widget in a message;
+  decision, or a widget in a message. Each line is an event as its writer would send
+  it, which the page admits through the append door, so leave out what admission
+  derives, such as an action's `meaning`;
 - `<stem>.data.json`, each page-owned data source's current value (`example_data.py`
   says how to give it).
 
 `prepare_page` in `dev/leaf_dev/page_fixtures.py` builds a page directory from an
 example.
+
+To run `leaf page check` on an example, check the page directory a plain preview
+builds, since the command takes a page directory and not the `.html` (a bare
+`page init` plus a copy misses the `.page/` companion and its packages). Start
+`uv run leaf-dev preview <example> --slot chk` as a long-running command, then run
+`bin/leaf page check .tmp/previews/chk` and stop the preview.
 
 Capture a seeded anchor with `leaf thread create --quote` against the file, since a
 hand-written `{section, quote, suffix}` detaches silently when its sentence changes.

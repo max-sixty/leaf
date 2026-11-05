@@ -18,10 +18,11 @@ from leaf.events import (
     spoken_turns,
     taken_back,
     undo_error,
+    unshown,
 )
 from leaf.findings import Finding
 from leaf.harness import message_identity
-from leaf.layer import incompatible_layer, incompatible_revision
+from leaf.layer import incompatible_layer
 from leaf.obligations import (
     quoted_in,
     response_address,
@@ -29,7 +30,7 @@ from leaf.obligations import (
 from leaf.page_view import CandidatePageView, PageView
 from leaf.plans import plan_error
 from leaf.projection import (
-    authored_positions,
+    AuthoredOrders,
     generated_children,
     projected_action_holders,
     record_members,
@@ -37,7 +38,6 @@ from leaf.projection import (
 )
 from leaf.read_state import read_contract_error
 from leaf.registry.contract import (
-    RegistryError,
     created_child,
     detail_schema,
     event_spec,
@@ -54,12 +54,12 @@ from leaf.registry.kernel import (
 )
 from leaf.registry.reactions import reaction_tokens
 from leaf.registry.schema import schema_complaint
-from leaf.registry.storage import IncompatibleLayer, load_registry
+from leaf.registry.storage import IncompatibleLayer, layer_record
 from leaf.shown_answers import shown_widget
 from leaf.todos import todo_error
 from leaf.validation.instances import attribute_slot_errors
 from leaf.work import widget_seat_error
-from leaf.workflows import agent_inputs, obligation_reading
+from leaf.workflows import agent_inputs, attention_reading
 
 
 def event_record_error(contract: dict, event: dict) -> Finding | None:
@@ -125,10 +125,11 @@ def command_error(event: dict, contracts: dict) -> Finding | None:
     )
 
 
-def declared_event_error(event: dict, tag: str, registry: dict):
+def declared_event_error(event: dict, rec: dict, registry: dict):
     """Why a known widget's verb or detail violates its x-state declaration, or
     names a verb the event's own writer does not write."""
     kind = event["kind"]
+    tag = rec["tag"]
     entry = registry.get(tag)
     if entry is None:
         return Finding(
@@ -152,7 +153,10 @@ def declared_event_error(event: dict, tag: str, registry: dict):
             verb for verb, _spec in state_specs(entry, writer=verb_writers()[kind])
         )
         return Finding("undeclared-verb", values={**named, "declared": declared})
-    if complaint := schema_complaint(detail_schema(entry, spec), event["detail"]):
+    if complaint := schema_complaint(
+        detail_schema(entry, spec, attrs=rec["attrs"], registry=registry),
+        event["detail"],
+    ):
         return Finding("invalid-detail", values={**named, **complaint})
     return None
 
@@ -178,7 +182,7 @@ def declared_action_error(
             },
         )
     tag = rec["tag"]
-    if error := declared_event_error(event, tag, registry):
+    if error := declared_event_error(event, rec, registry):
         return error
     # The exhibit rule at the door, not only in the shipped runtime's
     # browser controller: an exhibited widget is a mention, and the log outranks the
@@ -409,8 +413,8 @@ def record_contract_error(view, event, spec, readings, page_owned=True):
         ):
             return error.but(values=record)
     if record_kind == "attribute":
-        members = record_members(
-            event["widget"], spec["record"], projection, byid, registry
+        members = record_members(spec["record"], projection, byid, registry).get(
+            event["widget"], set()
         )
         named = event["detail"]["value"]
         if strangers := sorted(set(named) - members):
@@ -433,11 +437,9 @@ def stale_move_error(view, event: dict, spec: dict, reading, readings):
     owner, container = event["widget"], event["detail"]["value"]
     registry = readings.registry
     now = readings.page(newest)
-    if authored_positions(
-        owner, record, reading.document.by_id, reading.spoken, registry
-    ).get(container) == authored_positions(
-        owner, record, now.document.by_id, now.spoken, registry
-    ).get(container):
+    if AuthoredOrders(reading.document.by_id, registry).of(owner, record).get(
+        container
+    ) == AuthoredOrders(now.document.by_id, registry).of(owner, record).get(container):
         return None
     return Finding(
         "stale-move",
@@ -469,24 +471,19 @@ def declared_report_error(event: dict, page, registry: dict):
                 "revision": event["revision"],
             },
         )
-    return declared_event_error(event, tag, registry)
+    return declared_event_error(event, rec, registry)
 
 
 def admitting_registry(view, event: dict) -> dict:
     """The vocabulary that admits one event: the one its own document captured.
 
     An event names the revision it was made against, and that revision's artifact
-    holds the registry its page was rendered from — so a re-vendor, which replaces
+    holds the registry its page was rendered from — so a `page init`, which changes
     the layer without touching an existing revision, cannot reinterpret a command
     the user made against the document in front of them. Admission records that
     semantic definition in the event. An event naming no revision takes the newest,
     which is the document any writer of one is looking
-    at, and a page with no revision yet has the candidate's vocabulary. Nothing made
-    against a revision saved at another protocol is admitted
-    (`layer.incompatible_revision`): one the event names, or the newest a widget
-    to-do is opened against (`opens_on_newest`). Any other event is judged by the
-    page's layer alone (`write_refusal`), so the bookkeeping a re-vendored page
-    takes before its source saves again, such as a pickup, still goes through.
+    at, and a page with no revision yet has the candidate's vocabulary.
 
     Read through `PageView.registry`, which opens the one captured file rather
     than materializing the whole bundle: this runs on every append."""
@@ -498,12 +495,6 @@ def admitting_registry(view, event: dict) -> dict:
     registry = view.registry(revision)
     if registry is None:
         raise EventRefused(Finding("no-registry"), event)
-    if (
-        (named or opens_on_newest(event))
-        and revision is not None
-        and (refusal := incompatible_revision(revision, registry))
-    ):
-        raise EventRefused(refusal, event)
     return registry
 
 
@@ -593,10 +584,10 @@ def _anchored_comment_error(view, event: dict, registry: dict):
 
 
 def _parent_error(event: dict, events: list) -> Finding | None:
-    """A parent is a message the log holds and no undo took back. Every thread fold
-    drops a withdrawn message (`build_threads`), so an event naming one would stand
-    on a message no reading shows; with `UndoReading` refusing to withdraw a message
-    another stands on, every message in force keeps its parent in force."""
+    """A parent is a message some reading shows: one the log holds that no undo took
+    back, or one taken back that something still stands on, which keeps its place in
+    its thread (`events.unshown`). An event naming any other would stand on a message
+    no reading shows."""
     if "parent" not in event:
         return None
     parent = event["parent"]
@@ -605,7 +596,7 @@ def _parent_error(event: dict, events: list) -> Finding | None:
         for logged in events
     ):
         return Finding("unknown-parent", values={"parent": parent})
-    if parent in taken_back(events):
+    if parent in unshown(events, taken_back(events)):
         return Finding("withdrawn-parent", values={"parent": parent})
     return None
 
@@ -613,13 +604,16 @@ def _parent_error(event: dict, events: list) -> Finding | None:
 def _edit_error(event: dict, events: list) -> Finding | None:
     """An edit revises the words of a message its own author wrote: the user's own,
     or an agent's, whichever session posted it, so a successor can correct what a
-    predecessor said. A reaction or a bare drawing has none to revise.
+    predecessor said. A reaction or a bare drawing has none to revise, and a message
+    the user took back has none left.
 
     An edit that names its `base`, the revision its words were written over (the
-    message's own id, or the latest edit of it; a browser names an edit of its own
-    still sending once the log has answered it), lands only on that revision: one
-    written over words another tab has since replaced would silently take their place.
-    Words the message already says are no revision, and no turn."""
+    message's own id, or the latest edit of it still in force; a browser names an edit
+    of its own still sending once the log has answered it), lands only on that
+    revision: one written over words another tab has since replaced would silently
+    take their place. An undone edit no longer stands, so the revision before it is the
+    one a rewrite writes over. Words the message already says are no revision, and no
+    turn; no words at all delete the message (events.md, "Messages")."""
     if event["kind"] != "edit":
         return None
     name = event["message"]
@@ -638,10 +632,15 @@ def _edit_error(event: dict, events: list) -> Finding | None:
         return Finding("foreign-message", values={**message, "author": event["author"]})
     if "text" not in target:
         return Finding("wordless-message", values=message)
+    withdrawn = taken_back(events)
+    if name in withdrawn:
+        return Finding("withdrawn-message", values=message)
     revisions = [
         logged
         for logged in events
-        if logged["kind"] == "edit" and logged["message"] == name
+        if logged["kind"] == "edit"
+        and logged["message"] == name
+        and logged["id"] not in withdrawn
     ]
     latest = revisions[-1] if revisions else target
     if "base" in event and event["base"] != latest["id"]:
@@ -683,7 +682,7 @@ def _withdrawal_error(
         return None
     newest = view.revisions[-1]
     absorbed = readings.page(newest).projection.absorbed
-    return undo_error(event, events, view.within, absorbed)
+    return undo_error(event, events, absorbed)
 
 
 def admission_error(
@@ -730,7 +729,7 @@ def _plan_error(event: dict, readings) -> Finding | None:
 def _todo_error(view, event: dict, readings) -> Finding | None:
     """A `todo` event stands on a thread, a widget that seats work, an element,
     or the page. A completing note and `todo_end` share completion authority.
-    A `todo_end` also admits an agent's end of a question answered in words; a
+    A `todo_end` also admits an agent's end of a question an agent message asks; a
     start names explicit agent work or an owed update (`todos.todo_error`)."""
     from leaf.todos import start_reading
 
@@ -767,33 +766,12 @@ def _todo_error(view, event: dict, readings) -> Finding | None:
             return Finding("not-an-element", values={"element": element})
         return None
 
-    def user_widget_error(widget: str) -> Finding | None:
-        if error := element_error(widget):
-            return error
-        item = next(
-            (
-                item
-                for item in readings.work.all_obligations["all"]
-                if item["source"]["kind"] == "widget"
-                and item["source"]["id"] == widget
-                and item["status"] == "open"
-            ),
-            None,
-        )
-        if item is not None:
-            return Finding(
-                "duplicate-obligation",
-                values={"widget": widget, "obligation": item["id"]},
-            )
-        return None
-
     owed = agent_inputs(readings.work) if held else set()
     return todo_error(
         event,
         readings.log,
         seat_error=seat_error,
         element_error=element_error,
-        user_widget_error=user_widget_error,
         owed=owed,
         items=lambda: readings.work.all_obligations["all"],
         registry=readings.work.registry,
@@ -838,7 +816,7 @@ def _reanchor_error(view, event: dict, events: list) -> Finding | None:
 
 def settled_attention(event: dict, contract: dict) -> bool | None:
     """The attention an event's kind and author decide alone, or None for the
-    user's input, which needs attention only when it changes what the agent owes.
+    user's input, which needs attention when it changes work or requests it.
 
     A report or an error always wakes the agent; the agent's own events and the
     user's bookkeeping never do.
@@ -860,7 +838,7 @@ def admitted_event(view, events: list, event: dict) -> dict:
     applies without a page directory, a server, or a browser under it.
     """
     registry = admitting_registry(view, event)
-    # The kernel's records are this Leaf's own, whichever Leaf vendored the page: no
+    # The kernel's records are this Leaf's own, whichever Leaf initialized the page: no
     # layer can change them, and a page at this protocol reads what they add
     # (`registry.kernel.kernel_protocol`).
     contracts = kernel_event_kinds()
@@ -885,6 +863,11 @@ def admitted_event(view, events: list, event: dict) -> dict:
     ):
         raise EventRefused(error, event)
     attention = settled_attention(event, contracts[kind])
+    if attention is None and kind == "undo":
+        # The agent was told of the gesture, so it is told of the withdrawal, whether
+        # it has yet to read the gesture or has already acted on it.
+        withdrawn = next(logged for logged in events if logged["id"] == event["undoes"])
+        attention = True if withdrawn["attention"] else None
     if attention is None:
         candidate = {
             **APPEND_STAMPED,
@@ -897,27 +880,21 @@ def admitted_event(view, events: list, event: dict) -> dict:
         active_registry = view.registry(revisions[-1] if revisions else None)
         before = AdmissionReadings(view, events, active_registry)
         after = AdmissionReadings(view, [*events, candidate], active_registry)
-        attention = obligation_reading(before) != obligation_reading(after)
+        attention = attention_reading(before) != attention_reading(after)
     event = {**event, "attention": attention}
     return event
 
 
 def write_refusal(page_dir: Path) -> Finding | None:
-    """Why this Leaf may write no event to the page, or None where it may: its
-    vendored layer is one this Leaf cannot serve (`layer.incompatible_layer`). A
-    writer that must not fail on a page it cannot write, such as a hook, asks this
-    first, and so does `page check`."""
+    """Why this Leaf may write no event to the page, or None where it may: the page
+    is at another page protocol (`layer.incompatible_layer`). A writer that must not
+    fail on a page it cannot write, such as a hook, asks this first, and so does
+    `page check`."""
     try:
-        registry = load_registry(page_dir)
-    except IncompatibleLayer as error:
-        return error.findings[0]
-    except RegistryError:
-        registry = None
-    if registry is None:
-        # A broken or missing candidate registry does not invalidate an active
-        # revision's captured vocabulary. Admission will read that vocabulary.
-        return None
-    return incompatible_layer(page_dir, registry)
+        record = layer_record(page_dir)
+    except IncompatibleLayer as refused:
+        return refused.findings[0]
+    return None if record is None else incompatible_layer(page_dir, record)
 
 
 def voiced(event: dict) -> dict:

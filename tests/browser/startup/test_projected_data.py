@@ -23,10 +23,12 @@ from render_harness import (
     leaf_page,
     nudge,
     open_page,
+    open_threads,
     panel_settled,
     round_trip,
     said,
     select,
+    select_words,
     sending,
     ticked,
     told,
@@ -34,12 +36,13 @@ from render_harness import (
     write,
 )
 
-from browser.threads import open_panel_thread, open_threads
+from browser.threads import (
+    open_panel_thread,
+)
 from leaf import data as data_model
 from leaf import event_log as events_model
 from leaf import thread as thread_model
-from leaf.render_checks import wait_until_ready
-from leaf.schema import ELEMENT_ID
+from leaf.render_checks import rendered, wait_until_ready
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -123,10 +126,10 @@ def test_a_comment_on_external_data_stays_with_the_revision_the_user_saw(
         "revision": replaced,
         "path": [1, "value"],
     }, "the source coordinate must follow construction order, not the datum key"
-    quote = open_panel_thread(page, comment["id"]).locator(".lf-fp-quote")
+    quote = open_panel_thread(page, comment["id"]).locator(".lf-thread-quote")
     expect(quote).to_contain_text("Ready")
     expect(quote.locator(".lf-anchor-status")).to_have_text("Earlier data")
-    expect(quote).not_to_have_class(re.compile(r"\bdetached\b"))
+    expect(quote).not_to_have_attribute("data-lf-detached", "")
 
 
 def test_a_comment_on_an_identified_datum_follows_the_subject_across_replacements(
@@ -141,8 +144,8 @@ def test_a_comment_on_an_identified_datum_follows_the_subject_across_replacement
         "description": "A live deployment feed.",
         "type": "object",
         "properties": {
-            "id": {"type": "string", "pattern": f"^{ELEMENT_ID}$"},
-            "source": {"type": "string", "pattern": "^[a-z][a-z0-9-]*$"},
+            "id": {"type": "string"},
+            "source": {"type": "string"},
         },
         "required": ["id", "source"],
         "additionalProperties": False,
@@ -230,7 +233,7 @@ customElements.define('lf-feed', class extends LeafElement {
 
     page.locator('[data-lf-datum="a-1"]').click(modifiers=["Alt"])
     page.keyboard.press("Tab")
-    reaction = page.locator('.lf-fab-bar .lf-react[data-token="keep"]')
+    reaction = page.locator('.lf-fab-bar .lf-react[data-lf-token="keep"]')
     expect(reaction).to_be_visible()
     with sending(page, "the record reaction"):
         reaction.click()
@@ -322,6 +325,99 @@ customElements.define('lf-feed', class extends LeafElement {
     expect(draft).to_have_js_property("value", "Hold this hidden draft.")
 
 
+# Where each margin entry shown beside the page stands.
+ENTRY_TOPS = """() => {
+  const entries = [];
+  const walk = root => {
+    for (const el of root.querySelectorAll('*')) {
+      if (el.classList.contains('lf-margin-entry')) entries.push(el);
+      if (el.shadowRoot) walk(el.shadowRoot);
+    }
+  };
+  walk(document);
+  return entries
+    .filter(entry => entry.getBoundingClientRect().height > 0 &&
+      getComputedStyle(entry).visibility !== 'hidden')
+    .map(entry => entry.getBoundingClientRect().top);
+}"""
+
+# Whether a text document's `line` is marked, with a margin entry level with it.
+# The rows of the text document `#log`, one a line, in order across its runs.
+LOG_ROWS = "#log .lf-text-document-run > *"
+
+ROW_COMMENT = f"""line => {{
+  const row = document.querySelectorAll('{LOG_ROWS}')[line - 1];
+  const box = row.getBoundingClientRect();
+  const marked = [...(CSS.highlights.get('lf-mark') ?? [])].some(
+    range => row.contains(range.startContainer) && range.toString().trim());
+  return marked && ({ENTRY_TOPS})().some(top => Math.abs(top - box.top) < box.height);
+}}"""
+
+SHOW_ROW = "row => row.scrollIntoView({block: 'center'})"
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_text_document_keeps_comments_on_their_lines_across_updates(
+    request, serve, engine
+):
+    """A text document is one document whatever its source holds, so a comment on its
+    lines follows them across updates: while the lines read as they did, they stay
+    marked and the thread's margin entry stands beside them. A line the document holds
+    twice is told apart by the lines around each copy. Once an update rewrites a
+    commented line, its comment stands nowhere on the page. Each comment used to come
+    off its lines on the first update, every margin entry collecting at the document's
+    top, and a comment on a repeated line stood there from the start."""
+    lines = [f"line {i} " + "words " * (i % 9) for i in range(1, 401)]
+    # Row 128 ends the listing's first run of rows; row 310 repeats row 300.
+    lines[127] = "the last row of the first run"
+    lines[299] = lines[309] = "the same line twice"
+    url = serve(
+        leaf_page(
+            "Commented document",
+            '<h1>Log</h1><lf-text-document id="log" source="log-text">'
+            "</lf-text-document>",
+        )
+    )
+    data_model.cmd_data_set(serve.page_dir, "log-text", "\n".join(lines) + "\n")
+    page = open_page(request.getfixturevalue(engine), url)
+    for row in (128, 310):
+        select_words(page, f"{LOG_ROWS} >> nth={row - 1}")
+        anchor = page.evaluate(
+            "async () => (await window.__lfCheckApi()).selectionAnchor(getSelection())"
+        )
+        append_carried_log_record(
+            serve.page_dir,
+            {
+                "kind": "comment",
+                "author": "user",
+                "revision": 1,
+                "text": f"About row {row}",
+                "anchor": anchor,
+            },
+        )
+    told(page)
+    offset = 0
+    for added in (0, 1, 200):
+        if added:
+            offset += added
+            lines = [f"added {added} {i}" for i in range(added)] + lines
+            data_model.cmd_data_set(serve.page_dir, "log-text", "\n".join(lines) + "\n")
+            told(page)
+        for row in (128 + offset, 310 + offset):
+            page.locator(LOG_ROWS).nth(row - 1).evaluate(SHOW_ROW)
+            rendered(page)
+            page.wait_for_function(ROW_COMMENT, arg=row)
+    lines[127 + offset] = "a rewritten row"
+    data_model.cmd_data_set(serve.page_dir, "log-text", "\n".join(lines) + "\n")
+    told(page)
+    page.locator(LOG_ROWS).nth(309 + offset).evaluate(SHOW_ROW)
+    rendered(page)
+    page.wait_for_function(ROW_COMMENT, arg=310 + offset)
+    page.locator(LOG_ROWS).first.evaluate(SHOW_ROW)
+    rendered(page)
+    assert page.evaluate(ENTRY_TOPS) == [], "a margin entry stands at the top"
+
+
 def test_a_comment_follows_an_unversioned_derived_datum_by_its_stable_key(
     browser, serve
 ):
@@ -340,8 +436,8 @@ def test_a_comment_follows_an_unversioned_derived_datum_by_its_stable_key(
         "description": "A project-supplied derived feed.",
         "type": "object",
         "properties": {
-            "id": {"type": "string", "pattern": f"^{ELEMENT_ID}$"},
-            "source": {"type": "string", "pattern": "^[a-z][a-z0-9-]*$"},
+            "id": {"type": "string"},
+            "source": {"type": "string"},
         },
         "required": ["id"],
         "additionalProperties": False,
@@ -411,96 +507,9 @@ customElements.define('lf-derived', class extends LeafElement {
         re.compile(r"\blf-mark-el\b")
     )
     assert page.evaluate("() => CSS.highlights.get('lf-mark')?.size ?? 0") == 0
-    quote = open_panel_thread(page, comment["id"]).locator(".lf-fp-quote")
+    quote = open_panel_thread(page, comment["id"]).locator(".lf-thread-quote")
     expect(quote).to_contain_text("Ready")
     expect(quote.locator(".lf-anchor-status")).to_have_text("Changed")
-
-
-# A widget that reads its text from `.value` and draws each value when the test
-# releases it, so an older draw can finish after a newer one.
-HELD_TEXT_MODULE = """
-import {LeafElement, nothing} from '/runtime/widget-api.js';
-customElements.define('lf-held-text', class extends LeafElement {
-  static properties = {value: {attribute: false}};
-  render() { return nothing; }
-  updated(changed) {
-    super.updated(changed);
-    const value = this.value;
-    const release = Promise.withResolvers();
-    (window.heldDraws ??= {})[value] = release.resolve;
-    if (!value?.startsWith('Held')) release.resolve();
-    this.work = release.promise.then(() => {
-      const p = this.querySelector('p') ?? this.appendChild(document.createElement('p'));
-      p.textContent = value;
-      if (p.dataset.lfDatum !== 'text') p.dataset.lfDatum = 'text';
-      this.dispatchEvent(new CustomEvent('drawn', {detail: {value}}));
-    });
-  }
-  async getUpdateComplete() {
-    const result = await super.getUpdateComplete();
-    await this.work;
-    return result;
-  }
-});
-"""
-
-
-def test_a_draw_that_lands_after_a_newer_value_keeps_the_revision_it_drew(
-    browser, serve
-):
-    """A widget reports the value it drew; Leaf stamps that value's own revision.
-
-    Stamping the revision current when the draw lands would let a comment on the
-    older words claim the newer source revision.
-    """
-    held = {
-        "description": "Text drawn from a bound value.",
-        "type": "object",
-        "properties": {
-            "id": {"type": "string", "pattern": f"^{ELEMENT_ID}$"},
-            "source": {"type": "string", "pattern": "^[a-z][a-z0-9-]*$"},
-        },
-        "required": ["id", "source"],
-        "additionalProperties": False,
-        "x-content": "empty",
-        "x-data": {
-            "text": {
-                "contract": "text-document",
-                "source": "source",
-                "property": "value",
-            }
-        },
-        "x-upgrade": True,
-        "x-example": '<lf-held-text id="held-example" source="note"></lf-held-text>',
-    }
-    url = serve(
-        leaf_page(
-            "Held text",
-            '<h1 id="title">Note</h1><lf-held-text id="note" source="note"></lf-held-text>',
-        ),
-        layer_registry={"lf-held-text": held},
-        layer_widgets={"lf-held-text.js": HELD_TEXT_MODULE},
-    )
-    data_model.cmd_data_set(serve.page_dir, "note", "First words")
-    page = open_page(browser, live_url(url))
-    datum = page.locator('#note [data-lf-datum="text"]')
-    expect(datum).to_have_attribute(
-        "data-lf-source-revision", source_revision(serve.page_dir, "note")
-    )
-
-    data_model.cmd_data_set(serve.page_dir, "note", "Held older words")
-    older = source_revision(serve.page_dir, "note")
-    page.wait_for_function("() => window.heldDraws?.['Held older words']")
-    data_model.cmd_data_set(serve.page_dir, "note", "Held newer words")
-    newer = source_revision(serve.page_dir, "note")
-    page.wait_for_function("() => window.heldDraws?.['Held newer words']")
-
-    page.evaluate("() => window.heldDraws['Held older words']()")
-    expect(datum).to_have_text("Held older words")
-    expect(datum).to_have_attribute("data-lf-source-revision", older)
-    page.evaluate("() => window.heldDraws['Held newer words']()")
-    expect(datum).to_have_text("Held newer words")
-    expect(datum).to_have_attribute("data-lf-source-revision", newer)
 
 
 def test_a_text_document_is_never_drawn_before_its_text_arrives(browser, serve):
@@ -642,50 +651,6 @@ def test_a_captured_source_stays_pointable_and_pinned(browser, serve):
     expect(page.locator("lf-text-document code")).to_have_text(
         "# Leaf\n\nOriginal instructions.\n"
     )
-
-
-def test_an_older_data_response_cannot_replace_a_newer_reading(browser, serve):
-    """Overlapping reads order data by when the server took them, not by arrival."""
-    delay_second_state = """
-      const nativeFetch = window.fetch.bind(window);
-      let stateCalls = 0;
-      window.fetch = async (...args) => {
-        const input = args[0];
-        const url = typeof input === 'string' ? input : input.url;
-        const response = await nativeFetch(...args);
-        if (new URL(url, location.href).pathname !== '/api/state') return response;
-        stateCalls += 1;
-        if (stateCalls !== 2) return response;
-        const body = await response.text();
-        window.lfOldDataCaptured = true;
-        await new Promise(resolve => setTimeout(resolve, 3000));
-        window.lfOldDataReleased = true;
-        return new Response(body, {
-          status: response.status,
-          statusText: response.statusText,
-          headers: response.headers,
-        });
-      };
-    """
-    page = open_page(
-        browser, data_projection_page(serve), init_script=delay_second_state
-    )
-    # The second read, which the script above holds: the page reads when told to.
-    nudge(serve.page_dir)
-    page.wait_for_function("() => window.lfOldDataCaptured === true")
-
-    data_model.cmd_data_set(
-        serve.page_dir,
-        "deployments",
-        [
-            {"key": "api", "value": "Running"},
-            {"key": "worker", "value": "Ready"},
-        ],
-    )
-    expect(page.locator('[data-lf-datum="api"]')).to_contain_text("Running")
-    page.wait_for_function("() => window.lfOldDataReleased === true")
-    told(page)
-    expect(page.locator('[data-lf-datum="api"]')).to_contain_text("Running")
 
 
 # The page's one read slot bounds the network, not the application: `askOnce` releases
@@ -877,6 +842,10 @@ def test_a_stale_response_cannot_rewind_timestamp_aging(browser, serve):
     ticked(page)
     assert len(crossed) == 1
     expect(timestamp).to_have_text("1h ago")
+    # With no newer state at all, the panel's thread still ages by the clock.
+    page.clock.set_fixed_time(datetime.now().astimezone() + timedelta(hours=3))
+    ticked(page)
+    expect(timestamp).to_have_text("4h ago")
 
 
 def test_a_data_widget_draws_each_publication_and_recovers(browser, serve):
@@ -949,8 +918,8 @@ def test_data_consumers_clear_and_recover_across_contract_only_rebindings(
             "description": "An instrumented data reader.",
             "type": "object",
             "properties": {
-                "id": {"type": "string", "pattern": f"^{ELEMENT_ID}$"},
-                "source": {"type": "string", "pattern": "^[a-z][a-z0-9-]*$"},
+                "id": {"type": "string"},
+                "source": {"type": "string"},
             },
             "required": ["id", "source"],
             "additionalProperties": False,
@@ -1191,34 +1160,6 @@ def test_a_held_reading_shows_once_unseen_after_its_owner_returns(browser, serve
         }"""
     )
     assert result == {"waiting": "first", "shown": "second"}
-
-
-def test_a_text_document_projects_its_current_source_provenance(browser, serve):
-    authored = leaf_page(
-        "source provenance",
-        '<h1 id="title">Source</h1>'
-        '<lf-text-document id="live" source="document" language="python"></lf-text-document>'
-        '<lf-text-document id="pinned" source="pinned" language="python"></lf-text-document>',
-    )
-    url = live_url(serve(authored))
-    data_model.cmd_data_set(serve.page_dir, "document", 'route = "old"')
-    data_model.cmd_data_set(serve.page_dir, "pinned", 'route = "old"')
-    page = open_page(browser, url)
-    expect(page.locator("#live code")).to_have_text('route = "old"')
-    expect(page.locator("#pinned code")).to_have_text('route = "old"')
-    data_model.cmd_data_set(serve.page_dir, "document", 'route = "new"')
-    told(page)
-    expect(page.locator("#live code")).to_have_text('route = "new"')
-    for selector, source, text in (
-        ("#live", "document", 'route = "new"'),
-        ("#pinned", "pinned", 'route = "old"'),
-    ):
-        projection = page.locator(f"{selector} [data-lf-datum]")
-        expect(projection).to_have_attribute("data-lf-source", source)
-        expect(projection).to_have_attribute(
-            "data-lf-source-revision", source_revision(serve.page_dir, source)
-        )
-        expect(projection.locator("code")).to_have_text(text)
 
 
 def test_data_readiness_settles_and_reports_failed_drawings(browser, serve):

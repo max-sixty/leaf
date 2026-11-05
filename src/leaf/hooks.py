@@ -30,14 +30,19 @@ without starting uv (`bin/leaf`): Codex's tool hook, and every Claude Code hook
 but PreToolUse. Codex's other hooks record the provider turn a later claim rests
 on, so they always run. Claude Code's PreToolUse runs before each `leaf`
 command, and in such a session opens the turn the skipped prompt hook would have,
-so a claim that command makes joins it. Hooks
+so a claim that command makes joins it; of its runs for one tool call, one per
+registration the command matches, only the first does its work
+(`leases.first_hook_for_tool`). Hooks
 that do run with no retained claim avoid page reading, and import the harness
 declarations only once the payload names a session. Page-owning prompt and Stop
 hooks reach `hook_transport`; Codex's tool and Stop hooks reach its delivery
 records in `codex`. Claude Code's background Stop hook and Pi's extension watch
 between turns (`cmd_watch`), and Leaf's Claude Code hooks module follows the
-session's pages (`cmd_pages`) to draw them beside the prompt. The application
-entry routes `leaf hook` here before loading the CLI.
+session's pages (`cmd_pages`) to draw them beside the prompt and to fork for each
+thread Leaf holds, and at each turn's end asks the clerk what to fork the
+conversation with; `--fork` asks for each fork's prompt and hands back its answer
+(`clerk.cmd_fork`, `forks.cmd_reply`). `leaf hook`
+(`cli.hook`) dispatches here.
 
 Claude Code's PostToolBatch carries pending input before the next model call,
 after successful or failed tools, using the same envelope and receipt as its
@@ -50,6 +55,10 @@ records the receipt of what its transcript shows entered the model's context
 Session-start and prompt hooks also inspect retained claims for disconnected pages
 (`reconnect`), including inactive ownership. That notice does not reclaim a
 page or reopen a turn at SessionStart, and it persists across session generations.
+A SessionStart after a compaction also has an agent holding a page read the leaf
+skill again (`reload_skill`). Claude Code runs Leaf's start hook only after a
+compaction (`hooks.json`): a resumed session's first reply waits for its start
+hooks, and the prompt hook hands that same turn the reconnect notice.
 
 Each harness's registrations name it (`--harness`) and its payload names the
 session; `harness.hook_harness` says why neither comes from the environment. A
@@ -59,18 +68,20 @@ developer-selected session runtime (`session_runtime`) owns the entire hook;
 import json
 import time
 
-from .leases import mark_hooks
+from .leases import first_hook_for_tool, mark_hooks
 from .refusals import Refused
 from .service import claim_records, owned_pages
 from .state import (
     advance_turn,
     close_session_turn,
-    end_harness_instance,
     flocked,
-    holds_claims,
+    held_claims,
     prompt_turn,
     session_lock_path,
     session_record,
+    still_named,
+    turn_closed,
+    worker_tool_batch,
 )
 
 
@@ -78,23 +89,18 @@ def cmd_hook(harness: str, payload: dict) -> None:
     """Answer one hook of `harness`, the name its registration passes."""
     started = time.monotonic()
     event, sid = payload.get("hook_event_name"), payload.get("session_id") or ""
-    if (
-        harness == "claude-code"
-        and event == "PostToolBatch"
-        and payload.get("agent_id")
-    ):
-        # Claude Code's tool hooks name the parent session even inside a worker;
-        # agent_id is its native subagent/teammate identity. Only the parent
-        # receives the input its session claimed.
+    if worker_tool_batch(harness, payload):
         return
     if sid:
         # Capability evidence for hook transport and open-turn activity. An
         # explicit wait carries its own input even if later hooks fail.
         mark_hooks(sid)
-    if event == "SessionEnd":
-        end_harness_instance(sid)
-        return
     if not sid:
+        return
+    assert isinstance(event, str)
+    if event == "PreToolUse" and not first_hook_for_tool(
+        sid, payload.get("tool_use_id")
+    ):
         return
     from .harness import hook_harness
 
@@ -106,7 +112,7 @@ def cmd_hook(harness: str, payload: dict) -> None:
         # Claude Code's registration runs this only before a command naming
         # `leaf`, so a session that never runs one opens no road out.
         hooked.escape_sandbox()
-        if not holds_claims(sid):
+        if not held_claims(sid):
             # The launcher skipped this turn's prompt hook (`bin/leaf`),
             # so the turn a claim joins opens here, before the command.
             prompt_turn(sid, turn_id)
@@ -126,6 +132,8 @@ def cmd_hook(harness: str, payload: dict) -> None:
         from .reconnect import notices
 
         context = notices(harness, sid, expected)
+        if context is not None and payload.get("source") == "compact":
+            context += reload_skill(sid)
         if context:
             print(
                 json.dumps(hooked.hook_context(event, "\n\n".join(context))),
@@ -138,11 +146,7 @@ def cmd_hook(harness: str, payload: dict) -> None:
         # harness whose steps can start a turn opens it first (`reconcile_turn`).
         with flocked(session_lock_path(sid)):
             record = session_record(sid)
-            if (
-                not record
-                or record["ended"] is not None
-                or record["turn_closed"] is not None
-            ):
+            if record is None or turn_closed(record):
                 return
             if record["turn"] != turn_id:
                 if record["provider"] or event != "PostToolUse":
@@ -195,13 +199,38 @@ def cmd_hook(harness: str, payload: dict) -> None:
         close_session_turn(sid, turn_id, expected=expected)
 
 
+def reload_skill(session_id: str) -> list[str]:
+    """What a compaction tells an agent holding pages: to read the leaf skill again,
+    which the compaction may have dropped from its context.
+
+    On 2026-10-25 five sessions left questions for the user only in their replies,
+    so On me read empty and told the user nothing waited on them. Each had read the
+    skill hours or days before, four of them before compacting, while their
+    harness's own instructions for asking the user stayed in context. Restating one
+    rule on every prompt weighed on every turn and covered only that rule; the
+    skill is where every rule a page-holding agent follows lives."""
+    from .schema import SKILL_FILE
+
+    pages = owned_pages(session_id)
+    if not pages:
+        return []
+    return [
+        (
+            f"This session holds the Leaf page {', '.join(map(str, pages))}. A "
+            f"compaction may have dropped the leaf skill; read {SKILL_FILE} again "
+            "before you next reply or run a leaf command."
+        )
+    ]
+
+
 def cmd_watch(harness: str, payload: dict) -> str | None:
     """The watch `harness`'s Stop hook or extension starts as a turn ends, or Claude
     Code's prompt hook as a turn starts, watching the session's pages until input,
     and what it wakes the session with, or None where it ends without waking it
     (`session.watch_between_turns`). A prompt's watch takes the turn it starts with
     as a later one: it waits while that turn runs and wakes only once Escape ends it
-    with no Stop hook, since a Stop starts the watch that supersedes it.
+    with no Stop hook, since a Stop starts the watch that supersedes it, as does a
+    prompt Escape dropped that Claude Code submits again.
 
     It watches only while the session holds a page, and only where its harness
     watches between turns. Pi's extension starts one with an Interrupt payload
@@ -209,8 +238,7 @@ def cmd_watch(harness: str, payload: dict) -> str | None:
     turn, and then watches from an interrupted ending. So that ending is one call,
     and the turn closes only once the watch from before has exited, which would
     read the closed turn as the Stop hook's ending."""
-    interrupted = payload.get("hook_event_name") == "Interrupt"
-    if interrupted:
+    if payload.get("hook_event_name") == "Interrupt":
         cmd_hook(harness, payload)
     sid = payload.get("session_id") or ""
     if not owned_pages(sid):
@@ -222,11 +250,7 @@ def cmd_watch(harness: str, payload: dict) -> str | None:
         return None
     from .session import watch_between_turns
 
-    return watch_between_turns(
-        watching,
-        interrupted=interrupted,
-        at_prompt=payload.get("hook_event_name") == "UserPromptSubmit",
-    )
+    return watch_between_turns(watching, payload)
 
 
 # What `cmd_pages` prints of each page, so a change to anything else stays quiet.
@@ -239,58 +263,148 @@ def cmd_pages(payload: dict) -> None:
     session holds no page. Leaf's Claude Code hooks module draws it beside the
     prompt.
 
-    Rows and the session's claim locators wake the reading. A server that dies
-    leaves its row until a reader finds its lease unheld, so the list is read
-    again every presence interval too."""
+    Read every presence interval: a dead server leaves its row behind, so native
+    notifications cannot replace this timer, and the list subscribes to nothing of
+    its own.
+
+    A payload asking for `forks` makes the follower the session's forks lane
+    (`forks.take_lane`) while it runs, and gives each page its held threads, each as
+    the `thread` and `inputs` the module forks with, handing to the session those
+    whose bound has passed (`forks.look`). Between presence reads it waits on each
+    page's subscription (`file_changes.page_changes`) and on the lane's name, so it
+    looks again as a message is admitted, as a later follower takes the lane, or as
+    the earliest hold runs out. It reads a page again only once its reading has
+    moved or a hold has run out, since a thread's hold starts as its message is
+    admitted."""
     sid = payload.get("session_id") or ""
     if not owned_pages(sid):
         print("[]", flush=True)
         return
 
-    from .file_changes import FileChanges
     from .presence import PRESENCE_CACHE_S, live_leaves
-    from .state import session_claims, state_home
 
-    rows, claims = state_home().resolve() / "rows", session_claims(sid)
-    # A root above rows/ would hear its creation, not the rows written into it.
-    rows.mkdir(exist_ok=True)
-    roots = {rows: False, claims: False}
-    changes = FileChanges(
-        roots,
-        lambda changed: changed.parent in (rows, claims) or changed in (rows, claims),
-    )
+    forking = bool(payload.get("forks"))
+    if forking:
+        from .file_changes import FileChanges, page_changes, wait
+        from .forks import lane_path, take_lane
+        from .leases import release_lease
+        from .page_memory import memory_of
+
+        lane = take_lane(sid)
+        # Resolved, as notifications name it.
+        named = lane_path(sid).resolve()
+        renamed = FileChanges({named.parent: False}, lambda path: path == named)
+    looked: dict = {}
     shown = None
     try:
         while True:
-            mark = changes.mark()
             held = {page.resolve() for page in owned_pages(sid)}
-            listed = json.dumps(
-                [
-                    {field: leaf[field] for field in SHOWN_FIELDS}
-                    for _page, leaf in (live_leaves(held) if held else [])
-                ]
-            )
-            if listed != shown:
-                print(listed, flush=True)
-                shown = listed
-            if not held:
-                return
-            changes.wait(mark, PRESENCE_CACHE_S)
+            leaves = live_leaves(held) if held else []
+            # Each page's subscription lives in its memory, which the process
+            # keeps only for its most recent pages unless held.
+            _memories = [memory_of(page) for page in held] if forking else []
+            presence_due = time.monotonic() + PRESENCE_CACHE_S
+            while True:
+                # Taken before the pass reads, so a message admitted during it
+                # ends the wait below.
+                marks = (
+                    [*map(page_changes, held), (renamed, renamed.mark())]
+                    if forking
+                    else []
+                )
+                if forking and not still_named(lane.fileno(), named):
+                    # A later follower took the lane, which let go what this one
+                    # held, and forks what this one would.
+                    forking = False
+                    renamed.close()
+                    _let_go(sid, looked)
+                # Every page the session holds keeps its holds' bounds, listed or
+                # not, as one whose server stopped is not.
+                forks = (
+                    {page: _forks(sid, page, looked) for page in held}
+                    if forking
+                    else {}
+                )
+                listed = json.dumps(
+                    [
+                        {
+                            **{field: leaf[field] for field in SHOWN_FIELDS},
+                            **({"forks": forks[page]} if forking else {}),
+                        }
+                        for page, leaf in leaves
+                    ]
+                )
+                if listed != shown:
+                    print(listed, flush=True)
+                    shown = listed
+                if not held:
+                    return
+                if not forking:
+                    time.sleep(PRESENCE_CACHE_S)
+                    break
+                bound = min(
+                    (looked[page][1] for page in held if page in looked),
+                    default=float("inf"),
+                )
+                remaining = presence_due - time.monotonic()
+                wait(marks, max(0.0, min(remaining, bound - time.time())))
+                if time.monotonic() >= presence_due:
+                    break
     finally:
-        changes.close()
+        if forking:
+            release_lease(lane)
+            renamed.close()
+            _let_go(sid, looked)
 
 
-def main(harness: str, *, watch: bool = False, pages: bool = False) -> None:
-    """Read one harness payload and dispatch it, without importing the CLI.
+def _let_go(sid: str, looked: dict) -> None:
+    """Nudge what a lane this follower gave up held, as a watch giving up its lease
+    nudges what it held back (`session.nudge_pending`): only where the follower last
+    listed a held thread, since a nudge as a Stop hook's watch starts would wake the
+    session a second time."""
+    from .session import nudge_pending
 
-    The application entry is the only caller.
+    holding = any(requests for _stamp, _until, requests in looked.values())
+    looked.clear()
+    if holding:
+        nudge_pending(sid)
+
+
+def _forks(sid: str, page_dir, looked: dict) -> list[dict]:
+    """The page's held threads (`forks.look`), read again only once the page's
+    reading has moved or the earliest hold `looked` kept for it has run out."""
+    from .forks import look
+    from .served_state.reading import page_reading
+
+    try:
+        stamp = page_reading(page_dir)
+        kept = looked.get(page_dir)
+        if kept is not None and kept[0] == stamp and time.time() < kept[1]:
+            return kept[2]
+        threads = look(sid, page_dir)
+    except FileNotFoundError:
+        # A page that is gone holds nothing, and keeps no bound to wake for.
+        looked.pop(page_dir, None)
+        return []
+    requests = [thread.basis(page_dir) for thread in threads]
+    until = min((thread.until for thread in threads), default=float("inf"))
+    looked[page_dir] = (stamp, until, requests)
+    return requests
+
+
+def main(
+    harness: str, *, watch: bool = False, pages: bool = False, fork: bool = False
+) -> None:
+    """Read one harness payload and dispatch it.
+
+    The Click hook command is the caller.
     A watch owns leases, so it releases them when the harness terminates it.
     """
     import os
     import sys
     import tempfile
 
-    from .session_runtime import own_launcher, selected_launcher
+    from .session_runtime import delivering_launcher, own_launcher
 
     try:
         payload = json.load(sys.stdin)
@@ -298,8 +412,8 @@ def main(harness: str, *, watch: bool = False, pages: bool = False) -> None:
         raise Refused(
             f"hook expects the harness's JSON payload on stdin ({error.msg})"
         ) from error
-    launcher = selected_launcher(payload.get("session_id") or "")
-    if launcher is not None and launcher != own_launcher():
+    launcher = delivering_launcher(payload.get("session_id") or "")
+    if launcher != own_launcher():
         # Delegate the whole hook before publishing lifecycle or pickup. Keeping
         # the stdin as a file avoids a pipe-size limit on large tool payloads;
         # exec retains cancellation and the watch's exact lifetime.
@@ -318,11 +432,23 @@ def main(harness: str, *, watch: bool = False, pages: bool = False) -> None:
                 harness,
                 *(["--watch"] if watch else []),
                 *(["--pages"] if pages else []),
+                *(["--fork"] if fork else []),
             ],
             environment,
         )
     if pages:
         cmd_pages(payload)
+        return
+    if fork:
+        # A held thread's fork (`forks`), or else the clerk's.
+        if "thread" in payload:
+            from .forks import cmd_reply as cmd_fork
+        else:
+            from .clerk import cmd_fork
+
+        answered = cmd_fork(payload.get("session_id") or "", payload)
+        if answered is not None:
+            print(json.dumps(answered, ensure_ascii=False), flush=True)
         return
     if watch:
         from .leases import release_on_termination

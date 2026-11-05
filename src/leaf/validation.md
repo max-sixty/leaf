@@ -9,7 +9,9 @@ directly:
 check`, activation, `page stamp` and `page init` all run ("Static validation");
 - message markup an agent hands in at `admission.check_markup`, which applies the same
   structure and vocabulary checks to an HTML fragment;
-- a layer `page init` would vendor at `composition.incoming_registry`;
+- a layer at `composition.incoming_registry`, wherever a Leaf composes its files:
+  `page init`, `page check`, serving and export, but not reading the page
+  ([layer-registry.md](layer-registry.md));
 - what only a browser can see at `page check --render` ("Browser validation").
 
 ## Static validation
@@ -20,10 +22,11 @@ check that way and put anything needing a browser in the browser half. The rules
 in `validation/source.py` and `validation/markup.py`; these are the decisions behind
 them:
 
-- Page code runs after the runtime has read the page: inline modules, deferred classic
-  script files, or their literal local import graphs under `/page/`, never
-  parser-blocking or `async` scripts. Anything on another server is named by its
-  http(s) URL and loaded as written.
+- Page code may be any script, classic or module, inline or a file, with its literal
+  local import graph under `/page/`. Delivery defers a classic script and drops
+  `async` (`revision_delivery._deferred`), so every script runs after the runtime has
+  read the page and while it listens for errors. Anything on another server is named
+  by its http(s) URL and loaded as written.
 - The runtime, theme, page identity and declarations about the whole document (a
   `<base>`, an http-equiv `<meta>`, an import map) belong to delivery, which inserts
   them at the start of `<head>`, so source may not author them. Message markup may not
@@ -35,9 +38,23 @@ them:
   vocabulary may all change. The check reports the threads that move (events.md,
   "Anchors"), and activation records them in the same page transaction as the
   revision.
+- The check captures the revision (`revision_artifact.capture_artifact`) whenever
+  the page's vocabulary reads, whatever the markup holds, so one run reports both.
+  Each problem has one owner. The document's markup is the markup rules'. The
+  capture owns what delivery can't deliver: each reference, a `/media/` file the
+  page won't answer, whether markup or a stylesheet names it, and CSS that
+  delivery's own reader (`revision_artifact._read_css`) can't read, in a file or
+  any sheet delivery rewrites in the document, which the capture finds by
+  delivery's own walk (`structure.delivered_elements`), templates and shadow roots
+  included. What that reader reads whole but a browser drops, such as `broken;`
+  in a rule, the source check reports as `css-dropped` advice, a severity
+  `styles.DROPPED_SEVERITY` sets alone. A message, which no capture
+  reads, asks what the capture would refuse at its own gate
+  (`revision_artifact.uncaptured_errors`).
 
 The effective registry is validated only where it differs from the active revision's
-captured copy. Vendored sheets are validated when `page init` composes them.
+captured copy. A layer's sheets and modules are validated wherever a Leaf composes
+its files (`layer-registry.md` says where).
 
 A reference to a thread, such as a widget's `resolves`, is checked against the thread
 ids the log holds (`thread_context.thread_ids`), including a thread whose opening
@@ -72,15 +89,23 @@ alone, since the page posts the same `error` events whenever a browser draws it
 ## Delivery policy
 
 A page carries no content policy of its own: its code is its author's, and may load,
-fetch and compile what it likes. Every served HTML response, historical versions and
-sample children included, adds `frame-ancestors 'self'`
-(`structure.FRAME_ANCESTORS_CSP`), so a different origin cannot frame a live page and
-disguise its decisions under another interface, even where same-site cookies would
-authorize the request. Same-origin parents may embed one, since they already share its
-DOM and request authority. The published site's Worker reads the header from the site
-manifest. A standalone file has no response header and so no framing guarantee. Every
-response carries `X-Content-Type-Options: nosniff`, and the data and media routes serve
-only JSON and admitted image types, so neither can become a script module.
+fetch and compile what it likes. Every served HTML response but a sample child's,
+historical versions included, carries a `frame-ancestors` policy naming the origins
+that may frame it, so no other origin can frame a live page and disguise its decisions
+under another interface. Cookies ignore ports, so the key's cookie reaches every server
+on the page's host, and this policy is all that keeps one of them from framing the page
+with the user's authority. The policy admits same-origin parents, which already share
+the page's DOM and request authority (`structure.FRAME_ANCESTORS_CSP`). A page's
+running server also admits each other Leaf server that holds its lease under the same
+state home, by its exact origin (`presence.live_servers`), since those serve with the
+same key (`server.host_key`) and so already hold that authority. It names no host
+wildcard, which would admit every server on the host, Leaf or not. A temporary server,
+whose key is its own, admits only its own origin, as does leaf.page, whose Worker reads
+the policy from the site manifest. A sample child's documents carry no policy, since an
+opaque parent can't be named as a source. A standalone file has no response header and
+so no framing guarantee. Every response carries `X-Content-Type-Options: nosniff`, and
+the data and media routes serve only JSON and admitted image types, so neither can
+become a script module.
 
 ## Browser validation
 
@@ -88,14 +113,21 @@ only JSON and admitted image types, so neither can become a script module.
 before a page's URL is first handed over (`render_gate/browser.py` says which browser
 and why). It refuses a version only for a fault its author can fix by editing the
 page; a fault in Leaf's own chrome or theme belongs in the suite
-(`render_gate/readings.py`, header). `render_gate/version.render_version` is the one
-implementation the command and the `tests/*/test_render_*.py` modules call over the
-shipped examples, and `_render_version_attempt`'s docstring lists what it reads. Its
-desktop is the window of the browser that last reported viewing the page, or a fixed
-laptop window (`render_gate.command.desktop_viewport`), and the sweep and screens use
-that window's height.
+(`render_gate/readings.py`, header). Another live Leaf page the page frames is checked
+on its own, so the gate shows a stand-in in its frame
+(`render_gate/scheme.stand_in_other_leaves`). `render_gate/version.render_version` is
+the one implementation the command and the `tests/*/test_render_*.py` modules call
+over the shipped examples, and `_render_version_attempt`'s docstring lists what it
+reads. Its desktop is the window of the browser that last reported viewing the page,
+or a fixed laptop window (`render_gate.command.desktop_viewport`), and the sweep and
+screens use that window's height.
 The suite uses Chromium's headless shell; the end-to-end render-check tests cover the
 launches the command uses.
+
+Every widget output published during the check, including one subsequently withdrawn
+or published by a disposed sample, is validated against its data contract. A failure
+identifies the producer and the captured owners of its module, output declaration
+and contract (`data_contracts.output_findings`).
 
 A decision in force may paint over a changed authored baseline. That is the state
 fold's behavior, not a reason to refuse the revision; `restated` retracts a decision
@@ -104,13 +136,13 @@ when the agent needs a fresh answer.
 Every check behind `page check` reports a record (`findings.py` owns its fields and
 words), and the browser probes return those records rather than sentences.
 
-A version that passes gets screens for its author to read (`render_gate/screens.py`).
+A render reading gets screens for its author to read, including when it reports
+findings (`render_gate/screens.py`).
 They are the command's, so the suite takes none.
 
 The gate serves its probe modules and the runtime they import from the Leaf running
 the command (`runtime_selection.py`), so the probes always meet the runtime they were
-written for. The vendored layer is the page's to keep, so the gate does not re-vendor
-it.
+written for.
 
 ## Passages
 
@@ -124,6 +156,9 @@ A quote never spans a fence, so a passage the file cannot read is refused when t
 comment is written rather than detaching later in the user's browser; anchor on the
 widget's element (`--section`) instead. A file-side quote must also be unique in its
 declared section, and widget source, retired text and repeated passages are refused.
+Direct members declared by `x-owners` with `x-content: markup` retain their own prose
+reading inside a data widget; the rest of its source body remains withheld. A widget
+preserves those authored member nodes independently of its source rendering.
 Runtime anchors were resolved against rendered words, so admission does not recapture
 them.
 

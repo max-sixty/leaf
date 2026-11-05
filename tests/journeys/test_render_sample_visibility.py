@@ -1,17 +1,20 @@
 """Opaque sample exposure uses current native clipping and parent admission."""
 
 import pytest
-from render_harness import panel_settled
+from render_harness import (
+    open_threads,
+    panel_settled,
+)
 
 from journeys.test_render_read_state import (
     _expect_news,
     _message_body,
+    _on_me_mark,
     _open_first_unread,
     _read_by_the_sample,
     _sample_reading_page,
     _scroll_to_message,
     _still_unread,
-    _threads_mark,
 )
 
 
@@ -31,7 +34,7 @@ def test_narrowing_a_partially_clipped_sample_does_not_acknowledge_hidden_words(
         "#clip iframe { min-width: 900px; }",
     )
     page.locator("#clip").evaluate("clip => clip.style.width = '250px'")
-    _threads_mark(child).evaluate("mark => mark.focus({preventScroll: true})")
+    _on_me_mark(child).evaluate("mark => mark.focus({preventScroll: true})")
     _open_first_unread(page, child)
     # The sample's panel stands at its frame's foot, so the clip is scrolled to show
     # the message's lines, cut at the narrow clip's right edge.
@@ -91,9 +94,8 @@ def test_sample_exposure_preserves_parent_declared_occlusion(browser, serve):
         "<h1>Containing chrome</h1>{sample}",
         "#read-practice { min-width: 950px; }",
     )
-    page.locator(".lf-fp-threads").click()
-    panel_settled(page, view="threads")
-    _threads_mark(child).evaluate("mark => mark.focus({preventScroll: true})")
+    open_threads(page)
+    _on_me_mark(child).evaluate("mark => mark.focus({preventScroll: true})")
     _open_first_unread(page, child)
     bottom = _message_body(child).evaluate(
         "body => body.getBoundingClientRect().bottom"
@@ -110,5 +112,8 @@ def test_sample_exposure_preserves_parent_declared_occlusion(browser, serve):
 
     page.locator(".lf-fp-close").click()
     panel_settled(page, open=False)
-    _threads_mark(child).evaluate("mark => mark.focus({preventScroll: true})")
+    # The sample's thread stays open, so its row's seat holds that thread's Close.
+    child.locator(".lf-fp-close").evaluate(
+        "close => close.focus({preventScroll: true})"
+    )
     _read_by_the_sample(page, child)

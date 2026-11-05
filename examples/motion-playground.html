@@ -58,7 +58,7 @@
   </head>
   <body>
     <main id="motion-page">
-      <lf-ask id="motion-question">
+      <lf-ask id="motion-question" data-width="available">
         <p class="eyebrow">Panel motion</p>
         <h1>How should the panel move?</h1>
         <p>
@@ -66,11 +66,7 @@
           <strong>Balanced</strong> is the suggested starting point: easier to follow,
           still quick. Select a recording’s card, then send the timing you want.
         </p>
-        <lf-playground
-          id="panel-motion"
-          submit-label="Use this timing"
-          data-width="available"
-        >
+        <lf-playground id="panel-motion" submit-label="Use this timing">
           <lf-playground-preview>
             <lf-motion
               id="panel-recordings"

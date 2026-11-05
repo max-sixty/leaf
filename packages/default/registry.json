@@ -55,14 +55,11 @@
     }
   },
   "lf-ask": {
-    "description": "A question for the user. Around decision widgets it gives their heading and context, each widget answered separately; with no widget inside, it is a question the user answers in words.",
-    "x-instructions": "Around decision widgets, give it a heading that states the shared question or context without leaning on the prose around it, with any eyebrow beside it in an `<hgroup>`. Each widget inside that asks for input stays its own obligation with its own answer, and the frame asks nothing itself. With no widget inside, it is a question answered in words: in a reply's markup, by the user's next message in that thread; on the page, by their comment on it. Write the question itself as its content, with no heading needed. Wrap the context in a `section` when the document needs a section landmark.",
+    "description": "A question for the user that widgets inside it answer: it gives their heading and context, and each widget is answered separately.",
+    "x-instructions": "Around widgets that ask for input, give it a heading that states the shared question or context without leaning on the prose around it, with any eyebrow beside it in an `<hgroup>`. Each widget inside that asks for input stays its own obligation with its own answer, and the frame asks nothing itself. Wrap the context in a `section` when the document needs a section landmark. A question the user answers in words needs no `lf-ask`: ask it in a thread message with `--obligation` (`authoring-on-me.md`).",
     "type": "object",
     "properties": {
-      "id": {
-        "type": "string",
-        "pattern": "^[a-z0-9][a-z0-9-]*$"
-      },
+      "id": { "type": "string" },
       "restated": {
         "type": "boolean"
       }
@@ -70,10 +67,7 @@
     "required": ["id"],
     "additionalProperties": false,
     "x-content": "markup",
-    "x-awaits": {
-      "reply": true,
-      "encloses": true
-    },
+    "x-encloses": true,
     "x-word": "question",
     "x-upgrade": false,
     "x-example": "<section id=\"storage-section\">\n  <lf-ask id=\"storage-decision\">\n    <h2>What should a full store do?</h2>\n    <p>The beta never reached the cap. This decides what the first workspace at it sees; each option draws its document list once the store fills. I recommend dropping the oldest documents, because editing continues and the server keeps a copy of each one.</p>\n    <lf-options id=\"full-store\" choose>\n      <lf-option id=\"store-evict\"><small class=\"tag\">editing: continues</small><small class=\"tag ok\">recommended</small><strong>Drop the oldest documents</strong> Editing continues; the server keeps a copy.\n        <figure id=\"store-evict-fig\">\n          <svg class=\"drawing\" width=\"240\" viewBox=\"0 0 240 56\" role=\"img\" aria-labelledby=\"store-evict-t\">\n            <title id=\"store-evict-t\">The oldest document leaves the device; the rest stay editable</title>\n            <rect class=\"frame\" x=\"1\" y=\"1\" width=\"238\" height=\"54\" rx=\"4\"/>\n            <rect class=\"line\" x=\"12\" y=\"12\" width=\"130\" height=\"6\" rx=\"3\"/><rect class=\"line\" x=\"12\" y=\"25\" width=\"130\" height=\"6\" rx=\"3\"/><rect class=\"ghost\" x=\"12\" y=\"38\" width=\"130\" height=\"6\" rx=\"3\"/>\n            <text class=\"small\" x=\"228\" y=\"44\" text-anchor=\"end\">server only</text>\n          </svg>\n        </figure>\n      </lf-option>\n      <lf-option id=\"store-stop\"><small class=\"tag\">editing: paused</small><strong>Pause offline editing</strong> Nothing leaves.\n        <figure id=\"store-stop-fig\">\n          <svg class=\"drawing\" width=\"240\" viewBox=\"0 0 240 56\" role=\"img\" aria-labelledby=\"store-stop-t\">\n            <title id=\"store-stop-t\">Every document stays on the device, read-only until it reconnects</title>\n            <rect class=\"frame\" x=\"1\" y=\"1\" width=\"238\" height=\"54\" rx=\"4\"/>\n            <rect class=\"line\" x=\"12\" y=\"12\" width=\"130\" height=\"6\" rx=\"3\"/><rect class=\"line\" x=\"12\" y=\"25\" width=\"130\" height=\"6\" rx=\"3\"/><rect class=\"line\" x=\"12\" y=\"38\" width=\"130\" height=\"6\" rx=\"3\"/>\n            <circle class=\"warn\" cx=\"224\" cy=\"28\" r=\"5\"/><text class=\"small\" x=\"212\" y=\"31\" text-anchor=\"end\">read-only</text>\n          </svg>\n        </figure>\n      </lf-option>\n    </lf-options>\n  </lf-ask>\n</section>"
@@ -83,10 +77,7 @@
     "x-instructions": "Write a self-contained explanation at the first useful occurrence rather than on every repetition. Keep the phrase out of authored parentheses: print adds the explanation as a parenthetical note.",
     "type": "object",
     "properties": {
-      "id": {
-        "type": "string",
-        "pattern": "^[a-z0-9][a-z0-9-]*$"
-      },
+      "id": { "type": "string" },
       "tip": {
         "type": "string",
         "minLength": 1
@@ -105,17 +96,11 @@
   },
   "lf-num": {
     "description": "A measured number in prose, tied to the data run that produced it.",
-    "x-instructions": "Write the value with its unit as the element's text. Bind `source` to the feed that measures it, and set `run` to the receipt `leaf data set` returned. Add `via` when the source id doesn't say which command or query produced it.",
+    "x-instructions": "Write the value with its unit as the element's text, with `source` naming the feed that measures it. Write that element into the page before calling `leaf data set`, then set `run` to the returned receipt. Add `via` when the source id doesn't say which command or query produced it.",
     "type": "object",
     "properties": {
-      "id": {
-        "type": "string",
-        "pattern": "^[a-z0-9][a-z0-9-]*$"
-      },
-      "source": {
-        "type": "string",
-        "pattern": "^[a-z][a-z0-9-]*$"
-      },
+      "id": { "type": "string" },
+      "source": { "type": "string" },
       "run": {
         "type": "string",
         "minLength": 1
@@ -143,19 +128,13 @@
     "x-example": "The import now takes <lf-num source=\"import-latency\" run=\"a41f103e236c985b\" via=\"uv run bench-import\">184 ms</lf-num> at p95."
   },
   "lf-text-document": {
-    "description": "A text file from page data with numbered lines, syntax coloring, and an optional Markdown or HTML preview.",
-    "x-instructions": "Bind `source` to the page's data source and name the file with `label`. Set `preview` to `markdown` or `html` to add Preview and Source tabs over the same text. `language` colors the source, and defaults to the preview's language. An HTML preview is a separate document that inherits no Leaf styles, and comments can't reach inside it, so the user comments on the source. The listing, or with a preview each tab, scrolls inside a box `--lf-bound` tall, 28rem by default, however long the text. To start it collapsed, put it inside `details`.",
+    "description": "Text written in the page, or from page data or a widget output, with numbered lines, syntax coloring, and an optional Markdown or HTML preview.",
+    "x-instructions": "Write text that belongs to this version of the page, such as a passage you quote, in the `<pre>`, HTML-escaped (& before < and >), and name where it comes from with `label`. HTML drops a newline right after `<pre>`; every other character is part of the text. For text that changes apart from the page, bind `source` to the page's data source, or `for` to a widget publishing a `document` output, leave out the `<pre>`, and name the file with `label`. Set `preview` to `markdown` or `html` to add Preview and Source tabs over the same text. `language` colors the source, and defaults to the preview's language. An HTML preview is a separate document that inherits no Leaf styles, and comments can't reach inside it, so the user comments on the source. A Markdown preview of text written in the `<pre>` takes its rendered height up to `--lf-bound`, 28rem by default, and its Source tab shows as much of the source as that height holds, with a press for the rest. Other documents, such as bound ones, whose text arrives after the page first paints, scroll inside a box that tall however long the text. To start it collapsed, put it inside `details`.",
     "x-name": "label",
     "type": "object",
     "properties": {
-      "id": {
-        "type": "string",
-        "pattern": "^[a-z0-9][a-z0-9-]*$"
-      },
-      "source": {
-        "type": "string",
-        "pattern": "^[a-z][a-z0-9-]*$"
-      },
+      "id": { "type": "string" },
+      "source": { "type": "string" },
       "label": {
         "type": "string",
         "minLength": 1
@@ -166,32 +145,44 @@
       },
       "language": {
         "type": "string"
-      }
+      },
+      "for": { "type": "string" }
     },
-    "required": ["id", "source"],
+    "required": ["id"],
     "additionalProperties": false,
-    "x-content": "empty",
+    "x-content": "data",
     "x-data": {
       "document": {
         "contract": "text-document",
         "source": "source",
+        "reference": "for",
+        "output": "document",
         "property": "value"
       }
     },
     "x-language": "language",
+    "x-prepaint": "preview",
     "x-bound": "start",
     "x-upgrade": true,
-    "x-example": "<lf-text-document id=\"leaf-skill\" source=\"leaf-skill\" language=\"markdown\"></lf-text-document>"
+    "x-example": "<lf-text-document id=\"changelog-fix\" label=\"CHANGELOG.md\" preview=\"markdown\"><pre>**Fixed** a crash when `--config` names a missing file.</pre></lf-text-document>",
+    "if": {
+      "not": {
+        "anyOf": [{ "required": ["source"] }, { "required": ["for"] }]
+      }
+    },
+    "then": {
+      "required": ["label"]
+    },
+    "x-refers": {
+      "for": {}
+    }
   },
   "lf-toc": {
     "description": "An outline of the document\u2019s h2\u2013h6 headings for navigating its sections and showing the reader\u2019s position.",
     "x-instructions": "Write it empty with a stable id. It outlines the nearest tab or part containing it, or the whole main when outside those views. Add `open` to show its compact inline links on arrival; the reader can still collapse them. Set `max-level` to leave out deeper headings that are local detail; by default it lists h2 to h6.",
     "type": "object",
     "properties": {
-      "id": {
-        "type": "string",
-        "pattern": "^[a-z0-9][a-z0-9-]*$"
-      },
+      "id": { "type": "string" },
       "max-level": {
         "type": "string",
         "pattern": "^[2-6]$"
@@ -203,20 +194,15 @@
     "required": ["id"],
     "additionalProperties": false,
     "x-content": "empty",
-    "x-margin-content": "map",
     "x-upgrade": true,
-    "x-initial": "/vendor/lf-toc-initial.js",
-    "x-example": "<h1>Migration plan</h1>\n<aside class=\"sidebar\" id=\"plan-sidebar\">\n  <lf-toc id=\"plan-contents\"></lf-toc>\n</aside>\n<section><h2>Prepare</h2><p>Take a snapshot.</p><h3>Check capacity</h3><p>Leave headroom for the copy.</p></section>\n<section><h2>Move</h2><p>Shift one cohort at a time.</p></section>"
+    "x-example": "<h1>Migration plan</h1>\n<lf-toc id=\"plan-contents\"></lf-toc>\n<section><h2>Prepare</h2><p>Take a snapshot.</p><h3>Check capacity</h3><p>Leave headroom for the copy.</p></section>\n<section><h2>Move</h2><p>Shift one cohort at a time.</p></section>"
   },
   "lf-activity": {
     "description": "A newest-first feed of the page\u2019s comments, actions, reports, and published revisions.",
     "x-instructions": "Write it empty with a stable id.",
     "type": "object",
     "properties": {
-      "id": {
-        "type": "string",
-        "pattern": "^[a-z0-9][a-z0-9-]*$"
-      }
+      "id": { "type": "string" }
     },
     "required": ["id"],
     "additionalProperties": false,
@@ -224,22 +210,24 @@
     "x-bound": "start",
     "x-history": true,
     "x-upgrade": true,
-    "x-initial": "/vendor/lf-activity-initial.js",
     "x-example": "<section id=\"recent\">\n  <h2>Recent activity</h2>\n  <lf-activity id=\"page-activity\"></lf-activity>\n</section>"
   },
   "lf-options": {
     "description": "Alternatives the user can choose individually or as a set to answer a question.",
-    "x-instructions": "Keep shared premises and evidence with the group (lf-ask can frame its question and context), and each alternative's own case and picture inside its lf-option. `multiple` lets the user pick several options as one answer (references/authoring-decisions.md says when). The built-in Another option field takes unlisted answers, so add no catch-all option. Use `for` only to point at sections or work items that exist apart from the decision. A `multiple` group needs the user's Done even when `chosen` is authored. `settled` collapses a decided group while keeping its options and anchors.",
+    "x-instructions": "Keep shared premises and evidence with the group (lf-ask can frame its question and context), and each alternative's own case and picture inside its lf-option. `multiple` lets the user pick several options as one answer (references/authoring-on-me.md says when). The cards read down; `across` sets them side by side, for when what the user compares, each option's picture or the evidence above the list, still reads at a card's share of the row and the question then fits the window (references/authoring-on-me.md, \"On the page\"). The built-in Another option field takes unlisted answers, so add no catch-all option; `closed` leaves it out where only the listed options can answer, such as a page that draws its own choice, and the user can still say more in a comment. Use `for` only to point at sections or work items that exist apart from the question. A `multiple` group needs the user's Done even when `chosen` is authored. `settled` collapses a decided group while keeping its options and anchors.",
     "type": "object",
     "properties": {
-      "id": {
-        "type": "string",
-        "pattern": "^[a-z0-9][a-z0-9-]*$"
-      },
+      "id": { "type": "string" },
       "choose": {
         "type": "boolean"
       },
       "multiple": {
+        "type": "boolean"
+      },
+      "closed": {
+        "type": "boolean"
+      },
+      "across": {
         "type": "boolean"
       },
       "settled": {
@@ -290,10 +278,7 @@
         "detail": {
           "type": "object",
           "properties": {
-            "option": {
-              "type": "string",
-              "pattern": "^[a-z0-9][a-z0-9-]*$"
-            },
+            "option": { "type": "string" },
             "text": {
               "type": "string",
               "minLength": 1
@@ -320,17 +305,11 @@
   },
   "lf-option": {
     "description": "One alternative in a decision: a compact label, or a card showing what choosing it gives the user.",
-    "x-instructions": "Word, label and illustrate the alternatives as `references/authoring-decisions.md` says. A card opens with its small.tag labels, then `<small class=\"tag ok\">recommended</small>` on the option you advise, then a `<strong>` title and a sentence naming its consequence, then any picture as block HTML, such as an svg.drawing. Give your reason for the recommendation in prose beside the group, such as the `lf-ask`'s paragraph, so each card states only what choosing it does. Direct text takes inline Markdown. `chosen` records the user's pick. Use `$restated` to withdraw that pick and ask again. A `for` target must stay useful whatever is decided, and does not supply the option's words. `value` names what the option answers wherever a view shows the group's answer, such as a board column (`authoring-decisions.md`, \"One decision in its section and on a board\").",
+    "x-instructions": "Word, label and illustrate the alternatives as `references/authoring-on-me.md` says. Use a direct `<strong>` child for a card's title. Follow it with any consequence the title or labels leave unstated, and put pictures in block HTML, such as `svg.drawing`. Mark the option you advise with `<small class=\"tag ok\">recommended</small>`. Give your reason for the recommendation in prose beside the group, such as the `lf-ask`'s paragraph, so each card states only what choosing it does. Direct text takes inline Markdown. `chosen` records the user's pick. Use `$restated` to withdraw that pick and ask again. A `for` target must stay useful whatever is decided, and does not supply the option's words. `value` names what the option answers wherever a view shows the group's answer, such as a board column (`authoring-on-me.md`, \"One answer in its section and on a board\").",
     "type": "object",
     "properties": {
-      "id": {
-        "type": "string",
-        "pattern": "^[a-z0-9][a-z0-9-]*$"
-      },
-      "for": {
-        "type": "string",
-        "pattern": "^[a-z0-9][a-z0-9-]*$"
-      },
+      "id": { "type": "string" },
+      "for": { "type": "string" },
       "chosen": {
         "type": "boolean"
       },
@@ -360,10 +339,7 @@
     "x-instructions": "Write the exact code inside pre at column 0, HTML-escaping & before < and >. Set language for source code and omit it for plain transcripts or command output. For excerpts, set lines to the ascending source ranges quoted, such as 1505-1507,1520-1527; hi and lf-note at then use those source numbers. A note addressed to an omitted line captions the elided row.",
     "type": "object",
     "properties": {
-      "id": {
-        "type": "string",
-        "pattern": "^[a-z0-9][a-z0-9-]*$"
-      },
+      "id": { "type": "string" },
       "language": {
         "type": "string"
       },
@@ -388,10 +364,7 @@
     "x-instructions": "Set at to the line number as the parent numbers it: 1-based by default, or the source number declared in lines.",
     "type": "object",
     "properties": {
-      "id": {
-        "type": "string",
-        "pattern": "^[a-z0-9][a-z0-9-]*$"
-      },
+      "id": { "type": "string" },
       "at": {
         "type": "string",
         "pattern": "^[0-9]+$"
@@ -408,10 +381,7 @@
     "x-instructions": "Inside a `<pre>`, write a JavaScript expression for the options object you would pass to `Plot.plot`, HTML-escaping & before < and >. `Plot` and `width` are the names in scope, and the data goes inline. The chart requires an `ariaLabel` describing it. Leave `width` and `height` out of the options: read `width` to fit the ticks to the room, and set a height other than the default with `data-height` on the element. Write dates as ISO strings on an explicitly typed time scale, `utc` for days and months, and give moments a time zone, such as 2026-06-01T14:00Z. Use `var(--series-N)` for constant or categorical colors; a continuous color scale needs a Plot scheme. Title the chart in the heading or prose around it rather than with Plot's `title`. When `page check --render` reports overlapping labels, use fewer category ticks, choose them by `width`, or give the axis label more margin. Plot takes a mark's `dx`, `dy` and `textAnchor` as one value for the whole mark, so labels that each need their own offset, such as line ends that meet, each take a mark of their own.",
     "type": "object",
     "properties": {
-      "id": {
-        "type": "string",
-        "pattern": "^[a-z0-9][a-z0-9-]*$"
-      }
+      "id": { "type": "string" }
     },
     "required": ["id"],
     "additionalProperties": false,
@@ -426,10 +396,7 @@
     "x-instructions": "Use it for two versions of an interface. Set `before` and `after` to the paths `leaf page media` prints, and describe the pair in `alt`. `authoring-evidence.md`, \"Source files and media\", covers making captures, laying out captures that vary along more than one axis in a table, and the comparison controls the reader can use. Put explanation in the prose around the pair, not inside the element. When a decision turns on the change, put the pair inside the option that proposes it, or, for an accept-or-reject decision, with the group, where it shows both answers.",
     "type": "object",
     "properties": {
-      "id": {
-        "type": "string",
-        "pattern": "^[a-z0-9][a-z0-9-]*$"
-      },
+      "id": { "type": "string" },
       "before": {
         "type": "string",
         "pattern": "^/media/\\S+$"
@@ -446,7 +413,6 @@
     "additionalProperties": false,
     "x-content": "empty",
     "x-upgrade": true,
-    "x-initial": "/vendor/lf-shot-initial.js",
     "x-visual": "whole",
     "x-example": "<h3>The option cards</h3>\n<p>The chips now sit above the title, so a scanning eye reads cost before prose.</p>\n<lf-shot id=\"shot-cards\" alt=\"the decision page's option cards\" before=\"/media/0f2c91a4b7de3105.png\" after=\"/media/6b40ac7719ee5d82.png\"></lf-shot>"
   },
@@ -455,10 +421,7 @@
     "x-instructions": "Use a board to show grouped work and status. When the user must make decisions, give them explicit controls or `lf-options` rather than relying on moving cards, and to gather those answers on a board as well, give each card `shows`. When revising, keep each card the user moved in the column they chose, unless the revision retracts that move by marking the card, not the board, `restated` (`authoring-revisions.md`, \"Honor user state\").",
     "type": "object",
     "properties": {
-      "id": {
-        "type": "string",
-        "pattern": "^[a-z0-9][a-z0-9-]*$"
-      }
+      "id": { "type": "string" }
     },
     "required": ["id"],
     "additionalProperties": false,
@@ -482,10 +445,7 @@
     "x-name": "label",
     "type": "object",
     "properties": {
-      "id": {
-        "type": "string",
-        "pattern": "^[a-z0-9][a-z0-9-]*$"
-      },
+      "id": { "type": "string" },
       "label": {
         "type": "string"
       },
@@ -509,17 +469,11 @@
   },
   "lf-card": {
     "description": "One board card whose identity and comments survive user moves.",
-    "x-instructions": "Lead with a `<strong>` title and follow with prose. Keep its id stable across moves. Use `$restated` to withdraw the user's moves. `shows` makes the card a view of a decision widget's answer: it stands in the column whose `value` that answer names, and moving it changes the answer (`authoring-decisions.md`, \"One decision in its section and on a board\").",
+    "x-instructions": "Lead with a `<strong>` title and follow with prose. Keep its id stable across moves. Use `$restated` to withdraw the user's moves. `shows` makes the card a view of a decision widget's answer: it stands in the column whose `value` that answer names, and moving it changes the answer (`authoring-on-me.md`, \"One answer in its section and on a board\").",
     "type": "object",
     "properties": {
-      "id": {
-        "type": "string",
-        "pattern": "^[a-z0-9][a-z0-9-]*$"
-      },
-      "shows": {
-        "type": "string",
-        "pattern": "^[a-z0-9][a-z0-9-]*$"
-      },
+      "id": { "type": "string" },
+      "shows": { "type": "string" },
       "restated": {
         "type": "boolean"
       }
@@ -540,13 +494,10 @@
   },
   "lf-tabs": {
     "description": "Several views shown one at a time: page navigation, a tabbed box, or a queue beside its open item.",
-    "x-instructions": "The first `lf-tabs` written directly in `main` is the page's navigation; any other tab set is a framed box within the page. Put the page's title and lede before page tabs, and the main current view first. Make each `lf-tab` a self-contained view; history, threads and versions belong to the whole page. When current work no longer needs a view, remove it. Move any context still needed, and any passage an open thread or an unretracted decision is anchored to, into a `details` in the relevant tab. Use `list=\"side\"` for a queue listed beside the item it opens.",
+    "x-instructions": "The first `lf-tabs` written directly in `main` owns the page's view history and URL. Give a set `class=\"layout-flow\"` to share the document's space without a frame, as page-layout.md describes; omit it for a boxed tab set. Visual flow does not choose history ownership. Put the page's title and lede before page tabs, and the main current view first. Make each `lf-tab` a self-contained view; history, threads and versions belong to the whole page. When current work no longer needs a view, remove it. Move any context still needed, and any passage an open thread or an unretracted decision is anchored to, into a `details` in the relevant tab. Use `list=\"side\"` for a queue listed beside the item it opens.",
     "type": "object",
     "properties": {
-      "id": {
-        "type": "string",
-        "pattern": "^[a-z0-9][a-z0-9-]*$"
-      },
+      "id": { "type": "string" },
       "list": {
         "type": "string",
         "enum": ["side"]
@@ -557,7 +508,7 @@
     "x-content": "members",
     "x-upgrade": true,
     "x-patch": "members",
-    "x-views": true,
+    "x-views": { "members": "lf-tab" },
     "x-example": "<lf-tabs id=\"views\">\n  <lf-tab id=\"tab-implementation\" label=\"Implementation\">\n    <p id=\"rollout-plan\">Wire the first site this week.</p>\n  </lf-tab>\n  <lf-tab id=\"tab-vision\" label=\"Vision\">\n    <p id=\"product-vision\">Keep the original outcome and constraints in reach.</p>\n  </lf-tab>\n</lf-tabs>"
   },
   "lf-tally": {
@@ -565,14 +516,8 @@
     "x-instructions": "Write it empty with a stable id, and set `for` to the region whose obligations it counts, such as a side-list `lf-tabs` queue. Place it where the reader looks for the queue's state, such as a workspace header beside its `.tag` chips. Add `next` for a Next on me control that steps through the obligations waiting on the user.",
     "type": "object",
     "properties": {
-      "id": {
-        "type": "string",
-        "pattern": "^[a-z0-9][a-z0-9-]*$"
-      },
-      "for": {
-        "type": "string",
-        "pattern": "^[a-z0-9][a-z0-9-]*$"
-      },
+      "id": { "type": "string" },
+      "for": { "type": "string" },
       "next": {
         "type": "boolean"
       }
@@ -581,11 +526,11 @@
     "additionalProperties": false,
     "x-content": "empty",
     "x-inline": true,
-    "x-prepaint": "<span class=\"lf-tally-face\"><span class=\"lf-tally-count\"><span class=\"lf-tally-room\">00 of 00 to answer · 00 on the agent</span><span class=\"lf-tally-room\">00 of 00 to answer · 00 on the agent</span><span class=\"lf-tally-words\"></span></span><button class=\"lf-btn lf-tally-next lf-ui lf-ui-face\" type=\"button\">Next on me</button></span>",
     "x-refers": {
       "for": {}
     },
     "x-upgrade": true,
+    "x-shadow": true,
     "x-example": "<header>\n  <h1>Release triage</h1>\n  <p><lf-tally id=\"triage-left\" for=\"triage-queue\" next></lf-tally></p>\n</header>\n<lf-tabs id=\"triage-queue\" list=\"side\">\n  <lf-tab id=\"triage-retries\" label=\"Retry storm\">\n    <lf-ask id=\"retries-ask\">\n      <h3>Ship the retry cap?</h3>\n      <lf-options id=\"retries-choice\" choose>\n        <lf-option id=\"retries-ship\">Ship the retry cap</lf-option>\n        <lf-option id=\"retries-hold\">Canary the retry cap first</lf-option>\n      </lf-options>\n    </lf-ask>\n  </lf-tab>\n  <lf-tab id=\"triage-flag\" label=\"Stale flag\">\n    <lf-ask id=\"flag-ask\">\n      <h3>Remove the flag?</h3>\n      <lf-options id=\"flag-choice\" choose>\n        <lf-option id=\"flag-remove\">Remove the stale flag</lf-option>\n        <lf-option id=\"flag-keep\">Keep the flag for another release</lf-option>\n      </lf-options>\n    </lf-ask>\n  </lf-tab>\n</lf-tabs>"
   },
   "lf-tab": {
@@ -594,10 +539,7 @@
     "x-name": "label",
     "type": "object",
     "properties": {
-      "id": {
-        "type": "string",
-        "pattern": "^[a-z0-9][a-z0-9-]*$"
-      },
+      "id": { "type": "string" },
       "label": {
         "type": "string"
       },
@@ -619,17 +561,14 @@
     "x-instructions": "Place it as `page-layout.md`, \"A page of parts\", says, giving each `lf-part` one child carrying that part's Layout, such as `<article class=\"layout-column\">`. Put the main current part first. History, threads and versions belong to the whole page. When current work no longer needs a part, remove it, moving any passage an open thread or an unretracted decision is anchored to into a `details` in the relevant part.",
     "type": "object",
     "properties": {
-      "id": {
-        "type": "string",
-        "pattern": "^[a-z0-9][a-z0-9-]*$"
-      }
+      "id": { "type": "string" }
     },
     "required": ["id"],
     "additionalProperties": false,
     "x-content": "members",
     "x-upgrade": true,
     "x-patch": "members",
-    "x-views": "parts",
+    "x-views": { "members": "lf-part", "parts": true },
     "x-example": "<header>\n  <h1>Retry storm</h1>\n</header>\n<lf-parts id=\"parts\">\n  <lf-part id=\"part-decide\" label=\"Decide\" summary=\"Ship the retry cap?\">\n    <div class=\"layout-workspace density-working\">\n      <p id=\"decide-intro\">Compare the two caps.</p>\n    </div>\n  </lf-part>\n  <lf-part id=\"part-background\" label=\"Background\">\n    <article class=\"layout-column\">\n      <p id=\"storm-history\">The storm started with the 2.3 release.</p>\n    </article>\n  </lf-part>\n</lf-parts>"
   },
   "lf-part": {
@@ -638,10 +577,7 @@
     "x-name": "label",
     "type": "object",
     "properties": {
-      "id": {
-        "type": "string",
-        "pattern": "^[a-z0-9][a-z0-9-]*$"
-      },
+      "id": { "type": "string" },
       "label": {
         "type": "string"
       },
@@ -657,13 +593,10 @@
   },
   "lf-draft": {
     "description": "A block of text the user owns and can rewrite in place, with recorded revision history.",
-    "x-instructions": "Write the exact Markdown source as `<pre>`, one newline, the HTML-escaped source (& before < and >), then `</pre>` right after it. HTML drops that first newline; every later character, indentation and trailing newlines included, is part of the draft. With `needed`, a draft asks the user for an edit; without it, it is an optional editing surface. Use lf-ask when the request needs its own heading and evidence, or an lf-options decision for permission to use the finished wording. Keep the user's exact source on revision (authoring-revisions.md, \"Honor user state\"); to replace an edited passage on purpose, write the new text and mark the draft `restated` ($restated).",
+    "x-instructions": "Write the exact Markdown source as `<pre>`, one newline, the HTML-escaped source (& before < and >), then `</pre>` right after it. HTML drops that first newline; every later character, indentation and trailing newlines included, is part of the draft. With `needed`, a draft asks the user for an edit; without it, it is an optional editing surface. Use lf-ask when the request needs its own heading and evidence. For approval of editable wording, read authoring-on-me.md, \"Permission\". Keep the user's exact source on revision (authoring-revisions.md, \"Honor user state\"); to replace an edited passage on purpose, write the new text and mark the draft `restated` ($restated).",
     "type": "object",
     "properties": {
-      "id": {
-        "type": "string",
-        "pattern": "^[a-z0-9][a-z0-9-]*$"
-      },
+      "id": { "type": "string" },
       "needed": {
         "type": "boolean"
       },
@@ -699,14 +632,11 @@
   },
   "lf-sample": {
     "description": "A labeled sample: quoted content, interactive content on this page, or an isolated child Leaf page.",
-    "x-instructions": "Use interactive for inline controls that share this page’s state and Undo. For an isolated live child page, put its main content in one direct template[data-sample] with a stable id. Use window for a whole Leaf window including its chrome. Read live-samples.md for child-page interaction, reset, and isolation.",
+    "x-instructions": "Use interactive for inline controls that share this page’s state and Undo; they ask nothing, so none goes on On me. For an isolated live child page, put its main content in one direct template[data-sample] with a stable id. Use window for a whole Leaf window including its chrome. Read live-samples.md for child-page interaction, reset, and isolation.",
     "x-name": "label",
     "type": "object",
     "properties": {
-      "id": {
-        "type": "string",
-        "pattern": "^[a-z0-9][a-z0-9-]*$"
-      },
+      "id": { "type": "string" },
       "label": {
         "type": "string"
       },
@@ -731,10 +661,7 @@
     "x-name": "label",
     "type": "object",
     "properties": {
-      "id": {
-        "type": "string",
-        "pattern": "^[a-z0-9][a-z0-9-]*$"
-      },
+      "id": { "type": "string" },
       "label": {
         "type": "string",
         "minLength": 1
@@ -745,6 +672,7 @@
     "x-content": "markup",
     "x-reading-role": "pane",
     "x-upgrade": true,
+    "x-patch": "members",
     "x-verbatim": true,
     "x-example": "<lf-pane id=\"detail\" label=\"Selected record\"><p>Read the selected record.</p></lf-pane>"
   },

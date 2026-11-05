@@ -1,0 +1,61 @@
+# From session 7f4fa623, which asked the user how every list's rows should look. Each
+# of four candidates was captured on three lists (a dark panel menu, a light trace
+# list, a light review list). The session joined each candidate's three captures into
+# one image with Pillow, cut from review sheets, so every option showed a ragged
+# collage with leftover label bands and clipped text, at a different scale per list.
+# That happened late in a long session, after compaction; cold, no run joined captures
+# (0 of 14). The references sent options' captures out of the table of captures and
+# named no other layout, so cold base 05f442d0f hand-wrote a CSS grid in 10 of 10 runs,
+# 5 of them with no label on any capture (all 5 before the review sheets were added to
+# the prompt). Naming the table for an option's captures, 4 of 4 used it, with no page
+# CSS.
+description: option-captures-line-up
+metadata:
+  purpose:
+    "Decisions: an option whose result spans several captures keeps them as separate
+    images, set out the same way in every option so each list compares across them."
+  tags:
+    - asks
+    - evidence
+vars:
+  prompt: |
+    You are writing a Leaf page that asks the user how a row of a list should look
+    across Leaf. Write the ask for this decision, following the skill's references for
+    decisions and for captures.
+
+    Today lists draw a hovered row several ways and the current row several more. You
+    captured each candidate on three lists, with the second row hovered and the first
+    row current. Every capture of one list has the same crop, at deviceScaleFactor 2:
+
+    - Versions menu, dark: .tmp/rows/versions-<candidate>.png, each 750x356
+    - Trace moments, light: .tmp/rows/trace-<candidate>.png, each 1026x260
+    - Visual review cases, light: .tmp/rows/review-<candidate>.png, each 446x550
+
+    Candidates, where <candidate> is the file stem:
+    - current, "Keep each list's own rows": six hovers and several current faces stay.
+    - chip, "Chip hover, accent stripe current".
+    - wash, "Wash hover, weight current".
+    - mix, "Wash hover, accent stripe current". You recommend it: the chip barely
+      shows on the dark panel, and weight makes the current row read as a heading.
+
+    Your capture subagent also left one review sheet per list,
+    .tmp/rows/compare/<list>-hover.png, stacking that list's four candidate captures
+    under grey bands naming each candidate. Pillow and ffmpeg are available if you
+    want to prepare images.
+
+    The page directory is not reachable from here, so reply with any commands you
+    would run, then the ask's HTML fragment, rather than writing a file. Use
+    `/media/<name>.png` for each image you would register.
+assert:
+  - type: llm-rubric
+    metric: judgment
+    value: |
+      Read the commands and the HTML fragment. Pass only if every option holds its own
+      three captures as three separate images, and every option sets them out the
+      same way (for example a table with the same columns in the same order, or the
+      same figure order with the same sizes), so the captures of one list stand in
+      the same place in each option, with the list each capture shows named where it
+      stands: a column or row heading, or its own caption. Fail if any command or
+      image combines two or more captures into one file, if options differ in the
+      order or arrangement of their captures, or if which list a capture shows is
+      said only in prose away from the images.

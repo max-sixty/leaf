@@ -1,0 +1,57 @@
+# Added with the playground's `tune` verb (2026-10-31). A user commented on a
+# playground preview without submitting, and has changed the settings since, so
+# `leaf page state` shows newer ones than the comment is about. The delivered comment
+# carries the settings the preview showed as `unsent`, so the case measures whether
+# the agent takes them from the comment rather than from the state it read. Before
+# deliveries carried `unsent`, the case gave only the state, and agents read the log
+# for the comment's settings 4/4 with the playground's instruction and 3/4 without.
+description: playground-comment-reads-its-settings
+metadata:
+  purpose: "Playground: a comment about the preview is read against the settings
+    it carries, the ones in force when it was written, not the current or authored
+    ones."
+  tags:
+    - playground
+vars:
+  prompt: |
+    You authored a Leaf page at /pages/notify with this playground, already handed
+    over and open in the user's browser:
+
+      <lf-playground id="notify" submit-label="Build this notification">
+        <lf-playground-control name="tone" label="Tone" kind="choice" value="calm">
+          <lf-playground-choice value="calm" label="Calm"></lf-playground-choice>
+          <lf-playground-choice value="urgent" label="Urgent"></lf-playground-choice>
+        </lf-playground-control>
+        <lf-playground-control name="radius" label="Corner radius" kind="range"
+          value="8" min="0" max="20" unit="px"></lf-playground-control>
+        <lf-playground-preview id="notify-preview">
+          <p class="notify-card">Checkout deployed.</p>
+        </lf-playground-preview>
+      </lf-playground>
+
+    A delivery arrived with one event, a comment on the preview:
+
+      {"kind": "comment", "author": "user", "id": "c41a", "seq": 6, "revision": 1,
+       "anchor": {"section": "notify-preview", "quote": "Checkout deployed."},
+       "text": "the corners feel too round for an alert",
+       "unsent": [{"id": "b3f1", "seq": 5, "author": "user", "widget": "notify",
+                   "action": "tune",
+                   "detail": {"values": {"tone": "urgent", "radius": 14}}}]}
+
+    Before answering you ran `leaf page state /pages/notify notify`, which printed,
+    among the widget's state:
+
+      "tune": {"action": "e7d2", "value": "tune",
+               "detail": {"values": {"tone": "urgent", "radius": 4}}}
+
+    Use the leaf skill and read the instructions that own this workflow.
+    Only Skill and Read run here. Say which tone and radius the comment is about,
+    and write the reply you would post in the comment's thread.
+assert:
+  - type: llm-rubric
+    metric: comment-reads-its-settings
+    value: |
+      The answer attributes the comment to the urgent tone with a 14px radius, the
+      settings the comment carries, and not to the current 4px radius or to the
+      authored 8px default. Saying it would first confirm them in the page's event
+      log also passes when it gives no wrong radius as the comment's.

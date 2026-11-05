@@ -3,37 +3,6 @@
 import re
 
 import pytest
-from click.testing import CliRunner
-from interact_support import (
-    append_carried_log_record,
-)
-from playwright.sync_api import expect
-from render_cases_interaction import (
-    OBLIGATION_PAGE,
-)
-from render_cases_layout import (
-    toggle_queue,
-)
-from render_harness import (
-    LONG_PAGE,
-    PANEL_THREAD,
-    draft_control,
-    margins_laid_out,
-    navigate,
-    open_page,
-    resized,
-    sending,
-    ticked,
-    told,
-    write,
-)
-
-from leaf import cli as cli_model
-from leaf import event_log as events_model
-from leaf.render_checks import rendered
-
-pytestmark = pytest.mark.shifts_unsurveyed
-
 from browser.margin import (
     ACTION_ON_OBLIGATION,
     CARD_AND_REPLY,
@@ -49,7 +18,40 @@ from browser.margin import (
     resized_shell,
     send_anchored_comment,
 )
-from render_harness import comment_note, example_media, leaf_page
+from click.testing import CliRunner
+from interact_support import (
+    append_carried_log_record,
+)
+from playwright.sync_api import expect
+from render_cases_interaction import (
+    OBLIGATION_PAGE,
+)
+from render_cases_layout import (
+    toggle_queue,
+)
+from render_harness import (
+    LONG_PAGE,
+    comment_note,
+    draft_control,
+    example_media,
+    leaf_page,
+    margins_laid_out,
+    navigate,
+    open_page,
+    resized,
+    sending,
+    ticked,
+    told,
+    write,
+)
+
+from leaf import cli as cli_model
+from leaf import event_log as events_model
+from leaf.render_checks import rendered
+from leaf_dev.browser import PANEL_THREAD
+
+pytestmark = pytest.mark.shifts_unsurveyed
+
 
 MARGIN_ACTIONS_EVENTS = (
     {
@@ -200,11 +202,7 @@ def _seed_card_threads(page_dir):
                 "parent": text["id"],
                 "revision": 1,
                 "text": reply,
-                **(
-                    {"markup": '<lf-ask id="crop-question">Wider?</lf-ask>'}
-                    if question
-                    else {}
-                ),
+                **({"obligation": True} if question else {}),
             },
         )
     crowded = comment(
@@ -225,7 +223,7 @@ def _open_thread(page, target, thread_id):
     page.locator(f"#{target}").scroll_into_view_if_needed()
     comment_note(page, f"#{target}").press("Enter")
     walked = page.locator(".lf-margin-preview .lf-page-thread")
-    expect(walked).to_have_attribute("data-thread", thread_id)
+    expect(walked).to_have_attribute("data-lf-thread", thread_id)
     expect(walked).to_be_focused()
     rendered(page)
 
@@ -240,8 +238,7 @@ THREAD_CARD_GEOMETRY = """() => {
     .getBoundingClientRect();
   return {
     mainLeft: main.left, mainRight: main.right,
-    wordsRight: main.right - parseFloat(getComputedStyle(document.querySelector('main'))
-      .paddingRight),
+    wordsRight: document.querySelector('main h1').getBoundingClientRect().right,
     controlsLeft: controls.left, controlsRight: controls.right,
     controlsTop: controls.top,
     controlsBottom: controls.bottom,
@@ -257,65 +254,6 @@ THREAD_CARD_GEOMETRY = """() => {
 
 
 # The rail and the narrowest pin; 700's pin takes the same Page Map route.
-@pytest.mark.parametrize("width", [1440, 390])
-def test_draft_and_page_map_reaction_actions_stay_reachable(browser, serve, width):
-    """A draft's local Save and Cancel stay reachable while it is edited, and the save outlasts
-    a reload; the Undo control of a reaction in force is reachable from the Page Map by keyboard
-    and withdraws the reaction."""
-    page = open_page(browser, serve(MARGIN_ACTIONS_PAGE, events=MARGIN_ACTIONS_EVENTS))
-    resized(page, width, 900)
-    draft_control(page, "edit", "d-draft").click()
-    editor = page.locator("#d-draft leaf-text")
-    body = "The workshop moved outdoors.\nBring a folding chair."
-    write(editor, body)
-    page.locator("#editing-guide").click()
-    expect(draft_control(page, "save", "d-draft")).to_be_visible()
-    expect(draft_control(page, "cancel", "d-draft")).to_be_visible()
-    with sending(page, "save the draft"):
-        draft_control(page, "save", "d-draft").click()
-    expect(page.locator("#d-draft .lf-draft-body")).to_have_text(
-        body, use_inner_text=True
-    )
-    navigate(page, page.url)
-    expect(page.locator("#d-draft .lf-draft-body")).to_have_text(
-        body, use_inner_text=True
-    )
-
-    page.keyboard.press("g")
-    page.keyboard.press("Shift+p")
-    dialog = page.get_by_role("dialog", name="Page Map", exact=True)
-    reaction = next(
-        event
-        for event in events_model.read_events(serve.page_dir)
-        if event.get("token") == "prioritize"
-    )
-    reaction_actions = dialog.locator(
-        '[data-lf-margin-entry-owner="reactions"]'
-        f'[data-lf-margin-entry-key="reaction:{reaction["id"]}:open"]'
-    )
-    expect(reaction_actions).to_have_attribute(
-        "aria-label", "prioritize reaction actions"
-    )
-    reaction_actions.click()
-    expect(dialog).to_be_visible()
-    remove = dialog.get_by_role("button", name="Undo prioritize reaction", exact=True)
-    expect(remove).to_be_focused()
-    page.keyboard.press("Escape")
-    expect(remove).to_be_hidden()
-    expect(reaction_actions).to_be_focused()
-    expect(dialog).to_be_visible()
-    reaction_actions.click()
-    expect(remove).to_be_focused()
-    with sending(page, "the withdrawal of the Page Map reaction"):
-        remove.click()
-    expect(dialog).to_be_hidden()
-    expect(
-        page.locator(
-            f'[data-lf-margin-for="s-crowded"] [data-event="{reaction["id"]}"]'
-        )
-    ).to_have_count(0)
-    last = events_model.read_events(serve.page_dir)[-1]
-    assert (last["kind"], last["undoes"]) == ("undo", reaction["id"])
 
 
 def test_agent_status_leaves_the_margin_transcript_where_the_user_scrolled_it(
@@ -383,9 +321,10 @@ def test_an_inline_thread_keeps_one_readable_card_across_page_claims(
     the marker strip where clearing it would narrow the message."""
     sidebar_page = OBLIGATION_PAGE.replace(
         '<main class="layout-column">',
-        '<main class="layout-column"><aside class="sidebar">Page reference</aside>',
+        '<main class="layout-sidebar"><aside><div class="layout-track">Page reference</div></aside>'
+        '<div class="layout-column">',
         1,
-    )
+    ).replace("</main>", "</div></main>", 1)
     page = open_page(
         browser,
         serve(sidebar_page, events=[COMMENT_ON_OBLIGATION]),
@@ -408,10 +347,7 @@ def test_an_inline_thread_keeps_one_readable_card_across_page_claims(
     assert narrow["innerWidth"] - 8 - (narrow["wordsRight"] + 8) < narrow["minimum"], (
         narrow
     )
-    # The card takes the box's field rectangle (`test_send_grows_thread_around_the_words`);
-    # beside a one-line comment's field the options trigger leaves that rectangle
-    # narrower than the card's minimum, so its reply's width says it reads.
-    assert narrow["cardWidth"] <= narrow["preferred"], narrow
+    assert narrow["minimum"] <= narrow["cardWidth"] <= narrow["preferred"], narrow
     assert narrow["replyWidth"] >= 160, narrow
     # The sent thread retains the comment frame's width and inline start.
     # Its control cluster remains clear when the card takes the lower route.
@@ -442,7 +378,7 @@ def test_an_inline_thread_keeps_one_readable_card_across_page_claims(
     # At this width clearing the controls would narrow the message. Both the
     # editor and its sent card use that space, retaining the editor's frame.
     wide = page.evaluate(THREAD_CARD_GEOMETRY)
-    assert wide["cardWidth"] <= wide["preferred"], wide
+    assert wide["minimum"] <= wide["cardWidth"] <= wide["preferred"], wide
     assert wide["replyWidth"] >= 160, wide
     assert wide["cardLeft"] == pytest.approx(editor_start, abs=0.5), wide
     assert wide["cardLeft"] == pytest.approx(wide["wordsRight"] + 8, abs=0.5), wide
@@ -509,15 +445,31 @@ def test_margin_card_holds_its_top_as_a_turn_arrives_and_as_a_reply_wraps(
                 now,
             )
         assert now["scrolled"] == 0, now
-    wrapped = readings[-1]
+    # Layout is ready before the box's motion has carried Send to its landing.
+    # Keep the per-input stability readings, then measure the completed wrap.
+    page.wait_for_function(
+        """() => !document.querySelector('.lf-margin-preview')
+            .getAnimations({subtree: true}).some(animation =>
+                animation.playState === 'running' &&
+                animation.effect.getComputedTiming().iterations !== Infinity)"""
+    )
+    wrapped = page.evaluate(CARD_AND_REPLY)
     for edge in ("editorBottom", "cardBottom", "send"):
         assert wrapped[edge] > before[edge] + 30, (edge, before, wrapped)
+
+    source_top = marker.bounding_box()["y"]
 
     # A draft with no room left under the card grows it up from the window's foot,
     # keeping the turn it answers in view, until the card fills the window; then the
     # editor scrolls.
     write(editor, "\n".join(f"Line {n}" for n in range(60)))
     rendered(page)
+    page.wait_for_function(
+        """() => !document.querySelector('.lf-margin-preview')
+            .getAnimations({subtree: true}).some(animation =>
+                animation.playState === 'running' &&
+                animation.effect.getComputedTiming().iterations !== Infinity)"""
+    )
     tall = page.evaluate(CARD_AND_REPLY)
     assert tall["cardBottom"] == pytest.approx(tall["foot"], abs=1), tall
     assert tall["cardTop"] == pytest.approx(tall["head"], abs=1), tall
@@ -529,26 +481,41 @@ def test_margin_card_holds_its_top_as_a_turn_arrives_and_as_a_reply_wraps(
     assert caret["selection"] == caret["length"], caret
     assert caret["caretTop"] >= caret["boxTop"], caret
 
-    # A short draft brings the card back to its top.
+    # A short draft returns to its attachment. Native insertion may have scrolled
+    # the page, so compare the card with its source rather than the old viewport.
     write(editor, "Sent")
     rendered(page)
     short = page.evaluate(CARD_AND_REPLY)
-    assert short["cardTop"] == pytest.approx(before["cardTop"], abs=0.5), short
+    assert short["cardTop"] - marker.bounding_box()["y"] == pytest.approx(
+        before["cardTop"] - source_top, abs=0.5
+    ), short
     send = preview.get_by_role("button", name="Send", exact=True)
-    pressed = send.evaluate("button => button.getBoundingClientRect().top")
+    # rendered() settles Leaf's preparation, while the shrinking draft can still
+    # animate. click() waits for a stable Send; measure the same landing it presses.
+    page.wait_for_function(
+        """() => !document.querySelector('.lf-margin-preview')
+            .getAnimations({subtree: true}).some(animation =>
+                animation.playState === 'running' &&
+                animation.effect.getComputedTiming().iterations !== Infinity)"""
+    )
+    pressed = page.evaluate(CARD_AND_REPLY)
     with sending(page, "the reply"):
         send.click()
     expect(preview).to_contain_text("Sent")
-    # The send leaves the user on the card, holding it under the pressed Send.
-    # An answer arriving then extends it downward,
+    # The send leaves the caret in the reply, holding the card under the pressed
+    # Send. An answer arriving then extends it downward,
     # holding its top, as a turn arriving while the user reads does.
     rendered(page)
-    expect(preview.locator(".lf-page-thread")).to_be_focused()
+    expect(editor).to_be_focused()
     expect(preview).to_be_visible()
-    assert preview.locator(".lf-compose-field > button:visible").evaluate(
-        "button => button.getBoundingClientRect().top"
-    ) == pytest.approx(pressed, abs=0.5)
     sent = page.evaluate(CARD_AND_REPLY)
+    # The sent turn may need more room above the reply row than the window has.
+    # Hold the reply box Send stood in unless the window's head clamps the card. The
+    # box is empty now, so Dictate stands in Send's corner, in a box of its own size.
+    expected_reply = max(
+        pressed["editorTop"], sent["head"] + sent["editorTop"] - sent["cardTop"]
+    )
+    assert sent["editorTop"] == pytest.approx(expected_reply, abs=0.5), (pressed, sent)
     append_carried_log_record(
         serve.page_dir,
         {
@@ -680,9 +647,10 @@ def test_the_thread_card_survives_the_on_view_and_authored_sidebars(browser, ser
 
     sidebar_page = OBLIGATION_PAGE.replace(
         '<main class="layout-column">',
-        '<main class="layout-column"><aside class="sidebar">Page reference</aside>',
+        '<main class="layout-sidebar"><aside><div class="layout-track">Page reference</div></aside>'
+        '<div class="layout-column">',
         1,
-    )
+    ).replace("</main>", "</div></main>", 1)
     page = open_page(
         browser,
         serve(sidebar_page, events=[ACTION_ON_OBLIGATION, COMMENT_ON_OBLIGATION]),
@@ -726,6 +694,75 @@ def test_the_thread_card_survives_the_on_view_and_authored_sidebars(browser, ser
     assert composition["cardWidth"] >= 319, composition
 
 
+# A paste grows the draft past its room at once, typing line by line; each room the
+# pane can give the card is read once.
+
+
+import pytest
+from browser.margin import (
+    PANE_PIN_PAGE,
+    _comment_on,
+)
+from render_harness import (
+    LONG_PAGE,
+    pane_scroll_behavior,
+)
+
+
+@pytest.mark.shifts_unsurveyed
+@pytest.mark.parametrize(
+    ("size", "route"),
+    [((1440, 900), "paste"), ((1000, 700), "paste"), ((1440, 600), "typing")],
+)
+def test_drafting_in_a_pane_keeps_the_card_and_reply_top_when_its_room_runs_out(
+    browser, serve, size, route
+):
+    """A bounded pane supplies the drafting room just as the window does. Growing
+    past that room scrolls the editor without carrying the card or its first line."""
+    page = open_page(browser, serve(PANE_PIN_PAGE, events=[_comment_on("pane-top")]))
+    resized(page, *size)
+    pane_scroll_behavior(page, page.locator("#pin-pane"), "bounded")
+    page.locator('[data-lf-margin-for="pane-top"] .lf-margin-marker').click()
+    card = page.locator(".lf-margin-preview")
+    editor = card.get_by_role("textbox", name="Reply", exact=True)
+    editor.click()
+    rendered(page)
+    before = page.evaluate(CARD_AND_REPLY)
+
+    def stays():
+        after = page.evaluate(CARD_AND_REPLY)
+        for edge in ("cardTop", "turn", "editorTop"):
+            assert after[edge] == pytest.approx(before[edge], abs=0.5), (before, after)
+
+    if route == "paste":
+        page.keyboard.insert_text(
+            "\n".join(f"Line {n}: Keep the export per tenant." for n in range(40))
+        )
+        rendered(page)
+        stays()
+    else:
+        # Each line goes in as one input, so the draft grows a line at a time without
+        # paying for a key per character.
+        for n in range(40):
+            page.keyboard.insert_text(f"Line {n}: Keep the export per tenant.")
+            if n < 39:
+                editor.press("Shift+Enter")
+            rendered(page)
+            stays()
+    assert editor.evaluate("box => box.scrollHeight > box.clientHeight")
+    caret = _focused_editor_caret(page)
+    assert caret["selection"] == caret["length"], caret
+    assert caret["caretTop"] >= caret["boxTop"], caret
+    assert caret["caretBottom"] <= caret["boxBottom"], caret
+    page.keyboard.type(" End")
+    rendered(page)
+    stays()
+    caret = _focused_editor_caret(page)
+    assert caret["selection"] == caret["length"], caret
+    assert caret["caretTop"] >= caret["boxTop"], caret
+    assert caret["caretBottom"] <= caret["boxBottom"], caret
+
+
 def test_a_pin_unfolds_from_the_seat_it_was_pressed_in(browser, serve):
     """Unfolding a pin's options widens it, and a pin seated afresh at that width could
     move the control under the press: at 390px a reaction pin reseated 24px to the
@@ -761,5 +798,61 @@ def test_a_pin_unfolds_from_the_seat_it_was_pressed_in(browser, serve):
     assert after["y"] == pytest.approx(before["y"], abs=1), (before, after)
 
 
-# A paste grows the draft past its room at once, typing line by line; each room the
-# pane can give the card is read once.
+@pytest.mark.parametrize("width", [1440, 390])
+def test_draft_and_page_map_reaction_actions_stay_reachable(browser, serve, width):
+    """A draft's local Save and Cancel stay reachable while it is edited, and the save outlasts
+    a reload; the Undo control of a reaction in force is reachable from the Page Map by keyboard
+    and withdraws the reaction."""
+    page = open_page(browser, serve(MARGIN_ACTIONS_PAGE, events=MARGIN_ACTIONS_EVENTS))
+    resized(page, width, 900)
+    draft_control(page, "edit", "d-draft").click()
+    editor = page.locator("#d-draft leaf-text")
+    body = "The workshop moved outdoors.\nBring a folding chair."
+    write(editor, body)
+    expect(draft_control(page, "save", "d-draft")).to_be_visible()
+    expect(draft_control(page, "cancel", "d-draft")).to_be_visible()
+    with sending(page, "save the draft"):
+        draft_control(page, "save", "d-draft").click()
+    expect(page.locator("#d-draft .lf-draft-body")).to_have_text(
+        body, use_inner_text=True
+    )
+    navigate(page, page.url)
+    expect(page.locator("#d-draft .lf-draft-body")).to_have_text(
+        body, use_inner_text=True
+    )
+
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+p")
+    dialog = page.get_by_role("dialog", name="Page Map", exact=True)
+    reaction = next(
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event.get("token") == "prioritize"
+    )
+    reaction_actions = dialog.locator(
+        '[data-lf-margin-entry-owner="reactions"]'
+        f'[data-lf-margin-entry-key="reaction:{reaction["id"]}:open"]'
+    )
+    expect(reaction_actions).to_have_attribute(
+        "aria-label", "prioritize reaction actions"
+    )
+    reaction_actions.click()
+    expect(dialog).to_be_visible()
+    remove = dialog.get_by_role("button", name="Undo prioritize reaction", exact=True)
+    expect(remove).to_be_focused()
+    page.keyboard.press("Escape")
+    expect(remove).to_be_hidden()
+    expect(reaction_actions).to_be_focused()
+    expect(dialog).to_be_visible()
+    reaction_actions.click()
+    expect(remove).to_be_focused()
+    with sending(page, "the withdrawal of the Page Map reaction"):
+        remove.click()
+    expect(dialog).to_be_hidden()
+    expect(
+        page.locator(
+            f'[data-lf-margin-for="s-crowded"] [data-lf-event="{reaction["id"]}"]'
+        )
+    ).to_have_count(0)
+    last = events_model.read_events(serve.page_dir)[-1]
+    assert (last["kind"], last["undoes"]) == ("undo", reaction["id"])

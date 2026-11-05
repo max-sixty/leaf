@@ -12,6 +12,7 @@ in a `main` module runs nowhere near the change that breaks it.
 """
 
 import json
+import os
 import shlex
 import shutil
 import socket
@@ -19,6 +20,7 @@ import subprocess
 import sys
 from functools import partial
 from pathlib import Path
+from typing import cast
 from urllib.parse import urlsplit
 
 import pytest
@@ -33,15 +35,61 @@ from interact_support import (
     stamp,
     wait_for,
 )
-from leaf_dev import arms, page_fixtures
-from leaf_dev.commands import preview
-from leaf_dev.page_fixtures import prepare_page, read_fixture
 
 from leaf import cli as cli_model
 from leaf import codex_adapter, leases, server, service, session
+from leaf.detached import Handshake
 from leaf.interaction_log import read_interactions
+from leaf.layer import stylesheet
 from leaf.media import media_name
+from leaf.registry.storage import layer_record, load_registry, selected
 from leaf.structure import SourceDocument
+from leaf_dev import arms, page_fixtures
+from leaf_dev.commands import preview, record_demo, site
+from leaf_dev.example_data import named_source
+from leaf_dev.page_fixtures import leaf_in_process, prepare_page, read_fixture
+
+LEAF_S_THEME = {"name": "reading", "source": "default"}
+
+
+def test_developer_fixtures_do_not_capture_the_developers_personal_theme(tmp_path):
+    from leaf.packages import cmd_package_install
+    from leaf.registry.storage import layer_metadata
+
+    personal = tmp_path / "personal"
+    personal.mkdir()
+    (personal / "overrides.css").write_text(":root { --accent: #814b07; }")
+    cmd_package_install(personal)
+    config = Path(os.environ["XDG_CONFIG_HOME"]) / "leaf/themes.toml"
+    config.parent.mkdir(parents=True)
+    config.write_text('themes = ["personal"]\ndefault = "personal"\n')
+    ordinary = tmp_path / "ordinary"
+    result = CliRunner().invoke(cli_model.cli, ["page", "init", str(ordinary)])
+    assert result.exit_code == 0, result.output
+    assert layer_metadata(ordinary)["theme"]["name"] == "personal"
+
+    runners = {
+        "arm": partial(
+            arms.run_leaf, ROOT, Path(os.environ["XDG_STATE_HOME"]), check=True
+        ),
+        "preview": partial(preview.leaf, ROOT / "bin/leaf", ROOT),
+        "site": site.checkout_leaf(),
+    }
+    for name, run in runners.items():
+        page = tmp_path / name
+        run(
+            "page",
+            "init",
+            *page_fixtures.package_selection_args(("diagram",)),
+            str(page),
+        )
+        assert layer_metadata(page)["packages"] == ["diagram"]
+        assert layer_metadata(page)["theme"] == LEAF_S_THEME
+
+    page = tmp_path / "demo"
+    with record_demo.demo_session(tmp_path / "demo-run"):
+        record_demo.cmd_init(page)
+        assert layer_metadata(page)["theme"] == LEAF_S_THEME
 
 
 def test_automated_page_producers_record_the_run_before_input(tmp_path, serve, request):
@@ -145,31 +193,30 @@ def test_product_previews_prepare_the_authored_layer_and_media(
     tmp_path, monkeypatch, name
 ):
     """A product preview includes its site furniture, composed parts, and images."""
-    source = ROOT / "docs" / f"{name}.html"
+    source = named_source(name)
     page = tmp_path / "preview"
     monkeypatch.chdir(ROOT)
-
-    def run_leaf(*args, input_text=None):
-        result = CliRunner().invoke(cli_model.cli, list(args), input=input_text)
-        assert result.exit_code == 0, result.output
-
-    prepare_page(page, read_fixture(source), run_leaf, final_status=None)
+    prepare_page(page, read_fixture(source), leaf_in_process, final_status=None)
     served = SourceDocument((page / "index.html").read_text())
     assert served.tree.select("nav.sitenav a[aria-current=page]")
     assert all(
         (page / reference.removeprefix("/")).is_file()
         for reference in served.authoring.media_refs
     )
-    registry = json.loads((page / "registry.json").read_text())
+    registry = load_registry(page)
     assert "nav.sitenav" in registry
-    assert (ROOT / "docs" / "package" / "theme.css").read_text().rstrip() in (
-        page / "theme.css"
-    ).read_text()
+    package = ROOT / "docs" / "package"
+    layer_2 = layer_record(page)
+    assert layer_2 is not None
+    assert (
+        stylesheet(package / "overrides.css", package).rstrip()
+        in selected(layer_2, page).top_files["theme.css"].decode()
+    )
     watched = preview.watch_paths(source, ROOT, [])
     assert str(ROOT / "docs" / "layer.json") in watched.paths
     # A composed part's owner is an input: a caption follows its example's edit.
     if name == "examples":
-        assert str(ROOT / "examples" / "review-a-plan.html") in watched.paths
+        assert str(named_source("review-a-plan")) in watched.paths
 
 
 @pytest.mark.parametrize("kind", ["image", "css", "inline", "stylesheet", "sample"])
@@ -223,19 +270,16 @@ def test_fixture_media_follows_versions_draft_assets_and_live_edits(
     (versions / "index.v1.html").write_text(markup(previous))
     source.write_text(markup(current))
     page = tmp_path / "page"
-
-    def run_leaf(*args, input_text=None):
-        result = CliRunner().invoke(cli_model.cli, list(args), input=input_text)
-        assert result.exit_code == 0, result.output
-
-    prepare_page(page, read_fixture(source), run_leaf, assets=assets, final_status=None)
+    prepare_page(
+        page, read_fixture(source), leaf_in_process, assets=assets, final_status=None
+    )
     expected = {
         media_name(path.read_bytes(), path.suffix) for path in (previous, current)
     }
     assert {path.name for path in (page / "media").iterdir()} == expected
     source.write_text(markup(revised, kind="inline"))
     monkeypatch.setattr(page_fixtures, "pinned_assets", lambda root: assets)
-    preview.refresh_media(source, page, run_leaf)
+    preview.refresh_media(source, page, leaf_in_process)
     expected.add(media_name(revised.read_bytes(), revised.suffix))
     assert {path.name for path in (page / "media").iterdir()} == expected
 
@@ -243,7 +287,7 @@ def test_fixture_media_follows_versions_draft_assets_and_live_edits(
 def test_a_preview_subscribes_to_a_root_over_every_input_it_follows():
     """A path outside the subscribed roots is never reported, so it can never refresh.
 
-    watchfiles watches each root recursively and names the path that changed; the
+    The subscription watches each root and names the path that changed; the
     watcher decides from that name alone. Any watched path the roots do not cover is
     therefore an input the preview silently stops following. The page directory is the
     other half: its own writes are a user's feedback, and watching them would make
@@ -251,7 +295,7 @@ def test_a_preview_subscribes_to_a_root_over_every_input_it_follows():
     """
     from leaf.layer import layer_inputs
 
-    source = ROOT / "examples" / "heat-loss.html"
+    source = named_source("heat-loss")
     packages = json.loads((ROOT / "examples" / "layer.json").read_text())
     watched = preview.watch_paths(
         source,
@@ -338,6 +382,13 @@ def test_a_preview_reads_its_watched_inputs_from_the_files_that_exist_now(tmp_pa
     added_script.unlink()
     assert str(added_script) not in watched().paths
 
+    # Python loads schema data at import time too; changing it needs both the
+    # server's refresh and a fresh watcher, just like changing a Python module.
+    schema = scripts / "state.schema.json"
+    schema.write_text("{}")
+    assert str(schema) in watched().paths
+    assert schema in preview.worker_inputs(runtime)
+
     versions = source.parent / "versions"
     versions.mkdir()
     version = versions / "page.v1.html"
@@ -396,11 +447,9 @@ def test_preview_file_subscription_follows_atomic_replacements(tmp_path):
 
 def test_corpus_preview_follows_authored_sources(tmp_path, monkeypatch, capsys):
     """Native source events regenerate the corpus before its live page is refreshed."""
-    from leaf_dev.commands import corpus
-    from leaf_dev.example_data import data_file, named_source, page_files
-
     from leaf.data import read_data
     from leaf.registry.storage import load_registry
+    from leaf_dev.example_data import data_file, page_files
 
     examples = tmp_path / "examples"
     examples.mkdir()
@@ -409,7 +458,6 @@ def test_corpus_preview_follows_authored_sources(tmp_path, monkeypatch, capsys):
     docs.mkdir()
     (docs / "examples.html").write_text("")
     (tmp_path / "tests/fixtures/pages").mkdir(parents=True)
-    monkeypatch.setattr(corpus, "DEVELOPER_SOURCES", ())
     source = examples / "reading.html"
     source.write_text(
         "<html><head><title>Reading</title></head><body><main><h1>Before</h1>"
@@ -768,6 +816,7 @@ finally:
         )
         url, _ = json.loads(ready.read_text())
         claim = service.page_claim(page_dir)
+        assert claim is not None
         assert claim["id"] == "preview-thread"
         assert claim["pid"] == task.pid, (
             "detached child replaced its launching harness lifetime"
@@ -815,6 +864,7 @@ def test_an_abandoned_handoff_does_not_disable_the_server_it_reuses(
     """Dropping a reused server's real handshake withdraws no existing service."""
     page = codex_claimed_page
     before = server.running_server(page)
+    assert before is not None
     caller, child = socket.socketpair()
     task = spawn(
         [
@@ -882,7 +932,8 @@ def test_failed_delivery_preserves_the_existing_preview(
         assert page_claim(page_dir) == claim
         assert not original.ended
         assert json.loads((page_dir / "service.json").read_text()) == published
-        assert running_server(page_dir)["url"] == url
+        assert (current := running_server(page_dir)) is not None
+        assert current["url"] == url
         assert fetch(url)[0] == 200
     finally:
         cmd_stop(page_dir)
@@ -965,8 +1016,11 @@ def test_a_preview_captures_acquisition_before_an_accepted_commit_is_interrupted
     try:
         with pytest.raises(KeyboardInterrupt), owner.starting():
             pass
+        assert owner.claim is not None
+        claim_record = page_claim(page_dir)
+        assert claim_record is not None
         assert (
-            page_claim(page_dir)["acquisition"] != owner.claim["acquisition"]
+            claim_record["acquisition"] != owner.claim["acquisition"]
         ) == transferred
         owner.stop()
         assert bool(server.running_server(page_dir)) == transferred
@@ -995,6 +1049,7 @@ def test_private_startup_keeps_previous_owner_until_acceptance(
     try:
         expected = ValueError if refusal == "abort_reuse" else StartRefused
         with pytest.raises(expected), claim_and_start(page_dir) as prepared:
+            assert previous is not None
             assert prepared.claim["acquisition"] != previous["acquisition"]
             assert page_claim(page_dir) == previous
             assert not original.ended
@@ -1002,9 +1057,9 @@ def test_private_startup_keeps_previous_owner_until_acceptance(
                 raise ValueError("caller leaves before accepting reuse")
             end_session(prepared.claim["id"])
             if refusal == "new_generation":
-                ensure_session(
-                    prepared.claim["id"], harness.session_harness().lifetime()
-                )
+                harness_3 = harness.session_harness()
+                assert harness_3 is not None
+                ensure_session(prepared.claim["id"], harness_3.lifetime())
         assert page_claim(page_dir) == previous
         assert not original.ended
         assert fetch(url)[0] == 200
@@ -1028,7 +1083,9 @@ def test_service_publication_failure_keeps_previous_preview_claim(
     published = json.loads((page_dir / "service.json").read_text())
     published["enabled"] = True
     write_json(page_dir / "service.json", published)
-    intent = prepare_claim(session_harness(), page_dir)
+    harness_2 = session_harness()
+    assert harness_2 is not None
+    intent = prepare_claim(harness_2, page_dir)
 
     class Accepted:
         def announce(self, _ready, *, commit):
@@ -1046,7 +1103,7 @@ def test_service_publication_failure_keeps_previous_preview_claim(
                 harness=session_harness(),
                 acquire=True,
                 prepared_claim=intent,
-                handshake=Accepted(),
+                handshake=cast(Handshake, Accepted()),
             )
         assert page_claim(page_dir) == previous
         assert not original.ended
@@ -1120,7 +1177,7 @@ def test_a_fixture_acknowledges_its_seed_with_the_runtime_it_was_read_for(tmp_pa
     comparison across a protocol bump builds both arms (`leaf-dev stills`)."""
     runtime = tmp_path / "runtime"
     arms.extract_payload(runtime)
-    registry = runtime / "browser/registry.json"
+    registry = runtime / "browser/runtime/kernel-registry.json"
     layer = json.loads(registry.read_text())
     layer["$events"]["protocol"] += 1
     registry.write_text(json.dumps(layer, ensure_ascii=False))
@@ -1129,7 +1186,7 @@ def test_a_fixture_acknowledges_its_seed_with_the_runtime_it_was_read_for(tmp_pa
     prepare_page(
         page,
         read_fixture(
-            ROOT / "examples/log-retention.html",
+            named_source("log-retention"),
             runtime=runtime,
             env=arms.environment(XDG_STATE_HOME=str(state)),
         ),
@@ -1151,8 +1208,6 @@ def test_resumed_preview_follows_capture_bindings_and_files_without_replaying_se
     The source and value publication use the same real refresh as a resumed or
     live preview; a literal seed edited on the page remains that page's data.
     """
-    from leaf_dev.commands.distribution import cached_installation
-
     from leaf.data import read_data
     from leaf.publishing import authored_digest
     from leaf.registry.storage import load_registry
@@ -1172,10 +1227,9 @@ def test_resumed_preview_follows_capture_bindings_and_files_without_replaying_se
             {"$captures": {"before": {"file": "code.txt"}}, "notes": "Initial seed"}
         )
     )
-    installed = cached_installation(ROOT)
-    run_leaf = partial(preview.leaf, installed / "bin/leaf", ROOT)
+    run_leaf = partial(preview.leaf, ROOT / "bin/leaf", ROOT)
     page = tmp_path / "page"
-    prepare_page(page, read_fixture(source, runtime=installed), run_leaf)
+    prepare_page(page, read_fixture(source, runtime=ROOT), run_leaf)
     state = {"authored": authored_digest(preview.incoming_files(source))}
     run_leaf("data", "set", str(page), "notes", input_text=json.dumps("Page edit"))
     retained_log = (page / "events.jsonl").read_bytes()
@@ -1191,7 +1245,7 @@ def test_resumed_preview_follows_capture_bindings_and_files_without_replaying_se
     service = preview.PreviewService(page, False)
     try:
         assert preview.refresh_preview(
-            source, page, installed / "bin/leaf", ROOT, state, service
+            source, page, ROOT / "bin/leaf", ROOT, state, service
         )
         values = read_data(page, load_registry(page))["sources"]
         assert values["after"]["value"] == "First capture"
@@ -1204,7 +1258,7 @@ def test_resumed_preview_follows_capture_bindings_and_files_without_replaying_se
 
         captured.write_text("Edited capture")
         assert preview.refresh_preview(
-            source, page, installed / "bin/leaf", ROOT, state, service
+            source, page, ROOT / "bin/leaf", ROOT, state, service
         )
         values = read_data(page, load_registry(page))["sources"]
         assert values["after"]["value"] == "Edited capture"
@@ -1212,7 +1266,7 @@ def test_resumed_preview_follows_capture_bindings_and_files_without_replaying_se
         assert values["notes"]["value"] == "Page edit"
         run = values["after"]["run"]
         assert preview.refresh_preview(
-            source, page, installed / "bin/leaf", ROOT, state, service
+            source, page, ROOT / "bin/leaf", ROOT, state, service
         )
         assert read_data(page, load_registry(page))["sources"]["after"]["run"] == run
         assert (page / "events.jsonl").read_bytes().startswith(retained_log)
@@ -1225,7 +1279,7 @@ def test_resumed_preview_follows_capture_bindings_and_files_without_replaying_se
             captured.write_text("42")
             companion.write_text(json.dumps({"$captures": {"invalid": spec}}))
             assert not preview.refresh_preview(
-                source, page, installed / "bin/leaf", ROOT, state, service
+                source, page, ROOT / "bin/leaf", ROOT, state, service
             )
             assert (page / "index.html").read_bytes() == published
             assert (
@@ -1236,7 +1290,7 @@ def test_resumed_preview_follows_capture_bindings_and_files_without_replaying_se
         captured.write_text("1")
         companion.write_text(json.dumps({"$captures": {"after": {"file": "code.txt"}}}))
         assert preview.refresh_preview(
-            source, page, installed / "bin/leaf", ROOT, state, service
+            source, page, ROOT / "bin/leaf", ROOT, state, service
         )
         source.write_text(
             source.read_text().replace(
@@ -1245,7 +1299,7 @@ def test_resumed_preview_follows_capture_bindings_and_files_without_replaying_se
             )
         )
         assert preview.refresh_preview(
-            source, page, installed / "bin/leaf", ROOT, state, service
+            source, page, ROOT / "bin/leaf", ROOT, state, service
         )
         assert (
             read_data(page, load_registry(page))["sources"]["after"]["contract"]
@@ -1255,13 +1309,13 @@ def test_resumed_preview_follows_capture_bindings_and_files_without_replaying_se
             json.dumps({"$captures": {"after": {"file": "code.txt", "format": "json"}}})
         )
         assert preview.refresh_preview(
-            source, page, installed / "bin/leaf", ROOT, state, service
+            source, page, ROOT / "bin/leaf", ROOT, state, service
         )
         captured.write_text(
             "true"
         )  # Python compares True == 1; JSON distinguishes them.
         assert not preview.refresh_preview(
-            source, page, installed / "bin/leaf", ROOT, state, service
+            source, page, ROOT / "bin/leaf", ROOT, state, service
         )
         assert (
             type(read_data(page, load_registry(page))["sources"]["after"]["value"])
@@ -1271,10 +1325,8 @@ def test_resumed_preview_follows_capture_bindings_and_files_without_replaying_se
         service.stop()
 
 
-def test_preview_keeps_watching_after_an_invalid_capture_companion(
-    tmp_path, monkeypatch, capsys
-):
-    """An interrupted JSON save refuses one refresh, then its repair reaches the page."""
+def test_preview_keeps_watching_after_unreadable_inputs(tmp_path, monkeypatch, capsys):
+    """Unreadable runtime inputs or incomplete captures leave the last page serving."""
     from leaf.data import read_data
     from leaf.registry.storage import load_registry
 
@@ -1292,6 +1344,17 @@ def test_preview_keeps_watching_after_an_invalid_capture_companion(
     page = tmp_path / "page"
 
     def edits():
+        output = capsys.readouterr().out
+        url = next(line for line in output.splitlines() if line.startswith("http://"))
+
+        def unavailable(_runtime):
+            raise OSError("runtime input temporarily unavailable")
+
+        with monkeypatch.context() as unreadable:
+            unreadable.setattr(preview, "worker_identity", unavailable)
+            yield {str(captured)}
+            assert "runtime input temporarily unavailable" in capsys.readouterr().err
+            assert fetch(url)[0] == 200
         companion.write_text("{")
         yield {str(companion)}
         assert (

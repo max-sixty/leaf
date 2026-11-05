@@ -2,27 +2,65 @@ Use `lf-playground` when the user compares candidates, tunes a configuration, or
 both. A playground can have just one choice: the candidate to build. Put each candidate
 inside an `lf-playground-choice` in the preview, so the user selects the actual example
 rather than a second selector elsewhere. `lf-options` remains useful for a fixed choice
-that needs no playground controls or composed preview.
+that needs no playground controls or composed preview. To critique a document or
+source, use Leaf's comments, suggestions, `lf-diff` or `lf-visual-review` instead.
 
 Frame the question with `lf-ask` when its context lives outside the playground. Keep
 behavior that one page uses in that page's module, which can define custom elements, add
 state to the playground and derive its output. Behavior several pages reuse belongs in a
 package (`references/packages.md`, "Package reach").
 
-Place each control next to the part of the preview it changes. A control that changes
-the whole preview, as most do, is a direct child of `lf-playground` and appears in the
-rail beside the preview, above the instruction. When the preview holds several items
-that each take their own settings, such as alerts that each need a threshold, write each
-item's controls inside `lf-playground-preview` beside that item, and leave only the
-settings every item shares in the rail. A control in the preview still belongs to the
-playground. Its value is submitted, and presets and Reset set it.
+## What the user is doing
+
+In a playground the user settles something they will live with, such as a shadow
+scale, an alert threshold or an animation, by changing it and watching what changes.
+Build the page around that loop, as a design tool's inspector or a good tuning
+instrument is built, rather than as a form that collects values. These considerations
+follow from it:
+
+- **The subject leads.** The thing being decided, at the size and in the surroundings
+  where the user will meet it, takes most of the space; the premise, controls and
+  actions take what they need to be read and reached. A type scale judged on one
+  heading reads differently from one set in a full page of the product.
+- **Controls speak in what ships.** A control set in the values the build will
+  receive, such as a layer's offset, blur and opacity, or a threshold in milliseconds,
+  lets the user read the decision off the control. A setting expressed relative to
+  something else, such as a percentage of today's value, hides what will be built
+  unless the resulting value shows beside it.
+- **A parameter with a shape can have an instrument.** A curve, a stack of layers, a
+  position or a range over data often reads better drawn and dragged than as a row of
+  sliders. A page can draw its own and keep its value in the playground as a
+  contributor slice ("Stateful previews").
+- **Consequences move with the setting.** Where the user weighs an outcome, such as
+  how often an alert would have fired or how many pages exceed a budget, draw it beside
+  the setting that produces it, updating with every change.
+
+## Placement and space
+
+Keep each control within sight of what it changes, so the user watches the effect
+while moving it. A control directly inside `lf-playground` stands in the rail beside
+the preview, above the playground's actions; one inside `lf-playground-preview` stands
+where authored. Both kinds are submitted, and presets and Reset set them.
+
+When tuning against supplied measurements, start with one comparison row per
+independently tuned item. Keep its prior and working settings, their outcomes, and the
+supplied alternatives' outcomes together, with its controls beside them. Coupled
+settings belong in the same row. Keep the comparison in the preview, and preserve it
+when the interaction becomes a final record. Use another arrangement when it makes the
+relationships clearer.
+
+For a visual design, give the actual candidate room to be judged. A few controls beside
+each candidate keep their effects in view; when controls crowd the candidate, an
+inspector lets the user edit the selected item while the candidates remain available
+for comparison.
 
 Choose the playground's space by what the user needs to see and operate together
-(`references/page-authoring.md`, "Composing a page"). `data-width="available"` lets it
-break out of a reading column; a workspace gives it the window. A long comparison can
-flow down the page. Shared controls stay in their rail on wide layouts and above the
-preview on narrow layouts, where their own contents scroll if needed to leave room for
-the candidates. Controls authored beside an individual candidate stay beside it.
+(`references/page-authoring.md`, "Composing a page"). For more room in a reading
+column, put `data-width="available"` on the enclosing `lf-ask`, or on the playground
+when it stands alone (`references/page-layout.md`, "Bounds and widths"). A workspace
+gives it the window. Candidates the user
+compares fit the window together, each picture sized as
+`references/authoring-on-me.md` says.
 
 Keep the premise focused on what the user is setting and why, so the preview, controls
 and submission remain easy to reach. Leave facts already visible in the preview there.
@@ -30,7 +68,7 @@ Supporting qualifications can go behind a disclosure when they interrupt the tas
 `lf-gloss` opens on hover, focus or a tap without moving the page.
 
 An A/B comparison mounts both candidates in the preview with the same configuration and
-starting content. When candidates stand side by side, align their names, notes and
+starting content. When candidates appear side by side, align their names, notes and
 drawings in rows, so each candidate's name starts level with the others' however many
 lines it wraps to. Each drawing keeps its own height.
 
@@ -45,9 +83,10 @@ Show each candidate as the interface being decided, so the user can judge it as 
 would use it: its content, its controls where they are proposed to go, the context
 around it, and the states that tell the candidates apart. A sketch, wireframe or diagram
 can be rough and unwired if it shows those things; naming a control in prose does not
-show it. Make an interaction work inside a candidate only when the user needs to try it
-to decide. Before asking which candidate the user prefers, check that the views support
-the choice, and add what is missing. Use product copy for visible and accessible text,
+show it. Make an interaction work where trying it tells the user more than seeing its
+states side by side, such as how a menu opens or a card rises under the pointer. Before
+asking which candidate the user prefers, check that the views support the choice, and
+add what is missing. Use product copy for visible and accessible text,
 and put commentary about the prototype in the surrounding playground only where needed.
 
 When the decision changes an existing interface, include its current state as a labeled
@@ -58,12 +97,21 @@ reads any difference from the product as part of the proposal, so a lookalike, s
 an emoji, a Unicode symbol or a plain dot standing in for an icon or logo, shows a change
 nobody proposed. Where a part can't be copied, leave a plain blank of its size.
 
-A copy of a component's DOM has its appearance but none of its listeners, state or
-lifecycle. When behavior is part of the comparison, mount the component through its
-production entry point, or build and serve each candidate's source revision, rather than
-wiring substitute handlers onto copied DOM.
+When the comparison is about a component's own behavior, such as its focus handling or
+the state it keeps, mount it through its production entry point, or build and serve each
+candidate's source revision. A copy of its DOM keeps the appearance but none of its
+listeners, state or lifecycle, so handlers wired onto the copy show behavior the product
+won't have. An interaction that only brings a candidate into the state being judged,
+such as hovering a card to show the raised style under review, can be wired on a copy.
 
 ## Controls, samples, and output
+
+A choice control shows radio buttons by default, keeping its option labels visible.
+`appearance="select"` saves space when scanning current settings across many items, at
+the cost of opening a menu to read the other labels. Choose the control within the
+comparison composed under “Placement and space.” The same `lf-playground-choice`
+children provide the select's values and labels; presets, Reset and the submitted
+values work the same.
 
 Keep the configuration the user is choosing apart from the cases used to inspect it.
 Controls and presets describe what to build. Give preview cases and inspection settings
@@ -74,8 +122,8 @@ keeps the case, and every candidate shows the same case. When editing the data i
 the task, the data belongs in the configuration.
 
 Offer presets when combinations of several parameters make useful starting points for
-further tuning. Design each as one look whose parts read together on every surface they
-change, rather than taking each control's best value separately. A preset sets every
+further tuning. Choose each preset's values together so they produce a consistent appearance on every
+surface they change, rather than optimizing each control separately. A preset sets every
 control its look depends on, since a control it leaves out keeps the user's last value.
 Before handoff, look at each preset in both themes on every surface it changes, and
 rework or drop any you would not ship.
@@ -84,20 +132,15 @@ Name a preset for its outcome: `Status strip`, not `Preset 2`.
 In this comparison, `format` names which candidate to build. Each choice contains its
 preview. Pressing its label or noninteractive body selects it; buttons, editors and media remain
 operable without selecting it. Do not put a second `format` control in the rail.
-Rich choices form a responsive grid, and plain label choices run in a row that wraps
-between whole labels. When the comparison needs a particular arrangement of either, set
-`--playground-choice-columns` on the authored choice control or its parent to a grid's
-columns, such as `repeat(2, minmax(0, 1fr))`, and use a media query to stack them on
-narrow screens.
+Rich choices form a responsive grid, and plain label choices stand one per line. When
+the comparison needs a particular arrangement of either, such as short labels in a row,
+set `--playground-choice-columns` on the authored choice control or its parent to a
+grid's columns, such as `repeat(2, minmax(0, 1fr))`.
 
 ```html
-<lf-ask id="notification-ask">
+<lf-ask id="notification-ask" data-width="available">
   <h2>Which deployment notification should we build?</h2>
-  <lf-playground
-    id="notification-playground"
-    submit-label="Create notification"
-    data-width="available"
-  >
+  <lf-playground id="notification-playground" submit-label="Create notification">
     <lf-playground-control
       name="radius"
       label="Corner radius"
@@ -142,7 +185,8 @@ narrow screens.
       Build the <lf-playground-value for="format"></lf-playground-value> notification
       with <lf-playground-value for="radius"></lf-playground-value> corners and compact
       spacing set to <lf-playground-value for="compact"></lf-playground-value>. Replace
-      the notification component and show me its browser test.
+      the notification component and show its before-and-after comparison and browser
+      test.
     </lf-playground-output>
   </lf-playground>
 </lf-ask>
@@ -183,26 +227,45 @@ CSS in a `<style>` inside its template, keyed on the child's root, such as
 `:root[data-playground-format="status strip"]`: each sample's root carries the
 playground's properties and attributes from its first paint, including after Reset.
 
-The output is the instruction the agent receives. Write a complete task that names the
-object, where the change goes, and the evidence you want back. Use `lf-playground-value`
-only where a selected value makes the task more precise; the action sends every control
-in `detail.values` anyway. After submission, the button reads **Undo choice** while the
+The output is the task the agent receives after submission. Carry the user's purpose
+through the change: name the object, where the change goes, and the result the user
+needs to inspect afterward. When changing something already in use, ask for a
+before-and-after comparison so the user can inspect the choice and its effects.
+
+Unless the page draws the actions, the user reads it only on
+request, from a button beside the playground's Reset and submit, so whatever the user
+needs to see before submitting, such as the exact values the build will receive, belongs
+on the page where they tune. Use
+`lf-playground-value` only where a selected value makes the task more precise; the
+action sends every control in `detail.values` anyway. After submission, the button reads **Undo choice** while the
 working values and instruction match the saved choice. Editing either restores the
 submit action; Undo withdraws the choice and keeps the working values.
+
+The page keeps the working values before the user submits them, as the playground's
+`tune` actions, which ask nothing of you. A message in a thread on the playground
+arrives with the `tune` the user was looking at as its `unsent`
+(`references/event-batches.md`), or without one where the controls showed their
+authored values. A value the controls of the message's `revision` can't hold, such as
+a radius past a lowered `max`, showed as that control's authored value.
 
 ## Stateful previews
 
 Write a preview's script as an inline `<script type="module">`, and put the candidates
-in ordinary or custom elements (`references/module-authoring.md`, "What a behavior
-module owes").
+in ordinary or custom elements (`references/page-behavior.md`, "A page script").
 
-The playground owns working values. Read its immutable `values` aggregate, or declare
-one named structured slice with `playground.registerContributor(name, defaults)`.
+The playground owns working values. Its immutable `values` aggregate can hold scalar
+controls, contributor slices, or both. Declare a named structured slice with
+`playground.registerContributor(name, defaults, editor)`.
+Pass the DOM root containing the controls that edit this slice. After using that
+editor, pressing another playground control follows the browser's native focus
+behavior. Keep visual candidates outside the editor root: their focus stays in place
+while a control changes the design, so the user can compare focus treatments,
+including an input's.
 The returned handle's `get()` reads its immutable current value; `set(next)` replaces
 that slice. Update it on input, so a later control change or submission sees the edit.
 Names are unique and distinct from control names. Retain the handle rather than a
-second configuration object. Reset restores the authored defaults, and a new choice
-loads its configuration. Undo withdraws a submitted decision while keeping the current
+second configuration object. Reset restores the authored defaults, and settings made in another tab
+load here. Undo withdraws a submitted decision while keeping the current
 working values, including edits made since submission, so the user can adjust and
 resubmit them.
 
@@ -243,26 +306,49 @@ structured data only subscribes; one without its own instruction keeps
 </script>
 ```
 
-Keep native editors mounted and avoid writing their value when it already matches.
-The playground owns tab persistence, presets, Reset, instruction copying and submission;
-views draw the values they receive. When a page adds contributor state, redeclare the
-complete `lf-playground` entry in `page/registry.json` with an exact schema for
-`detail.values`. An instruction provider describes the configuration as a task that
-makes sense without the preview.
+A preview that declares its configuration as contributor slices needs no
+`lf-playground-control`. Where the preview draws its own instrument, it can draw the
+submission and Reset too: set `actions="page"` on the playground, build two ordinary
+buttons, and pass them in `declare` with
+`playground.registerActions({submit, reset})`. Leaf then draws no rail or bar of
+actions, and the page's CSS styles the buttons. The playground answers their presses and its keys,
+writes the submission's words (`submit-label`, then **Undo choice**), and records the
+choice. The instruction stays where `lf-playground-output` is written, so place or
+style it as the page needs.
 
-When both candidates draw from shared state, keep dynamic rows under stable keys, apply
-each add, remove, reorder or edit once, and derive both candidates' rows and counts from
-that state. Rows the user is choosing, such as a query's filters, are one contributor in
-the submitted configuration. Give each node or item a stable element id, so the user can
-point at it in Design mode, and keep one decision per id. Filtering and ordering change
-what is shown, never which items or decisions exist, and the instruction reports each
-item's decision (accepted, rejected or undecided) in an order that doesn't depend on the
-display. Store a map's nodes and relations as ids and endpoints, never as positions or
-colors alone. To critique a document or source, use Leaf's comments, suggestions,
-`lf-diff` or `lf-visual-review` rather than a playground. A canvas or SVG explorer uses
-one Pointer Events controller with pointer capture and a keyboard route; it converts the
-input to model coordinates once and draws both candidates and their measurements from
-them. Call `layoutChanged` after a gesture changes geometry.
+`lf-playground-preset` sets only `lf-playground-control`s. To offer presets for a
+contributor slice, draw a button for each inside its editor that passes the preset's
+whole value to the handle's `set`; the playground records the press as one gesture,
+which Undo takes back whole. Set `aria-pressed` on the button whose value matches
+`get()`. The `shadow-scale` example draws three.
+
+Keep native editors mounted and avoid writing their value when it already matches.
+The playground owns recording the working values, presets, Reset, instruction copying
+and submission; views draw the values they receive. For a structured configuration, set that
+playground's `contract` attribute to a named `$data.contracts` entry in
+`page/registry.json`. Its `schema` describes the complete `values` object: scalar
+controls and contributor slices, required names and any bounds. Each instance can
+select a different contract. Admission validates that schema before recording a
+submission; an unbound playground uses the package's open values schema.
+The `data-explorer` example shows a scalar limit beside structured filter rows.
+An instruction provider returns plain text describing the configuration as a task
+that makes sense without the preview. Its line breaks and indentation appear in the
+instruction and remain when copied or sent. An authored `lf-playground-output` keeps
+rendered block boundaries and preformatted whitespace when copied or sent. Both forms
+trim leading and trailing whitespace.
+
+When candidates draw from data the user edits, such as a query's filter rows or a map's
+nodes, the submitted configuration is what you will build from, so it holds that data,
+as one contributor, in a form that means the same whatever the view: each item under a
+stable key, each relation by its endpoints' keys rather than by position or colour, and
+one decision per item, which the instruction reports as accepted, rejected or undecided
+in an order that doesn't depend on the display. Filtering and ordering then change only
+what is shown. Apply each add, remove, reorder or edit to that state once, and draw both
+candidates, with their rows, counts and measurements, from it, so they can't disagree;
+for the same reason a canvas or SVG instrument converts pointer input to model
+coordinates once, and gives the same edits a keyboard route. Give each item a stable
+element id, so the user can point at it in Design mode. Call `layoutChanged` after a
+gesture changes geometry.
 
 Before handoff, exercise the user's comparison and submission journey through the states
 that change its result. Check that the preview and measurements reflect the chosen

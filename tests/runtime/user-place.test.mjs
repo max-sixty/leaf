@@ -1,100 +1,19 @@
-/* The user's place in a scroller, and the band of it they can see.
+/* The user's place in a scroller, and the one hold that keeps it across a change.
 
-   The folds (which candidate holds the place, how far a correction scrolls) are asked
-   directly. The hold itself, and when focus marks the place, are asked over boxes this
-   file states, since happy-dom lays nothing out: a node the render replaced hands the
-   place to the node now rendered under its identity, a synchronous hold lands its
-   reference whatever the browser's own anchoring did first, and focus scrolled away or
-   riding in a stuck header names no place. */
+   Asked over boxes this file states, since happy-dom lays nothing out: focus scrolled
+   away or riding in a stuck header names no place, and a hold puts the node it read
+   back where it stood, or its stand-in where the change hid it, paying only for what
+   the browser's own anchoring left. The user's place across a reading is the first the
+   change moved of those they named, a field they type in before a resting pointer and
+   the pointer only on a control, and its keep yields to a scroll since and to the user's
+   own press or key, but not to typing into the field it holds. */
 
 import assert from "node:assert/strict";
 import test from "node:test";
 
+import { recentPlaceInput } from "/runtime/focus.js";
 import { pointerAt } from "/runtime/pointer.js";
-import {
-  focusedInView,
-  placeCandidates,
-  placeCorrection,
-  placeKeeper,
-} from "/runtime/user-place.js";
-
-test("the place follows the most recent named item, then visible items", () => {
-  const visible = ["a", "b", "c", "d"];
-  assert.deepEqual(placeCandidates({ inherited: null, named: ["c", "a"], visible }), [
-    "c",
-    "a",
-    "d",
-    "b",
-  ]);
-  assert.deepEqual(placeCandidates({ inherited: null, named: [], visible }), [
-    "a",
-    "b",
-    "c",
-    "d",
-  ]);
-  // A fold in flight has already moved what the pointer names; its reference leads.
-  assert.deepEqual(placeCandidates({ inherited: "b", named: ["d"], visible }), [
-    "b",
-    "d",
-    "c",
-    "a",
-  ]);
-  // The caller admits only visible pointer and focus candidates.
-  assert.deepEqual(placeCandidates({ inherited: null, named: ["d", "c"], visible }), [
-    "d",
-    "c",
-    "a",
-    "b",
-  ]);
-  // A surface's active reading can lead even when its title is clipped. Explicitly
-  // naming another row still gives that row the place.
-  assert.deepEqual(placeCandidates({ named: [], preferred: "clipped", visible }), [
-    "clipped",
-    "a",
-    "b",
-    "c",
-    "d",
-  ]);
-  assert.deepEqual(placeCandidates({ named: ["b"], preferred: "clipped", visible }), [
-    "b",
-    "clipped",
-    "c",
-    "d",
-    "a",
-  ]);
-});
-
-test("a correction follows reflow and pays for a limit clamp only once", () => {
-  const held = { scrollTop: 900, limit: 1200 };
-  // Content above grew by 40: scroll down by 40.
-  assert.equal(
-    placeCorrection({ was: 1000, now: 1040, scrollTop: 900, limit: 1240, held }),
-    40,
-  );
-  // Content shrank and the browser clamped the scroller from 900 to its new limit of
-  // 700, carrying the reference 200 closer already.
-  assert.equal(
-    placeCorrection({ was: 1000, now: 700, scrollTop: 700, limit: 700, held }),
-    -100,
-  );
-  // Standing short of the limit is the user's own scroll, not a clamp.
-  assert.equal(
-    placeCorrection({ was: 1000, now: 1000, scrollTop: 650, limit: 700, held }),
-    0,
-  );
-  // Within one task the same movement is the browser's anchoring, and is paid for.
-  assert.equal(
-    placeCorrection({
-      was: 1000,
-      now: 1000,
-      scrollTop: 650,
-      limit: 700,
-      held,
-      withinTask: true,
-    }),
-    250,
-  );
-});
+import { focusedInView, holdPlace, holdUserPlace } from "/runtime/user-place.js";
 
 // A scroller whose boxes are stated: each node's viewport top is its content top less
 // the scroller's scrollTop.
@@ -105,22 +24,27 @@ function laidOut() {
   let scrollTop = 0;
   Object.defineProperty(scroller, "scrollTop", {
     get: () => scrollTop,
-    set: (value) => (scrollTop = value),
+    set: (value) => {
+      scrollTop = value;
+    },
   });
   Object.defineProperties(scroller, {
     scrollHeight: { get: () => 5000 },
     clientHeight: { get: () => 400 },
     clientWidth: { get: () => 300 },
   });
+  scroller.scrollTo = ({ top }) => {
+    scrollTop = top;
+  };
   scroller.getBoundingClientRect = () => new DOMRect(0, 0, 300, 400);
   const at = new Map();
-  const item = (id, contentTop) => {
+  const item = (id, contentTop, height = 100) => {
     const node = document.createElement("section");
     node.className = "item";
     node.dataset.id = id;
     at.set(node, contentTop);
     node.getBoundingClientRect = () =>
-      new DOMRect(0, at.get(node) - scrollTop, 300, 100);
+      new DOMRect(0, at.get(node) - scrollTop, 300, node.hidden ? 0 : height);
     return node;
   };
   return {
@@ -131,45 +55,6 @@ function laidOut() {
     scrollTo: (y) => (scrollTop = y),
   };
 }
-
-test("a hold names only a visible focus or pointer target", () => {
-  const { scroller, item, scrollTo } = laidOut();
-  const nodes = ["a", "b", "c"].map((id, index) => item(id, 1000 + index * 250));
-  for (const node of nodes) node.tabIndex = 0;
-  scroller.append(...nodes);
-  scrollTo(1000);
-  const place = placeKeeper(scroller, {
-    items: ".item",
-    identity: (node) => node.dataset.id,
-  });
-  nodes[2].focus();
-  const offscreen = place.take();
-  assert.equal(offscreen.named, null);
-  assert.equal(offscreen.references[0].node, nodes[0]);
-  place.finish(offscreen);
-
-  nodes[1].focus();
-  const focused = place.take();
-  assert.equal(focused.named, nodes[1]);
-  place.finish(focused);
-
-  const originalHitTest = document.elementFromPoint;
-  document.elementFromPoint = () => nodes[0];
-  try {
-    const movement = new Event("pointermove");
-    Object.defineProperties(movement, {
-      clientX: { value: 10 },
-      clientY: { value: 50 },
-    });
-    document.dispatchEvent(movement);
-    const pointed = place.take();
-    assert.equal(pointed.named, nodes[0]);
-    place.finish(pointed);
-  } finally {
-    document.elementFromPoint = originalHitTest;
-    scroller.remove();
-  }
-});
 
 test("focus marks the place while some of it shows, and never from a stuck header", () => {
   const { scroller, item, scrollTo } = laidOut();
@@ -197,6 +82,7 @@ test("focus marks the place while some of it shows, and never from a stuck heade
   assert.equal(focusedInView(), heading);
   scrollTo(1300);
   assert.equal(focusedInView(), null, "a stuck heading named the place it rides over");
+  scroller.remove();
 });
 
 test("a wheel leaves the precise pointer position intact", () => {
@@ -210,191 +96,218 @@ test("a wheel leaves the precise pointer position intact", () => {
   assert.deepEqual(pointerAt(), { x: 120.5, y: 240.25 });
 });
 
-test("a node the render replaced hands the place across under its identity", async () => {
+test("a mouse that leaves the window stands nowhere, and a lifted finger stays", () => {
+  /** @param {string} type @param {object} fields */
+  const send = (type, fields) => {
+    const event = new Event(type);
+    for (const [name, value] of Object.entries(fields))
+      Object.defineProperty(event, name, { value });
+    document.dispatchEvent(event);
+  };
+  send("pointermove", { clientX: 40, clientY: 50 });
+  // Out to another element of the page: the mouse is still over it.
+  send("pointerout", { pointerType: "mouse", relatedTarget: document.body });
+  assert.deepEqual(pointerAt(), { x: 40, y: 50 });
+  send("pointerout", { pointerType: "touch", relatedTarget: null });
+  assert.deepEqual(pointerAt(), { x: 40, y: 50 });
+  send("pointerout", { pointerType: "mouse", relatedTarget: null });
+  assert.deepEqual(pointerAt(), { x: -1, y: -1 });
+});
+
+test("a hold pays for the growth above its node that anchoring left", () => {
   const { scroller, item, at, scrolled, scrollTo } = laidOut();
-  const nodes = ["a", "b", "c"].map((id, index) => item(id, 1000 + index * 150));
-  scroller.append(...nodes);
-  scrollTo(1000);
-  const place = placeKeeper(scroller, {
-    items: ".item",
-    identity: (node) => node.dataset.id,
-  });
-  const hold = place.take();
-  assert.equal(scroller.style.getPropertyValue("overflow-anchor"), "none");
-  // The render rebuilds "a" as a new node 40px taller, and 60px of new content lands
-  // above it. Held by "b" instead, the place would move by the 40px as well.
-  const rebuilt = item("a", 1060);
-  nodes[0].replaceWith(rebuilt);
-  at.set(nodes[1], 1250);
-  at.set(nodes[2], 1400);
-  place.finish(hold);
-  assert.equal(scrolled(), 1060);
-  assert.equal(rebuilt.getBoundingClientRect().top, 0);
-  // Anchoring comes back at the next rendering pass, so a render taking its hold in the
-  // same script as this one's release writes nothing.
-  assert.equal(scroller.style.getPropertyValue("overflow-anchor"), "none");
-  const next = place.take();
-  place.finish(next);
-  await new Promise((resolve) => requestAnimationFrame(() => setTimeout(resolve)));
-  assert.equal(scroller.style.getPropertyValue("overflow-anchor"), "");
+  const [above, read] = [item("a", 1000), item("b", 1150)];
+  scroller.append(above, read);
+  scrollTo(1100);
+  const hold = holdPlace(read);
+  // The edit grows the block above by 126px, and the browser's anchoring, holding that
+  // block's top, paid for none of it.
+  at.set(read, 1276);
+  hold();
+  assert.equal(scrolled(), 1226);
+  assert.equal(read.getBoundingClientRect().top, 50);
+  // Where anchoring already paid, the hold has nothing left to pay.
+  const again = holdPlace(read);
+  at.set(read, 1300);
+  scrollTo(1250);
+  again();
+  assert.equal(scrolled(), 1250);
   scroller.remove();
 });
 
-test("nested keepers on one scroller correct a reflow once", () => {
+test("a change that hides the held node puts its stand-in where it stood", () => {
   const { scroller, item, at, scrolled, scrollTo } = laidOut();
-  const [first, later] = [item("first", 1000), item("later", 1200)];
-  scroller.append(first, later);
-  scrollTo(1200);
-  const options = { items: ".item", identity: (node) => node.dataset.id };
-  const list = placeKeeper(scroller, options);
-  const card = placeKeeper(scroller, options);
-  const listHold = list.take();
-  const cardHold = card.take({ spans: false });
-  assert.ok(cardHold);
-  at.set(later, 1269);
-  card.finish(cardHold);
-  list.finish(listHold);
-  assert.equal(scrolled(), 1269);
-  // The inner owner can take the next independent change after the list releases it.
-  const next = card.take({ spans: false });
-  assert.ok(next);
-  card.finish(next);
+  const [gist, folded] = [item("gist", 1000), item("folded", 1100)];
+  scroller.append(gist, folded);
+  scrollTo(1080);
+  const hold = holdPlace(folded, (node) => (node === folded ? gist : null));
+  // The fold hides the block being read, and the gist it runs under stays put above.
+  // happy-dom applies no user-agent sheet, so the block states what `[hidden]` computes.
+  folded.hidden = true;
+  folded.style.display = "none";
+  hold();
+  assert.equal(scrolled(), 980);
+  assert.equal(gist.getBoundingClientRect().top, 20);
+  // With no stand-in, a hidden or removed node holds nothing.
+  at.set(gist, 1000);
+  const lost = holdPlace(gist);
+  gist.remove();
+  scrollTo(900);
+  lost();
+  assert.equal(scrolled(), 900);
   scroller.remove();
 });
 
-test("an inner hold cannot consume movement of another named row", () => {
-  const { scroller, item, at, scrolled, scrollTo } = laidOut();
-  const first = item("first", 1000);
-  const later = item("later", 1200);
-  first.classList.add("earlier");
-  later.classList.add("later");
-  scroller.append(first, later);
-  scrollTo(1000);
-  const identity = (node) => node.dataset.id;
-  const list = placeKeeper(scroller, { items: ".later", identity });
-  const card = placeKeeper(scroller, { items: ".earlier", identity });
-  const listHold = list.take();
-  const cardHold = card.take({ spans: false });
-  at.set(later, 1269);
-  card.finish(cardHold);
-  list.finish(listHold);
-  assert.equal(scrolled(), 1069);
-  scroller.remove();
+// The pointer moved to rest over `node`, as the platform reports what lies under it.
+/** @param {Element | null} node */
+function restOn(node) {
+  document.elementFromPoint = () => node;
+  const movement = new Event("pointermove");
+  Object.defineProperties(movement, { clientX: { value: 10 }, clientY: { value: 10 } });
+  document.dispatchEvent(movement);
+}
+
+test("the keep puts back the first place the change moved", () => {
+  const page = laidOut();
+  const rail = laidOut();
+  const read = page.item("read", 1150);
+  const resting = rail.item("rail", 0);
+  page.scroller.append(read);
+  rail.scroller.append(resting);
+  page.scrollTo(1100);
+  read.tabIndex = 0;
+  read.focus();
+  // The pointer, moved last, rests on a rail of its own that the edit leaves still, so
+  // the focused block it pushed down 126px is the place kept.
+  restOn(resting);
+  assert.equal(recentPlaceInput(), "pointer");
+  const keep = holdUserPlace();
+  page.at.set(read, 1276);
+  keep();
+  assert.equal(page.scrolled(), 1226);
+  // With focus in a field that names no place, the row under the resting pointer is kept.
+  const search = document.createElement("input");
+  document.body.append(search);
+  search.focus();
+  read.setAttribute("role", "button");
+  restOn(read);
+  const row = holdUserPlace();
+  page.at.set(read, 1400);
+  row();
+  assert.equal(page.scrolled(), 1350);
+  [page.scroller, rail.scroller, search].forEach((node) => node.remove());
+  restOn(null);
 });
 
-test("an outer hold keeps its row when the inner row moves farther", () => {
+test("a place the change left still keeps its scroller", () => {
   const { scroller, item, at, scrolled, scrollTo } = laidOut();
-  const first = item("first", 1000);
-  const later = item("later", 1200);
-  first.classList.add("earlier");
-  later.classList.add("later");
-  scroller.append(first, later);
-  scrollTo(1000);
-  const identity = (node) => node.dataset.id;
-  const list = placeKeeper(scroller, { items: ".later", identity });
-  const card = placeKeeper(scroller, { items: ".earlier", identity });
-  const listHold = list.take();
-  const cardHold = card.take({ spans: false });
-  at.set(first, 1069);
-  at.set(later, 1230);
-  card.finish(cardHold);
-  list.finish(listHold);
-  assert.equal(scrolled(), 1030);
+  const [above, below] = [item("above", 1150), item("below", 1300)];
+  scroller.append(above, below);
+  scrollTo(1100);
+  // Focus arrives last on the upper block, with the pointer resting on the lower one;
+  // news joins between them, and anchoring holds the upper block.
+  below.setAttribute("role", "button");
+  restOn(below);
+  above.tabIndex = 0;
+  above.focus();
+  assert.equal(recentPlaceInput(), "focus");
+  const keep = holdUserPlace();
+  at.set(below, 1426);
+  keep();
+  assert.equal(scrolled(), 1100, "the block under the pointer moved the focused one");
   scroller.remove();
+  restOn(null);
 });
 
-test("a released keeper cannot remove the next keeper's anchoring claim", async () => {
-  const { scroller, item, scrollTo } = laidOut();
-  scroller.append(item("first", 1000));
-  scrollTo(1000);
-  const options = { items: ".item", identity: (node) => node.dataset.id };
-  const first = placeKeeper(scroller, options);
-  const second = placeKeeper(scroller, options);
-  first.finish(first.take());
-  const next = second.take();
-  assert.ok(next);
-  await new Promise((resolve) => requestAnimationFrame(() => setTimeout(resolve)));
-  assert.equal(scroller.style.getPropertyValue("overflow-anchor"), "none");
-  second.finish(next);
-  scroller.remove();
+test("the keep yields to a scroll or the user's own act, and typing leaves it kept", () => {
+  /** @param {string} type @param {Element} at */
+  const key = (type, at) => at.dispatchEvent(new Event(type, { bubbles: true }));
+  for (const [act, typed, kept] of [
+    [
+      "a scroll under way",
+      false,
+      (_, /** @type {Element} */ box) => box.dispatchEvent(new Event("scroll")),
+      1100,
+    ],
+    ["a press", false, (/** @type {Element} */ box) => key("pointerdown", box), 1100],
+    [
+      "a key at a control",
+      false,
+      (/** @type {Element} */ box) => key("keydown", box),
+      1100,
+    ],
+    [
+      "a key typed into the field",
+      true,
+      (/** @type {Element} */ box) => key("keydown", box),
+      1226,
+    ],
+    [
+      "words typed into the field",
+      true,
+      (/** @type {Element} */ box) => key("input", box),
+      1226,
+    ],
+  ].map(([name, typed, since, kept]) => [{ name, since }, typed, kept])) {
+    const { scroller, item, at, scrolled, scrollTo } = laidOut();
+    const read = item("read", 1150);
+    scroller.append(read);
+    scrollTo(1100);
+    if (typed) read.contentEditable = "true";
+    else read.tabIndex = 0;
+    read.focus();
+    const keep = holdUserPlace();
+    at.set(read, 1276);
+    act.since(read, scroller);
+    keep();
+    assert.equal(scrolled(), kept, act.name);
+    scroller.remove();
+  }
 });
 
-test("a node with no identity passes the place to the next candidate, not a stranger", () => {
+test("a field the user types in comes before a resting pointer, which names a control", () => {
   const { scroller, item, at, scrolled, scrollTo } = laidOut();
-  const nodes = ["", "b"].map((id, index) => item(id, 1000 + index * 150));
-  scroller.append(...nodes);
-  scrollTo(1000);
-  const place = placeKeeper(scroller, {
-    items: ".item",
-    identity: (node) => node.dataset.id,
-  });
-  const hold = place.take();
-  // The unnamed reference leaves; another unnamed row arrives far below.
-  nodes[0].remove();
-  const stranger = item("", 1600);
-  scroller.append(stranger);
-  at.set(nodes[1], 1100);
-  place.finish(hold);
-  assert.equal(scrolled(), 950);
-  assert.equal(nodes[1].getBoundingClientRect().top, 150);
+  const [control, field] = [item("control", 1120), item("field", 1150)];
+  control.setAttribute("role", "button");
+  field.contentEditable = "true";
+  scroller.append(control, field);
+  scrollTo(1100);
+  field.focus();
+  // The pointer, moved last, rests on a control the answer joining between them leaves
+  // still; the field being typed in is still the place kept.
+  restOn(control);
+  assert.equal(recentPlaceInput(), "pointer");
+  const typing = holdUserPlace();
+  at.set(field, 1276);
+  typing();
+  assert.equal(scrolled(), 1226);
+  // Resting on the page's background, a pointer names nothing, and focus on a control
+  // that types nothing is kept.
+  const background = item("background", 1200);
+  scroller.append(background);
+  field.contentEditable = "false";
+  field.tabIndex = 0;
+  field.focus();
+  restOn(background);
+  const pointed = holdUserPlace();
+  at.set(field, 1400);
+  pointed();
+  assert.equal(scrolled(), 1350);
   scroller.remove();
+  restOn(null);
 });
 
-test("an item the band's top cuts holds the place only where none begins in view", () => {
-  const { scroller, item, at, scrolled, scrollTo } = laidOut();
-  const nodes = ["a", "b"].map((id, index) => item(id, 950 + index * 100));
-  for (const node of nodes) node.tabIndex = 0;
-  scroller.append(...nodes);
-  scrollTo(1000);
-  const place = placeKeeper(scroller, {
-    items: ".item",
-    identity: (node) => node.dataset.id,
-  });
-  // Focus in "a", whose top stands above the band, names no place: "b" holds it.
-  nodes[0].focus();
-  const hold = place.take();
-  assert.equal(hold.named, null);
-  assert.equal(hold.references[0].node, nodes[1]);
-  // "a" grows by 60px at its end, and so grows up into the room scrolled past.
-  at.set(nodes[1], 1110);
-  place.finish(hold);
-  assert.equal(scrolled(), 1060);
-  assert.equal(nodes[1].getBoundingClientRect().top, 50);
-
-  // With nothing else in view, the cut item still holds it.
-  nodes[1].remove();
-  scrollTo(1000);
-  const alone = place.take();
-  assert.equal(alone.references[0].node, nodes[0]);
-  place.finish(alone);
-  scroller.remove();
-});
-
-test("a synchronous hold claims no anchoring and absorbs the browser's", async () => {
-  const { scroller, item, at, scrolled, scrollTo } = laidOut();
-  const nodes = ["a", "b"].map((id, index) => item(id, 1000 + index * 150));
-  scroller.append(...nodes);
-  scrollTo(1000);
-  const place = placeKeeper(scroller, {
-    items: ".item",
-    identity: (node) => node.dataset.id,
-  });
-  place.around(() => {
-    // 100px lands above "a", and the browser's own anchoring, applied by a forced
-    // layout, followed only 60px of it.
-    at.set(nodes[0], 1100);
-    at.set(nodes[1], 1250);
-    scrollTo(1060);
-    assert.equal(scroller.style.getPropertyValue("overflow-anchor"), "");
-  });
-  assert.equal(scrolled(), 1100);
-  assert.equal(nodes[0].getBoundingClientRect().top, 0);
-  // A surrounding presentation may already own anchoring across tasks. A
-  // synchronous measurement must neither claim that property nor release it later.
-  scroller.style.setProperty("overflow-anchor", "none");
-  const held = place.take({ spans: false });
-  place.finish(held);
-  await new Promise((resolve) => requestAnimationFrame(() => setTimeout(resolve)));
-  assert.equal(scroller.style.getPropertyValue("overflow-anchor"), "none");
+test("a block folded until found holds its stand-in, though it keeps a box", () => {
+  const { scroller, item, scrolled, scrollTo } = laidOut();
+  const [gist, folded] = [item("gist", 1000), item("folded", 1100)];
+  scroller.append(gist, folded);
+  scrollTo(1080);
+  const hold = holdPlace(folded, (node) => (node === folded ? gist : null));
+  // `hidden="until-found"` keeps the block's box and hides its contents.
+  folded.setAttribute("hidden", "until-found");
+  folded.style.display = "block";
+  assert.ok(folded.checkVisibility());
+  hold();
+  assert.equal(scrolled(), 980);
   scroller.remove();
 });

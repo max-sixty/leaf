@@ -7,6 +7,7 @@ import sys
 import threading
 from concurrent.futures import ThreadPoolExecutor
 
+import anyio
 import pytest
 from interact_support import (
     PAGE,
@@ -21,6 +22,7 @@ from websockets.exceptions import WebSocketException
 
 from leaf import event_log, inference
 from leaf.hosting import TemporaryPageServer
+from leaf.http import PageEndpoint
 from leaf.page_snapshot import capture_page_snapshot
 from leaf.refusals import Refused
 from leaf.revision_artifact import read_revision
@@ -264,23 +266,35 @@ def test_llm_is_unavailable_in_samples_and_read_only_previews(
     assert not fake_claude.exists()
 
 
-def test_llm_busy_calls_leave_the_server_responsive(server, claimed, monkeypatch):
-    started = threading.Event()
+def test_llm_calls_overlap_and_leave_the_server_responsive(
+    server, claimed, monkeypatch
+):
+    # Shrink the dependency's ordinary pool so two held requests expose starvation
+    # without starting dozens of threads. Configure it on the server's own loop.
+    serve = PageEndpoint.__call__
+
+    async def small_default_pool(endpoint, scope, receive, send):
+        monkeypatch.setattr(
+            anyio.to_thread.current_default_thread_limiter(), "total_tokens", 1
+        )
+        await serve(endpoint, scope, receive, send)
+
+    monkeypatch.setattr(PageEndpoint, "__call__", small_default_pool)
+    started = threading.Barrier(3)
     release = threading.Event()
 
     def generate(*args, **kwargs):
-        started.set()
-        assert release.wait(STATED_TIMEOUT)
+        started.wait(timeout=STATED_TIMEOUT)
+        assert release.wait(timeout=STATED_TIMEOUT)
         return {"value": {"headline": "Done"}}
 
     monkeypatch.setattr(inference, "claude_code_generate", generate)
-    with ThreadPoolExecutor(max_workers=1) as pool:
-        pending = pool.submit(infer, server)
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        pending = [pool.submit(infer, server) for _ in range(2)]
         try:
-            assert started.wait(STATED_TIMEOUT)
-            assert infer(server)[0] == 429
+            started.wait(timeout=STATED_TIMEOUT)
             assert fetch(server + "/api/state")[0] == 200
         finally:
             release.set()
-        assert pending.result()[0] == 200
-    assert infer(server)[0] == 200
+        for request in pending:
+            assert request.result(timeout=STATED_TIMEOUT)[0] == 200

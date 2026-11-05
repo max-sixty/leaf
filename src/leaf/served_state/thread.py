@@ -60,14 +60,16 @@ def _answer_key(event: dict, first_answers: dict[str, str]) -> dict:
 
 
 def thread_counts(threads: list[dict]) -> dict:
-    """What the Leaf panel's Threads mark counts of `browser_thread`'s threads
+    """What the Leaf panel's Threads tab counts of `browser_thread`'s threads
     (`threadCounts` in the runtime's `thread/model.js`): of those more than a bare
-    reaction, the ones still open and the ones holding words the user hasn't read.
-    `tests/thread_count_cases.json` holds both runtimes to the same cases."""
+    reaction, the ones still open, and of those the ones holding words the user
+    hasn't read. `tests/thread_count_cases.json` holds both runtimes to the same
+    cases."""
     listed = [thread for thread in threads if not thread["bare_reaction"]]
+    open_threads = [thread for thread in listed if not thread["resolved"]]
     return {
-        "open": sum(not thread["resolved"] for thread in listed),
-        "unread": sum(bool(thread["unread"]) for thread in listed),
+        "open": len(open_threads),
+        "unread": sum(bool(thread["unread"]) for thread in open_threads),
     }
 
 
@@ -87,7 +89,7 @@ def browser_thread(
         events, threads, reading.thread_by_name, reading.thread_by_widget
     )
     summaries_for = active_summaries(events, threads)
-    rendered_threads = []
+    rendered_threads: list[dict] = []
     first_answers: dict[str, str] = {}
     for event in events:
         if is_answer(event):
@@ -95,7 +97,9 @@ def browser_thread(
     for thread_id, thread in threads.items():
         protected = set()
         if awaits_agent(thread):
-            protected.add(turn_message(unanswered_agent_turn(thread)))
+            turn = unanswered_agent_turn(thread)
+            assert turn is not None
+            protected.add(turn_message(turn))
         protected.update(
             item["message"]
             for item in thread_obligations["unanswered"]
@@ -124,7 +128,8 @@ def browser_thread(
         ]
         rendered_threads.append(
             {
-                **thread,
+                # A thread's turn history is the server's to read (`unanswered_turns`).
+                **{key: value for key, value in thread.items() if key != "turns"},
                 "msgs": messages,
                 "root": next(
                     message

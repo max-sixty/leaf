@@ -1,11 +1,15 @@
 /* Placement for threads: the page's order, which every reading of the threads
    shares. */
-import { addressableLabel, addressableWord } from "../addressable-names.js";
+import {
+  addressableLabel,
+  addressableWord,
+  declaredName,
+} from "../addressable-names.js";
 import { sectionOf } from "../anchor-resolution.js";
-import { leafSurface, pageParts, pageReadingVersion } from "../passages.js";
+import { HEADING, leafSurface, pageParts, pageReadingVersion } from "../passages.js";
 import { documentChanged } from "../semantic-state.js";
 import { readingRegionFor } from "../reading-regions.js";
-import { byRenderedOrder, upFrom } from "../shadow.js";
+import { byRenderedOrder, renderedOrder, upFrom } from "../shadow.js";
 // ---------- where the panel puts a thread ----------
 // The list reads in the page's order, not the log's. A page is a document with a
 // beginning and an end, and the user walks the thread the way they walk the
@@ -39,6 +43,8 @@ import { byRenderedOrder, upFrom } from "../shadow.js";
 // (`renderedOrder`, shadow-tree.js), so threads inside one widget keep their order among
 // themselves. A place in no tree at all — an element a version activation has replaced —
 // is no place, which is the same answer an anchor that resolves nowhere gets.
+/** @typedef {(id: string) => {place: Element | null} | null | undefined} PlacedAt */
+/** @param {Pick<import("../../types/domain.js").Thread, "id" | "anchor">} t @param {PlacedAt} placedAt */
 export const threadPlace = (t, placedAt) => {
   const place = placedAt(t.id)?.place ?? (t.anchor ? sectionOf(t.anchor) : null);
   return place?.isConnected && !leafSurface(place) ? place : null;
@@ -46,8 +52,10 @@ export const threadPlace = (t, placedAt) => {
 
 // The log's order is the tiebreak, so two threads on one paragraph read in the order they
 // were opened, and a page that gave nothing an id keeps exactly the list it had.
+/** @template {Pick<import("../../types/domain.js").Thread, "id" | "anchor">} T
+ * @param {readonly T[]} threads @param {PlacedAt} placedAt */
 export const inPageOrder = (threads, placedAt) =>
-  byRenderedOrder(threads, (t) => threadPlace(t, placedAt));
+  byRenderedOrder(threads, /** @param {T} t */ (t) => threadPlace(t, placedAt));
 
 // The page's own outline, in the order it renders, widgets' shadow trees included. Read off the headings the author wrote
 // rather than off <section> nesting, because both shapes are in the corpus and a heading
@@ -59,24 +67,95 @@ export const inPageOrder = (threads, placedAt) =>
 // It is a reading of the page's own nodes, so it stands until the page reading moves
 // (passages.js, `pageReadingVersion`) or a caller says the document changed
 // (`presentDocument`): a thread pass over an unchanged page reads the outline it read.
+/** @typedef {{key: readonly [ReturnType<typeof pageReadingVersion>, ReturnType<typeof documentChanged>], outline: readonly Element[], heads: Map<Element | null, Element[]>}} Outlined */
+/** @type {Outlined | null} */
 let outlined = null;
-export function pageOutline() {
+/** @returns {Outlined} */
+function readOutline() {
+  /** @type {[ReturnType<typeof pageReadingVersion>, ReturnType<typeof documentChanged>]} */
   const key = [pageReadingVersion(), documentChanged()];
-  if (outlined?.key.every((part, index) => part === key[index]))
-    return outlined.outline;
+  if (outlined?.key.every((part, index) => part === key[index])) return outlined;
   const outline = Object.freeze(
-    byRenderedOrder(pageParts("h1, h2, h3, h4, h5, h6"), (heading) => heading),
+    byRenderedOrder(
+      pageParts(HEADING),
+      /** @param {Element} heading */ (heading) => heading,
+    ),
   );
-  outlined = { key, outline };
-  return outline;
+  // Each container's headings, in the outline's order, for `partOver`.
+  /** @type {Map<Element | null, Element[]>} */
+  const heads = new Map();
+  for (const heading of outline) {
+    const container = headed(heading);
+    const held = heads.get(container);
+    if (held) held.push(heading);
+    else heads.set(container, [heading]);
+  }
+  outlined = { key, outline, heads };
+  return outlined;
+}
+export const pageOutline = () => readOutline().outline;
+
+// What names the part of the page a node stands in: the heading over it, else the
+// nearest region holding it whose declaration titles it (`declaredName`), such as a tab
+// by its label, or null where neither does. A run-in title, a paragraph's leading
+// <strong>, names its paragraph and no part. On me's place for an item and an obligation's arrival
+// (obligations/view.js, `arrivalRegion`) both ask it.
+//
+// A heading heads its container from where it stands on: the outline's last heading
+// before the node, in the rendered order (`renderedOrder`), whose container holds the
+// node, asked from the node's innermost container out, so the nearest part wins. A
+// heading in a `header` or `hgroup` heads what holds that, as HTML's outline reads it,
+// so a page's title in its header heads the page's sections. The container is what
+// "the heading over this" means: a question's own heading stands inside the question,
+// so it heads neither the question, which it follows, nor the next question, which its
+// container does not hold. A heading the reader cannot see, as in a tab not selected,
+// still heads its part, so a part's name does not change as the page shows or hides
+// it; an arrival measures what it lands on and passes one that shows nothing. On the
+// corpus page, whose pages stand in tabs with their titles in headers and their last
+// sections untitled, the container alone sent every item to the corpus's own title.
+const HEADERS = "header, hgroup";
+/** @param {Element} heading */
+const headed = (heading) => {
+  const at = upFrom(heading);
+  return at?.matches(HEADERS) ? upFrom(at) : at;
+};
+//
+// Each container's headings stand in the outline's order, so the last one before the
+// node is found by halving, and a call costs the node's depth times the log of the
+// outline rather than the whole outline: On me asks it of every item it lists.
+/** @param {Element} node */
+export function partOver(node) {
+  const { heads } = readOutline();
+  for (let at = upFrom(node); at; at = upFrom(at)) {
+    const heading = lastBefore(heads.get(at), node);
+    if (heading) return heading;
+    if (declaredName(at)) return at;
+  }
+  return null;
+}
+// The last of `headings`, in rendered order, that the reader reaches before `node`.
+/** @param {readonly Element[] | undefined} headings @param {Element} node */
+function lastBefore(headings, node) {
+  if (!headings) return null;
+  let low = 0;
+  let high = headings.length;
+  while (low < high) {
+    const middle = (low + high) >> 1;
+    const heading = /** @type {Element} */ (headings[middle]);
+    if (renderedOrder(heading, node) < 0) low = middle + 1;
+    else high = middle;
+  }
+  return headings[low - 1] ?? null;
 }
 
+/** @param {Element} target */
 const subjectLabel = (target) => addressableLabel(target) || addressableWord(target);
 
 // A repeated outline subject needs the nearest named reading region to remain
 // distinguishable after a route leaves the page. Unique subjects keep the author's own
 // concise name. Page Map consumes this reading so navigation cannot add context that its
 // destination drops.
+/** @param {Element} target @param {readonly Element[]} [peers] @param {readonly Element[]} [outline] */
 export function outlineSubjectFor(target, peers = [target], outline = pageOutline()) {
   const label = subjectLabel(target);
   const repeated =
@@ -92,6 +171,7 @@ export function outlineSubjectFor(target, peers = [target], outline = pageOutlin
 
 // The name of the nearest region around a node that has one: a bounded block inside a
 // labelled pane is read as part of that pane.
+/** @param {Element} node */
 function regionLabel(node) {
   for (
     let region = readingRegionFor(node);

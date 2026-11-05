@@ -2,7 +2,6 @@
 agent, decisions surviving the next version, and the action history."""
 
 import itertools
-import re
 
 import pytest
 from click.testing import CliRunner
@@ -10,6 +9,7 @@ from interact_support import append_carried_log_record, append_command
 from playwright.sync_api import expect
 from render_cases_interaction import live_url
 from render_cases_navigation import (
+    DRAFT_DRAWN,
     DRAFT_EDITED,
     DRAFT_TEXT,
     JOURNEY_V1,
@@ -18,6 +18,7 @@ from render_cases_navigation import (
     painted,
 )
 from render_harness import (
+    close_panel_menu,
     draft_control,
     expect_comment_notes,
     open_page,
@@ -70,8 +71,7 @@ def test_page_round_trip(browser, serve):
     # a test that skipped the dismissal would be dragging under a sheet, which is a
     # scene about the margin rather than the seam below.
     expect(page.locator(".lf-margin-preview .lf-page-thread")).to_be_focused()
-    page.keyboard.press("Escape")  # from the sent card to its passage
-    page.keyboard.press("Escape")  # off the passage, dismissing its card
+    page.keyboard.press("Escape")
     expect(page.locator(".lf-margin-thread")).to_be_hidden()
     # Drag the card between columns through the pointer path — the seam where
     # the vendored SortableJS meets the runtime, which is where drags break.
@@ -89,7 +89,7 @@ def test_page_round_trip(browser, serve):
     # sends the whole new body. The text must have arrived without the source's
     # indentation.
     draft = page.locator("#draft-ops")
-    assert draft.locator(".lf-draft-body").inner_text() == DRAFT_TEXT
+    assert draft.locator(".lf-draft-body").inner_text() == DRAFT_DRAWN
     draft.locator(".lf-draft-body").dblclick()
     write(draft.locator("leaf-text"), DRAFT_EDITED)
     draft_control(page, "save", "draft-ops").click()
@@ -106,9 +106,9 @@ def test_page_round_trip(browser, serve):
     stamp_page(d, JOURNEY_V2, "moved")
     told(page)
     expect(
-        panel_menu(page).locator('.lf-fp-item[data-row="versions"]')
+        panel_menu(page).locator('.lf-fp-item[data-lf-row="versions"]')
     ).to_contain_text("v2")
-    page.locator(".lf-fp-leaf").click()
+    close_panel_menu(page)
     assert "/versions/" not in page.url
     # The anchor pass runs at render: a mark now means the quote was re-found in
     # its new position; no mark within the wait means the anchor lost it.
@@ -117,8 +117,8 @@ def test_page_round_trip(browser, serve):
     comment = next(
         e["id"] for e in events_model.read_events(d) if e["kind"] == "comment"
     )
-    quote = open_panel_thread(page, comment).locator(".lf-fp-quote")
-    expect(quote).not_to_have_class(re.compile(r"\bdetached\b"))
+    quote = open_panel_thread(page, comment).locator(".lf-thread-quote")
+    expect(quote).not_to_have_attribute("data-lf-detached", "")
     # v2's markup carries the original draft text — Claude hasn't honored the
     # edit — so the user's words must arrive by replay, not visibly revert.
     expect(draft.locator(".lf-draft-body")).to_have_text(DRAFT_EDITED)
@@ -244,7 +244,7 @@ def test_text_alignment_keeps_every_character_and_action_history_is_read_only(
         ("sentence", by_sentence),
         ("inline", inline),
     ):
-        for (before, after), runs in zip(cases, walked):
+        for (before, after), runs in zip(cases, walked, strict=True):
             joined = "".join(run["text"] for run in runs if run["kind"] != "insert")
             assert joined == before, (unit, joined, before)
             joined = "".join(run["text"] for run in runs if run["kind"] != "delete")
@@ -278,7 +278,7 @@ def test_text_alignment_keeps_every_character_and_action_history_is_read_only(
         "Run the migration before deploying. It takes one minute.",
         "Run the migration after the backup. It takes two minutes.",
     ]
-    for index, text in enumerate(edits, 1):
+    for text in edits:
         draft.locator(".lf-draft-body").dblclick()
         write(draft.locator("leaf-text"), text)
         draft_control(page, "save", "draft-ops").click()
@@ -452,6 +452,6 @@ def test_a_comment_written_on_an_edited_draft_lands_on_their_words(browser, serv
     comment = next(
         e["id"] for e in events_model.read_events(d) if e["kind"] == "comment"
     )
-    quote = open_panel_thread(page, comment).locator(".lf-fp-quote")
-    expect(quote).not_to_have_class(re.compile(r"\bdetached\b"))
+    quote = open_panel_thread(page, comment).locator(".lf-thread-quote")
+    expect(quote).not_to_have_attribute("data-lf-detached", "")
     assert painted(page, "lf-mark") == "It takes about a minute."

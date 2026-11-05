@@ -26,6 +26,7 @@ from pathlib import Path
 from .events import event_document
 from .passages import SourceReading, collapse, shown_words
 from .projection import frozen_thread_reading
+from .registry.contract import event_spec
 from .revision_artifact import read_revision
 
 TITLES = frozenset({"summary", "h1", "h2", "h3", "h4", "h5", "h6", "strong"})
@@ -42,11 +43,6 @@ def _text(node) -> str:
     if isinstance(node, str):
         return node
     return "".join(_text(child) for child in node["content"])
-
-
-def element_text(node: dict) -> str:
-    """Every word an element's authored content holds, collapsed."""
-    return collapse(_text(node))
 
 
 def leading_title_node(node: dict) -> dict | None:
@@ -133,6 +129,7 @@ class GestureWords:
                     self.registry,
                 )
             else:
+                assert revision is not None
                 reading = self.revisions(revision)
                 self._documents[revision] = _Document(
                     [reading.document.authoring.content],
@@ -179,7 +176,9 @@ class GestureWords:
         )
         if not creates:
             return None
-        entry = self._document(creator).registry.get(creator["meaning"]["creates"], {})
+        document = self._document(creator)
+        assert document is not None
+        entry = document.registry.get(creator["meaning"]["creates"], {})
         words = creator["detail"][creates["words"]]
         return collapse(shown_words(words, entry, added=True))
 
@@ -244,11 +243,20 @@ class GestureWords:
         """The registry entry the gesture's widget had in its own document."""
         document = self._document(event)
         node = document.nodes.get(event["widget"]) if document else None
-        return document.registry.get(node["tag"], {}) if node else {}
+        return document.registry.get(node["tag"], {}) if document and node else {}
+
+    def records_unsent(self, action: dict) -> bool:
+        """Whether the action's verb records work the user hasn't sent
+        (`$state.unsent`), as the document they acted in declared it, so a later
+        version redeclaring the verb leaves earlier actions as they were."""
+        spec = event_spec(self.declaration(action), action)
+        return bool(spec and spec.get("unsent"))
 
     def name(self, event: dict, identity: str) -> str:
         """What the gesture's document calls one element it names: its title, else
         its words, else the words a user wrote it with, else the id itself."""
+        if event["kind"] == "undo":
+            event = self.by_id.get(event["undoes"], event)
         document = self._document(event)
         if document is None:
             return identity

@@ -24,7 +24,7 @@ class Refused(Exception):
     browser shows the person whose gesture it was: the reason itself, unless the gate
     worded it for them (`findings.Rejected`)."""
 
-    findings: tuple = ()
+    findings: tuple | list = ()
 
     def __init__(self, reason: str):
         super().__init__(reason)

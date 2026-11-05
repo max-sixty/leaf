@@ -1,8 +1,6 @@
 """Threads a page or package places itself: page annotation views, thread surfaces and
 their required readers, and the fallback when a surface fails."""
 
-import re
-
 import pytest
 from interact_support import append_carried_log_record
 from playwright.sync_api import expect
@@ -27,7 +25,6 @@ from browser.threads import open_panel_thread
 from leaf import event_log as events_model
 from leaf.findings import Finding
 from leaf.render_checks import rendered
-from leaf.schema import ELEMENT_ID
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -56,6 +53,13 @@ def test_a_failed_thread_surface_continues_the_keyboard_opened_reply(browser, se
     _exercise_failed_thread_surface(browser, serve, "hidden", activation="keyboard")
 
 
+def test_a_moved_thread_outlet_continues_the_pointer_opened_reply(browser, serve):
+    """A failed outlet must keep the active reply visible after a sibling press."""
+    _exercise_failed_thread_surface(
+        browser, serve, "moved", activation="pointer-continuation"
+    )
+
+
 def _exercise_failed_thread_surface(browser, serve, failure, *, activation):
     """An adapter failure cannot keep stale local views or stop the next widget.
 
@@ -71,8 +75,8 @@ def _exercise_failed_thread_surface(browser, serve, failure, *, activation):
         "description": "A project-supplied thread surface.",
         "type": "object",
         "properties": {
-            "id": {"type": "string", "pattern": f"^{ELEMENT_ID}$"},
-            "source": {"type": "string", "pattern": "^[a-z][a-z0-9-]*$"},
+            "id": {"type": "string"},
+            "source": {"type": "string"},
         },
         "required": ["id"],
         "additionalProperties": False,
@@ -206,21 +210,25 @@ customElements.define('lf-test-surface', class extends LeafElement {
         },
     )
     strip = broken.locator(".lf-react-strip")
-    trigger = strip.locator(".lf-react-trigger")
+    trigger = broken.locator(".lf-react-trigger")
     if activation == "pointer":
+        # Exercise retirement of a saved draft separately from active continuations.
+        input.press("Escape")
+        assert not page.evaluate(editing, roots[0])
+    if activation.startswith("pointer"):
         trigger.click()
     else:
         trigger.focus()
         page.keyboard.press("Enter")
-    expect(strip).to_have_class(re.compile(r"\blf-react-open\b"))
-    assert page.evaluate(editing, roots[0]) == (activation == "keyboard")
+    expect(strip.locator(".lf-react-palette:popover-open")).to_have_count(1)
+    assert page.evaluate(editing, roots[0]) == (activation != "pointer")
     assert stored_draft_text(page, f"reply:{roots[0]}") == "Keep this unsent reply."
 
     broken.evaluate("(widget, phase) => widget.fail(phase)", failure)
     rendered(page)
     page.evaluate("lfWordsJudged()")
     if activation == "pointer":
-        # The reaction press already ended this composition, before the passive
+        # Escape already ended this composition, before the passive
         # adapter fault. Retiring its unfocused view withdraws saved work, not a
         # typing continuation. Calibrate only this exact report at that handoff;
         # adapter faults and every other loss remain with the strict collector.
@@ -251,7 +259,7 @@ customElements.define('lf-test-surface', class extends LeafElement {
     )
     told(page)
     # The reply lands in view, so the healthy thread holds it behind its notice.
-    expect(healthy.get_by_role("button", name="1 new reply")).to_be_visible()
+    expect(healthy.get_by_role("button", name="1 new", exact=True)).to_be_visible()
     assert (
         broken_element.evaluate(
             "widget => widget.querySelectorAll('.lf-page-thread').length"
@@ -278,7 +286,7 @@ customElements.define('lf-test-surface', class extends LeafElement {
     ]
     page.keyboard.press("Escape")  # out of the panel's field
     expect(panel_field(page)).not_to_be_focused()
-    no_view = page.locator(f"{PANEL}[data-open]")
+    no_view = page.locator(f"{PANEL}[data-lf-open]")
     expect(no_view).to_have_count(0)
     # A retired thread lands on the surface the user's own gesture reaches. With the
     # widget still on the page its passages keep a page-local destination, so each datum
@@ -293,7 +301,7 @@ customElements.define('lf-test-surface', class extends LeafElement {
         expect(markers).to_have_count(2)
         comment_note(page, "#broken").press("Enter")
         fallback = page.locator(
-            f'.lf-margin-preview .lf-page-thread[data-thread="{roots[0]}"]'
+            f'.lf-margin-preview .lf-page-thread[data-lf-thread="{roots[0]}"]'
         )
         reply = fallback.locator("leaf-text")
         expect(no_view).to_have_count(0)
@@ -319,7 +327,9 @@ customElements.define('lf-test-surface', class extends LeafElement {
         )
         told(page)
         # The notice holding the first reply counts this one too.
-        expect(healthy.get_by_role("button", name="2 new replies")).to_be_visible()
+        expect(
+            healthy.get_by_role("button", name="2 new", exact=True)
+        ).to_have_accessible_description("2 new replies")
         expect(broken.locator(".lf-page-thread")).to_have_count(2)
         expect(broken.locator(".lf-page-thread leaf-text").first).to_have_js_property(
             "value", "Keep this unsent reply."
@@ -444,7 +454,7 @@ def test_page_thread_surface_owns_exact_source_elsewhere_in_main(browser, serve)
     expect(thread).to_contain_text("About this bit.")
     assert page.evaluate("""async () => {
       const {claimed} = await __lfCheckApi();
-      return claimed(document.querySelector('#review .lf-page-thread').dataset.thread);
+      return claimed(document.querySelector('#review .lf-page-thread').dataset.lfThread);
     }""")
     reply = thread.get_by_role("textbox", name="Reply", exact=True)
     write(reply, "Can the archive keep that naming?")
@@ -497,7 +507,7 @@ def test_widgets_claim_before_page_and_only_required_page_failures_fail_proof(
         "properties": {
             "id": {"type": "string"},
             "style": {"type": "string"},
-            "source": {"type": "string", "pattern": "^[a-z][a-z0-9-]*$"},
+            "source": {"type": "string"},
         },
         "required": ["id"],
         "additionalProperties": False,
@@ -654,7 +664,7 @@ def test_required_page_failure_retains_composer_seat_focus_and_caret(browser, se
         "type": "object",
         "properties": {
             "id": {"type": "string"},
-            "source": {"type": "string", "pattern": "^[a-z][a-z0-9-]*$"},
+            "source": {"type": "string"},
         },
         "required": ["id"],
         "additionalProperties": False,
@@ -870,8 +880,8 @@ customElements.define('lf-test-seat',class extends LeafElement{
       document.querySelector('#foreign').moveBefore(document.querySelector('[data-seat=a]'),null);
       releasePage();
     }""")
-    news = page.locator("#rail").get_by_role("button", name="1 new thread", exact=True)
-    expect(news).to_be_visible()
+    news = page.locator("#rail").get_by_role("button", name="1 new", exact=True)
+    expect(news).to_have_accessible_description("1 new thread")
     page.wait_for_function(
         "document.querySelector('#rail').contains(document.querySelector('.lf-fab-bar'))"
     )

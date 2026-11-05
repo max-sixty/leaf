@@ -1,9 +1,6 @@
 """HTTP event and service-address tests."""
 
-import html
 import http.client
-import http.cookiejar
-import http.cookies
 import json
 import shutil
 import subprocess
@@ -29,10 +26,10 @@ from interact_support import (
     publish,
     read_record,
     record_claim,
+    revision_root,
     wait_for,
     write_record,
 )
-from leaf_dev.page_fixtures import package_selection_args
 
 from leaf import cli as cli_model
 from leaf import event_log as event_model
@@ -50,7 +47,8 @@ from leaf import server_rows as server_rows_model
 from leaf import service as service_model
 from leaf import state as cleanup_model
 from leaf import structure as structure_model
-from leaf.runtime_selection import serving_runtime
+from leaf.registry import storage as registry_storage
+from leaf_dev.page_fixtures import package_selection_args
 
 
 def test_authored_recordings_are_served_with_seekable_captured_bytes(
@@ -78,10 +76,7 @@ def test_authored_recordings_are_served_with_seekable_captured_bytes(
     markup = "".join(f'<audio controls src="{path}"></audio>' for path, _ in paths)
     (page_dir / "index.html").write_text(PAGE.replace("</main>", markup + "</main>"))
     publish(page_dir)
-    captured = (
-        f"/revisions/{files_model.revision_path(page_dir, 1).stem}"
-        f"/{serving_runtime().identity}"
-    )
+    captured = revision_root(page_dir, 1)
     for path, mime in paths:
         for route in (path, captured + path):
             conn = http.client.HTTPConnection(urllib.parse.urlsplit(server).netloc)
@@ -129,7 +124,7 @@ def test_authored_recordings_are_served_with_seekable_captured_bytes(
 
 
 def test_server_round_trip(server, page_dir):
-    registry = json.loads((page_dir / "registry.json").read_text())
+    registry = registry_storage.load_registry(page_dir)
     initial = revisioning_model.activate_source(page_dir)
     assert initial.error is None and initial.revision == 1
     source = page_dir / "index.html"
@@ -166,19 +161,12 @@ def test_server_round_trip(server, page_dir):
     status = arrived.status
     assert status == 200 and b"lf-options" in body
     artifact = artifact_model.read_artifact(page_dir, 2)
-    widgets = html.escape(
-        json.dumps(artifact.widgets, separators=(",", ":")), quote=True
-    )
     marker = (
         '<meta name="lf-revision" content="2" data-lf-runtime>'
         f'<meta name="lf-executable" content="{artifact.executable}" data-lf-runtime>'
-        f'<meta name="lf-widgets" content="{widgets}" data-lf-runtime>'
         '<meta name="lf-version" content="1" data-lf-runtime>'
     ).encode()
-    artifact_root = (
-        f"/revisions/{files_model.revision_path(page_dir, 2).stem}"
-        f"/{serving_runtime().identity}"
-    )
+    artifact_root = revision_root(page_dir, 2)
     entry = (
         f'<script type="module" src="{artifact_root}/leaf.js" data-lf-runtime></script>'
     ).encode()
@@ -191,12 +179,10 @@ def test_server_round_trip(server, page_dir):
         assert response.headers["Content-Security-Policy"] == "frame-ancestors 'self'"
     assert b"lf-board" in pinned and marker in pinned
     assert not (page_dir / "versions").exists()
-    # Vendored files and the runtime's probes serve; the log and directory paths
+    # The vocabulary and the runtime's probes serve; the log and directory paths
     # don't.
     for path in [
-        "/theme.css",
         "/registry.json",
-        "/widgets/lf-tabs.js",
         *render_checks_model.PROBE_SOURCES,
     ]:
         assert fetch(server + path)[0] == 200, path
@@ -209,6 +195,7 @@ def test_server_round_trip(server, page_dir):
         assert fetch(server + path)[0] == 404, path
     outside = page_dir.parent / "outside.js"
     outside.write_text("not part of the page")
+    (page_dir / "vendor").mkdir(exist_ok=True)
     (page_dir / "vendor" / "escape.js").symlink_to(outside)
     for path in ["/vendor/../../outside.js", "/vendor/escape.js"]:
         peer = http.client.HTTPConnection(
@@ -580,13 +567,9 @@ def test_the_live_root_places_its_delivery_at_the_parsers_head_boundary(
     body = fetch(f"{server}/")[1].decode()
 
     artifact = artifact_model.read_artifact(page_dir, 1)
-    widgets = html.escape(
-        json.dumps(artifact.widgets, separators=(",", ":")), quote=True
-    )
     marker = (
         '<meta name="lf-revision" content="1" data-lf-runtime>'
         f'<meta name="lf-executable" content="{artifact.executable}" data-lf-runtime>'
-        f'<meta name="lf-widgets" content="{widgets}" data-lf-runtime>'
         '<meta name="lf-version" content="1" data-lf-runtime>'
     )
     assert body.count(marker) == 1
@@ -594,10 +577,7 @@ def test_the_live_root_places_its_delivery_at_the_parsers_head_boundary(
     assert "Backfill plan\u2028Q3" in body
     assert "<title>Backfill plan\u2028Q3</title>" in body
     # The old splice corrupted this tag while leaving the page renderable.
-    artifact_root = (
-        f"/revisions/{files_model.revision_path(page_dir, 1).stem}"
-        f"/{serving_runtime().identity}"
-    )
+    artifact_root = revision_root(page_dir, 1)
     theme = structure_model.SourceDocument(body).tree.find(
         "link", attrs={"href": f"{artifact_root}/theme.css"}
     )
@@ -609,8 +589,9 @@ def test_the_live_root_places_its_delivery_at_the_parsers_head_boundary(
 def test_server_admits_an_action_using_its_captured_vocabulary_after_revendoring(
     server, page_dir
 ):
-    """An open old tab may outlive the custom layer that upgraded its widget."""
-    shipped = json.loads((page_dir / "registry.json").read_text())
+    """An open old tab may outlive the selection of the package that upgraded its
+    widget."""
+    shipped = registry_storage.load_registry(page_dir)
     overlay = page_dir.parent / ".leaf"
     (overlay / "widgets").mkdir(parents=True)
     (overlay / "registry.json").write_text(
@@ -653,10 +634,8 @@ def test_server_admits_an_action_using_its_captured_vocabulary_after_revendoring
     )
     assert noted.exit_code == 0, noted.output
 
-    # The explicit re-vendor is allowed because no recorded action rests on this
-    # tag yet. A browser that loaded it before the re-vendor can still send one.
-    (overlay / "registry.json").unlink()
-    (overlay / "widgets" / "lf-local-draft.js").unlink()
+    # The explicit re-selection is allowed because no recorded action rests on this
+    # tag yet. A browser that loaded it before can still send one.
     assert (
         CliRunner()
         .invoke(
@@ -664,7 +643,7 @@ def test_server_admits_an_action_using_its_captured_vocabulary_after_revendoring
             [
                 "page",
                 "init",
-                *package_selection_args((*page_packages(), "./.leaf")),
+                *package_selection_args(page_packages()),
                 str(page_dir),
             ],
         )
@@ -740,6 +719,7 @@ def test_a_server_keeps_its_row_fresh_without_browser_visits(page_dir, spawn):
     end_work(neighbor)
     declare(neighbor, "waiting")
     session = cleanup_model.session_record("invisible")
+    assert session is not None
     cleanup_model.write_session({**session, "turn_closed": cleanup_model.now_iso()})
     await_row(lambda row: row["activity"]["kind"] == "away")
     # The harness's dialog changes outside the page, with no lifecycle rewrite.
@@ -757,9 +737,9 @@ def test_a_server_keeps_its_row_fresh_without_browser_visits(page_dir, spawn):
     await_row(lambda row: row["activity"]["observed_kind"] == "awaiting_user")
     harness_record.unlink()
     await_row(lambda row: row["activity"]["kind"] == "away")
-    waiter = leases_model.take_lease(
-        leases_model.waiter_lease_path(neighbor, "invisible")
-    )
+    lease_path = leases_model.waiter_lease_path(neighbor, "invisible")
+    assert lease_path is not None
+    waiter = leases_model.take_wait_lease(lease_path)
     try:
         await_row(lambda row: row["activity"]["kind"] == "listening")
     finally:
@@ -893,3 +873,427 @@ def test_concurrent_posts_never_tear_the_log(server, page_dir):
     events = [e for e in event_model.read_events(page_dir) if e["kind"] == "comment"]
     assert {e["text"].split()[0] for e in events} == {f"c{i}" for i in range(20)}
     assert len({e["id"] for e in events}) == 20  # server-minted, all distinct
+
+
+import shlex
+import socket
+from contextlib import contextmanager
+
+import pytest
+from conftest import LEAF_COMMAND
+from interact_support import (
+    release_codex_command,
+    retire_test_services,
+    vendored_at_another_protocol,
+)
+
+from leaf import codex_adapter as codex_adapter_model
+from leaf import schema as schema_model
+
+
+def test_a_failed_row_producer_retires_and_revives_with_its_service(page_dir):
+    """A failed fold cannot leave a live lease advertising stale canonical output.
+
+    Repairing the invalid input then uses the existing enabled-service revival,
+    with a new serving identity and a newly computed row.
+    """
+    neighbor = cleanup_model.state_home() / "pages" / "broken-row"
+    neighbour_page(neighbor, title="Repairable", dead=True, port=0)
+    hosting_model.start_server(neighbor, persistent=True, harness=None)
+    wait_for(
+        lambda: (
+            (current := server_model.running_server(neighbor))
+            and server_rows_model.read_row(neighbor, current)
+        ),
+        bool,
+        failure="the server did not publish a row",
+    )
+    original = server_model.running_server(neighbor)
+    assert original is not None
+    (neighbor / "stream.json").write_text("{invalid")
+    wait_for(
+        lambda: server_model.running_server(neighbor),
+        lambda service: service is None,
+        failure="the failed producer left a live server lease",
+    )
+    assert presence_model.other_leaves(page_dir) == []
+    assert read_record(neighbor / "service.json")["enabled"]
+    write_record(neighbor / "stream.json", {})
+    declare_work(neighbor, "repaired", ts=cleanup_model.now_iso())
+    hosting_model.start_server(neighbor, persistent=True, revive=True, harness=None)
+    renewed = server_model.running_server(neighbor)
+    assert renewed is not None
+    assert renewed["server_id"] != original["server_id"]
+    [row] = wait_for(
+        lambda: presence_model.other_leaves(page_dir),
+        lambda rows: len(rows) == 1 and rows[0]["activity"]["detail"] == "repaired",
+        failure="the revived service did not regenerate its row",
+    )
+    assert row["activity"]["kind"] == "working"
+
+
+def test_a_stated_host_serve_says_nothing_about_loopback(page_dir, monkeypatch):
+    monkeypatch.delenv("SSH_CONNECTION", raising=False)
+    runner = CliRunner()
+    started = runner.invoke(
+        cli_model.cli,
+        [
+            "server",
+            "start",
+            "--lifetime",
+            "persistent",
+            "--host",
+            "localhost",
+            str(page_dir),
+        ],
+    )
+    try:
+        assert started.exit_code == 0, started.output
+        assert started.stderr == ""
+    finally:
+        stopped = runner.invoke(cli_model.cli, ["server", "stop", str(page_dir)])
+        assert stopped.exit_code == 0, stopped.output
+
+
+def test_server_start_names_the_running_payload(page_dir):
+    runner = CliRunner()
+    started = runner.invoke(
+        cli_model.cli, ["server", "start", "--lifetime", "persistent", str(page_dir)]
+    )
+    try:
+        assert started.exit_code == 0, started.output
+        reading = json.loads(started.stdout)
+        assert (reading["page"], reading["lifetime"]) == (str(page_dir), "persistent")
+        assert reading["stop"] == f"leaf server stop {page_dir}"
+        assert reading["runtime"]["path"] == str(schema_model.PLUGIN_ROOT)
+
+        state = runner.invoke(cli_model.cli, ["page", "state", str(page_dir)])
+        assert state.exit_code == 0, state.output
+        server = json.loads(state.output)["server"]
+        assert server["runtime"]["path"] == str(schema_model.PLUGIN_ROOT)
+        assert server["url"] == reading["url"]
+    finally:
+        stopped = runner.invoke(cli_model.cli, ["server", "stop", str(page_dir)])
+        assert stopped.exit_code == 0, stopped.output
+
+
+def test_a_server_start_re_vendors_an_older_page_and_refuses_a_newer_one(page_dir):
+    """A server speaks the contract of the Leaf that started it, and the page's log
+    the protocol its last `page init` recorded. Served across the two, the page breaks in
+    the browser on every read. A page an older Leaf vendored the start re-vendors
+    first, as the plugin update that left it there calls for. One a newer Leaf
+    vendored, which this Leaf does not take back, is refused before the start claims
+    the page or records a service, and the refusal names the newer Leaf that would
+    serve it. A server already running over such a page is refused the same way
+    rather than handed out as this Leaf's."""
+    from leaf.event_contracts import write_refusal
+
+    runner = CliRunner()
+    stamp = page_dir / schema_model.LAYER_FILE
+    vendored = stamp.read_text(encoding="utf-8")
+    vendored_at_another_protocol(page_dir, newer=True)
+
+    refused = runner.invoke(cli_model.cli, ["server", "start", str(page_dir)])
+
+    assert refused.exit_code != 0, refused.output
+    assert "Use a newer Leaf" in refused.output
+    assert not service_model.claim_path(page_dir).exists()
+    assert read_record(page_dir / "service.json") is None
+    assert not leases_model.lock_is_held(page_dir / "server.lock")
+
+    # A newer Leaf may record more in the layer record than this Leaf knows, and
+    # the protocol is still what decides.
+    newer = json.loads(stamp.read_text(encoding="utf-8"))
+    stamp.unlink()
+    stamp.write_text(json.dumps({**newer, "future": 1}), encoding="utf-8")
+    reshaped = runner.invoke(
+        cli_model.cli, ["server", "start", "--lifetime", "persistent", str(page_dir)]
+    )
+    assert reshaped.exit_code != 0, reshaped.output
+    assert "Use a newer Leaf" in reshaped.output
+
+    stamp.unlink()
+    stamp.write_text(vendored, encoding="utf-8")
+    vendored_at_another_protocol(page_dir)
+    started = runner.invoke(cli_model.cli, ["server", "start", str(page_dir)])
+    try:
+        assert started.exit_code == 0, started.output
+        assert server_model.running_server(page_dir)
+        assert write_refusal(page_dir) is None
+        vendored_at_another_protocol(page_dir, newer=True)
+        reused = runner.invoke(cli_model.cli, ["server", "start", str(page_dir)])
+        assert reused.exit_code != 0, reused.output
+        assert "Use a newer Leaf" in reused.output
+    finally:
+        stopped = runner.invoke(cli_model.cli, ["server", "stop", str(page_dir)])
+        assert stopped.exit_code == 0, stopped.output
+
+
+@pytest.mark.parametrize("accepted", [False, True])
+def test_private_revival_cannot_advertise_the_previous_serving_row(
+    page_dir, spawn, accepted
+):
+    """The held reservation cannot impersonate a dead committed incarnation."""
+    neighbor = cleanup_model.state_home() / "pages" / "private-revival"
+    neighbour_page(neighbor, title="Private revival", dead=True, port=0)
+    record_claim(neighbor, id="private-revival")
+    hosting_model.start_server(neighbor, persistent=True, harness=None)
+    previous = server_model.running_server(neighbor)
+    assert previous is not None
+    wait_for(
+        lambda: server_rows_model.read_row(neighbor, previous),
+        bool,
+        failure="the original server did not publish its row",
+    )
+    hosting_model.cmd_stop(neighbor)
+    desired = {**read_record(neighbor / "service.json"), "enabled": True}
+    write_record(neighbor / "service.json", desired)
+    assert presence_model.other_leaves(page_dir) == []
+    # The stopped incarnation's row is retired by that reading, so a row present
+    # later is one the reservation published.
+    assert not server_rows_model.row_path(neighbor).exists()
+    caller, end = socket.socketpair()
+    child = spawn(
+        [
+            *LEAF_COMMAND,
+            "server",
+            "_serve",
+            str(neighbor),
+            "--lifetime",
+            "persistent",
+            "--revive",
+            "--harness",
+            "null",
+            "--handshake",
+            str(end.fileno()),
+        ],
+        pass_fds=(end.fileno(),),
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    end.close()
+    caller.settimeout(STATED_TIMEOUT)
+    try:
+        with caller.makefile("rb") as announcements:
+            assert json.loads(announcements.readline())["url"] == previous["url"]
+            assert leases_model.lock_is_held(neighbor / "server.lock")
+            assert read_record(neighbor / "service.json") == desired
+            assert not server_rows_model.row_path(neighbor).exists()
+            assert server_model.running_server(neighbor) is None
+            assert presence_model.other_leaves(page_dir) == []
+            if accepted:
+                caller.sendall(b"\n")
+                assert json.loads(announcements.readline())["url"] == previous["url"]
+                rows = wait_for(
+                    lambda: presence_model.other_leaves(page_dir),
+                    lambda rows: len(rows) == 1,
+                    failure="the accepted revival did not publish its own row",
+                )
+                assert rows[0]["title"] == "Private revival"
+                current = server_model.running_server(neighbor)
+                assert current is not None
+                assert current["server_id"] != previous["server_id"]
+                assert (
+                    files_model.read_json(server_rows_model.row_path(neighbor))[
+                        "server_id"
+                    ]
+                    == current["server_id"]
+                )
+        if not accepted:
+            caller.close()
+            assert child.wait(timeout=STATED_TIMEOUT) == 0
+            assert read_record(neighbor / "service.json") == desired
+            assert not server_rows_model.row_path(neighbor).exists()
+            assert presence_model.other_leaves(page_dir) == []
+    finally:
+        caller.close()
+        hosting_model.cmd_stop(neighbor)
+        assert child.wait(timeout=STATED_TIMEOUT) == 0
+
+
+def test_a_start_waits_for_uncommitted_preparation_before_reusing(page_dir, spawn):
+    """Another start cannot adopt a listener its caller has not accepted."""
+    caller, end = socket.socketpair()
+    child = spawn(
+        [
+            *LEAF_COMMAND,
+            "server",
+            "_serve",
+            str(page_dir),
+            "--lifetime",
+            "persistent",
+            "--harness",
+            "null",
+            "--handshake",
+            str(end.fileno()),
+        ],
+        pass_fds=(end.fileno(),),
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    end.close()
+    caller.settimeout(STATED_TIMEOUT)
+    successor = []
+    attempting = threading.Event()
+
+    def start():
+        attempting.set()
+        successor.append(
+            hosting_model.start_server(page_dir, persistent=True, harness=None)
+        )
+
+    starting = threading.Thread(target=start, daemon=True)
+    try:
+        assert "url" in json.loads(caller.makefile("rb").readline())
+        assert read_record(page_dir / "service.json") is None
+        assert not server_rows_model.row_path(page_dir).exists()
+        starting.start()
+        assert attempting.wait(STATED_TIMEOUT), (
+            "the successor never attempted the held server lease"
+        )
+        assert leases_model.lock_is_held(page_dir / "server.lock")
+        caller.close()  # Abandon the private listener; the successor must bind its own.
+        assert child.wait(timeout=STATED_TIMEOUT) == 0
+        starting.join(timeout=STATED_TIMEOUT)
+        assert not starting.is_alive(), "the successor's start never returned"
+        assert len(successor) == 1
+        assert fetch(successor[0].url)[0] == 200
+        wait_for(
+            lambda: (
+                (current := server_model.running_server(page_dir))
+                and server_rows_model.read_row(page_dir, current)
+            ),
+            bool,
+            failure="the accepted successor did not publish its own serving row",
+        )
+    finally:
+        caller.close()
+        starting.join(timeout=STATED_TIMEOUT)
+        hosting_model.cmd_stop(page_dir)
+
+
+def test_failed_row_preparation_preserves_the_previous_desired_service(
+    page_dir, monkeypatch
+):
+    """A producer constructor failure publishes neither service nor acquisition."""
+    hosting_model.start_server(page_dir, persistent=True, harness=None)
+    previous = server_model.running_server(page_dir)
+    assert previous is not None
+    wait_for(
+        lambda: server_rows_model.read_row(page_dir, previous),
+        bool,
+        failure="the original server did not publish its row",
+    )
+    hosting_model.cmd_stop(page_dir)
+    desired = {**read_record(page_dir / "service.json"), "enabled": True}
+    write_record(page_dir / "service.json", desired)
+    row_before = server_rows_model.row_path(page_dir).read_bytes()
+
+    def failed_constructor(*_args):
+        assert server_model.running_server(page_dir) is None
+        raise RuntimeError("row producer cannot be prepared")
+
+    monkeypatch.setattr(server_rows_model, "RowPublisher", failed_constructor)
+    with pytest.raises(RuntimeError, match="row producer cannot be prepared"):
+        hosting_model.cmd_serve(page_dir, persistent=True, revive=True, harness=None)
+    assert read_record(page_dir / "service.json") == desired
+    assert server_rows_model.row_path(page_dir).read_bytes() == row_before
+    assert not leases_model.lock_is_held(page_dir / "server.lock")
+    assert server_model.running_server(page_dir) is None
+
+
+@pytest.mark.parametrize(
+    "owned,same_session", [(False, False), (True, False), (True, True)]
+)
+def test_stop_does_not_wait_forever_on_a_server_started_after_its_transition(
+    page_dir, monkeypatch, owned, same_session
+):
+    """Explicit stops retire a later start; owner cleanup yields to a successor."""
+    assert service_model.claim_page(page_dir)
+    owner = service_model.page_claim(page_dir) if owned else None
+    assert hosting_model.start_server(page_dir, persistent=True, harness=None)
+    transitioned = threading.Event()
+    resume = threading.Event()
+    original_page_locked = hosting_model.page_locked
+    stopping = None
+
+    @contextmanager
+    def pause_after_transition(locked):
+        with original_page_locked(locked):
+            yield
+        if threading.current_thread() is stopping and locked == page_dir:
+            transitioned.set()
+            assert resume.wait(STATED_TIMEOUT)
+
+    monkeypatch.setattr(hosting_model, "page_locked", pause_after_transition)
+    stopped = []
+    stopping = threading.Thread(
+        target=lambda: stopped.append(
+            hosting_model.cmd_stop(page_dir, owner=owner)
+            if owned
+            else hosting_model.cmd_stop(page_dir)
+        ),
+        daemon=True,
+    )
+    try:
+        stopping.start()
+        assert transitioned.wait(STATED_TIMEOUT), "the stop never made its transition"
+        wait_for(
+            lambda: not leases_model.lock_is_held(page_dir / "server.lock"),
+            bool,
+            failure="the first server did not release its lease",
+        )
+        if owned:
+            with service_model.PageTransaction(page_dir) as transaction:
+                transaction.take_claim(
+                    harness_model.session_harness()
+                    if same_session
+                    else harness_model.ClaudeCodeHarness("successor", "Claude")
+                )
+        assert hosting_model.start_server(page_dir, persistent=True, harness=None)
+        resume.set()
+        stopping.join(timeout=STATED_TIMEOUT)
+        assert not stopping.is_alive(), "the stop never returned once resumed"
+        assert stopped == [True]
+        assert bool(server_model.running_server(page_dir)) == owned
+    finally:
+        resume.set()
+        write_record(
+            page_dir / "service.json",
+            {**read_record(page_dir / "service.json"), "enabled": False},
+        )
+        stopping.join(timeout=STATED_TIMEOUT)
+
+
+def test_test_teardown_ends_detached_delivery_before_removing_state(
+    codex_claimed_page, under_codex, codex_env, codex_queue, tmp_path, isolated_session
+):
+    """Stopping the page alone leaves delivery watching its still-owned claim.
+
+    Teardown ends the synthetic harness while coordination files remain, so
+    its detached adapter releases its leases before temporary state disappears.
+    """
+    page = codex_claimed_page
+    finished = tmp_path / "codex-start-finished"
+    started = under_codex(
+        shlex.join([*LEAF_COMMAND, "page", "claim", str(page)]),
+        codex_env | codex_queue | {"CODEX_THREAD_ID": "codex-thread"},
+        finished=finished,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    release_codex_command(page, started, finished)
+    out, err = started.communicate(timeout=STATED_TIMEOUT)
+    assert started.returncode == 0, f"{out}{err}"
+    assert codex_adapter_model.adapter_is_live("codex-thread")
+
+    hosting_model.cmd_stop(page)
+    assert not server_model.running_server(page)
+    assert codex_adapter_model.adapter_is_live("codex-thread")
+
+    retire_test_services(tmp_path, isolated_session)
+    turn_record = cleanup_model.session_record("codex-thread")
+    assert turn_record is not None
+    assert turn_record["ended"] is not None
+    assert not codex_adapter_model.adapter_is_live("codex-thread")

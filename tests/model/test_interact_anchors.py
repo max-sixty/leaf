@@ -82,6 +82,17 @@ def test_an_empty_quote_neighbour_is_an_exact_boundary():
     assert resolve_quote(revised, anchor) is None
 
 
+def test_a_whitespace_quote_refuses_instead_of_searching_forever(page_dir):
+    result = comment(
+        published(page_dir), "--quote", " \t\n ", "--text", "Which passage?"
+    )
+    assert result.exit_code != 0, result.output
+    assert refused_on(result.output).code == "unanchorable"
+    assert not any(
+        event["kind"] == "comment" for event in events_model.read_events(page_dir)
+    )
+
+
 def test_detached_capture_remains_detached_when_an_identical_copy_survives(page_dir):
     """Admission/revision preserve uncertainty; unique file capture stays ordinary."""
     from leaf.anchor_capture import resolve_quote
@@ -538,14 +549,6 @@ def test_a_comment_may_name_a_visual_inventory_part(page_dir):
     unseated = comment(page_dir, "--part", "node:A", "--text", "x")
     assert unseated.exit_code != 0
     assert "--part needs --section" in unseated.output
-
-
-def declare_part_prefixes(page_dir, *prefixes):
-    """Give the page's diagram part-id prefixes in place of its authored list."""
-    registry_path = page_dir / "registry.json"
-    registry = json.loads(registry_path.read_text())
-    registry["lf-diagram"]["x-visual"] = {"prefixes": list(prefixes)}
-    registry_path.write_text(json.dumps(registry))
 
 
 def test_reply_replacement_precedes_automatic_fallback_for_other_threads(page_dir):
@@ -1846,58 +1849,28 @@ def test_message_markup_may_not_declare_the_document(page_dir, native):
     ):
         refused = comment(page_dir, "--text", "look:", "--markup", declaration + widget)
         assert refused.exit_code != 0, declaration
-        assert "declares something about the whole document" in refused.output
+        assert "document-declaration" in refused.output, refused.output
     handled = '<p onclick="this.hidden = true">Hide me</p>' + widget
     assert comment(page_dir, "--text", "look:", "--markup", handled).exit_code == 0
 
 
-def test_a_comments_widget_markup_shares_one_id_universe_with_replies(page_dir):
-    """A Claude comment's markup lands in the panel exactly as a reply's does, so it
-    validates the same way and claims ids from the same pool."""
-    published(page_dir)
-    assert (
-        comment(
-            page_dir,
-            "--quote",
-            "Ship dark",
-            "--text",
-            "Pick:",
-            "--markup",
-            '<lf-ask id="q1-decision"><h3>Pick one</h3><lf-options id="q1" choose>'
-            '<lf-option id="q1-a"><strong>A</strong>'
-            '<span id="thread-label">Label</span></lf-option></lf-options></lf-ask>',
-        ).exit_code
-        == 0
+def test_data_widget_prose_members_are_quotable_without_admitting_source():
+    registry = {
+        "lf-source": {"x-content": "data", "x-upgrade": True},
+        "lf-remark": {"x-content": "markup", "x-owners": ["lf-source"]},
+    }
+    document = structure_model.SourceDocument(
+        '<p>Before.</p><lf-source id="source"><pre>Hidden source '
+        "<lf-remark>Still source.</lf-remark></pre>"
+        '<lf-remark id="remark">A <em>readable</em> remark.</lf-remark>'
+        "<aside>Undeclared body.</aside></lf-source><p>After.</p>"
     )
-    append_carried_log_record(
-        page_dir, {"kind": "comment", "id": "c1", "author": "user", "text": "hm"}
+    assert passages_model.page_passages(document, registry).text == (
+        "Before. A readable remark. After."
     )
-    clash = CliRunner().invoke(
-        cli_model.cli,
-        [
-            "thread",
-            "reply",
-            "--done",
-            response_reference(page_dir, "c1"),
-            "--text",
-            "See:",
-            "--markup",
-            '<lf-diagram id="q1"><pre>\ngraph LR\n  A --> B\n</pre></lf-diagram>',
-        ],
+    # A member declaration does not reopen an excluded subtree.
+    hidden = structure_model.SourceDocument(
+        '<div class="lf-ui"><lf-source><lf-remark>Hidden remark.</lf-remark>'
+        "</lf-source></div>"
     )
-    assert clash.exit_code != 0 and "q1" in clash.output
-
-    plain_clash = CliRunner().invoke(
-        cli_model.cli,
-        [
-            "thread",
-            "reply",
-            "--done",
-            response_reference(page_dir, "c1"),
-            "--text",
-            "See:",
-            "--markup",
-            '<lf-diagram id="thread-label"><pre>graph LR\n  A --> B</pre></lf-diagram>',
-        ],
-    )
-    assert plain_clash.exit_code != 0 and "thread-label" in plain_clash.output
+    assert passages_model.page_passages(hidden, registry).text == ""

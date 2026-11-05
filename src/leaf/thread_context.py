@@ -1,5 +1,6 @@
 """Thread identity, frozen markup, and bounded delivery context."""
 
+from collections.abc import Callable
 from functools import lru_cache
 from typing import NamedTuple
 
@@ -150,6 +151,26 @@ def thread_names(events: list) -> dict:
         elif e["kind"] == "reply":
             names[e["id"]] = names[e["parent"]]
     return names
+
+
+def placed_thread(event: dict, names: dict) -> str | None:
+    """The thread this event places at its `anchor`, or None for one that leaves
+    every thread where it stands. `names` is `thread_names`.
+
+    A comment opens its thread where it points, a `reanchor` moves the thread it
+    names, and an agent's reply carrying `anchor` moves its own thread. Of these,
+    only the opening comment can be taken back, as a reaction (`$events`): a reply's
+    `anchor` is the agent's, and a `reanchor` is bookkeeping. (`build_threads` makes
+    the same moves along with what each changes about the thread, so it keeps its
+    own walk.)"""
+    kind = event["kind"]
+    if kind == "comment":
+        return event["id"]
+    if kind == "reanchor":
+        return event["thread"]
+    if kind == "reply" and "anchor" in event:
+        return names[event["parent"]]
+    return None
 
 
 class ThreadStructure(NamedTuple):
@@ -319,7 +340,13 @@ MESSAGE_FIELDS = (
     "markup",
     "drawing",
     "suggestion",
+    # What the user had on screen as they wrote a message with no passage, which is
+    # where its "this one" points once the batch that carried it is gone.
+    "viewing",
     "edited",
+    # A message the user took back while something stood on it, which keeps its
+    # place with nothing in it (`events.build_threads`).
+    "withdrawn",
 )
 
 # How much of one thread a wait digest carries: the message that opened it,
@@ -406,9 +433,9 @@ def batch_threads(events: list, batch: list, within: dict) -> list:
     that can differ from itself.
 
     `within` is the published page's containment, which the caller reads without
-    a vocabulary. A delivery may not raise, and loading a page's vendored
-    registry is a gate — a page vendored before the layer last changed fails it
-    by design — but containment was never the vocabulary's to answer. Folding
+    a vocabulary. A delivery may not raise, and loading a page's registry is a
+    gate — a page whose own declarations no longer validate over its layer fails
+    it by design — but containment was never the vocabulary's to answer. Folding
     with no page at all was the alternative, and it would show a settlement a
     floor had taken back as still in force, and a superseder taken back the same way
     as masking one: the user sees their question reopened while the agent is
@@ -422,11 +449,19 @@ def batch_threads(events: list, batch: list, within: dict) -> list:
     structure = thread_structure(events)
     widgets = thread_widgets(structure, names)
     memberships = thread_memberships(events, names, widgets, within)
-    named = []
+    named = dict.fromkeys(
+        thread for event in batch for thread in memberships[event["id"]]
+    )
+    # The widgets in each thread that the batch's own actions name, and the messages
+    # whose markup declares each id.
+    acted_in: dict[str, set] = {}
     for event in batch:
-        for thread in memberships[event["id"]]:
-            if thread not in named:
-                named.append(thread)
+        if event["kind"] == "action" and (thread := widgets.get(event["widget"])):
+            acted_in.setdefault(thread, set()).add(event["widget"])
+    declaring: dict[str, list] = {}
+    for sent, fragment in structure.fragments.items():
+        for identity in fragment.by_id:
+            declaring.setdefault(identity, []).append(sent)
     threads = build_threads(events, within)
     delivered = frozenset(event["seq"] for event in batch)
     withdrawn = taken_back(events)
@@ -453,16 +488,9 @@ def batch_threads(events: list, batch: list, within: dict) -> list:
         if t not in threads:
             continue
         acted = ends_kept(gestures.get(t, []))
-        spoken_for = {a["widget"] for a in acted}
-        spoken_for |= {
-            e["widget"]
-            for e in batch
-            if e["kind"] == "action" and widgets.get(e["widget"]) == t
-        }
+        spoken_for = {a["widget"] for a in acted} | acted_in.get(t, set())
         pin = frozenset(
-            sent
-            for sent, fragment in structure.fragments.items()
-            if fragment.by_id.keys() & spoken_for
+            sent for widget in spoken_for for sent in declaring.get(widget, ())
         )
         digest = thread_digest(threads[t], delivered, pin)
         summaries = summaries_for[t]
@@ -503,3 +531,99 @@ def batch_threads(events: list, batch: list, within: dict) -> list:
         digest["actions"] = acted
         carried.append(digest)
     return carried
+
+
+def unsent_at_messages(
+    events: list, batch: list, within: dict, unsent: Callable[[dict], bool]
+) -> dict[str, list]:
+    """Input id → the unsent work in force when the user wrote it, on each widget
+    their words were about, for the batch's messages and edits that had any.
+
+    Unsent work (`$state.unsent`) asks for nothing, so no batch carries it, and a
+    message about a playground's preview would reach the agent without the settings
+    the preview showed; current state may hold later ones. `unsent` says whether an
+    action's verb declares it, which takes the page's vocabulary.
+
+    A message is about the widgets enclosing its thread's anchor as it stood then,
+    in the live page's containment, and about the widgets sent in its thread. An
+    edit is the user speaking again, so it reads its message's thread at its own
+    position. Two walks read the log at each input rather than at the end. The first
+    reads where the input's thread was anchored: at the last event that placed it
+    (`placed_thread`). No undo before the input can have taken that event back: the
+    only placement an undo withdraws is a reaction's opening comment, and admission
+    keeps an input's thread in force (`event_contracts._parent_error`,
+    `_edit_error`). A reaction withdrawn after the input still counts, as it stood
+    then. The second walk is the one `thread_memberships` makes, so an action undone
+    after an input still counts and one undone before it doesn't. The walk keeps,
+    for each widget, the coordinates whose winner records unsent work, updated at
+    each step that moves a winner, so an input reads only the work it carries, in
+    the order `InForce.winners` keeps it."""
+    spoken = [
+        event
+        for event in batch
+        if event["author"] == "user"
+        and (event["kind"] in kinds_declaring("message") or event["kind"] == "edit")
+    ]
+    if not spoken:
+        return {}
+    names = thread_names(events)
+    sent = {}
+    for widget, holder in thread_widgets(thread_structure(events), names).items():
+        sent.setdefault(holder, set()).add(widget)
+    inputs = {
+        event["id"]: names.get(
+            event["message"] if event["kind"] == "edit" else event["id"]
+        )
+        for event in spoken
+    }
+    anchors = {}
+    about = {}
+    for event in events:
+        if (thread := placed_thread(event, names)) is not None:
+            anchors[thread] = event.get("anchor") or {}
+        if event["id"] in inputs:
+            thread = inputs[event["id"]]
+            section = anchors.get(thread, {}).get("section")
+            about[event["id"]] = set(within.get(section, ())) | sent.get(thread, set())
+    if not any(about.values()):
+        return {}
+    in_force = InForce(within)
+    first = {}
+    unsent_at = {}
+
+    def moved(change) -> None:
+        if change is None:
+            return
+        coordinate = change.coordinate
+        first.setdefault(coordinate, len(first))
+        held = unsent_at.setdefault(coordinate[0], {})
+        if change.after is not None and unsent(change.after):
+            held[coordinate] = change.after
+        else:
+            held.pop(coordinate, None)
+
+    found = {}
+    for event in events:
+        if (widgets := about.get(event["id"])) and (
+            standing := sorted(
+                (
+                    item
+                    for widget in widgets
+                    for item in unsent_at.get(widget, {}).items()
+                ),
+                key=lambda item: first[item[0]],
+            )
+        ):
+            found[event["id"]] = [
+                {key: action[key] for key in ACTION_FIELDS}
+                for _coordinate, action in standing
+            ]
+        kind = event["kind"]
+        if kind == "action":
+            moved(in_force.admit(event))
+        elif kind == "undo":
+            moved(in_force.withdraw(event["undoes"]))
+        elif kind == "note":
+            for change in in_force.restate(event):
+                moved(change)
+    return found

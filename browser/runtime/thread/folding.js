@@ -1,70 +1,124 @@
 /* Settlement command continuations. Thread views own every generated control.
 
-   A settlement's landing is the surface's own: `optimistic` carries the user where the
-   gesture leaves them, and `reverse` puts them back once it no longer stands. The log
-   refusing it runs `reverse` here; the user taking it back runs the same `reverse`,
-   which the undo door holds by the gesture's attempt, under the undo's intent.
+   A settlement's landing is the surface's own: `prepareLanding` returns the step that
+   carries the user where the gesture leaves them, which may be away from the thread.
+   The thread's container also names the reader the user had the thread in (`reader`,
+   thread-card.js, `ViewOutlets`): the page, for a margin card, or the primary reader,
+   for a whole thread there that lands the user elsewhere, as the floating panel's view
+   does. The way back reopens the thread there (undo.js, `returnToThread`), since a
+   route left to choose would choose for the thread as it stands: it put a thread
+   resolved in its card in the panel, where resolved threads open, and one resolved in
+   the panel's view in a card beside its passage. A seat names none, since a route to
+   the thread finds it in the seat it stands in. A primary reader's part that leaves the
+   user where they pressed draws the same card as a seat and names none either; a route
+   to the thread asks the primary first. The log
+   refusing the gesture takes the way back
+   here, while the user has not acted since; undo.js keeps the reader for `z` and the
+   notice's Undo (`retainGesture`), and the landing arms `z` to take the gesture in
+   one press (`landedAway`).
 
    A sent settlement says what it did in the notice seat, since its landing may carry the
-   user away from the thread and leave nothing on screen to say it was resolved; `z`
-   says the reverse (undo.js). */
+   user away from the thread and leave nothing on screen to say it was resolved, and
+   offers the press that takes that settlement back, as `z` would (undo.js,
+   `offerUndo`), which says the reverse; the notice goes when the log refuses the
+   settlement or it is taken back, so its press never takes back another. It names
+   the thread by its name, as `z` does and every surface that names a thread
+   (`threadName`): "Resolved the thread" stood under the next thread a panel's Resolve
+   moved the user on to, and read as that thread's (the user's choice, 31 October).
+   Rejected: the words the thread is about, which `z` then named by its name. */
+import { inputCount } from "../focus.js";
 import { randomId } from "../ids.js";
 import { paintKeys } from "../keyboard/scopes.js";
 import { notice } from "../notifications.js";
-import { pendingForParent } from "../pending/model.js";
 import { bindQueuedWork } from "../queued-work.js";
 import { whenDocumentPresented } from "../semantic-state.js";
+import { retainUserIntent } from "../user-intent.js";
+import { quotedWords } from "../words.js";
+import { threadName } from "./messages.js";
+import { threadNamed } from "./state.js";
 
-const pendingSettlement = (entries, id) =>
-  pendingForParent(entries, id, ["resolve", "unresolve"]);
+// What the notice calls the thread, cut as undo.js cuts the names its notices quote,
+// so a long name leaves the press beside it in view.
+const NAMED = 48;
 
+/** @typedef {() => boolean | void | Promise<boolean | void>} Landing */
+/** @param {{
+ * parent: () => string,
+ * key: string,
+ * resolved: boolean,
+ * prepareLanding?: (() => Landing | null) | null,
+ * reader?: import("../undo.js").Reader,
+ * pendingEntries: ReturnType<typeof import("../pending/state.js").createPendingLedger>["snapshot"],
+ * actions: Pick<ReturnType<typeof import("./actions.js").createThreadActions>, "reopen" | "resolve">,
+ * undo: Pick<ReturnType<typeof import("../undo.js").createUndo>, "landedAway" | "offerUndo" | "retainGesture" | "returnToThread">,
+ * }} dependencies */
 export async function settleThread({
   parent,
   key,
   resolved,
   prepareLanding,
+  reader = null,
   pendingEntries,
   actions,
-  retainGesture,
+  undo,
 }) {
-  if (pendingSettlement(pendingEntries(), parent())) return;
-  const landing = prepareLanding?.();
+  const land = prepareLanding?.();
+  const since = inputCount();
   const attempt = randomId();
+  const thread = threadNamed(key);
+  const named = thread ? quotedWords(threadName(thread), NAMED) : "the thread";
   const answer = resolved
     ? actions.reopen(key, { attempt })
     : actions.resolve(key, { attempt });
   if (!answer) return;
-  notice(resolved ? "Reopened the thread" : "Resolved the thread");
-  if (landing) retainGesture(attempt, { reverse: landing.reverse });
+  undo.retainGesture(attempt, { settled: { reader } });
+  notice(`${resolved ? "Reopened" : "Resolved"} ${named}`, {
+    press: undo.offerUndo(attempt),
+  });
+  if (land) undo.landedAway(attempt);
   await landGesture({
-    landing,
+    land,
     answer,
-    pending: () => Boolean(pendingSettlement(pendingEntries(), parent())),
+    pending: () => pendingEntries().some((entry) => entry.event.attempt === attempt),
+    // The landing has moved focus, so the return is the user's while no input has
+    // come since the gesture, wherever focus now stands.
+    refused: async () => {
+      const mayReturn = retainUserIntent({ since });
+      await whenDocumentPresented();
+      return undo.returnToThread(parent(), mayReturn, reader);
+    },
   });
 }
 
 /** Carry the user where a sent gesture leaves them, and back if the log refuses it.
  *
- * `landing` is the surface's {optimistic, reverse}, or null; `answer` the send's
- * answer; `pending` whether the gesture is still on its way, so a landing the log
- * answered before the page presented the gesture waits for that answer. */
-async function landGesture({ landing, answer, pending }) {
-  const land = async (step) => {
+ * `land` is the surface's landing step, or null; `answer` the send's answer;
+ * `pending` whether the gesture is still on its way, so a landing the log answered
+ * before the page presented the gesture waits for that answer. */
+/** @param {{land: Landing | null | undefined,
+ * answer: Promise<import("../../types/domain.js").Event | null>,
+ * pending: () => boolean,
+ * refused: () => unknown,
+ * }} continuation */
+async function landGesture({ land, answer, pending, refused }) {
+  /** @param {(() => unknown) | null | undefined} work */
+  const step = async (work) => {
     try {
-      return Boolean(await step?.());
+      return Boolean(await work?.());
     } catch {
       return false;
     } // The thread ticket reports presentation failures.
   };
   // These are the command's two deferred invocations, rather than the native async
   // tail that waits for them. Capture both before presentation yields the gesture.
-  const startLanding = bindQueuedWork(() =>
-    pending() ? land(landing?.optimistic) : false,
+  const startLanding = bindQueuedWork(() => (pending() ? step(land) : false));
+  const finishLanding = bindQueuedWork(
+    /** @param {import("../../types/domain.js").Event | null} accepted @param {boolean | undefined} landed */
+    (accepted, landed) => {
+      if (!accepted) return land && step(refused);
+      if (!landed) return step(land);
+    },
   );
-  const finishLanding = bindQueuedWork((accepted, landed) => {
-    if (!accepted) return land(landing?.reverse);
-    if (!landed) return land(landing?.optimistic);
-  });
   const presentation = whenDocumentPresented();
   paintKeys();
   try {

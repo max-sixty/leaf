@@ -1,3 +1,4 @@
+import "/runtime/stage-integration.js";
 /* Which layer a node stands in, read across the boundaries a shadow root draws, and
    when the page's one reading of those layers may change.
 
@@ -14,6 +15,7 @@
    and the last cases hold it to where a climb would have answered: at a shadow root, at
    a slot, and on the way back from a position in the reading to its node. */
 
+import { programmaticSelection, selectEnds } from "/runtime/native-selection.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 
@@ -31,10 +33,9 @@ import {
   pageBlocks,
   pageWords,
   pointAt,
-  programmaticSelection,
   quoteFrom,
-  selectEnds,
   says,
+  segmentsIn,
 } from "/runtime/passages.js";
 import { upFrom } from "/runtime/shadow.js";
 import { shadowStage } from "/runtime/shadow-stage.js";
@@ -104,6 +105,18 @@ test("a node in a declared tree stands where its host stands", () => {
   assert.equal(inChrome(inside), true);
   assert.equal(pageWords(inside), false);
   assert.equal(pageWords(document.querySelector("main p")), true);
+});
+
+test("header and footer passages belong to the page while runtime surfaces do not", () => {
+  document.body.innerHTML = `<header><p>Opening</p></header><main><p>Content</p></main>
+    <footer><p>Closing</p></footer>
+    <div class="lf-chrome"><p data-lf-said>Thread words</p></div>
+    <div data-lf-runtime><p>Status words</p></div>`;
+  const words = pageText().raw;
+  for (const word of ["Opening", "Content", "Closing"]) assert.ok(words.includes(word));
+  assert.ok(!words.includes("Thread words"));
+  assert.ok(!words.includes("Status words"));
+  assert.equal(says(document.body), "Opening Content Closing");
 });
 
 test("the page's reading is taken once while the document holds still", () => {
@@ -248,6 +261,19 @@ test("a declared shadow tree's words are read, and its changes are seen", () => 
   assert.match(pageText().raw, /Alpha.*Gamma/s);
 });
 
+// A page script's own custom element attaches a root no declaration vouches for. The
+// file reading can't know a script will, so the page reading leaves the root's words out
+// and reads the host by its light children, slotted or not, exactly as the file does.
+test("an undeclared shadow tree is opaque, and its host reads by its children", () => {
+  Object.assign(registry, { $layer: { generation: "passage-undeclared-root" } });
+  document.body.innerHTML =
+    '<main><p>Before</p><author-card><span slot="lead">Lead</span>Loose</author-card>' +
+    "<p>After</p></main>";
+  document.querySelector("author-card").attachShadow({ mode: "open" }).innerHTML =
+    '<h3>Shadow</h3><slot name="lead"></slot>';
+  assert.equal(pageText().raw.replace(/\0+/g, " "), "Before Lead Loose After");
+});
+
 // The walk carries what it knows down the tree rather than climbing from each word, so
 // the places where a climb would have stopped are where a carried context has to start
 // over: `closest` stops at a shadow root, and a slotted node reads where its host
@@ -258,10 +284,14 @@ test("chrome over a declared tree stops at its root, and not for what it slots",
     $layer: { generation: "passage-contexts" },
   });
   document.body.innerHTML =
-    '<main><p>Page</p></main><div class="lf-ui"><lf-staged><b>Slotted</b> loose</lf-staged></div>';
+    '<main><p>Page</p></main><div class="lf-ui"><lf-staged></lf-staged></div>';
+  const host = document.querySelector("lf-staged");
   const staged = document.createElement("template");
   staged.innerHTML = "<p>Staged</p><p><slot></slot></p>";
-  shadowStage(document.querySelector("lf-staged"), [...staged.content.childNodes]);
+  shadowStage(host, [...staged.content.childNodes]);
+  // The stage clears light children, so what a slot takes arrives after it.
+  host.innerHTML = "<b>Slotted</b> loose";
+  assert.match(host.textContent, /Slotted loose/);
   const raw = pageText().raw;
   assert.match(raw, /Staged/, "the chrome above the host is not the tree's");
   assert.doesNotMatch(
@@ -276,13 +306,71 @@ test("a line break assigned to a shadow slot separates its words", () => {
     "lf-staged": { "x-shadow": true },
     $layer: { generation: "passage-slotted-break" },
   });
-  document.body.innerHTML = "<main><lf-staged>Alpha<br>Beta</lf-staged></main>";
+  document.body.innerHTML = "<main><lf-staged></lf-staged></main>";
   const host = document.querySelector("lf-staged");
   const staged = document.createElement("template");
   staged.innerHTML = "<p><slot></slot></p>";
   shadowStage(host, [...staged.content.childNodes]);
+  // The stage clears light children, so what a slot takes arrives after it.
+  host.innerHTML = "Alpha<br>Beta";
   assert.equal(says(host.shadowRoot), "Alpha Beta");
   assert.equal(pageText().raw, "Alpha Beta");
+});
+
+test("a selection in nested slots keeps exactly the rendered words it covers", () => {
+  Object.assign(registry, {
+    "lf-staged": { "x-shadow": true },
+    $layer: { generation: "passage-nested-slots" },
+  });
+  document.body.innerHTML =
+    '<main><p id="before">Before</p><lf-staged id="outer"></lf-staged>' +
+    '<p id="after">After</p></main>';
+  const stage = (host, label) => {
+    const template = document.createElement("template");
+    template.innerHTML = `<p>${label}</p><slot></slot><p>${label} tail</p>`;
+    return shadowStage(host, [...template.content.childNodes]);
+  };
+  const outer = document.querySelector("#outer");
+  const outerRoot = stage(outer, "Outer");
+  const inner = document.createElement("lf-staged");
+  outer.append(inner);
+  const innerRoot = stage(inner, "Inner");
+  inner.innerHTML = '<p id="words">Selected words</p>';
+  const words = inner.querySelector("p");
+  // happy-dom distributes assignedNodes but has no assignedSlot getter.
+  // State the ancestry the native browser gives these same nodes.
+  Object.defineProperty(inner, "assignedSlot", {
+    value: outerRoot.querySelector("slot"),
+  });
+  Object.defineProperty(words, "assignedSlot", {
+    value: innerRoot.querySelector("slot"),
+  });
+  assert.equal(
+    quoteFrom(pageText().segments),
+    "Before Outer Inner Selected words Inner tail Outer tail After",
+  );
+  const range = document.createRange();
+  range.selectNodeContents(words);
+  assert.equal(quoteFrom(segmentsIn(range)), "Selected words");
+  range.setStart(words.firstChild, 3);
+  range.setEnd(words.firstChild, 8);
+  assert.equal(quoteFrom(segmentsIn(range)), "ected");
+  range.setStart(document.querySelector("#before").firstChild, 0);
+  range.setEnd(words.firstChild, words.textContent.length);
+  assert.equal(quoteFrom(segmentsIn(range)), "Before Outer Inner Selected words");
+  range.setStart(words.firstChild, 0);
+  range.setEnd(document.querySelector("#after").firstChild, 5);
+  assert.equal(
+    quoteFrom(segmentsIn(range)),
+    "Selected words Inner tail Outer tail After",
+  );
+  range.selectNode(outer);
+  assert.equal(
+    quoteFrom(segmentsIn(range)),
+    "Outer Inner Selected words Inner tail Outer tail",
+  );
+  range.selectNodeContents(innerRoot.querySelector("p"));
+  assert.equal(quoteFrom(segmentsIn(range)), "Inner");
 });
 
 test("a declared label inside chrome is read down to its last word", () => {
@@ -317,6 +405,40 @@ test("a reading's positions lead back to their nodes", () => {
   }
   assert.equal(pointAt(reading, -1) === null, true);
   assert.equal(pointAt(reading, reading.raw.length) === null, true);
+});
+
+// A quote's copies are told apart by the words beside each, and only those are read: a
+// run of whitespace before them, however long, is not read again to learn whether the
+// first of them follows a space.
+test("telling a quote's copies apart reads only around them", () => {
+  document.body.innerHTML = "<main><p></p></main>";
+  const line = document.querySelector("p");
+  line.textContent = `a${" ".repeat(1_000_000)}${"x".repeat(256)} MARK ${"y".repeat(256)} MARK ${"z".repeat(256)}`;
+  const reading = pageText();
+  const node = line.firstChild;
+  const data = node.data;
+  // A search reads a node's words as slices of its data, so the slices are what it read.
+  let read = 0;
+  Object.defineProperty(node, "data", {
+    configurable: true,
+    get: () => ({
+      slice: (/** @type {number} */ start, /** @type {number} */ end) => {
+        const part = data.slice(start, end);
+        read += part.length;
+        return part;
+      },
+    }),
+  });
+  try {
+    const found = findQuote(reading, "MARK", {
+      prefix: "y".repeat(24),
+      suffix: "z".repeat(24),
+    });
+    assert.equal(found[0]?.start, data.lastIndexOf("MARK"), "the second copy");
+  } finally {
+    delete node.data;
+  }
+  assert.ok(read < 10_000, `${read} characters read to tell two copies apart`);
 });
 
 // `says` and `wrote` are two answers for one element, and a kept reading must not hand

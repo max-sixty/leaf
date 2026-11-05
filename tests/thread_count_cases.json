@@ -15,11 +15,11 @@
     "counts": { "open": 1, "unread": 1 }
   },
   {
-    "name": "a resolved thread still counts its unread reply",
+    "name": "a resolved thread's unread reply is no news",
     "threads": [
       { "bare_reaction": false, "resolved": { "author": "user" }, "unread": ["m2"] }
     ],
-    "counts": { "open": 0, "unread": 1 }
+    "counts": { "open": 0, "unread": 0 }
   },
   {
     "name": "a bare reaction is no thread the panel lists",

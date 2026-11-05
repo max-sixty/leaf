@@ -97,8 +97,8 @@ variants:
         - leaf
   # Added when every harness's hook began handing an over-limit delivery over as the
   # same `leaf-delivery` element. On Claude Code at 637d54d03, the base (a prose
-  # pointer naming `leaf delivery read`) and the candidate (the element) each passed
-  # 3/3; 2 of 3 candidate runs read event-batches.md before the delivery, so it
+  # pointer naming `leaf delivery read`) and the head (the element) each passed
+  # 3/3; 2 of 3 head runs read event-batches.md before the delivery, so it
   # guards rather than separates.
   oversized:
     metadata:
@@ -107,3 +107,13 @@ variants:
       purpose: Read and answer a delivery too large for the hook's context, which arrives by pointer.
       conditions:
         - leaf
+  # From TODO.md, "Test the Layouts on agents": after its comment and decision, the
+  # review becomes the page the team follows during the rollout. The Layouts hold
+  # if the author composes the status in (a sidebar's aside, a status block) rather
+  # than rebuilding the page, and the comment thread survives.
+  live-status:
+    metadata:
+      scenario: document-live-status
+      purpose: Turn a finished review into a review with live status, keeping its comment thread.
+      tags: [workflow, layout]
+      conditions: [leaf]

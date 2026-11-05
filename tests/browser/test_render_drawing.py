@@ -18,11 +18,12 @@ from render_cases_navigation import (
 )
 from render_harness import (
     PANEL,
-    PANEL_THREAD,
     leaf_page,
     open_page,
+    open_threads,
     panel_settled,
     resized,
+    rgb_pixel,
     sending,
     stamp_page,
     told,
@@ -34,6 +35,7 @@ from leaf import cli as cli_model
 from leaf import data as data_model
 from leaf import event_log as events_model
 from leaf.render_checks import rendered, wait_until_ready
+from leaf_dev.browser import PANEL_THREAD
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -68,7 +70,7 @@ def draw_over(page, locator, *, steps=8, points=STROKE):
     page.keyboard.press("w")
     expect(page.locator("html")).to_have_attribute("data-lf-draw-mode", "")
     assert locator.evaluate("el => getComputedStyle(el).cursor") == "crosshair"
-    expect(page.locator(".lf-aim")).to_be_hidden()
+    expect(page.locator("[data-lf-aimed]")).to_have_count(0)
     return stroke_over(page, locator, steps=steps, points=points)
 
 
@@ -104,7 +106,7 @@ READ_BOX = """selector => {
 DATA_REVISION_DIFF_PAGE = leaf_page(
     "data revision drawing",
     '<h1 id="title">Review</h1><lf-diff id="drawing-diff" source="drawing-patch">'
-    "<pre></pre></lf-diff>",
+    "</lf-diff>",
 )
 DATA_REVISION_DIFF = """diff --git a/review.py b/review.py
 --- a/review.py
@@ -225,7 +227,7 @@ def test_a_drawing_uses_its_anonymous_svg_inside_its_semantic_figure(browser, se
     )
     page.reload(wait_until="load")
     wait_until_ready(page)
-    posted = f'.lf-drawing-posted[data-thread="{event["id"]}"]'
+    posted = f'.lf-drawing-posted[data-lf-thread="{event["id"]}"]'
     assert native_ink_start(
         page, "#visuals svg:nth-of-type(2)", posted
     ) == pytest.approx(start, abs=0.03)
@@ -644,82 +646,6 @@ def test_a_keyboard_send_reaches_send_while_the_stroke_still_owes_its_press(
     assert event["drawing"]["strokes"], event
 
 
-def test_strokes_join_one_drawing_until_it_is_sent_and_escape_leaves(browser, serve):
-    """Draw mode outlasts a stroke. A later stroke joins the drawing its session opened,
-    in that drawing's frame wherever it starts, and keeps joining it after Escape puts its
-    box away or the user leaves and re-enters the mode; once the draft is sent the next
-    stroke starts another, and only Escape leaves the mode. Unsent ink never leaves the
-    page: with its box put away it stands parked, in and out of the mode, so the drawing
-    a stroke joins is the one the user can see."""
-    page = open_page(browser, serve(TARGETS_PAGE))
-    prose = page.locator("#prose")
-    draw_over(page, prose)
-    pending = page.locator(".lf-drawing-pending path")
-    parked = page.locator(".lf-drawing-parked path")
-    expect(pending).to_have_count(1)
-    field = page.locator(".lf-fab-input")
-    expect(field).to_be_focused()
-    expect(page.locator("html")).to_have_attribute("data-lf-draw-mode", "")
-
-    # Begun over another element, the stroke still belongs to the prose drawing.
-    start = stroke_over(page, page.locator("#fig"))
-    origin = prose.bounding_box()
-    expect(pending).to_have_attribute("d", re.compile(r"^M[^M]*M[^M]*$"))
-    expect(field).to_be_focused()
-    write(field, "All of these.")
-
-    # Escape puts the box away and keeps its draft, ink and all; the next stroke joins
-    # that draft.
-    page.keyboard.press("Escape")
-    expect(pending).to_have_count(0)
-    expect(parked).to_have_attribute("d", re.compile(r"^M[^M]*M[^M]*$"))
-    expect(page.locator("html")).to_have_attribute("data-lf-draw-mode", "")
-    stroke_over(page, page.locator("#fig"), points=((0.3, 0.3), (0.5, 0.7), (0.7, 0.3)))
-    expect(pending).to_have_attribute("d", re.compile(r"^M[^M]*M[^M]*M[^M]*$"))
-    expect(field).to_be_focused()
-    expect(field).to_have_js_property("value", "All of these.")
-    with sending(page, "the three-stroke drawing"):
-        page.keyboard.press("ControlOrMeta+Enter")
-
-    event = events_model.read_events(serve.page_dir)[-1]
-    assert event["anchor"] == {"section": "prose"}
-    assert event["text"] == "All of these."
-    first, second, third = event["drawing"]["strokes"]
-    assert min(len(first), len(second), len(third)) >= 2
-    assert second[0] == pytest.approx(
-        [start[0] - origin["x"], start[1] - origin["y"]], abs=0.5
-    )
-    expect(
-        page.locator(f'.lf-drawing-posted[data-thread="{event["id"]}"] path')
-    ).to_have_attribute("d", re.compile(r"^M[^M]*M[^M]*M[^M]*$"))
-
-    # The sent draft holds no drawing any more, so the next stroke starts one.
-    expect(page.locator("html")).to_have_attribute("data-lf-draw-mode", "")
-    stroke_over(page, page.locator("#fig"))
-    expect(pending).to_have_count(1)
-    expect(pending).to_have_attribute("d", re.compile(r"^M[^M]*$"))
-    expect(field).to_be_focused()
-
-    # The composer the stroke opened stands inside the mode, so it comes off first.
-    page.keyboard.press("Escape")
-    expect(pending).to_have_count(0)
-    expect(parked).to_have_count(1)
-    expect(page.locator("html")).to_have_attribute("data-lf-draw-mode", "")
-    page.keyboard.press("Escape")
-    expect(page.locator("html")).not_to_have_attribute("data-lf-draw-mode", "")
-    expect(page.locator(".lf-live")).to_contain_text("Draw mode off")
-    expect(parked).to_have_attribute("d", re.compile(r"^M[^M]*$"))
-
-    # A new Draw mode session shows the draft before its first stroke, and draws into
-    # it rather than over it.
-    page.keyboard.press("w")
-    expect(parked).to_have_attribute("d", re.compile(r"^M[^M]*$"))
-    page.keyboard.press("w")
-    draw_over(page, page.locator("#fig"), points=((0.3, 0.3), (0.5, 0.7), (0.7, 0.3)))
-    expect(pending).to_have_attribute("d", re.compile(r"^M[^M]*M[^M]*$"))
-    expect(parked).to_have_count(0)
-
-
 def test_a_margin_start_uses_the_addressable_element_alongside_it_as_context(
     browser, serve
 ):
@@ -760,7 +686,7 @@ def test_a_margin_start_uses_the_addressable_element_alongside_it_as_context(
 
     page.mouse.move(point["x"], point["y"])
     page.keyboard.press("w")
-    expect(page.locator(".lf-aim")).to_be_hidden()
+    expect(page.locator("[data-lf-aimed]")).to_have_count(0)
     page.mouse.down()
     page.mouse.move(box["x"] + box["width"] * 0.75, point["y"] - 30, steps=8)
     page.mouse.move(box["x"] + box["width"] * 0.35, point["y"] + 20, steps=8)
@@ -775,7 +701,7 @@ def test_a_margin_start_uses_the_addressable_element_alongside_it_as_context(
     assert event["anchor"] == {"section": "prose"}
     assert "text" not in event
     expect(
-        page.locator(f'.lf-drawing-posted[data-thread="{event["id"]}"]')
+        page.locator(f'.lf-drawing-posted[data-lf-thread="{event["id"]}"]')
     ).to_have_count(1)
 
 
@@ -792,7 +718,6 @@ def test_a_click_draws_nothing_and_escape_leaves_the_mode(browser, serve):
     page.mouse.move(*point)
     page.keyboard.press("w")
 
-    assert page.evaluate("getComputedStyle(document.body).touchAction") == "none"
     page.mouse.click(*point)
 
     expect(page.locator("html")).to_have_attribute("data-lf-draw-mode", "")
@@ -807,6 +732,126 @@ def test_a_click_draws_nothing_and_escape_leaves_the_mode(browser, serve):
     expect(page.locator("html")).not_to_have_attribute("data-lf-draw-mode", "")
     expect(page.locator(".lf-live")).to_contain_text("Draw mode off")
     assert target.get_attribute("data-activated") is None
+
+
+def test_two_fingers_pan_and_zoom_in_draw_mode_while_one_draws(browser, serve):
+    """Draw mode lasts while the user moves about the page, so on a phone two fingers
+    still scroll and zoom it, and one finger draws. The mode once set `touch-action:
+    none` on the whole document, so neither scrolling nor zoom worked until the user
+    left it."""
+    filler = "".join(f"<p>Paragraph {n}. " + "Filler. " * 30 + "</p>" for n in range(8))
+    html = TARGETS_PAGE.replace("</main>", filler + "</main>")
+    context = browser.new_context(
+        viewport={"width": 390, "height": 844}, has_touch=True, is_mobile=True
+    )
+    page = open_page(browser, serve(html), context=context)
+    page.keyboard.press("w")
+    expect(page.locator("html")).to_have_attribute("data-lf-draw-mode", "")
+    cdp = context.new_cdp_session(page)
+
+    def fingers(*paths):
+        """Touch down at each path's first point, move along them together, lift."""
+
+        def points(step):
+            return [
+                {"x": path[step][0], "y": path[step][1], "id": n}
+                for n, path in enumerate(paths, 1)
+            ]
+
+        cdp.send(
+            "Input.dispatchTouchEvent", {"type": "touchStart", "touchPoints": points(0)}
+        )
+        for step in range(1, len(paths[0])):
+            cdp.send(
+                "Input.dispatchTouchEvent",
+                {"type": "touchMove", "touchPoints": points(step)},
+            )
+        cdp.send("Input.dispatchTouchEvent", {"type": "touchEnd", "touchPoints": []})
+
+    view = "() => ({scale: visualViewport.scale, top: visualViewport.pageTop})"
+    still = page.evaluate(view)
+    # One finger draws, and moves nothing.
+    box = page.locator("#prose").bounding_box()
+    x, y = box["x"] + 20, box["y"] + box["height"] / 2
+    fingers([(x + 10 * n, y + 2 * n) for n in range(12)])
+    expect(page.locator(".lf-live")).to_contain_text("Drawing captured")
+    expect(page.locator(".lf-drawing-mark")).to_have_count(1)
+    assert page.evaluate(view) == still
+
+    # Each two-finger gesture lands on the page's text, where its first finger begins a
+    # stroke for the second to take back. The drag goes before the zoom: on a zoomed
+    # page, where a dispatched touch lands depends on where the zoom left the visual
+    # viewport, which differs between Chromium builds, and on macOS it landed on the
+    # floating panel, which begins no stroke.
+    # Two fingers drag up together: the page scrolls.
+    fingers(
+        [(150, 700 - 30 * n) for n in range(12)],
+        [(240, 700 - 30 * n) for n in range(12)],
+    )
+    page.wait_for_function(f"visualViewport.pageTop > {still['top'] + 100}")
+    # A pan the browser takes at once begins no stroke, so it may say nothing; what it
+    # leaves is no stroke under way and the drawing as it was.
+    expect(page.locator(".lf-drawing-active")).to_have_count(0)
+    expect(page.locator(".lf-drawing-mark")).to_have_count(1)
+    # Two fingers spread apart: the page zooms.
+    page.locator(".lf-live").evaluate("live => live.replaceChildren()")
+    fingers(
+        [(180 - 12 * n, 500) for n in range(12)],
+        [(210 + 12 * n, 500) for n in range(12)],
+    )
+    page.wait_for_function("visualViewport.scale > 1.5")
+    expect(page.locator(".lf-live")).to_contain_text("Stroke canceled")
+    expect(page.locator(".lf-drawing-mark")).to_have_count(1)
+    expect(page.locator("html")).to_have_attribute("data-lf-draw-mode", "")
+
+
+@pytest.mark.parametrize("spread", [True, False])
+def test_a_second_finger_takes_back_the_stroke_the_first_began(browser, serve, spread):
+    """A finger already drawing when a second lands is the start of a pan or a zoom,
+    not a stroke. The browser takes the gesture without always cancelling the first
+    finger's pointer, which then lifts as an ordinary release, and the stroke it drew,
+    the zoom's own moves included, became a drawing. Whether the fingers spread or
+    stay still, the second one takes the stroke back."""
+    context = browser.new_context(
+        viewport={"width": 390, "height": 844}, has_touch=True, is_mobile=True
+    )
+    page = open_page(browser, serve(TARGETS_PAGE), context=context)
+    page.keyboard.press("w")
+    expect(page.locator("html")).to_have_attribute("data-lf-draw-mode", "")
+    cdp = context.new_cdp_session(page)
+
+    def touch(kind, *points):
+        cdp.send(
+            "Input.dispatchTouchEvent",
+            {
+                "type": kind,
+                "touchPoints": [{"x": x, "y": y, "id": n} for n, (x, y) in points],
+            },
+        )
+
+    box = page.locator("#prose").bounding_box()
+    x, y = box["x"] + 20, box["y"] + box["height"] / 2
+    touch("touchStart", (1, (x, y)))
+    for n in range(1, 8):
+        touch("touchMove", (1, (x + 10 * n, y + 2 * n)))
+    first = (x + 70, y + 14)
+    second = (first[0] + 40, first[1] + 60)
+    touch("touchStart", (1, first), (2, second))
+    for n in range(1, 10 if spread else 1):
+        touch(
+            "touchMove",
+            (1, (first[0] - 8 * n, first[1] - 8 * n)),
+            (2, (second[0] + 8 * n, second[1] + 8 * n)),
+        )
+    touch("touchEnd")
+
+    expect(page.locator(".lf-live")).to_contain_text("Stroke canceled")
+    if spread:
+        page.wait_for_function("visualViewport.scale > 1.2")
+    page.wait_for_timeout(100)
+    expect(page.locator(".lf-drawing-mark")).to_have_count(0)
+    expect(page.locator(".lf-live")).not_to_contain_text("Drawing captured")
+    expect(page.locator("html")).to_have_attribute("data-lf-draw-mode", "")
 
 
 def test_draw_mode_leaves_chrome_controls_usable(browser, serve):
@@ -828,8 +873,7 @@ def test_draw_mode_leaves_chrome_controls_usable(browser, serve):
     expect(page.locator("html")).to_have_attribute("data-lf-draw-mode", "")
     exit_mode.click()
     expect(page.locator("html")).not_to_have_attribute("data-lf-draw-mode", "")
-    page.locator(".lf-fp-threads").click()
-    panel_settled(page, view="threads")
+    open_threads(page)
 
 
 def test_draw_mode_keeps_the_separate_design_mode_binding(browser, serve):
@@ -923,7 +967,7 @@ def test_pointer_modes_leave_document_editing_controls_usable(browser, serve):
         assert edit.evaluate("el => getComputedStyle(el).cursor") != "crosshair"
         edit.click()
         expect(page.locator(".lf-fab-input")).to_be_hidden()
-        editor = draft.get_by_role("textbox", name="Edit draft", exact=True)
+        editor = draft.locator("leaf-text")
         expect(editor).to_be_focused()
         assert editor.evaluate("el => getComputedStyle(el).cursor") != "crosshair"
         editor.click()
@@ -1285,7 +1329,7 @@ def test_drawing_ink_follows_pixels_inside_their_ancestor_viewport(browser, serv
 @pytest.mark.parametrize(
     "long, touch",
     [(False, True), (True, False)],
-    ids=["short-phone", "scrolled-desktop"],
+    ids=["short-touch", "scrolled-desktop"],
 )
 def test_sent_drawing_keeps_its_reference_in_the_transcript_after_the_text(
     browser, serve, long, touch
@@ -1302,8 +1346,6 @@ def test_sent_drawing_keeps_its_reference_in_the_transcript_after_the_text(
         ),
         context=context,
     )
-    if touch:
-        page.set_viewport_size({"width": 390, "height": 844})
     draw_over(page, page.locator("#target"))
     field = page.locator(".lf-fab-input")
     write(
@@ -1346,7 +1388,7 @@ def test_sent_drawing_keeps_its_reference_in_the_transcript_after_the_text(
         min(before["scroll"], after["limit"]), abs=1
     )
     if long:
-        resized(page, 390 if touch else 1280, 600)
+        resized(page, 1280, 600)
         rendered(page)
         reference = body.locator(".lf-drawing-reference").bounding_box()
         viewport = card.locator(".lf-thread-transcript").bounding_box()
@@ -1445,7 +1487,7 @@ def test_drawing_strokes_keep_their_pixels_across_resize_addition_send_and_repla
     assert second[0] == pytest.approx(
         [narrow["width"] * 0.3, narrow["height"] * 0.3], abs=0.02
     )
-    posted = f'.lf-drawing-posted[data-thread="{event["id"]}"]'
+    posted = f'.lf-drawing-posted[data-lf-thread="{event["id"]}"]'
     expect(page.locator(posted)).to_have_count(1)
     relation = mark_relation(page, posted, "#prose")
     page.set_viewport_size(wide)
@@ -1498,7 +1540,7 @@ def test_a_stroke_in_empty_space_belongs_to_the_nearest_element(browser, serve):
     expect(pending).to_have_count(1)
     field = page.locator(".lf-fab-input")
     expect(field).to_be_focused()
-    expect(page.locator(PANEL)).not_to_have_attribute("data-open", re.compile("."))
+    expect(page.locator(PANEL)).not_to_have_attribute("data-lf-open", re.compile("."))
 
     page.reload(wait_until="load")
     wait_until_ready(page)
@@ -1533,7 +1575,7 @@ def test_a_stroke_in_empty_space_belongs_to_the_nearest_element(browser, serve):
     assert "text" not in event and "at" not in event["drawing"]
     assert len(event["drawing"]["strokes"]) == 2
     expect(
-        page.locator(f'.lf-drawing-posted[data-thread="{event["id"]}"]')
+        page.locator(f'.lf-drawing-posted[data-lf-thread="{event["id"]}"]')
     ).to_have_count(1)
     assert page.evaluate("document.documentElement.scrollWidth") == scroll_width
 
@@ -1554,7 +1596,7 @@ def test_a_drawing_is_pictured_in_the_window_it_was_drawn_in(browser, serve):
         page.keyboard.press("ControlOrMeta+Enter")
     event = events_model.read_events(serve.page_dir)[-1]
     assert event["anchor"] == {"section": "swatch"}
-    ink = page.locator(f'.lf-drawing-posted[data-thread="{event["id"]}"] path')
+    ink = page.locator(f'.lf-drawing-posted[data-lf-thread="{event["id"]}"] path')
     ink_color = ink.evaluate("path => getComputedStyle(path).stroke")
     page.set_viewport_size({"width": 1200, "height": 900})
     stamp_page(serve.page_dir, SWATCH_PAGE.replace("50vw", "25vw"), "Narrow the swatch")
@@ -1618,7 +1660,7 @@ def test_a_drawing_is_pictured_in_the_window_it_was_drawn_in(browser, serve):
         (low - band_top) / (1 - band_top), abs=0.05
     )
     # Drawn in the dark scheme: the page beside the swatch is dark.
-    assert sum(image.getpixel((2, 2))) < 200
+    assert sum(rgb_pixel(image, (2, 2))) < 200
 
     missing = CliRunner().invoke(
         cli_model.cli, ["page", "picture", str(serve.page_dir), "nope"]
@@ -1657,7 +1699,7 @@ def test_a_draw_press_uses_the_exact_target_under_its_start(browser, serve):
     assert target in {"map-street", "map-trail"}
     page.mouse.move(*point)
     page.keyboard.press("w")
-    expect(page.locator(".lf-aim")).to_be_hidden()
+    expect(page.locator("[data-lf-aimed]")).to_have_count(0)
 
     page.mouse.down()
     page.mouse.move(point[0] + 80, point[1], steps=8)

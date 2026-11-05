@@ -8,14 +8,17 @@ import struct
 import zlib
 from weakref import WeakKeyDictionary
 
+import tinycss2
 from axe_playwright_python.sync_playwright import Axe
 from browser_sources import browser_function
+from PIL import Image
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
 from render_harness import (
     LONG_PAGE,
     leaf_page,
     panel_settled,
+    rgb_pixel,
 )
 
 from leaf import render_checks as render_checks_model
@@ -223,7 +226,7 @@ def moved_at(cdp, node):
     cdp.send("DOM.getDocument", {"depth": 1})
     described = cdp.send("DOM.describeNode", {"backendNodeId": node})["node"]
     pairs = described.get("attributes", [])
-    attributes = dict(zip(pairs[::2], pairs[1::2]))
+    attributes = dict(zip(pairs[::2], pairs[1::2], strict=True))
     name = described.get("localName") or described.get("nodeName")
     if attributes.get("id"):
         return f"{name}#{attributes['id']}"
@@ -410,8 +413,8 @@ SIDENOTE_IN_A_WIDGET = LONG_PAGE.replace(
     """<lf-ask id="where-decision"><h2>Which option?</h2>
 <lf-options id="where" choose>
   <lf-option id="opt-a"><strong>First</strong>
-    <aside class="sidenote" id="boxed-note">Measured over a quarter.</aside>
-    <p>An option carrying a note written inside it.</p>
+    <div class="layout-note"><p>An option carrying a note written inside it.</p>
+    <aside class="note" id="boxed-note">Measured over a quarter.</aside></div>
   </lf-option>
   <lf-option id="opt-b"><strong>Second</strong> The other one.</lf-option>
 </lf-options></lf-ask>
@@ -423,14 +426,13 @@ SIDENOTE_IN_A_WIDGET = LONG_PAGE.replace(
 # elements in the right margin on the same line.
 NOTE_BESIDE_A_CHANGE = LONG_PAGE.replace(
     "</main>",
-    """<aside class="sidenote" id="level-note">Measured over a quarter, and the number
-moved twice inside it.</aside>
-<lf-suggestion id="sug-level">
+    """<div class="layout-note"><lf-suggestion id="sug-level">
   <lf-old><p id="old-level">About three thousand writes a second at peak.</p></lf-old>
   <lf-new><p>3,400 writes a second at p99, over the last quarter.</p></lf-new>
-</lf-suggestion>
+</lf-suggestion><aside class="note" id="level-note">Measured over a quarter, and the number
+moved twice inside it.</aside></div>
 </main>""",
-)
+).replace('<main class="layout-column">', '<main class="layout-column layout-notes">')
 # Boxes over their container, differing only in what holds them and how. The first two
 # are the rule and neither alone proves it: a page that named both would refuse every
 # wide table the theme puts in a scroller, and one that named neither is the gate before
@@ -613,8 +615,9 @@ def with_one_obligation(html):
 
 
 def toggle_queue(page, open=True):
-    """Open or close the panel's On me view from its mark and wait for it to stand."""
-    page.locator(".lf-fp-on-user").click()
+    """Open the panel's On me view from its mark, or close it from the same seat, where
+    its ✕ stands while the view does, and wait for it to stand or go."""
+    page.locator(".lf-fp-on-user" if open else ".lf-fp-close").click()
     panel_settled(page, open=open, view="queue" if open else None)
 
 
@@ -794,7 +797,7 @@ def displaced(before, boxes, news=False):
     rather than moved, which is a thing both sweeps below deliberately allow.
 
     `news` reads the rule for a change nobody gestured (`browser/AGENTS.md`,
-    "Stability"): a box whose own words changed may grow or shrink into free room, so its
+    "The page holds still under the user's aim"): a box whose own words changed may grow or shrink into free room, so its
     width is its own, but its place is not, and no other box may move or resize. The
     free room may lie on either side: a box packed against the run to its right grows
     leftward into the room before it, and the edge that holds still is its place. A box that grew by pushing its neighbours still fails, as
@@ -806,12 +809,12 @@ def displaced(before, boxes, news=False):
         if news and was[4] != now[4]:
             held = was[0] == now[0] or was[0] + was[2] == now[0] + now[2]
             return not held or was[1] != now[1] or was[3] != now[3]
-        return any(a != b for a, b in zip(was[:4], now[:4]))
+        return any(a != b for a, b in zip(was[:4], now[:4], strict=True))
 
     return [
         f"{name} moved by "
-        f"{[round(a - b, 1) for a, b in zip(now[:4], was[:4])]} (left, top, width, height)"
-        for name, was, now in zip(before["names"], before["boxes"], boxes)
+        f"{[round(a - b, 1) for a, b in zip(now[:4], was[:4], strict=True)]} (left, top, width, height)"
+        for name, was, now in zip(before["names"], before["boxes"], boxes, strict=True)
         if moved(was, now)
     ]
 
@@ -842,11 +845,58 @@ AIM_POINT = """(el) => {
   }
   return null;
 }"""
-# The promise itself, read where the runtime states it: the aim's box in the chrome's
-# layer carries the aimed element's id (data-for, refreshAim's one write of it). The
-# composer's own mark then stands on that same item once the press is made, so the box's
-# answer before the press and the draft's after it agreeing is the promise being kept.
-AIMED = """() => document.querySelector(".lf-aim")?.getAttribute("data-for") ?? null"""
+# The promise itself, read where the runtime states it: the aimed box wears `data-lf-aimed`
+# (target-paint.js, `paintAim`) and draws the aim round itself. The composer's own mark
+# then stands on that same item once the press is made, so the aim's answer before the
+# press and the draft's after it agreeing is the promise being kept.
+AIMED = (
+    """() => document.querySelector("[data-lf-aimed]")?.closest("[id]")?.id ?? null"""
+)
+# A mark round a box, read off the box that draws it as its own outline (surfaces.css,
+# "Every mark on a box is drawn by the box itself"): the outline's style, width, colour
+# and offset, whether the box cuts it to a gesture's brackets (`brackets`, its
+# `clip-path`), the box's border box (`box`) and `ring`, the rectangle the outline's
+# outer edge stands on: the box grown by its offset and width. Null where the box draws
+# no outline.
+MARK = """(box) => {
+  const s = getComputedStyle(box);
+  if (s.outlineStyle === "none") return null;
+  const width = parseFloat(s.outlineWidth) || 0;
+  const offset = parseFloat(s.outlineOffset) || 0;
+  const r = box.getBoundingClientRect();
+  const grow = offset + width;
+  return {
+    style: s.outlineStyle, width, offset, color: s.outlineColor,
+    brackets: s.clipPath !== "none",
+    box: {left: r.left, top: r.top, right: r.right, bottom: r.bottom},
+    ring: {left: r.left - grow, top: r.top - grow, right: r.right + grow,
+           bottom: r.bottom + grow},
+  };
+}"""
+# A mark on a drawing's part, read off the shapes the part draws (surfaces.css, "A
+# drawing's part"): the part's own outline style, which the mark leaves at none, and
+# each shape's stroke as [colour, width], which the mark sets.
+DRAWN_MARK = """(part) => {
+  const shapes = "path, rect, circle, ellipse, line, polyline, polygon";
+  const drawn = part.matches(shapes) ? [part] : [...part.querySelectorAll(shapes)];
+  return {
+    outline: getComputedStyle(part).outlineStyle,
+    strokes: drawn.map((shape) => {
+      const s = getComputedStyle(shape);
+      return [s.stroke, parseFloat(s.strokeWidth)];
+    }),
+  };
+}"""
+
+
+def assert_drawn_in(part, ink, width):
+    """A drawing's part wears its mark along each shape it draws: every shape stroked
+    in `ink` at `width` CSS px, and no outline round the part."""
+    drawn = part.evaluate(DRAWN_MARK)
+    assert drawn["outline"] == "none" and drawn["strokes"], drawn
+    assert all(stroke == [ink, width] for stroke in drawn["strokes"]), (drawn, ink)
+
+
 # The item the draft stands on, which is not always the element wearing the outline: a
 # mark hangs on the boxes its element shows through, and a display: contents wrapper shows
 # through its slots. Reading the raw id said the promise was broken for every suggestion
@@ -879,9 +929,9 @@ FOCUS_IN_PAGE = """() => {
 # check is for survives untouched — a stray pick writes `chosen` on the option and a
 # stray tab switch moves the panels' attributes, both of them authored rather than
 # generated, and structure is compared either way.
-# The page as a press leaves it. Where the pointer is resting, the projection Leaf
-# paints above descendants, and the generated binding seat are not authored state,
-# so none belongs in this reading.
+# The page as a press leaves it. Where the pointer is resting, the marks Leaf has a box
+# draw round itself (surfaces.css), and the generated binding seat are not authored
+# state, so none belongs in this reading.
 PAGE_MARKUP = r"""() => [...document.body.children]
     .filter((n) => !n.classList.contains("lf-chrome"))
     .map((n) => {
@@ -889,7 +939,14 @@ PAGE_MARKUP = r"""() => [...document.body.children]
         for (const g of c.querySelectorAll("[data-lf-gen]")) g.textContent = "";
         if (c.dataset && c.dataset.lfGen !== undefined) c.textContent = "";
         for (const el of [c, ...c.querySelectorAll("*")]) {
-            el.classList?.remove("lf-mark-hover", "lf-projected-mark", "lf-binding-seat");
+            el.classList?.remove(
+                "lf-mark-hover",
+                "lf-projected-mark",
+                "lf-binding-seat",
+            );
+            for (const paint of ["data-lf-mark", "data-lf-aimed", "data-lf-traced",
+                "data-lf-proxied", "data-lf-projected-location"])
+                el.removeAttribute?.(paint);
             // Anchor naming is presentation state. The layout may copy a name
             // from a stylesheet into inline style while positioning a comment.
             el.style?.removeProperty("anchor-name");
@@ -905,7 +962,7 @@ PAGE_MARKUP = r"""() => [...document.body.children]
 # shownRect's fallback: its host rect is 0×0 at the origin, which would otherwise count
 # as "wholly on screen" and fail every off-screen one for its rightly hidden box.
 LEGEND_TRUE = """() => [...document.querySelectorAll('.lf-legend-box')].every(b => {
-  const it = document.getElementById(b.dataset.for);
+  const it = document.getElementById(b.dataset.lfFor);
   let r = it.getBoundingClientRect();
   if (!r.width && !r.height) {
     const contents = document.createRange();
@@ -1031,10 +1088,10 @@ def glyph_action_face(control):
     """What a user sees of a glyph action, as one reading both its tests share.
 
     Send and Add option are the same face: a bare glyph in the action's own ink over a
-    28px disc that stays clear at rest and takes the action's tint under the pointer.
+    disc that stays clear at rest and takes the action's tint under the pointer.
     The press paints nothing of its own in either state, so `press` is the claim that
-    the disc is the whole of the paint and `discWidth` is why it does not grow with the
-    hit box around it.
+    the disc is the whole of the paint. `discWidth` measures that face separately from
+    the hit box around it.
     """
     return control.evaluate(
         """el => {
@@ -1051,8 +1108,12 @@ def glyph_action_face(control):
     )
 
 
-def mark_edges(page, ident, ink):
+def mark_edges(page, ident, ink, outset=None):
     """How wide the mark is painted on each side of an element, in device pixels.
+
+    `outset` names, in CSS px, how far out from the element's edge the mark's outer
+    edge stands on each side it doesn't start at the edge, as a region's ring does at
+    its room (base.css); each scan then starts there and counts in.
 
     Geometry can't answer this and neither can the computed style: the mark is an
     outline, so every rect is identical whether the stroke survived or something
@@ -1090,19 +1151,19 @@ def mark_edges(page, ident, ink):
     was multiplying first that made `round(gap * scale)` disagree with it — by a pixel the
     window below covers, until a scale of 4 makes it two. The window is kept for a device
     pixel of engine drift either side."""
-    from PIL import Image  # a dev dependency already, for the demo recorder
-
+    outset = outset or {}
+    pad = MARK_PAD + max(outset.values(), default=0)
     box = page.locator(f"#{ident}").bounding_box()
-    clip = {"x": math.floor(box["x"] - MARK_PAD), "y": math.floor(box["y"] - MARK_PAD)}
-    clip["width"] = math.ceil(box["x"] + box["width"] + MARK_PAD) - clip["x"]
-    clip["height"] = math.ceil(box["y"] + box["height"] + MARK_PAD) - clip["y"]
+    clip = {"x": math.floor(box["x"] - pad), "y": math.floor(box["y"] - pad)}
+    clip["width"] = math.ceil(box["x"] + box["width"] + pad) - clip["x"]
+    clip["height"] = math.ceil(box["y"] + box["height"] + pad) - clip["y"]
     fits = page.evaluate(
         """([x, y, w, h]) => x >= 0 && y >= 0
              && x + w <= innerWidth && y + h <= innerHeight""",
         [clip["x"], clip["y"], clip["width"], clip["height"]],
     )
     assert fits, (
-        f"#{ident} is not wholly on screen with the {MARK_PAD}px around it this squares "
+        f"#{ident} is not wholly on screen with the {pad}px around it this squares "
         f"off, and a screenshot clip is the viewport's: scroll it in and size the "
         f"viewport to it first, or the scans measure a truncated image"
     )
@@ -1121,10 +1182,21 @@ def mark_edges(page, ident, ink):
     # whatever that side's rounding added. Snapped in CSS space and then scaled, per the
     # docstring — and a trailing side counts in from the far end of a clip whose width is
     # a whole number, which flips the half, so the two directions round opposite ways.
-    lead = {"top": box["y"] - clip["y"], "left": box["x"] - clip["x"]}
+    lead = {
+        "top": box["y"] - clip["y"] - outset.get("top", 0),
+        "left": box["x"] - clip["x"] - outset.get("left", 0),
+    }
     trail = {
-        "bottom": clip["y"] + clip["height"] - box["y"] - box["height"],
-        "right": clip["x"] + clip["width"] - box["x"] - box["width"],
+        "bottom": clip["y"]
+        + clip["height"]
+        - box["y"]
+        - box["height"]
+        - outset.get("bottom", 0),
+        "right": clip["x"]
+        + clip["width"]
+        - box["x"]
+        - box["width"]
+        - outset.get("right", 0),
     }
     edge = {s: round(math.floor(g + 0.5) * scale) for s, g in lead.items()}
     edge |= {s: round(math.ceil(g - 0.5) * scale) for s, g in trail.items()}
@@ -1132,7 +1204,8 @@ def mark_edges(page, ident, ink):
     def stroke(scan, at):
         """Mark-coloured pixels contiguous with the element's edge, and no others."""
         inked = [
-            all(abs(a - b) <= MARK_NEAR for a, b in zip(pixel, ink)) for pixel in scan
+            all(abs(a - b) <= MARK_NEAR for a, b in zip(pixel, ink, strict=True))
+            for pixel in scan
         ]
         start = next((i for i in range(at - 1, at + 2) if inked[i]), None)
         if start is None:
@@ -1145,8 +1218,10 @@ def mark_edges(page, ident, ink):
     def quarters(size):
         return (size // 4, size // 2, 3 * size // 4)
 
-    columns = [[image.getpixel((x, y)) for y in range(height)] for x in quarters(width)]
-    rows = [[image.getpixel((x, y)) for x in range(width)] for y in quarters(height)]
+    columns = [
+        [rgb_pixel(image, (x, y)) for y in range(height)] for x in quarters(width)
+    ]
+    rows = [[rgb_pixel(image, (x, y)) for x in range(width)] for y in quarters(height)]
     return {
         "top": {stroke(c, edge["top"]) for c in columns},
         "bottom": {stroke(c[::-1], edge["bottom"]) for c in columns},
@@ -1435,17 +1510,23 @@ RING_CANDIDATES = browser_function(
 # another selector added to the list, the rule moving file) and changes when what
 # selects the ring does. Tests assert on the part of it that makes the rule the
 # control's own, such as `.lf-grip`, rather than on the whole text.
+# Read the browser's serialized selector list, not each selector's source range:
+# formatting is not part of a ring's identity. Only top-level commas divide the
+# list; commas and whitespace within functions or strings keep their meaning.
 #
 # Only a declaration that draws with the ring's own token is a ring rule: `--focus-ring`
-# for an outline, `--focus-shadow` for the band cast as a shadow. A contour written out
-# as `2px solid var(--accent)`, such as an element mark's pointer feedback, paints the
-# same pixels and is not one.
+# for an outline, `--focus-shadow` for the band cast as a shadow, or the mark a box
+# draws round itself (`--lf-band-ink`, surfaces.css), which is the ring wherever it is
+# whole: the location ring, the proxy ring and a comment's focus state. Its brackets,
+# a gesture's mark, are never read as a ring (`bracketed`, focus_rings.js). A contour
+# written out as `2px solid var(--accent)`, such as an element mark's pointer feedback,
+# paints the same pixels and is not one.
 RING_CARRIERS = {
     "outline": ("outline", "outline-style"),
     "box-shadow": ("box-shadow",),
 }
 RING_TOKEN = {
-    "outline": re.compile(r"--focus-ring(?![\w-])"),
+    "outline": re.compile(r"--(?:focus-ring|lf-band-ink)(?![\w-])"),
     "box-shadow": re.compile(r"--focus-shadow(?![\w-])"),
 }
 _ring_sessions = WeakKeyDictionary()
@@ -1464,8 +1545,15 @@ def _matched_selector(match):
     rule = match["rule"]
     if rule["origin"] == "inline":
         return "style attribute"
-    selectors = rule["selectorList"]["selectors"]
-    said = ", ".join(selectors[i]["text"] for i in match["matchingSelectors"])
+    selectors = [[]]
+    for token in tinycss2.parse_component_value_list(rule["selectorList"]["text"]):
+        if token.type == "literal" and token.value == ",":
+            selectors.append([])
+        else:
+            selectors[-1].append(token)
+    said = ", ".join(
+        tinycss2.serialize(selectors[i]).strip() for i in match["matchingSelectors"]
+    )
     context = [f"@scope {scope['text']}" for scope in rule.get("scopes", [])]
     context += reversed(rule.get("nestingSelectors", []))
     return " { ".join([*context, said])
@@ -1580,7 +1668,13 @@ def rings_drawn(page):
     as `ring_rules` reads it) and what is wrong with it.
 
     A non-focused element mark painting the band with no ring rule behind it is the
-    pointer's feedback contour rather than a ring, so it is left out."""
+    pointer's feedback contour rather than a ring, so it is left out.
+
+    It reads once the runtime has rendered what the input so far asked for. The probe
+    and the browser's matched styles are two reads, and a carrier the runtime replaces
+    between them, such as the projected focus mark after a focus move, has no styles
+    left to read."""
+    rendered(page)
     candidates = page.evaluate(RING_CANDIDATES)
     if not candidates:
         return []
@@ -1590,6 +1684,7 @@ def rings_drawn(page):
         geometry=True,
     )
     answers = page.evaluate(RINGS_DRAWN, rectangles)
+    _read_ring_pixels(page, answers)
     drawn = []
     for seen, rule in zip(answers, rules, strict=True):
         if seen.pop("mark") and not seen["focused"] and not rule:
@@ -1597,6 +1692,71 @@ def rings_drawn(page):
         seen["rule"] = rule
         drawn.append(seen)
     return drawn
+
+
+# The share of a run's samples the ring's colour must cover. A run hit testing found
+# clear but painted over, or never painted, reads near nought.
+RUN_DRAWN = 0.9
+# The fewest unpainted samples, 4px apart, that count: a neighbour's edge blending into
+# a short run's end sample is one.
+RUN_MISSED = 3
+# How far a sample's channels may stray from the ring's, summed: a band on a fractional
+# edge blends a little of the ground into its middle pixel, and ground or text that
+# covers it differs by far more.
+RUN_INK = 90
+
+
+def _read_ring_pixels(page, answers):
+    """Add to each ring's `covers` the runs its colour is missing from in a screenshot,
+    at the samples `ringsDrawn` (focus_rings.js) found nothing in front of that takes
+    hits. Confirm candidate covers at their sampled pixel too: an outline is not a
+    hit surface, so hit testing alone can mistake a box beneath it for a cover.
+    Drop the samples, ink and rectangle from each answer.
+
+    The screenshot is taken a round trip after the reading, so a caller reads a page at
+    rest (`rendered`); one still repainting can read a ring where it no longer is."""
+    sampled = [seen for seen in answers if seen["runs"] or seen["coverPoints"]]
+    if sampled:
+        points = [p for seen in sampled for run in seen["runs"] for p in run["points"]]
+        points.extend(c["point"] for seen in sampled for c in seen["coverPoints"])
+        # Whole CSS pixels, since Chrome truncates a clip to them before it scales.
+        left = math.floor(min(x for x, _ in points))
+        top = math.floor(min(y for _, y in points))
+        clip = {
+            "x": left,
+            "y": top,
+            "width": math.floor(max(x for x, _ in points)) + 1 - left,
+            "height": math.floor(max(y for _, y in points)) + 1 - top,
+        }
+        image = Image.open(io.BytesIO(page.screenshot(clip=clip))).convert("RGB")
+        scale = image.width / clip["width"]
+    for seen in answers:
+        runs, ink, ring = seen.pop("runs"), seen.pop("ink"), seen.pop("ringAt")
+
+        def painted_at(point, ink=ink):
+            x, y = point
+            pixel = rgb_pixel(
+                image,
+                (
+                    min(int((x - left) * scale), image.width - 1),
+                    min(int((y - top) * scale), image.height - 1),
+                ),
+            )
+            return sum(abs(a - b) for a, b in zip(pixel, ink, strict=True)) < RUN_INK
+
+        visible = {
+            c["index"] for c in seen.pop("coverPoints") if painted_at(c["point"])
+        }
+        seen["covers"] = [c for i, c in enumerate(seen["covers"]) if i not in visible]
+        for run in runs:
+            painted = [painted_at(point) for point in run["points"]]
+            share = sum(painted) / len(painted)
+            if share < RUN_DRAWN and painted.count(False) >= RUN_MISSED:
+                seen["covers"].append(
+                    f"its {run['side']} edge shows the ring at {share:.0%} of its "
+                    f"{len(painted)} samples where nothing in front takes hits: paint "
+                    f"hit testing can't see is over it, or it isn't painted (ring {ring})"
+                )
 
 
 def current_location_ring(page):

@@ -1,8 +1,6 @@
 # leaf
 
-Read [SOUL.md](SOUL.md) for Leaf's purpose and product principles. It is
-human-curated; change it only at the user's direction. `README.md` describes the
-product and installation.
+@SOUL.md
 
 ## Leaf's role
 
@@ -51,7 +49,7 @@ long as any architectural problem they leave stays easy to fix. Make
 improvements that follow from the repository, and ask the user only when the
 choice depends on purpose or intent the code can't supply.
 
-### Responsiveness
+## Responsiveness
 
 When the user acts, the page draws what that act decides by itself before the
 browser's next frame, in the task that handles it: the user's message in its
@@ -63,31 +61,42 @@ predict that reading: a prediction is a second copy of the server's rules, and
 each case it misses shows the wrong state until the reading arrives. Where the
 reading takes longer than 100 ms, make that path faster.
 
-### Pages across Leaf updates
+These times hold on a large page too. A page's size is how much it holds:
+elements, widgets, headings, obligations, threads, events and revisions. The work
+an input does, such as a keystroke, a click or a wheel step, depends on what the
+input changes, and never grows faster than the page. Loading a page, and computing
+or applying a reading of it, grow no faster than the page times the logarithm of
+its size. A step that walks one of those collections for each member of another,
+as finding each obligation's heading by reading every heading did, grows with the
+square of the page. So does a style or layout pass forced once per element, since
+each pass can cover the whole page (`browser/AGENTS.md`, "Runtime ownership").
+`leaf-dev scaling` measures how each cost grows with the page.
 
-A page keeps the layer (registry, theme, widgets and package modules) that
-`leaf page init` vendored into it, and runs the runtime of the Leaf that serves,
-checks or exports it. A change crosses that gap in one of two ways.
+## Pages across Leaf updates
+
+A page records its authored content, its log and the packages it selects. The Leaf
+that serves, checks or exports it supplies everything else: the runtime, and the
+layer (registry, theme, widgets and package modules) it composes from the page's
+selection. So what changes with Leaf ships together, and what crosses the gap
+between Leaf versions is only what a page keeps: its event log and the records kept
+outside it.
 
 - **A protocol bump** changes the kernel registry's `$events.protocol`, and every
-  page vendored at another number is refused until it is re-vendored, which the
-  session holding the page does itself on its first command or hook naming the
-  page. Bump it for any change an earlier page would break on: to the event
-  log, what a page sends, its vendored declarations, the public package API
-  (`widget-api.js` and what its readers return) or a record kept outside a page.
-  The served state isn't among them, since the Leaf serving a page also supplies
-  the runtime that reads it. It is Leaf's only version, so a
-  record kept outside a page, such as a browser draft, carries the protocol at
-  which its own shape last changed (`layer-registry.md`, "Page protocol", owns
-  the rules).
-  Bumps are rare, perhaps one in five hundred commits. Once Leaf is released,
-  only a bump may break an existing page.
-- **Drift** may break an older page without a bump while Leaf is in alpha, as
-  when a vendored package widget relies on runtime behavior an update changed. Leaf
-  doesn't detect drift by comparing a page's files with its own, since nearly
-  every update would then force a rebuild. Instead the Leaf panel's menu and
-  `page check` name the Leaf that vendored the page beside the one serving or checking it,
-  with dates, and the agent re-vendors a much older page that misbehaves.
+  page at another number is refused until the session holding it takes it to the
+  new number, which it does itself on its first command or hook naming the page.
+  Bump it only for a change a Leaf at the same number would misread in the log or
+  in a record kept outside a page. A change to the runtime, the served state, the
+  bundled widgets and their registry entries, the theme or the public package API
+  (`widget-api.js` and its portable part `portable-api.js`) never bumps it. It is
+  Leaf's only version, so a record kept outside a page, such as a browser draft,
+  carries the protocol at which its own shape last changed (`layer-registry.md`,
+  "Page protocol", owns the rules). Bumps are rare, perhaps one in five hundred
+  commits. Once Leaf is released, only a bump may break an existing page.
+- **A page's own code**, its widgets and scripts, and an installed package's
+  modules call the public package API across Leaf versions. While Leaf is in alpha
+  an update may change that API without a bump, since a bump would not repair code
+  Leaf doesn't compose; `page check --render` and `package check --render` report a
+  module it breaks, and the agent fixes it as any other check failure.
 
 ## Fix the underlying issue
 
@@ -129,10 +138,11 @@ Python's module location, `leaf.state` locates the plugin root, and
 `leaf.schema` derives the resource paths. Page initialization composes the core
 browser assets and the packages into a page's layer.
 
+- `README.md`: the product and its installation.
 - `bin/leaf`, `pyproject.toml`, `uv.lock`: the launcher and its uv project.
 - `src/leaf/`: the CLI, server and event model (`src/AGENTS.md`).
-- `browser/`: the browser runtime, registry and theme, with the framework's
-  TypeScript under `browser/framework/`
+- `browser/`: the browser runtime, registry and theme, with the type check's
+  configuration and declarations under `browser/types/`
   (`browser/AGENTS.md`; `browser/runtime/keyboard/AGENTS.md`
   for commands, bindings and scopes).
 - `packages/`: the bundled packages (`packages/AGENTS.md`).
@@ -148,10 +158,7 @@ browser assets and the packages into a page's layer.
   (`tests/AGENTS.md`).
 - `build/`: the build of every generated browser file (`build/AGENTS.md`). A
   `vendor/` directory, such as `browser/vendor/`, holds generated browser
-  modules, the framework's compiled ones included, not only third-party code.
-- `dist/kernel/`: the compiled core runtime pages run, generated and
-  committed; it is a delivery form of the runtime, not a skill or an
-  installation root.
+  modules, not only third-party code.
 - `dev/`: the `leaf-dev` developer commands
   (`dev/AGENTS.md`).
 - `worker/`: the Cloudflare Worker and containers behind <https://leaf.page/>
@@ -159,8 +166,11 @@ browser assets and the packages into a page's layer.
 - `docs/`: the site's own pages, each a Leaf source.
 - `TODO.md`: the biggest current challenges, and how to query the backlog, the
   GitHub issues labelled `backlog`.
-- `notes/`: research and plans for unresolved work. When a design lands, its
-  contract moves beside the code or into a reference and the note is deleted.
+- `notes/`: what the code doesn't hold yet: research, and plans for large work in
+  progress or a design not yet built. Work built on a branch keeps its contract in
+  its code, and a page that shows it to the user is a preview of a file in `.tmp/`.
+  When a design lands, its contract moves beside the code or into a reference and
+  the note is deleted.
 
 Load `/developing-leaf` for any work whose subject is Leaf itself, including
 research and prototypes that change no tracked code. The shipped `/leaf` skill is
@@ -168,8 +178,8 @@ for agents that use Leaf or extend its package interface.
 
 ### Where instructions live
 
-The sections above **Repository map** are the maintainer's direction; change them
-only when the user asks. An `AGENTS.md` holds what an agent needs before changing
+The sections above **Repository map**, and the `SOUL.md` they import, are the
+maintainer's direction; change them only when the user asks. An `AGENTS.md` holds what an agent needs before changing
 its area: goals, invariants that span modules, who owns what, and the gates to
 run. A contract one module owns goes in that module's header, a helper's in its
 docstring, and how a rule was found in the commit message. A contract several modules
@@ -177,7 +187,8 @@ share goes in the protocol reference for that boundary, which says what each sid
 relies on, not how one side provides it. A header also records
 the product decisions its module embodies and the alternatives they rejected; a
 change that reverses one rewrites that record and says so in its commit. A
-workflow for one kind of task goes in `/developing-leaf`.
+maintainer's workflow for one kind of task goes in a project skill such as
+`/developing-leaf`, not in the shipped `/leaf` skill.
 
 Don't copy into prose a list the code already keeps, such as the bundles in
 `vendor.mjs`; point to it, so a new member needs no edit. Where the prose must
@@ -201,20 +212,21 @@ cache and follow `main`. Claude Code's `--plugin-dir` and local-path marketplace
 plugins can load in place instead; point Codex at the git source, since its
 local-directory marketplace also copies a checkout's `.venv`. Nothing is built
 at install time: installing, authoring pages, writing custom packages and
-exporting need no browser build or npm. Pages run the browser runtime the serving
-install holds: the kernel committed in `dist/kernel/` while it matches the tree's
-modules, and the source modules where a merge has left it stale
-(`leaf.runtime_selection.read_runtime`). `bin/leaf` is `uv run --no-dev` on the tree, so
-the install must be writable, and Leaf writes nothing else there. A plugin
-update may replace the directory, so anything that must survive one belongs in
-the page directory or the state home.
+exporting need no browser build or npm. Pages run the browser runtime's source
+modules from the serving install, so a runtime change takes no build. Only a
+prepared installation, such as the website's container, compiles them into a
+kernel (`build/runtime-bundle.mjs`, `leaf.runtime_selection.read_runtime`).
+`bin/leaf` is `uv run --no-dev` on the tree, so the install must be writable,
+and Leaf writes nothing else there. A plugin update may replace the directory,
+so anything that must survive one belongs in the page directory or the state
+home.
 
 Runtime dependencies,
 including a bundled package script's, state a minimum version and no maximum. The
 host supplies Chrome and `jq`; Leaf never downloads a browser.
 
 Every tracked byte ships in every install and stays in history, so the tree holds
-no binary or large files except the kernel. An image a tool here reads lives in
+no binary or large files except the generated `vendor/` bundles. An image a tool here reads lives in
 `max-sixty/leaf-assets`, pinned by
 `leaf-assets.json`. Publish there as part of the change that needs it, with no
 separate approval, since publishing moves only this checkout's pin; the
@@ -263,13 +275,10 @@ preparation, gesture holds and semantic presentation proof.
 
 A gesture's own result shows in the task that sends it, before the server
 answers ("Responsiveness"); a disabled control, spinner or delivery status is
-not that result. Everything that depends on the whole log, such as which obligations
-remain, which the user owes and whose turn a thread is, comes from the server's
-reading. The browser adds only what a gesture decides by itself: a to-do the
-user ends, a thread the user opens, the
-user's own reply and its wait for an answer, and the resend a refused send
-leaves. A refusal restores
-the server's state.
+not that result. The browser adds only what a gesture decides by itself: a
+thread the user opens, the user's own reply and its wait for an answer, and the
+resend a refused send leaves. A refusal restores the
+server's state.
 
 Focus, scroll, selection, open disclosures, a draft being typed, a drag and
 layout stay with the browser until a gesture makes them part of the page's
@@ -303,6 +312,14 @@ segments that Python and the browser collapse and resolve by the same rules.
 `says` is visible text; `wrote` is authored text. Python never accepts an anchor
 the rendered page can't resolve. Repeated text with no context to pick one copy
 detaches instead of falling back to order or offsets.
+
+Each fact Leaf derives about the page is derived once, and each place that
+reports the page selects what its purpose needs. Whatever a delivery tells the
+agent about an event, apart from what it asks of the agent at the time (`answer`,
+`handling`, `waiting`), `leaf page state` tells a later session about the same
+event, or the message as it now reads, under the same name and from the same code
+(`event_facts.py`). A fact about the past, such as the settings the user had open
+when they wrote, is derived from the log and never stored as a second copy.
 
 ### Keep the layer open
 
@@ -342,14 +359,15 @@ through: each takes minutes to over an hour and slows every session on the host.
 Before widening your selection or its parallelism, check CPU, memory pressure and
 other running suites, and on a busy host keep to focused checks.
 
-The TypeScript in `worker/src/` and `browser/framework/`, and the lock every committed
-bundle is built from, have gates the suite and pre-commit don't reach.
+The TypeScript in `worker/src/`, the browser runtime's type check
+(`browser/types/`), and the lock every committed bundle is built from, have gates
+the suite and pre-commit don't reach.
 `pnpm run check` runs them, and both
 landing paths run them too. The website's delivery checks (the site build, the
 Worker's dry-run deploy, `leaf-dev verify-site website-worker`) run on a pull
 request and in `publish-site`, but not in `wt merge`.
 
-For a change that can alter browser startup, compare base and candidate: served
+For a change that can alter browser startup, compare base and head: served
 previews for a runtime change, `leaf-dev verify-site website-worker` for site
 delivery, Worker routing or containers. Read the comparison by phase (the
 document arriving, widgets upgrading, the page first showing the server's

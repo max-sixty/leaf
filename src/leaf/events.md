@@ -6,14 +6,15 @@ Document-bound events also carry `revision`, and an agent's event posted from a 
 session carries that session's `agent` and `session`. An `id` is an opaque string
 matched whole. The append door mints eight hex characters unique within the page's log,
 so an id is not a global identifier. Each kind's record schema is `$events.kinds` in
-`../../browser/registry.json`; this table says what each kind means:
+`../../browser/runtime/kernel-registry.json`; this table says what each kind means:
 
 | Kind                                         | Author          | Door                                                                            | Fields                                                                                                                                                                 | Meaning                                                                                                                                                                                       |
 | -------------------------------------------- | --------------- | ------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| <a id="kind-comment"></a>`comment`           | user or agent   | `POST /api/event`, `leaf thread create`                                         | `text`, `drawing` or `token`; optional `anchor`, `suggestion`, `about: "design"`, `title`, `markup` (CLI only)                                                         | opens a thread; with `token`, puts a reaction mark on the anchor                                                                                                                              |
+| <a id="kind-comment"></a>`comment`           | user or agent   | `POST /api/event`, `leaf thread create`                                         | `text`, `drawing` or `token`; optional `anchor`, `suggestion`, `about: "design"`, `title`, `viewing` (browser), `markup` (CLI only)                                    | opens a thread; with `token`, puts a reaction mark on the anchor                                                                                                                              |
 | <a id="kind-reply"></a>`reply`               | user or agent   | `POST /api/event`, `leaf thread reply`                                          | `parent`; `text` or `token`; `responds` on an agent's answer; `todo`, `markup` and a replacement or null `anchor` (CLI only)                                           | a message in the thread of `parent`; an agent's answer settles the update `responds` names, without closing the thread; an agent reply may also move or detach the thread                     |
 | <a id="kind-edit"></a>`edit`                 | user or agent   | `POST /api/event`, `leaf thread edit`                                           | `message`, `text`; `base` (browser)                                                                                                                                    | replaces the text of a message its own author wrote; the original stays in the log ("Messages")                                                                                               |
 | <a id="kind-read"></a>`read`                 | user            | `POST /api/event`                                                               | `messages: [{message, version}]`                                                                                                                                       | records the agent-content versions the user has read; bookkeeping ("Read state")                                                                                                              |
+| <a id="kind-seen"></a>`seen`                 | user            | `POST /api/event`                                                               | `revision`                                                                                                                                                             | records the newest live revision a tab showed the user, as they leave; bookkeeping ("Read state")                                                                                             |
 | <a id="kind-thread_title"></a>`thread_title` | agent           | `leaf thread edit --title`, or Leaf's own title request (`thread_titles.py`)    | `thread`, `title`                                                                                                                                                      | names a thread; the latest title wins                                                                                                                                                         |
 | <a id="kind-reanchor"></a>`reanchor`         | page            | revision activation                                                             | `thread`, `revision`, `anchor: {section} or null`                                                                                                                      | moves an open thread whose passage or visual part no longer resolves to its surviving section, or detaches it, adding no message ("Anchors")                                                  |
 | <a id="kind-summary"></a>`summary`           | agent           | `leaf thread summarize`                                                         | `thread`, `from`, `through`, `text`; optional `label`                                                                                                                  | folds a contiguous range of a thread under optional Markdown; the originals stay revealable                                                                                                   |
@@ -25,8 +26,8 @@ so an id is not a global identifier. Each kind's record schema is `$events.kinds
 | <a id="kind-receipt"></a>`receipt`           | page            | delivery receipt (`delivery.receive_batch`)                                     | `through`, the seq the receipt confirms                                                                                                                                | the complete delivery of the log through `through` reached its durable consumer; the greatest `through` is the acknowledgement cursor                                                         |
 | <a id="kind-note"></a>`note`                 | agent           | `leaf page stamp`                                                               | `version`, `revision`, changelog `text`, `restated`, `settles` (the `report` ids it answers and the `todo` ids its `--completes` ends)                                 | maps a public version to an immutable revision, naming the decisions it takes back                                                                                                            |
 | <a id="kind-error"></a>`error`               | page            | the runtime                                                                     | `text`                                                                                                                                                                 | a failure the page reported in front of the user; the agent hears it as a report                                                                                                              |
-| <a id="kind-todo"></a>`todo`                 | agent           | `leaf task create`, or a reply's `todo` (`leaf thread reply --todo`)            | `owner` (`agent`, or `user` with `--on user`); `subject` (a widget, another element, or the page); `title`; server-stamped `revision` on a widget to-do                | opens work the agent owes, or a to-do on the user (`todos.py`)                                                                                                                                |
-| <a id="kind-todo_end"></a>`todo_end`         | agent or user   | `leaf task end`, or a to-do's Done (`POST /api/event`)                          | `todo`, an open to-do's id or a question's obligation id; `outcome` (`done`, `failed` or `dropped`); optional `detail`                                                 | ends a to-do, or retires a question asked in words without answering it (`todos.py`)                                                                                                          |
+| <a id="kind-todo"></a>`todo`                 | agent           | `leaf task create`, or a reply's `todo` (`leaf thread reply --todo`)            | `subject` (a thread, a widget, another element, or the page); `title`; server-stamped `revision` on a widget to-do                                                     | opens work the agent owes (`todos.py`)                                                                                                                                                        |
+| <a id="kind-todo_end"></a>`todo_end`         | agent           | `leaf task end`                                                                 | `todo`, an open to-do's id or a question's obligation id; `outcome` (`done`, `failed` or `dropped`); optional `detail`                                                 | ends a to-do, or retires a question asked in words without answering it (`todos.py`)                                                                                                          |
 | <a id="kind-start"></a>`start`               | agent           | `leaf task start`, or progress posted to an owed update                         | `item`, an owed update's event id or an open to-do's; `text`, the status line; `turn`                                                                                  | takes the item in hand until it ends or a `status` follows; the newest start on an item replaces the one before (`todos.py`)                                                                  |
 | <a id="kind-status"></a>`status`             | agent           | `leaf page open` and `leaf page close`, or the website harness at a turn's edge | `state` (`waiting` or `idle`)                                                                                                                                          | declares the page open for feedback or closed, and puts down every earlier start (`activity.declaration`, `todos.item_starts`)                                                                |
 | <a id="kind-plan"></a>`plan`                 | agent           | `leaf task plan`                                                                | `steps`, an outline of `{depth, title, state}` or `{depth, item}`                                                                                                      | replaces the agent's plan, which arranges to-dos and obligations without owning them (`plans.py`)                                                                                             |
@@ -41,8 +42,9 @@ write it from a quote read out of the authored HTML through `leaf.passages`, so 
 write only anchors the file confirms (`validation.md`, "Passages").
 
 Projected data has no authored text to quote, so a selection on it names `datum`, the
-rendering key within its section, and, where the projection names an external `x-data`
-input, `source` and `source_revision`, the value's revision when selected. The door
+rendering key within its section, with `prefix` and `suffix` taken from the datum's own
+words, and, where the projection names an external `x-data` input, `source` and
+`source_revision`, the value's revision when selected. The door
 checks that the section binds that source, and admits an older revision as a comment on
 a value since replaced. `identity` names a subject the emitter knows persists across
 source replacements. `visual` names a declared part of a picture, and `part` the control
@@ -59,6 +61,15 @@ move never invents a passage: it falls back to the surviving section or detaches
 reply can choose a new passage. `events.build_threads` reads the latest reply
 transition or `reanchor` as the thread's location and keeps the old anchor as
 `rewritten_from` or `detached_from`; the opening message keeps its quote.
+
+A comment the user writes in the panel with nothing selected is about the whole page and
+has no anchor. The browser records with it `viewing`, the ids of the addressable
+elements around the words and pictures on the user's screen as they sent it, in page
+order (`runtime/reading-place.js`, `sectionsInView`), so that on a page showing one
+section at a time the agent can tell which section "this one" meant. Page chrome the
+author gave an id, such as a header, is among them. The thread still stands on the
+whole page, since the user chose to comment there; `viewing` records only what they saw.
+The browser read the ids off the rendered page, so the door checks only their shape.
 
 A `drawing` is up to 32 freehand strokes on a comment, and may be its only content. The
 browser anchors it on the element its first stroke starts on or nearest, and records
@@ -80,11 +91,19 @@ and the anchor moves that depend on it land together.
 
 ## Undo
 
-The user may withdraw a resolve, unresolve, action, or Done on a to-do (the
-kinds `$events.kinds` marks `undoable`), and a reaction while nothing has answered it
-and its thread is unresolved. Spoken messages cannot be withdrawn. An undo cannot
-itself be undone. The door refuses an `undoes` naming anything but an unwithdrawn
-gesture of the user's own (`events.UndoReading`).
+The user may withdraw a comment or reply, a reaction included, a resolve, unresolve,
+action or edit (the kinds `$events.kinds` marks `undoable`), however far the agent has
+got with it. A withdrawn message leaves every reading, except where a message or to-do
+still in force stands on it: there it keeps its place with no words and no mark,
+`withdrawn` naming the undo and the words or mark it was sent with, and the browser
+draws it as Deleted, so what answered it keeps its context (`events.build_threads`). It
+is no turn: nothing is owed it, it reopens no thread and its rewrites ask for nothing,
+while an answer to it still settles the messages before it. The undo key reaches a
+message only while it is the user's newest gesture; the user deletes an older one by
+rewriting it to no words, which leaves it in place ("Messages"), and withdrawing that
+edit gives the message its words back. An undo cannot itself be undone. The door refuses
+an `undoes` naming anything but an unwithdrawn gesture of the user's own
+(`events.UndoReading`).
 
 `undo` names its gesture and nothing else. It withdraws rather than deletes: the event
 stays in the log and every fold skips it, so the page shows what the revision says
@@ -93,13 +112,16 @@ author's side. A widget's `render()` paints a withdrawal like any other change,
 keeping the widget and its independent children.
 
 The page's undo key takes back the user's newest gesture or nothing: a newer gesture it
-cannot take back, such as a sent reply, ends the walk, while bookkeeping and gestures
-already withdrawn do not. It says what it would take back and how long ago, in every tab
+cannot take back, such as a move a later revision's markup now places, ends the walk,
+while bookkeeping and gestures already withdrawn do not. It says what it would take back and how long ago, in every tab
 and after a reload, so a gesture made weeks ago is not taken back unseen. Where the
-gesture's thread or element is out of view, or the agent has picked the gesture up, the
-first press opens that place and only the next press, with nothing pressed between,
-withdraws it; showing writes nothing. The served undo list marks `picked_up` each entry
-a delivery handed into an agent's turn (`delivery.opened_input_ids`).
+gesture's thread, message or element is out of view, the first press opens that place
+and only the next press, with nothing pressed between, withdraws it; showing writes
+nothing. What the agent has received or done decides nothing here, so `z` works the same
+before and after the agent reads a gesture. Either way the press leaves the user at that place:
+a gesture whose own landing has just carried the user off it, such as resolving a
+thread, is taken in one press that returns them to its thread, while they have not
+acted elsewhere since (`runtime/undo.js`).
 `runtime/undo.js` names each gesture, and the served list words an action at its head
 (`GestureWords.gesture`). An exact control, such as a widget's Undo, may withdraw an
 older gesture it names, and may withdraw an action whose POST has not returned: the
@@ -121,11 +143,16 @@ session writes neither field. Every reading
 names an agent's event through `schema.agent_name`, and the browser shows that name as
 served.
 
-Admission stamps `attention`, whether the event changes what is owed: obligations or
-to-dos on the user, pending answers, and work the agent has in hand and its inputs. `workflows.obligation_reading` compares those readings before and
+Admission stamps `attention` when the event changes obligations, pending answers,
+work the agent has in hand and its inputs, or widget input whose active `x-state`
+verb declares `attention: true` (`$state`). `workflows.attention_reading` compares
+those readings before and
 after the gesture, and the decision survives later replies, versions and to-do endings,
 so a cancellation delivered to the agent stays input after the work it withdrew ends.
-Reports and errors always carry attention, and agent messages never do. A user's edit
+Reports and errors always carry attention, and agent messages never do. An undo carries
+it whenever the gesture it withdraws did: the agent was told of that gesture, so it is
+told of the withdrawal, whether it has yet to read the gesture or has already acted on
+it. A user's edit
 carries it as a reply does; read marks, and closing or reopening an answered thread that
 holds no obligation, do not. `leaf wait`, delivery, pickup, the Stop guard and the idle
 gate read the field through `service.requires_agent_attention`, and the pending count
@@ -141,7 +168,7 @@ the panel and the transcript say when the agent did.
 transaction's lease. A retry whose `attempt` was accepted gets that record back
 without repeating the gesture, and an `attempt` the log holds for a different command
 is refused (HTTP 409). Otherwise admission reads the vocabulary the event's revision
-captured, so re-vendoring cannot reinterpret a document the user acted on; checks the
+captured, so `page init` cannot reinterpret a document the user acted on; checks the
 command against its kind's record schema before any gate reads its fields; allocates
 the id; runs the kind's gates against the page and the current log; derives `meaning`
 and `attention`; and validates the finished record against its stored schema.
@@ -235,9 +262,14 @@ What each thread command does for the user, and when an agent uses it, is
 Reading is separate from whose turn it is, and answers nothing. Each agent content
 version, a message's own id and then each `edit` id, is unread until a `read` event
 names it or the user acts in the thread after it; `read_state.py` owns which acts
-count. The result is each thread's `unread`, in browser state and `page state`. Read
-records hold across tabs and revisions and never enter agent delivery. A page has one
-user for its lifetime, so a `read` names no account.
+count. The result is each thread's `unread`, in browser state and `page state`. A
+`seen` event does the same for the page: it names the newest live revision a tab showed
+the user while they were there (visible and focused), posted as they leave it, and the
+newest one named is the served state's `seen`. A
+hosted copy serves no `seen`, since its reader is not the page's
+user. Read records hold across tabs
+and revisions and never enter agent delivery. A page has one user for its lifetime, so
+a `read` or `seen` names no account.
 
 ### Turns
 
@@ -265,9 +297,8 @@ to a page obligation, each carrying `failure`, a harness-owned code. Only the ha
 writes `failure`, and the panel draws such a reply as a receipt that answers nothing.
 
 A widget with a local `x-awaits` obligation in a reply's markup declares that obligation
-itself. Frozen in the reply, it stays open until `x-awaits.answered` holds, or for a
-question asked in words (`x-awaits.reply`) until the user's next message in the thread
-or a reaction there whose token settles it. Actions on it before then are not handed
+itself. Frozen in the reply, it stays open until `x-awaits.answered` holds. Actions on
+it before then are not handed
 over: they carry no receipt and need no reply. The action that answers carries the
 receipt and hands the turn to the agent, and undoing it returns the obligation to the
 user and removes the reply obligation. An action on a frozen widget that answers no
@@ -280,17 +311,22 @@ to-do a reply promised (`obligations.thread_obligation_readings`). A thread anch
 a page obligation does the same, so an obligation the user has commented on leaves their
 On me list while the reply owed to the comment stands on the agent's, and a promised
 to-do keeps that obligation the agent's even after the thread is resolved
-(`obligations.anchors_with_agent`). A question asked in words (`obligation: true` or
-`x-awaits.reply`) is answered by that
-message instead, along with every open question before it, or by a reaction whose token
+(`obligations.anchors_with_agent`). A question asked in words (`obligation: true`)
+is answered by that message instead, along with every open question before it, or by a reaction whose token
 declares `settles` on the message holding it. Neither answer resolves the thread, and
 the agent's `todo_end` can retire a question unanswered (`obligations.settle_by_words`).
+The agent's `todo_end` also retires a frozen widget's question the user answered in
+words, since no revision can write that widget's state; the delivery of the user's
+reply lists such questions up its thread in `waiting` (`obligations.waiting_in_thread`).
+A message asks by its words or by a widget in its markup, not both: only words answer
+`obligation: true`, so beside a widget it would outlast the user's pick, and
+`thread create` and `thread reply` refuse the pair.
 
 `work_reading.WorkReading.all_obligations` is the one inventory of obligations: page
 widgets', frozen widgets', message requests and user-owned tasks, with a record beside
 them for each update the user handed over (`workflows.handed_over`), read after the
 widget obligations it depends on. `obligations.py` owns a record's statuses
-and its next actor. `$keys["x-awaits"]` in the kernel registry says when a widget's
+and its next actor. `$keys["x-awaits"]` in `browser/registry.json` says when a widget's
 obligation exists and what its id is, and `Obligation` in
 `served_state/state.schema.json` lists the served fields. `obligations.collection`
 selects `all`, `user` and `unanswered` from it. To-dos are separate records, and no
@@ -304,8 +340,15 @@ to-do is made from an obligation.
   to revise. Readings show the latest text on the original message, labelled edited,
   and the message's `edited` names that edit and the text it replaced (`was`). Text the
   message already says is refused. A browser's edit names its `base`, the id of the
-  message or of its latest edit, and lands only while that is still the latest, so a
-  tab cannot silently replace words another tab has since rewritten.
+  message or of its latest edit still in force, and lands only while that is still the
+  latest, so a tab cannot silently replace words another tab has since rewritten. A
+  withdrawn edit no longer stands: the message says what its latest edit still in force
+  says, else its own words. A message the user took back takes no edit.
+- An `edit` whose `text` is empty deletes the message. Readings keep it in its place,
+  with empty `text` and `edited.was` holding what it said, since answers to it still
+  stand and name it; the browser draws it as Deleted, and offers no rewrite of it.
+  A user's deletion is a turn like any edit, and its answer says what the deletion
+  changes. A message carrying a drawing keeps the drawing.
 - An agent's `edit` corrects its words and hands nothing over. A user's `edit` is a
   turn of its own (`events.build_threads`, `revisions`): it reopens a resolved thread
   and is owed an answer, which names the edit as `responds` and the rewritten message
@@ -313,8 +356,8 @@ to-do is made from an obligation.
   the messages (`events.exchange`).
 - A comment or reply's `title` names its thread atomically with the message, and
   leaves an existing name in place. `thread_title` names or renames a thread with a
-  single line of plain text of at most 80 characters. An unnamed thread has a null
-  title.
+  single line of plain text no longer than its registry `title` allows
+  (`registry.kernel.title_limit`). An unnamed thread has a null title.
 - `summary` covers an inclusive `from`–`through` range of at least two spoken turns in
   one thread; a reaction may lie inside it but not at an endpoint. `text` may be empty
   and `label` defaults to “Earlier discussion”. `events.active_summaries` says which
@@ -328,10 +371,10 @@ to-do is made from an obligation.
 - An agent `reply` may move its thread with an `anchor` captured against its revision,
   or detach it with a null anchor, in the same append as the message explaining it. A
   thread whose opening comment `holds` a command goal cannot move or detach.
-- A body is Markdown, stored as typed and rendered by the page's vendored runtime, so
+- A body is Markdown, stored as typed and rendered by the serving Leaf's runtime, so
   the renderer and the panel's styles version together; raw HTML shows as text. A
   widget rides the `markup` field, which only `leaf thread create` and the reply commands
-  accept, validated against the vendored registry. The door refuses a Markdown link or
+  accept, validated against the page's registry. The door refuses a Markdown link or
   image, in text or markup, to a `/media/…` path the page directory cannot answer.
 - A raster image pasted into a browser text box is stored first as page media, and the
   draft holds an ordinary Markdown image at `/media/<digest>.<ext>`; no draft or event

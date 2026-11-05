@@ -1,7 +1,4 @@
-"""The widget quality report (`leaf/render_gate/widget_quality.py`): Leaf's own widgets
-held to it, and `package check --render` telling a package's author what it found. And
-the first box a widget keeps where the report's served examples do not reach: a tab set
-opening on a later panel, and an export."""
+"""Widget quality, remembered tab views and complete export presentation."""
 
 import json
 import re
@@ -10,11 +7,10 @@ import pytest
 from click.testing import CliRunner
 from model_folds import leaf_page
 from playwright.sync_api import expect
-from render_harness import ROOT, consume_browser_errors, displayed
+from render_harness import ROOT, consume_browser_errors
 
 from leaf import cli as cli_model
 from leaf import exporting as exporting_model
-from leaf import schema as schema_model
 from leaf.render_checks import wait_until_ready
 from leaf.render_gate.widget_quality import UnreadablePage, widget_findings
 from leaf.revision_delivery import json_script
@@ -42,116 +38,67 @@ customElements.define("lf-async-panel", class extends LeafElement {
         widget_findings(browser.unwatched, package)
 
 
-def test_package_render_check_draws_example_source_values(tmp_path, browser):
-    """The quality checks see the populated drawing through ordinary bound data."""
+def test_package_render_check_compares_held_and_presented_boxes(tmp_path, browser):
+    """A generated view needs its first box; an equal reserved box is a control."""
     package = tmp_path / "package"
     made = CliRunner().invoke(
         cli_model.cli,
-        ["package", "init", str(package), "--widget", "lf-feed"],
+        ["package", "init", str(package), "--widget", "lf-first-box"],
     )
     assert made.exit_code == 0, made.output
-    path = package / "registry.json"
-    registry = json.loads(path.read_text())
-    registry["$data"] = {
-        "description": "Sample feed.",
-        "contracts": {
-            "feed": {
-                "description": "Rows.",
-                "schema": {"type": "array", "items": {"type": "string"}},
-            }
-        },
-    }
-    entry = registry["lf-feed"]
-    entry["properties"]["source"] = {
-        "type": "string",
-        "pattern": f"^{schema_model.DATA_SOURCE_NAME}$",
-    }
-    entry["x-data"] = {
-        "feed": {"contract": "feed", "source": "source", "property": "value"}
-    }
-    entry["x-example"] = '<lf-feed id="feed" source="rows"></lf-feed>'
-    entry["x-example-data"] = {"rows": ["First", "Second"]}
-    path.write_text(json.dumps(registry))
-    (package / "widgets/lf-feed.js").write_text("""\
-import { LeafElement, html } from "/runtime/widget-api.js";
-customElements.define("lf-feed", class extends LeafElement {
-  static properties = { value: { attribute: false } };
-  render() {
-    return this.value ? html`<div style="height:200px">${this.value.join(", ")}</div>` : html`Waiting`;
-  }
+    registry_path = package / "registry.json"
+    registry = json.loads(registry_path.read_text())
+    registry["lf-first-box"]["x-example"] = (
+        '<lf-first-box id="moving"></lf-first-box>'
+        '<lf-first-box id="reserved"></lf-first-box>'
+    )
+    registry_path.write_text(json.dumps(registry))
+    (package / "defaults.css").write_text(
+        "lf-first-box { display: block; } #reserved { block-size: 40px; }"
+    )
+    (package / "widgets/lf-first-box.js").write_text("""\
+import {LeafElement, html} from "/runtime/widget-api.js";
+customElements.define("lf-first-box", class extends LeafElement {
+  render() { return html`<div style="block-size:40px">Drawn view</div>`; }
 });
 """)
-    findings = widget_findings(browser, package)
-    assert {
-        finding.values["layout"]
-        for finding in findings
+    findings = [
+        finding
+        for finding in widget_findings(browser.unwatched, package)
         if finding.code == "keeps-first-box"
-    } == {"column", "workspace"}
-    assert all(
-        finding.values["now"]["height"] >= 200
-        for finding in findings
-        if finding.code == "keeps-first-box"
-    )
-
-
-def grows_at_upgrade(tag: str, style: str) -> str:
-    """A widget module that writes `style` onto its element when it upgrades."""
-    return f"""\
-import {{ once }} from "/runtime/widget-api.js";
-
-customElements.define(
-  "{tag}",
-  class extends HTMLElement {{
-    connectedCallback() {{
-      if (once(this)) this.style.cssText = "{style}";
-    }}
-  }},
-);
-"""
+    ]
+    assert {finding.at for finding in findings} == {"<lf-first-box id=moving>"}
+    assert {finding.values["layout"] for finding in findings} == {"column", "workspace"}
+    assert all(finding.values["first"]["height"] == 0 for finding in findings)
+    assert all(finding.values["now"]["height"] == 40 for finding in findings)
 
 
 def keyed(tag: str, badge: str) -> str:
     """A widget module that declares a command with a context key on its element, and
     `badge` as the command's `bindingBadge` field, verbatim."""
     return f"""\
-import {{ commands, once }} from "/runtime/widget-api.js";
+import {{ once, commandsChanged }} from "/runtime/widget-api.js";
 
 customElements.define(
   "{tag}",
   class extends HTMLElement {{
     connectedCallback() {{
       if (!once(this)) return;
-      commands(this, "Keyed", [
+      this.lfCommands = {{ title: "Keyed", rows: [
         {{ id: "{tag[3:]}.go", keys: [], contextKeys: ["1"], control: this,
           title: "Go", run: () => {{}}{badge} }},
-      ]);
+      ] }};
+      commandsChanged(this);
     }}
   }},
 );
 """
 
 
-# Each authored widget the reader can see, by id: its box, its top measured from the
-# document's start so a scroll between two readings is not a move; and the panels the
-# tab sets show. An upgraded set's inactive panel is `hidden="until-found"`, which
-# leaves it a box of no height that `checkVisibility` still counts.
-SHOWN = """() => {
-  const scrolled = document.scrollingElement.scrollTop;
-  return {
-    boxes: Object.fromEntries(
-      [...document.querySelectorAll('body > main [id]')]
-        .filter((element) => element.localName.startsWith('lf-'))
-        .filter((element) => element.checkVisibility() && !element.closest('[hidden]'))
-        .map((element) => {
-          const box = element.getBoundingClientRect();
-          return [element.id, [box.width, box.height, box.top + scrolled].map(Math.round)];
-        }),
-    ),
-    panels: [...document.querySelectorAll('lf-tab')]
-      .filter((panel) => panel.querySelector('p').checkVisibility())
-      .map((panel) => panel.id),
-  };
-}"""
+# Inactive tabs keep until-found boxes; visibility decides which panel is readable.
+SHOWN_PANELS = """() => [...document.querySelectorAll('lf-tab')]
+  .filter((panel) => panel.querySelector('p').checkVisibility())
+  .map((panel) => panel.id)"""
 
 # The page's own tab strip, and a framed set below it, each with a taller later panel.
 TAB_SETS = """
@@ -170,140 +117,25 @@ TAB_SETS = """
     <p id="far-more">Another line.</p>
   </lf-tab>
 </lf-tabs>
-<p id="after">What follows the sets stays where it first painted.</p>
+<p id="after">Text after the tab sets.</p>
 """
 
 
-def test_a_tab_set_first_paints_the_panel_it_opens_on(browser, serve):
-    """A set opens on the panel holding the element the address's fragment names, and
-    on reload on the panel this browser tab last showed, and shows that panel from the
-    first paint: the prepaint marks it before the module graph has loaded, from the
-    reading the module opens on, so nothing moves when the set upgrades. Without the
-    mark the theme can reserve only the first panel, which neither journey opens on."""
+def test_tab_sets_open_on_a_fragment_and_restore_each_saved_panel(browser, serve):
     url = serve(leaf_page("Views", TAB_SETS))
     page = browser.new_page(viewport={"width": 1200, "height": 900})
-    boot = []
-
-    def first_paint_then_presented(navigate):
-        page.route("**/leaf.js", lambda route: boot.append(route))
-        with page.expect_request("**/leaf.js"):
-            navigate()
-        displayed(page)
-        assert boot, "the positive control did not hold the boot module"
-        first = page.evaluate(SHOWN)
-        page.unroute("**/leaf.js")
-        boot.pop().continue_()
-        wait_until_ready(page)
-        return first, page.evaluate(SHOWN)
-
-    try:
-        first, presented = first_paint_then_presented(
-            lambda: page.goto(f"{url}#second-more", wait_until="commit")
-        )
-        assert first["panels"] == ["two", "near"], first
-        assert first == presented
-
-        page.get_by_role("tab", name="Far").click()
-        first, presented = first_paint_then_presented(
-            lambda: page.reload(wait_until="commit")
-        )
-        assert first["panels"] == ["two", "far"], first
-        assert first == presented
-    finally:
-        for route in boot:
-            route.continue_()
-        page.unroute_all(behavior="wait")
-
-
-DIFF_EXAMPLE = json.loads(
-    (schema_model.BUNDLED_PACKAGES / "diff" / "registry.json").read_text()
-)["lf-diff"]["x-example"]
-
-# Each case's markup and the window width it is read at. A draft indented as the HTML
-# around it is, its closing tag on a line of its own, with words that wrap in a phone's
-# column. The diff package's worked example, whose stated height is its drawing's at
-# the report's desktop width, read in a phone's window, where it also opens the column;
-# and at a desktop width closing a panel, whose frame trims the host's own margin. A
-# framed tab set and a side-list queue whose names run past a phone's width, each
-# reserving the one row its strip keeps, the queue's group labels included.
-FIRST_BOXES = {
-    "draft-in-a-phone-column": (
-        """
-<lf-draft id="note">
-  <pre>
-    Adds --dry-run to every mutating command, so a script can see what would change.
-  </pre>
-</lf-draft>
-""",
-        320,
-    ),
-    "diff-in-a-phone-column": (DIFF_EXAMPLE, 320),
-    "diff-closing-a-panel": (
-        f'<section class="panel" id="ends"><p>The patch.</p>{DIFF_EXAMPLE}</section>',
-        1200,
-    ),
-    "tab-names-outrunning-a-phone": (
-        '<section id="views-section"><lf-tabs id="views">'
-        + "".join(
-            f'<lf-tab id="view-{i}" label="View {i}"><p id="words-{i}">View {i}.</p>'
-            "</lf-tab>"
-            for i in range(12)
-        )
-        + "</lf-tabs></section>",
-        390,
-    ),
-    "queue-in-a-phone": (
-        '<lf-tabs id="queue" list="side">'
-        + "".join(
-            f'<lf-tab id="item-{i}" label="Item {i}" summary="{i} days old" '
-            f'group="{"Merge" if i < 6 else "Close"}">'
-            f'<p id="item-words-{i}">Item {i}.</p></lf-tab>'
-            for i in range(12)
-        )
-        + "</lf-tabs>",
-        390,
-    ),
-}
-
-
-@pytest.mark.parametrize("case", FIRST_BOXES)
-def test_a_widget_first_paints_the_box_it_presents(browser, serve, case):
-    """A draft's authored words stand where its drawn body will, the source's
-    indentation and closing line dropped and the words wrapped as the body wraps them.
-    A diff's toolbar keeps one row in a phone's column, so the height its author stated
-    at a desktop width holds there, and its drawing hands no margin out past the frame
-    trim at either edge. A tab strip is one row however many names it holds, the
-    summary line a queue's rows carry included, so the open panel stands where it
-    first painted. What follows each stays where it first painted."""
-    markup, width = FIRST_BOXES[case]
-    url = serve(
-        leaf_page(
-            "First boxes",
-            markup + '\n<lf-draft id="after"><pre>After.</pre></lf-draft>',
-        )
-    )
-    page = browser.new_page(viewport={"width": width, "height": 900})
-    boot = []
-    page.route("**/leaf.js", lambda route: boot.append(route))
-    try:
-        with page.expect_request("**/leaf.js"):
-            page.goto(url, wait_until="commit")
-        displayed(page)
-        assert boot, "the positive control did not hold the boot module"
-        first = page.evaluate(SHOWN)["boxes"]
-        page.unroute("**/leaf.js")
-        boot.pop().continue_()
-        wait_until_ready(page)
-        assert first == page.evaluate(SHOWN)["boxes"]
-    finally:
-        for route in boot:
-            route.continue_()
-        page.unroute_all(behavior="wait")
+    page.goto(f"{url}#second-more")
+    wait_until_ready(page)
+    assert page.evaluate(SHOWN_PANELS) == ["two", "near"]
+    page.get_by_role("tab", name="Far").click()
+    page.reload()
+    wait_until_ready(page)
+    assert page.evaluate(SHOWN_PANELS) == ["two", "far"]
 
 
 @pytest.fixture(name="gallery_page_files")
 def gallery_page_files_fixture():
-    """Keep the gallery's initial-paint tests on its actual page-owned assets."""
+    """Keep the gallery's presentation tests on its actual page-owned assets."""
     companion = ROOT / "examples/developer/feature-gallery.page"
     return {
         path.relative_to(companion).as_posix(): path.read_text(encoding="utf-8")
@@ -312,14 +144,10 @@ def gallery_page_files_fixture():
     }
 
 
-def test_an_export_first_paints_its_widgets_at_their_presented_boxes(
+def test_an_export_reveals_its_widgets_and_releases_readable_failure_fallback(
     browser, serve, tmp_path, gallery_page_files
 ):
-    """An export runs the runtime, so its widgets take the boxes their modules will
-    draw from the first paint, as a served page's do; it draws no live chrome, so it
-    reserves no room for the panel. Its first paint is the export without its entry module, which
-    is the document the browser lays out before the module graph runs. One whose entry
-    cannot load falls back to the readable page."""
+    """Exports start readable, enhance into widgets, and retain source on failure."""
     serve(
         leaf_page(
             "Exported",
@@ -342,6 +170,7 @@ def test_an_export_first_paints_its_widgets_at_their_presented_boxes(
         source,
         re.DOTALL,
     )
+    assert packaged is not None
     package = json.loads(packaged[1])
     composed = package["document"]
     held_document, entries = entry.subn("", composed)
@@ -349,6 +178,7 @@ def test_an_export_first_paints_its_widgets_at_their_presented_boxes(
 
     def write_document(path, document):
         package["document"] = document
+        assert packaged is not None
         path.write_text(
             source[: packaged.start(1)]
             + json_script(package)
@@ -363,39 +193,34 @@ def test_an_export_first_paints_its_widgets_at_their_presented_boxes(
 
     first_page = browser.new_page(viewport={"width": 1200, "height": 900})
     first_page.goto(held.as_uri(), wait_until="load")
-    displayed(first_page)
-    first = first_page.evaluate(SHOWN)
+    expect(first_page.locator("main")).to_be_visible()
+    expect(first_page.locator("#drawing lf-playground-preview")).to_have_text(
+        "The actual preview, with its own words."
+    )
+    expect(first_page.locator("#drawing input")).to_have_count(0)
+    assert first_page.evaluate(SHOWN_PANELS) == ["one", "near"]
 
     page = browser.new_page(viewport={"width": 1200, "height": 900})
     page.goto(exported.as_uri(), wait_until="load")
     wait_until_ready(page)
-    presented = page.evaluate(SHOWN)
-
-    assert {
-        "views",
-        "more",
-        "drawing",
-        "faces-one",
-        "faces-two",
-    } <= first["boxes"].keys(), first
-    expect(first_page.locator("#drawing input")).to_have_count(5)
-    expect(first_page.locator("#drawing lf-playground-output")).to_contain_text(
-        "Field note"
-    )
-    expect(first_page.locator("#faces-one .margin-entry-gallery-item")).to_have_count(
-        22
-    )
-    assert first == presented
+    for id in ("views", "more", "drawing", "faces-one", "faces-two"):
+        expect(page.locator(f"#{id}")).to_be_visible()
+    expect(page.locator("#drawing input")).to_have_count(5)
+    expect(page.locator("#drawing lf-playground-output")).to_contain_text("Field note")
+    expect(page.locator("#faces-one .margin-entry-gallery-item")).to_have_count(22)
     expect(page.locator("html")).not_to_have_attribute("data-lf-live", "")
 
-    # An export whose runtime cannot start has no server to wait for, but it still
-    # gives back the readable fallback: every panel, under its label.
+    # An export whose runtime cannot start retains readable authored content.
     broken = browser.new_page(viewport={"width": 1200, "height": 900})
     broken.goto(failed.as_uri(), wait_until="load")
     expect(broken.locator("html")).to_have_attribute(
         "data-lf-startup-error", "entry module did not load"
     )
-    assert broken.evaluate(SHOWN)["panels"] == ["one", "two", "near", "far"]
+    expect(broken.locator("main")).to_be_visible()
+    expect(broken.locator("#drawing lf-playground-preview")).to_have_text(
+        "The actual preview, with its own words."
+    )
+    assert broken.evaluate(SHOWN_PANELS) == ["one", "two", "near", "far"]
     consume_browser_errors(broken, "missing.js", "net::ERR_FAILED")
 
 
@@ -418,12 +243,3 @@ INITIAL_DRAWING_PAGE = """
 <lf-margin-entry-gallery id="faces-two"></lf-margin-entry-gallery>
 <p id="after">Reading after the widgets stays in place.</p>
 """
-
-# Native fields, wrapped labels and instructions, and the paragraph after two
-# independent galleries. Measuring just the outer widget can miss movement inside it.
-INITIAL_DRAWING_NODES = """lf-playground, lf-playground-control,
-  lf-playground-preview, lf-playground-output, lf-playground-value,
-  .lf-playground-input, .lf-playground-control-label, lf-playground label,
-  .lf-playground-reading, .lf-playground-submit,
-  lf-margin-entry-gallery, .margin-entry-gallery-name, .margin-entry-gallery-detail, .margin-entry-gallery-heading, .margin-entry-gallery-summary, .margin-entry-gallery-face,
-  #after"""

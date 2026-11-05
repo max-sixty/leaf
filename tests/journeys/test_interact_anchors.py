@@ -14,15 +14,13 @@ from interact_support import (
     check_findings,
     comment,
     decide,
+    declare_on_page,
     found,
     publish,
     published,
     stamp,
     state_json,
     suggested,
-)
-from model.test_interact_anchors import (
-    declare_part_prefixes,
 )
 
 from leaf import cli as cli_model
@@ -32,6 +30,16 @@ from leaf import files as files_model
 from leaf import structure as structure_model
 from leaf.events import build_threads
 from leaf.registry import storage as registry_storage
+
+
+def declare_part_prefixes(page_dir, *prefixes):
+    """Give the page's diagram part-id prefixes in place of its authored list."""
+    declare_on_page(
+        page_dir,
+        lambda registry: registry["lf-diagram"].update(
+            {"x-visual": {"prefixes": list(prefixes)}}
+        ),
+    )
 
 
 def test_a_visual_admits_the_parts_its_prefixes_begin(page_dir):
@@ -56,7 +64,7 @@ def test_a_visual_admits_the_parts_its_prefixes_begin(page_dir):
     refused = event_contracts_model.visual_anchor_error(
         {"anchor": {"section": "flow", "visual": "edge:B"}},
         {"flow": {"tag": "lf-diagram", "attrs": {"id": "flow"}}},
-        json.loads((page_dir / "registry.json").read_text()),
+        registry_storage.read_page_registry(page_dir).registry,
     )
     assert (refused.code, refused.values["declared"]["prefixes"]) == (
         "undeclared-visual",
@@ -66,7 +74,7 @@ def test_a_visual_admits_the_parts_its_prefixes_begin(page_dir):
         assert event_contracts_model.visual_anchor_error(
             {"anchor": {"section": "flow", "visual": unrenderable}},
             {"flow": {"tag": "lf-diagram", "attrs": {"id": "flow"}}},
-            json.loads((page_dir / "registry.json").read_text()),
+            registry_storage.read_page_registry(page_dir).registry,
         ), unrenderable
 
     # The file lists none of these parts, so markup cannot drop one; a declaration
@@ -511,3 +519,60 @@ def test_withdrawing_a_decision_does_not_veto_an_authored_replacement(page_dir):
         )
         == accepted
     )
+
+
+from interact_support import (
+    response_reference,
+)
+
+
+def test_a_comments_widget_markup_shares_one_id_universe_with_replies(page_dir):
+    """A Claude comment's markup lands in the panel exactly as a reply's does, so it
+    validates the same way and claims ids from the same pool."""
+    published(page_dir)
+    assert (
+        comment(
+            page_dir,
+            "--quote",
+            "Ship dark",
+            "--text",
+            "Pick:",
+            "--markup",
+            '<lf-ask id="q1-decision"><h3>Pick one</h3><lf-options id="q1" choose>'
+            '<lf-option id="q1-a"><strong>A</strong>'
+            '<span id="thread-label">Label</span></lf-option></lf-options></lf-ask>',
+        ).exit_code
+        == 0
+    )
+    append_carried_log_record(
+        page_dir, {"kind": "comment", "id": "c1", "author": "user", "text": "hm"}
+    )
+    clash = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "thread",
+            "reply",
+            "--done",
+            response_reference(page_dir, "c1"),
+            "--text",
+            "See:",
+            "--markup",
+            '<lf-diagram id="q1"><pre>\ngraph LR\n  A --> B\n</pre></lf-diagram>',
+        ],
+    )
+    assert clash.exit_code != 0 and "q1" in clash.output
+
+    plain_clash = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "thread",
+            "reply",
+            "--done",
+            response_reference(page_dir, "c1"),
+            "--text",
+            "See:",
+            "--markup",
+            '<lf-diagram id="thread-label"><pre>graph LR\n  A --> B</pre></lf-diagram>',
+        ],
+    )
+    assert plain_clash.exit_code != 0 and "thread-label" in plain_clash.output

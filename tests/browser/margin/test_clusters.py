@@ -46,6 +46,7 @@ from leaf import render_checks as render_checks_model
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
+# A box the margin trace stands on (target-paint.js, `paintTrace`).
 
 COMMENT_ON_SECOND_SUGGESTION = {
     "kind": "comment",
@@ -277,9 +278,9 @@ def test_a_margin_entry_carries_a_suggestion_through_its_whole_lifecycle(
 ):
     """A suggestion's margin entry goes through each transition to a settled decision.
 
-    A pending user action and an external work claim are different facts, so the
-    journey holds each one long enough to prove that the former only dims until
-    confirmation while the latter keeps its workflow treatment.
+    A pending user action and an external work claim are different facts. The pending
+    action is drawn as its result, with a live Undo in the pressed entry's seat, while
+    the work claim keeps its workflow treatment.
     """
     page = open_page(browser, live_url(serve(MARGIN_ACTIONS_PAGE)))
     resized(page, 1440, 900)
@@ -298,16 +299,10 @@ def test_a_margin_entry_carries_a_suggestion_through_its_whole_lifecycle(
 
     page.route("**/api/event", reject)
     accept.click()
-    retry = workflow.get_by_role("button", name="Retry", exact=True)
-    cancel_failure = workflow.get_by_role("button", name="Cancel", exact=True)
-    expect(retry).to_have_attribute("data-lf-state", "failed")
-    expect(cancel_failure).to_have_attribute("data-lf-state", "failed")
-    expect(retry).to_have_attribute("data-lf-rank", "complete")
-    expect(cancel_failure).to_have_attribute("data-lf-rank", "escape")
-    expect(workflow).to_contain_text("Failed")
-    cancel_failure.click()
-    page.unroute("**/api/event")
+    expect(page.locator("#s-replace lf-old")).to_be_visible()
+    consume_browser_errors(page, http_error_console(400))
     expect(accept).to_have_attribute("data-lf-state", "idle")
+    page.unroute("**/api/event")
 
     held = []
     page.route("**/api/event", lambda route: held.append(route))
@@ -316,16 +311,12 @@ def test_a_margin_entry_carries_a_suggestion_through_its_whole_lifecycle(
     _until(page, lambda traffic: traffic.sends > sends, "held the acceptance")
     expect(accept).to_have_count(0)
     pending_undo = workflow.get_by_role("button", name=re.compile(r"^Undo accepting"))
-    expect(pending_undo).to_have_attribute("data-lf-state", "busy")
-    expect(pending_undo).to_have_attribute("aria-busy", "true")
+    expect(pending_undo).to_have_attribute("data-lf-state", "idle")
+    expect(pending_undo).not_to_have_attribute("aria-busy", "true")
+    expect(pending_undo).to_be_enabled()
     expect(page.locator("#s-replace lf-old")).to_be_hidden()
     expect(page.locator("#s-replace lf-new")).to_be_visible()
-    expect(pending_undo).to_have_css("opacity", "0.5")
-    expect(pending_undo).to_have_css("border-style", "solid")
-    expect(pending_undo).to_have_css("animation-name", "lf-runtime-4f3c2a8d-working")
-    assert pending_undo.evaluate(
-        "button => getComputedStyle(button, '::after').content === 'none'"
-    ), "sending must dim the control without adding a second status badge"
+    expect(pending_undo).to_have_css("opacity", "1")
 
     held[0].continue_()
     page.unroute("**/api/event")
@@ -333,7 +324,7 @@ def test_a_margin_entry_carries_a_suggestion_through_its_whole_lifecycle(
     expect(page.locator("#s-replace")).to_have_attribute("data-lf-state", "accept")
     # No passing notice repeats the receipt the margin shows.
     expect(panel_field(page)).not_to_have_attribute(
-        "placeholder", re.compile(r"^(Accepted|Rejected) .+ — sent")
+        "placeholder", re.compile(r"^(Accepted|Rejected) .+")
     )
     expect(workflow.locator(".lf-margin-receipt")).to_have_count(0)
     undo_button = workflow.get_by_role("button", name=re.compile(r"^Undo accepting"))
@@ -341,7 +332,7 @@ def test_a_margin_entry_carries_a_suggestion_through_its_whole_lifecycle(
     expect(undo_button).to_have_css("opacity", "1")
     action_shadow = undo_button.evaluate("node => getComputedStyle(node).boxShadow")
     assert action_shadow != "none"
-    sent = workflow.get_by_role("status", name=re.compile(r"^Sent for "))
+    sent = workflow.get_by_role("status", name=re.compile(r"^Queued for Claude for "))
     expect(sent).to_be_visible()
     expect(sent).to_have_attribute("data-lf-state", "idle")
     expect(sent).to_have_css("opacity", "1")
@@ -385,18 +376,38 @@ def test_a_margin_entry_carries_a_suggestion_through_its_whole_lifecycle(
         workflow.get_by_role("button", name=re.compile(r"^Undo accepting"))
     ).to_have_count(1)
 
-    consume_browser_errors(page, http_error_console(400))
 
-
-def test_keyboard_arrival_at_a_margin_entry_cluster_replaces_ellipsis_with_all_entries(
+def test_keyboard_arrival_at_a_cluster_shows_all_its_entries_for_the_keys_to_walk(
     browser, serve
 ):
-    """Keyboard arrival expands one target's peers instead of focusing its overflow.
+    """Keyboard arrival expands one target's peers instead of focusing its overflow, and
+    horizontal arrows move between the peers it reveals.
 
     The cluster stands in the margin layer, after the page's content in the tab
     order, so the arrival is a keyboard focus on its first stop there."""
     page = open_page(browser, serve(MARGIN_ENTRY_KEYBOARD_PAGE))
     resized(page, 1440, 900)
+    item = page.locator('[data-lf-margin-for="sug-refill"]')
+    accept = item.get_by_role("button", name=re.compile(r"Accept"))
+    reject = item.get_by_role("button", name=re.compile(r"Reject"))
+    page.locator("#before-margin-entries").focus()
+    page.keyboard.press("Tab")
+    accept.focus()
+
+    expect(accept).to_be_focused()
+    page.keyboard.press("ArrowRight")
+    expect(reject).to_be_focused()
+    # The walk says where it stands in the panel's empty field.
+    expect(panel_field(page)).to_have_attribute(
+        "placeholder", re.compile("Action 2 of 2")
+    )
+    page.keyboard.press("ArrowLeft")
+    expect(accept).to_be_focused()
+    expect(panel_field(page)).to_have_attribute(
+        "placeholder", re.compile("Action 1 of 2")
+    )
+    page.locator("#after-margin-entries").focus()
+
     page.evaluate(
         """async () => {
           const {contributionEntry, registerContribution} =
@@ -408,8 +419,6 @@ def test_keyboard_arrival_at_a_margin_entry_cluster_replaces_ellipsis_with_all_e
             })]}), activate: () => {}});
         }"""
     )
-    item = page.locator('[data-lf-margin-for="sug-refill"]')
-    accept = item.get_by_role("button", name=re.compile(r"Accept"))
     more = item.locator(":scope > .lf-margin-more")
     options = item.locator(":scope > .lf-margin-options")
     expect(more).to_be_visible()
@@ -420,7 +429,6 @@ def test_keyboard_arrival_at_a_margin_entry_cluster_replaces_ellipsis_with_all_e
     expect(accept).to_be_focused()
     expect(more).to_be_hidden()
     expect(options).to_be_visible()
-    reject = item.get_by_role("button", name=re.compile(r"Reject"))
     expect(reject).to_be_visible()
     page.keyboard.press("Tab")
     expect(reject).to_be_focused()
@@ -443,31 +451,6 @@ def test_keyboard_arrival_at_a_margin_entry_cluster_replaces_ellipsis_with_all_e
     expect(options).to_be_hidden()
 
 
-def test_left_and_right_walk_the_revealed_margin_entry_cluster(browser, serve):
-    """Horizontal arrows move between the peer margin entries revealed on keyboard entry."""
-    page = open_page(browser, serve(MARGIN_ENTRY_KEYBOARD_PAGE))
-    resized(page, 1440, 900)
-    item = page.locator('[data-lf-margin-for="sug-refill"]')
-    accept = item.get_by_role("button", name=re.compile(r"Accept"))
-    reject = item.get_by_role("button", name=re.compile(r"Reject"))
-    page.locator("#before-margin-entries").focus()
-    page.keyboard.press("Tab")
-    accept.focus()
-
-    expect(accept).to_be_focused()
-    page.keyboard.press("ArrowRight")
-    expect(reject).to_be_focused()
-    # The walk says where it stands in the panel's empty field.
-    expect(panel_field(page)).to_have_attribute(
-        "placeholder", re.compile("Action 2 of 2")
-    )
-    page.keyboard.press("ArrowLeft")
-    expect(accept).to_be_focused()
-    expect(panel_field(page)).to_have_attribute(
-        "placeholder", re.compile("Action 1 of 2")
-    )
-
-
 def test_settling_a_secondary_action_keeps_its_undo_in_the_cluster(browser, serve):
     """The settled content and its Undo stay in one engaged cluster."""
     page = open_page(browser, serve(SUGGESTION_PAGE))
@@ -482,7 +465,7 @@ def test_settling_a_secondary_action_keeps_its_undo_in_the_cluster(browser, serv
     expect(item.locator(":scope > .lf-margin-more")).to_be_hidden()
     expect(options).to_be_visible()
     expect(
-        options.get_by_role("status", name=re.compile(r"^Sent for "))
+        options.get_by_role("status", name=re.compile(r"^Queued for Claude for "))
     ).to_be_visible()
     expect(item.locator(".lf-margin-entry:visible")).to_have_count(2)
     expect(
@@ -539,22 +522,24 @@ def test_one_target_has_one_primary_margin_entry_and_inline_secondary_margin_ent
     suggestion = suggestion_item
     expect(suggestion_item).to_have_class(re.compile(r"lf-margin-cluster"))
     expect(suggestion_item.locator(":scope > .lf-margin-marker")).to_have_count(1)
-    expect(suggestion_item.locator(".lf-sug-accept")).to_be_visible()
-    expect(suggestion_item.locator(".lf-sug-reject")).to_be_hidden()
+    expect(suggestion_item.locator("[data-lf-margin-entry-key=accept]")).to_be_visible()
+    expect(suggestion_item.locator("[data-lf-margin-entry-key=reject]")).to_be_hidden()
     expect(suggestion_item.locator(":scope > .lf-margin-marker")).to_be_hidden()
     more = suggestion_item.locator(":scope > .lf-margin-more")
     expect(more).to_be_visible()
-    for button in (suggestion_item.locator(".lf-sug-accept"), more):
+    for button in (suggestion_item.locator("[data-lf-margin-entry-key=accept]"), more):
         expect(button).to_have_class(re.compile(r"lf-margin-entry"))
     expect(
-        suggestion_item.locator(".lf-sug-accept .lf-margin-entry-label")
+        suggestion_item.locator(
+            "[data-lf-margin-entry-key=accept] .lf-margin-entry-label"
+        )
     ).to_be_hidden()
-    expect(suggestion_item.locator(".lf-sug-accept")).to_have_attribute(
-        "data-lf-behavior", "action"
-    )
-    expect(suggestion_item.locator(".lf-sug-accept")).not_to_have_attribute(
-        "aria-expanded", re.compile(".+")
-    )
+    expect(
+        suggestion_item.locator("[data-lf-margin-entry-key=accept]")
+    ).to_have_attribute("data-lf-behavior", "action")
+    expect(
+        suggestion_item.locator("[data-lf-margin-entry-key=accept]")
+    ).not_to_have_attribute("aria-expanded", re.compile(".+"))
     expect(more).to_have_attribute("data-lf-behavior", "disclosure")
     expect(more).to_have_attribute("aria-expanded", "false")
 
@@ -573,7 +558,9 @@ def test_one_target_has_one_primary_margin_entry_and_inline_secondary_margin_ent
     back = reference.locator(
         '.lf-command-reference-command[data-lf-command="navigation.back"]'
     )
-    expect(back).to_have_text("Close options")
+    expect(back.locator(".lf-command-reference-title-words")).to_have_text(
+        "Close options"
+    )
     back.click()
     expect(reference).to_be_hidden()
     expect(options).to_be_hidden()
@@ -586,7 +573,7 @@ def test_one_target_has_one_primary_margin_entry_and_inline_secondary_margin_ent
     expect(options).to_be_hidden()
     expect(more).to_be_focused()
 
-    accept = suggestion.locator(".lf-sug-accept")
+    accept = suggestion.locator("[data-lf-margin-entry-key=accept]")
     expect(page.locator(".lf-margin-entry[title]")).to_have_count(0)
     page.mouse.move(0, 0)
     page.evaluate("() => document.activeElement.blur()")
@@ -636,7 +623,7 @@ def test_one_target_has_one_primary_margin_entry_and_inline_secondary_margin_ent
 
     # In the rail; a pin's entries are smaller, since a pin covers what it stands on.
     shapes = page.locator(
-        ".lf-sug-accept:visible, .lf-margin-more:visible, .lf-margin-marker:visible"
+        "[data-lf-margin-entry-key=accept]:visible, .lf-margin-more:visible, .lf-margin-marker:visible"
     ).evaluate_all(
         "els => els.filter(el => el.closest('[data-lf-place=\"rail\"]'))"
         ".map(el => { const box = el.getBoundingClientRect(); "
@@ -665,9 +652,9 @@ def test_one_target_has_one_primary_margin_entry_and_inline_secondary_margin_ent
     reactions = suggestion_item.locator(":scope > .lf-margin-options")
     expect(preview).to_be_hidden()
     expect(suggestion_item.locator(".lf-margin-entry:visible")).to_have_count(6)
-    expect(reactions.locator(".lf-react").first).to_have_class(
-        re.compile(r"lf-margin-entry")
-    )
+    expect(
+        reactions.locator('[data-lf-margin-entry-owner="responses"]').first
+    ).to_have_class(re.compile(r"lf-margin-entry"))
     ok = reactions.get_by_role("button", name="keep", exact=True)
     expect(ok).to_have_attribute("aria-label", "keep")
     expect(ok).not_to_have_attribute("title", re.compile(".+"))
@@ -692,19 +679,27 @@ def test_one_target_has_one_primary_margin_entry_and_inline_secondary_margin_ent
     page.mouse.move(0, 0)
     page.evaluate("() => document.activeElement.blur()")
     expect(
-        suggestion_item.locator(".lf-sug-accept .lf-margin-entry-label")
+        suggestion_item.locator(
+            "[data-lf-margin-entry-key=accept] .lf-margin-entry-label"
+        )
     ).to_be_hidden()
     accept.hover()
     expect(
-        suggestion_item.locator(".lf-sug-accept .lf-margin-entry-label")
+        suggestion_item.locator(
+            "[data-lf-margin-entry-key=accept] .lf-margin-entry-label"
+        )
     ).to_be_visible()
     page.mouse.move(0, 0)
     expect(
-        suggestion_item.locator(".lf-sug-accept .lf-margin-entry-label")
+        suggestion_item.locator(
+            "[data-lf-margin-entry-key=accept] .lf-margin-entry-label"
+        )
     ).to_be_hidden()
     accept.focus()
     expect(
-        suggestion_item.locator(".lf-sug-accept .lf-margin-entry-label")
+        suggestion_item.locator(
+            "[data-lf-margin-entry-key=accept] .lf-margin-entry-label"
+        )
     ).to_be_visible()
     page.mouse.move(0, 0)
     accept.focus()
@@ -712,7 +707,9 @@ def test_one_target_has_one_primary_margin_entry_and_inline_secondary_margin_ent
     expect(suggestion_item.locator(".lf-margin-entry:visible")).to_have_count(6)
 
     page.keyboard.press("Escape")
-    expect(suggestion_item.locator(".lf-react:visible")).to_have_count(0)
+    expect(
+        suggestion_item.locator('[data-lf-margin-entry-owner="responses"]:visible')
+    ).to_have_count(0)
     expect(options).to_be_visible()
     page.keyboard.press("Escape")
     expect(options).to_be_hidden()
@@ -743,7 +740,7 @@ def test_one_target_has_one_primary_margin_entry_and_inline_secondary_margin_ent
     page.evaluate("() => document.activeElement.blur()")
     resized(page, 390, 900)
     margins_laid_out(page)
-    suggestion.locator(".lf-sug-accept").focus()
+    suggestion.locator("[data-lf-margin-entry-key=accept]").focus()
     expect(page.locator("#sug-refill")).to_be_in_viewport()
     expect(suggestion_item).to_have_attribute("data-lf-place", "pin")
     stands = suggestion_item.evaluate(
@@ -965,6 +962,7 @@ def test_margin_entry_order_and_page_map_actions_are_stable_at_both_widths(
           }
         }"""
     )
+    margins_laid_out(page)
     for target in ("first", "second"):
         item = page.locator(f'[data-lf-margin-for="{target}"]')
         action_order = [
@@ -983,7 +981,8 @@ def test_margin_entry_order_and_page_map_actions_are_stable_at_both_widths(
         expect(item.locator(".lf-margin-more")).to_be_hidden()
         primary = item.locator('[data-lf-margin-entry-key="save"]')
         primary.focus()
-        expect(page.locator(f'.lf-target-trace[data-for="{target}"]')).to_be_visible()
+        expect(primary).to_be_focused()
+        expect(page.locator(f"#{target}")).to_have_attribute("data-lf-traced", "")
         primary.hover()
         label = item.locator('[data-lf-margin-entry-key="save"] .lf-margin-entry-label')
         expect(label).to_be_visible()
@@ -1018,10 +1017,10 @@ def test_margin_entry_order_and_page_map_actions_are_stable_at_both_widths(
     save.focus()
     save.hover()
     second.locator('[data-lf-margin-entry-key="save"]').focus()
-    expect(page.locator('.lf-target-trace[data-for="second"]')).to_be_visible()
-    expect(page.locator('.lf-target-trace[data-for="first"]')).to_be_hidden()
+    expect(page.locator("#second")).to_have_attribute("data-lf-traced", "")
+    expect(page.locator("#first")).not_to_have_attribute("data-lf-traced", "")
     save.hover()
-    expect(page.locator('.lf-target-trace[data-for="first"]')).to_be_visible()
+    expect(page.locator("#first")).to_have_attribute("data-lf-traced", "")
     ring = save.evaluate("button => getComputedStyle(button).borderTopWidth")
     page.evaluate("() => window.contributionEntryFixtures[0].busy()")
     expect(save).to_have_attribute("aria-busy", "true")

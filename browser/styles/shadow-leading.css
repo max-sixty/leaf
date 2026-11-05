@@ -1,0 +1,19 @@
+/* The first layer in every declared shadow root, before the named layer order.
+ * Important hidden and startup rules therefore outrank package and page rules.
+ * The inherited property carries the document's presentation boundary across the
+ * shadow root without JavaScript copying it onto every host. */
+@layer {
+  [hidden]:not([hidden="until-found"]),
+  :host([hidden]:not([hidden="until-found"])) {
+    display: none !important;
+  }
+  @media screen {
+    @container style(--lf-before-presentation: 1) {
+      *,
+      *::before,
+      *::after {
+        transition: none !important;
+      }
+    }
+  }
+}

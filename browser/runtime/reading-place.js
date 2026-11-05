@@ -28,7 +28,12 @@
  * the document and nothing is left to anchor, the box that replaces the one that read
  * the offset takes it back. A bounded block
  * following its newest entry has its end as its place (`bounds.js`, `followingItsEnd`),
- * however many entries have arrived since.
+ * however many entries have arrived since. A box standing at its start is read from its
+ * top: its own box returns to its start, across a resize or a revision, so a page read
+ * from its top keeps its title in view, and only a box its words are handed to takes
+ * the landmark. The user chose this on 2026-10-25 over keeping the first line at the
+ * edge, which scrolls the title away where a header fixed beside that line drops into
+ * the flow above it as the window narrows.
  * `capturePlace` reads one, of the page or of a reading region, and `restorePlace`
  * returns the user to it: the passage is found again by its words, so a place survives
  * what moved the pixels under it — a new revision, a resize, a view that was hidden
@@ -48,23 +53,25 @@
  * region shows in turn, a root tab set (lf-tabs) for each of its views. History's
  * working-place checkpoints separately own an entry's viewport offset (history.js).
  * `readingBlock` is the first block on screen in one region or the page;
- * `pageReadingBlock` is the block the user is reading, where a walk starts, and
- * `landingPlace` is where a let-go puts them. `openingPassage`
- * gives travel the passage its destination draws first, using the same rendered words
- * as the visible landmarks. It is independent of the viewport, so scrolling through a tall landing
- * does not turn a later passage into the navigation step's original arrival.
+ * `sectionsInView` names the sections of every block and drawing on screen, which a page
+ * comment records; `pageReadingBlock` is the block the user is reading, where a walk starts, and
+ * `landingPlace` is where a let-go puts them, beside what they let go of where they see it.
  */
+import { setScroll } from "./arrivals.js";
 import {
   clippedContents,
   landingBand,
+  seenRect,
   shownBox,
   shownWindow,
   userScrollport,
-  skipped,
   stuckBox,
 } from "./geometry.js";
+import { skipped, skipper } from "./shown-box.js";
 import {
+  blockAt,
   closestAcross,
+  HEADING,
   inChrome,
   pageBlocks,
   pageDocument,
@@ -88,6 +95,7 @@ import {
   scrollersOf,
   shownRegionBounds,
   pageReadingRegion,
+  unconcealedReadingRegions,
 } from "./reading-regions.js";
 import { followingItsEnd } from "./bounds.js";
 import {
@@ -97,14 +105,29 @@ import {
   placeKept,
   scrollToEnd,
 } from "./scrolling.js";
-import { inUi, renderedParent, under, upFrom } from "./shadow.js";
+import { inUi, renderedOrder, renderedParent, under, upFrom } from "./shadow.js";
 import { runtime } from "./context.js";
 import { retainUserIntent } from "./user-intent.js";
 import { recentPlaceInput, focused } from "./focus.js";
 import { focusedInView } from "./user-place.js";
-import { scrollIntoReadingBand } from "./landing-scroll.js";
+import { scrollIntoView } from "./landing-scroll.js";
 import { union } from "./rect.js";
 import { pointerAt } from "./pointer.js";
+
+/** @typedef {import("./passages.js").Segment} Segment
+ * @typedef {import("./reading-regions.js").ReadingRegion} ReadingRegion
+ * @typedef {import("./rect.js").Box} Box
+ * @typedef {import("./user-intent.js").UserIntent} UserIntent
+ * @typedef {Partial<import("../types/domain.js").Anchor> & {
+ * y: number, scroller: string | undefined, width: number, revision: number | null,
+ * start?: true, end?: true,
+ * [READ_BOX]?: WeakRef<Element>,
+ * [FOCUSED_PLACE]?: {node: WeakRef<Element>, body: WeakRef<Element>, region: string | undefined, intent: UserIntent},
+ * [DRAWN_PLACE]?: {node: WeakRef<Element>, through: number}
+ * } & ({quote: string, quoteTop: number} | {quote?: never, quoteTop?: never}) &
+ * ({section: string, sectionTop: number | null} | {section?: null, sectionTop?: null})} ReadingPlace
+ * @typedef {{segments: Segment[], boxes: DOMRect[]}} DrawnRun
+ * @typedef {{block: Element | null, segments: Segment[]}} BlockRun */
 
 // A live focused place belongs to this DOM, not a serialized history record. Its
 // symbol keeps that node out of JSON; the ordinary passage reading remains the
@@ -112,10 +135,12 @@ import { pointerAt } from "./pointer.js";
 // and its reading surface are held weakly: a place outlives the revision that removes
 // them until the reader next records one.
 const FOCUSED_PLACE = Symbol("live focused place");
+/** @param {ReadingPlace | null | undefined} reading */
 const focusedPlace = (reading) => {
   const place = reading?.[FOCUSED_PLACE];
   const node = place?.node.deref();
-  return node?.isConnected &&
+  return place &&
+    node?.isConnected &&
     node === focused() &&
     under(node, place.body.deref()) &&
     containingReadingRegionFor(node)?.id === place.region &&
@@ -131,10 +156,11 @@ const READ_BOX = Symbol("box that read the offset");
 // to this DOM. A revision that keeps the node keeps the place; one that replaces it
 // leaves its section to stand for it.
 const DRAWN_PLACE = Symbol("live drawn place");
+/** @param {ReadingPlace | null | undefined} reading */
 const drawnPlace = (reading) => {
   const place = reading?.[DRAWN_PLACE];
   const node = place?.node.deref();
-  if (!node?.isConnected || !drawsLandmark(node)) return null;
+  if (!place || !node?.isConnected || !drawsLandmark(node)) return null;
   const top = () => {
     const rect = shownBox(node);
     return rect.top + place.through * rect.height;
@@ -144,11 +170,11 @@ const drawnPlace = (reading) => {
 // What draws something to see without words: a replaced element, or a widget, which is
 // a custom element. Empty boxes and spacers draw nothing, so no place stands on them.
 const DRAWING = "img, svg, canvas, video, picture, iframe, object, embed";
+/** @param {Element} element */
 const draws = (element) => element.matches(DRAWING) || element.localName.includes("-");
 const LANDMARK_CAP = 160;
 // The shortest run of words that names a reading place (`capturePlace`).
 const QUOTABLE = 24;
-const HEADING = "h1, h2, h3, h4, h5, h6";
 
 // The page's own text blocks the user can see, in document order, with the rect of each
 // one's first line — one reading of what is in front of them, for the two questions that
@@ -160,6 +186,7 @@ const HEADING = "h1, h2, h3, h4, h5, h6";
 // declared shadow root renders authored words at its host's place in reading order, and
 // those words are pointable and resolvable through the same reading, so version
 // continuity must be able to choose the same blocks as landmarks.
+/** @param {Element | null} [root] */
 export const textBlocks = (root = pageDocument()) =>
   pageBlocks().filter((block) => under(block, root));
 
@@ -167,20 +194,24 @@ export const textBlocks = (root = pageDocument()) =>
 // place instead requires words the browser draws. Ask the text's own parent, rather
 // than its block: display: contents still draws text, and a child can restore visibility
 // inside a concealed block. Skipped subtrees are left alone before asking for any boxes.
+/** @param {Element | null} parent */
 const drawsLandmark = (parent) => {
   if (!parent || skipped(parent) || getComputedStyle(parent).visibility !== "visible")
     return false;
   // Text in display: contents has no parent box to ask. Its first boxed ancestor
   // supplies the browser's opacity/display reading; visibility belongs to the text
   // parent, since its children may override that ancestor.
+  /** @type {Element | null} */
   let box = parent;
   while (box && getComputedStyle(box).display === "contents") box = renderedParent(box);
   return Boolean(box?.checkVisibility({ opacityProperty: true }));
 };
+/** @type {WeakMap<import("./passages.js").PageReading, BlockRun[]>} */
 const blockRuns = new WeakMap();
 // The browser can bound a block's text in one Range read, including positioned
 // children outside its own box. A Range cannot cross shadow roots or read skipped
 // contents without forcing their layout; those blocks keep the per-segment reading.
+/** @param {Element} block @param {Segment[]} segments @param {Range} range */
 const textEnvelope = (block, segments, range) => {
   if (
     !segments.every(({ node }) => block.contains(node)) ||
@@ -192,10 +223,12 @@ const textEnvelope = (block, segments, range) => {
 };
 // Each block's drawn words, with the union of their boxes. Outside the reading band,
 // the native text envelope can rule a block out before individual tokens are measured.
+/** @param {Element[]} blocks @param {Pick<Box, "top" | "bottom"> | null} [within] @returns {Generator<[Element, DOMRect, DrawnRun[]]>} */
 function* renderedBlocks(blocks, within = null) {
   const reading = pageText();
-  if (!blockRuns.has(reading)) {
-    const groups = [];
+  let groups = blockRuns.get(reading);
+  if (!groups) {
+    groups = [];
     for (const segment of reading.segments) {
       let group = groups.at(-1);
       if (!group || group.block !== segment.block)
@@ -209,8 +242,8 @@ function* renderedBlocks(blocks, within = null) {
   const allowed = new Set(blocks);
   const drawn = new Map();
   const range = document.createRange();
-  for (const { block, segments } of blockRuns.get(reading)) {
-    if (!allowed.has(block)) continue;
+  for (const { block, segments } of groups) {
+    if (!block || !allowed.has(block)) continue;
     // Skipped content stays unmeasured: asking for a box inside it lays it out.
     if (inChrome(block) || skipped(block)) continue;
     if (within) {
@@ -224,14 +257,25 @@ function* renderedBlocks(blocks, within = null) {
           continue;
       }
     }
-    const boxes = [],
-      runs = [];
+    /** @type {DOMRect[]} */
+    const boxes = [];
+    /** @type {DrawnRun[]} */
+    const runs = [];
+    /** @type {DrawnRun | null} */
     let run = null;
+    // The box skipping the last segment asked about, whose later segments pass unasked.
+    /** @type {Element | null} */
+    let hidden = null;
     for (const segment of segments) {
       const { node, start, end } = segment;
+      if (hidden?.contains(node)) {
+        run = null;
+        continue;
+      }
       const parent = renderedParent(node);
       if (!drawn.has(parent)) drawn.set(parent, drawsLandmark(parent));
       if (!drawn.get(parent)) {
+        hidden = parent && skipper(parent);
         run = null;
         continue;
       }
@@ -255,24 +299,23 @@ function* renderedBlocks(blocks, within = null) {
   }
 }
 
-// The passage grain is shared by reading input and travel's produced landing. A
-// containing destination opens at its first rendered passage, independently of the
-// viewport: scrolling through a tall destination cannot redefine where it landed.
-export function passageBlock(node) {
+// The page block a node stands in.
+/** @param {Node} node */
+function passageBlock(node) {
   const blocks = pageBlocks();
-  for (let at = node; at; at = upFrom(at)) if (blocks.includes(at)) return at;
+  for (
+    let at = node instanceof Element ? node : node.parentElement;
+    at;
+    at = upFrom(at)
+  )
+    if (blocks.includes(at)) return at;
   return null;
-}
-export function openingPassage(where) {
-  if (where instanceof Range) return passageBlock(where.startContainer);
-  if (!where) return null;
-  const blocks = pageBlocks().filter((block) => under(block, where));
-  return renderedBlocks(blocks).next().value?.[0] ?? null;
 }
 
 // What the reader can see of a region, or with none given of the page: null where they
 // see none of it. A flowing region is read through the part of the window the page
 // shows: a line hidden under the chrome is not where the user is.
+/** @param {ReadingRegion | null | undefined} region */
 function readingBounds(region) {
   const shown = region ? shownRegionBounds(region) : shownWindow();
   if (!shown) return null;
@@ -282,6 +325,7 @@ function readingBounds(region) {
 }
 
 // With `band`, only blocks whose own box reaches that band are measured.
+/** @param {ReadingRegion | null} [region] @param {Element[]} [blocks] @param {Pick<Box, "top" | "bottom"> | null} [band] @returns {Generator<[Element, DOMRect, Segment[][]]>} */
 export function* blocksOnScreen(region = null, blocks = textBlocks(), band = null) {
   const bounds = readingBounds(region);
   if (!bounds) return;
@@ -299,9 +343,20 @@ export function* blocksOnScreen(region = null, blocks = textBlocks(), band = nul
   }
 }
 // The first visible block in a reading region, or with none given in the page outside
-// the regions that bound themselves, for alignment when nothing is selected.
-export const readingBlock = (region = null) =>
-  blocksOnScreen(region, textBlocks(region?.body)).next().value?.[0] ?? null;
+// the regions that bound themselves, for alignment when nothing is selected. A stuck
+// box, such as a site header fixed over the page, rides along with every scroll, so
+// it is never the block the reader is on (geometry.js, `stuckBox`). Where every block
+// on screen reads as stuck, as in an app shell fixed over the window that scrolls its
+// own content, the first stands.
+/** @param {ReadingRegion | null} [region] */
+export const readingBlock = (region = null) => {
+  let first = null;
+  for (const [block] of blocksOnScreen(region, textBlocks(region?.body))) {
+    first ??= block;
+    if (!stuckBox(block, region?.body ?? null)) return block;
+  }
+  return first;
+};
 
 // The block the user is reading on the page, for a walk's origin, the keyboard
 // reference's hand-back and a let-go's landing: in the page region they last acted in
@@ -311,6 +366,7 @@ export const readingBlock = (region = null) =>
 // was reading for the top of the page. With `bodies`, a region on screen that shows no
 // text block (a figure, a widget) answers with its own body, so a landing there keeps
 // the user in that region rather than on the document's body, which names the page.
+/** @param {{bodies: boolean}} options */
 function pageReading({ bodies }) {
   for (
     let region = pageReadingRegion();
@@ -324,11 +380,58 @@ function pageReading({ bodies }) {
   return readingBlock();
 }
 export const pageReadingBlock = () => pageReading({ bodies: false });
-export const landingPlace = () => pageReading({ bodies: true });
+
+// The sections whose words or pictures the user sees, by id in page order: the
+// addressable element around each text block and each drawing on screen, on the page
+// and in every reading region it shows. A comment on the page as a whole records them
+// (events.md, `viewing`), so on a page that shows one section at a time, "this one"
+// still says which, even of a slide that is only a chart. An id a script or a shadow
+// tree repeats is listed once, since the record refuses a repeated id.
+export function sectionsInView() {
+  /** @type {Set<Element>} */
+  const sections = new Set();
+  /** @param {Element} node */
+  const add = (node) => {
+    const section = closestAcross(node, ADDRESSABLE);
+    if (section) sections.add(section);
+  };
+  for (const region of [null, ...unconcealedReadingRegions()]) {
+    for (const [block] of blocksOnScreen(region, textBlocks(region?.body))) add(block);
+    const bounds = readingBounds(region);
+    const body = region?.body ?? pageDocument();
+    if (!bounds || !body) continue;
+    const clips = new Map();
+    for (const drawing of body.querySelectorAll(DRAWING)) {
+      if (!region && effectiveScroller(drawing) !== pageScroller) continue;
+      const seen = drawing.checkVisibility() && seenRect(drawing, clips);
+      if (seen && seen.bottom > bounds.top && seen.top < bounds.bottom) add(drawing);
+    }
+  }
+  return [...new Set([...sections].sort(renderedOrder).map(({ id }) => id))];
+}
+
+// A let-go lands beside what it let go of while the user sees it: its first block on
+// screen, or, for a node inside a block, that block. Only failing that is it what they
+// are reading.
+/** @param {Element | null} [from] */
+export function landingPlace(from = null) {
+  if (from && from !== document.body && !inChrome(from)) {
+    const blocks = textBlocks(from);
+    const own = blocks.length
+      ? blocks
+      : [blockAt(from)].filter((block) => block !== null);
+    const shown = blocksOnScreen(readingRegionFor(from) ?? null, own).next().value?.[0];
+    if (shown) return shown;
+    // A widget holding no text block, such as an ask's options, is its own landing.
+    if (!own.length && seenRect(from, new Map())) return from;
+  }
+  return pageReading({ bodies: true });
+}
 
 // Where across the box the reader works: their pointer, where it last named their place
 // over what they see of the box, else the focus they stand on in it, else null, which
 // leaves every column to count.
+/** @param {Box} bounds @param {Element} body */
 function readerColumn(bounds, body) {
   if (recentPlaceInput() === "pointer") {
     const { x, y } = pointerAt();
@@ -346,6 +449,7 @@ function readerColumn(bounds, body) {
 }
 // Whether a block stands across `column`: its own box where it draws one, else the box
 // its words make.
+/** @param {Element} block @param {Box} rect @param {number} column */
 const spans = (block, rect, column) => {
   const own = block.getBoundingClientRect();
   const across = own.width ? own : rect;
@@ -357,14 +461,17 @@ const spans = (block, rect, column) => {
 // found by halving. A heading is read `whole`: any of it below the edge names it from
 // its first word, since a heading identifies the place as a whole, and a coordinate
 // that hides its opening words is no heading landmark.
+/** @param {Segment[]} run @param {number} edge @param {Range} range @param {boolean} whole */
 function lineAt(run, edge, range, whole) {
+  /** @param {Text} node @param {number} start @param {number} end */
   const boxes = (node, start, end) => {
     range.setStart(node, start);
     range.setEnd(node, end);
     return [...range.getClientRects()].filter((rect) => rect.width && rect.height);
   };
+  /** @param {DOMRect | undefined} rect */
   const reaches = (rect) =>
-    Boolean(rect) && (whole ? rect.bottom : (rect.top + rect.bottom) / 2) >= edge;
+    rect !== undefined && (whole ? rect.bottom : (rect.top + rect.bottom) / 2) >= edge;
   for (const [at, segment] of run.entries()) {
     const { node, start, end } = segment;
     if (!reaches(boxes(node, start, end).at(-1))) continue;
@@ -386,11 +493,14 @@ function lineAt(run, edge, range, whole) {
 // A line's words as a comment's capture quotes a passage: at most LANDMARK_CAP
 // characters from its first, with the context that names this occurrence among the
 // page's words, and the range they span. Null where no context can.
+/** @param {Segment[]} segments */
 function lineAnchor(segments) {
   const { text, units } = readingFrom(segments);
   if (!text) return null;
-  const from = units[0].start;
-  const to = units[Math.min(units.length, LANDMARK_CAP) - 1].end;
+  const from = units[0]?.start;
+  const to = units[Math.min(units.length, LANDMARK_CAP) - 1]?.end;
+  if (!from || !to) return null;
+  /** @type {Segment[]} */
   const quoted = [];
   for (const segment of segments) {
     if (!quoted.length && segment.node !== from.node) continue;
@@ -401,7 +511,9 @@ function lineAnchor(segments) {
   }
   const range = rangeOf(quoted);
   const anchor = anchorForPassage(quoted, range.commonAncestorContainer);
-  return anchor.quote && !anchor.detached ? { anchor, range } : null;
+  return anchor?.quote && !anchor.detached
+    ? { anchor: { ...anchor, quote: anchor.quote }, range }
+    : null;
 }
 // The box that scrolls `node`'s words on its own, outermost first, between it and `box`,
 // the scroller a place is read for: content taller than its own box, under an overflow
@@ -409,6 +521,7 @@ function lineAnchor(segments) {
 // a decoration hanging past its foot does, moves its words only with the page. Where a
 // scrolling box is no reading region of its own, its words move with its scroll as well
 // as the page's, so they name no place in `box`.
+/** @param {Node} node @param {Element} box */
 function scrollsAlone(node, box) {
   let alone = null;
   for (
@@ -432,8 +545,10 @@ function scrollsAlone(node, box) {
 // the page. A drawing is widened to the largest box around it that holds no text
 // block, so a chart is its host rather than a mark it drew, and a picture whose caption
 // is a block of its own is the picture.
+/** @param {Element} body @param {Element} box @param {number} x @param {number} edge @param {Element[]} blocks */
 function drawnAt(body, box, x, edge, blocks) {
-  const holdsText = (element) => blocks.some((block) => under(block, element));
+  const holdsText = (/** @type {Element} */ element) =>
+    blocks.some((block) => under(block, element));
   for (const hit of document.elementsFromPoint(x, edge + 1)) {
     if (inChrome(hit) || inUi(hit)) continue;
     if (hit === body || !under(hit, body) || effectiveScroller(hit) !== box)
@@ -459,6 +574,7 @@ function drawnAt(body, box, x, edge, blocks) {
   }
   return null;
 }
+/** @param {ReadingRegion | null} [region] @param {Element[]} [blocks] @returns {ReadingPlace | null} */
 export function capturePlace(region = null, blocks = textBlocks()) {
   const box = region ? effectiveScroller(region) : pageScroller;
   // Places are measured from the top of the box's landing band, below whatever covers
@@ -466,37 +582,43 @@ export function capturePlace(region = null, blocks = textBlocks()) {
   // keeps the landmark at the same distance below what the user can see. A box a move
   // left off its aim by its rounding is read as if it stood at the aim (scrolling.js,
   // `aimedTop`).
-  const boxTop = landingBand(box).top + aimedTop(box) - box.scrollTop;
+  const band = landingBand(box);
+  if (!band) return null;
+  const boxTop = band.top + aimedTop(box) - box.scrollTop;
+  /** @param {number} top @param {Element} block @param {number} [blockTop] */
   const landmarkTop = (top, block, blockTop = top) =>
     block?.matches(HEADING) ? top + Math.max(0, -blockTop) : top;
   // The raw offset, with the width that wrapped the box's contents and the revision
   // that drew the document when it was read.
-  const view = {
+  /** @type {ReadingPlace} */
+  let view = {
     y: box.scrollTop,
     scroller: scrollerIdentity(box),
     width: box.clientWidth,
     revision: runtime.currentRevision,
     [READ_BOX]: new WeakRef(box),
   };
+  if (box.scrollTop === 0) view.start = true;
   const currentLocation = focusedInView();
   const body = region?.body ?? pageDocument();
+  if (!body) return null;
   const currentLocationBody = readingRegionFor(currentLocation)?.body ?? body;
-  const focusPlace = () => ({
-    node: new WeakRef(currentLocation),
-    body: new WeakRef(body),
-    region: containingReadingRegionFor(currentLocation)?.id,
-    intent: retainUserIntent({ source: currentLocation }),
-  });
-  const hasFocusedLandmark =
+  const focusPlace =
     recentPlaceInput() === "focus" &&
     currentLocation &&
     under(currentLocation, body) &&
-    // Focus on the reading surface itself names its contents, not a landmark.
-    !under(currentLocationBody, currentLocation);
+    !under(currentLocationBody, currentLocation)
+      ? {
+          node: new WeakRef(currentLocation),
+          body: new WeakRef(body),
+          region: containingReadingRegionFor(currentLocation)?.id,
+          intent: retainUserIntent({ source: currentLocation }),
+        }
+      : null;
   if (region && followingItsEnd(box))
     return {
       ...view,
-      ...(hasFocusedLandmark && { [FOCUSED_PLACE]: focusPlace() }),
+      ...(focusPlace && { [FOCUSED_PLACE]: focusPlace }),
       end: true,
     };
   const bounds = readingBounds(region);
@@ -511,6 +633,7 @@ export function capturePlace(region = null, blocks = textBlocks()) {
   // is not. A stuck box rides along with every scroll, so its words say nothing about
   // where in the box the reader is (geometry.js, `stuckBox`).
   const range = document.createRange();
+  /** @param {Element} block @param {DOMRect} rect @param {Segment[][]} runs */
   const lineOf = (block, rect, runs) => {
     for (const run of runs) {
       // A run shorter than a quotable line, a nav's label or a list of names, is
@@ -525,7 +648,9 @@ export function capturePlace(region = null, blocks = textBlocks()) {
     }
     return null;
   };
+  /** @type {{block: Element, rect: DOMRect, section: Element} | null} */
   let sectioned = null;
+  /** @type {ReturnType<typeof lineOf>} */
   let line = null;
   for (const [block, rect, runs] of blocksOnScreen(region, blocks)) {
     if (stuckBox(block, box) || scrollsAlone(block, box)) continue;
@@ -556,12 +681,11 @@ export function capturePlace(region = null, blocks = textBlocks()) {
   if (sectioned) {
     const { block, rect, section } = sectioned;
     named = block;
-    view.section = section.id;
-    view.sectionTop = landmarkTop(
-      shownBox(section).top - boxTop,
-      block,
-      rect.top - boxTop,
-    );
+    view = {
+      ...view,
+      section: section.id,
+      sectionTop: landmarkTop(shownBox(section).top - boxTop, block, rect.top - boxTop),
+    };
   }
   if (line) {
     const { block, rect, landmark } = line;
@@ -569,16 +693,20 @@ export function capturePlace(region = null, blocks = textBlocks()) {
     // The complete canonical anchor keeps a projected passage's identity as well as
     // its words. Its section replaces the fallback even when null, so restoration
     // cannot search in an earlier block's unrelated section.
-    Object.assign(view, landmark.anchor);
-    const section = sectionOf(view);
-    view.sectionTop =
-      section && landmarkTop(shownBox(section).top - boxTop, block, rect.top - boxTop);
-    // A heading partly under the edge is restored whole: normalize here, once, rather
-    // than teaching every restore path to repair it after document replacement.
-    view.quoteTop = landmarkTop(
-      landmark.range.getBoundingClientRect().top - boxTop,
-      block,
-    );
+    const section = sectionOf(landmark.anchor);
+    view = {
+      ...view,
+      ...landmark.anchor,
+      quoteTop: landmarkTop(landmark.range.getBoundingClientRect().top - boxTop, block),
+      ...(landmark.anchor.section
+        ? {
+            section: landmark.anchor.section,
+            sectionTop:
+              section &&
+              landmarkTop(shownBox(section).top - boxTop, block, rect.top - boxTop),
+          }
+        : { section: null, sectionTop: null }),
+    };
   }
   // What the edge cuts in the reader's column, or in the middle of what the box shows,
   // is what they see there, ahead of the line below it, which stands for it where the
@@ -598,14 +726,17 @@ export function capturePlace(region = null, blocks = textBlocks()) {
       view[DRAWN_PLACE] = { node: new WeakRef(drawn.box), through: drawn.through };
     }
   }
-  if (hasFocusedLandmark && !(named && under(named, currentLocation)))
-    view[FOCUSED_PLACE] = focusPlace();
+  if (focusPlace && !(named && under(named, currentLocation)))
+    view[FOCUSED_PLACE] = focusPlace;
   return view;
 }
 
 // The quote's words where the page draws every one of them, else none.
+/** @param {ReadingPlace} view */
 const drawnQuote = (view) => {
-  const segments = targetSegments(view.quote && resolveAnchor(view));
+  const segments = targetSegments(
+    view.quote ? resolveAnchor({ ...view, quote: view.quote }) : null,
+  );
   return segments.every(({ node }) => drawsLandmark(renderedParent(node)))
     ? segments
     : [];
@@ -614,15 +745,17 @@ const drawnQuote = (view) => {
 // destination, the drawing the edge cut, the passage's drawn words, or the drawn
 // section. `node` names it and `top` reads where the point it keeps stands. Null where the place has no landmark the page draws, so
 // only its own scroller's offset can take it.
+/** @param {ReadingPlace} view */
 function landmarkOf(view) {
   const live = focusedPlace(view);
   if (live) return { node: live, top: () => shownBox(live).top };
   const drawn = drawnPlace(view);
   if (drawn) return drawn;
   const segments = drawnQuote(view);
-  if (segments.length)
+  const [first] = segments;
+  if (first)
     return {
-      node: segments[0].node,
+      node: first.node,
       top: () => rangeOf(segments).getBoundingClientRect().top,
     };
   const section =
@@ -631,17 +764,21 @@ function landmarkOf(view) {
     ? { node: section, top: () => shownBox(section).top }
     : null;
 }
+/** @param {ReadingPlace} view */
 export const placeNode = (view) => landmarkOf(view)?.node ?? null;
 // How far below its box's landing edge a place's landmark stands now, or null.
+/** @param {ReadingPlace} view @param {ReadingRegion | null} [region] */
 export function placeOffset(view, region = null) {
   const landmark = landmarkOf(view);
   const box = region ? effectiveScroller(region) : pageScroller;
-  return landmark ? landmark.top() - landingBand(box).top : null;
+  const band = landingBand(box);
+  return landmark && band ? landmark.top() - band.top : null;
 }
 
 // A restore jumps rather than glides: a page is free to set scroll-behavior: smooth, and
 // animating from the replacement's raw position is worse than the jump it replaces.
 // Moving to a mark the user asked for is the other case, and says so.
+/** @param {ReadingPlace | null | undefined} reading */
 export const hasLandmark = (reading) =>
   Boolean(
     focusedPlace(reading) ||
@@ -650,6 +787,7 @@ export const hasLandmark = (reading) =>
     reading?.quote ||
     reading?.section,
   );
+/** @param {ReadingPlace} reading @param {Element} scroller */
 const sameScroller = (reading, scroller) =>
   reading.scroller !== undefined && reading.scroller === scrollerIdentity(scroller);
 // A raw offset names the same content only in the box that read it, at the width it
@@ -658,16 +796,19 @@ const sameScroller = (reading, scroller) =>
 // browser's own anchoring does better than the old offset. Leaf's interface shows the
 // log, which a revision does not redraw, so a box of it that replaced the one that read
 // the offset, as a reloaded document's does, has nothing else to keep the reader's place.
+/** @param {ReadingPlace} reading @param {Element} scroller */
 export const rawOffsetFits = (reading, scroller) =>
   sameScroller(reading, scroller) &&
   reading.width === scroller.clientWidth &&
   (reading.revision === runtime.currentRevision ||
     (inUi(scroller) && reading[READ_BOX]?.deref() !== scroller));
+/** @param {Element} scroller */
 function scrollerIdentity(scroller) {
   if (scroller === pageScroller) return "$page";
   return readingRegions().find(({ body }) => body === scroller)?.id;
 }
 
+/** @param {ReadingPlace | null | undefined} view @param {ReadingRegion | null} [region] @param {UserIntent} [currentIntent] */
 export function restorePlace(view, region = null, currentIntent = retainUserIntent()) {
   if (!view || !currentIntent()) return;
   const box = region ? effectiveScroller(region) : pageScroller;
@@ -679,8 +820,12 @@ export function restorePlace(view, region = null, currentIntent = retainUserInte
   if (!currentLocation || !sameScroller(view, box)) {
     if (view.end) {
       scrollToEnd(box);
+    } else if (view.start && sameScroller(view, box)) {
+      setScroll(box, { top: 0, behavior: "instant" });
     } else {
-      const boxTop = landingBand(box).top;
+      const band = landingBand(box);
+      if (!band) return;
+      const boxTop = band.top;
       // Restoration keeps the reader's disclosures and chosen views: a landmark
       // the user has since concealed supplies no geometry, and nothing reopens
       // it. Explicit navigation reveals a destination before restoring a place.
@@ -688,7 +833,7 @@ export function restorePlace(view, region = null, currentIntent = retainUserInte
       const segments = drawn && under(drawn.node, body) ? [] : drawnQuote(view);
       if (drawn && under(drawn.node, body)) {
         moveScrollerBy(box, drawn.top() - boxTop);
-      } else if (segments.length) {
+      } else if (segments.length && view.quote) {
         moveScrollerBy(
           box,
           rangeOf(segments).getBoundingClientRect().top - boxTop - view.quoteTop,
@@ -696,25 +841,31 @@ export function restorePlace(view, region = null, currentIntent = retainUserInte
       } else if (!currentLocation) {
         // An unresolved or concealed passage leaves live focus as the precise
         // destination; section and raw-offset fallbacks belong to readings without one.
-        const found = targetElement(resolveAnchor({ section: view.section }));
+        const found = view.section
+          ? targetElement(resolveAnchor({ section: view.section }))
+          : null;
         const section = found && drawsLandmark(found) ? found : null;
-        if (section) {
+        if (section && view.section) {
           // A section containing the scroller cannot align its contents by its
           // outer rectangle. Keep the old offset only where it still fits.
           if (under(box, section))
-            box.scrollTo({
+            setScroll(box, {
               top: rawOffsetFits(view, box) ? view.y : 0,
               behavior: "instant",
             });
-          else moveScrollerBy(box, shownBox(section).top - boxTop - view.sectionTop);
+          else
+            moveScrollerBy(
+              box,
+              shownBox(section).top - boxTop - Number(view.sectionTop),
+            );
         } else if (rawOffsetFits(view, box))
-          box.scrollTo({ top: view.y, behavior: "instant" });
+          setScroll(box, { top: view.y, behavior: "instant" });
       }
     }
   }
   // A restored passage or end can carry its focused control beyond the new
   // viewport. Nearest reveal changes nothing when the destination already fits.
   if (currentLocation)
-    scrollIntoReadingBand(currentLocation, currentLocation, "nearest", "instant");
+    scrollIntoView(currentLocation, { block: "nearest", behavior: "instant" });
   placeKept(box, ...(currentLocation ? scrollersOf(currentLocation) : []));
 }

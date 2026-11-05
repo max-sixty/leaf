@@ -7,22 +7,19 @@ from urllib.parse import urlparse
 import pytest
 from click.testing import CliRunner
 from interact_support import append_carried_log_record, response_reference
-from leaf_dev.example_data import patch_manifest
 from playwright.sync_api import expect
 from render_cases_interaction import SUGGESTION_PAGE
 from render_cases_navigation import JOURNEY_V1, SENTENCE
 from render_cases_widgets import MANIFEST_DIFF_PAGE, MULTI_HUNK_PATCH, TYPED_PARTS_PAGE
 from render_harness import (
-    EXAMPLES,
     LONG_PAGE,
     PANEL,
-    PANEL_THREAD,
     RELEASE_FOCUS,
     consume_browser_errors,
     holding,
     open_page,
+    open_threads,
     page_comment,
-    panel_settled,
     panel_view,
     primed,
     refuse,
@@ -39,19 +36,16 @@ from leaf import cli as cli_model
 from leaf import data as data_model
 from leaf.render_checks import wait_until_ready
 from leaf.runtime_selection import serving_runtime
+from leaf_dev.browser import PANEL_THREAD
+from leaf_dev.example_data import named_source, patch_manifest
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
 
 def test_startup_continues_while_the_registry_fetch_is_held(browser, serve):
-    """The chrome and initial state read do not wait behind widget startup.
-
-    That interval is real state, not a missing-registry fallback: the state answer waits
-    unapplied until upgrades have captured the authored page, the page comment card accepts
-    a send and paints its pending thread while holding delivery until the layer identity
-    arrives. Anchored capture waits for widget upgrade to establish the visible document.
-    The explicit gate
-    proves each assertion runs on the intended side of the fetch rather than racing a timer.
+    """The first state read runs ahead of widget startup but is applied only after
+    authored capture. Authored content remains readable while the registry waits.
+    Once prepared, general and anchored comments both reach the page.
     """
     gate_registry = """
       const nativeFetch = window.fetch.bind(window);
@@ -76,14 +70,11 @@ def test_startup_continues_while_the_registry_fetch_is_held(browser, serve):
 Two classic models.</pre></lf-code>
 <h2 id="notes">""",
     )
-    page = open_page(
-        browser,
-        serve(html, anchored=[("intro", SENTENCE)]),
-        init_script=gate_registry,
-        wait_until="domcontentloaded",
-        # The held registry is this test's subject, so the upgrade stamp never lands and
-        # waiting for it would hang out a whole timeout.
-        upgraded=False,
+    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    page.add_init_script(gate_registry)
+    # This interval precedes chrome construction as well as widget preparation.
+    page.goto(
+        serve(html, anchored=[("intro", SENTENCE)]), wait_until="domcontentloaded"
     )
     page.wait_for_function("() => window.lfRegistryBlocked === true")
     page.wait_for_function("() => window.lfInitialStateReceived === true")
@@ -92,30 +83,20 @@ Two classic models.</pre></lf-code>
     )
     expect(page.locator("body")).not_to_have_attribute("data-lf-presented", "1")
     expect(page.locator("body > main")).to_be_visible()
-    assert (
-        page.evaluate("() => getComputedStyle(document.body, '::after').content")
-        == "none"
-    )
-    expect(page.locator(PANEL)).to_be_visible()
-    expect(page.locator(".lf-fp-threads")).to_be_enabled()
+    expect(page.locator(PANEL)).to_be_hidden()
     expect(page.locator("#gate-code .lf-code-line")).to_have_count(0)
     expect(page.locator("#draft-ops .lf-draft-body")).to_have_count(0)
 
-    rows = page.locator(f"{panel_view('threads')} .lf-fp-thread")
-    page.locator(".lf-fp-threads").click()
-    panel_settled(page, view="threads")
-    expect(rows).to_have_count(0)
-    write(page_comment(page), "General comment during startup")
-    page.keyboard.press("ControlOrMeta+Enter")
-    expect(page.locator(".lf-live")).to_have_text("Message sent")
-    assert page.evaluate("() => CSS.highlights.get('lf-mark')?.size ?? 0") == 0
-
-    # The visible document has not upgraded yet, so anchored capture is not ready.
-    expect(page.locator(".lf-composer")).to_be_hidden()
-
     page.evaluate("window.lfReleaseRegistry()")
-    page.locator(".lf-fp-threads").click()
-    panel_settled(page, view="threads")
+    wait_until_ready(page)
+    expect(page.locator("body > main")).to_be_visible()
+    rows = page.locator(f"{panel_view('threads')} .lf-fp-thread")
+    open_threads(page)
+    expect(rows).to_have_count(1)
+    write(page_comment(page), "General comment after startup")
+    page.keyboard.press("ControlOrMeta+Enter")
+    expect(page.locator(".lf-live")).to_have_text("Message added")
+    open_threads(page)
     expect(rows).to_have_count(2)
     expect(page.locator("#gate-code .lf-code-line")).to_have_count(2)
     page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
@@ -133,14 +114,13 @@ Two classic models.</pre></lf-code>
     write(page.locator(".lf-composer leaf-text"), "Still anchored?")
     page.keyboard.press("ControlOrMeta+Enter")
 
-    page.locator(".lf-fp-threads").click()
-    panel_settled(page, view="threads")
+    open_threads(page)
     expect(rows).to_have_count(3)
     # The comment on the code's words found them: its quote is no detached one.
     rows.filter(has_text="Still anchored?").click()
-    quote = page.locator(f"{PANEL_THREAD} .lf-fp-quote")
+    quote = page.locator(f"{PANEL_THREAD} .lf-thread-quote")
     expect(quote).to_be_visible()
-    expect(quote).not_to_have_class(re.compile(r"\bdetached\b"))
+    expect(quote).not_to_have_attribute("data-lf-detached", "")
 
 
 def _asked(context):
@@ -178,12 +158,13 @@ def test_a_page_loads_only_the_widget_modules_its_markup_uses(browser, serve):
     renders under, so a page with no such widget never asks for it, and the theme
     arrives once, through the document's `<link>`.
     """
-    example = next(p for p in EXAMPLES if p.stem == "triage-board")
+    example = named_source("triage-board")
     context = browser.new_context(viewport={"width": 1280, "height": 800})
     asked = _asked(context)
     page = open_page(browser, serve(example), context=context)
 
-    modules = sorted(p for p in asked if p.startswith("/widgets/"))
+    # Compare widget entry modules, leaving their internal imports unconstrained.
+    modules = sorted(p for p in asked if p.startswith("/widgets/lf-"))
     assert modules == [
         "/widgets/lf-activity.js",
         "/widgets/lf-board.js",
@@ -280,6 +261,140 @@ def test_comment_focus_waits_for_the_lazy_placement_module(browser, serve):
         context.unroute_all(behavior="wait")
 
 
+def _hold_the_editor(context):
+    """Hold CodeMirror's module; the returned list collects each held request."""
+    held = []
+    context.route("**/vendor/codemirror.esm.js", lambda route: held.append(route))
+    return held
+
+
+def _release(page, held, context):
+    while held:
+        held.pop(0).continue_()
+    wait_until_ready(page)
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_words_typed_while_the_editor_loads_are_its_first_words(engine, request, serve):
+    """CodeMirror stays off the presentation path: held, it keeps the page from reading
+    as arrived but not from presenting. `c` still puts the user in the page comment's
+    field in the same turn, and what they type before CodeMirror arrives, where they
+    moved the caret to and the line Shift+Return broke included, is what the editor
+    holds once it does, as one step undo takes back."""
+    browser = request.getfixturevalue(engine)
+    context = browser.new_context(viewport={"width": 1280, "height": 800})
+    held = _hold_the_editor(context)
+    page = open_page(browser, serve(LONG_PAGE), context=context, upgraded=False)
+    field = page.locator('.lf-fp-field leaf-text[name="comment"]')
+    try:
+        wait_until_ready(page, through="presented")
+        holding(page, held, 1, "CodeMirror")
+        assert (
+            page.evaluate(
+                "() => document.querySelector('script[data-lf-entry]').lfReadiness(null)"
+            )
+            == "arrived"
+        )
+        page.keyboard.press("c")
+        expect(field).to_be_focused()
+        page.keyboard.type("Typed early")
+        page.keyboard.press("ArrowLeft")
+        page.keyboard.press("ArrowLeft")
+        page.keyboard.type(" and")
+        page.keyboard.press("Shift+Enter")
+        expect(field).to_have_js_property("value", "Typed ear and\nly")
+        expect(field).to_have_js_property("selectionStart", len("Typed ear and\n"))
+
+        _release(page, held, context)
+        expect(field).to_be_focused()
+        page.keyboard.type("kept ")
+        expect(field).to_have_js_property("value", "Typed ear and\nkept ly")
+        page.keyboard.press("ControlOrMeta+z")
+        expect(field).to_have_js_property("value", "Typed ear and\nly")
+        page.keyboard.press("ControlOrMeta+z")
+        expect(field).to_have_js_property("value", "")
+    finally:
+        for route in held:
+            route.continue_()
+        context.unroute_all(behavior="wait")
+
+
+def test_a_kept_draft_and_an_input_method_reach_the_editor_as_it_loads(browser, serve):
+    """While CodeMirror loads, a field's kept draft stands in its place with the caret
+    where the draft left it, so words typed on arrival follow the draft, and a selection
+    the page sets is where typing lands. Words an input
+    method is still composing as CodeMirror lands join the field once committed, once."""
+    context = browser.new_context(viewport={"width": 1280, "height": 800})
+    page = open_page(browser, serve(LONG_PAGE), context=context)
+    field = page.locator('.lf-fp-field leaf-text[name="comment"]')
+    page.keyboard.press("c")
+    page.keyboard.type("Kept")
+    expect(field).to_have_js_property("value", "Kept")
+    held = _hold_the_editor(context)
+    try:
+        page.reload()
+        wait_until_ready(page, through="presented")
+        holding(page, held, 1, "CodeMirror")
+        page.keyboard.press("c")
+        expect(field).to_be_focused()
+        page.keyboard.type(" words")
+        expect(field).to_have_js_property("value", "Kept words")
+        # A selection the page sets stands where the user types next.
+        field.evaluate("(field) => field.setSelectionRange(0, 4)")
+        page.keyboard.type("Held")
+        expect(field).to_have_js_property("value", "Held words")
+        page.keyboard.press("ControlOrMeta+a")
+        page.keyboard.press("Backspace")
+        expect(field).to_have_js_property("value", "")
+
+        ime = context.new_cdp_session(page)
+        ime.send(
+            "Input.imeSetComposition",
+            {"text": "にほ", "selectionStart": 2, "selectionEnd": 2},
+        )
+        _release(page, held, context)
+        ime.send("Input.insertText", {"text": "日本"})
+        expect(field).to_have_js_property("value", "日本")
+        expect(field).to_be_focused()
+    finally:
+        for route in held:
+            route.continue_()
+        context.unroute_all(behavior="wait")
+
+
+def test_an_unavailable_editor_module_leaves_fields_writing_plain_words(browser, serve):
+    """When CodeMirror's module fails to load, Leaf reports it each time a field asks
+    for its editor, and the field keeps the plain words it holds while waiting for one:
+    the user types, Shift+Return breaks the line, and Return sends."""
+    url = serve(LONG_PAGE)
+    page = browser.new_page(viewport={"width": 1280, "height": 800})
+    watched(page)
+    page.route("**/vendor/codemirror.esm.js", lambda route: route.abort())
+    page.goto(url, wait_until="load")
+    wait_until_ready(page)
+    failed = ("Failed to fetch dynamically imported module", "net::ERR_FAILED")
+    consume_browser_errors(page, *failed)
+
+    page.evaluate(RELEASE_FOCUS)
+    field = page.locator('.lf-fp-field leaf-text[name="comment"]')
+    with page.expect_event("pageerror") as raised:
+        page.keyboard.press("c")
+    assert failed[0] in str(raised.value)
+    consume_browser_errors(page, *failed)
+    expect(field).to_be_focused()
+    page.keyboard.type("Written")
+    page.keyboard.press("Shift+Enter")
+    page.keyboard.type("plain")
+    expect(field).to_have_js_property("value", "Written\nplain")
+    # The thread's reply field, opening in the sent comment's place, asks for the
+    # editor again.
+    with page.expect_event("pageerror") as raised:
+        page.keyboard.press("Enter")
+    assert failed[0] in str(raised.value)
+    expect(page.locator(".lf-live")).to_have_text("Message added")
+    consume_browser_errors(page, *failed)
+
+
 def test_an_unavailable_floating_ui_module_leaves_no_surface_open_and_unseen(
     browser, serve
 ):
@@ -363,7 +478,7 @@ def test_a_widget_a_reply_carries_arrives_with_its_module(browser, serve):
     already connected. The board is served first with no options anywhere on it, so
     the module can only have arrived because the reply asked for it.
     """
-    example = next(p for p in EXAMPLES if p.stem == "triage-board")
+    example = named_source("triage-board")
     context = browser.new_context(viewport={"width": 1280, "height": 800})
     asked = _asked(context)
     page = open_page(browser, serve(example), context=context)
@@ -427,12 +542,12 @@ def test_a_state_waiting_for_markdown_cannot_overwrite_a_newer_one(browser, serv
             ),
         ),
         serve(LONG_PAGE),
+        upgraded=False,
     )
-    page.locator(".lf-fp-threads").click()
-    panel_settled(page, view="threads")
-    page.evaluate(
-        "() => { window.__lfWidgetApi().then((markdown) => markdown.loadMarkdown()); }"
-    )
+    # The editor preloads Markdown after presentation. Waiting for arrival would
+    # wait on the very request this test releases after arranging the state race.
+    wait_until_ready(page, through="presented")
+    open_threads(page)
     holding(page, marked, 1, "the Markdown module")
     assert len(marked) == 1
 
@@ -470,8 +585,7 @@ def test_a_state_waiting_for_markdown_cannot_overwrite_a_newer_one(browser, serv
     marked[0].continue_()
     page.unroute("**/vendor/markdown-it.esm.js")
 
-    page.locator(".lf-fp-threads").click()
-    panel_settled(page, view="threads")
+    open_threads(page)
     rows = page.locator(f"{panel_view('threads')} .lf-fp-thread")
     expect(rows.filter(has_text="Older")).to_have_count(1)
     expect(rows.filter(has_text="Newest")).to_have_count(1)
@@ -480,7 +594,7 @@ def test_a_state_waiting_for_markdown_cannot_overwrite_a_newer_one(browser, serv
 def test_the_public_widget_api_can_load_before_boot_registers_page_keys(browser, serve):
     """Importing capabilities does not start a half-constructed browser application."""
     url = serve(SUGGESTION_PAGE)
-    boot = serving_runtime().resources({})["/leaf.js"].data.decode()
+    boot = serving_runtime().resources({}, {})["/leaf.js"].data.decode()
     context = browser.new_context()
     context.route(
         "**/leaf.js",
@@ -501,6 +615,8 @@ def test_the_public_widget_api_can_load_before_boot_registers_page_keys(browser,
     context.route("**/leaf-boot.js", boot_after_one_frame)
     page = open_page(browser, url, context=context)
     assert page.evaluate("window.apiImportedBeforeBoot") is True
-    page.locator("[data-lf-margin-for='sug-refill'] .lf-sug-accept").click()
+    page.locator(
+        "[data-lf-margin-for='sug-refill'] [data-lf-margin-entry-key=accept]"
+    ).click()
     round_trip(page)
     expect(page.locator("#sug-refill")).to_have_attribute("data-lf-state", "accept")

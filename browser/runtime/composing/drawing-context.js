@@ -8,6 +8,8 @@
  * inspector; opening it serializes this frozen canvas, never captures the current page
  * again. The renderer loads at the first preview, outside page presentation.
  */
+import { describeFailure } from "../exception.js";
+import { canvas2D } from "../canvas.js";
 import { LEAF_SURFACE } from "../passages.js";
 import { nextRender } from "../rendering.js";
 import { drawingGeometry } from "./drawing-geometry.js";
@@ -17,6 +19,7 @@ const CONTEXT_PAD = 24;
 const PREVIEW_WIDTH = 2048;
 const PREVIEW_HEIGHT = 1536;
 
+/** @param {import("./drawing-record.js").Drawing} drawing @param {Element | null} target */
 function readPicture(drawing, target) {
   const geometry = target && drawingGeometry(drawing, target);
   const strokes = geometry?.strokes ?? drawing.strokes;
@@ -38,6 +41,7 @@ function readPicture(drawing, target) {
   };
 }
 
+/** @param {import("./drawing-record.js").Drawing} drawing @param {Element | null} target */
 export function drawingThumbnail(drawing, target) {
   const canvas = document.createElement("canvas");
   canvas.setAttribute("aria-hidden", "true");
@@ -53,7 +57,7 @@ export function drawingThumbnail(drawing, target) {
   sizeCanvas();
   const paintInk = () => {
     const { strokes, left, top, width, height } = picture;
-    const ctx = canvas.getContext("2d");
+    const ctx = canvas2D(canvas);
     ctx.save();
     ctx.scale(canvas.width / width, canvas.height / height);
     ctx.translate(-left, -top);
@@ -80,7 +84,7 @@ export function drawingThumbnail(drawing, target) {
       picture = readPicture(drawing, target);
       if (!picture.box) throw new Error("the drawing's subject is absent");
       sizeCanvas();
-      canvas.getContext("2d").clearRect(0, 0, canvas.width, canvas.height);
+      canvas2D(canvas).clearRect(0, 0, canvas.width, canvas.height);
       paintInk();
       const { box, left, top, width, height } = picture;
       const { blob, warnings } = await pageImage(
@@ -88,7 +92,7 @@ export function drawingThumbnail(drawing, target) {
         { exclude: [LEAF_SURFACE] },
       );
       const image = await window.createImageBitmap(blob);
-      const ctx = canvas.getContext("2d");
+      const ctx = canvas2D(canvas);
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
       paintInk();
@@ -99,7 +103,7 @@ export function drawingThumbnail(drawing, target) {
       // Remote page assets can refuse embedding. The ink remains visible, and the
       // attachment says why the local picture could not be produced.
       canvas.dataset.lfDrawingContext = "unavailable";
-      canvas.title = `Page preview unavailable: ${error.message}`;
+      canvas.title = `Page preview unavailable: ${describeFailure(error)}`;
       if (canvas.parentElement) {
         const status = document.createElement("span");
         status.className = "lf-drawing-context-status";

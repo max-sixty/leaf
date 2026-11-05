@@ -21,10 +21,11 @@ from render_harness import (
     is_problem,
     leaf_page,
     open_page,
+    open_threads,
     page_comment,
     panel_control,
     panel_menu,
-    panel_settled,
+    panel_view,
     refuse,
     sending,
     take_browser_errors,
@@ -68,8 +69,7 @@ def test_the_live_page_adopts_a_revision_and_stamps_it_without_replacing_main(
     before = page.locator("#live-reading").evaluate(
         "el => el.getBoundingClientRect().top"
     )
-    page.locator(".lf-fp-threads").click()
-    panel_settled(page, view="threads")
+    open_threads(page)
 
     (serve.page_dir / "index.html").write_text(LIVE_V2)
     told(page)
@@ -87,7 +87,7 @@ def test_the_live_page_adopts_a_revision_and_stamps_it_without_replacing_main(
     assert "/versions/" not in page.url, (
         f"the update changed the live address to {page.url}"
     )
-    expect(page.locator(PANEL)).to_have_attribute("data-open", "threads")
+    expect(page.locator(PANEL)).to_have_attribute("data-lf-open", "threads")
     after = page.locator("#live-reading").evaluate(
         "el => el.getBoundingClientRect().top"
     )
@@ -98,7 +98,7 @@ def test_the_live_page_adopts_a_revision_and_stamps_it_without_replacing_main(
         "Draft"
     )
     versions = panel_menu(page, "versions")
-    expect(versions.locator(".lf-fp-version[data-current]")).to_contain_text(
+    expect(versions.locator(".lf-fp-version[data-lf-current]")).to_contain_text(
         "Current · Draft after v1"
     )
     page.keyboard.press("Escape")
@@ -187,9 +187,9 @@ def test_a_stamped_live_draft_and_its_unstamped_view_keep_distinct_menu_rows(
     # had followed by then would come down to whether a state read landed between the
     # two presses. The keyboard route leaves the composer open through both.
     page.locator(".lf-fp-leaf").press("Enter")
-    expect(page.locator(PANEL)).to_have_attribute("data-menu", "")
-    page.locator('.lf-fp-item[data-row="versions"]').press("Enter")
-    rows = page.locator(".lf-fp-menu[data-level=versions] .lf-fp-version")
+    expect(page.locator(PANEL)).to_have_attribute("data-lf-open", "menu")
+    page.locator('.lf-fp-item[data-lf-row="versions"]').press("Enter")
+    rows = page.locator(panel_view("versions")).locator(".lf-fp-version")
     # The third revision's row is what the hold leaves the page short of.
     expect(rows).to_have_count(4)
     latest = rows.filter(has_text="Current · Draft after v2").locator(".lf-fp-item")
@@ -202,8 +202,8 @@ def test_a_stamped_live_draft_and_its_unstamped_view_keep_distinct_menu_rows(
     expect(page).to_have_title("Live third")
     panel_menu(page, "versions")
     expect(rows).to_have_count(3)
-    # The menu draws its rows afresh at each opening: the stamped version keeps its
-    # row, and the view of its revision the page has left has none.
+    # The stamped version keeps its row, and the view of its revision the page has
+    # left has none.
     expect(stamped_row).to_have_count(1)
     expect(draft_row).to_have_count(0)
     stamped_row.click()
@@ -273,7 +273,7 @@ def test_a_stamped_url_stays_pinned_while_the_live_root_follows_a_draft(browser,
         "Draft"
     )
     expect(
-        panel_menu(live, "versions").locator(".lf-fp-version[data-current]")
+        panel_menu(live, "versions").locator(".lf-fp-version[data-lf-current]")
     ).to_contain_text("Current · Draft after v1")
     expect(pinned).to_have_title("Live first")
     expect(pinned).to_have_url(re.compile(r"/versions/v1\.html"))
@@ -287,10 +287,14 @@ def test_the_live_page_retains_a_page_comment_while_adopting_revisions(browser, 
     page = open_page(browser, live_url(version_url))
     general = page_comment(page)
     write(general, "Do not replace the page under these words.")
+    general.evaluate("el => window.retainedComment = el")
 
     (serve.page_dir / "index.html").write_text(LIVE_V2)
     told(page)
     expect(page).to_have_title("Live second")
+    expect(page.locator("body")).to_have_class(re.compile(r"\blive-second\b"))
+    expect(page.locator("body")).to_have_attribute("data-live-body", "second")
+    assert general.evaluate("el => el === window.retainedComment")
     expect(general).to_be_focused()
     expect(general).to_have_js_property(
         "value", "Do not replace the page under these words."

@@ -18,11 +18,10 @@ from render_harness import (
     SETTLED_PAGE,
     command_reference_rows,
     compare_with,
-    consume_browser_errors,
     open_page,
     page_registry,
+    reported_browser_errors,
     round_trip,
-    said,
     select,
     undo,
     write,
@@ -121,11 +120,11 @@ def test_a_comparison_mark_that_failed_on_return_keeps_following_the_comparison(
     compare_with(page, 1)
     page.evaluate("() => document.querySelector('main').append(window.detachedViews)")
     expect(page.locator("#transport .lf-settled-diff")).to_have_count(0)
-    # The paint reports the failure, and nothing else does: no uncaught throw.
-    errors = consume_browser_errors(page, "the marks failed once")
-    assert len(errors) == 1 and said(errors[0]).startswith(
-        'leaf: <lf-tabs id="views"> failed'
-    ), errors
+    # The paint reports the failure, and nothing else does: no uncaught throw. The
+    # report lands after the settled mark repaints, so wait for it to arrive.
+    reported_browser_errors(
+        page, 'leaf: <lf-tabs id="views"> failed: the marks failed once'
+    )
     compare_with(page, 1)
     expect(page.locator("#transport .lf-settled-diff")).to_have_text("Δ1")
     expect(mark).to_have_text("Δ1")
@@ -165,7 +164,8 @@ def test_settled_options_collapse_without_going_out_of_reach(browser, serve):
     collapsed = group.evaluate(height)
     assert page.locator("#transport lf-option:visible").count() == 0
     row = page.locator("#transport .lf-settled")
-    assert row.inner_text().startswith("Settled: Lax cookie")
+    # The outcome alone: the disclosure marker says the alternatives are inside.
+    expect(row).to_have_text("Settled: Lax cookie")
     assert row.get_attribute("aria-expanded") == "false"
     assert collapsed == row.evaluate(height), (
         "hidden cards or controls keep empty space"
@@ -266,7 +266,7 @@ def test_a_settled_obligation_reconciles_added_options_into_its_disclosure(
 ):
     """A replayed option stays inside the settled disclosure it belongs to.
 
-    The disclosure's count and controls describe the complete current option set,
+    The disclosure's controls describe the complete current option set,
     including options reconstructed from their `add` in force, and follow the undo
     that takes that `add` back.
     """
@@ -291,7 +291,7 @@ def test_a_settled_obligation_reconciles_added_options_into_its_disclosure(
     row = group.locator(":scope > .lf-settled")
     expect(row).to_have_attribute("aria-expanded", "false")
     expect(group.locator(":scope > lf-option:visible")).to_have_count(0)
-    expect(row.locator(".lf-settled-count")).to_have_text("4 options")
+    expect(group.locator(":scope > lf-option")).to_have_count(4)
     assert row.get_attribute("aria-controls").split() == [
         "job-mounts",
         "job-heater",
@@ -299,13 +299,18 @@ def test_a_settled_obligation_reconciles_added_options_into_its_disclosure(
         added_id,
     ]
 
+    expect(row).to_have_text("Settled: Insulate the camera battery")
+    row.click()
+    expect(added).to_be_visible()
+    row.click()
+
     # The first undo takes back the pick; the option stays in the disclosure.
     undo(page)
     expect(group.locator(":scope > lf-option[data-lf-added]")).to_have_count(1)
-    expect(row.locator(".lf-settled-count")).to_have_text("4 options")
+    expect(group.locator(":scope > lf-option")).to_have_count(4)
     undo(page)
     expect(group.locator(":scope > lf-option[data-lf-added]")).to_have_count(0)
-    expect(row.locator(".lf-settled-count")).to_have_text("3 options")
+    expect(group.locator(":scope > lf-option")).to_have_count(3)
     assert row.get_attribute("aria-controls").split() == [
         "job-mounts",
         "job-heater",

@@ -1,66 +1,20 @@
-"""The one application entry, for `python -m leaf` and the console script.
+"""The managed application entry for the console script and `python -m leaf`.
 
-`bin/leaf` selects the runtime through uv before reaching here, except for cold
-SessionEnd cleanup, which runs its standalone stdlib owner directly. A subprocess Leaf
-starts has `sys.executable` in hand and needs no launcher or environment manager.
+Click parses and dispatches every command here, the harness entries `leaf hook` and
+`leaf session-end` included. Loading Click costs a managed hook about 8 ms of CPU
+(measured on macOS), which is accepted so that one parser owns every command's
+arguments, usage and errors rather than a second hand-rolled one for the hooks.
 
-Harnesses call `leaf hook --harness NAME` on every turn, including sessions holding no
-page, and `leaf session-end` as a session ends. Both are `HARNESS_ENTRIES`, routed
-here without importing Click, and this is their only route: `hook`, alone or with
-`--if-claimed` and then `--watch` or `--pages` after it, enters the
-dependency-light hook owner, and `session-end` delegates to the same cleanup owner
-`bin/leaf` runs cold, in a managed interpreter.
-Any other argv after one of their names is refused with its usage line. Help and
-every other invocation use the CLI, whose `prog_name` stays `leaf` for both entry
-forms.
-
-A refusal (`refusals.Refused`) from the hook ends here, with its reason on stderr and
-exit status 1.
+Two paths stay off this entry and Click: `bin/leaf` runs cold SessionEnd cleanup and
+its gate for hooks registered `--if-claimed` through `state.py` without a managed
+environment, and runs a sandboxed command through the bridge client (`bridge.py`),
+which forwards its arguments to Leaf unparsed.
 """
 
-import sys
-
-
-def _hook(args: list[str]) -> None:
-    # `--if-claimed` is for `bin/leaf`, which skips the hook in a session holding
-    # no claim; a hook that reaches here runs whole.
-    flags = args[2:]
-    if flags[:1] == ["--if-claimed"]:
-        flags = flags[1:]
-    if (
-        len(args) < 2
-        or args[0] != "--harness"
-        or flags not in ([], ["--watch"], ["--pages"])
-    ):
-        sys.exit("usage: leaf hook --harness NAME [--if-claimed] [--watch | --pages]")
-    from leaf.hooks import main as hook
-    from leaf.refusals import Refused
-
-    try:
-        hook(args[1], watch=flags == ["--watch"], pages=flags == ["--pages"])
-    except Refused as error:
-        sys.exit(str(error))
-
-
-def _session_end(args: list[str]) -> None:
-    if args:
-        sys.exit("usage: leaf session-end")
-    from leaf.state import main as end_session
-
-    end_session()
-
-
-# The commands harness registrations run, by name, each given the argv after it.
-HARNESS_ENTRIES = {"hook": _hook, "session-end": _session_end}
+from leaf.cli import cli
 
 
 def main() -> None:
-    args = sys.argv[1:]
-    if args and (entry := HARNESS_ENTRIES.get(args[0])):
-        entry(args[1:])
-        return
-    from leaf.cli import cli
-
     cli(prog_name="leaf")
 
 

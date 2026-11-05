@@ -1,10 +1,11 @@
-import { shownParts, TEXT_BOX } from "/runtime/widget-api.js";
-import { shownBox, userScrollport } from "/runtime/check-api.js";
+import { TEXT_BOX } from "/runtime/widget-api.js";
+import { shownBox, shownParts, userScrollport } from "/runtime/check-api.js";
 import { at, place, unique } from "./locate.js";
 
 // An overlay that takes no presses at rest, such as the contents map's spine, stands
 // over the page by design and reveals over it when the user reaches for it, so the box
 // it has at rest is not the room it shows in.
+/** @param {CSSStyleDeclaration} style */
 export const restsOverPage = (style) =>
   style.position === "fixed" && style.pointerEvents === "none";
 
@@ -18,9 +19,10 @@ export const restsOverPage = (style) =>
 // containment clips both axes while `overflow` computes `visible` (MISPLACED_BOXES
 // reads the same fact for its ancestors), and it denies the way in exactly where the
 // axis has no scroller of its own.
+/** @param {CSSStyleDeclaration} style */
 export function sealedAxes(style) {
   const contained = /paint|strict|content/.test(style.contain);
-  const sealed = (overflow) =>
+  const sealed = (/** @type {string} */ overflow) =>
     overflow === "hidden" ||
     overflow === "clip" ||
     (contained && !userScrollport(overflow));
@@ -77,7 +79,12 @@ export function clippedControls() {
     // viewport so the panel has room beside it, which leaves <html> clipping and
     // with nothing of its own to scroll — so a walk that ran to the root reported
     // every control below the fold as hidden by the page it is on.
-    for (let a = el.parentElement; a && a !== document.body; a = a.parentElement) {
+    // Leaf's chrome stands after the body (base.css), so its controls stop at the root.
+    for (
+      let a = el.parentElement;
+      a && a !== document.body && a !== document.documentElement;
+      a = a.parentElement
+    ) {
       const s = getComputedStyle(a);
       const { across, down } = sealedAxes(s);
       if (across || down) {
@@ -138,6 +145,7 @@ export function clippedControls() {
 // the page from it. Its scroll behavior says so in its computed style, which a widget that
 // lost its rules doesn't take on, so a map dropped into the flow at that width is
 // still caught.
+/** @param {Readonly<Record<string, import("../../../browser/types/contract.js").WidgetDeclaration>>} declarations */
 export function tinyBoxes(declarations) {
   const declared = new Set(Object.keys(declarations));
   const inline = new Set(
@@ -222,15 +230,16 @@ export function unmarkableElements() {
 export function unreachableWords() {
   const found = [];
   // The lf-* element something stands in, if any. A .lf-ui is a widget's own
-  // chrome by standing in one of these, and the runtime's layer is appended to
-  // body and stands in none — but a widget riding a message stands in the
+  // chrome by standing in one of these, and the runtime's layer stands after
+  // body in none — but a widget riding a message stands in the
   // layer, so which of the two a .lf-ui is has to be asked of the .lf-ui and
   // never of the words beneath it, which are inside a widget either way.
+  /** @param {Element | null} el */
   const widget = (el) => {
     for (let a = el; a; a = a.parentElement) if (a.tagName.startsWith("LF-")) return a;
   };
   // The anchor pass's own rule: the nearest element that answers wins.
-  const speaks = (el) =>
+  const speaks = (/** @type {Element} */ el) =>
     Boolean(el.closest(".lf-ui, [data-lf-said]")?.matches("[data-lf-said]"));
   // Where a control's own words may sit: the control a widget declared (data-lf-offer,
   // asked instead of the role it wears, because lf-tabs overwrites `offer`'s
@@ -242,7 +251,12 @@ export function unreachableWords() {
   // whose script is gone. The line counting a passage's comments is one of these too —
   // the runtime builds it through `offer`, as a widget builds its own.
   const CONTROL = `button, ${TEXT_BOX}, input, select, label, a[href], [data-lf-offer]`;
-  const walk = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+  // The whole document, since a widget riding a message stands in the chrome after
+  // body; text outside any .lf-ui, the head's included, is passed over below.
+  const walk = document.createTreeWalker(
+    document.documentElement,
+    NodeFilter.SHOW_TEXT,
+  );
   // A text walk visits text nodes.
   for (
     let n = /** @type {Text} */ (walk.nextNode());
@@ -250,7 +264,7 @@ export function unreachableWords() {
     n = /** @type {Text} */ (walk.nextNode())
   ) {
     const el = n.parentElement;
-    if (!n.data.trim()) continue;
+    if (!n.data.trim() || !el) continue;
     // Whose the .lf-ui is, per `widget` above. A widget's own chrome is read
     // here wherever the widget stands, a message included; the panel around a
     // widget riding one is not, which is what the note on thread chrome means.
@@ -285,16 +299,18 @@ export function unreachableWords() {
   return unique(found);
 }
 
-// A declared label inside a form control is out of reach whatever it is marked: Chrome
-// starts no pointer selection inside one, which is why `offer` builds a press as a span
-// wearing role="button". A widget module reaching for <button> anyway puts its label
-// where no selection can go. The suite asks it of Leaf's own widgets over the shipped
-// pages; an authored page has never been found doing it.
+// A declared label inside a form control is out of reach whatever it is marked: WebKit
+// starts no pointer selection inside one, whatever its `user-select`, which is why
+// `selectableOffer` builds a press as a span wearing its role (widget-elements.js). A
+// widget module reaching for <button> anyway puts its label where no selection can go.
+// The suite asks it of Leaf's own widgets over the shipped pages; an authored page has
+// never been found doing it.
 export function wordsInFormControls() {
   const form = `button, ${TEXT_BOX}, input, select`;
   return [...document.querySelectorAll("[data-lf-said]")]
     .filter((el) => el.closest(form))
     .map((el) => {
+      /** @type {Element | null} */
       let widget = el;
       while (widget && !widget.tagName.startsWith("LF-")) widget = widget.parentElement;
       return widget

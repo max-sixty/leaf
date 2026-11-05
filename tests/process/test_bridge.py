@@ -51,7 +51,9 @@ def test_a_sandboxed_command_runs_outside_the_sandbox(page_dir):
         check=False,
     )
     assert claimed.returncode == 0, claimed.stderr
-    assert service_model.page_claim(page_dir)["id"] == "bridged"
+    claim_record = service_model.page_claim(page_dir)
+    assert claim_record is not None
+    assert claim_record["id"] == "bridged"
 
 
 @pytest.mark.usefixtures("bridged")
@@ -93,7 +95,7 @@ def test_a_bridged_command_refuses_a_socket_stdin_at_once(page_dir):
     with held, caller:
         refused = subprocess.run(
             [LAUNCHER, "data", "set", str(page_dir), "source"],
-            stdin=held,
+            stdin=held.fileno(),
             capture_output=True,
             text=True,
             timeout=STATED_TIMEOUT,
@@ -113,7 +115,7 @@ def test_a_bridged_command_reads_a_socket_stdin_it_names(page_dir):
         caller.shutdown(socket.SHUT_WR)
         read = subprocess.run(
             [LAUNCHER, "data", "set", str(page_dir), "source", "--file", "-"],
-            stdin=held,
+            stdin=held.fileno(),
             capture_output=True,
             text=True,
             timeout=STATED_TIMEOUT,
@@ -153,3 +155,19 @@ def test_a_session_that_runs_no_leaf_command_starts_no_bridge():
     ):
         hooks_model.cmd_hook("claude-code", {"session_id": "unbridged", **payload})
     assert not bridge_model.bridge_path("lock").exists()
+
+
+@pytest.mark.parametrize(
+    "argv",
+    [["--help"], ["--version"], ["--root", "--", "x"]],
+)
+def test_the_bridge_client_forwards_leaf_arguments_verbatim(monkeypatch, argv):
+    """`bin/leaf` hands a sandboxed command's whole argv to the bridge client,
+    which passes every argument after its mode to Leaf unparsed, `--` included."""
+    received = []
+    monkeypatch.setattr(bridge_model, "run", lambda args: received.append(args) or 7)
+    monkeypatch.setattr("sys.argv", ["bridge.py", "run", *argv])
+    with pytest.raises(SystemExit) as exited:
+        bridge_model.main()
+    assert exited.value.code == 7
+    assert received == [argv]

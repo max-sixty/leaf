@@ -1,16 +1,17 @@
 {
   "lf-playground": {
     "description": "A preview with controls, where the user compares candidates, tunes a configuration, and sends it.",
-    "x-instructions": "Holds one `lf-playground-preview` and one `lf-playground-output`.",
+    "x-instructions": "Holds one `lf-playground-preview` and one `lf-playground-output`. With `actions=\"page\"`, the page's script draws the submission and Reset and hands them over with `registerActions`.",
     "type": "object",
     "properties": {
-      "id": {
-        "type": "string",
-        "pattern": "^[a-z0-9][a-z0-9-]*$"
-      },
+      "id": { "type": "string" },
+      "contract": { "type": "string" },
       "submit-label": {
         "type": "string",
         "minLength": 1
+      },
+      "actions": {
+        "const": "page"
       },
       "restated": {
         "type": "boolean"
@@ -28,6 +29,7 @@
     },
     "x-state": {
       "choose": {
+        "contract": { "field": "values", "attribute": "contract" },
         "detail": {
           "type": "object",
           "properties": {
@@ -48,10 +50,28 @@
           "additionalProperties": false
         },
         "unit": "widget"
+      },
+      "tune": {
+        "detail": {
+          "type": "object",
+          "properties": {
+            "values": {
+              "type": "object",
+              "minProperties": 1,
+              "propertyNames": {
+                "pattern": "^[a-z0-9][a-z0-9-]*$"
+              },
+              "additionalProperties": {}
+            }
+          },
+          "required": ["values"],
+          "additionalProperties": false
+        },
+        "unit": "widget",
+        "unsent": true
       }
     },
-    "x-example": "<lf-ask id=\"notification-ask\"> <h2>Which deployment notification should we build?</h2> <lf-playground id=\"notification-playground\" submit-label=\"Create notification\" data-width=\"available\" > <lf-playground-control name=\"radius\" label=\"Corner radius\" kind=\"range\" value=\"10\" min=\"0\" max=\"24\" step=\"1\" unit=\"px\" ></lf-playground-control> <lf-playground-control name=\"compact\" label=\"Compact spacing\" kind=\"toggle\" value=\"false\" ></lf-playground-control> <lf-playground-preset label=\"Compact\"> <lf-playground-setting for=\"radius\" value=\"4\"></lf-playground-setting> <lf-playground-setting for=\"compact\" value=\"true\"></lf-playground-setting> </lf-playground-preset> <lf-playground-preview> <lf-playground-control name=\"format\" label=\"Notification\" kind=\"choice\" value=\"banner\" > <lf-playground-choice value=\"banner\" label=\"Banner\"> <article class=\"notification-candidate\"> <h3>Checkout deployed</h3> <p>Review the deployment run.</p> </article> </lf-playground-choice> <lf-playground-choice value=\"status strip\" label=\"Status strip\"> <article class=\"notification-candidate\"> Checkout \u00b7 deployed \u00b7 18 checks passed </article> </lf-playground-choice> </lf-playground-control> </lf-playground-preview> <lf-playground-output> Build the <lf-playground-value for=\"format\"></lf-playground-value> notification with <lf-playground-value for=\"radius\"></lf-playground-value> corners and compact spacing set to <lf-playground-value for=\"compact\"></lf-playground-value>. Replace the notification component and show me its browser test. </lf-playground-output> </lf-playground> </lf-ask>",
-    "x-initial": "/vendor/lf-playground-initial.js"
+    "x-example": "<lf-ask id=\"notification-ask\" data-width=\"available\"> <h2>Which deployment notification should we build?</h2> <lf-playground id=\"notification-playground\" submit-label=\"Create notification\" > <lf-playground-control name=\"radius\" label=\"Corner radius\" kind=\"range\" value=\"10\" min=\"0\" max=\"24\" step=\"1\" unit=\"px\" ></lf-playground-control> <lf-playground-control name=\"compact\" label=\"Compact spacing\" kind=\"toggle\" value=\"false\" ></lf-playground-control> <lf-playground-preset label=\"Compact\"> <lf-playground-setting for=\"radius\" value=\"4\"></lf-playground-setting> <lf-playground-setting for=\"compact\" value=\"true\"></lf-playground-setting> </lf-playground-preset> <lf-playground-preview> <lf-playground-control name=\"format\" label=\"Notification\" kind=\"choice\" value=\"banner\" > <lf-playground-choice value=\"banner\" label=\"Banner\"> <article class=\"notification-candidate\"> <h3>Checkout deployed</h3> <p>Review the deployment run.</p> </article> </lf-playground-choice> <lf-playground-choice value=\"status strip\" label=\"Status strip\"> <article class=\"notification-candidate\"> Checkout \u00b7 deployed \u00b7 18 checks passed </article> </lf-playground-choice> </lf-playground-control> </lf-playground-preview> <lf-playground-output> Build the <lf-playground-value for=\"format\"></lf-playground-value> notification with <lf-playground-value for=\"radius\"></lf-playground-value> corners and compact spacing set to <lf-playground-value for=\"compact\"></lf-playground-value>. Replace the notification component and show me its browser test. </lf-playground-output> </lf-playground> </lf-ask>"
   },
   "lf-playground-control": {
     "description": "One typed input in a playground.",
@@ -59,10 +79,7 @@
     "x-name": "label",
     "type": "object",
     "properties": {
-      "id": {
-        "type": "string",
-        "pattern": "^[a-z0-9][a-z0-9-]*$"
-      },
+      "id": { "type": "string" },
       "name": {
         "type": "string",
         "pattern": "^[a-z0-9][a-z0-9-]*$"
@@ -73,6 +90,9 @@
       },
       "kind": {
         "enum": ["range", "toggle", "choice", "color", "text"]
+      },
+      "appearance": {
+        "const": "select"
       },
       "value": {
         "type": "string"
@@ -98,6 +118,10 @@
     },
     "required": ["name", "label", "kind", "value"],
     "allOf": [
+      {
+        "if": { "required": ["appearance"] },
+        "then": { "properties": { "kind": { "const": "choice" } } }
+      },
       {
         "if": {
           "properties": {
@@ -164,10 +188,7 @@
     "x-name": "label",
     "type": "object",
     "properties": {
-      "id": {
-        "type": "string",
-        "pattern": "^[a-z0-9][a-z0-9-]*$"
-      },
+      "id": { "type": "string" },
       "value": {
         "type": "string",
         "minLength": 1
@@ -190,10 +211,7 @@
     "x-name": "label",
     "type": "object",
     "properties": {
-      "id": {
-        "type": "string",
-        "pattern": "^[a-z0-9][a-z0-9-]*$"
-      },
+      "id": { "type": "string" },
       "label": {
         "type": "string",
         "minLength": 1
@@ -210,10 +228,7 @@
     "x-instructions": "Set for to a control in the same playground and write value in that control's authored string form.",
     "type": "object",
     "properties": {
-      "for": {
-        "type": "string",
-        "pattern": "^[a-z0-9][a-z0-9-]*$"
-      },
+      "for": { "type": "string" },
       "value": {
         "type": "string"
       }
@@ -232,10 +247,7 @@
     "description": "The live preview the user operates in a playground, such as the candidates being compared.",
     "type": "object",
     "properties": {
-      "id": {
-        "type": "string",
-        "pattern": "^[a-z0-9][a-z0-9-]*$"
-      }
+      "id": { "type": "string" }
     },
     "additionalProperties": false,
     "x-owners": ["lf-playground"],
@@ -246,10 +258,7 @@
     "description": "The task instruction displayed by a playground and sent with the chosen configuration.",
     "type": "object",
     "properties": {
-      "id": {
-        "type": "string",
-        "pattern": "^[a-z0-9][a-z0-9-]*$"
-      }
+      "id": { "type": "string" }
     },
     "additionalProperties": false,
     "x-owners": ["lf-playground"],
@@ -261,10 +270,7 @@
     "x-instructions": "Set for to a control in the enclosing playground. Numeric values already include the control's unit.",
     "type": "object",
     "properties": {
-      "for": {
-        "type": "string",
-        "pattern": "^[a-z0-9][a-z0-9-]*$"
-      }
+      "for": { "type": "string" }
     },
     "required": ["for"],
     "additionalProperties": false,

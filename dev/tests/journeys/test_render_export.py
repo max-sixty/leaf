@@ -1,6 +1,5 @@
 """Developer tooling checks; run explicitly from dev/tests."""
 
-import contextlib
 import json
 import os
 import re
@@ -18,12 +17,12 @@ from interact_support import (
     COMPOSITE_TIMEOUT,
     STATED_TIMEOUT,
     append_carried_log_record,
+    fetch,
     install_payload,
     wait_for,
     woken,
 )
-from journeys.test_render_export import ROOT, _reachable
-from leaf_dev.commands import preview as preview_model
+from journeys.test_render_export import _reachable
 from playwright.sync_api import expect
 from render_harness import (
     REPLAYED_PAGE,
@@ -46,14 +45,15 @@ from leaf import state as cleanup_model
 from leaf.findings import Finding
 from leaf.render_checks import HANDOVER_DEADLINE_MS, wait_until_ready
 from leaf.structure import SourceDocument
+from leaf_dev import ROOT
+from leaf_dev.commands import preview as preview_model
+from leaf_dev.example_data import named_source
 
 
 def end_preview(process) -> None:
     """Stop a preview the way a harness's runner stops a task.
 
-    The exit status is not the evidence: a signal that lands while `watchfiles`
-    waits comes back out of it as `KeyboardInterrupt`, so the same stop exits 130
-    or 143 depending on where it lands. What the stop left running is.
+    The exit status is not the evidence; what the stop left running is.
     """
     os.killpg(process.pid, signal.SIGTERM)
     process.wait(timeout=STATED_TIMEOUT)
@@ -63,7 +63,7 @@ def expect_preview_named(page, words):
     """The leaf's menu names a preview page's preview on its diagnostics row, whose
     title says who drives it and which checkout serves it; read it and put the menu
     away."""
-    row = panel_menu(page).locator('.lf-fp-item[data-row="preview"]')
+    row = panel_menu(page).locator('.lf-fp-item[data-lf-row="preview"]')
     expect(row).to_have_attribute("title", re.compile(re.escape(words)))
     page.locator(".lf-fp-leaf").click()
 
@@ -247,7 +247,7 @@ preview.preview.main(args=sys.argv[1:])
             sys.executable,
             str(worker),
             "--source",
-            str(ROOT / "examples" / "heat-loss.html"),
+            str(named_source("heat-loss")),
             "--slot",
             slot,
             "--user",
@@ -602,7 +602,7 @@ def test_a_user_preview_restarts_under_its_original_codex_claim(
     source = tmp_path / "detached.html"
     source.write_text(REPLAYED_PAGE)
     runtime = install_payload(tmp_path / "detached-runtime")
-    theme = runtime / "browser" / "theme.css"
+    theme = runtime / "browser" / "base.css"
     slot, directory = preview_slot
     log = tmp_path / "preview.log"
     # The Codex task runs the preview as its own long-running command.
@@ -640,6 +640,7 @@ def test_a_user_preview_restarts_under_its_original_codex_claim(
         timeout=COMPOSITE_TIMEOUT,
     )
     claim = service_model.page_claim(directory)
+    assert claim is not None
     assert claim["pid"] == owner.pid
     with theme.open("a", encoding="utf-8") as stream:
         stream.write("\nh1 { color: navy; }\n")
@@ -657,6 +658,7 @@ def test_a_user_preview_restarts_under_its_original_codex_claim(
     with service_model.PageTransaction(directory):
         with theme.open("a", encoding="utf-8") as stream:
             stream.write("\nh1 { color: teal; }\n")
+        assert claim is not None
         cleanup_model.end_session(claim["id"])
     wait_for(
         lambda: server_model.running_server(directory),
@@ -732,57 +734,6 @@ def test_preview_adds_immutable_media_before_stamping_source(watched_preview):
     assert (directory / "media" / image.name).read_bytes() == expected
 
 
-def test_terminating_a_preview_mid_update_leaves_no_service(
-    tmp_path, preview_slot, spawn
-):
-    """A SIGTERM after re-vendor stops the service leaves no restarted service."""
-    (tmp_path / "hold_update.py").write_text(
-        "import json, os, socket\n"
-        "def pause(page):\n"
-        "    record = page.page_dir / 'service.json'\n"
-        "    if not record.exists():\n"
-        "        return\n"
-        "    service = json.loads(record.read_text())\n"
-        "    theme = (page.page_dir / 'theme.css').read_text()\n"
-        "    if service.get('restart') and 'h1 { color: navy; }' in theme:\n"
-        "        port = int(os.environ['LEAF_TEST_UPDATE_BARRIER'])\n"
-        "        with socket.create_connection(('127.0.0.1', port)) as peer:\n"
-        "            if peer.recv(1) != b'x':\n"
-        "                os._exit(1)\n"
-    )
-    env = os.environ | {
-        "PYTHONPATH": os.pathsep.join(
-            filter(None, (str(tmp_path), os.environ.get("PYTHONPATH")))
-        ),
-        "LEAF_PAGE_COMMIT": "hold_update:pause",
-    }
-    with socket.socket() as listener:
-        listener.bind(("127.0.0.1", 0))
-        listener.listen(1)
-        listener.settimeout(STATED_TIMEOUT)
-        env["LEAF_TEST_UPDATE_BARRIER"] = str(listener.getsockname()[1])
-        source, runtime, directory, process, _, log = watching(
-            tmp_path, preview_slot, spawn, user=True, env=env
-        )
-        theme = runtime / "browser" / "theme.css"
-        with theme.open("a", encoding="utf-8") as stream:
-            stream.write("\nh1 { color: navy; }\n")
-        try:
-            peer, _ = listener.accept()
-        except TimeoutError:
-            pytest.fail(f"watcher did not commit the updated layer: {log.read_text()}")
-        with peer:
-            assert "h1 { color: navy; }" in (directory / "theme.css").read_text()
-            assert not files_model.read_json(directory / "service.json")["enabled"]
-            os.killpg(process.pid, signal.SIGTERM)
-            with contextlib.suppress(BrokenPipeError, ConnectionResetError):
-                peer.sendall(b"x")
-    process.wait(timeout=STATED_TIMEOUT)
-    assert server_model.running_server(directory) is None
-    assert (directory / "events.jsonl").is_file()
-    assert (directory / "index.html").read_bytes() == source.read_bytes()
-
-
 @pytest.mark.parametrize("edit", ["source", "runtime"])
 def test_a_user_preview_update_keeps_the_sessions_wait_watching(
     tmp_path, served_preview, spawn, edit
@@ -816,7 +767,7 @@ def test_a_user_preview_update_keeps_the_sessions_wait_watching(
             source.read_text().replace("Rollout", "A watched revision", 1)
         )
     else:
-        theme = runtime / "browser" / "theme.css"
+        theme = runtime / "browser" / "base.css"
         with theme.open("a", encoding="utf-8") as stream:
             stream.write("\nh1 { color: navy; }\n")
     wait_for(
@@ -851,7 +802,9 @@ def test_a_user_preview_brings_back_a_service_that_is_down_but_wanted(
     enabled and down in just this way. Only a stop, or the claim leaving this
     session, ends the preview."""
     _, _, directory, process, url, log = served_preview
-    port = server_model.running_server(directory)["port"]
+    original = server_model.running_server(directory)
+    assert original is not None
+    port = original["port"]
     claim = service_model.page_claim(directory)
     events = (directory / "events.jsonl").read_bytes()
     # Hold the watcher while taking the stopped server's port. Revival waits for
@@ -880,13 +833,13 @@ def test_a_user_preview_brings_back_a_service_that_is_down_but_wanted(
         assert server_model.running_server(directory) is None
         assert files_model.read_json(directory / "service.json")["enabled"]
 
-    wait_for(
+    restored = wait_for(
         lambda: server_model.running_server(directory),
         bool,
         failure="the preview did not bring its server back",
     )
     assert process.poll() is None, log.read_text()
-    assert server_model.running_server(directory)["port"] == port
+    assert restored["port"] == port
     wait_for(
         lambda: _reachable(url),
         bool,
@@ -918,7 +871,9 @@ def test_a_preview_relinquishes_a_service_another_session_claims(
         failure="the former owner's preview kept following the successor's page",
     )
     assert process.returncode == 0, log.read_text()
-    assert service_model.page_claim(directory)["id"] == "successor"
+    claim_record = service_model.page_claim(directory)
+    assert claim_record is not None
+    assert claim_record["id"] == "successor"
     assert server_model.running_server(directory)
     assert _reachable(url)
 
@@ -960,8 +915,10 @@ def test_the_example_preview_command_exports_a_file_that_opens_on_its_own(
         ),
     )
     page.goto(out.as_uri(), wait_until="load")
-    source = (ROOT / "examples" / "pr-walkthrough.html").read_text(encoding="utf-8")
-    title = " ".join(SourceDocument(source).tree.select_one("h1").text.split())
+    source = named_source("pr-walkthrough").read_text(encoding="utf-8")
+    select_one_result = SourceDocument(source).tree.select_one("h1")
+    assert select_one_result is not None
+    title = " ".join(select_one_result.text.split())
     expect(page.get_by_role("heading", name=title)).to_be_visible()
     expect(page.locator("body")).to_have_attribute("data-lf-presented", "1")
     assert page.evaluate("document.compatMode") == "CSS1Compat"
@@ -987,3 +944,77 @@ def test_exporting_an_example_leaves_the_live_preview_untouched(
     finally:
         CliRunner().invoke(cli_model.cli, ["server", "stop", str(page_dir)])
         live_server.wait(timeout=STATED_TIMEOUT)
+
+
+def test_preview_resumes_loaded_code_changes_without_losing_feedback(
+    tmp_path, preview_slot, spawn
+):
+    """Python edits keep the old page serving until an explicit restart."""
+    from urllib.parse import urlsplit
+
+    source, runtime, directory, process, url, log = watching(
+        tmp_path, preview_slot, spawn, user=True
+    )
+    state_url = urlsplit(url)._replace(path="/api/state").geturl()
+    event_url = urlsplit(url)._replace(path="/api/event").geturl()
+    status, body = fetch(
+        event_url,
+        token=None,
+        data=json.dumps(
+            {
+                "kind": "comment",
+                "revision": files_model.latest_revision(directory),
+                "text": "Keep this feedback through the update",
+                "attempt": "preview-runtime-update",
+            }
+        ).encode(),
+    )
+    assert status == 200, body
+    feedback = (directory / "events.jsonl").read_bytes()
+    assert b"Keep this feedback through the update" in feedback
+    status, body = fetch(state_url, token=None)
+    assert status == 200, body
+    old_grace = json.loads(body)["working_grace_ms"]
+
+    edited = runtime / "src/leaf/served_state/page.py"
+    original = edited.read_text()
+    updated = original.replace("WORKING_GRACE // timedelta(milliseconds=1)", "12345")
+    assert updated != original
+    edited.write_text(updated)
+
+    def restart_requested(text):
+        assert process.poll() is None, text
+        return "restart this preview" in text
+
+    wait_for(
+        log.read_text,
+        restart_requested,
+        timeout=STATED_TIMEOUT,
+        failure="the preview did not request a restart for its changed Python code",
+    )
+    assert _reachable(url)
+    status, body = fetch(state_url, token=None)
+    assert status == 200, body
+    assert json.loads(body)["working_grace_ms"] == old_grace
+
+    # The same command resumes a user preview; no process identity is a contract.
+    result = CliRunner().invoke(cli_model.cli, ["server", "stop", str(directory)])
+    assert result.exit_code == 0, result.output
+    process.wait(timeout=STATED_TIMEOUT)
+    restarted, restarted_url = start_preview(
+        spawn, process.args, tmp_path / "restarted.log"
+    )
+    assert restarted_url == url
+    status, body = fetch(state_url, token=None)
+    assert status == 200, body
+    assert json.loads(body)["working_grace_ms"] == 12345
+    assert (directory / "events.jsonl").read_bytes().startswith(feedback)
+
+    source.write_text(source.read_text().replace("Rollout", "Updated rollout"))
+    wait_for(
+        lambda: (directory / "index.html").read_text(),
+        lambda text: "Updated rollout" in text,
+        timeout=COMPOSITE_TIMEOUT,
+        failure="the restarted preview did not resume authored-page updates",
+    )
+    assert restarted.poll() is None

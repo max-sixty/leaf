@@ -35,6 +35,8 @@ variants:
   shared-instruction:
     metadata:
       purpose: A rule applying to every review choice remains available while the reader works across items.
+      authoring: true
+      tags: [layout, asks]
     vars:
       prompt: |
         Write a Leaf workspace for reviewing 14 flaky tests from last week's CI on a
@@ -48,19 +50,22 @@ variants:
         Delete will do without searching another test or opening help. Include the
         action that submits the review. Keep enough room to read the selected test's
         evidence and make its decision.
-
-        The page directory is not reachable from here, so reply with the complete
-        index.html rather than writing a file.
     assert:
-      - type: llm-rubric
+      - type: javascript
         metric: shared-rule-during-review
-        value: |
-          Pass if, while switching tests and reading long logs, the user can see that
-          per-test choices only save proposals and CI changes require submitting the
-          whole review. The submit action must be available, and the explanation must leave the
-          list, evidence and decisions usable together on the requested laptop. Fail if
-          the rule disappears with one selected test or scrolls out of the working view
-          without another visible presentation of it, if it is only behind help, or if
-          an individual Delete choice is presented as immediately changing CI. The rule
-          may appear in any suitable location; do not require or forbid a header,
-          footer, pane or particular HTML element.
+        value: file://../dev/leaf_dev/authoring_assertion.mjs
+        config:
+          rubric: |
+            At the requested 1280 by 800 laptop viewport, switch tests and read a long log. The
+            rule that choices save proposals and CI changes require whole-review submission
+            remains visible, and list/evidence/decisions remain usable together. Choose Delete
+            for one test, switch away and back, and reload: the proposal remains saved in Leaf
+            state. Complete remaining choices if required, then Submit; verify the complete
+            review is recorded as a canonical Leaf submission and handed to the agent, with its
+            proposal values preserved after reload. A button that only changes local browser
+            state, writes localStorage, or announces success without a Leaf submission fails. No
+            real CI side effect is required for this illustrative task. Do not prescribe
+            header/footer/pane/tag location. Observe canonical proposal and submission state
+            through the page server as well as visible UI; reload alone can preserve
+            browser-local state. The page server's /api/state is available through browser
+            fetch. Do not infer submission from its confirmation label alone.

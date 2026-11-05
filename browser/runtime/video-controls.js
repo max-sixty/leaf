@@ -5,9 +5,9 @@
    runtime, or one that failed to start, keeps the browser's controls. Once the runtime
    runs, each video standing in the document or a widget's first shadow stage
    (arrivals.js), where the bar can anchor to it, trades `controls` for `data-lf-player`
-   while it stands, and gets the attribute back when it leaves. prepaint.js makes the
-   trade for the served document's videos before their first paint, so the browser's
-   controls never draw there to give way to the bar. The browsers' own
+   while it stands, and gets the attribute back when it leaves. Startup makes the
+   trade before revealing the rendered page, so the browser's controls never draw
+   there to give way to the bar. The browsers' own
    controls each start a recording differently, and Firefox's grow the first play's
    button to three times its size while fading it out over 400 ms, which a replay never
    shows, so the same recording looked different on its first play and in each engine.
@@ -53,140 +53,165 @@ import {
 } from "./block-controls.js";
 import { headerLevels, nameable } from "./css-anchors.js";
 import { focusDestination, focused } from "./focus.js";
-import { iconElement } from "./icons.js";
+import { actionTemplate } from "./icons.js";
 import { keeps } from "./keeps.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
 import { plainPress } from "./pointer.js";
 import { commandScope, projectCommandScope } from "./keyboard/scopes.js";
-import { offer } from "./widget-elements.js";
+import { offer, offered, offeredAction } from "./widget-elements.js";
+import { html, live, nothing, render } from "/runtime/framework.js";
 
 const PLAYER = PAGE_PAINT_ATTRIBUTE.player;
 // The key this module projects its scope under, beside the video's other owners.
 const SCOPE = Symbol("recording");
 const STEP_SECONDS = 5;
+/** @typedef {{video: HTMLVideoElement, bar: HTMLDivElement, play: Element | null, authoredTabindex: string | null, filling: boolean, events: AbortController, scope: ReturnType<typeof commandScope> | null, paint: () => void}} Player */
+/** @type {Map<Element, Player>} */
 const players = new Map(); // video → player, while it stands
 
-const clock = (seconds) => {
+const clock = (/** @type {number} */ seconds) => {
   const whole = Math.floor(seconds);
   return `${Math.floor(whole / 60)}:${String(whole % 60).padStart(2, "0")}`;
 };
-const duration = (video) => (Number.isFinite(video.duration) ? video.duration : 0);
+const duration = (/** @type {HTMLVideoElement} */ video) =>
+  Number.isFinite(video.duration) ? video.duration : 0;
 
 // How `video` fills the screen here, or null where its document may not.
-const fillScreen = (video) => {
+const fillScreen = (/** @type {HTMLVideoElement} */ video) => {
   if (video.ownerDocument.fullscreenEnabled) return () => video.requestFullscreen();
-  if (video.webkitEnterFullscreen) return () => video.webkitEnterFullscreen();
+  const enter = video.webkitEnterFullscreen;
+  if (enter) return () => enter.call(video);
   return null;
 };
-const fills = (video) => video.getRootNode().fullscreenElement === video;
+const fills = (/** @type {HTMLVideoElement} */ video) => {
+  const root = video.getRootNode();
+  return (
+    (root instanceof Document || root instanceof ShadowRoot) &&
+    root.fullscreenElement === video
+  );
+};
 
+/** @param {HTMLVideoElement} video */
 function toggle(video) {
   if (!video.paused) return video.pause();
   // A pause asked for before playback starts ends that start; nothing else may.
-  video.play().catch((error) => {
-    if (error.name !== "AbortError") throw error;
+  video.play().catch((/** @type {unknown} */ error) => {
+    if (!(error instanceof Error) || error.name !== "AbortError") throw error;
   });
 }
 
-function paintTime({ video, time }) {
-  const at = String(video.currentTime);
-  if (time.value !== at) time.value = at;
-  keeps(
-    time,
-    "aria-valuetext",
-    `${clock(video.currentTime)} of ${clock(duration(video))}`,
+// Native media events own the clock; synchronous Lit rendering reads it directly
+// and retains the controls, including the range the reader may be scrubbing.
+/** @param {HTMLVideoElement} video @param {HTMLElement} bar @param {(() => void | Promise<void>) | null} enterFullScreen */
+export function paintRecordingControls(video, bar, enterFullScreen) {
+  keeps(bar, "data-lf-playing", video.paused ? null : "");
+  keeps(bar, "role", "group");
+  keeps(bar, "aria-label", video.getAttribute("aria-label") || "Recording");
+  render(
+    html`<button
+        ${offeredAction(
+          "symbol",
+          "lf-video-play",
+          !video.paused ? "Pause recording" : "Play recording",
+          { action: "play" },
+        )}
+        tabindex="-1"
+      >
+        ${actionTemplate("pause", "lf-action-icon")}
+      </button>
+      <input
+        ${offered("lf-video-time")}
+        type="range"
+        tabindex="-1"
+        min="0"
+        step="any"
+        max=${String(duration(video))}
+        ?disabled=${!duration(video)}
+        .value=${live(String(video.currentTime))}
+        aria-label="Recording position"
+        aria-valuetext=${`${clock(video.currentTime)} of ${clock(duration(video))}`}
+        @input=${(/** @type {Event} */ event) => {
+          if (event.currentTarget instanceof HTMLInputElement)
+            video.currentTime = Number(event.currentTarget.value);
+        }}
+      />
+      ${
+        enterFullScreen
+          ? html`<button
+              ${offeredAction("symbol", "lf-video-full-screen", "Full screen", {
+                action: "expand",
+              })}
+              tabindex="-1"
+            ></button>`
+          : nothing
+      }`,
+    bar,
   );
-}
-
-function paint(player) {
-  const { video, bar, play, time } = player;
-  const playing = !video.paused;
-  bar.classList.toggle("lf-video-playing", playing);
-  keeps(play, "aria-label", playing ? "Pause recording" : "Play recording");
-  keeps(time, "max", String(duration(video)));
-  // A recording that loads nothing until it plays has no length to scrub yet.
-  keeps(time, "disabled", duration(video) ? null : "");
-  paintTime(player);
 }
 
 // A player for `video`, its bar built and its listeners wired; `trade` writes it into
 // the page.
+/** @param {HTMLVideoElement} video @returns {Player} */
 function prepare(video) {
   const bar = offer("div", "lf-video-controls");
-  const play = offer("button", "lf-video-play");
-  play.tabIndex = -1;
-  play.append(
-    iconElement("play", "lf-video-icon"),
-    iconElement("pause", "lf-video-icon"),
-  );
-  const time = offer("input", "lf-video-time", undefined, "range");
-  time.tabIndex = -1;
-  time.min = "0";
-  time.step = "any";
-  keeps(time, "aria-label", "Recording position");
-  bar.append(play, time);
   const enterFullScreen = fillScreen(video);
-  const fullScreen = enterFullScreen && offer("button", "lf-video-full-screen");
-  if (fullScreen) {
-    fullScreen.tabIndex = -1;
-    fullScreen.append(iconElement("expand", "lf-video-icon"));
-    keeps(fullScreen, "aria-label", "Full screen");
-    bar.append(fullScreen);
-  }
-  // The bar stands in chrome, far from its video in the document, so it carries the
-  // video's name for whoever reaches it by reading rather than by the picture.
-  keeps(bar, "role", "group");
-  keeps(bar, "aria-label", video.getAttribute("aria-label") || "Recording");
+  const paint = () => paintRecordingControls(video, bar, enterFullScreen);
+  paint();
+  const play = bar.querySelector(".lf-video-play");
+  const fullScreen = bar.querySelector(".lf-video-full-screen");
+  const fullScreenAction =
+    fullScreen && enterFullScreen
+      ? { control: fullScreen, run: enterFullScreen }
+      : null;
   const player = {
     video,
     bar,
     play,
-    time,
     authoredTabindex: video.getAttribute("tabindex"),
     filling: false,
     events: new AbortController(),
     /** @type {ReturnType<typeof commandScope> | null} */
     scope: null,
+    paint,
   };
   const { signal } = player.events;
-  const on = (target, type, listener) =>
-    target.addEventListener(type, listener, { signal });
+  /** @template {keyof HTMLVideoElementEventMap} K @param {K} type @param {(event: HTMLVideoElementEventMap[K]) => void} listener */
+  const on = (type, listener) => video.addEventListener(type, listener, { signal });
 
   for (const type of ["play", "pause", "ended", "loadedmetadata", "durationchange"])
-    on(video, type, () => paint(player));
-  on(video, "seeked", () => paintTime(player));
-  on(video, "timeupdate", () => paintTime(player));
+    video.addEventListener(type, paint, { signal });
+  on("seeked", paint);
+  on("timeupdate", paint);
   // The timeline follows each frame the browser presents rather than the few times a
   // second `timeupdate` fires, so its thumb glides instead of stepping.
   // One request stands at a time, however quickly playback stops and starts again.
   let frame = 0;
   const followFrames = () => {
-    paintTime(player);
+    paint();
     frame =
       video.paused || signal.aborted
         ? 0
         : video.requestVideoFrameCallback(followFrames);
   };
-  on(video, "playing", () => {
+  on("playing", () => {
     if (frame) video.cancelVideoFrameCallback(frame);
     frame = video.requestVideoFrameCallback(followFrames);
   });
-  on(video, "click", (event) => {
+  on("click", (event) => {
     if (plainPress(event) && !player.filling) toggle(video);
   });
-  on(time, "input", () => (video.currentTime = Number(time.value)));
 
   // The bar shows for a pointer over the recording, and for the current keyboard location on
   // it: focus a key brought, or a command a key ran there. A press that focused the
   // picture leaves a playing recording whole.
-  const show = (flag, force) => {
+  const show = (/** @type {string} */ flag, /** @type {boolean} */ force) => {
     if (force) revealControl(bar, video);
-    bar.classList.toggle(flag, force);
+    keeps(bar, `data-lf-${flag}`, force ? "" : null);
   };
-  on(video, "pointerenter", () => show("lf-video-hover", true));
-  on(video, "pointerleave", () => show("lf-video-hover", false));
-  on(video, "focus", () => show("lf-video-keyed", video.matches(":focus-visible")));
-  on(video, "blur", () => show("lf-video-keyed", false));
+  on("pointerenter", () => show("hovered", true));
+  on("pointerleave", () => show("hovered", false));
+  on("focus", () => show("keyed", video.matches(":focus-visible")));
+  on("blur", () => show("keyed", false));
   tabFromBlock(bar, video, signal);
   player.scope = commandScope("On a recording", [
     {
@@ -197,7 +222,7 @@ function prepare(video) {
       control: play,
       run: () => {
         // Its control runs it too, and a pointer's press there leaves the bar to hide.
-        if (focused() === video) show("lf-video-keyed", true);
+        if (focused() === video) show("keyed", true);
         toggle(video);
       },
     },
@@ -218,8 +243,8 @@ function prepare(video) {
       ],
       title: `back / forward ${STEP_SECONDS} seconds`,
       repeat: true,
-      run: (binding) => {
-        show("lf-video-keyed", true);
+      runKey: (binding) => {
+        show("keyed", true);
         const step = binding === "ArrowLeft" ? -STEP_SECONDS : STEP_SECONDS;
         video.currentTime = Math.min(
           duration(video),
@@ -227,17 +252,17 @@ function prepare(video) {
         );
       },
     },
-    ...(fullScreen
+    ...(fullScreenAction
       ? [
           {
             id: "recording.full-screen",
             keys: ["f"],
             title: "full screen",
-            control: fullScreen,
+            control: fullScreenAction.control,
             // The browser's keys reach the video where focus is on it.
             run: () => {
               focusDestination(video, "move");
-              enterFullScreen();
+              fullScreenAction.run();
             },
           },
         ]
@@ -245,26 +270,32 @@ function prepare(video) {
   ]);
   // Full screen shows the video alone, so the browser's controls stand in for the bar
   // until it leaves (header).
-  on(video.ownerDocument, "fullscreenchange", () => {
-    if (fills(video) === player.filling) return;
-    player.filling = !player.filling;
-    keeps(video, "controls", player.filling ? "" : null);
-    projectCommandScope(video, SCOPE, player.filling ? null : player.scope);
-    show("lf-video-hover", false);
-  });
+  video.ownerDocument.addEventListener(
+    "fullscreenchange",
+    () => {
+      if (fills(video) === player.filling) return;
+      player.filling = !player.filling;
+      keeps(video, "controls", player.filling ? "" : null);
+      projectCommandScope(video, SCOPE, player.filling ? null : player.scope);
+      show("hovered", false);
+    },
+    { signal },
+  );
   players.set(video, player);
   return player;
 }
 
+/** @param {Player} player */
 function trade(player) {
   const { video, scope } = player;
   projectCommandScope(video, SCOPE, scope);
   keeps(video, PLAYER, "");
   keeps(video, "controls", null);
   if (player.authoredTabindex === null) keeps(video, "tabindex", "0");
-  paint(player);
+  player.paint();
 }
 
+/** @param {Element} video */
 function giveBack(video) {
   const player = players.get(video);
   if (!player) return;
@@ -279,8 +310,8 @@ function giveBack(video) {
 
 export function watchVideos() {
   // A page whose runtime cannot start falls back to its readable form, which takes
-  // `data-lf-interactive` off the root and gives every video its `controls` back
-  // (prepaint.js). The bars stand down with it, and no later arrival takes one.
+  // `data-lf-interactive` off the root (prepaint.js). The bars give the browser its
+  // controls back, and no later arrival takes one.
   const root = document.documentElement;
   const fallenBack = () => !root.hasAttribute("data-lf-interactive");
   new MutationObserver(() => {
@@ -293,15 +324,18 @@ export function watchVideos() {
       // A bar in chrome anchors only to a video the document can name: one in the
       // document or the first shadow stage in (css-anchors.js). A video staged deeper
       // keeps the browser's controls.
-      const read = videos.filter(nameable).map((video) => {
-        const player = players.get(video) ?? prepare(video);
-        return {
-          player,
-          reading: anchorControl(player.bar, video),
-          levels: headerLevels(video),
-          insets: readInsets(video),
-        };
-      });
+      const read = videos
+        .filter((video) => video instanceof HTMLVideoElement)
+        .filter(nameable)
+        .map((video) => {
+          const player = players.get(video) ?? prepare(video);
+          return {
+            player,
+            reading: anchorControl(player.bar, video),
+            levels: headerLevels(video),
+            insets: readInsets(video),
+          };
+        });
       for (const { player, reading, levels, insets } of read) {
         aimControl(reading);
         writeInsets(player.bar, insets);

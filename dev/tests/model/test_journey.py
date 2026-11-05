@@ -11,27 +11,40 @@ from contextlib import contextmanager
 from itertools import count
 from pathlib import Path
 from types import SimpleNamespace
+from typing import cast
 
 import pytest
 from interact_support import STATED_TIMEOUT
+from playwright.sync_api import BrowserContext
+from playwright.sync_api import Page as BrowserPage
+
+from leaf import harness
+from leaf.harness import NUDGE_WORDS
+from leaf.hook_transport import INLINE_OPENING
+from leaf.interaction_log import read_interactions
 from leaf_dev import ROOT, journey_claude_code, journey_pi
 from leaf_dev.commands import journey, journey_chart
 from leaf_dev.page_fixtures import record_run_context
 from leaf_dev.reply_phases import (
+    LEAF_WAKE,
     claude_code_debug_records,
     claude_code_records,
+    pickup_wait,
     reply_breakdown,
     turn_phases,
 )
 from leaf_dev.review_scenario import SLEEP
 
-from leaf import harness
-from leaf.hook_transport import INLINE_OPENING
-from leaf.interaction_log import read_interactions
-
 
 def at(seconds: float) -> str:
     return f"2026-10-08T09:00:{seconds:06.3f}+00:00"
+
+
+def logged(page: Path, events: list[dict]) -> Path:
+    """`page`, a directory holding `events` as its log."""
+    page.mkdir(exist_ok=True)
+    (page / "events.jsonl").write_text("".join(json.dumps(e) + "\n" for e in events))
+    return page
 
 
 def test_journey_declares_automation_after_a_user_preview_starts(
@@ -45,7 +58,10 @@ def test_journey_declares_automation_after_a_user_preview_starts(
         tmp_path, tmp_path, tmp_path, page_dir, tmp_path, evidence
     )
     monkeypatch.setattr(journey, "running_server", lambda page: {"url": "http://page/"})
-    with journey.user_at(None, place, journey.Terminal(), time.monotonic()):
+    terminal = journey.Terminal()
+    # The setup step's checks read a session's claim, which this page has none of.
+    monkeypatch.setattr(terminal, "passed", lambda *args, **kwargs: None)
+    with journey.user_at(None, place, terminal, time.monotonic()):
         contexts = read_interactions(page_dir, types=("run_context",))
         assert [row["purpose"] for row in contexts] == ["user-review", "automated"]
         assert contexts[-1]["run"] == str(evidence)
@@ -73,11 +89,15 @@ def test_release_publication_requires_the_marker_in_board_markup():
 
     request = Request()
     end = journey.BrowserEnd(
-        SimpleNamespace(
-            context=SimpleNamespace(request=request),
-            url="https://leaf.page/",
-            pause=lambda _: None,
-        )
+        cast(
+            journey.Session,
+            SimpleNamespace(
+                context=SimpleNamespace(request=request),
+                url="https://leaf.page/",
+                pause=lambda _: None,
+            ),
+        ),
+        None,
     )
     active = {"url": "revisions/2.html"}
     request.html = (
@@ -115,7 +135,9 @@ def test_release_publication_ignores_inline_script_and_style_text():
 
 
 @pytest.mark.parametrize("end", ["http", "browser"])
-def test_a_steps_comments_are_timed_from_the_log_and_in_a_browser_the_page(end):
+def test_a_steps_comments_are_timed_from_the_log_and_in_a_browser_the_page(
+    end, tmp_path
+):
     """Each step keeps the comments it sent, timed from the page's log on the
     server's clock from their admission, with the turn split from the session's
     records from the opened pickup on; in a browser, also from their send to their
@@ -123,9 +145,16 @@ def test_a_steps_comments_are_timed_from_the_log_and_in_a_browser_the_page(end):
     marks its step's comments, and the release ask's, so a reading held up by one is
     told apart from those that were not."""
     events = [
-        {"kind": "comment", "id": "c1", "ts": at(0)},
+        {
+            "kind": "comment",
+            "id": "c1",
+            "author": "user",
+            "attention": True,
+            "ts": at(0),
+        },
         {
             "kind": "pickup",
+            "author": "page",
             "id": "p1",
             "phase": "opened",
             "events": ["c1"],
@@ -138,6 +167,7 @@ def test_a_steps_comments_are_timed_from_the_log_and_in_a_browser_the_page(end):
             "parent": "c1",
             "responds": "c1",
             "text": "Two items block it.",
+            "session": "s",
             "ts": at(9),
         },
     ]
@@ -159,7 +189,7 @@ def test_a_steps_comments_are_timed_from_the_log_and_in_a_browser_the_page(end):
         },
     ]
     terminal = journey.Terminal()
-    terminal.trace = records
+    terminal.session, terminal.trace = "s", records
     shown = []
 
     class Page:
@@ -167,23 +197,37 @@ def test_a_steps_comments_are_timed_from_the_log_and_in_a_browser_the_page(end):
 
         def evaluate(self, script, arg=None):
             assert script == "window.__leafVerifier.replyShownAt"
+            assert arg is not None
             shown.append(arg["id"])
             # The row shows the reply first; its message comes into view a read later.
             message = 1_000_000 + 9_520 if len(shown) > 1 else None
             return {"at": 1_000_000 + 9_500, "by": "row", "message": message}
 
     url = "http://127.0.0.1:1/?t=token"
+    page = logged(tmp_path / "page", events)
     user_end = (
-        journey.BrowserEnd(journey.Session(None, Page(), [], url, url, {}, {}, None))
+        journey.BrowserEnd(
+            journey.Session(
+                cast(BrowserContext, None),
+                cast(BrowserPage, Page()),
+                [],
+                url,
+                url,
+                {},
+                {},
+                None,
+            ),
+            page,
+        )
         if end == "browser"
-        else journey.HttpEnd(url, Path("page"), time.sleep)
+        else journey.HttpEnd(url, page, time.sleep)
     )
-    user = journey.User(user_end, "v", lambda: events, terminal, list)
+    user = journey.User(user_end, "v", lambda: events, terminal)
     user.release_reading = {
         "version": "v",
         "comment": {
             "eventIds": ["c0"],
-            "sinceAdmissionMs": {"replied": 12000},
+            "milestones": {"answered": {"elapsed_s": 12}},
             "sinceSendMs": {},
         },
     }
@@ -213,8 +257,8 @@ def test_a_steps_comments_are_timed_from_the_log_and_in_a_browser_the_page(end):
     assert 5.9 <= step["seconds"] <= 6.5
     reading = step["comments"]["mid-turn"]
     assert reading["approved"] == ["Do you want to proceed?"]
-    assert reading["sinceAdmissionMs"]["pickedUp"] == 1000
-    assert reading["sinceAdmissionMs"]["replied"] == 9000
+    assert reading["milestones"]["opened"]["elapsed_s"] == 1
+    assert reading["milestones"]["answered"]["elapsed_s"] == 9
     if end == "browser":
         assert reading["sinceSendMs"]["responseVisible"] == 9500
         assert reading["responseShownBy"] == "row"
@@ -252,6 +296,111 @@ def test_a_steps_comments_are_timed_from_the_log_and_in_a_browser_the_page(end):
         f"Claude Code{over} at v",
         f"Claude Code{over} after a permission prompt at v",
     }
+
+
+def test_a_comment_a_fork_decided_on_keeps_the_forks_record(tmp_path):
+    """A comment a fork of the conversation answered carries the fork's outcome,
+    time and tokens, and no breakdown of a reply the session spent nothing on,
+    though the fork posts it as the session's; one the fork handed over carries
+    both."""
+    events = [
+        {
+            "kind": "comment",
+            "id": "c1",
+            "author": "user",
+            "attention": True,
+            "ts": at(0),
+        },
+        {
+            "kind": "reply",
+            "author": "agent",
+            "id": "r1",
+            "parent": "c1",
+            "responds": "c1",
+            "text": "You asked me to serve it for review.",
+            "session": "s",
+            "ts": at(4),
+        },
+        {
+            "kind": "comment",
+            "id": "c2",
+            "author": "user",
+            "attention": True,
+            "ts": at(10),
+        },
+        {
+            "kind": "pickup",
+            "author": "page",
+            "id": "p2",
+            "phase": "opened",
+            "events": ["c1", "c2"],
+            "ts": at(20),
+        },
+        {
+            "kind": "reply",
+            "author": "agent",
+            "id": "r2",
+            "parent": "c2",
+            "responds": "c2",
+            "text": "Renamed it.",
+            "session": "s",
+            "ts": at(30),
+        },
+    ]
+    usage = {"input_tokens": 12, "output_tokens": 80, "cache_read_input_tokens": 9000}
+    forks = [
+        {
+            "ts": at(4),
+            "source": "cli",
+            "type": "fork_reply",
+            "thread": "c1",
+            "inputs": ["c1"],
+            "outcome": "reply",
+            "reply": "r1",
+            "text": "You asked me to serve it for review.",
+            "elapsedMs": 3200.0,
+            "usage": usage,
+        },
+        {
+            "ts": at(12),
+            "source": "cli",
+            "type": "fork_reply",
+            "thread": "c2",
+            "inputs": ["c2"],
+            "outcome": "hand_over",
+            "why": "it asks for a change",
+            "elapsedMs": 2100.0,
+        },
+    ]
+    page = logged(tmp_path / "page", events)
+    (page / "observations.jsonl").write_text(
+        "".join(json.dumps(fork) + "\n" for fork in forks)
+    )
+    terminal = journey.Terminal()
+    terminal.session = "s"
+    end = journey.HttpEnd("http://127.0.0.1:1/?t=t", page, time.sleep)
+    user = journey.User(end, "v", lambda: events, terminal, lambda: forks)
+    for name, comment in (("fork-idle", "c1"), ("fork-work", "c2")):
+        profile = journey.AgentProfile()
+        profile.event_ids = [comment]
+        user.ids[name], user.profiles[name] = comment, profile
+        user.sent.append(name)
+    assert user.timing("fork-idle") == (
+        "`fork-idle` picked up after 20.0 s, answered after 4.0 s; a fork's reply "
+        "after 3200 ms on 12 in, 80 out, 9000 cache read tokens"
+    )
+    user.passed("forks", time.monotonic())
+
+    [step] = user.sample()["steps"]
+    answered, handed = step["comments"]["fork-idle"], step["comments"]["fork-work"]
+    assert answered["fork"] == {"outcome": "reply", "elapsedMs": 3200.0, "usage": usage}
+    assert answered["reply"] is None
+    assert handed["fork"] == {
+        "outcome": "hand_over",
+        "why": "it asks for a change",
+        "elapsedMs": 2100.0,
+    }
+    assert handed["reply"] is not None
 
 
 PROMPT = """
@@ -397,16 +546,18 @@ def test_the_journey_reads_claude_codes_status_as_it_is_now(tmp_path, monkeypatc
     cc = journey_claude_code.ClaudeCode.__new__(journey_claude_code.ClaudeCode)
     cc.session = "s"
     write("idle", 1)
-    assert (
-        harness.ClaudeCodeHarness(session="s", agent="Claude").live_turn()["state"]
-        == "idle"
-    )
+    live_turn_result = harness.ClaudeCodeHarness(
+        session="s", agent="Claude"
+    ).live_turn()
+    assert live_turn_result is not None
+    assert live_turn_result["state"] == "idle"
     assert cc.idle()
     write("busy", 2)
-    assert (
-        harness.ClaudeCodeHarness(session="s", agent="Claude").live_turn()["state"]
-        == "idle"
-    )
+    live_turn_result_2 = harness.ClaudeCodeHarness(
+        session="s", agent="Claude"
+    ).live_turn()
+    assert live_turn_result_2 is not None
+    assert live_turn_result_2["state"] == "idle"
     assert cc.state() == "busy"
 
 
@@ -532,6 +683,7 @@ def test_a_reply_taken_while_working_splits_into_leaf_share_and_model_calls():
         ran(12, 12.8),
     ]
     reply = reply_breakdown(records, commands, at(1), at(5.2), at(12.5))
+    assert reply is not None
     # With no requests or first outputs in the record, the model's time is unsplit.
     assert {key: value for key, value in reply.items() if key != "phases"} == {
         "wholeMs": 11500,
@@ -562,6 +714,7 @@ def test_a_reply_taken_while_working_splits_into_leaf_share_and_model_calls():
     # Where the agent works before the pickup, the boundary handed it a pointer it
     # read and acknowledged itself, and the delivery ended at that boundary.
     acknowledged = reply_breakdown(records, [], at(1), at(9.2), at(12.5))
+    assert acknowledged is not None
     assert (acknowledged["busyMs"], acknowledged["deliveryMs"]) == (4000, 0)
     assert acknowledged["modelMs"] == 5700
     # A busy turn that ends before the agent takes the comment leaves the harness
@@ -574,6 +727,7 @@ def test_a_reply_taken_while_working_splits_into_leaf_share_and_model_calls():
         result(33.5, "r"),
     ]
     later = reply_breakdown(ended, [], at(1), at(34), at(35))
+    assert later is not None
     assert (later["busyMs"], later["idleMs"], later["modelMs"]) == (1000, 30000, 2500)
     # Calls out together at the admission hold the harness until the last returns.
     batch = [
@@ -584,6 +738,7 @@ def test_a_reply_taken_while_working_splits_into_leaf_share_and_model_calls():
         result(10, "b"),
     ]
     drained = reply_breakdown(batch, [], at(1), at(10.2), at(12))
+    assert drained is not None
     assert (drained["busyMs"], drained["deliveryMs"]) == (9000, 200)
     # A call an interrupted turn left without a result holds no later turn.
     interrupted = [
@@ -595,8 +750,74 @@ def test_a_reply_taken_while_working_splits_into_leaf_share_and_model_calls():
         result(6, "y"),
     ]
     later = reply_breakdown(interrupted, [], at(5), at(6.2), at(8))
+    assert later is not None
     assert (later["busyMs"], later["deliveryMs"]) == (1000, 200)
     assert later["phases"][2]["phase"] == "model"
+
+
+def test_a_pickup_wait_names_what_ended_it():
+    """A comment that arrives in a running turn waits on that turn's calls; one that
+    arrives between turns waits on whatever starts the next, read from Claude Code's
+    own turn origins: Leaf's wake, Leaf's nudge, or the user's prompt where nothing
+    of Leaf's woke the session, past any turn that ended without taking the comment. A session
+    whose transcript begins after the comment took the page later."""
+
+    def native(seconds: float, origin: str, text: str) -> dict:
+        return {
+            "type": "user",
+            "timestamp": at(seconds),
+            "turnPosition": {"promptIndex": 1, "turnIndex": 1},
+            "turnOrigin": origin,
+            "message": {"content": text},
+        }
+
+    def call(seconds: float, id: str, command: str) -> dict:
+        part = {"type": "tool_use", "id": id, "name": "Bash"}
+        return {
+            "type": "assistant",
+            "timestamp": at(seconds),
+            "message": {"content": [{**part, "input": {"command": command}}]},
+        }
+
+    def returned(seconds: float, id: str) -> dict:
+        part = {"type": "tool_result", "tool_use_id": id}
+        return {
+            "type": "user",
+            "timestamp": at(seconds),
+            "message": {"content": [part]},
+        }
+
+    def ended(seconds: float) -> dict:
+        return {"type": "system", "subtype": "turn_duration", "timestamp": at(seconds)}
+
+    records = claude_code_records(
+        [
+            native(0, "human", "Serve the page."),
+            call(1, "t", "pnpm test"),
+            returned(9, "t"),
+            ended(10),
+            native(12, "task_notification", f"<summary>{LEAF_WAKE}</summary>"),
+            ended(14),
+            native(20, "task_notification", "<summary>Agent done</summary>"),
+            ended(22),
+            native(30, "human", "check the leaf"),
+            ended(32),
+            # A background job Leaf resumed, its nudge as the prompt.
+            native(40, "human", f"leaf: /page {NUDGE_WORDS}"),
+        ]
+    )
+    working = pickup_wait(records, at(2), at(9.2))
+    assert working == {
+        "ms": 7200,
+        "missedTurns": 0,
+        "cause": "working",
+        "calls": ["pnpm test"],
+    }
+    assert pickup_wait(records, at(11), at(12.3))["cause"] == "woken"
+    prompted = pickup_wait(records, at(15), at(30.5))
+    assert (prompted["cause"], prompted["missedTurns"]) == ("prompted", 1)
+    assert pickup_wait(records[2:], at(0.5), at(12.3))["cause"] == "started"
+    assert pickup_wait(records, at(33), at(40.4))["cause"] == "nudged"
 
 
 def test_a_reply_is_attributed_to_leaf_the_harness_and_the_models_wait_and_output():
@@ -689,6 +910,7 @@ def test_a_reply_is_attributed_to_leaf_the_harness_and_the_models_wait_and_outpu
         {"started": at(10), "ts": at(10.4)},
     ]
     reply = reply_breakdown(records, commands, at(0), at(0.5), at(10.3))
+    assert reply is not None
     parts = {key: value for key, value in reply.items() if key != "phases"}
     assert parts == {
         "wholeMs": 10300,
@@ -749,7 +971,7 @@ def test_pis_events_give_the_turn_phases(monkeypatch):
     monkeypatch.setattr(journey_pi, "now", lambda: at(next(seconds)))
     pi = journey_pi.Pi.__new__(journey_pi.Pi)
     journey.Terminal.__init__(pi)
-    pi.running, pi.settled, pi.closed_watches = False, 0, 0
+    pi.running, pi.closed_watches = False, 0
     pi.output_tokens = None
     assistant = {"role": "assistant", "usage": {"output": 90}}
     for event in (
@@ -770,7 +992,7 @@ def test_pis_events_give_the_turn_phases(monkeypatch):
     ):
         pi._hear(event)
     assert pi.commands == ["sleep 1"] and pi.running_commands == {}
-    assert (pi.settled, pi.closed_watches, pi.idle()) == (1, 1, True)
+    assert (pi.closed_watches, pi.idle()) == (1, True)
     assert [record["type"] for record in pi.records()] == [
         "turn_start",
         "first_output",
@@ -804,11 +1026,10 @@ def test_the_release_ask_over_http_is_the_shared_check(tmp_path):
     check as in a browser waits on its turn, title and answer, requiring a published
     revision naming the release; it reads nothing a browser would. A step's comment
     is posted on its section."""
-    from leaf_dev.arms import run_leaf, serving
-    from leaf_dev.review_scenario import post, prepare
-
     from leaf.event_log import append_event, read_events
     from leaf.thread import post_reply, title_event
+    from leaf_dev.arms import run_leaf, serving
+    from leaf_dev.review_scenario import post, prepare
 
     state, page = tmp_path / "state", tmp_path / "page"
     prepare(ROOT, state, page)
@@ -833,11 +1054,13 @@ def test_the_release_ask_over_http_is_the_shared_check(tmp_path):
             ROOT, state, "page", "stamp", str(page), "--text", "Recorded.", check=True
         )
         append_event(page, title_event(comment["id"], "Release recorded", agent))
+        # As `leaf thread reply` answers, standing on the revision it published.
         post_reply(
             page,
             {"parent": comment["id"], "responds": comment["id"]},
             "Recorded.",
             identity=agent,
+            validate_source=True,
         )
 
     with serving(ROOT, state, page) as url:
@@ -849,12 +1072,7 @@ def test_the_release_ask_over_http_is_the_shared_check(tmp_path):
         "reply": "Recorded.",
     }
     assert set(reading) == {"version", "comment", "change"}
-    milestones = reading["comment"]["sinceAdmissionMs"]
-    assert None not in (
-        milestones["titled"],
-        milestones["published"],
-        milestones["replied"],
-    )
+    assert {"titled", "published", "answered"} <= set(reading["comment"]["milestones"])
     assert "sinceSendMs" not in reading["comment"]
     [asked] = [
         e for e in read_events(page) if e.get("attempt") == "journey-step-release"
@@ -879,16 +1097,26 @@ def test_a_harness_journey_over_http_starts_no_browser(monkeypatch):
     entered = []
 
     @contextmanager
-    def target_session(browser, target, release, *, sandbox, preview):
+    def target_session(browser, target, release, *, sandbox, preview, forks):
         entered.append(browser)
         end = (
             journey.HttpEnd("http://127.0.0.1:1/?t=t", Path("page"), time.sleep)
             if browser is None
             else journey.BrowserEnd(
-                journey.Session(None, None, [], "u", "u", {}, {}, None)
+                journey.Session(
+                    cast(BrowserContext, None),
+                    cast(BrowserPage, None),
+                    [],
+                    "u",
+                    "u",
+                    {},
+                    {},
+                    None,
+                ),
+                Path("page"),
             )
         )
-        end.close = lambda: None
+        monkeypatch.setattr(end, "close", lambda: None)
         yield journey.User(end, "v"), {"target": target}, lambda: None
 
     monkeypatch.setattr(journey, "headless_shell", headless_shell)

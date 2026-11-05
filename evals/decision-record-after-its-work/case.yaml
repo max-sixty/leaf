@@ -1,0 +1,752 @@
+# From session e39862cf (2026-10-27, page widget-portability-next): over 25 revisions the
+# agent wrote each pick in with `chosen` and amended a sentence when its work landed
+# ("Both are decided: #4518 (merged)"), but never retired a question; all five answered
+# groups stayed open. Across this machine's pages, 125 of the 126 answered groups still open
+# on their page's final revision had `chosen` written in: agents do the step the pick's
+# delivery names ("write the answer into the markup") and stop there. The main prompt replays
+# the minute #4542 merged with that page's revision and the pick's real delivery; the
+# variant replays a pick that keeps today's behavior. Claude Code, 2026-10-28:
+# - delivery naming only writing in (skill not loaded): landed 0/4, no-work 0/4;
+# - delivery asking for the record once the work is done: landed 4/4, no-work 4/4, and
+#   the unfinished pick never called done;
+# - the earlier picks, delivered before that wording, with the skill loaded: settled 0/4
+#   under SKILL.md's one-line pointer to "Keep the current page current", 6/6 once
+#   "Keep the user current" states the goal (bring the whole page up to date; decisions
+#   you have acted on become settled records).
+# The open `keys` question stayed open in every arm.
+description: decision-record-after-its-work
+metadata:
+  purpose:
+    "Keeping the page current: once the work a pick selected has landed, its question becomes a
+    record (settled or retired from the open column), the same goes for every other applied decision,
+    and a question still waiting on the user stays open."
+  tags:
+    - asks
+    - revisions
+vars:
+  prompt: |
+    You are a Claude Code session using Leaf, six hours into a page with the user at
+    /Users/max/.local/state/leaf/pages/widget-portability-next, which tracks your work on issue #3833.
+    Load the Leaf skill if it isn't in your context. You read the references it routes to at the
+    start of the session and have revised the page a dozen times since, so act on this without
+    reopening them.
+
+    Half an hour ago the user picked "Open a PR and land it" on the page's `chart-land` question, and
+    Leaf's prompt hook handed you this complete delivery:
+
+    {"format": "leaf-delivery/15", "id": "483d8a07", "created_at": 1793155375.4377432, "acknowledge": null, "batches": [{"page": "/Users/max/.local/state/leaf/pages/widget-portability-next", "claim": "e39862cf-dbf3-41be-86f6-a951a1d0625f", "through_seq": 34, "threads": [], "handling": {"h1": "The user already sees the action applied.", "h2": "If you need clarification, ask in a thread on the picked option. To override the pick in a later version, mark the element `restated` and say why in the version note.", "h3": "It answers the page's obligation, which waits on you until the markup records the answer. Before starting the work it selects or unblocks, name it with `leaf task start <page> <event-id> --text \"<the work, in a line>\"`; then do it and write the answer into the markup. Once the work is done, make the question a record of the decision (`references/authoring-revisions.md`, \"Keep the current page current\"), such as a choice group marked `settled` with what came of it beside it, and stamp a version. An option the user added needs no writing in; the page keeps it where the user put it."}, "events": [{"kind": "action", "revision": 9, "widget": "chart-land", "action": "choose", "detail": {"value": ["chart-land-merge"]}, "author": "user", "id": "b12bb5fa", "meaning": {"scope": "page", "unit": "chart-land", "depends": ["chart-land", "chart-land-merge"], "state": {"origin": "lf-options", "unit": "widget", "record": {"kind": "attribute", "attr": "chosen"}, "creates": null, "decides": false, "detail": {"type": "object", "properties": {"value": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true}}, "required": ["value"], "additionalProperties": false}}, "answer": null}, "attention": true, "ts": "2026-10-27T19:42:54.310-07:00", "seq": 34, "subject": {"kind": "widget", "id": "chart-land"}, "threads": [], "says": {"chart-land-merge": "+1 public module recommended Open a PR and land it With the review fixes, and portable-api.js named in root AGENTS.md ."}, "names": {"chart-land-merge": "Open a PR and land it"}, "handling": ["h1", "h2", "h3"], "answer": {"kind": "markup", "action": "b12bb5fa", "ref": "483d8a07:0:b12bb5fa"}}]}]}
+
+    You named the work with `leaf task start`, opened #4542, and added the `keys` question for the
+    next widget while CI ran. The CI watcher you started has just reported:
+
+    > #4542 merged into main as 5c1e0a7d2. The `test` job passed and Leaf's reviewer approved
+    > without comments. lf-chart now loads and draws on a plain HTML page, and its bare-page
+    > test runs at every landing.
+
+    This is the page's `<main>` as it stands:
+
+    ```html
+        <main class="layout-sidebar">
+          <aside id="contents-sidebar">
+            <div class="layout-track"><lf-toc id="contents"></lf-toc></div>
+          </aside>
+          <article id="document" class="layout-column">
+
+          <hgroup id="title">
+            <h1>Portable widgets: next steps</h1>
+            <p>
+              <a href="https://github.com/max-sixty/leaf/issues/3833">#3833</a> asks that a
+              package widget work off a Leaf page, so a team can show the same data in
+              another app without a second copy of the widget. Three questions decide what
+              comes next.
+            </p>
+          </hgroup>
+
+          <section id="landed">
+            <h2>Landed so far: values, settling and reveal use standard forms</h2>
+            <table id="landed-table">
+              <thead>
+                <tr>
+                  <th>Proposal</th>
+                  <th>Now</th>
+                  <th>PR</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <th scope="row">Values in as properties</th>
+                  <td>Leaf sets a bound source on <code>.value</code></td>
+                  <td><a href="https://github.com/max-sixty/leaf/pull/3982">#3982</a></td>
+                </tr>
+                <tr>
+                  <th scope="row">Declared data marks</th>
+                  <td>Attributes on drawn items plus a <code>drawn</code> event</td>
+                  <td><a href="https://github.com/max-sixty/leaf/pull/3982">#3982</a></td>
+                </tr>
+                <tr>
+                  <th scope="row">Settling</th>
+                  <td>Leaf awaits the element's <code>updateComplete</code></td>
+                  <td><a href="https://github.com/max-sixty/leaf/pull/3982">#3982</a></td>
+                </tr>
+                <tr>
+                  <th scope="row">Reveal before travel</th>
+                  <td>
+                    Leaf fires <code>beforematch</code> on <code>hidden="until-found"</code>;
+                    <code>lf-reveal</code> is gone
+                  </td>
+                  <td><a href="https://github.com/max-sixty/leaf/pull/4500">#4500</a></td>
+                </tr>
+                <tr>
+                  <th scope="row">Layout notice</th>
+                  <td><code>layoutChanged()</code> only dispatches its event</td>
+                  <td><a href="https://github.com/max-sixty/leaf/pull/4509">#4509</a></td>
+                </tr>
+              </tbody>
+            </table>
+          </section>
+
+          <section id="scope">
+            <h2>One set of modules on every page, with Leaf reading the widget from outside</h2>
+            <p id="scope-finding">
+              Widgets import by rooted paths, <code>/runtime/…</code> and
+              <code>/vendor/…</code>, which Leaf already redirects with an import map
+              (<a href="https://github.com/max-sixty/leaf/blob/a3197b471/src/leaf/revision_delivery.py#L565"><code>layer_import_map</code></a>).
+              A plain page can map the same paths to a copy of Leaf's modules, and a bundled
+              app can alias them. So the issue's bare name adds nothing, and no plain copy of
+              the API is needed if Leaf's own modules load anywhere.
+            </p>
+            <p id="scope-cost">
+              They don't today. On a bare page, with only an import map and no
+              <code>leaf.js</code>, even <code>framework.js</code>, Leaf's wrapper around
+              Lit, fails to load. Its imports reach modules that read Leaf's composed
+              document at load: <code>control-selectors.js</code> reads
+              <code>lfInputs</code>, <code>stylesheets.js</code> reads the delivered
+              stylesheet JSON, and <code>storage.js</code> reads <code>lfStorage</code>.
+              Importing <code>widget-api.js</code> pulls in 167 modules. Of 23 modules
+              probed, only 6 load on their own.
+            </p>
+            <ol id="scope-plan">
+              <li>
+                <strong>A layer of runtime modules that load anywhere.</strong> Generic DOM
+                helpers, such as <code>once</code>, <code>whileConnected</code>,
+                <code>sizeObserver</code> and <code>measure</code>, import nothing tied to
+                Leaf's document.
+              </li>
+              <li>
+                <strong>Leaf reads the widget instead of the widget calling Leaf.</strong>
+                Settling goes through <code>updateComplete</code>, a failure through an
+                event, and keys and copy through attributes.
+              </li>
+              <li>
+                <strong>A check in CI</strong> loads each portable widget on a bare page
+                and fails on any error.
+              </li>
+            </ol>
+            <lf-sample id="plain-host" label="Proposed plain host — untested">
+              <pre><code class="language-html">&lt;script type="importmap"&gt;
+      {
+        "imports": {
+          "/runtime/": "./leaf/runtime/",
+          "/vendor/": "./leaf/vendor/"
+        }
+      }
+    &lt;/script&gt;
+    &lt;script type="module" src="./leaf/widgets/lf-chart.js"&gt;&lt;/script&gt;
+
+    &lt;lf-chart id="latency" data-height="200"&gt;
+      &lt;pre&gt;{ ariaLabel: "…", marks: [Plot.barY(rows, {x: "hour", y: "pages"})] }&lt;/pre&gt;
+    &lt;/lf-chart&gt;</code></pre>
+            </lf-sample>
+
+            <lf-ask id="scope-question">
+              <h3>Which widgets should work off a Leaf page?</h3>
+              <p>
+                I'd make the display widgets portable. The issue's case is another app
+                showing the same data, which is what they do. The interaction widgets, such
+                as tabs, options, the draft and the board, record the user's decisions in
+                Leaf's log and mean little without it. Counts are names a fallback must
+                export, read from each module's imports.
+              </p>
+              <lf-options id="portable-scope" choose>
+                <lf-option id="portable-scope-none">
+                  <small class="tag">0 names</small>
+                  <strong>Keep widgets Leaf-only</strong>
+                  #3833 closes with what has landed, and widgets keep importing any runtime
+                  helper.
+                </lf-option>
+                <lf-option id="portable-scope-display" chosen>
+                  <small class="tag">41 names</small>
+                  <small class="tag">6 widgets</small>
+                  <small class="tag ok">recommended</small>
+                  <strong>Make the display widgets portable</strong>
+                  <code>lf-chart</code>, <code>lf-tally</code>, <code>lf-code</code>,
+                  <code>lf-diagram</code>, <code>lf-timeline</code> and
+                  <code>lf-motion</code> load on a plain page, checked in CI.
+                </lf-option>
+                <lf-option id="portable-scope-all">
+                  <small class="tag">204 names</small>
+                  <small class="tag">36 modules</small>
+                  <strong>Make every package widget portable</strong>
+                  Every package module loads on a plain page, interaction widgets
+                  included, checked in CI.
+                </lf-option>
+              </lf-options>
+            </lf-ask>
+          </section>
+
+          <section id="chart-slice">
+            <h2><code>lf-chart</code> draws on a plain page, through a second public entry</h2>
+            <p id="chart-slice-landed">
+              Landed as <a href="https://github.com/max-sixty/leaf/pull/4542">#4542</a>. Its
+              bare-page test, <code>tests/smoke/test_plain_page.py</code>, now runs at every
+              landing.
+            </p>
+            <table id="chart-slice-numbers">
+              <thead>
+                <tr>
+                  <th></th>
+                  <th>Before</th>
+                  <th>After</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <th scope="row">Runtime modules lf-chart loads</th>
+                  <td>179 (2,251 KB source)</td>
+                  <td>11 (68 KB)</td>
+                </tr>
+                <tr>
+                  <th scope="row">On a bare page</th>
+                  <td>throws at <code>control-selectors.js:14</code></td>
+                  <td>draws its svg; a refused chart shows its error box</td>
+                </tr>
+                <tr>
+                  <th scope="row">Kernel files a Leaf page boots with</th>
+                  <td>16</td>
+                  <td>18, same bytes</td>
+                </tr>
+              </tbody>
+            </table>
+            <ul id="chart-slice-design">
+              <li id="chart-slice-entry">
+                <strong>Entry.</strong> A new <code>/runtime/portable-api.js</code>
+                re-exports the helpers whose modules load in any document;
+                <code>widget-api.js</code> re-exports it with <code>export *</code>, so each
+                name has one home and other widgets are unaffected. Importing each module by
+                its own path was rejected: the public boundary would become a list of internal
+                files that grows with every widget.
+              </li>
+              <li id="chart-slice-settling">
+                <strong>Settling.</strong> The chart fires <code>pending-task</code>, the Web
+                Components Community Group's draft event for a component's asynchronous work.
+                Leaf holds the widget's presentation on its promise. <code>updateComplete</code>
+                was rejected because a plain element starts drawing when it first gets a box,
+                which only the element knows.
+              </li>
+              <li id="chart-slice-failure">
+                <strong>Failures.</strong> The chart shows its error box and fires a bubbling
+                <code>error</code> event on itself. Leaf's page-error listener reports it,
+                naming the widget, so <code>page check</code> still fails on a broken chart.
+              </li>
+              <li id="chart-slice-check">
+                <strong>Check.</strong> <code>tests/smoke/test_plain_page.py</code> runs at every
+                landing. With lf-chart switched back to <code>widget-api.js</code>, it fails.
+              </li>
+            </ul>
+            <p id="chart-slice-review">
+              An independent review found no bug on Leaf pages for any bundled widget. Its
+              five smaller findings are fixed, each with a test that fails without the fix:
+              a Lit-drawn widget keeping a stale error box after it recovers, a failure on a
+              detached element not reaching the agent, the wrong widget named inside a shadow
+              stage, repeated failure placers, and an extra finding when
+              <code>failSoft</code> gets no error. The plain-page test now also fails on any
+              console message, and a new test holds a Leaf page on a
+              <code>pending-task</code> promise. One cost: the stale-box fix calls Lit's
+              internal part setter (<code>_$AI</code>), because Leaf's Lit build doesn't load
+              off Leaf; a Lit upgrade that renames it fails
+              <code>dom-children.test.mjs</code>. <code>pnpm run test:runtime</code> (687),
+              <code>check:browser</code> and 24 focused browser tests pass. Known gap: lf-chart reads
+              <code>data-lf-height</code>, which only Leaf writes, so a plain host has to
+              write it or the chart is 1px tall. Drawing to the chart's own box fixes that,
+              and I'll do it with the next widget.
+            </p>
+
+            <lf-ask id="chart-land-question">
+              <h3>Land the portable entry for <code>lf-chart</code>?</h3>
+              <p>
+                This adds a public module, not a simplification, so it's outside the
+                <code>/gpk</code> authorization. Landing makes <code>portable-api.js</code> a
+                package API beside <code>widget-api.js</code>. Root <code>AGENTS.md</code>,
+                "Pages across Leaf updates", names <code>widget-api.js</code> as what a protocol
+                bump guards, so landing also adds <code>portable-api.js</code> there. That
+                section is yours to edit. The review fixes go in first, and CI and Leaf's
+                reviewer gate the merge.
+              </p>
+              <lf-options id="chart-land" choose>
+                <lf-option id="chart-land-hold">
+                  <strong>Keep it on its branch</strong>
+                  Nothing lands, and the next widget waits on this question.
+                </lf-option>
+                <lf-option id="chart-land-merge" chosen>
+                  <small class="tag">+1 public module</small>
+                  <small class="tag ok">recommended</small>
+                  <strong>Open a PR and land it</strong>
+                  With the review fixes, and <code>portable-api.js</code> named in root
+                  <code>AGENTS.md</code>.
+                </lf-option>
+              </lf-options>
+            </lf-ask>
+          </section>
+
+          <section id="keys">
+            <h2>Next, <code>lf-code</code>: who defines a widget's keys</h2>
+            <p id="keys-case">
+              <code>lf-code</code> gives each code block one key: <code>w</code> wraps or
+              unwraps long lines. Today it registers the key by calling into Leaf's key
+              register:
+            </p>
+            <pre id="keys-today"><code class="language-javascript">commands(this, "On a code block", [
+      {
+        id: "code.wrap",
+        keys: ["w"],
+        title: () => (wrapped ? "unwrap lines" : "wrap lines"),
+        run: toggleWrap,
+      },
+    ]);</code></pre>
+            <p id="keys-why">
+              <code>commands</code> lives in Leaf's keyboard modules, which read Leaf's page at
+              load, so a widget that calls it can't load on a plain page. The register owns
+              every key: it matches presses, lists keys in the command reference and hints,
+              and writes <code>aria-keyshortcuts</code> onto controls as one of its outputs
+              (<a href="https://github.com/max-sixty/leaf/blob/6c6ce9b43/browser/runtime/keyboard/bindings.js#L106"><code>bindings.js</code></a>).
+            </p>
+
+            <lf-ask id="keys-question">
+              <h3>How should a portable widget declare its keys?</h3>
+              <p>
+                I'd have the widget declare its rows as data. It matches how Leaf already
+                reads settling and failures from a widget, keeps the register the one place
+                that defines a key, and adds no visible control to every code block. The
+                markup route is what the issue proposed. It also gives the wrap toggle a
+                click and touch route off Leaf. The cost is that
+                <code>aria-keyshortcuts</code> becomes an input for some keys while staying the
+                register's output for the rest: one attribute with two directions.
+              </p>
+              <lf-options id="keys-route" choose>
+                <lf-option id="keys-route-calls">
+                  <small class="tag">keyboard graph portable</small>
+                  <strong>Keep the call; make the keyboard modules load anywhere</strong>
+                  <code>commands(…)</code> stays. Leaf's keyboard modules stop reading the page
+                  at load. Off Leaf the call does nothing, so <code>w</code> does nothing.
+                </lf-option>
+                <lf-option id="keys-route-data">
+                  <small class="tag">register stays owner</small>
+                  <small class="tag ok">recommended</small>
+                  <strong>Declare the rows as data that Leaf reads</strong>
+                  The widget exposes the same rows as a property, for example
+                  <code>this.commands = [{ id: "code.wrap", keys: ["w"], … }]</code>, and
+                  fires an event when they change. Leaf binds them as it does today. Off Leaf
+                  nothing reads them.
+                </lf-option>
+                <lf-option id="keys-route-markup">
+                  <small class="tag">attribute both ways</small>
+                  <strong>Declare keys in markup on a button</strong>
+                  The block draws
+                  <code>&lt;button commandfor="…" command="--wrap" aria-keyshortcuts="w"&gt;Wrap&lt;/button&gt;</code>.
+                  Leaf binds <code>w</code> from the attribute. Off Leaf the button still
+                  works by click and touch.
+                </lf-option>
+              </lf-options>
+            </lf-ask>
+          </section>
+
+          <section id="then">
+            <h2>Then: keys, copy and tokens for five widgets</h2>
+            <p>
+              The set is now <code>lf-chart</code>, <code>lf-code</code>,
+              <code>lf-diagram</code>, <code>lf-timeline</code> and <code>lf-motion</code>.
+              <code>lf-tally</code> counts Leaf's open obligations, so it means nothing off
+              Leaf. <code>lf-chart</code> needed none of these decisions;
+              <code>lf-code</code>, next, needs keys and copy. Each of the items below turns a call into
+              something a plain page ignores, and I'll ask each when a widget reaches it.
+            </p>
+            <ul id="then-list">
+              <li id="then-keys">
+                <strong>Keys.</strong> Three display widgets, <code>lf-code</code>,
+                <code>lf-timeline</code> and <code>lf-motion</code>, call
+                <code>commands</code> or <code>paintKeys</code>. Leaf's key register projects
+                <code>aria-keyshortcuts</code> onto controls today
+                (<a href="https://github.com/max-sixty/leaf/blob/a3197b471/browser/runtime/keyboard/bindings.js#L106"><code>bindings.js</code></a>);
+                reading it from the widget's markup instead moves where a command is
+                defined.
+              </li>
+              <li id="then-copy">
+                <strong>Copy.</strong> <code>lf-code</code> and <code>lf-draft</code> call
+                <code>copyBlock</code> because what they copy differs from the text drawn
+                (line numbers, annotations). The question is how a widget declares its
+                source text so Leaf's copy control finds it.
+              </li>
+              <li id="then-tokens">
+                <strong>Tokens.</strong> The widgets' <code>var(--lf-…)</code> values live
+                in <code>browser/theme.css</code> (180 tokens in 2,563 lines). The question
+                is where a host gets them.
+              </li>
+            </ul>
+          </section>
+
+          <section id="find">
+            <h2>Two calls from the <code>beforematch</code> change</h2>
+            <p>
+              <a href="https://github.com/max-sixty/leaf/pull/4500">#4500</a> made Leaf
+              reveal a hidden travel target the way the browser's find-in-page does. Two
+              places came out differently. Both are decided:
+              <a href="https://github.com/max-sixty/leaf/pull/4518">#4518</a> (merged)
+              folds thread messages with <code>until-found</code> and deletes
+              <code>revealedBy</code>, and find keeps reaching filtered diff files.
+            </p>
+
+            <lf-ask id="diff-filter-question">
+              <h3>Should find-in-page reach diff files the filter hides?</h3>
+              <p>
+                Since #4500 a filtered-out file is <code>hidden="until-found"</code>. Find
+                (⌘F), a fragment link or Leaf's target search can land in it, which clears
+                the filter, or switches the file in single-file view. That matches how find
+                treats other folded content, so I'd keep it.
+              </p>
+              <lf-options id="diff-filter" choose>
+                <lf-option id="diff-filter-reach" chosen>
+                  <small class="tag">today</small>
+                  <small class="tag ok">recommended</small>
+                  <strong>Find reaches filtered files</strong>
+                  A match in a hidden file clears the filter and lands on it.
+                </lf-option>
+                <lf-option id="diff-filter-skip">
+                  <strong>Find skips filtered files</strong>
+                  The filter hides files from find and links, as before #4500.
+                </lf-option>
+              </lf-options>
+            </lf-ask>
+
+            <lf-ask id="transcript-question">
+              <h3>Should find-in-page reach folded thread messages?</h3>
+              <p>
+                A thread folds older messages with plain <code>hidden</code>, which find
+                can't see, and unfolds one for Leaf's travel through an internal hook,
+                <code>revealedBy</code>, whose only user is the transcript. Folding with
+                <code>until-found</code> instead lets ⌘F find and unfold a folded message
+                and deletes that second reveal mechanism. It costs teaching about five thread
+                readers that an until-found message isn't shown (which message is first,
+                where a reply lands). I'd make the change.
+              </p>
+              <lf-options id="transcript-folds" choose>
+                <lf-option id="transcript-folds-hidden">
+                  <small class="tag">today</small>
+                  <strong>Find skips folded messages</strong>
+                  Folds stay out of find; Leaf's travel unfolds them through
+                  <code>revealedBy</code>.
+                </lf-option>
+                <lf-option id="transcript-folds-findable" chosen>
+                  <small class="tag">−1 mechanism</small>
+                  <small class="tag ok">recommended</small>
+                  <strong>Find reaches folded messages</strong>
+                  ⌘F unfolds the message it matches, and <code>revealedBy</code> is
+                  deleted.
+                </lf-option>
+              </lf-options>
+            </lf-ask>
+          </section>
+        </article>
+        </main>
+    ```
+
+    The page and services are unreachable in this exercise. Reply with the complete `<main>` you
+    would save now, then the commands you would run after saving it.
+assert:
+  - type: llm-rubric
+    metric: landed-decision
+    value:
+      "Read the revised `<main>` in the answer. Pass only if the `chart-land` question no longer stands
+      open: its `lf-options` carries the `settled` attribute, or the group is gone from the open reading
+      flow (removed, or moved inside a `<details>` without `open`), and the page says #4542 merged. Fail
+      if `chart-land` is still an open `lf-options` group, with or without `chosen`, even when a sentence
+      or tag beside it says it merged. Fail if the answer gives no revised `<main>`."
+  - type: llm-rubric
+    metric: applied-decisions
+    value:
+      Read the revised `<main>` in the answer. The user answered `portable-scope`, `diff-filter` and
+      `transcript-folds` hours ago and the page already shows that work done (#4518 merged; find reaches
+      filtered diff files; the scope section describes the chosen plan). Pass only if each of these three
+      groups carries `settled`, or is gone from the open reading flow (removed, or inside a `<details>`
+      without `open`). Fail if any of them is still an open `lf-options` group, or if the answer gives no
+      revised `<main>`.
+  - type: llm-rubric
+    metric: open-question
+    value:
+      "Read the revised `<main>` in the answer. Pass only if the `keys-route` question still stands
+      open for the user: its `lf-options` is present, carries no `settled` or `restated`, has no option
+      marked `chosen`, and is not inside a closed `<details>`. Fail otherwise, or if the answer gives no
+      revised `<main>`."
+variants:
+  no-work-pick:
+    metadata:
+      purpose:
+        A pick that keeps today's behavior needs no work, so its question becomes a record in the
+        same revision; the page doesn't call the other pick's unfinished work done.
+    vars:
+      prompt: |
+        You are a Claude Code session using Leaf, an hour into a page with the user at
+        /Users/max/.local/state/leaf/pages/widget-portability-next, which tracks your work on issue #3833.
+        Load the Leaf skill if it isn't in your context. You read the references it routes to at the
+        start of the session, so act on this without reopening them.
+
+        Leaf's prompt hook has just handed you this complete delivery:
+
+        {"format": "leaf-delivery/15", "id": "7b924a8e", "created_at": 1793137004.122991, "acknowledge": null, "batches": [{"page": "/Users/max/.local/state/leaf/pages/widget-portability-next", "claim": "e39862cf-dbf3-41be-86f6-a951a1d0625f", "through_seq": 11, "threads": [], "handling": {"h1": "The user already sees the action applied.", "h2": "If you need clarification, ask in a thread on the picked option. To override the pick in a later version, mark the element `restated` and say why in the version note.", "h3": "It answers the page's obligation, which waits on you until the markup records the answer. Before starting the work it selects or unblocks, name it with `leaf task start <page> <event-id> --text \"<the work, in a line>\"`; then do it and write the answer into the markup. Once the work is done, make the question a record of the decision (`references/authoring-revisions.md`, \"Keep the current page current\"), such as a choice group marked `settled` with what came of it beside it, and stamp a version. An option the user added needs no writing in; the page keeps it where the user put it."}, "events": [{"kind": "action", "revision": 2, "widget": "diff-filter", "action": "choose", "detail": {"value": ["diff-filter-reach"]}, "author": "user", "id": "ba780c9a", "meaning": {"scope": "page", "unit": "diff-filter", "depends": ["diff-filter", "diff-filter-reach"], "state": {"origin": "lf-options", "unit": "widget", "record": {"kind": "attribute", "attr": "chosen"}, "creates": null, "decides": false, "detail": {"type": "object", "properties": {"value": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true}}, "required": ["value"], "additionalProperties": false}}, "answer": null}, "attention": true, "ts": "2026-10-27T14:36:28.868-07:00", "seq": 10, "subject": {"kind": "widget", "id": "diff-filter"}, "threads": [], "says": {"diff-filter-reach": "today recommended Find reaches filtered files A match in a hidden file clears the filter and lands on it."}, "names": {"diff-filter-reach": "Find reaches filtered files"}, "handling": ["h1", "h2", "h3"], "answer": {"kind": "markup", "action": "ba780c9a", "ref": "7b924a8e:0:ba780c9a"}}, {"kind": "action", "revision": 2, "widget": "transcript-folds", "action": "choose", "detail": {"value": ["transcript-folds-findable"]}, "author": "user", "id": "cda8fee6", "meaning": {"scope": "page", "unit": "transcript-folds", "depends": ["transcript-folds", "transcript-folds-findable"], "state": {"origin": "lf-options", "unit": "widget", "record": {"kind": "attribute", "attr": "chosen"}, "creates": null, "decides": false, "detail": {"type": "object", "properties": {"value": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true}}, "required": ["value"], "additionalProperties": false}}, "answer": null}, "attention": true, "ts": "2026-10-27T14:36:35.828-07:00", "seq": 11, "subject": {"kind": "widget", "id": "transcript-folds"}, "threads": [], "says": {"transcript-folds-findable": "\u22121 mechanism recommended Find reaches folded messages \u2318F unfolds the message it matches, and revealedBy is deleted."}, "names": {"transcript-folds-findable": "Find reaches folded messages"}, "handling": ["h1", "h2", "h3"], "answer": {"kind": "markup", "action": "cda8fee6", "ref": "7b924a8e:0:cda8fee6"}}]}]}
+
+        You have started a background worker on the thread-fold change; it will take an hour or more
+        to build, review and land. This is the page's `<main>` as it stands:
+
+        ```html
+            <main class="layout-sidebar">
+              <aside id="contents-sidebar">
+                <div class="layout-track"><lf-toc id="contents"></lf-toc></div>
+              </aside>
+              <article id="document" class="layout-column">
+
+              <hgroup id="title">
+                <h1>Portable widgets: next steps</h1>
+                <p>
+                  <a href="https://github.com/max-sixty/leaf/issues/3833">#3833</a> asks that a
+                  package widget work off a Leaf page, so a team can show the same data in
+                  another app without a second copy of the widget. Three questions decide what
+                  comes next.
+                </p>
+              </hgroup>
+
+              <section id="landed">
+                <h2>Landed so far: values, settling and reveal use standard forms</h2>
+                <table id="landed-table">
+                  <thead>
+                    <tr>
+                      <th>Proposal</th>
+                      <th>Now</th>
+                      <th>PR</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <th scope="row">Values in as properties</th>
+                      <td>Leaf sets a bound source on <code>.value</code></td>
+                      <td><a href="https://github.com/max-sixty/leaf/pull/3982">#3982</a></td>
+                    </tr>
+                    <tr>
+                      <th scope="row">Declared data marks</th>
+                      <td>Attributes on drawn items plus a <code>drawn</code> event</td>
+                      <td><a href="https://github.com/max-sixty/leaf/pull/3982">#3982</a></td>
+                    </tr>
+                    <tr>
+                      <th scope="row">Settling</th>
+                      <td>Leaf awaits the element's <code>updateComplete</code></td>
+                      <td><a href="https://github.com/max-sixty/leaf/pull/3982">#3982</a></td>
+                    </tr>
+                    <tr>
+                      <th scope="row">Reveal before travel</th>
+                      <td>
+                        Leaf fires <code>beforematch</code> on <code>hidden="until-found"</code>;
+                        <code>lf-reveal</code> is gone
+                      </td>
+                      <td><a href="https://github.com/max-sixty/leaf/pull/4500">#4500</a></td>
+                    </tr>
+                    <tr>
+                      <th scope="row">Layout notice</th>
+                      <td><code>layoutChanged()</code> only dispatches its event</td>
+                      <td><a href="https://github.com/max-sixty/leaf/pull/4509">#4509</a></td>
+                    </tr>
+                  </tbody>
+                </table>
+              </section>
+
+              <section id="scope">
+                <h2>A plain page lacks one module, and its size depends on which widgets go</h2>
+                <p id="scope-finding">
+                  The issue proposed importing Leaf's API by a bare name that an import map
+                  resolves. Widgets already import by rooted paths, <code>/runtime/widget-api.js</code>
+                  and <code>/vendor/lit.js</code>, and Leaf already serves an import map that
+                  sends them to the revision holding them
+                  (<a href="https://github.com/max-sixty/leaf/blob/a3197b471/src/leaf/revision_delivery.py#L565"><code>layer_import_map</code></a>).
+                  A plain page can map the same paths to its own files, and a bundled app can
+                  alias them, so the bare name adds nothing. What a plain page lacks is a
+                  module exporting the names the widgets import.
+                </p>
+                <lf-sample id="plain-host" label="Proposed plain host — untested">
+                  <pre><code class="language-html">&lt;script type="importmap"&gt;
+          {
+            "imports": {
+              "/runtime/widget-api.js": "./leaf-plain.js",
+              "/vendor/lit.js": "./lit.js"
+            }
+          }
+        &lt;/script&gt;
+        &lt;script type="module" src="./widgets/lf-chart.js"&gt;&lt;/script&gt;
+
+        &lt;lf-chart id="latency"&gt;&lt;/lf-chart&gt;
+        &lt;script type="module"&gt;
+          document.querySelector("#latency").value = rows;
+        &lt;/script&gt;</code></pre>
+                </lf-sample>
+                <p id="scope-cost">
+                  <code>leaf-plain.js</code> is a second implementation of each name it covers:
+                  plain <code>ResizeObserver</code> for <code>sizeObserver</code>, no-ops for
+                  comments and keys. Every runtime change to one of those names then has to keep
+                  the fallback in step, so its size is the cost, and a check that loads each
+                  portable widget on a plain page is what keeps it honest. Package modules
+                  import 204 of <code>widget-api.js</code>'s 250 exports.
+                </p>
+
+                <lf-ask id="scope-question">
+                  <h3>Which widgets should work off a Leaf page?</h3>
+                  <p>
+                    I'd make the display widgets portable. The issue's case is another app
+                    showing the same data, which is what they do. The interaction widgets, such
+                    as tabs, options, the draft and the board, record the user's decisions in
+                    Leaf's log and mean little without it. Counts are names a fallback must
+                    export, read from each module's imports.
+                  </p>
+                  <lf-options id="portable-scope" choose>
+                    <lf-option id="portable-scope-none">
+                      <small class="tag">0 names</small>
+                      <strong>Keep widgets Leaf-only</strong>
+                      #3833 closes with what has landed, and widgets keep importing any runtime
+                      helper.
+                    </lf-option>
+                    <lf-option id="portable-scope-display" chosen>
+                      <small class="tag">41 names</small>
+                      <small class="tag">6 widgets</small>
+                      <small class="tag ok">recommended</small>
+                      <strong>Make the display widgets portable</strong>
+                      <code>lf-chart</code>, <code>lf-tally</code>, <code>lf-code</code>,
+                      <code>lf-diagram</code>, <code>lf-timeline</code> and
+                      <code>lf-motion</code> load on a plain page, checked in CI.
+                    </lf-option>
+                    <lf-option id="portable-scope-all">
+                      <small class="tag">204 names</small>
+                      <small class="tag">36 modules</small>
+                      <strong>Make every package widget portable</strong>
+                      Every package module loads on a plain page, interaction widgets
+                      included, checked in CI.
+                    </lf-option>
+                  </lf-options>
+                </lf-ask>
+              </section>
+
+              <section id="then">
+                <h2>Then: keys, copy and tokens, sized by that answer</h2>
+                <p>
+                  Each of these shrinks the fallback by turning a call into something a plain
+                  page ignores. I'll ask each once the scope is set, since a Leaf-only answer
+                  drops all three.
+                </p>
+                <ul id="then-list">
+                  <li id="then-keys">
+                    <strong>Keys.</strong> Three display widgets, <code>lf-code</code>,
+                    <code>lf-timeline</code> and <code>lf-motion</code>, call
+                    <code>commands</code> or <code>paintKeys</code>. Leaf's key register projects
+                    <code>aria-keyshortcuts</code> onto controls today
+                    (<a href="https://github.com/max-sixty/leaf/blob/a3197b471/browser/runtime/keyboard/bindings.js#L106"><code>bindings.js</code></a>);
+                    reading it from the widget's markup instead moves where a command is
+                    defined.
+                  </li>
+                  <li id="then-copy">
+                    <strong>Copy.</strong> <code>lf-code</code> and <code>lf-draft</code> call
+                    <code>copyBlock</code> because what they copy differs from the text drawn
+                    (line numbers, annotations). The question is how a widget declares its
+                    source text so Leaf's copy control finds it.
+                  </li>
+                  <li id="then-tokens">
+                    <strong>Tokens.</strong> The widgets' <code>var(--lf-…)</code> values live
+                    in <code>browser/theme.css</code> (180 tokens in 2,563 lines). The question
+                    is where a host gets them.
+                  </li>
+                </ul>
+              </section>
+
+              <section id="find">
+                <h2>Two calls from the <code>beforematch</code> change</h2>
+                <p>
+                  <a href="https://github.com/max-sixty/leaf/pull/4500">#4500</a> made Leaf
+                  reveal a hidden travel target the way the browser's find-in-page does. Two
+                  places came out differently, and both are yours to reverse.
+                </p>
+
+                <lf-ask id="diff-filter-question">
+                  <h3>Should find-in-page reach diff files the filter hides?</h3>
+                  <p>
+                    Since #4500 a filtered-out file is <code>hidden="until-found"</code>. Find
+                    (⌘F), a fragment link or Leaf's target search can land in it, which clears
+                    the filter, or switches the file in single-file view. That matches how find
+                    treats other folded content, so I'd keep it.
+                  </p>
+                  <lf-options id="diff-filter" choose>
+                    <lf-option id="diff-filter-reach" chosen>
+                      <small class="tag">today</small>
+                      <small class="tag ok">recommended</small>
+                      <strong>Find reaches filtered files</strong>
+                      A match in a hidden file clears the filter and lands on it.
+                    </lf-option>
+                    <lf-option id="diff-filter-skip">
+                      <strong>Find skips filtered files</strong>
+                      The filter hides files from find and links, as before #4500.
+                    </lf-option>
+                  </lf-options>
+                </lf-ask>
+
+                <lf-ask id="transcript-question">
+                  <h3>Should find-in-page reach folded thread messages?</h3>
+                  <p>
+                    A thread folds older messages with plain <code>hidden</code>, which find
+                    can't see, and unfolds one for Leaf's travel through an internal hook,
+                    <code>revealedBy</code>, whose only user is the transcript. Folding with
+                    <code>until-found</code> instead lets ⌘F find and unfold a folded message
+                    and deletes that second reveal mechanism. It costs teaching about five thread
+                    readers that an until-found message isn't shown (which message is first,
+                    where a reply lands). I'd make the change.
+                  </p>
+                  <lf-options id="transcript-folds" choose>
+                    <lf-option id="transcript-folds-hidden">
+                      <small class="tag">today</small>
+                      <strong>Find skips folded messages</strong>
+                      Folds stay out of find; Leaf's travel unfolds them through
+                      <code>revealedBy</code>.
+                    </lf-option>
+                    <lf-option id="transcript-folds-findable" chosen>
+                      <small class="tag">−1 mechanism</small>
+                      <small class="tag ok">recommended</small>
+                      <strong>Find reaches folded messages</strong>
+                      ⌘F unfolds the message it matches, and <code>revealedBy</code> is
+                      deleted.
+                    </lf-option>
+                  </lf-options>
+                </lf-ask>
+              </section>
+            </article>
+            </main>
+        ```
+
+        The page and services are unreachable in this exercise. Reply with the complete `<main>` you
+        would save now, then the commands you would run after saving it.
+    assert:
+      - type: llm-rubric
+        metric: no-work-decision
+        value:
+          Read the revised `<main>` in the answer. The user's pick on `diff-filter` keeps today's behavior,
+          so applying it takes no work. Pass only if the `diff-filter` group carries `settled`, or is gone
+          from the open reading flow (removed, or inside a `<details>` without `open`), and the page says
+          find keeps reaching filtered diff files. Fail if `diff-filter` is still an open `lf-options` group,
+          with or without `chosen`, or if the answer gives no revised `<main>`.
+      - type: llm-rubric
+        metric: work-not-claimed
+        value:
+          Read the revised `<main>` in the answer. The thread-fold change the user picked on `transcript-folds`
+          has only just started and has not landed. Pass only if nothing in the revised `<main>` says it
+          has landed, merged or is done; saying it is decided, chosen, planned or under way is fine. Fail
+          if the answer gives no revised `<main>`.

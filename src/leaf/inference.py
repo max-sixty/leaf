@@ -393,6 +393,7 @@ def pi_generate(
             stderr=errors,
             text=True,
         ) as process:
+            assert process.stdin is not None and process.stdout is not None
             deadline = threading.Timer(TIMEOUT, process.kill)
             deadline.start()
             try:

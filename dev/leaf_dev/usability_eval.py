@@ -18,12 +18,15 @@ from contextlib import ExitStack
 from dataclasses import dataclass
 from pathlib import Path
 
+import yaml
+
 from leaf.delivery import opened_input_ids
 from leaf.event_log import read_events
 from leaf.harness import ClaudeCodeHarness
 from leaf.passages import SourceReading
 from leaf.registry.kernel import kinds_declaring
 from leaf.service import requires_agent_attention
+from leaf.state import turn_open
 from leaf.structure import SourceDocument
 from leaf_dev import ROOT
 from leaf_dev.arms import (
@@ -34,9 +37,9 @@ from leaf_dev.arms import (
     blocks,
     completed,
     environment,
-    inputs_received,
     now,
     observed_sum,
+    pages,
     read_page_state,
     read_trace,
     resumed,
@@ -45,6 +48,7 @@ from leaf_dev.arms import (
     trace_summary,
 )
 from leaf_dev.eval_cases import definition
+from leaf_dev.leaf_assets import pinned_assets
 
 FIXTURES = ROOT / "evals/usability/fixtures"
 READING_FIXTURE = json.loads((FIXTURES / "reading-answers.json").read_text())
@@ -186,6 +190,53 @@ def build_reading(run: Run, page: Path, surface: str | None) -> None:
             if move.get("undoes") == "previous":
                 move = {**move, "undoes": page_events(page)[-1]["id"]}
             admit(run, page, move)
+
+
+def build_diagnostics_report(run: Run, page: Path) -> None:
+    run.leaf("page", "init", str(page), check=True)
+    (page / "index.html").write_text((FIXTURES / "diagnostics-report.html").read_text())
+    run.leaf(
+        "page", "stamp", str(page), "--text",
+        FIXTURE_INPUTS["diagnostics-report"]["stamp"], check=True,
+    )  # fmt: skip
+
+
+def build_remaining_review(run: Run, page: Path) -> None:
+    # The source probe and native continuation start from the same authored facts.
+    seed = yaml.safe_load(
+        (ROOT / "evals/assessment-surfaces-pending-decisions/case.yaml").read_text()
+    )["variants"]["remaining-review"]["vars"]
+    run.leaf("page", "init", str(page), "--package", "diagram", check=True)
+    shutil.copytree(
+        pinned_assets() / "evals/assessment-surfaces-pending-decisions/media",
+        page / "media",
+        dirs_exist_ok=True,
+    )
+    (page / "index.html").write_text(
+        '<!doctype html><html lang="en"><head><title>What remains on the UI branch</title>'
+        "</head><body>" + seed["draft"] + "</body></html>"
+    )
+    run.leaf(
+        "page", "stamp", str(page), "--text",
+        FIXTURE_INPUTS["remaining-review"]["stamp"], check=True,
+    )  # fmt: skip
+    run.leaf(
+        "thread", "create", str(page), "--section", "remaining-next",
+        "--title", "#59: next extraction scope", "--text", "My recommended next scope is #59.",
+        "--markup", seed["question"], check=True,
+    )  # fmt: skip
+    state = read_page_state(run.payload, run.state, page)
+    assert [item["id"] for item in state["queues"]["on_user"]] == ["widget:next-touch"]
+    assert state["queues"]["on_agent"] == []
+
+
+def build_layout_shifts(run: Run, page: Path) -> None:
+    run.leaf("page", "init", str(page), check=True)
+    (page / "index.html").write_text((FIXTURES / "layout-shifts.html").read_text())
+    run.leaf(
+        "page", "stamp", str(page), "--text",
+        FIXTURE_INPUTS["layout-shifts"]["stamp"], check=True,
+    )  # fmt: skip
 
 
 def said(html: str) -> dict[str, str]:
@@ -466,6 +517,9 @@ def append_elided_history(run: Run, page: Path) -> None:
 
 
 BUILDERS = {
+    "layout-shifts": build_layout_shifts,
+    "diagnostics-report": build_diagnostics_report,
+    "remaining-review": build_remaining_review,
     "board": build_board,
     "constructs": build_constructs,
     "resume": build_resume,
@@ -507,8 +561,14 @@ def execute(run: Run, work: Path) -> None:
         else:
             execute_phases(run, case, work, page)
     finally:
-        for found in pages(work, run.state):
-            shutil.copytree(found, run.dir / "pages" / found.name, ignore=ignore)
+        # A copied or nested page can share another page's basename. Archive each
+        # source separately and retain its address, not just its display name.
+        archives = {}
+        for index, found in enumerate(pages(work, run.state)):
+            destination = Path("pages") / f"{index}-{found.name}"
+            shutil.copytree(found, run.dir / destination, ignore=ignore)
+            archives[str(found)] = str(destination)
+            (run.dir / "pages.json").write_text(json.dumps(archives, indent=2) + "\n")
             run.leaf("server", "stop", str(found))
 
 
@@ -530,7 +590,6 @@ def execute_live(run: Run, case: Case, work: Path, page: Path) -> None:
     posted, delivered = 0, 0
     observed_tool_round = 0
     pending_events: set[str] = set()
-    attempts: set[str] = set()
     try:
         with (
             LiveSession(
@@ -556,22 +615,22 @@ def execute_live(run: Run, case: Case, work: Path, page: Path) -> None:
         ):
 
             def received(record: dict) -> None:
-                """Record a posted round's receipt ahead of the record that shows it."""
+                """Record a posted round's receipt ahead of the record that shows it:
+                an opened pickup names each of its inputs that owes the agent
+                attention. Inline context or a pointer read only presents them."""
                 nonlocal delivered
-                if delivered < posted:
-                    events = page_events(page)
-                    if inputs_received(
-                        events, attempts
-                    ) and pending_events <= opened_input_ids(events):
-                        delivered = posted
-                        live.note(
-                            {
-                                "type": "eval_received",
-                                "round": posted,
-                                "events": sorted(pending_events),
-                                "received_at": now(),
-                            }
-                        )
+                if delivered < posted and pending_events <= opened_input_ids(
+                    page_events(page)
+                ):
+                    delivered = posted
+                    live.note(
+                        {
+                            "type": "eval_received",
+                            "round": posted,
+                            "events": sorted(pending_events),
+                            "received_at": now(),
+                        }
+                    )
 
             for record in live.records(before=received):
                 if delivered > observed_tool_round and any(
@@ -615,11 +674,6 @@ def execute_live(run: Run, case: Case, work: Path, page: Path) -> None:
                 pending_events = post_round(
                     run, page, PageClient(url), case.rounds[posted], posted
                 )
-                attempts.update(
-                    move.get("attempt", attempt_key(posted, i))
-                    for i, move in enumerate(case.rounds[posted])
-                    if move["kind"] not in ("error", "render")
-                )
                 posted += 1
                 # A round that posted nothing, a render pass that found nothing, wakes
                 # no turn, so the session closes as it would after that turn's end.
@@ -654,7 +708,7 @@ def observed_active_turn(run: Run, page: Path, child) -> str | None:
     home. The native Codex parent turn must also still run at the injection edge.
     """
     state = page_state(run, page)
-    turn = state["claim_turn"] if state["turn_closed"] is None else None
+    turn = state["turn"] if turn_open(state) else None
     if run.harness == "codex" and turn not in child.task.running:
         return None
     return turn
@@ -664,8 +718,10 @@ def post_round(
     run: Run, page: Path, client: PageClient, moves: tuple[dict, ...], n: int
 ) -> set[str]:
     """Post one round's moves as the user's tab would, resolving each placeholder
-    against the page as it is served now. Return the admitted attention-bearing
-    identities, including the page's native error rather than giving it a retry key."""
+    against the page as it is served now: every move is made on the revision one
+    reading names, and anchors and line numbers are found in that revision's file.
+    Return the admitted attention-bearing identities, including the page's native
+    error rather than giving it a retry key."""
     admitted = []
     served = page_state(run, page)
     html = (page / served["active"]["file"]).read_text()
@@ -676,13 +732,13 @@ def post_round(
             if (text := render_findings(run, page, n)) is None:
                 continue
             move = {"kind": "error", "text": text.replace("{", "{{").replace("}", "}}")}
-        event = dict(move)
+        event = {**move, "revision": served["active"]["revision"]}
         if move["kind"] != "error":
             event["attempt"] = move.get("attempt", attempt_key(n, i))
         if "anchor" in move and not isinstance(move["anchor"], dict):
             event["anchor"] = anchor(html, *move["anchor"])
         if move.get("undoes") == "previous":
-            event["undoes"] = posted_event(page, attempt_key(n, i - 1))["id"]
+            event["undoes"] = admitted[-1]["id"]
         if move.get("parent") == "latest":
             event["parent"] = [
                 e for e in page_events(page) if e["kind"] in kinds_declaring("message")
@@ -692,32 +748,13 @@ def post_round(
                 origin=client.origin,
                 line=html[: html.find("replaceAll(")].count("\n") + 1,
             )
-        if move["kind"] != "undo":
-            event["revision"] = served["active"]["revision"]
-        before = {e["id"] for e in page_events(page)}
-        client.post(event)
-        if event["kind"] == "error":
-            admitted.append(
-                next(
-                    e
-                    for e in page_events(page)
-                    if e["id"] not in before
-                    and e["kind"] == "error"
-                    and e["text"] == event["text"]
-                )
-            )
-        else:
-            admitted.append(posted_event(page, event["attempt"]))
+        admitted.append(client.post(event))
     return {e["id"] for e in admitted if requires_agent_attention(e)}
 
 
 def attempt_key(n: int, i: int) -> str:
-    """The retry key of round `n`'s move `i`, which finds its event in the log."""
+    """The retry key of round `n`'s move `i`."""
     return f"usability-eval-{n}-{i}"
-
-
-def posted_event(page: Path, key: str) -> dict:
-    return next(e for e in page_events(page) if e.get("attempt") == key)
 
 
 def execute_phases(run: Run, case: Case, work: Path, page: Path) -> None:
@@ -761,18 +798,13 @@ def execute_phases(run: Run, case: Case, work: Path, page: Path) -> None:
 
 
 def ignore(directory, names):
-    """Leave the vendored layer and service files out of a run's copy of a page."""
+    """Leave layer and service files out of a run's copy of a page."""
     return {
         n
         for n in names
         if n in ("runtime", "vendor", "widgets", "instructions", "service.json")
         or n.endswith((".lock", ".js", ".css"))
     }
-
-
-def pages(*roots: Path) -> list[Path]:
-    """Every page directory under `roots`."""
-    return sorted(p.parent for root in roots for p in root.rglob("events.jsonl"))
 
 
 # Canonical evidence

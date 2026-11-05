@@ -59,7 +59,7 @@ owner in its next delivery, with a ref of its own (`deliverable`).
 import re
 import secrets
 import time
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Generator, Iterable, Iterator
 from contextlib import contextmanager, nullcontext
 from pathlib import Path
 from typing import Literal
@@ -69,7 +69,6 @@ from .event_log import jsonl_line
 from .harness import session_harness
 from .interaction_log import acting_on
 from .refusals import Refused
-from .registry.kernel import verb_writers
 from .service import (
     PageTransaction,
     may_receive,
@@ -87,6 +86,7 @@ from .state import (
     session_lock_path,
     session_record,
     state_home,
+    turn_closed,
 )
 
 _INTEGER = {"type": "integer"}
@@ -98,6 +98,20 @@ _ANCHOR = {
         {"$ref": "leaf:event/reply#/properties/anchor"},
         {"$ref": "leaf:event/reanchor#/properties/anchor"},
     ]
+}
+# Widget gestures, unfolded (`thread_context.ACTION_FIELDS`).
+_GESTURES = {
+    "type": "array",
+    "items": object_schema(
+        {
+            "id": STRING,
+            "seq": _INTEGER,
+            "author": STRING,
+            "widget": STRING,
+            "action": STRING,
+            "detail": {"type": "object"},
+        }
+    ),
 }
 _THREAD_DIGEST = object_schema(
     {
@@ -151,6 +165,7 @@ _THREAD_DIGEST = object_schema(
                             "True where the comment is a suggestion.",
                             {"type": "boolean"},
                         ),
+                        "viewing": {"$ref": "leaf:event/comment#/properties/viewing"},
                         "edited": described(
                             "The user's latest rewrite, and the words it replaced.",
                             object_schema(
@@ -161,6 +176,12 @@ _THREAD_DIGEST = object_schema(
                                     "was": STRING,
                                 }
                             ),
+                        ),
+                        "withdrawn": described(
+                            "The user's undo of a message something still stood on, "
+                            "and what the message said; it keeps its place with "
+                            "nothing in it.",
+                            object_schema({"id": STRING, "ts": STRING, "was": STRING}),
                         ),
                     },
                 ),
@@ -203,19 +224,7 @@ _THREAD_DIGEST = object_schema(
         "actions": described(
             "Gestures in force on widgets sent in the thread, other than the "
             "batch's own (`thread_context.ACTION_FIELDS`).",
-            {
-                "type": "array",
-                "items": object_schema(
-                    {
-                        "id": STRING,
-                        "seq": _INTEGER,
-                        "author": STRING,
-                        "widget": STRING,
-                        "action": STRING,
-                        "detail": {"type": "object"},
-                    }
-                ),
-            },
+            _GESTURES,
         ),
     },
     {
@@ -285,6 +294,11 @@ _DELIVERED_EVENT = {
                 "it was made on wrote them.",
                 {"type": "object", "additionalProperties": STRING},
             ),
+            "names": described(
+                "The name of each element in `says`, by id, in the gesture's own "
+                "document: its declared name or leading title, else its words.",
+                {"type": "object", "additionalProperties": STRING},
+            ),
             "was": described(
                 "On the user's rewrite of their own message, the words it replaced.",
                 STRING,
@@ -294,6 +308,29 @@ _DELIVERED_EVENT = {
                 "rewritten message is a suggestion, so its new text is the exact "
                 "replacement it proposes.",
                 {"type": "boolean"},
+            ),
+            "unsent": described(
+                "On the user's message or edit about a widget, one their thread is "
+                "anchored in or was sent in, the work they had made there without "
+                "sending it (`$state.unsent`), as it stood when they wrote: what "
+                "the widget showed them (`thread_context.unsent_at_messages`). "
+                "Absent where none stood.",
+                _GESTURES,
+            ),
+            "waiting": described(
+                "The agent's questions the input may have answered though it "
+                "answers them by no rule: on a widget action, those still waiting "
+                "on the user's words in a thread about that widget's obligations "
+                "(`obligations.waiting_about`); on the user's message in a thread, "
+                "those still waiting on a pick on a widget frozen there "
+                "(`obligations.waiting_in_thread`). Each is the obligation's `id` "
+                "and the `text` that asked it.",
+                {
+                    "type": "array",
+                    "items": object_schema(
+                        {"id": STRING, "text": {"type": ["string", "null"]}}
+                    ),
+                },
             ),
             "answer": described(
                 "The response the event owed at capture "
@@ -464,20 +501,9 @@ def _registry(page_dir: Path):
         return None
 
 
-def _subject(event: dict, threads: list[str], by_id: dict[str, dict]) -> dict:
-    """Name what one event changes without using prose as an identifier."""
-    if event["kind"] in verb_writers():
-        return {"kind": "widget", "id": event["widget"]}
-    if event["kind"] == "undo":
-        original = by_id.get(event["undoes"])
-        if original is not None:
-            return _subject(original, threads, by_id)
-    if threads:
-        return {"kind": "thread", "id": threads[0]}
-    return {"kind": "page"}
-
-
-def current_responses(page_dir: Path, events: list[dict]) -> dict[str, dict]:
+def current_responses(
+    page_dir: Path, events: list[dict], reading=None
+) -> dict[str, dict]:
     """Map every event that owns an answer to its exact response address.
 
     The address is the owed answer `activity` derives from the input's obligation
@@ -487,10 +513,17 @@ def current_responses(page_dir: Path, events: list[dict]) -> dict[str, dict]:
     """
     from .served_state.context import read_page
 
-    return {
-        item["input"]: item["answer"]
-        for item in read_page(page_dir, events).work.obligations
-    }
+    reading = reading or read_page(page_dir, events)
+    return {item["input"]: item["answer"] for item in reading.work.obligations}
+
+
+def _users_words_in_a_thread(event: dict) -> bool:
+    """The user's reply in words, which may answer a widget frozen up its thread."""
+    return (
+        event["kind"] == "reply"
+        and event.get("author") == "user"
+        and "token" not in event
+    )
 
 
 def batch_data(
@@ -499,67 +532,70 @@ def batch_data(
     """Capture one complete ordered page batch, less what `freeze_delivery` writes
     for its transport: the address of a thread reply, and the `handling` that follows
     from it."""
-    from .events import build_threads
-    from .gesture_words import GestureWords, revisions_on_disk
-    from .revision_artifact import active_enclosing
-    from .thread_context import (
-        batch_threads,
-        thread_memberships,
-        thread_names,
-        thread_structure,
-        thread_widgets,
-    )
+    from .event_facts import EventFacts
+    from .obligations import waiting_about, waiting_in_thread
+    from .served_state.context import read_page
+    from .thread_context import batch_threads
 
-    registry = _registry(page_dir)
     events = transaction.events
-    within = active_enclosing(page_dir)
-    names = thread_names(events)
-    memberships = thread_memberships(
-        events,
-        names,
-        thread_widgets(thread_structure(events), names),
-        within,
+    reader = EventFacts(page_dir, events, _registry(page_dir))
+    facts = reader(batch)
+    # The obligations are read only where an event can carry `waiting`: an action,
+    # or the user's reply on a page whose agent messages carry markup that may ask.
+    reads_obligations = any(event["kind"] == "action" for event in batch) or (
+        any(map(_users_words_in_a_thread, batch))
+        and any(
+            event.get("markup") and event.get("author") == "agent" for event in events
+        )
+    )
+    reading = (
+        read_page(page_dir, events) if responses is None or reads_obligations else None
     )
     if responses is None:
-        responses = current_responses(page_dir, events)
-    revisions = {
-        revision["id"]: revision
-        for thread in build_threads(events, within).values()
-        for revision in thread["revisions"]
-    }
-    by_id = {event["id"]: event for event in events}
-    words = GestureWords(events, registry, revisions_on_disk(page_dir))
+        responses = current_responses(page_dir, events, reading)
+    if reads_obligations:
+        assert reading is not None
+    durable = (
+        reading.work.durable if reading is not None and reads_obligations else None
+    )
 
     captured = []
     for event in batch:
-        threads = memberships.get(event["id"], [])
-        entry = {
-            **event,
-            "subject": _subject(event, threads, by_id),
-            "threads": threads,
-        }
+        known = facts[event["id"]]
+        entry = {**event, **known}
         # The browser's retry key: the log keeps it to recognise a resent post, and
         # the agent has no use for it.
         entry.pop("attempt", None)
-        # What an element says is a registry's word, and a page whose active layer
-        # does not read is not read for its words at all.
-        if registry is not None and (says := words.says(event)):
-            entry["says"] = says
-        if revision := revisions.get(event["id"]):
-            # The thread's digest already reads the new wording; the agent answering
-            # a revision needs to see what it replaced, and whether those words are a
-            # suggestion's exact replacement text.
-            entry["was"] = revision["was"]
-            if by_id[revision["message"]].get("suggestion"):
-                entry["suggestion"] = True
         if (answer := responses.get(event["id"])) is not None:
             entry["answer"] = answer
+        if durable is not None and (
+            waiting := waiting_about(
+                event["widget"],
+                durable.all_obligations["all"],
+                durable.threads,
+                durable.within,
+            )
+            if event["kind"] == "action"
+            else [
+                question
+                for thread in known["threads"]
+                for question in waiting_in_thread(
+                    thread,
+                    event["seq"],
+                    durable.all_obligations["all"],
+                    durable.threads,
+                )
+            ]
+            if _users_words_in_a_thread(event)
+            else None
+        ):
+            entry["waiting"] = waiting
         captured.append(entry)
     return {
         "page": str(page_dir),
         "claim": transaction.delivery_owner,
         "through_seq": max(event["seq"] for event in batch),
-        "threads": batch_threads(events, batch, within),
+        "threads": batch_threads(events, batch, reader.within),
         "events": captured,
     }
 
@@ -690,7 +726,7 @@ def handled(
 
 
 def freeze_delivery(
-    batches: list[dict],
+    batches: Iterable[dict],
     *,
     acknowledge: Callable[[str], str] | None = None,
     turn_replies: bool = False,
@@ -874,7 +910,9 @@ def earlier_pickup(payload: dict, session_id: str):
     from .findings import Finding
     from .served_state.context import read_page
 
-    turn = session_record(session_id)["turn"]
+    record = session_record(session_id)
+    assert record is not None
+    turn = record["turn"]
     turns, answers = set(), []
     for batch in payload["batches"]:
         page_dir = Path(batch["page"])
@@ -1074,19 +1112,29 @@ def deliverable(
     (`event_contracts.write_refusal`), where `receive_batch` refuses its receipt.
     Handed over anyway, it stayed pending, so a watch woke its session on every pass
     and a Codex watch opened a turn for it each time. Its session's hooks and
-    commands re-vendor such a page before they read it (`vendoring.renew_layer`), so
-    input waits here only on a page whose re-vendor was refused, and the hooks name
+    commands renew such a page's layer before they read it (`vendoring.renew_layer`),
+    so input waits here only on a page whose renewal was refused, and the hooks name
     why (`hook_transport.remedies`).
+
+    Less, too, each waiting message of a thread a fork of the owner's conversation
+    is deciding on (`forks.held`), until the fork answers or hands it over, which
+    keeps the watch from waking the session for it as it arrives.
 
     Which updates are owed is the page's fold, whose page model costs about 70 ms
     of CPU to import. Codex's tool hook runs after every tool call, so it passes
     `received=False` and hands over only what the cursor has not passed, answered
     without loading the page's layer where nothing is pending; the adapter, or the
     Stop hook where no adapter runs, hands over the rest
-    (`harness.CodexHarness.offer_at_step`)."""
+    (`harness.CodexHarness.offer_at_step`). Claude Code's tool-boundary hook asks
+    the same before it folds its pages (`hook_transport.new_input`)."""
     pending = unacknowledged(page.events, page.cursor)
     if pending and (held := awaiting_receipt(page)):
         pending = [event for event in pending if event["id"] not in held]
+    if pending:
+        from .forks import held_inputs
+
+        if forked := held_inputs(page):
+            pending = [event for event in pending if event["id"] not in forked]
     owed = unreferenced(page, obligations) if received else []
     if not pending and not owed:
         return []
@@ -1117,7 +1165,7 @@ def awaiting_receipt(page: PageTransaction) -> set[str]:
     a Stop hook or interrupted as its harness's record says
     (`activity.claimant_turn`): what that record still lacks reached no model."""
     claim = page.active_claim
-    if claim is None or claim["turn_closed"] is not None:
+    if claim is None or turn_closed(claim):
         return set()
     seqs = {event["id"]: event["seq"] for event in page.events}
     handed = {
@@ -1209,7 +1257,7 @@ def receive_batch(
     *,
     session_id: str | None,
     confirm: bool = True,
-) -> Iterator[list[dict]]:
+) -> Generator[list[dict]]:
     """Commit receipt after the consumer records its durable pickup evidence.
 
     Every transport confirms here once its durable consumer accepts input.
@@ -1222,7 +1270,7 @@ def receive_batch(
     restart's new generation and its claim, and an old envelope can be confirmed
     after ownership returns to its receiver. A receiver with no session takes
     receipt only while no session holds the page. Nor does one take it on a page
-    vendored at another protocol (`event_contracts.write_refusal`): its body could
+    at another protocol (`event_contracts.write_refusal`): its body could
     record no pickup there, and every transport retires a refused receipt rather
     than retrying it, leaving the input for a Leaf that can write the page.
     """
@@ -1314,7 +1362,7 @@ def receive_held(
     ended or was replaced, a log this Leaf may not write
     (`layer.incompatible_layer`), or locks still held at `deadline`, for a hook
     that must exit by then for its handover to stand. The other batches are still
-    recorded, and the hook hands only those over (`hook_transport.render`)."""
+    recorded, and the hook hands only those over (`hook_transport.carry_turn`)."""
     recorded = []
     for batch in payload["batches"]:
         try:
@@ -1350,7 +1398,8 @@ def receive_one(
         turn = None
         if session_id:
             observed = session_record(session_id)
-            if observed["turn_closed"] is not None:
+            assert observed is not None
+            if turn_closed(observed):
                 raise ReceiptRefused("the receiving provider turn has ended")
             if expected is not None and observed != expected:
                 raise ReceiptRefused("the receiving turn has been replaced")

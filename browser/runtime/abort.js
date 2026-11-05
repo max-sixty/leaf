@@ -1,8 +1,10 @@
+// @ts-check
 /* An abort signal as a promise, for work that races its own cancellation
    (`Promise.race([work, aborted(signal)])`). The platform offers the signal's event and
    `throwIfAborted`, but nothing to await. */
 
-/** Resolves, with nothing, once `signal` aborts; at once if it already has. */
+/** Resolves, with nothing, once `signal` aborts; at once if it already has.
+ * @param {AbortSignal} signal */
 export const aborted = (signal) => {
   /** @type {PromiseWithResolvers<void>} */
   const { promise, resolve } = Promise.withResolvers();

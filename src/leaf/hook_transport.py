@@ -63,6 +63,24 @@ the pointer's input is confirmed; the page's later input follows at the boundary
 after the ack. Stop and a prompt that opens the turn again hand unconfirmed input
 over again, as they do input Escape dropped.
 
+Claude Code waits for its tool-boundary hook before every model call, and nearly
+every boundary has nothing to carry. So a boundary first reads each page's log, and
+folds its pages only for input past a cursor (`new_input`), a status check coming
+due or a line the clerk queued. This module imports the page model only where a
+hook folds a page. An update the cursor has passed that its owner holds no usable
+reference for (`delivery.unreferenced`) reaches the turn only where a hook folds
+the pages:
+
+- a boundary with new input or a clerk line beside it;
+- a boundary whose status check is due, every `STATUS_RENEWAL` and at a session's
+  first boundary;
+- Stop under plain `--print`, where no watch follows the turn;
+- otherwise the prompt of the turn the watch wakes once this one ends.
+
+A page at an older page protocol offers no input (`delivery.deliverable`), so an
+empty boundary leaves its renewal to the next prompt or Stop hook
+(`vendoring.renew_layer`).
+
 Pi has the context once the hook returns, so its hook records the receipt with the
 pickup. Claude Code reads it only once every hook of the event has exited, and
 Escape before then drops a prompt with its context, though not a tool boundary's.
@@ -78,11 +96,31 @@ transcript shows before it reads the page, so it hands over again only what neve
 reached the model, and names an update the model did read and left unanswered as
 owed.
 
-A page vendored at an older protocol is re-vendored before it is read
+A page at an older protocol is taken to this Leaf's before it is read
 (`vendoring.renew_layer`), and the turn is told why that failed or which checks
-index.html now fails. A page this Leaf cannot write, because its re-vendor failed
-or a newer Leaf vendored it, offers no input (`delivery.deliverable`), so the hook
+index.html now fails. A page this Leaf cannot write, because its renewal failed
+or a newer Leaf initialized it, offers no input (`delivery.deliverable`), so the hook
 names the refusal and records no pickup there.
+
+While the agent works, the page's status shows the line it last started. Each
+`STATUS_RENEWAL`, a tool boundary checks the session's pages, Claude Code's
+`PostToolBatch` here and Codex's tool hook through `CodexHarness.offer_at_step`, and
+reminds the agent of any working line that has stood that long to restate it, in
+new words where its work has moved on (`status_reminders`). A restatement renews
+the line even where its words stay, so while the agent runs tools a working status
+is never much more than two intervals old. Checking on a clock rather than at each
+boundary keeps Codex's tool hook, which runs after every call, from reading its pages
+each time (`state.status_check_due`). Only a working status, at a tool boundary, is reminded: a turn waiting
+on the user or between turns runs none, and a closed or listening page shows no
+line to renew. Whether the work has moved on is the agent's judgement; the hook only
+says how long the line has stood. This was the user's choice (28 October 2026) over
+Leaf reading the turn's liveness, or its current step, from the hooks itself.
+
+The prompt hook and a tool boundary also carry what Leaf's clerk wrote or found at
+the last turn's end, and each reply a fork of the conversation posted, one line each
+(`clerk.queued`), and take them off the queue once printed (`clerk.heard`). Stop
+carries none: the clerk forks only after the turn has ended, and a fork's reply
+reaches the session with the settled message, which wakes no idle session.
 
 A harness reads a hook's output only after the hook exits, and discards it if the
 hook times out. So the hook records its handover only before `CONFIRM_WITHIN`, well
@@ -93,11 +131,11 @@ interrupted just after they start leave their updates Delivered.
 
 import json
 import time
-from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import datetime, timedelta
 from pathlib import Path
 
-from .activity import acknowledged_obligations, turn_obligations, unanswered
+from .clerk import heard, queued
 from .delivery import (
     batch_data,
     deliverable,
@@ -107,20 +145,20 @@ from .delivery import (
     receive_held,
     record_pickup,
 )
-from .event_contracts import write_refusal
 from .findings import Finding
 from .harness import Harness, claim_harness
 from .schema import (
     ANSWER_INSTRUCTION,
     PREVIEW_FILE,
 )
-from .served_state.context import read_page
 from .service import (
     PageTransaction,
     owned_pages,
     page_claim,
 )
 from .state import (
+    STATUS_CHECKED_SUFFIX,
+    STATUS_RENEWAL,
     STRING,
     Record,
     described,
@@ -129,7 +167,40 @@ from .state import (
     session_file,
     session_lock_path,
     session_record,
+    status_check_due,
 )
+
+
+def status_reminders(session_id: str, plans: list["PagePlan"]) -> list[str]:
+    """A line for each page whose working status has stood `STATUS_RENEWAL`,
+    recording the check (`state.status_check_due`)."""
+    session_file(session_id, STATUS_CHECKED_SUFFIX).touch()
+    now = datetime.now().astimezone()
+    lines = []
+    for plan in plans:
+        activity = plan.state["activity"]
+        if activity["kind"] != "working" or not activity["ts"]:
+            continue
+        stood = now - datetime.fromisoformat(activity["ts"])
+        if stood < STATUS_RENEWAL:
+            continue
+        minutes = int(stood / timedelta(minutes=1))
+        source = activity["detail_source"]
+        if source:
+            lines.append(
+                f"Leaf: your status on {plan.page} has read "
+                f'"{activity["detail"]}" for {minutes} min. Restate it with '
+                f'`leaf task start {plan.page} {source["item"]} --text "<what you '
+                'are doing now>"`, in new words if your work has moved on.'
+            )
+        else:
+            lines.append(
+                f"Leaf: {plan.page} has shown no status line from you for {minutes} "
+                f"min while you work on its updates. Say what you are doing with "
+                f'`leaf task start {plan.page} <update id> --text "<what you are '
+                'doing>"`.'
+            )
+    return lines
 
 
 def restart(obligations: list[dict]) -> str:
@@ -161,7 +232,7 @@ class PagePlan:
     cursor, status and ownership snapshot. Planning never records a pickup. The
     caller selects which pending batches its transport can hand over.
     `unwritable` says why this Leaf may record no pickup there, or is None
-    (`event_contracts.write_refusal`). `unready` is what re-vendoring the page
+    (`event_contracts.write_refusal`). `unready` is what renewing the page's layer
     before the reading left for the agent, or None (`vendoring.renew_layer`).
     """
 
@@ -180,7 +251,29 @@ class PagePlan:
     unready: Finding | None
 
 
+def new_input(session_id: str) -> bool:
+    """Whether a page the session holds has input a tool hook hands over: input past
+    the page's cursor that no hook has handed into the open turn
+    (`delivery.deliverable` without `received`), read from the page's log alone."""
+    for page_dir in owned_pages(session_id):
+        try:
+            with PageTransaction(page_dir) as page:
+                claim = page.active_claim
+                if (
+                    claim is not None
+                    and claim["id"] == session_id
+                    and deliverable(page, received=False)
+                ):
+                    return True
+        except FileNotFoundError:
+            continue
+    return False
+
+
 def read_plans(session_id: str) -> list[PagePlan]:
+    from .activity import acknowledged_obligations, turn_obligations
+    from .event_contracts import write_refusal
+    from .served_state.context import read_page
     from .vendoring import renew_layer
 
     plans = []
@@ -189,7 +282,7 @@ def read_plans(session_id: str) -> list[PagePlan]:
         # session, and only while the claim is still this session's.
         held = page_claim(page_dir)
         unready = (
-            renew_layer(page_dir, claim_harness(held))
+            renew_layer(page_dir, claim_harness(held), command=False)
             if held and held["id"] == session_id
             else None
         )
@@ -211,6 +304,7 @@ def read_plans(session_id: str) -> list[PagePlan]:
                         break
                 if claim is None or claim["id"] != session_id:
                     continue
+                assert lifecycle is not None
                 pending = deliverable(page, work.obligations)
                 watched = harness.watcher_live(listening=state["listening"])
                 # An owed update this owner holds no usable reference for, as when
@@ -291,9 +385,11 @@ def stop_continues(
 
 
 def remedies(
-    plans: list[PagePlan], handing: list[dict] = ()
+    plans: list[PagePlan], handing: list[dict] | tuple[dict, ...] = ()
 ) -> list[tuple[str, str | None]]:
     """Format remedies from already-read facts, with harness wording at the edge."""
+    from .activity import unanswered
+
     handed = {
         (batch["page"], event["id"]) for batch in handing for event in batch["events"]
     }
@@ -346,6 +442,9 @@ def pick_up_acknowledged(session_id: str, plans: list[PagePlan]) -> None:
     likewise checks generation and turn after reacquiring the page transaction.
     A page this Leaf may not write records none; `remedies` tells the turn why.
     """
+    from .activity import acknowledged_obligations
+    from .served_state.context import read_page
+
     for plan in plans:
         if not plan.acknowledged or plan.unwritable:
             continue
@@ -465,47 +564,12 @@ def note_pointer(
         return
 
 
-def render(
-    harness: Harness,
-    event: str | None,
-    delivery: dict | None,
-    attention: list[str],
-    *,
-    confirm: Callable[[], list[dict]],
-    point: Callable[[], None],
-) -> dict | None:
-    """The hook's output, or None where it puts nothing in the turn. Where the
-    harness shows the whole message to the model (`Harness.fits_hook_context`), it
-    hands over inline the batches `confirm` records as opened in the turn, and
-    leaves a refused batch's input pending for a later handover. Otherwise, or
-    where `confirm` records none, it calls `point` and hands over the delivery's
-    pointer, which its reader's `leaf delivery ack` confirms after complete
-    reading: a pointer must leave no opened pickup, which would read as handed
-    over inline though the model read none of it."""
-    if delivery is None:
-        return harness.hook_context(event, "\n".join(attention)) if attention else None
-
-    def inline(batches: list[dict]) -> str:
-        shown = {**delivery, "batches": batches}
-        return "\n".join(
-            [INLINE_OPENING, json.dumps(shown, ensure_ascii=False), *attention]
-        )
-
-    if harness.fits_hook_context(inline(delivery["batches"])) and (
-        recorded := confirm()
-    ):
-        return harness.hook_context(event, inline(recorded))
-    point()
-    message = "\n".join([delivery_pointer_prompt(delivery["id"]), *attention])
-    return harness.hook_context(event, message)
-
-
 def carry_turn(
     harness: Harness,
     event: str | None,
     sid: str,
     payload: dict,
-    expected: dict | None | object = ...,
+    expected: dict | None,
     *,
     started: float,
     reconnect_harness: str | None = None,
@@ -514,7 +578,12 @@ def carry_turn(
     into the one hook output its harness reads, recording a delivery it hands
     over inline by `CONFIRM_WITHIN` after `started`, the hook's
     `time.monotonic()` as it began."""
-    expected = session_record(sid) if expected is ... else expected
+    # What Leaf's clerk wrote or found and the replies forks posted since the agent
+    # last heard (`clerk.queued`), which the next prompt or tool boundary carries.
+    told = queued(sid) if event in {"UserPromptSubmit", "PostToolBatch"} else []
+    due = event == "PostToolBatch" and status_check_due(sid)
+    if event == "PostToolBatch" and not told and not due and not new_input(sid):
+        return
     plans = read_plans(sid)
     if session_record(sid) != expected or any(
         plan.lifecycle != expected for plan in plans
@@ -541,7 +610,8 @@ def carry_turn(
         if carries
         else []
     )
-    if event == "PostToolBatch" and not batches:
+    renewals = status_reminders(sid, plans) if due else []
+    if event == "PostToolBatch" and not batches and not renewals and not told:
         return
     if event == "UserPromptSubmit":
         pick_up_acknowledged(sid, plans)
@@ -552,8 +622,9 @@ def carry_turn(
         reminds=harness.watches_between_turns(),
     ):
         return True
-    # A tool boundary carries only new input; response-debt and housekeeping
-    # reminders belong to prompt and Stop. It neither reopens nor ends a turn.
+    # A tool boundary carries only new input and a status line gone unrenewed;
+    # response-debt and housekeeping reminders belong to prompt and Stop. It
+    # neither reopens nor ends a turn.
     reminding = [] if event == "PostToolBatch" else plans
     reasons = remedies(reminding, batches)
     # The message avoids "unattended": a page can be watched and still be owed
@@ -593,12 +664,24 @@ def carry_turn(
     context = notices(reconnect_harness, sid, expected)
     if context is None:
         return
-    output = render(
-        harness,
-        event,
-        delivery,
-        [*context, *attention],
-        confirm=lambda: (
+    attention = [*context, *attention, *renewals, *told]
+    if delivery is None:
+        message = "\n".join(attention)
+    else:
+        assert expected is not None
+
+        def inline(batches: list[dict]) -> str:
+            return "\n".join(
+                [
+                    INLINE_OPENING,
+                    json.dumps({**delivery, "batches": batches}, ensure_ascii=False),
+                    *attention,
+                ]
+            )
+
+        # Record only input the model will see whole, while the hook can still
+        # exit before its timeout. A refused batch stays pending.
+        recorded = (
             receive_held(
                 delivery,
                 sid,
@@ -606,14 +689,17 @@ def carry_turn(
                 deadline=deadline,
                 confirm=harness.commits_hook_context,
             )
-            if time.monotonic() < deadline
+            if harness.fits_hook_context(inline(delivery["batches"]))
+            and time.monotonic() < deadline
             else []
-        ),
-        point=lambda: (
-            note_pointer(sid, expected, delivery, deadline=deadline)
-            if expected
-            else None
-        ),
-    )
-    if output:
-        print(json.dumps(output), flush=True)
+        )
+        if recorded:
+            message = inline(recorded)
+        else:
+            if expected:
+                note_pointer(sid, expected, delivery, deadline=deadline)
+            message = "\n".join([delivery_pointer_prompt(delivery["id"]), *attention])
+    if message:
+        assert event is not None
+        print(json.dumps(harness.hook_context(event, message)), flush=True)
+        heard(sid, told)

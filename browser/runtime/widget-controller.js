@@ -7,21 +7,33 @@
    asynchronous preparation region (`present`), which removal pauses and reconnection
    restores. Registered preparation also holds full rendering readiness until
    completion or removal. Local editing holds the widget's drawing (`defer`) until the
-   gesture releases it. */
-import { untracked } from "/vendor/browser-runtime.js";
+   gesture releases it. A widget that draws itself without Leaf's helpers says it has
+   drawing under way with a `pending-task` event instead (`PendingTaskEvent`,
+   widget-upgrade.js), which reaches the same preparation region here. */
+import { untracked } from "/runtime/framework.js";
 import { applicationState, attachWidgetPresentation } from "./semantic-state.js";
 import { dispatchWidget, invalidateDom } from "./application.js";
 import { descriptorStillMatches, widgetDescriptor } from "./widget-descriptors.js";
-import { failSoftUnreported } from "./widget-upgrade.js";
+import { PENDING_TASK, failSoftUnreported } from "./widget-upgrade.js";
 import { watchOwner } from "./arrivals.js";
 import { holdRendering } from "./rendering.js";
 
+/** @typedef {ReturnType<typeof createWidgetController>} WidgetController
+ * @typedef {import('./framework/application.js').WidgetDescriptor} WidgetDescriptor
+ * @typedef {ReturnType<ReturnType<typeof applicationState.selectWidget>["read"]>} WidgetReading
+ * @typedef {{hold: () => (() => void), refresh: () => void}} Drawing
+ * @typedef {{completion: Promise<unknown[]>}} Preparation
+ * @typedef {ReturnType<typeof attachWidgetPresentation>} PreparationHandle */
+/** @type {WeakMap<Element, WidgetController>} */
 const controllers = new WeakMap();
+/** @type {Set<Drawing>} */
 const ancestorRefreshes = new Set();
 let ancestorRefreshQueued = false;
 // Owners that draw themselves (`LeafElement`, leaf-element.js), each with the hold its
 // gestures defer and the refresh an ancestor's remount asks of it.
+/** @type {WeakMap<Element, Drawing>} */
 const selfDrawn = new WeakMap();
+/** @param {Element} owner @param {Drawing} drawing */
 export const drawsItself = (owner, drawing) => selfDrawn.set(owner, drawing);
 
 // A widget connected to draw its reading. A data renderer may remount a nested widget
@@ -31,12 +43,14 @@ export const drawsItself = (owner, drawing) => selfDrawn.set(owner, drawing);
 // A widget can also first appear when thread presentation mounts frozen markup after the
 // global projection pass, so coordinate and provenance work runs again now that it and
 // its units exist; state application coalesces the request.
+/** @param {Element} owner @param {WidgetDescriptor} descriptor @param {boolean} parentChanged */
 export function widgetMounted(owner, descriptor, parentChanged) {
   if (parentChanged && applicationState.read().document.authored.has(descriptor.id))
     refreshAncestors(owner);
   invalidateDom();
 }
 
+/** @param {Element} owner */
 function refreshAncestors(owner) {
   for (
     let ancestor = owner.parentElement;
@@ -56,6 +70,7 @@ function refreshAncestors(owner) {
   });
 }
 
+/** @template T @param {T} value @returns {T} */
 const immutable = (value) => {
   if (value !== null && typeof value === "object" && !Object.isFrozen(value)) {
     for (const child of Object.values(value)) immutable(child);
@@ -64,6 +79,7 @@ const immutable = (value) => {
   return value;
 };
 
+/** @param {WidgetReading} reading */
 const unavailable = (reading) =>
   immutable({
     ...structuredClone(reading),
@@ -75,6 +91,7 @@ const unavailable = (reading) =>
     ),
   });
 
+/** @param {Element} owner */
 function createWidgetController(owner) {
   const descriptor = widgetDescriptor(owner);
   if (!descriptor)
@@ -82,10 +99,13 @@ function createWidgetController(owner) {
       `leaf: <${owner.localName}>#${owner.id || "(missing id)"} has no captured widget descriptor`,
     );
   const selected = applicationState.selectWidget(descriptor);
-  let deferred = false;
+  /** @type {PreparationHandle | null} */
   let preparationHandle = null;
+  /** @type {Map<PromiseLike<unknown>, ReturnType<typeof holdRendering> | null>} */
   const pendingPreparations = new Map();
+  /** @type {Preparation | null} */
   let preparation = null;
+  /** @type {{value: WidgetReading, promises: PromiseLike<unknown>[], completion?: Promise<unknown[]>} | null} */
   let preparationBatch = null;
 
   const read = () =>
@@ -95,10 +115,11 @@ function createWidgetController(owner) {
 
   const prepared = () => {
     if (!preparationHandle && owner.isConnected)
-      preparationHandle = attachWidgetPresentation(descriptor.id, "preparation", owner);
+      preparationHandle = attachWidgetPresentation(descriptor.id, "preparation");
     return preparationHandle;
   };
 
+  /** @param {PromiseLike<unknown>} promise */
   const holdPreparation = (promise) => {
     if (pendingPreparations.has(promise)) {
       if (owner.isConnected && !pendingPreparations.get(promise))
@@ -116,10 +137,9 @@ function createWidgetController(owner) {
     Promise.resolve(promise).then(settled, settled);
   };
 
-  const presentPreparation = (handle, { value, completion }) =>
-    handle
-      .present(value, (reason) => failSoftUnreported(owner, reason))
-      .resolve(completion);
+  /** @param {PreparationHandle} handle @param {Preparation} preparation */
+  const presentPreparation = (handle, { completion }) =>
+    handle.present((reason) => failSoftUnreported(owner, reason)).resolve(completion);
 
   // The controller is an owner of its own: a paint that mounts its widget connects it,
   // and what it reads to connect is its own, never that paint's.
@@ -146,6 +166,7 @@ function createWidgetController(owner) {
 
   return Object.freeze({
     read,
+    /** @param {import("./pending/dispatch.js").WidgetCommand} command */
     dispatch(command) {
       if (!descriptorStillMatches(owner, descriptor)) return null;
       const delivery = dispatchWidget(descriptor, command);
@@ -158,19 +179,17 @@ function createWidgetController(owner) {
       const drawing = selfDrawn.get(owner);
       if (!drawing)
         throw new Error(`<${owner.localName}> defers only a LeafElement's drawing`);
-      if (deferred) throw new Error("Widget presentation is already deferred");
-      deferred = true;
       const release = drawing.hold();
       let released = false;
       return () => {
         if (released) return read();
         released = true;
-        deferred = false;
         release();
         invalidateDom();
         return read();
       };
     },
+    /** @template {PromiseLike<unknown>} P @param {P} promise @returns {P} */
     present(promise) {
       const value = read();
       if (!preparationBatch || preparationBatch.value !== value) {
@@ -180,7 +199,7 @@ function createWidgetController(owner) {
       const batch = preparationBatch;
       const completion = Promise.all(batch.promises);
       batch.completion = completion;
-      preparation = { value, completion };
+      preparation = { completion };
       holdPreparation(promise);
       const handle = prepared();
       if (handle) presentPreparation(handle, preparation);
@@ -195,6 +214,7 @@ function createWidgetController(owner) {
   });
 }
 
+/** @param {Element} owner @returns {WidgetController} */
 export function widgetController(owner) {
   let controller = controllers.get(owner);
   if (!controller) {
@@ -202,17 +222,26 @@ export function widgetController(owner) {
     // id only after its constructor and field initializers run. Resolve the descriptor
     // on first use, which is normally connectedCallback, so a data renderer can build
     // a replacement with the same revision-bound identity as the authored node.
+    /** @type {WidgetController | null} */
     let implementation = null;
     const resolve = () => (implementation ??= createWidgetController(owner));
-    controller = Object.freeze(
-      Object.fromEntries(
-        ["read", "dispatch", "defer", "present"].map((method) => [
-          method,
-          (...args) => resolve()[method](...args),
-        ]),
-      ),
-    );
+    controller = Object.freeze({
+      read: () => resolve().read(),
+      dispatch: (command) => resolve().dispatch(command),
+      defer: () => resolve().defer(),
+      present: (promise) => resolve().present(promise),
+    });
     controllers.set(owner, controller);
   }
   return controller;
 }
+
+// Drawing a widget announced from outside Leaf's helpers: the nearest widget the event
+// passed through on its way out holds its presentation on it, as `present` does.
+document.addEventListener(PENDING_TASK, (event) => {
+  const owner = event
+    .composedPath()
+    .filter((node) => node instanceof Element)
+    .find((node) => widgetDescriptor(node));
+  if (owner) widgetController(owner).present(event.complete);
+});

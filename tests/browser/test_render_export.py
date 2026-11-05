@@ -9,7 +9,6 @@ from click.testing import CliRunner
 from interact_support import (
     append_carried_log_record,
 )
-from leaf_dev.example_data import patch_manifest
 from playwright.sync_api import expect
 from render_cases_interaction import OBLIGATION_PAGE, live_url
 from render_cases_layout import solid_png
@@ -20,6 +19,7 @@ from render_harness import (
     leaf_page,
     open_page,
     round_trip,
+    scroll_settled,
     sending,
     write,
 )
@@ -30,8 +30,9 @@ from leaf import data as data_model
 from leaf import exporting as exporting_model
 from leaf import files as files_model
 from leaf import media as media_model
-from leaf.render_checks import HANDOVER_DEADLINE_MS, wait_until_ready
+from leaf.render_checks import HANDOVER_DEADLINE_MS, rendered, wait_until_ready
 from leaf.structure import UTF8_BOM
+from leaf_dev.example_data import named_source, patch_manifest
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -40,17 +41,17 @@ from journeys.test_render_export import (  # noqa: F401 (fixtures)
     OFFLINE_WIDGET,
     PIXEL,
     POLICY_ATTEMPTS,
-    ROOT,
     _reachable,
     requested_documents,
 )
 
 
+@pytest.mark.parametrize("draft", [False, True], ids=["stamped", "draft"])
 def test_interactive_export_with_an_obligation_reaches_application_presentation(
-    browser, serve, tmp_path
+    browser, serve, tmp_path, draft
 ):
     """Offline mode omits page controls without leaving their ticket pending."""
-    serve(ROOT / "examples" / "notification-playground.html")
+    serve(named_source("notification-playground"))
     interactive = tmp_path / "interactive-with-ask.html"
     result = CliRunner().invoke(
         cli_model.cli,
@@ -60,6 +61,7 @@ def test_interactive_export_with_an_obligation_reaches_application_presentation(
             str(serve.page_dir),
             "--out",
             str(interactive),
+            *(["--draft"] if draft else []),
         ],
         env={"LEAF_BROWSER_EXECUTABLE": str(tmp_path / "missing-browser")},
     )
@@ -110,6 +112,54 @@ def test_an_interactive_export_paints_a_widget_owned_text_box(browser, serve, tm
     expect(add).not_to_have_attribute("data-lf-empty", "")
 
 
+def test_exported_workspace_tabs_open_new_evidence_below_the_pinned_strip(
+    browser, serve, tmp_path
+):
+    """Exports register the Layout's scrollport, so nested navigation lands in it."""
+    paragraphs = "".join(f"<p>Evidence paragraph {i}.</p>" for i in range(24))
+    source = leaf_page(
+        "Evidence review",
+        f"""<header><h1>Evidence review</h1></header>
+<lf-tabs id="views">
+  <lf-tab id="intro" label="Introduction"><p>Open the review.</p></lf-tab>
+  <lf-tab id="review" label="Review"><lf-tabs id="evidence">
+    <lf-tab id="first" label="First"><h2>First evidence</h2>{paragraphs}</lf-tab>
+    <lf-tab id="second" label="Second"><h2>Second evidence</h2>{paragraphs}</lf-tab>
+  </lf-tabs></lf-tab>
+</lf-tabs>""",
+        head="<style>#views > lf-tab {padding-block-start:0}</style>",
+        layout="workspace",
+    )
+    serve(source)
+    out = tmp_path / "evidence-review.html"
+    exporting_model.cmd_export(serve.page_dir, out, None)
+    page = browser.new_page(viewport={"width": 900, "height": 600})
+    page.goto(out.as_uri(), wait_until="load")
+    wait_until_ready(page)
+    page.get_by_role("tab", name="Review", exact=True).click()
+    page.locator("#first p").nth(3).hover()
+    page.mouse.wheel(0, 150)
+    page.wait_for_function("document.querySelector('#views').scrollTop > 100")
+    scroll_settled(page, "#views")
+    # A sticky tab's visible box is the input target, rather than its flow position.
+    button = page.get_by_role("tab", name="Second", exact=True).bounding_box()
+    page.mouse.click(
+        button["x"] + button["width"] / 2, button["y"] + button["height"] / 2
+    )
+    rendered(page)
+    heading = page.locator("#second h2").bounding_box()
+    strip = page.locator("#evidence > .lf-tabstrip").bounding_box()
+    assert heading["y"] >= strip["y"] + strip["height"] - 1
+    assert heading["y"] + heading["height"] < 600
+    # Leaving and reopening the outer view keeps the nested selection readable too.
+    page.get_by_role("tab", name="Introduction", exact=True).click()
+    page.get_by_role("tab", name="Review", exact=True).click()
+    expect(page.get_by_role("tab", name="Second", exact=True)).to_have_attribute(
+        "aria-selected", "true"
+    )
+    expect(page.locator("#second h2")).to_be_in_viewport()
+
+
 def test_interactive_export_runs_captured_local_behavior_without_a_host(
     browser, serve, tmp_path
 ):
@@ -139,9 +189,8 @@ def test_interactive_export_runs_captured_local_behavior_without_a_host(
     expect(live.locator("#offline-widget #choice")).to_have_text("chosen")
     live.close()
 
-    # Export resolves the stamped artifact, never the mutable aliases left in the page
-    # directory after activation.
-    (serve.page_dir / "widgets" / "lf-offline-test.js").write_text(
+    # Export resolves the stamped artifact, never the page's mutable source.
+    (serve.page_dir / "page" / "widgets" / "lf-offline-test.js").write_text(
         'throw new Error("mutable widget source escaped its revision");',
         encoding="utf-8",
     )
@@ -207,23 +256,37 @@ def test_interactive_export_runs_captured_local_behavior_without_a_host(
     assert external == []
 
 
-def test_interactive_export_hydrates_captured_deferred_values_offline(
+def test_an_interactive_export_reads_each_source_and_deferred_field_offline(
     browser, serve, tmp_path
 ):
-    """A frozen interactive copy keeps unopened deferred payloads usable."""
+    """Each source reaches the widget bound to it, an unopened tab's too, and each
+    unopened deferred payload loads, from one file with no host."""
     serve(
         leaf_page(
-            "offline deferred data",
-            '<h1>Review</h1><lf-diff id="patch" source="review-patch" collapsed>'
-            "<pre></pre></lf-diff>",
+            "offline data",
+            """<h1>Review</h1>
+<lf-tabs id="notes" list="side">
+  <lf-tab id="first" label="First"><lf-text-document id="one" source="notes-one" label="one.md"></lf-text-document></lf-tab>
+  <lf-tab id="second" label="Second"><lf-text-document id="two" source="notes-two" label="two.md"></lf-text-document></lf-tab>
+</lf-tabs>
+<lf-diff id="patch" source="review-patch" collapsed></lf-diff>""",
         )
     )
-    patch = (
-        "diff --git a/app.py b/app.py\n--- a/app.py\n+++ b/app.py\n"
-        '@@ -1 +1 @@\n-return "old"\n+return "new"\n'
+    # Text a layer of escaping would mangle: a script end, quotes, a backslash, a
+    # line break and characters outside ASCII.
+    texts = {
+        "notes-one": 'First </script> "quoted" \\ back\nnext line é\n',
+        "notes-two": "Second, in the unopened tab ✓\n",
+    }
+    for source, text in texts.items():
+        data_model.cmd_data_set(serve.page_dir, source, text)
+    patch = "".join(
+        f"diff --git a/{name} b/{name}\n--- a/{name}\n+++ b/{name}\n"
+        f'@@ -1 +1 @@\n-return "old"\n+return "{name} new"\n'
+        for name in ("app.py", "lib.py")
     )
     data_model.cmd_data_set(serve.page_dir, "review-patch", patch_manifest(patch))
-    interactive = tmp_path / "deferred-interactive.html"
+    interactive = tmp_path / "data-interactive.html"
     result = CliRunner().invoke(
         cli_model.cli,
         [
@@ -251,10 +314,15 @@ def test_interactive_export_hydrates_captured_deferred_values_offline(
     )
     page.goto(document_url, wait_until="load")
     expect(page.locator("body")).to_have_attribute("data-lf-presented", "1")
-    page.locator("lf-diff summary").click()
-    expect(
-        page.locator('lf-diff [data-lf-datum=\'["app.py","new",1]\']')
-    ).to_have_count(1)
+    expect(page.locator("#second")).to_have_attribute("hidden", "until-found")
+    for widget, source in (("#one", "notes-one"), ("#two", "notes-two")):
+        assert page.locator(widget).evaluate("widget => widget.value") == texts[source]
+        expect(page.locator(f"{widget} code")).to_have_text(texts[source])
+    for name in ("app.py", "lib.py"):
+        page.locator("lf-diff summary", has_text=name).click()
+        expect(
+            page.locator(f'lf-diff [data-lf-datum=\'["{name}","new",1]\']')
+        ).to_contain_text(f"{name} new")
     assert external == []
 
 
@@ -319,7 +387,7 @@ def test_an_export_keeps_visual_review_images_and_inspection_offline(
     page.goto(out.as_uri(), wait_until="load")
     wait_until_ready(page)
     widget = page.locator("#review")
-    selected = widget.locator('.lf-vr-case[aria-hidden="false"]')
+    selected = widget.locator(".lf-vr-case:not([hidden])")
     for index, case in enumerate(cases):
         if index:
             widget.locator('.lf-vr-case-button[aria-current="true"]').click()
@@ -333,7 +401,7 @@ def test_an_export_keeps_visual_review_images_and_inspection_offline(
             "async images => { await Promise.all(images.map(image => image.decode())); return true; }"
         )
     shot = selected.locator("lf-shot")
-    shot.get_by_role("button", name="Slider", exact=True).click()
+    shot.get_by_role("radio", name="Slider", exact=True).click()
     comparison = shot.locator("wa-comparison")
     handle = comparison.get_by_role("scrollbar")
     handle.press("Home")
@@ -360,6 +428,11 @@ def test_an_export_keeps_utf8(browser, serve, tmp_path):
     page = browser.new_page()
     page.goto(out.as_uri(), wait_until="load")
     wait_until_ready(page)
+    imports = page.evaluate("""() => JSON.parse(
+        document.querySelector('script[type="importmap"]').textContent
+    ).imports""")
+    assert imports
+    assert all(url.startswith("blob:") for url in imports.values())
     assert page.evaluate("document.characterSet") == "UTF-8"
     assert page.evaluate("window.order") == ["head", "body"]
     assert page.evaluate("document.doctype.name") == "html"
@@ -421,67 +494,31 @@ def test_an_export_without_scripts_keeps_text_layout_and_alt_text(
     assert page.locator("body").bounding_box()["width"] <= 390
 
 
-def test_an_export_draws_a_chart_whose_body_is_plot_code(browser, serve, tmp_path):
-    """An lf-chart body is a Plot expression the widget compiles, so the export's policy
+def test_an_export_draws_the_widgets_its_markup_names_and_brings_no_others(
+    browser, serve, tmp_path, subtests
+):
+    """One exported file, read for what its widgets need offline.
+
+    An lf-chart body is a Plot expression the widget compiles, so the export's policy
     admits compiling it as the served page's does. Refused, the chart shows an error
-    over its source in the file a user was sent, while it drew in the author's
-    preview."""
-    serve(
-        leaf_page(
-            "Exported chart",
-            '<h1>Exported chart</h1><lf-chart id="c"><pre>'
-            '{ariaLabel: "one bar of 3", marks: [Plot.barY([3])]}'
-            "</pre></lf-chart>",
-        )
-    )
-    out = tmp_path / "chart.html"
-    exporting_model.cmd_export(serve.page_dir, out, None)
-    page = browser.new_page()
-    page.goto(out.as_uri(), wait_until="load")
-    expect(page.locator("body")).to_have_attribute("data-lf-presented", "1")
-    expect(page.locator("#c svg[role=img]")).to_have_attribute(
-        "aria-label", "one bar of 3"
-    )
-    expect(page.locator("#c .lf-error")).to_have_count(0)
+    over its source in the file a user was sent, while it drew in the author's preview.
 
+    A word written for a user listening (`.lf-quiet`), here a highlighted code line's,
+    is clipped on screen in an export as in the live page. The rule that clips it once
+    lived only in the chrome's sheet, which an export never adopts, so quiet words in an
+    exported file appeared on screen as well as their tint.
 
-def test_an_export_keeps_its_quiet_words_off_screen(browser, serve, tmp_path):
-    """A word written for a user listening (`.lf-quiet`), here a highlighted code
-    line's, is clipped on screen in an export as in the live page. The rule that clips
-    it once lived only in the chrome's sheet, which an export never adopts, so quiet
-    words in an exported file appeared on screen as well as their tint."""
-    serve(
-        leaf_page(
-            "Quiet words",
-            '<h1>Quiet words</h1><lf-code id="m" language="python" hi="1">'
-            "<pre>ship()</pre></lf-code>",
-        )
-    )
-    out = tmp_path / "quiet.html"
-    exporting_model.cmd_export(serve.page_dir, out, None)
-    page = browser.new_page()
-    page.goto(out.as_uri(), wait_until="load")
-    expect(page.locator("body")).to_have_attribute("data-lf-presented", "1")
-    quiet = page.locator("#m .lf-quiet")
-    expect(quiet).to_have_count(1)
-    box = quiet.evaluate(
-        "el => { const r = el.getBoundingClientRect();"
-        " return [r.width, r.height, getComputedStyle(el).clipPath]; }"
-    )
-    assert box[0] <= 1 and box[1] <= 1 and box[2] != "none", box
-
-
-def test_an_export_embeds_only_the_widgets_its_markup_names(browser, serve, tmp_path):
-    """A widget the page and its messages never name brings none of its modules.
-
-    The page draws code and a reply carries a diagram; nothing names a diff, so
+    A widget the page and its messages never name brings none of its modules. The page
+    draws code and a chart and a reply carries a diagram; nothing names a diff, so
     Pierre's renderer stays out of the file.
     """
     serve(
         leaf_page(
             "Reachable modules",
-            '<h1>Reachable</h1><lf-code id="snippet" language="python">'
-            "<pre>print('hi')</pre></lf-code>",
+            '<h1>Reachable</h1><lf-chart id="c"><pre>'
+            '{ariaLabel: "one bar of 3", marks: [Plot.barY([3])]}'
+            '</pre></lf-chart><lf-code id="m" language="python" hi="1">'
+            "<pre>ship()</pre></lf-code>",
         )
     )
     root = append_carried_log_record(
@@ -500,22 +537,21 @@ def test_an_export_embeds_only_the_widgets_its_markup_names(browser, serve, tmp_
             "</pre></lf-diagram>",
         },
     )
-    assert (serve.page_dir / "vendor" / "pierre-diffs.esm.js").is_file()
     out = tmp_path / "reachable.html"
     exporting_model.cmd_export(serve.page_dir, out, None)
     html = out.read_text(encoding="utf-8")
-    composed = json.loads(
-        re.search(
-            r'<script type="application/json" data-lf-export>(.*?)</script>',
-            html,
-            re.DOTALL,
-        )[1]
-    )["document"]
-    imports = json.loads(
-        re.search(r'<script type="importmap"[^>]*>(.*?)</script>', composed, re.DOTALL)[
-            1
-        ]
-    )["imports"]
+    match = re.search(
+        r'<script type="application/json" data-lf-export>(.*?)</script>',
+        html,
+        re.DOTALL,
+    )
+    assert match is not None
+    composed = json.loads(match[1])["document"]
+    match_2 = re.search(
+        r'<script type="importmap"[^>]*>(.*?)</script>', composed, re.DOTALL
+    )
+    assert match_2 is not None
+    imports = json.loads(match_2[1])["imports"]
     assert {"leaf:/widgets/lf-code.js", "leaf:/widgets/lf-diagram.js"} <= set(imports)
     assert not {
         "leaf:/widgets/lf-diff.js",
@@ -525,7 +561,20 @@ def test_an_export_embeds_only_the_widgets_its_markup_names(browser, serve, tmp_
     page = browser.new_page()
     page.goto(out.as_uri(), wait_until="load")
     expect(page.locator("body")).to_have_attribute("data-lf-presented", "1")
-    expect(page.locator("#snippet")).to_contain_text("print")
+    with subtests.test("chart"):
+        expect(page.locator("#c svg[role=img]")).to_have_attribute(
+            "aria-label", "one bar of 3"
+        )
+        expect(page.locator("#c .lf-error")).to_have_count(0)
+    with subtests.test("quiet words"):
+        expect(page.locator("#m")).to_contain_text("ship")
+        quiet = page.locator("#m .lf-quiet")
+        expect(quiet).to_have_count(1)
+        box = quiet.evaluate(
+            "el => { const r = el.getBoundingClientRect();"
+            " return [r.width, r.height, getComputedStyle(el).clipPath]; }"
+        )
+        assert box[0] <= 1 and box[1] <= 1 and box[2] != "none", box
 
 
 def test_a_historical_export_embeds_its_captured_css_graph(browser, serve, tmp_path):
@@ -563,16 +612,6 @@ body { --export-tone: rgb(12, 34, 56); }
     files_model.replace_files(
         [
             (
-                serve.page_dir / "theme.css",
-                b":root { --mutable-theme-only: 1; }",
-                False,
-            ),
-            (
-                serve.page_dir / "runtime/chrome.css",
-                b":root { --mutable-chrome-only: 1; }",
-                False,
-            ),
-            (
                 serve.page_dir / "page/styles/nested/palette.css",
                 b"body { --export-tone: red; }",
                 False,
@@ -586,9 +625,6 @@ body { --export-tone: rgb(12, 34, 56); }
     )
     out = tmp_path / "captured.html"
     exporting_model.cmd_export(serve.page_dir, out, None)
-    exported = out.read_text(encoding="utf-8")
-    assert "--mutable-theme-only" not in exported
-    assert "--mutable-chrome-only" not in exported
     page = browser.new_page()
     requests = []
     page.on("request", lambda request: requests.append(request.url))
@@ -643,8 +679,7 @@ def test_inline_threads_keep_their_words_without_live_controls_in_print(
     url = serve(
         leaf_page(
             "thread export",
-            '<h1>Review</h1><lf-diff id="patch" source="review-patch">'
-            "<pre></pre></lf-diff>",
+            '<h1>Review</h1><lf-diff id="patch" source="review-patch"></lf-diff>',
         )
     )
     data_model.cmd_data_set(
@@ -693,17 +728,17 @@ def test_inline_threads_keep_their_words_without_live_controls_in_print(
             serve.page_dir,
             {"kind": "resolve", "author": "user", "parent": root["id"]},
         )
-    selector = f'lf-diff .lf-page-thread[data-thread="{root["id"]}"]'
+    selector = f'lf-diff .lf-page-thread[data-lf-thread="{root["id"]}"]'
     live = open_page(browser, url)
     thread = live.locator(selector)
     expect(thread).to_have_count(1)
     expect(thread.locator("button")).not_to_have_count(0)
     if not resolved:
         inline_workflow = thread.locator(".lf-msg-sending")
-        expect(inline_workflow).to_have_text("Working")
+        expect(inline_workflow).to_have_text("On it")
         # The same message in the panel's view of the thread says it the same way.
         panel_workflow = open_panel_thread(live, root["id"]).locator(".lf-msg-sending")
-        expect(panel_workflow).to_have_text("Working")
+        expect(panel_workflow).to_have_text("On it")
         workflow_face = """node => {
           const style = getComputedStyle(node);
           const separator = getComputedStyle(node, '::before');
@@ -771,8 +806,10 @@ def test_an_interactive_export_reseats_authored_margin_notes(browser, serve, tmp
         leaf_page(
             "Exported notes",
             '<h1 id="title">Migration</h1>'
-            '<aside class="sidenote" id="note">Keep earlier readers available.</aside>'
-            '<p id="passage">Advance the migration one cohort at a time.</p>',
+            '<div class="layout-note"><p id="passage">Advance the migration one cohort at a time.</p>'
+            '<aside class="note" id="note">Keep earlier readers available.</aside></div>',
+        ).replace(
+            '<main class="layout-column">', '<main class="layout-column layout-notes">'
         )
     )
     interactive = tmp_path / "margin-notes.html"
@@ -782,13 +819,17 @@ def test_an_interactive_export_reseats_authored_margin_notes(browser, serve, tmp
         env={"LEAF_BROWSER_EXECUTABLE": str(tmp_path / "missing-browser")},
     )
     assert result.exit_code == 0, result.output
-    page = browser.new_page(viewport={"width": 1440, "height": 900})
+    page = browser.new_page(viewport={"width": 1600, "height": 900})
     page.goto(interactive.as_uri(), wait_until="load")
     expect(page.locator("body")).to_have_attribute(
         "data-lf-presented", "1", timeout=HANDOVER_DEADLINE_MS
     )
-    expect(page.locator("#note")).to_have_css("float", "right")
+    wide = page.locator("#note").bounding_box()
+    prose = page.locator("#passage").bounding_box()
+    assert wide["x"] >= prose["x"] + prose["width"]
     page.set_viewport_size({"width": 390, "height": 900})
-    expect(page.locator("#note")).to_have_css("float", "none")
-    page.set_viewport_size({"width": 1440, "height": 900})
-    expect(page.locator("#note")).to_have_css("float", "right")
+    narrow = page.locator("#note").bounding_box()
+    prose = page.locator("#passage").bounding_box()
+    assert narrow["y"] >= prose["y"] + prose["height"]
+    page.set_viewport_size({"width": 1600, "height": 900})
+    assert page.locator("#note").bounding_box() == pytest.approx(wide)

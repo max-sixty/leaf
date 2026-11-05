@@ -4,7 +4,7 @@
     "x-instructions": "Write the element empty, and bind its `binding` to a file with `leaf file bind PAGE BINDING PATH`.",
     "type": "object",
     "properties": {
-      "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" },
+      "id": { "type": "string" },
       "binding": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" }
     },
     "required": ["id", "binding"],
@@ -13,7 +13,6 @@
     "x-upgrade": true,
     "x-shadow": true,
     "x-height": true,
-    "x-example": "<lf-file-editor id=\"notes-file\" binding=\"notes\"></lf-file-editor>",
-    "x-prepaint": "<p class=\"lf-file-editor-opening\">Opening file…</p>"
+    "x-example": "<lf-file-editor id=\"notes-file\" binding=\"notes\"></lf-file-editor>"
   }
 }

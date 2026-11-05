@@ -47,16 +47,19 @@ export const WEBSITE_DELIVERY = DELIVERY.release !== undefined;
 // Where a delivered document's captured layer is addressed. The entry names the
 // immutable revision; the registry probe may instead name the mutable page root so
 // startup can detect a newer layer. Empty where nothing declared an entry.
-export const layerRoot = (doc) =>
-  doc
-    .querySelector("script[data-lf-runtime][data-lf-entry]")
-    ?.dataset.lfEntry.replace(/leaf\.js$/, "") ?? "";
+/** @param {Document | DocumentFragment | Element} doc */
+export const layerRoot = (doc) => {
+  /** @type {HTMLScriptElement | null} */
+  const entry = doc.querySelector("script[data-lf-runtime][data-lf-entry]");
+  return entry?.dataset.lfEntry?.replace(/leaf\.js$/, "") ?? "";
+};
 // A keyed transport declares its share address even on a cookie-authorized reload.
 // Samples and the public website have no share address. Preserve the current
 // version path, query and passage while taking access from the transport's URL.
 export const SHARE_ROOT = served?.dataset.lfShareUrl;
-export function shareUrl() {
-  const url = new URL(SHARE_ROOT);
+/** @param {string} root */
+export function shareUrl(root) {
+  const url = new URL(root);
   url.pathname = location.pathname;
   const access = [...url.searchParams];
   url.search = location.search;
@@ -68,14 +71,15 @@ export function shareUrl() {
 // Code may be shared by several documents, including a sample and its parent.
 // Page operations belong to the document's declared root, never to the module's asset
 // URL.
-export const pageUrl = (path) => new URL(path, PAGE_ROOT).href;
+/** @param {string} path */
+export const pageUrl = (path) => new URL(path, PAGE_ROOT ?? undefined).href;
 
 const offlinePayload = offlineMarker
   ? JSON.parse(offlineMarker.textContent || "null")
   : null;
 // This declaration participates in executable identity: changing it replaces this
 // document realm rather than switching initialized physical owners in place.
-/** @typedef {import("../framework/contract.js").AuthoredAllocations} Allocations */
+/** @typedef {import("../types/contract.js").AuthoredAllocations} Allocations */
 /** A page-wide allocation `body` states (`$authored`), or null where it states none.
  * @template {keyof Allocations} A @param {A} name @returns {Allocations[A] | null} */
 const allocation = (name) => /** @type {any} */ (document.body.getAttribute(name));
@@ -83,17 +87,58 @@ const allocation = (name) => /** @type {any} */ (document.body.getAttribute(name
 export const annotationMode = allocation("data-annotations") ?? "overlay";
 
 export const offlineInteractive = offlinePayload !== null;
-export const offlineState = () =>
-  offlineInteractive ? structuredClone(offlinePayload.state) : null;
-// The fragment reader never mutates this captured authority. Keep one in-memory copy:
-// cloning a multi-megabyte split source for each opened file would defeat fragmentation.
-export const offlineData = () => (offlineInteractive ? offlinePayload.data : null);
+// An export holds each data value outside its reading, as one gzipped JSON body
+// (`exporting.py`): a source's value with its deferred fields left out, and each
+// deferred field. The bodies are spans of one embedded file at the address the payload
+// names. A span of a buffer of that file decodes about three times faster than a slice
+// of its Blob, which a diff of thousands of files feels. The state read decodes the
+// values from a buffer it lets go; the first deferred read keeps one for the page's
+// life, since a widget loading records one at a time would otherwise read the whole
+// file for each. Each read decodes its own copy, as each answer from a server is one,
+// so the runtime holds no decoded copy beside the reading it accepted.
+const readDataFile = () =>
+  fetch(offlinePayload.data).then((response) => response.arrayBuffer());
+/** @type {Promise<ArrayBuffer> | undefined} */
+let deferredFile;
+/** @param {ArrayBuffer} file @param {[number, number]} span */
+const decodeSpan = (file, [start, length]) =>
+  new Response(
+    /** @type {ReadableStream<BufferSource>} */ (
+      new Response(new Uint8Array(file, start, length)).body
+    ).pipeThrough(new globalThis.DecompressionStream("gzip")),
+  ).json();
+// The captured reading with its sources' values, as a served page's state answer
+// brings them.
+export const offlineState = async () => {
+  if (!offlineInteractive) return null;
+  const state = structuredClone(offlinePayload.state);
+  const file = await readDataFile();
+  await Promise.all(
+    Object.entries(offlinePayload.values).map(async ([source, span]) => {
+      state.data.sources[source].value = await decodeSpan(file, span);
+    }),
+  );
+  return state;
+};
+// One record's deferred field, as the deferred door answers it, or undefined where the
+// record defers none.
+/** @param {string} source @param {string} key */
+export const offlineDeferred = (source, key) => {
+  const fields = Object.hasOwn(offlinePayload.deferred, source)
+    ? offlinePayload.deferred[source]
+    : {};
+  if (!Object.hasOwn(fields, key)) return undefined;
+  deferredFile ??= readDataFile();
+  return deferredFile.then((file) => decodeSpan(file, fields[key]));
+};
+/** @param {string} path */
 export const runtimeModule = (path) =>
   offlineInteractive ? `leaf:${path.startsWith("/") ? path : `/${path}`}` : path;
 // A layer file by its rooted path in the page directory (`/icon.svg`,
 // `/widgets/lf-tabs.js`), at the address this document's layer is served from
 // (`layerRoot`); a document nothing declared one for takes the layer at its own root.
 const servedLayerRoot = layerRoot(document);
+/** @param {string} path */
 export const runtimeResource = (path) => {
   if (!offlineInteractive)
     return servedLayerRoot
@@ -121,12 +166,19 @@ const part = {
   state: readPart((root) => root.authoritative),
   phase: readPart((root) => root.phase),
   versions: readPart((root) => root.authoritative?.versions ?? []),
+  seen: readPart((root) => root.authoritative?.seen ?? null),
   workflows: readPart((root) => root.effective.workflows),
   view: readPart((root) => root.effective.view),
   undo: readPart((root) => root.effective.view?.undo ?? []),
   todos: readPart((root) => root.authoritative?.browser.todos ?? []),
-  receipts: readPart((root) => root.authoritative?.browser.receipts ?? []),
+  events: readPart((root) => root.authoritative?.events ?? []),
   revisionLabels: readPart((root) => root.authoritative?.revision_labels),
+};
+
+// Capture the active reading together with the revision that qualifies it.
+const shownActive = () => {
+  const active = part.active();
+  return active && part.revision() === active.revision ? active : null;
 };
 
 export const runtime = {
@@ -141,13 +193,12 @@ export const runtime = {
   // showing any other revision is behind it: an older pin, or a tab the agent has
   // since revised.
   get showsActive() {
-    return (
-      runtime.active !== null && runtime.currentRevision === runtime.active.revision
-    );
+    return shownActive() !== null;
   },
   get currentLabel() {
-    return part.live() && runtime.showsActive
-      ? runtime.active.label
+    const active = part.live() ? shownActive() : null;
+    return active
+      ? active.label
       : runtime.currentStamp === null
         ? null
         : `v${runtime.currentStamp}`;
@@ -156,7 +207,8 @@ export const runtime = {
     return part.revision();
   },
   get currentStamp() {
-    return part.live() && runtime.showsActive ? runtime.active.version : part.stamp();
+    const active = part.live() ? shownActive() : null;
+    return active ? active.version : part.stamp();
   },
   get data() {
     return part.data();
@@ -167,6 +219,7 @@ export const runtime = {
   get reading() {
     return part.reading();
   },
+  /** @type {string | null} */
   sessionReference: null,
   // Whether the server's latest answer refused this tab's key (`layer-client.js`).
   keyRefused: false,
@@ -175,12 +228,16 @@ export const runtime = {
   },
   // The layer's `registry.json`, which fills this once it loads (registry.js).
   registry:
-    /** @type {import("../framework/application.ts").SemanticDocument["registry"] & Record<string, any>} */ ({}),
+    /** @type {import("./framework/application.js").SemanticDocument["registry"] & Record<string, any>} */ ({}),
   get statePhase() {
     return part.phase();
   },
   get versions() {
     return part.versions();
+  },
+  // The newest revision any tab showed the page's user (since-seen.js), or null.
+  get seen() {
+    return part.seen();
   },
   get workflows() {
     return part.workflows();
@@ -196,10 +253,12 @@ export const runtime = {
   get todos() {
     return part.todos();
   },
-  // The events the server has admitted from this tab's attempts.
-  get receipts() {
-    return part.receipts();
+  // The log as the adopted reading holds it; an event carrying an `attempt` is the
+  // receipt of the gesture that sent it.
+  get events() {
+    return part.events();
   },
 };
 
-export const revisionLabel = (revision) => part.revisionLabels()[revision];
+/** @param {number} revision */
+export const revisionLabel = (revision) => part.revisionLabels()?.[revision];

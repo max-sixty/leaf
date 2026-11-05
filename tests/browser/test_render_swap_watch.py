@@ -1,4 +1,4 @@
-"""The browser fixture fails what the "What takes turns in a place doesn't size it" rule
+"""The browser fixture fails what the "Shared containers determine control dimensions" rule
 forbids (`swap_watch.js`): a place that changes size as one occupant gives way to
 another."""
 
@@ -14,7 +14,7 @@ from leaf.render_checks import one_frame
 # the shelf, by hiding one and showing the other, or over two of the page's tasks in one
 # frame. `data-tall` makes the second occupant taller than the row's line.
 ROW = """<!doctype html><body style="margin:0">
-<div id="row" style="display:flex;align-items:center;gap:4px;width:300px">
+<div id="row" style="display:flex;flex-wrap:wrap;align-items:center;gap:4px;width:300px">
   <button id="first" style="height:24px">First</button>
   <button id="second" style="height:24px" hidden>Second</button>
 </div>
@@ -191,3 +191,27 @@ def test_a_row_reordered_as_it_loses_its_tallest_passes(browser):
     )
     page.locator("#swap").click()
     judge_watches()
+
+
+def test_a_wrapping_list_grows_for_its_lines_of_controls(browser):
+    """Several lines of choices occupy more room than the one-line result they replace;
+    that is a list changing its content, not a control sizing a shared line."""
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote(
+            '<!doctype html><div id="row" style="display:flex;flex-wrap:wrap;'
+            'align-items:center;width:300px;gap:6px;padding-top:9px">'
+            '<span style="height:28px">Answered</span></div>'
+            '<button id="swap">Change answer</button><script>'
+            "const result = row.innerHTML;"
+            "swap.addEventListener('click', () => { row.innerHTML = row.children.length === 1 ? "
+            "'<button style=\"height:40px;flex:1 0 100%\">First choice</button>' + "
+            "'<button style=\"height:40px;flex:1 0 100%\">Second choice</button>' : result; });"
+            "</script>"
+        )
+    )
+    for height in (95, 37):
+        page.locator("#swap").click()
+        assert page.locator("#row").bounding_box()["height"] == height
+        judge_watches()

@@ -42,6 +42,7 @@ const RUNGS = Symbol("Escape's fallback ladder");
 const COMMAND_REFERENCE = "command.reference.open";
 const GO_TO = "navigation.go-to.open";
 
+/** @type {readonly (string | typeof ELEMENTS | typeof PAGE | typeof RUNGS)[]} */
 const STACK = [
   "command reference",
   "page map",
@@ -69,10 +70,6 @@ const STACK = [
   // first.
   "draw mode",
   "design mode",
-  // A to-do on the user at the walk’s current location, whose Done this scope carries.
-  // It stands outside the modes, so a mode entered on a to-do keeps the panel's way
-  // out (touch-controls.js, the innermost stance).
-  "todo",
   PAGE,
   // Outermost, so a page command still ranks ahead of the way out.
   RUNGS,
@@ -83,6 +80,7 @@ const STACK = [
 // comes off before one they are not.
 const RUNG_LADDER = [
   "selection", // the selection, or the target a click captured
+  "change card", // what a change replaced, open over the change (margin-bars.js)
   "margin options", // the margin entry cluster the user unfolded
   "floating panel", // the menu or view the floating panel opened above its row
   "draw mode", // the drawing surface over the page
@@ -93,6 +91,7 @@ const RUNG_LADDER = [
 const PAGE_COMMANDS = [
   "comment.create",
   "writing.resume",
+  "message.edit.restore",
   "selection.restore",
   "target.picker.open",
   "reaction.open",
@@ -100,6 +99,7 @@ const PAGE_COMMANDS = [
   "page.search.repeat",
   "thread.walk",
   "queue.walk",
+  "change.walk",
   "page.move",
   "scroll.move",
   "reading.align.top",
@@ -116,20 +116,32 @@ const PAGE_COMMANDS = [
   "draw.mode.enter",
   "capture.region.open",
   "design.mode.enter",
+  // Beside `o`, so the Annotations list reads its two hides together.
+  "changes.toggle",
   "annotations.toggle",
   "panel.floating.fold",
   COMMAND_REFERENCE,
-  // A real key the browser owns, and one gesture that is not a key at all.
+  // Real keys the browser owns, and one gesture that is not a key at all.
   "browser.caret",
+  "browser.history",
   "aim.comment",
 ];
 
+/** @typedef {import("./bindings.js").Command} Command
+ * @typedef {import("./bindings.js").Scope} Scope
+ * @typedef {{title: string, description?: string, out: () => unknown, root?: Element | Document | null}} Rung
+ */
+/** @type {Map<string, Scope[]>} */
 const scopes = new Map();
+/** @type {Map<string, Command>} */
 const commands = new Map();
+/** @type {Map<string, (() => Rung | null)[]>} */
 const rungs = new Map();
+/** @type {(Scope | typeof ELEMENTS)[] | null} */
 let resolved = null;
 let validated = false;
 
+/** @param {readonly (string | symbol)[]} where @param {string} name */
 const place = (where, name) => {
   if (!where.includes(name))
     throw new Error(`leaf: ${String(name)} has no place in the page's keyboard`);
@@ -138,6 +150,7 @@ const place = (where, name) => {
 /** Declare a scope at one place in the page's command order. Several instances of an
  * owner may contribute there; each declaration answers whether its own element is
  * active. The returned function removes that instance's declaration. */
+/** @param {string} name @param {Scope} declaration */
 export function pageScope(name, declaration) {
   place(STACK, name);
   if (declaration.ready !== undefined)
@@ -160,6 +173,7 @@ export function pageScope(name, declaration) {
 
 /** Declare one row of the page's own scope. `PAGE_COMMANDS` ranks it against every other
  * feature's. */
+/** @template {Command} T @param {T} row @returns {T} */
 export function pageCommand(row) {
   place(PAGE_COMMANDS, row.id);
   if (commands.has(row.id)) throw new Error(`leaf: ${row.id} is declared twice`);
@@ -173,6 +187,7 @@ export function pageCommand(row) {
 /** Declare one instance's step of Escape's fallback ladder: a function answering what the press would
  * take off right now, as `{title, description?, out}` plus an optional `root` for the surface the
  * step is inside, or null where this step has nothing to take. `RUNG_LADDER` orders the steps. */
+/** @param {string} name @param {() => Rung | null} reading */
 export function pageRung(name, reading) {
   place(RUNG_LADDER, name);
   const readings = rungs.get(name) ?? [];
@@ -201,6 +216,7 @@ function rung() {
     if (!root || root === document || !renderedUnder(here, root)) continue;
     if (!surface || renderedUnder(root, surface)) surface = root;
   }
+  /** @param {Rung} step */
   const holds = (step) => renderedUnder(step.root ?? document, surface);
   return (surface && steps.find(holds)) ?? steps[0] ?? null;
 }
@@ -211,16 +227,20 @@ function rung() {
 const BACK_OUT = {
   id: "navigation.back",
   keys: ["Escape"],
-  title: () => (rung() ? titleOf(rung()) : "Back"),
-  description: () => (rung() ? descriptionOf(rung()) : undefined),
+  title: () => {
+    const step = rung();
+    return step ? titleOf(step) : "Back";
+  },
+  description: () => {
+    const step = rung();
+    return step ? descriptionOf(step) : undefined;
+  },
   when: () => Boolean(rung()),
-  run: () => rung().out(),
+  run: () => rung()?.out(),
 };
 
 function assemble() {
-  const rows = PAGE_COMMANDS.flatMap((id) =>
-    commands.has(id) ? [commands.get(id)] : [],
-  );
+  const rows = PAGE_COMMANDS.flatMap((id) => commands.get(id) ?? []);
   // Every page command answers whether a finger needs a row of the menu for its keys,
   // and every row of a page scope that makes a press how a finger reaches its result
   // without one: it is its stance's way out, which the panel's ✕ runs, or `touch:
@@ -233,20 +253,22 @@ function assemble() {
     );
   const scopeRows = [...scopes.values()].flat().flatMap((scope) => scope.rows);
   const unreached = scopeRows
-    .filter((row) => row.run && !row.exit && row.touch !== false)
+    .filter((row) => (row.run || row.runKey) && !row.exit && row.touch !== false)
     .map((row) => row.id);
   if (unreached.length)
     throw new Error(
       `leaf: ${unreached.join(", ")} must be its stance's \`exit\` or declare \`touch: false\`: only a page command takes a finger's words`,
     );
-  return STACK.flatMap((name) => {
-    if (name === PAGE) return { rows };
-    // Rooted at the surface the live step is inside.
-    if (name === RUNGS)
-      return { root: () => rung()?.root ?? document, rows: [BACK_OUT] };
-    if (typeof name !== "string") return name;
-    return scopes.get(name) ?? [];
-  });
+  return STACK.flatMap(
+    /** @returns {(Scope | typeof ELEMENTS)[]} */ (name) => {
+      if (name === PAGE) return [{ rows }];
+      // Rooted at the surface the live step is inside.
+      if (name === RUNGS)
+        return [{ root: () => rung()?.root ?? document, rows: [BACK_OUT] }];
+      if (typeof name !== "string") return [name];
+      return scopes.get(name) ?? [];
+    },
+  );
 }
 
 // Declaring is not reading, as it is not for an element scope: `checked` reads the rows as
@@ -254,6 +276,7 @@ function assemble() {
 // owners are still being constructed. So the stack is assembled and checked on the first
 // read of it, by which time every owner stands. The assembled stack is published before
 // that reading, because a row's key set may consult the register on its way to answering.
+/** @returns {(Scope | typeof ELEMENTS)[]} */
 export function pageScopes() {
   // Exports retain widget scopes and the native input claims the dispatcher places
   // among them. Page navigation and chrome have no surfaces in that document.
@@ -269,14 +292,16 @@ export function pageScopes() {
 }
 const namedScopes = () =>
   STACK.flatMap((name) => (typeof name === "string" ? (scopes.get(name) ?? []) : []));
+/** @param {Scope} scope */
 const exitOf = (scope) => scope.rows.find((row) => row.exit) ?? null;
 // The presses a finger reaches through a row of the page's menu rather than a key
 // (AGENTS.md, "Touch routes"): each a page command declares, in line order.
 export function touchPresses() {
   pageScopes();
-  return PAGE_COMMANDS.flatMap((id) =>
-    commands.has(id) ? pressesOf(commands.get(id)) : [],
-  );
+  return PAGE_COMMANDS.flatMap((id) => {
+    const command = commands.get(id);
+    return command ? pressesOf(command) : [];
+  });
 }
 // The stances, innermost first: each scope with a row marked `exit`, its way out.
 export function stances() {
@@ -286,17 +311,23 @@ export function stances() {
     return exit ? [{ scope, exit }] : [];
   });
 }
+export const textEntryScopes = () => scopes.get("text entry") ?? [];
 export const universalCommandReference = () =>
   offlineInteractive ? undefined : commands.get(COMMAND_REFERENCE);
-export const textEntryScope = () => scopes.get("text entry")?.[0];
 // What an interaction claiming the whole keyboard still lets through: the one route to
 // another layer, read off the row so a fact about a binding cannot be written where the
 // binding cannot correct it.
+/** @param {string} binding */
 export const allButCommandReference = (binding) =>
-  !bindings(universalCommandReference()).includes(binding);
+  !PAGE_COMMANDS.flatMap((id) => {
+    const row = commands.get(id);
+    return id === COMMAND_REFERENCE && row ? bindings(row) : [];
+  }).includes(binding);
 // What a surface resting the page's keys still lets through: the reference, and Go-to,
 // whose doors open a surface or put it away from inside it.
+/** @param {string} binding */
 export const pageDoor = (binding) =>
-  [COMMAND_REFERENCE, GO_TO].some(
-    (id) => commands.has(id) && bindings(commands.get(id)).includes(binding),
-  );
+  [COMMAND_REFERENCE, GO_TO].some((id) => {
+    const row = commands.get(id);
+    return row ? bindings(row).includes(binding) : false;
+  });

@@ -11,8 +11,10 @@ from zipfile import ZipFile
 
 import pytest
 from interact_support import running_http_server
-from leaf_dev.arms import environment
 from PIL import Image
+from PIL.GifImagePlugin import GifImageFile
+
+from leaf_dev.arms import environment
 
 
 @pytest.fixture(name="trace_launch_guard")
@@ -71,7 +73,7 @@ def test_recorded_web_journey_keeps_evidence_on_success_and_failure(tmp_path, ou
     )
     output = tmp_path / "capture"
     if outcome == "closed-page":
-        previous = output / "worktree"
+        previous = output / "head"
         previous.mkdir(parents=True)
         (previous / "video.webm").write_bytes(b"a video from the previous run")
     handler = partial(SimpleHTTPRequestHandler, directory=str(tmp_path))
@@ -102,8 +104,8 @@ def test_recorded_web_journey_keeps_evidence_on_success_and_failure(tmp_path, ou
     if fails:
         assert reading["failed"] == "journey: AssertionError"
     else:
-        assert reading["journey"] == "A saved journey"
-    recorded = output / "worktree"
+        assert reading["result"] == "A saved journey"
+    recorded = output / "head"
     assert reading["recording"] == str(recorded)
     with ZipFile(recorded / "trace.zip") as trace:
         assert trace.testzip() is None
@@ -138,12 +140,13 @@ def test_recorded_web_journey_keeps_evidence_on_success_and_failure(tmp_path, ou
         assert (recorded / "video.webm").stat().st_size > 1000
     with Image.open(recorded / "recording.gif") as gif:
         assert gif.size == (640, 480)
+        assert isinstance(gif, GifImageFile)
         assert gif.n_frames > 1
 
 
 def test_recorded_leaf_source_still_uses_its_readiness_contract(tmp_path):
     output = tmp_path / "capture"
-    previous = output / "worktree"
+    previous = output / "head"
     previous.mkdir(parents=True)
     (previous / "recording.gif").write_bytes(b"a GIF from the previous run")
     (previous / "notes.txt").write_text("Keep notes beside the capture")
@@ -170,7 +173,7 @@ def test_recorded_leaf_source_still_uses_its_readiness_contract(tmp_path):
     assert "startup" in reading
     assert reading["console"] == []
     assert reading["result"] is False
-    assert (output / "worktree" / "trace.zip").is_file()
-    assert (output / "worktree" / "video.webm").stat().st_size > 1000
+    assert (output / "head" / "trace.zip").is_file()
+    assert (output / "head" / "video.webm").stat().st_size > 1000
     assert not (previous / "recording.gif").exists()
     assert (previous / "notes.txt").read_text() == "Keep notes beside the capture"

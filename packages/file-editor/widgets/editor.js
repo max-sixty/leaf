@@ -1,7 +1,13 @@
 /** CodeMirror owns editing, selection, history and conflict presentation.
  * The surrounding widget alone owns file revisions and disk writes.
  */
-import { LeafEditorView, langForPath, sizeObserver } from "/runtime/widget-api.js";
+import {
+  setScroll,
+  langForPath,
+  leafEditorView,
+  sizeObserver,
+} from "/runtime/widget-api.js";
+import * as codemirror from "/vendor/codemirror.esm.js";
 import {
   ChangeSet,
   Compartment,
@@ -40,11 +46,13 @@ import {
   completionKeymap,
 } from "/vendor/extensions.esm.js";
 
+const LeafEditorView = leafEditorView(codemirror);
+
 const theme = EditorView.theme({
   "&": { color: "var(--ink)", backgroundColor: "var(--card)" },
   "&.cm-focused": { outline: "none" },
   ".cm-scroller": { fontFamily: "var(--mono)", lineHeight: "24px" },
-  ".cm-content": { padding: "1rem 0", caretColor: "var(--accent)" },
+  ".cm-content": { caretColor: "var(--accent)" },
   ".cm-line": { padding: "0 .85rem" },
   ".cm-gutters": {
     backgroundColor: "var(--paper)",
@@ -100,12 +108,13 @@ const highlighting = HighlightStyle.define([
   { tag: tags.strong, fontWeight: "650" },
   { tag: tags.emphasis, fontStyle: "italic" },
   { tag: [tags.link, tags.url], color: "var(--accent)", textDecoration: "underline" },
-  { tag: [tags.monospace, tags.string], color: "light-dark(#7b4432, #dca68f)" },
-  { tag: [tags.keyword, tags.modifier], color: "light-dark(#76508b, #c7a4dd)" },
-  { tag: [tags.number, tags.bool], color: "light-dark(#7d592a, #d3b77c)" },
-  { tag: tags.comment, color: "var(--muted)" },
-  { tag: [tags.meta, tags.processingInstruction], color: "var(--muted)" },
+  { tag: [tags.monospace, tags.string], color: "var(--syn-string)" },
+  { tag: [tags.keyword, tags.modifier], color: "var(--syn-keyword)" },
+  { tag: [tags.number, tags.bool], color: "var(--syn-number)" },
+  { tag: tags.comment, color: "var(--syn-comment)" },
+  { tag: [tags.meta, tags.processingInstruction], color: "var(--syn-comment)" },
 ]);
+/** @param {string} filename */
 const isMarkdown = (filename) => langForPath(filename) === "markdown";
 
 /** Create a file editor. External text changes use CodeMirror transactions,
@@ -146,7 +155,7 @@ export function createEditor(
       ...(readonly ? { tabindex: "0" } : {}),
     }),
   ];
-  const state = (value) =>
+  const state = (/** @type {string} */ value) =>
     EditorState.create({
       doc: value,
       extensions: [
@@ -211,10 +220,13 @@ export function createEditor(
       ],
     });
   let retained = state(text);
+  /** @type {InstanceType<typeof LeafEditorView> | null} */
   let view = new LeafEditorView({ state: retained, parent });
   let scroll = { top: 0, left: 0 };
   const reading = () => view?.state ?? retained;
-  const dispatch = (spec) => {
+  const dispatch = (
+    /** @type {import("@codemirror/state").TransactionSpec} */ spec,
+  ) => {
     if (view) view.dispatch(spec);
     else retained = retained.update(spec).state;
   };
@@ -266,6 +278,7 @@ export function createEditor(
       return readonly;
     },
     // Words an empty editor shows in place of the file, such as why no file is there.
+    /** @param {string} text */
     set placeholder(text) {
       if (shownHint === text) return;
       shownHint = text;
@@ -277,8 +290,10 @@ export function createEditor(
       dispatch({ effects: editable.reconfigure(readonlyExtension()) });
     },
     get contentDOM() {
+      if (!view) throw new Error("A detached editor has no rendered content");
       return view.contentDOM;
     },
+    /** @param {string} label */
     setLabel(label) {
       const next = isMarkdown(label);
       if (next === markdown) return;
@@ -289,6 +304,7 @@ export function createEditor(
         ),
       });
     },
+    /** @param {string} value */
     setConflict(value) {
       if (conflict === value) return;
       conflict = value;
@@ -309,8 +325,7 @@ export function createEditor(
     connect() {
       if (view) return;
       view = new LeafEditorView({ state: retained, parent });
-      view.scrollDOM.scrollTop = scroll.top;
-      view.scrollDOM.scrollLeft = scroll.left;
+      setScroll(view.scrollDOM, { top: scroll.top, left: scroll.left });
       resize?.observe(view.scrollDOM);
     },
     disconnect,

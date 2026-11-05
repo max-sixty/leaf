@@ -3,6 +3,25 @@
 Read with [module-authoring.md](module-authoring.md), which holds what every behavior
 module owes.
 
+## Where a widget keeps its state
+
+Leaf keeps every kind of state a widget has; the module writes no storage or server
+code of its own. Choose by what the state is:
+
+| State                                                                                      | Kept through                                                                                                     | Who sees it                                                                                                         | How the widget hears of a change                                                                           |
+| ------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| What the user makes: a choice, a move, an edit, a playground's settings before they submit | a verb under `x-state` ([package-data.md, "User state"](package-data.md#user-state)), recorded by the controller | every tab and device, and the agent; the verb's `attention` or `unsent` says whether a change asks the agent to act | `render()` runs with the new `this.state`, whether this tab, another one, Undo or a new version changed it |
+| Words the user writes to send                                                              | a draft ([module-input.md, "Text entry and drafts"](module-input.md#text-entry-and-drafts))                      | every tab in this browser, until sent                                                                               | `watchDraft`                                                                                               |
+| How the user looks at the widget in this tab: an open panel, a step, a collapsed group     | `tabStore` ("State only this tab keeps")                                                                         | this tab                                                                                                            | only this tab writes it; read it during setup                                                              |
+| Data the agent or a source publishes                                                       | a bound property ("Bound data and projections")                                                                  | everyone                                                                                                            | Leaf sets the property, and `render()` runs                                                                |
+| A text file on disk                                                                        | `boundFile()` ("Editing a bound file")                                                                           | whoever reads the file                                                                                              | `watch(callback)`                                                                                          |
+
+Undo tells the first row from the third. Record a change the user would expect Undo to
+take back, and that a comment on the page may be about. Keep in the tab what Undo should
+leave alone, such as which panel they opened. State a module keeps in `localStorage`,
+IndexedDB or memory never reaches another device or the agent, and Undo can't take it
+back.
+
 ## The widget controller
 
 A registry-declared widget draws its state in `render()` from `this.state` and
@@ -42,7 +61,9 @@ cancelling has put the DOM back; it draws the newest reading. A dragged widget
 (`dragging`, `module-input.md`, "Pointer presses") defers for the whole drag.
 
 Pass asynchronous preparation the page should wait for, such as a renderer loading, to
-`present(promise)`. Drawing that finishes a draw, such as highlighting what `render()`
+`present(promise)`, or, from a widget that also runs off Leaf, dispatch it as a
+`PendingTaskEvent` (`module-authoring.md`, "A widget that also runs off Leaf"), which
+Leaf passes to the same place. Drawing that finishes a draw, such as highlighting what `render()`
 placed, starts in `updated()` and extends the element's `updateComplete`, as any Lit
 element's completion waits for work its update starts:
 
@@ -62,12 +83,11 @@ The draw counts as shown only once `updateComplete` settles, and a rejection is 
 draw's failure. Set the promise on every update, `undefined` when it starts none, so a
 finished failure doesn't fail every later draw.
 
-### Tab-local working state
+### State only this tab keeps
 
-State the user arranges but doesn't record, such as which groups they collapsed, stays
-out of the log. `tabStore.get(key)` and `tabStore.set(key, value)` keep a string of it
-for this page in this tab; set `null` to remove it. An `x-initial` drawing reads the same
-store, so the first paint can show it (`module-authoring.md`, "First paint").
+`tabStore.get(key)` and `tabStore.set(key, value)` keep a string for this page in this
+tab, such as which groups the user collapsed; set `null` to remove it. Read it during
+setup so the first visible state reflects it (`module-authoring.md`, "First paint").
 
 ## Declared widget state
 
@@ -140,7 +160,7 @@ from; it throws if the source changed in the meantime.
 ### Marking drawn data
 
 Mark which nodes show data with plain attributes, so comments on them anchor to the
-data rather than to prose. Once the marks for a drawing stand, dispatch `drawn` with
+data rather than to prose. After setting the drawing's marks, dispatch `drawn` with
 the value you drew, in the same synchronous turn:
 
 ```js
@@ -189,7 +209,9 @@ then redraws as the time's reading changes.
 `boundFile(binding)` reads and writes a file the agent granted this page with
 `leaf file bind`. `read()` returns `{label, text, revision}`, with `text` in LF line
 endings. `save({revision, text})` writes only if the file is still at `revision`, and
-otherwise throws an error whose `current` holds the newer file. `watch(callback)` calls
+otherwise throws a `RequestError` whose `current` holds the newer file.
+`RequestError` also carries the HTTP `status` and response `body`; distinguish it
+with `instanceof` when handling a server refusal. `watch(callback)` calls
 back whenever the file may have changed on disk, the widget's own save included, so read
 it again then. `writable` is false in captured documents and exports. Editing the file
 records nothing in the page's log and takes no part in its Undo. The `file-editor`
@@ -275,12 +297,15 @@ Generation is available only on live pages, not captured documents, exports or l
 samples. It collects no external data and writes no page data or events: the caller
 supplies the context and decides how to use the returned value.
 
+To render generated Leaf source as an isolated working preview, use
+`mountSample(frame, {source})` from the same module. The [generated sample
+workflow](live-samples.md#generated-samples) covers readiness, sizing and disposal.
+
 The page must have an active Codex, Claude Code or Pi claim. The host reuses that harness's
 existing login and selects its model: Luna for Codex, Haiku for Claude, and the model
 the user configured for Pi. Pi has no structured-output mode, so it is given the schema
 and its answer is validated against it; an answer that doesn't match rejects the promise.
 Credentials stay on the host; a widget cannot choose the model or supply tools. Leaf does not yet enforce a
 spending allowance: repeated calls can continue to incur charges. Usage is returned
-per call, not retained as a billing ledger. Each page server runs one widget
-generation at a time and rejects overlapping calls as busy (HTTP 429), keeping
-ordinary page interactions responsive.
+per call, not retained as a billing ledger. Independent generation calls run
+concurrently, while ordinary page interactions remain available.

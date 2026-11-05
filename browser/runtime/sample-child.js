@@ -8,70 +8,78 @@ import {
   onCurrentLocation,
   onUserInput,
 } from "./focus.js";
+import { exceptionRecord } from "./exception.js";
 import { pagePresented, pageUpgraded } from "./page-paint.js";
-import { whenArrived, whenArriving } from "./presentation.js";
-import { afterSettling, sizeObserver } from "./rendering.js";
+import { whenArrived } from "./presentation.js";
+import { sizeObserver } from "./rendering.js";
 const child = document.documentElement.lfSample;
-const commands = new Map();
-const observers = new Map();
-export function onSampleNotice(type, callback) {
-  if (!observers.has(type)) observers.set(type, new Set());
-  observers.get(type).add(callback);
-  return () => observers.get(type).delete(callback);
+/** @typedef {import("./sample-protocol.js").SampleCommands} SampleCommands
+ * @typedef {import("./sample-protocol.js").SampleMethod} SampleMethod
+ * @typedef {import("./sample-protocol.js").SampleHandlers} SampleHandlers
+ */
+/** @type {SampleHandlers} */
+const commands = {};
+/** @type {Set<() => unknown>} */
+const observers = new Set();
+/** @param {"cancel-view"} _type @param {() => unknown} callback */
+export function onSampleNotice(_type, callback) {
+  observers.add(callback);
+  return () => observers.delete(callback);
 }
+/** @template {SampleMethod} K @param {K} name @param {NonNullable<SampleHandlers[K]>} callback */
 export function registerSampleCommand(name, callback) {
-  commands.set(name, callback);
-  return () => commands.delete(name);
+  commands[name] = callback;
+  return () => {
+    delete commands[name];
+  };
 }
-export function sampleNotice(type, detail = {}) {
-  child?.send({ type, detail });
+/** @param {import("./sample-protocol.js").SampleNotice | import("./sample-protocol.js").ChildStatus} notice */
+export function sampleNotice(notice) {
+  child?.send(notice);
+}
+/** @template {SampleMethod} K @param {{method: K, detail: SampleCommands[K]["detail"]}} request */
+async function execute({ method, detail }) {
+  const command = commands[method];
+  if (!command) throw new Error(`Unknown sample command: ${method}`);
+  return await command(detail);
 }
 if (child)
-  child.receive(async ({ id, method, type, detail }) => {
-    if (type) {
-      for (const callback of observers.get(type) ?? []) callback(detail);
+  child.receive(async (message) => {
+    if (message.type) {
+      if (message.type === "cancel-view") for (const callback of observers) callback();
       return;
     }
     try {
-      if (!commands.has(method)) throw new Error(`Unknown sample command: ${method}`);
-      const result = await commands.get(method)(detail);
-      child.send({ id, result });
+      const result = await execute(message);
+      child.send({ id: message.id, result });
     } catch (error) {
-      child.send({
-        id,
-        error: { name: error.name, message: error.message, stack: error.stack },
-      });
+      child.send({ id: message.id, error: exceptionRecord(error) });
     }
   });
 
 if (child) {
   let upgraded = false;
   let arriving = false;
-  let height = null;
   // A parent cannot inspect focus in this opaque document. Report whether a
   // control holds it, and retain its node while a parent control borrows focus.
+  /** @type {Element | null} */
   let currentLocation = null;
   onCurrentLocation((node) => {
     if (node && node !== document.body) currentLocation = node;
-    sampleNotice("current-location", {
-      focused: Boolean(node && node !== document.body),
+    sampleNotice({
+      type: "current-location",
+      detail: { focused: Boolean(node && node !== document.body) },
     });
   });
-  // The reader's own input here, a press, a key or a wheel, is theirs to move the
-  // frame with, so the containing page applies a size it held while they read. So is
-  // what that input sets going, until its rendering settles (rendering.js,
-  // `afterSettling`): a height measured meanwhile, such as a disclosure the press
-  // opened, says it came of a gesture, and the page applies it though it holds a
-  // height that came of nothing the reader did. The inputs are the document's one
-  // reading of them (focus.js, `onUserInput`). Activation is input of its own, since a
-  // click, by pointer or by Enter or Space, lands after the press that began it has
-  // settled.
-  let gestures = 0;
+  // The reader's own input here goes to the containing page by its event type, for its
+  // focus (focus.js, `inputInFrame`) and for whether the frame is theirs to move
+  // (lf-sample.js, `#release`). The inputs are the document's one reading of them
+  // (focus.js, `onUserInput`). A click is input of its own, since by pointer or by
+  // Enter or Space it lands after the press that began it.
+  /** @param {Event} event */
   const input = (event) => {
     if (!event.isTrusted || event.type === "blur") return;
-    gestures++;
-    afterSettling(() => gestures--);
-    sampleNotice("input", { type: event.type });
+    sampleNotice({ type: "input", detail: { type: event.type } });
   };
   onUserInput(input);
   window.addEventListener("click", input, { capture: true, passive: true });
@@ -80,61 +88,55 @@ if (child) {
     focusDestination(currentLocation, "return");
     return document.hasFocus();
   });
-  const measure = () => {
-    if (!document.body) return;
-    const next = Math.ceil(document.body.getBoundingClientRect().height);
-    if (next !== height) {
-      height = next;
-      sampleNotice("height", { height, gesture: gestures > 0 });
-    }
-  };
   // The containing page's image shows this part of the viewport where the frame stands.
   registerSampleCommand("image", async ({ x, y, width, height }) => {
     const { pageImage } = await import("./composing/page-image.js");
     return pageImage({ x: scrollX + x, y: scrollY + y, width, height });
   });
-  registerSampleCommand("window", async ({ window: asWindow }) => {
-    child.settings.window = asWindow;
-    document.documentElement.lfInitial.setRuntimeRootAttribute(
-      document.documentElement,
-      "data-lf-sample-block",
-      asWindow ? null : "",
-    );
-    measure();
-    return { height };
-  });
   const inspect = () => {
     const error = document.documentElement.dataset.lfStartupError;
     if (error)
-      sampleNotice(
-        "error",
-        document.documentElement.lfStartupException ?? { message: error },
-      );
+      sampleNotice({
+        type: "error",
+        detail: document.documentElement.lfStartupException ?? { message: error },
+      });
     // Presentation is not this document's whole arrival: work it deferred, its own
     // samples' children included, lands later, and the containing page reads as
-    // arriving until it has. Arrival can begin again, as when one of its samples is
-    // Reset, and the containing page reads as arriving again until it lands.
+    // arriving until it has.
     if (upgraded && !arriving && pagePresented()) {
       arriving = true;
-      void (async () => {
-        await whenArrived();
-        sampleNotice("arrived");
-        for (;;) {
-          await whenArriving();
-          sampleNotice("arriving");
-          await whenArrived();
-          sampleNotice("arrived");
-        }
-      })();
+      void whenArrived().then(() => sampleNotice({ type: "arrived" }));
     }
     if (upgraded || !(document.body && pageUpgraded())) return;
     upgraded = true;
     child.present();
-    measure();
+    let height = Math.ceil(document.body.getBoundingClientRect().height);
+    sampleNotice({ type: "height", detail: { height } });
+    const measure = () => {
+      if (!document.body) return;
+      const next = Math.ceil(document.body.getBoundingClientRect().height);
+      if (next !== height) {
+        height = next;
+        sampleNotice({ type: "height", detail: { height } });
+      }
+    };
+    registerSampleCommand("window", ({ window: asWindow }) => {
+      child.settings.window = asWindow;
+      window.lfRootState.setRuntimeRootAttribute(
+        document.documentElement,
+        "data-lf-sample-block",
+        asWindow ? null : "",
+      );
+      measure();
+      return { height };
+    });
     sizeObserver(measure, { counted: false }).observe(document.body);
-    sampleNotice("ready", {
-      height,
-      block: document.documentElement.hasAttribute("data-lf-sample-block"),
+    sampleNotice({
+      type: "ready",
+      detail: {
+        height,
+        block: document.documentElement.hasAttribute("data-lf-sample-block"),
+      },
     });
     inspect();
   };

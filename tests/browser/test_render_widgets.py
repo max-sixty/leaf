@@ -1,6 +1,6 @@
 "Board, suggestion, question, and widget composition tests."
 
-from pathlib import Path
+import json
 
 import pytest
 from interact_support import (
@@ -10,7 +10,6 @@ from journeys.test_render_widgets import MOTION_SAMPLE_CONTENT
 from playwright.sync_api import expect
 from render_cases_interaction import (
     NESTED_PROPOSAL_PAGE,
-    live_url,
 )
 from render_cases_navigation import (
     actions,
@@ -31,56 +30,6 @@ from render_harness import (
 from leaf import event_log as events_model
 
 pytestmark = pytest.mark.shifts_unsurveyed
-
-
-@pytest.mark.parametrize("destination", ["call", "patch"])
-def test_focus_reactions_keep_a_projected_data_target(browser, serve, destination):
-    """Light-DOM data and its shadow-DOM destination keep exact identity."""
-    example = Path(__file__).parents[2] / "examples" / "pr-walkthrough.html"
-    page = open_page(browser, live_url(serve(example)))
-    page.get_by_role("tab", name="CallDiff").click()
-    location = (
-        page.locator("#pr-call-diagram")
-        .get_by_role("link", name="src/summary.rs:259")
-        .first
-    )
-    # Reach the real link through the browser's tab order. The source case reads
-    # keyboard focus inside a generated datum, rather than focusing the datum directly.
-    for _ in range(40):
-        page.keyboard.press("Tab")
-        if location.evaluate("node => node.matches(':focus')"):
-            break
-    expect(location).to_be_focused()
-    assert location.evaluate("node => node.matches(':focus-visible')")
-    target = location.locator("xpath=..")
-    if destination == "patch":
-        page.keyboard.press("Enter")
-        target = page.locator(
-            '#pr-exact-patch [data-lf-datum=\'["src/summary.rs","new",259]\']'
-        )
-        expect(target).to_be_focused()
-        expect(page.locator(".lf-live")).to_have_text(
-            "Opened src/summary.rs:259 in the exact patch"
-        )
-        expect(target).to_be_in_viewport()
-    datum = target.get_attribute("data-lf-datum")
-    owner = target.get_attribute("data-lf-projection")
-    revision = target.get_attribute("data-lf-source-revision")
-    assert datum and owner and revision
-    page.keyboard.press("e")
-    expect(
-        page.locator('[data-lf-margin-entry-owner="responses"]:visible')
-    ).not_to_have_count(0)
-    page.keyboard.press("1")
-    round_trip(page)
-    reaction = next(
-        event
-        for event in reversed(events_model.read_events(serve.page_dir))
-        if event["kind"] == "comment" and event.get("token")
-    )
-    assert reaction["anchor"]["section"] == owner
-    assert reaction["anchor"]["datum"] == datum
-    assert reaction["anchor"]["source_revision"] == revision
 
 
 @pytest.mark.parametrize("route", ["pointer", "keyboard"])
@@ -137,6 +86,22 @@ def test_board_moves_preserve_live_sample_and_control_state(browser, serve, rout
             });
           }
           window.previewFirstPaint = false;
+          window.boardDragInput = [];
+          // Keep the actual hit and moving geometry: a later snapshot cannot tell
+          // whether a coordinate press reached the grip or Sortable cancelled it.
+          const grip = document.querySelector('#card-heater > .lf-grip');
+          for (const type of ['pointerdown', 'pointermove', 'pointerup', 'pointercancel']) {
+            document.addEventListener(type, event => {
+              window.boardDragInput.push({
+                type, at: event.timeStamp, x: event.clientX, y: event.clientY,
+                target: [event.target.tagName, event.target.id, event.target.getAttribute('class')],
+                gripHit: event.composedPath().includes(grip),
+                ...(type === 'pointerdown' ? {
+                  grip: grip.getBoundingClientRect().toJSON(), scroll: [scrollX, scrollY],
+                } : {}),
+              });
+            }, {capture: true});
+          }
           new MutationObserver((records, observer) => {
             const preview = document.querySelector('.lf-motion-preview.lf-inhand');
             if (!preview) return;
@@ -153,7 +118,14 @@ def test_board_moves_preserve_live_sample_and_control_state(browser, serve, rout
         page.mouse.down()
         page.mouse.move(x + 20, y + 35, steps=8)
         preview = page.locator(".lf-motion-preview.lf-inhand")
-        expect(preview).to_have_text("Heated perch")
+        try:
+            expect(preview).to_have_text("Heated perch")
+        except AssertionError as error:
+            error.add_note(
+                "Board drag input: "
+                + json.dumps(page.evaluate("window.boardDragInput"))
+            )
+            raise
         expect(page.locator(".lf-motion-preview")).to_have_count(1)
         assert page.evaluate("window.previewAllocations") == 2
         expect(page.locator("#col-todo > lf-card")).to_have_count(2)

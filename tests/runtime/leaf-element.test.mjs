@@ -5,8 +5,14 @@
    holds, are the browser suite's. */
 import assert from "node:assert/strict";
 import test from "node:test";
-import { signal } from "/vendor/browser-runtime.js";
-import { html, LeafElement, nothing, noChange } from "/runtime/widget-api.js";
+import { signal } from "/runtime/framework.js";
+import {
+  html,
+  LeafElement,
+  nothing,
+  noChange,
+  shadowStage,
+} from "/runtime/widget-api.js";
 import { focused, focusDestination } from "/runtime/focus.js";
 import { failSoftUnreported } from "/runtime/widget-upgrade.js";
 import {
@@ -542,7 +548,7 @@ test("a setup that throws inside its own shadow root shows its failure there", a
     tag,
     class extends LeafElement {
       setup() {
-        this.attachShadow({ mode: "open" }).append(document.createElement("p"));
+        shadowStage(this, [document.createElement("p")]);
         throw new Error("cannot stage");
       }
       render() {
@@ -602,6 +608,41 @@ test("bound data draws only as it is delivered", async () => {
   assert.deepEqual(revisions, ["b1", "b2"]);
   assert.equal(document.body.getAttribute("data-lf-data-version"), "d2");
   element.remove();
+});
+
+test("a data widget the markup binds to nothing reads its written <pre> as its input", async () => {
+  const tag = `lf-probe-written-${++tags}`;
+  adoptRegistry({
+    [tag]: {
+      "x-content": "data",
+      "x-data": { text: { source: "source", contract: "text", property: "value" } },
+    },
+  });
+  const drawn = [];
+  customElements.define(
+    tag,
+    class extends LeafElement {
+      render() {
+        drawn.push(this.value);
+        return nothing;
+      }
+    },
+  );
+  const element = document.createElement(tag);
+  element.id = "written";
+  element.innerHTML = "<pre>**Fixed** &lt;now&gt;\n</pre>";
+  document.body.append(element);
+  await settled(element);
+  assert.deepEqual(drawn, ["**Fixed** <now>\n"]);
+  element.remove();
+  // A module that makes one without a `<pre>` hosts the input itself.
+  const hosted = document.createElement(tag);
+  hosted.id = "hosted";
+  hosted.value = "set by its host";
+  document.body.append(hosted);
+  await settled(hosted);
+  assert.deepEqual(drawn.at(-1), "set by its host");
+  hosted.remove();
 });
 
 test("a move published just before the element leaves is drawn on its return", async () => {

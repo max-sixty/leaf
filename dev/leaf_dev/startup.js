@@ -78,7 +78,7 @@
         url.origin === location.origin &&
         (url.pathname.endsWith(".js") ||
           url.pathname.endsWith(".css") ||
-          url.pathname.endsWith("/registry.json"))
+          url.pathname.endsWith("registry.json"))
       );
     });
     const javascript = code.filter((entry) =>
@@ -129,7 +129,6 @@
 
   Object.defineProperty(window, "__leafStartup", {
     value: Object.freeze({
-      milestones: () => Object.keys(startup),
       resourceNames: () => observedResources().map((entry) => entry.name),
       layoutShifts() {
         recordShifts(shiftObserver.takeRecords());

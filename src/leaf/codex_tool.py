@@ -164,7 +164,7 @@ def call(request: dict, deadline: float) -> None:
     thread = meta.get("threadId")
     try:
         result = run(params["arguments"], thread, deadline)
-    except Exception as error:  # noqa: BLE001 - every failure answers the call
+    except Exception as error:
         result = text_result([f"{type(error).__name__}: {error}"], 1)
     send({"id": request["id"], "result": result})
 
@@ -194,7 +194,7 @@ def serve(deadline: float) -> None:
             continue
         try:
             send({"id": request["id"], "result": answer(request)})
-        except Exception as error:  # noqa: BLE001 - every request is answered
+        except Exception as error:
             code = -32601 if isinstance(error, LookupError) else -32603
             send({"id": request["id"], "error": {"code": code, "message": repr(error)}})
 

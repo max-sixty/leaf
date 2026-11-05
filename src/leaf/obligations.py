@@ -1,15 +1,21 @@
-"""Canonical obligations from messages, user tasks, widgets and updates.
+"""Canonical obligations from messages, widgets and updates.
 
 One record contains its prompt, typed answer, completion and next actor. Its thread
 and exact owning message locate frozen sources without depending on a live renderer.
-A widget source owns identity; an enclosing widget (`x-awaits.encloses`) contributes only
+A widget source owns identity; an enclosing widget (`x-encloses`) contributes only
 prompt words and arrival. A `records` declaration expands a widget's bound external
 input using its data contract's record list and key. Each record owns the stable
 widget-and-unit identity and reads its own action coordinate; replacing that input
 changes membership without changing the answers of retained records.
 The inventory is complete even when a work queue hides a resolved thread or an
-older prompt. A user-owned to-do publishes an obligation with explicit completion;
-agent-owned to-dos stay work records.
+older prompt.
+
+On the page, the user answers an obligation only through its source: a widget
+through the actions its `x-awaits` declares, an agent message through a reply or
+settling reaction in its thread. Leaf adds no control of its own, such as a generic
+Done, and nothing reaches On me unless a widget or a thread answers it (`todos` records
+the decision). Any widget may ask by declaring `x-awaits`; content that doesn't is
+asked about in a thread anchored to it.
 
 An update the user handed over publishes a record of its own (`update_obligation`),
 built by the fold that decides which updates are handed over and settled
@@ -18,48 +24,49 @@ answer, the user once a harness handed the update back, and nobody once a reply
 answered it; `response_address` derives the operation that answers it. A thread is
 never an obligation itself: its messages publish them.
 
-A widget whose `x-awaits` declares `reply`, such as `lf-ask` holding no widget of its
-own, is a question the user answers in words: their next message in the thread
-whose message holds it, a reaction there whose token settles it, or on the page a
-message in a thread anchored inside it. It has no x-state, so its answer is that
-message's text or token. An agent message carrying `obligation` creates the same
-reply-answered request directly, without a widget. The message owns identity and
-prompt; its thread only locates it. A user to-do instead ends explicitly, so
-discussing the task never claims the work is complete.
+An agent message carrying `obligation` is a question the user answers in words:
+their next message in its thread, or a reaction there whose token settles it, is its
+answer. The message owns identity and prompt; its thread only locates it.
 
 A record's `status` is one of four, and this module is their one producer: `open`;
-`answered`, its typed answer in the record; `answered_elsewhere`, a reply-answered
-obligation the agent ended `done` because the user answered on another surface, with no
-answer value; and `withdrawn`, an obligation the document no longer makes or a
-reply-answered obligation the agent ended `dropped`. A state-answered obligation never takes
-`answered_elsewhere`: an answer given elsewhere goes into the widget's declared
-state in a revision, which records the value itself."""
+`answered`, its typed answer in the record; `answered_elsewhere`, a question an agent
+message asks that the agent ended `done` because the user answered on another surface,
+with no answer value; and `withdrawn`, an obligation the document no longer makes or a
+question an agent message asks that the agent ended `dropped`. A page widget's
+obligation never takes `answered_elsewhere`: an answer given elsewhere goes into the
+widget's declared state in a revision, which records the value itself. No revision
+can write the state of a widget frozen in a message, so the agent ends its question
+as it ends one asked in words (`asked_in_a_message`)."""
 
 import hashlib
 import json
+from bisect import bisect_right
+from collections.abc import Callable
 from functools import partial
+from math import inf
 from typing import TYPE_CHECKING, NamedTuple
 from urllib.parse import quote
 
 from leaf.events import (
     awaits_agent,
     is_reaction,
-    retractions,
+    report_settled_at,
     taken_back,
     unanswered_agent_turn,
 )
-from leaf.gesture_words import element_name, element_text
+from leaf.gesture_words import element_name
 from leaf.page_memory import Slot
 from leaf.projection import (
+    AuthoredOrders,
     FrozenThreadReading,
     StateProjection,
+    attribute_marks,
     enclosing_widgets,
     folded_value,
     markup_value,
     obligation_value,
     page_reading,
     projected_action_holders,
-    state_projection,
 )
 from leaf.registry.contract import exhibits, matches_when
 from leaf.registry.kernel import verb_writers
@@ -74,43 +81,32 @@ def local_obligation_entry(entry: dict) -> bool:
     return entry.get("x-awaits") is not None
 
 
-def replied(entry: dict) -> bool:
-    """Whether the user's own words answer this widget's obligation (`x-awaits.reply`)
-    rather than its state."""
-    return bool((entry.get("x-awaits") or {}).get("reply"))
-
-
 def encloses(entry: dict) -> bool:
-    """Whether this widget frames the obligations inside it (`x-awaits.encloses`): its leading
+    """Whether this widget frames the obligations inside it (`x-encloses`): its leading
     heading gives their prompt, and going to one of them lands on it."""
-    return bool((entry.get("x-awaits") or {}).get("encloses"))
+    return bool(entry.get("x-encloses"))
 
 
-def holds_obligations(record: dict, records: list[dict], registry: dict) -> bool:
-    """Whether an enclosing widget holds another that can ask, and so asks nothing
-    itself: a frame around a decision widget stays one obligation. It reads the authored
-    containment, so every revision and reading agrees on it."""
-    return encloses(registry[record["tag"]]) and any(
-        other is not record
-        and not quoted_in(other, registry)
-        and any(holder is record for holder in enclosing_widgets(other))
-        for other in records
+def end_question(record: dict, ending: dict) -> None:
+    """Retire a question asked in a thread message that the agent ended with
+    `todo_end`: `done` where the user answered it on another surface, `dropped`
+    where it no longer applies. An end records no answer value."""
+    record["status"] = (
+        "answered_elsewhere" if ending["state"] == "done" else "withdrawn"
     )
+    record["end"] = {"detail": ending["detail"], "event": event_reference(ending)}
+    record["next_actor"] = None
 
 
 def settle_by_words(record: dict, answer: dict | None, ending: dict | None) -> None:
-    """Settle a reply-answered obligation from the user's message that answers it and the
+    """Settle a message obligation from the user's message that answers it and the
     agent's `todo_end` on its id, whichever came first. An end records no answer,
     since the user's words are not in the log; a message after an end reopens
     nothing, as the end already retired it."""
     if ending is not None and answer is not None and answer["seq"] < ending["seq"]:
         ending = None
     if ending is not None:
-        record["status"] = (
-            "answered_elsewhere" if ending["state"] == "done" else "withdrawn"
-        )
-        record["end"] = {"detail": ending["detail"], "event": event_reference(ending)}
-        record["next_actor"] = None
+        end_question(record, ending)
     elif answer is not None:
         record["status"] = "answered"
         record["answer"] = {
@@ -236,11 +232,7 @@ def replayed_attrs(rec: dict, projection: StateProjection) -> dict:
     unit = attrs.get("id")
     if not unit:
         return attrs
-    held = [
-        winner
-        for coordinate, winner in projection.desired.items()
-        if coordinate[1] == unit
-    ]
+    held = projection.desired_by_unit.get(unit, [])
     for e, spec in sorted(held, key=lambda item: item[0]["seq"]):
         if (spec.get("record") or {}).get("kind") == "value":
             attrs = {**attrs, spec["record"]["attr"]: folded_value(e, spec)}
@@ -252,42 +244,50 @@ def previously_requested(
     projection: StateProjection,
     when: dict,
     revision: int | None,
-    events: list,
-    byid: dict,
-    spoken: dict,
-    registry: dict,
-    cache: dict,
+    settled: dict,
 ) -> bool:
     """Registration at relevant gestures in their own immutable source basis.
 
-    The canonical state fold reads each relevant log prefix, sharing cached prefixes
-    across sources. This includes report settlement and Undo without a second replay
-    rule. Surviving actions and reports can originate a conditional request between
-    document revisions; retracted actions cannot.
+    Each of the element's value writes in `revision` asks whether `when` held on
+    the log's prefix through it. The fold of that prefix (`state_projection`) takes
+    its floors and withdrawals from the whole log, so it admits the actions
+    `projection`, the fold of the whole log in `revision`, holds in force; and it
+    settles only the reports a note through the write settles (`settled`, from
+    `events.report_settled_at` through `revision`). So one walk of the value writes
+    at the element's unit reads every prefix by the rule `state_projection` builds
+    `desired` by: a coordinate stands at its newest action in force so far, else at
+    its newest report not yet settled. An attribute then reads the newest write
+    standing at any of its coordinates (`replayed_attrs`), which is its newest write
+    no note has settled: a newer write at a coordinate is a newer write of its
+    attribute. So each attribute keeps its writes in log order, and a write reads
+    each attribute `when` names from the newest of them. Surviving actions and
+    reports can originate a conditional request between document revisions;
+    retracted actions cannot.
     """
     unit = record["attrs"].get("id")
-    for coordinate, (event, spec) in projection.classified.values():
+    writes: dict[str, list] = {}
+    for coordinate, (event, spec) in projection.classified_by_unit.get(unit, ()):
         effect = spec.get("record") or {}
+        if effect.get("kind") != "value" or (
+            event["kind"] == "action" and event["id"] not in projection.in_force
+        ):
+            continue
+        writes.setdefault(effect["attr"], []).append((event, spec))
         if (
-            coordinate[:2] != (unit, unit)
-            or (event["kind"] == "action" and event["id"] not in projection.in_force)
+            coordinate[0] != unit
             or (revision is not None and event["revision"] != revision)
-            or effect.get("kind") != "value"
             or effect["attr"] not in when
         ):
             continue
-        key = (id(projection), event["seq"])
-        if key not in cache:
-            cache[key] = state_projection(
-                [item for item in events if item["seq"] <= event["seq"]],
-                byid,
-                spoken,
-                registry,
-                revision,
-                floors=retractions(events, revision) if revision is not None else {},
-                withdrawn=taken_back(events),
-            )
-        if matches_when(replayed_attrs(record, cache[key]), when):
+        attrs = dict(record["attrs"])
+        for attr in when:
+            held = writes.get(attr)
+            # A report a note has settled stays settled on every longer prefix.
+            while held and settled.get(held[-1][0]["id"], inf) <= event["seq"]:
+                held.pop()
+            if held:
+                attrs[attr] = folded_value(*held[-1])
+        if matches_when(attrs, when):
             return True
     return False
 
@@ -304,7 +304,7 @@ def verb_answers(
     verb: str,
     projection: StateProjection,
     byid: dict,
-    spk: dict,
+    marks: dict,
     registry: dict,
     holders: dict[str, dict],
     unit: str | None = None,
@@ -313,9 +313,10 @@ def verb_answers(
 
     The condition reads current state and nothing else. `empty` asks the projected
     containment the verb's position records leave; an attribute or value record reads
-    through authored markup as well as the fold, so a version that honors the answer
-    keeps it answered and a cleared value opens the obligation again; any other verb answers
-    while one of its actions stands on the widget.
+    through authored markup (`marks`, the document's `projection.attribute_marks`) as
+    well as the fold, so a version that honors the answer keeps it answered and a
+    cleared value opens the obligation again; any other verb answers while one of its
+    actions stands on the widget.
     """
     condition = answer_verbs(entry)[verb]
     if not matches_when(replayed_attrs(rec, projection), condition.get("when")):
@@ -335,11 +336,7 @@ def verb_answers(
     spec = entry["x-state"][verb]
     record = spec.get("record")
     if record and record["kind"] in ("attribute", "value"):
-        value = (
-            folded_value(*held)
-            if held
-            else markup_value(unit, spec, byid, spk, registry)
-        )
+        value = folded_value(*held) if held else markup_value(unit, spec, byid, marks)
         return value not in (None, "", [])
     return held is not None
 
@@ -349,7 +346,7 @@ def obligation_answered(
     entry: dict,
     projection: StateProjection,
     byid: dict,
-    spk: dict,
+    marks: dict,
     registry: dict,
     holders: dict[str, dict] | None = None,
 ) -> bool:
@@ -358,7 +355,7 @@ def obligation_answered(
     if holders is None:
         holders = projected_action_holders(projection, byid, registry)
     return any(
-        verb_answers(rec, entry, verb, projection, byid, spk, registry, holders)
+        verb_answers(rec, entry, verb, projection, byid, marks, registry, holders)
         for verb in answer_verbs(entry)
     )
 
@@ -393,55 +390,123 @@ def anchors_with_agent(threads: dict, owed: list[dict]) -> list[dict]:
     ]
 
 
-def discussed(records: list[dict], anchors: list[dict], within: dict) -> None:
-    """Hand each open obligation discussed by `anchors` to the agent.
+def discussed_by(records: list[dict], within: dict) -> Callable[[dict], list[dict]]:
+    """The reading of which obligations among `records` a thread anchored at a given
+    anchor is about, as a function of the anchor.
 
     A section is about the innermost obligation whose widget encloses it, answered or not;
     failing one, about every obligation whose widget it encloses; failing those, about
     every obligation whose prompt target (its enclosing widget) is the innermost to
     enclose it. So a note on one obligation's option, or on a part of a frame holding
-    one obligation, leaves its framed sibling with the user, while one on the frame's
-    heading or on a section holding the frame is about them all. `within` is the
-    document's containment (`Passages.enclosing`). A datum identity narrows an
-    owning widget's record obligations to the exact case being discussed.
+    one obligation, leaves its framed sibling out, while one on the frame's heading or on
+    a section holding the frame is about them all. `within` is the document's
+    containment (`Passages.enclosing`). A datum identity narrows an owning widget's
+    record obligations to the exact case being discussed.
+
+    The records are indexed once by source, prompt target and each id enclosing
+    their source, so a caller asking for every thread on the page reads each
+    thread's anchor against the indexes rather than every record again.
     """
     items: dict[str, list[dict]] = {}
+    framed: dict[str, list[dict]] = {}
+    enclosed: dict[str, list[dict]] = {}
     for record in records:
         items.setdefault(record["source"]["id"], []).append(record)
-    framed: dict[str, list[dict]] = {}
-    for record in records:
         framed.setdefault(record["prompt"]["target"], []).append(record)
-    for anchor in anchors:
+        for around in set(within.get(record["source"]["id"], ())):
+            enclosed.setdefault(around, []).append(record)
+
+    def about(anchor: dict) -> list[dict]:
         section = anchor["section"]
         chain = within.get(section, ())
         item = next((items[i] for i in reversed(chain) if i in items), None)
-        about = (
+        held = (
             item
             if item is not None
-            else [
-                record
-                for record in records
-                if section in within.get(record["source"]["id"], ())
-            ]
+            else enclosed.get(section)
             or next((framed[i] for i in reversed(chain) if i in framed), [])
         )
         datum = anchor.get("identity", anchor.get("datum"))
-        for record in about:
-            source = record["source"]
-            if (
-                datum is not None
-                and source["id"] == section
-                and "unit" in source
-                and source["unit"] != datum
-            ):
-                continue
+        return [
+            record
+            for record in held
+            if datum is None
+            or record["source"]["id"] != section
+            or "unit" not in record["source"]
+            or record["source"]["unit"] == datum
+        ]
+
+    return about
+
+
+def thread_topics(threads: dict, records: list[dict], within: dict) -> dict[str, list]:
+    """Each thread's id → the page obligations among `records` it is about
+    (`discussed_by`), by the section its anchor names now; a thread with no section
+    is about none."""
+    about = discussed_by(records, within)
+    return {
+        identity: about(anchor)
+        if (anchor := thread["anchor"]) and "section" in anchor
+        else []
+        for identity, thread in threads.items()
+    }
+
+
+def waiting_about(
+    widget: str, records: list[dict], threads: dict, within: dict
+) -> list[dict]:
+    """The records among `records` that still wait on the user's words in a thread
+    about an obligation of `widget` (`thread_topics`): the questions the agent asked
+    there, which an answer to that obligation may or may not settle. Each is its `id`
+    and the words that asked it (`prompt.text`)."""
+    page = [
+        record
+        for record in records
+        if record["thread"] is None and record["source"]["kind"] == "widget"
+    ]
+    asked = [
+        record
+        for record in records
+        if record["thread"] is not None
+        and record["status"] == "open"
+        and record["next_actor"] == "user"
+        and answered_in_words(record)
+    ]
+    topics = thread_topics(
+        {record["thread"]: threads[record["thread"]] for record in asked}, page, within
+    )
+    return [
+        {"id": record["id"], "text": record["prompt"]["text"]}
+        for record in asked
+        if any(about["source"]["id"] == widget for about in topics[record["thread"]])
+    ]
+
+
+def discussed(records: list[dict], anchors: list[dict], within: dict) -> None:
+    """Hand each open obligation discussed by `anchors` (`discussed_by`) to the agent."""
+    about = discussed_by(records, within)
+    for anchor in anchors:
+        for record in about(anchor):
             if record["next_actor"] == "user":
                 record["next_actor"] = "agent"
 
 
+def shown_in(rec: dict, registry: dict) -> bool:
+    """Inside an element whose tag declares x-exhibit, a widget is shown rather than
+    asked, so it puts nothing on the user's list, whether or not the declaration's
+    condition holds there. The condition decides only whether it also takes no input
+    (`quoted_in`): a widget in an interactive `lf-sample` records its actions in the
+    page's log and Undo as a demonstration, and a page's On me holds only what the page
+    itself asks. Same holder-chain walk as `quoted_in`."""
+    return any(
+        bool(registry.get(node["tag"], {}).get("x-exhibit"))
+        for node in enclosing_widgets(rec)
+    )
+
+
 def quoted_in(rec: dict, registry: dict) -> bool:
-    """Inside an element the registry marks x-exhibit, a widget is a mention
-    rather than a use, and asks nothing.
+    """Inside an element the registry marks x-exhibit where its condition holds, a
+    widget is a mention rather than a use: it takes no input and asks nothing.
 
     The holder chain answers it, which is the walk `enclosing_slot` makes and the
     one `quotedBy` makes over the DOM for a descriptor's own `quoted` flag. Asked of
@@ -532,7 +597,7 @@ def answering_action(
             verb,
             projection,
             byid,
-            spk,
+            attribute_marks(byid, spk, registry),
             registry,
             projected_action_holders(projection, byid, registry),
             unit,
@@ -544,8 +609,8 @@ class ObligationSources(NamedTuple):
     """The widgets one document declares that can ask the user, read under one
     vocabulary.
 
-    `asking` holds each declared widget except a frame around another that can ask
-    (`holds_obligations`), with whether it stands inside an exhibit (`quoted_in`).
+    `asking` holds each declared widget, with whether it stands inside an exhibit
+    (`shown_in`).
     `nodes` maps each id to its authoring node, whose words name an obligation's
     prompt.
 
@@ -579,11 +644,7 @@ def obligation_sources(source, registry: dict) -> ObligationSources:
         if local_obligation_entry(registry.get(record["tag"]) or {})
     ]
     return ObligationSources(
-        tuple(
-            (record, quoted_in(record, registry))
-            for record in declared
-            if not holds_obligations(record, declared, registry)
-        ),
+        tuple((record, shown_in(record, registry)) for record in declared),
         {
             node["attrs"]["id"]: node
             for document in documents
@@ -605,25 +666,27 @@ class _ObligationReducer:
         registry: dict,
         dropped: set,
         revision: int | None = None,
-        events: list = (),
+        events: list | None = None,
         data: dict | None = None,
     ):
         self.projection = projection
         self.byid = byid
         self.spk = spk
+        self.marks = attribute_marks(byid, spk, registry)
+        self.orders = AuthoredOrders(byid, registry)
         self.registry = registry
         self.revision = revision
-        self.events = events
+        self.events = [] if events is None else events
         self.data = data or {"sources": {}}
         self.nodes = sources.nodes
-        self.records = [record for record, _quoted in sources.asking]
+        self.records = [record for record, _shown in sources.asking]
         self.positioned_holders = projected_action_holders(projection, byid, registry)
 
         self.exists: dict[int, bool] = {}
         self.local: dict[int, bool] = {}
-        for record, quoted in sources.asking:
+        for record, shown in sources.asking:
             unit = record["attrs"].get("id")
-            self.exists[id(record)] = not ((unit and unit in dropped) or quoted)
+            self.exists[id(record)] = not ((unit and unit in dropped) or shown)
             self.local[id(record)] = self.exists[id(record)] and self._local(record)
 
     def _entry(self, record):
@@ -648,14 +711,14 @@ class _ObligationReducer:
             self._entry(record),
             self.projection,
             self.byid,
-            self.spk,
+            self.marks,
             self.registry,
             self.positioned_holders,
         )
 
     def _surface(self, record):
         """The reading and arrival region the user is sent to for this source: the
-        nearest enclosing widget (`x-awaits.encloses`) holding it, or the source
+        nearest enclosing widget (`x-encloses`) holding it, or the source
         itself."""
         holder = self._holder(record)
         while holder:
@@ -696,7 +759,7 @@ class _ObligationReducer:
                     verb,
                     self.projection,
                     self.byid,
-                    self.spk,
+                    self.marks,
                     self.registry,
                     self.positioned_holders,
                     unit,
@@ -709,8 +772,8 @@ class _ObligationReducer:
                 verb,
                 entry["x-state"][verb],
                 self.byid,
-                self.spk,
-                self.registry,
+                self.marks,
+                self.orders,
                 self.projection,
                 answered=answered,
                 unit=unit,
@@ -754,7 +817,7 @@ class _ObligationReducer:
     def inventory(self, settled_away: set[str], prior=None) -> list:
         """Every present source remains identifiable after completion or withdrawal."""
         records = []
-        history_projections = {}
+        settled_at = {}
         history_readings = {}
         history_keys = {}
         # Only writers in the exact historical revision can originate a request
@@ -765,6 +828,12 @@ class _ObligationReducer:
                 written.setdefault((event["revision"], event["widget"]), set()).add(
                     event["action"]
                 )
+
+        def settled(revision):
+            """The seq each report is first settled at through `revision`."""
+            if revision not in settled_at:
+                settled_at[revision] = report_settled_at(self.events, revision)
+            return settled_at[revision]
 
         def historical_request(old_revision, old, unit):
             previous = old.document.by_id[unit]
@@ -779,11 +848,7 @@ class _ObligationReducer:
                 basis.projection,
                 declaration.get("when", {}),
                 old_revision,
-                self.events,
-                old.document.by_id,
-                old.spoken,
-                old.registry,
-                history_projections,
+                settled(old_revision),
             )
 
         # A historical fold reads writers and notes through its revision, plus
@@ -807,6 +872,7 @@ class _ObligationReducer:
 
         for record in self.records:
             unit = record["attrs"].get("id")
+            owned = self.projection.actions_by_owner.get(unit, {})
             record_units = self._declaration(record).get("records")
             answered = False if record_units else self._answered(record)
             if not self.exists[id(record)] and not (unit in settled_away and answered):
@@ -819,15 +885,11 @@ class _ObligationReducer:
                     self.projection,
                     self._declaration(record).get("when", {}),
                     self.revision,
-                    self.events,
-                    self.byid,
-                    self.spk,
-                    self.registry,
-                    history_projections,
+                    settled(self.revision),
                 )
                 or any(
-                    coordinate[0] == unit and "answer" in (held[0].get("meaning") or {})
-                    for coordinate, held in self.projection.actions.items()
+                    "answer" in (held[0].get("meaning") or {})
+                    for held in owned.values()
                 )
             )
             if (
@@ -879,50 +941,36 @@ class _ObligationReducer:
                 if self.local[id(record)]
                 else "withdrawn"
             )
-            # A reply-answered obligation has no state; its reading settles it from the
-            # conversation (`settle_by_words`).
-            value_verb = entry["x-awaits"].get("value")
-            value, has_content = (
-                obligation_value(
-                    unit,
-                    value_verb,
-                    entry["x-state"][value_verb],
-                    self.byid,
-                    self.spk,
-                    self.registry,
-                    self.projection,
-                    answered=answered,
-                )
-                if value_verb
-                else (None, False)
+            value_verb = entry["x-awaits"]["value"]
+            value, has_content = obligation_value(
+                unit,
+                value_verb,
+                entry["x-state"][value_verb],
+                self.byid,
+                self.marks,
+                self.orders,
+                self.projection,
+                answered=answered,
             )
             latest_value_seq = max(
                 (
                     held[0]["seq"]
-                    for coordinate, held in self.projection.actions.items()
-                    if coordinate[0] == unit and coordinate[2] == value_verb
+                    for coordinate, held in owned.items()
+                    if coordinate[2] == value_verb
                 ),
                 default=0,
             )
             provenance = max(
                 (
                     held[0]
-                    for coordinate, held in self.projection.actions.items()
-                    if coordinate[0] == unit
-                    and held[0]["seq"] >= latest_value_seq
+                    for held in owned.values()
+                    if held[0]["seq"] >= latest_value_seq
                     and "answer" in (held[0].get("meaning") or {})
                 ),
                 key=lambda event: event["seq"],
                 default=None,
             )
-            # A question with no title of its own, such as an lf-ask in a reply, is
-            # named by its words.
-            node = self.nodes[surface["attrs"]["id"]]
-            text = (
-                element_name(node, self.registry)
-                or (element_text(node) if replied(entry) else "")
-                or None
-            )
+            text = element_name(self.nodes[surface["attrs"]["id"]], self.registry)
             records.append(
                 {
                     "id": "widget:" + unit,
@@ -955,50 +1003,17 @@ def page_obligation_readings(
     settled_away: set[str] | None = None,
     prior=None,
     revision: int | None = None,
-    events: list = (),
+    events: list | None = None,
     data: dict | None = None,
 ) -> dict:
     """Obligations in one document basis; a discussion changes attention, not answer:
     an obligation a thread with the agent is about is the agent's (`anchors_with_agent`).
-    A reply-answered obligation is the exception, since a message about it is its answer:
-    the first user message in a thread opened inside it, after the stamped version
-    that last restated it (`$restated`), so a rewritten question is asked again.
-    `log` is the page's `todos.TodoReading`: its `ends` hold the agent's `todo_end` on
-    each id, and its `owed` the work the agent's replies promised."""
+    `log` is the page's `todos.TodoReading`: its `owed` holds the work the agent's
+    replies promised."""
     reducer = _ObligationReducer(
         sources, projection, byid, spk, registry, dropped, revision, events, data
     )
     records = reducer.inventory(settled_away or set(), prior)
-    restated = {
-        named: event["seq"]
-        for event in events
-        if event["kind"] == "note"
-        and (revision is None or event["revision"] <= revision)
-        for named in event.get("restated", [])
-    }
-    for record in records:
-        unit = record["source"]["id"]
-        if record["status"] != "open" or not replied(registry[record["source"]["tag"]]):
-            continue
-        # The thread's opening anchor, not where it was moved since: a later move
-        # or detach doesn't unsay what the user wrote about the question.
-        answer = min(
-            (
-                message
-                for thread in threads.values()
-                if (anchor := thread["root"].get("anchor"))
-                and (section := anchor.get("section"))
-                and (section == unit or unit in within.get(section, ()))
-                for message in thread["msgs"]
-                if message["author"] == "user"
-                and not is_reaction(message)
-                and not message.get("ephemeral")
-                and message["seq"] > restated.get(unit, 0)
-            ),
-            key=lambda message: message["seq"],
-            default=None,
-        )
-        settle_by_words(record, answer, log.ends.get(record["id"]))
     discussed(records, anchors_with_agent(threads, log.owed), within)
     return collection(records)
 
@@ -1016,10 +1031,9 @@ def thread_obligation_readings(
     with no next actor. While the thread is open, a user turn after the message
     that asks hands the obligation to the agent until the agent answers that turn, and
     until the work a reply after it promised ends, as a thread anchored on a page
-    obligation does (`anchors_with_agent`). That turn instead answers a
-    reply-answered obligation, as does a reaction on the message whose token settles
-    it; `log` is the page's `todos.TodoReading`, whose `ends` hold the agent's
-    `todo_end` on each id."""
+    obligation does (`anchors_with_agent`). That turn instead answers a message
+    obligation, as does a reaction on the message whose token settles it; `log` is the
+    page's `todos.TodoReading`, whose `ends` hold the agent's `todo_end` on each id."""
     reducer = _ObligationReducer(
         obligation_sources(reading.structure, registry),
         reading.projection,
@@ -1053,99 +1067,113 @@ def thread_obligation_readings(
         if message.get("obligation")
     )
     tokens = registry.get("$reactions", {}).get("tokens", {})
+    # The newest open to-do on each thread.
+    newest_todo: dict[str, int] = {}
+    for todo in log.owed:
+        if todo["subject"]["kind"] == "thread":
+            identity = todo["subject"]["id"]
+            newest_todo[identity] = max(newest_todo.get(identity, 0), todo["seq"])
+    readings: dict[str, ThreadAnswers] = {}
     for record in records:
         thread = threads[record["thread"]]
-        in_words = answered_in_words(record, registry)
-        asked = next(
-            message["seq"]
-            for message in thread["msgs"]
-            if message["id"] == record["message"]
-        )
+        if record["thread"] not in readings:
+            readings[record["thread"]] = ThreadAnswers(thread, tokens)
+        answers = readings[record["thread"]]
+        in_words = answered_in_words(record)
+        asked = answers.seq(record["message"])
         if record["status"] == "open" and in_words:
-            answer = next(
-                (
-                    message
-                    for message in thread["msgs"]
-                    if message["seq"] > asked
-                    and message["author"] == "user"
-                    and (
-                        settles(message, record["message"], tokens)
-                        if is_reaction(message)
-                        else not message.get("ephemeral")
-                    )
-                ),
-                None,
-            )
+            answer = answers.first_answer(record["message"])
             settle_by_words(record, answer, log.ends.get(record["id"]))
+        # No revision can write a frozen widget's state, so an answer in words
+        # retires its question through the agent's end, as for a question in words.
+        elif record["status"] == "open" and (ending := log.ends.get(record["id"])):
+            end_question(record, ending)
         if record["next_actor"] is None:
             continue
-        owed = unanswered_agent_turn(thread)
+        owed = answers.owed
         if thread["resolved"]:
             record["next_actor"] = None
         # Only the user's words answer a question asked in words, so a turn the agent
         # owes after it, such as one a user's edit up the thread opens, leaves it theirs.
         elif not in_words and (
             (owed is not None and owed["seq"] > asked)
-            or any(
-                todo["seq"] > asked
-                for todo in log.owed
-                if todo["subject"] == {"kind": "thread", "id": record["thread"]}
-            )
+            or newest_todo.get(record["thread"], 0) > asked
         ):
             record["next_actor"] = "agent"
     return collection(records)
 
 
-def answered_in_words(record: dict, registry: dict) -> bool:
-    """Whether a conversational answer, or agent ending, can settle this source."""
-    source = record["source"]
-    return source["kind"] == "message" or (
-        source["kind"] == "widget" and replied(registry[source["tag"]])
+class ThreadAnswers:
+    """What answers the questions one thread asks, read once for every obligation
+    in it: where each message stands, the user's messages in words, each message's
+    first reaction whose token settles it (`settles`), and the turn the agent owes
+    (`unanswered_agent_turn`)."""
+
+    def __init__(self, thread: dict, tokens: dict):
+        self.messages = thread["msgs"]
+        self.position = {message["id"]: i for i, message in enumerate(self.messages)}
+        # A message the user deleted has no words left to answer.
+        self.words = [
+            i
+            for i, message in enumerate(self.messages)
+            if message["author"] == "user"
+            and not is_reaction(message)
+            and bool(message.get("text"))
+            and not message.get("ephemeral")
+        ]
+        self.settling: dict[str, int] = {}
+        for i, message in enumerate(self.messages):
+            parent = message.get("parent")
+            if parent is not None and settles(message, parent, tokens):
+                self.settling.setdefault(parent, i)
+        self.owed = unanswered_agent_turn(thread)
+
+    def seq(self, message: str) -> int:
+        return self.messages[self.position[message]]["seq"]
+
+    def first_answer(self, message: str) -> dict | None:
+        """The first message after `message` that answers it: the user's words, or
+        their reaction on it whose token settles it."""
+        at = self.position[message]
+        later = bisect_right(self.words, at)
+        found = [i for i in (self.settling.get(message),) if i is not None]
+        if later < len(self.words):
+            found.append(self.words[later])
+        return self.messages[min(found)] if found else None
+
+
+def answered_in_words(record: dict) -> bool:
+    """Whether a conversational answer, or agent ending, can settle this source: an
+    agent message's obligation."""
+    return record["source"]["kind"] == "message"
+
+
+def asked_in_a_message(record: dict) -> bool:
+    """Whether the agent ends this obligation with `todo_end` when the user answers
+    it elsewhere: a question an agent message asks, in words or by a widget frozen
+    in it. A page widget's answer goes into its state in a revision instead."""
+    return (
+        record["source"]["kind"] in {"message", "widget"}
+        and record["message"] is not None
     )
 
 
-def user_task_obligations(
-    log: "TodoReading", reading: FrozenThreadReading
+def waiting_in_thread(
+    thread: str, before: int, records: list[dict], threads: dict
 ) -> list[dict]:
-    """User tasks in the canonical inventory, retaining their explicit completion.
-
-    The to-do fold alone decides their outcome. Discussion, thread resolution and
-    page edits never complete the action the user was asked to perform.
-    """
-    events = {event["id"]: event for event in log.events}
-    records = []
-    for todo in log.todos:
-        if todo["owner"] != "user":
-            continue
-        subject, outcome = todo["subject"], todo["outcome"]
-        ended = todo["state"] != "open"
-        records.append(
-            {
-                "id": todo["id"],
-                "source": {"kind": "todo", "id": todo["id"], "subject": subject},
-                "thread": reading.subject_thread(subject),
-                "message": None,
-                "prompt": {
-                    "text": todo["title"],
-                    "target": subject["id"]
-                    if subject["kind"] in {"widget", "element"}
-                    else None,
-                },
-                "answer": {
-                    "value": todo["state"],
-                    "event": event_reference(events[outcome["id"]]),
-                }
-                if ended and todo["state"] != "dropped"
-                else None,
-                "status": "withdrawn"
-                if todo["state"] == "dropped"
-                else "answered"
-                if ended
-                else "open",
-                "end": {"detail": outcome["detail"], "event": event_reference(outcome)}
-                if ended
-                else None,
-                "next_actor": None if ended else "user",
-            }
-        )
-    return records
+    """The agent's questions frozen as widgets in `thread`, asked before seq
+    `before`, that still wait on the user's pick: the user's words there may or may
+    not answer them. Each is its `id` and the words that asked it: the widget's
+    framing heading, else the message holding it."""
+    messages = {message["id"]: message for message in threads[thread]["msgs"]}
+    return [
+        {
+            "id": record["id"],
+            "text": record["prompt"]["text"] or messages[record["message"]]["text"],
+        }
+        for record in records
+        if record["thread"] == thread
+        and record["source"]["kind"] == "widget"
+        and record["status"] == "open"
+        and messages[record["message"]]["seq"] < before
+    ]

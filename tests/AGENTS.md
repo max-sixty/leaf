@@ -33,7 +33,9 @@ Message delivery has one shared journey, `leaf_dev.thread_journey`.
 Before fixing a failing test, name the user-facing behavior its failure caught. If it
 caught none, because the test broke only on the shape it read, simplify it to the
 behavior it protects, move it to a lower boundary, or delete it. A test that unrelated
-changes keep breaking (`git log -L`) is the strongest candidate.
+changes keep breaking (`git log -L`) is the strongest candidate. A failing browser
+test leaves a picture of each page it held in `.tmp/test-results/screens/`, which CI
+uploads; look at it before reading the cause off the assertion alone.
 
 A failure that comes and goes on the same code is a defect. Find whether the product
 races, so a user could hit it, or the test's setup does ("Races"), and fix that cause.
@@ -97,16 +99,25 @@ UV_OFFLINE=1 uv run pytest tests --run-nightly -m 'not network'
 
 ### Selecting checks
 
-Find the tests that hold the behavior you changed, in any tier, by reading which tests
-exercise the changed code, and run them by node id or `-k`.
+Find the tests that hold the behavior you changed, in any tier, and run them by node
+id or `-k`. Search for consumers of the changed API, selector or shared primitive,
+including tests whose files the change leaves untouched. Exercise its transitions as
+well as its resting states: a shared row can fit each occupant and still resize when
+one replaces another. Keep the selection focused on the plausible failures the change
+introduces, within the local limits in root `AGENTS.md`.
+
+When an intentional behavior change replaces an expectation, update the affected
+tests in that change, preserving the user guarantees they still protect. The PR gate
+selects later-tier tests by edits to their own source, so its passing result alone
+does not establish that unchanged consumers still work.
 
 A change lands through a gate that runs the broad selection: a pull request's `test`
 job or `wt merge`'s pre-merge. A failure there that the change causes is the gate doing
-its job; fix it and push. A failure the change doesn't cause, such as one main's latest
-run also shows (confirm by running it on main by node id), blocks nothing and calls
-for no rerun: name it in the pull request as inherited, check that it has an owner
-(below), and land. For now, by the user's choice, `test` is not a required check on
-`main`.
+its job; fix it and push. A failure the change doesn't cause, such as one main's
+latest finished run also shows (confirm by running it on main by node id), blocks
+nothing and calls for no rerun: name it in the pull request as inherited, check that
+someone is fixing it (below), and land. For now, by the user's choice, `test` is not a
+required check on `main`.
 `wt merge` refuses on any failure, so such a change lands through a pull request.
 
 Tend repairs what CI (`ci.yaml`) fails on main: the `test` job on Ubuntu, and
@@ -115,15 +126,17 @@ A failed run opens or updates a `tend-ci-failure` report issue, and triage files
 `tend-ci-cause` issue for each cause and fixes it there.
 The user accepted that a pull request can land green and break a test it never ran, so
 a red main is no reason to widen a change or its tests. A newer push cancels main's
-waiting run, as intended. To learn what main fails, read that job's run and reproduce a
-failure by node id.
+waiting run, as intended, so to learn what main fails, read the latest run that
+finished and reproduce a failure by node id.
 
-A failure on main, in that run or only in a local one, needs an owner. Tend owns one
-that main's latest run shows, through the open report for that run and the cause issue
-or pull request that names it. A failure only a local run shows is beyond it. For a
-failure Tend doesn't own, check that no session, worktree
-(Codex's under `~/.codex/worktrees` included) or open pull request covers it, then start
-a local session for it (for example with `/dispatch`).
+A failure on main, in that run or only in a local one, needs someone fixing it. Tend's
+cause issue names each failing test, which a search for one test's full name finds.
+Tend's triage marks the issue with an eyes reaction while it works, then fixes the
+cause in a pull request that links the issue; a cause issue with neither is still
+waiting, and a failure only a local run shows never reaches Tend. If no pull request,
+Tend run, session or worktree (Codex's under `~/.codex/worktrees` included) is fixing
+a failure and the user you work for maintains Leaf, start a local session for it (for
+example with `/dispatch`).
 
 CLI output and agent-facing text are regtest recordings in each tier's
 `_regtest_outputs/`, normalized for temporary paths and generated ids but never for
@@ -147,12 +160,13 @@ start a module where none does.
 File-side fixtures live in `interact_support.py`, browser fixtures in
 `render_harness.py`, and reusable browser cases in `render_cases_*.py`.
 `tests/runtime/*.test.mjs` tests what one runtime module decides on its own, in the
-document `tests/runtime/dom.mjs` sets up; `browser/framework/application.test.mjs` tests
-how the publisher combines those results. Both build server state with `served.mjs`,
+document `tests/runtime/dom.mjs` sets up; `framework-application.test.mjs` there tests
+how the framework's publisher combines those results. Both build server state with `served.mjs`,
 which calls the server's own `served_records.py`. A fixture carries every field the
 server sends and changes only the fields the
 case is about. `fixtures/pages/` holds full-page regressions under
-`examples/AGENTS.md`'s rules.
+`examples/AGENTS.md`'s rules, and `fixtures/plain/` ordinary web pages
+(`browser/test_plain_pages.py`).
 A result that depends on a primitive Node and Chrome implement differently, such as
 `Intl.Segmenter`, is tested in the browser.
 
@@ -197,9 +211,11 @@ move `HOME`. Declare other process conditions through fixtures (`sessionless`,
 
 Choose the page fixture by boundary: `serve` for a complete page over real HTTP,
 `page_dir` for command-level files, and `ModelPage` with `model_folds.py` for markup and
-a log handed straight to admission or `browser_state`. Build markup with `leaf_page`.
-`initialized_page` lends one prepared page per composition shape; a test of
-initialization runs `page init` itself.
+a log handed straight to admission or `browser_state`. Build markup with `leaf_page`,
+or open an authored page or product document by its name with `named_source`. A sweep
+over authored pages reads `authored_sources()`, and one over the public site's pages
+`published_sources()`. `initialized_page` lends one prepared page per composition
+shape; a test of initialization runs `page init` itself.
 
 Use the `browser` and `serve` fixtures for browser tests. Each pytest worker shares one
 Playwright driver and Chromium, and contexts and page directories keep tests apart.
@@ -235,7 +251,8 @@ page server from `_no_page_outlives_its_test`, a preview from `preview_slot` and
 A test of a persistent server stops it explicitly.
 
 A dead worker runs no teardown, so a process that could outlive it watches the worker: a
-page server watches the worker's session claim, and a held process blocks
+page server watches the worker's session claim, a temporary server the process that
+ran it, and a held process blocks
 reading a pipe the worker holds, as `session_process` does. The test releases it by
 closing the pipe, which also closes when the worker dies; don't make a process wait
 for a file the test has yet to write, or poll in a loop. End a process by closing its
@@ -282,7 +299,7 @@ allowance list.
   it and putting it back does so inside `lfUnwatched`.
 - `shift_watch.js` reports a box that moves on screen without input, typing that
   moves its field, and a scroll a gesture makes that carries the control it was made
-  on, unless the gesture takes the user somewhere (`browser/AGENTS.md`, "Stability").
+  on, unless the gesture takes the user somewhere (`browser/AGENTS.md`, "The page holds still under the user's aim").
   It runs on every test except those marked `shifts_unsurveyed`, which opt in per test
   with `watch_shifts`. Playwright's clicks, keys, viewport resizes, and Back and
   Forward are input; a script's `click()`, a value set by script and server news are
@@ -291,12 +308,12 @@ allowance list.
   hides a shift for half a second after a click, so a test of a news update's stability
   delivers the news after that.
 - `words_watch.js` reports typed words leaving the screen without a key or press
-  (`browser/AGENTS.md`, "Words stay where they were typed"). A test that closes a box
+  (`browser/AGENTS.md`, "Typed words survive"). A test that closes a box
   does it the way a user
   does.
 - `swap_watch.js` reports a row that grows or shrinks across its line as one occupant
-  gives way to another (`browser/AGENTS.md`, "What takes turns in a place doesn't size
-  it"). Fix the occupant so it takes the row's line.
+  gives way to another (`browser/AGENTS.md`, "Shared containers determine control
+  dimensions"). Fix the occupant so it takes the row's line.
 
 `input_work_watch.js` tells the shift and words watches which input caused a change. It
 follows timers, frames, promises and Lit updates but not a native `await`, so code that
@@ -463,9 +480,18 @@ Pin the ids or count a sweep walks, before and after any reload, and assert that
 is non-empty and every expected kind was reached, rather than an assertion whose
 condition can vanish with the behavior.
 
+### Removing a test another covers
+
+One surviving test has to reach the same fixture state by the same route and make the
+same assertion. Several survivors that each hold one of those leave the combination
+unheld, and two routes into one command can differ in what happens around it, as a menu
+row closing over the thread it just opened. Read the survivor itself, since a name or
+docstring can claim a state its fixture never reaches.
+
 ## Failure messages
 
 Pair `capture_output=True` with `check=True` only when the exception is unpacked; a test
 that needs the streams asserts the return code and puts stdout and stderr in the
 message. Assert output by meaning: use `spoken` for the registry-backed reading, and
-match the attribute that carries a claim.
+match the attribute that carries a claim. A refusal test reads the refusal's words,
+since a nonzero exit also passes on a crash.

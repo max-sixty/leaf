@@ -43,47 +43,71 @@
      is a newer one, wherever focus is; a move that only counted placements would
      pull the user back to its destination after they had gone on typing elsewhere.
 
-   It also keeps the one reading of the press in progress (`pressing`, `onPress`), and
-   the press on a label that leaves the user on the control they had focused until
-   it lands (`focused`). Rejected: merging the two counts into one, which would void a
-   hold on every keystroke; and each owner keeping its own press tracker, which is how
-   holds came to read the in-between node a label press goes through.
+   It also keeps the one reading of the press in progress (`pressing`, `onPress`), from
+   its pointerdown through the compatibility events its release owes, and the press on a
+   label that leaves the user on the control they had focused until it lands
+   (`focused`). Rejected: merging the two counts into one, which would void a hold on
+   every keystroke; and each owner keeping its own press tracker, which is how holds
+   came to read the in-between node a label press goes through, and how owners came to
+   wait out a release's click each its own way, by a timer the next press could outrun
+   or a flag held until the next press, and a flag a stopped release left standing.
 
    And it owns the widget primitives built on these: closing a layer and handing the user
    on as one act (`closeLayer`), holding a place in a keyed list (`holdFocus` with `key`),
    and a group's one Tab stop (`rove`).
 
    The selector vocabulary lives in control-selectors.js, which imports nothing.
-   In a sample, only the document already holding input may place focus. A trusted
-   pointer or keyboard entry gives the child that ownership before Leaf handles the
-   gesture; remote commands and delayed work cannot borrow it from the parent. This
-   is a rule for Leaf placements, not a restriction on authored browser scripts.
+   In a framed document, a sample's or any other, only the document already holding
+   input may place focus: one the user has not entered would take them from the page
+   around it. A top-level document always may, since placing focus in a background tab
+   takes it from nobody. A trusted pointer or keyboard entry gives the frame that
+   ownership before Leaf handles the gesture (bootstrap.js); arrival, the embedding
+   page's navigation, remote commands and delayed work cannot borrow it from the
+   parent. This is a rule for Leaf placements, not a restriction on authored browser
+   scripts.
 
    Its dependencies are structural vocabulary, rendering and writes; importing a
    gesture owner would cycle through its focus dependency. */
 import { afterScript, nextRender } from "./rendering.js";
-import { signal } from "/vendor/browser-runtime.js";
+import { inputs } from "./inputs.js";
+import { signal } from "/vendor/signals-core.js";
 import { keeps } from "./keeps.js";
 import { MODIFIER_KEYS, TEXT_BOX, TAB_STOP } from "./control-selectors.js";
+import { eventSource, pressIsKeyboardActivation } from "./pointer.js";
 import {
+  excludedByInert,
+  hostIn,
+  isElement,
+  isHTML,
   isNativeLayer,
   renderedParent,
   renderedUnder,
   shadowHost,
 } from "./shadow-tree.js";
 
+/** @typedef {"move" | "step" | "return" | "press"} PlacementCause
+ * @typedef {PlacementCause | "drop"} CurrentLocationCause
+ * @typedef {(node: Element | null, cause: CurrentLocationCause, left: Element | null) => unknown} LocationReader
+ * @typedef {{held: Element, pointerId: number, label: HTMLLabelElement}} LabelPress
+ * @typedef {WeakRef<EventTarget>[]} PressedPath
+ * @typedef {Element | boolean | null | void} StandInDestination
+ * @typedef {StandInDestination | PromiseLike<StandInDestination>} StandInResult
+ * @typedef {StandInResult | (() => StandInResult)} StandIn
+ * @typedef {(...standIns: StandIn[]) => boolean | PromiseLike<boolean>} FocusRestore
+ */
 // The elements under `node` in the tree as rendered: a host's shadow tree in place of
 // its children, and a slot's assigned elements, or its fallback, in its place. A host
 // its author took out of the order (a negative `tabindex`) takes its whole tree out
 // with it, so Tab skips what it renders.
+/** @param {Element | Document | ShadowRoot} node @returns {Generator<Element>} */
 function* renderedElements(node) {
-  const children =
-    node.localName === "slot"
-      ? node.assignedElements({ flatten: true })
-      : (node.shadowRoot ?? node).children;
+  const children = isHTML(node, "slot")
+    ? node.assignedElements({ flatten: true })
+    : ((isElement(node) && node.shadowRoot) || node).children;
   for (const child of children) {
     yield child;
-    if (child.shadowRoot && parseInt(child.getAttribute("tabindex")) < 0) continue;
+    const tabIndex = child.getAttribute("tabindex");
+    if (child.shadowRoot && tabIndex !== null && parseInt(tabIndex) < 0) continue;
     yield* renderedElements(child);
   }
 }
@@ -93,14 +117,17 @@ const SEQUENTIAL = `${TAB_STOP}, iframe, audio[controls], video[controls]`;
 // the order, enabled, and drawn. A host that delegates its focus is no stop of its own,
 // since Tab enters its tree. Which of them Tab visits, and in what order, is the
 // browser's; nothing here predicts its walk.
+/** @param {Element | Document | ShadowRoot} root */
 export const tabStops = (root) =>
   [...renderedElements(root)].filter(
     (node) =>
       node.matches(SEQUENTIAL) &&
+      "tabIndex" in node &&
+      typeof node.tabIndex === "number" &&
       node.tabIndex >= 0 &&
       !node.shadowRoot?.delegatesFocus &&
       !node.matches(":disabled") &&
-      !node.inert &&
+      !(isHTML(node) && node.inert) &&
       node.checkVisibility({ visibilityProperty: true }),
   );
 
@@ -147,9 +174,11 @@ export const tabStops = (root) =>
 //
 // Placements never ask the browser to reveal their target: native focus scrolling
 // crosses browsing contexts. A caller needing reveal uses document-local scrolling.
-export const canPlaceFocus = () =>
-  !document.documentElement.lfSample || document.hasFocus();
+export const canPlaceFocus = () => window === window.top || document.hasFocus();
 const CAUSES = new Set(["move", "step", "return", "press"]);
+/** @typedef {[start: number, end: number, direction?: "forward" | "backward" | "none"]} Caret
+ * @param {Element} destination @param {"move" | "step" | "return" | "press"} cause
+ * @param {{caret?: Caret | null}} [options] */
 export function focusDestination(
   destination,
   cause,
@@ -165,17 +194,19 @@ export function focusDestination(
   // destination; pointer routes keep its own visibility heuristic.
   const options = {
     preventScroll: true,
-    focusVisible: pressLed() ? undefined : true,
+    ...(!pressLed() && { focusVisible: true }),
   };
   placed(cause, () => {
-    destination.focus(options);
+    nativeFocusTarget(destination).focus(options);
     if (!landedOn(destination) && lendable(destination)) lendStop(destination, options);
   });
   if (caret && holdsCaret(destination)) destination.setSelectionRange(...caret);
 }
 // The cause of the placement running now, null outside one. The outermost placement
 // names it, since whatever focus runs inside it is part of the same act.
+/** @type {PlacementCause | null} */
 let placing = null;
+/** @template T @param {PlacementCause} cause @param {() => T} move @returns {T} */
 const placed = (cause, move) => {
   const was = placing;
   placing ??= cause;
@@ -191,18 +222,21 @@ const placed = (cause, move) => {
 // else, so a container a placement lands on is landed on itself. The body is its
 // document's active element whenever nothing is focused, so only `:focus` says it holds
 // focus.
+/** @param {Element} node */
 const landedOn = (node) =>
   node === document.body
     ? node.matches(":focus")
-    : node.getRootNode().activeElement === node ||
-      Boolean(node.shadowRoot?.activeElement);
+    : activeIn(node.getRootNode()) === node || Boolean(node.shadowRoot?.activeElement);
 
 // A stop is lent only to a drawn element that is no control of its own: a control that
 // would not take focus is disabled, inert or hidden, and a stop would not change that.
+/** @param {Element} node */
 const lendable = (node) => drawn(node) && !node.matches(TAB_STOP);
 
 // The elements wearing a stop lent here, which is no part of what their author wrote.
+/** @type {WeakSet<Element>} */
 const lent = new WeakSet();
+/** @param {Element} element */
 export const wearsLentStop = (element) => lent.has(element);
 
 // Run `leave` once, when the user moves off `element` within the document. A window
@@ -213,15 +247,17 @@ export const wearsLentStop = (element) => lent.has(element);
 // as they are on the element is held through it. During every other blur, the element
 // is no longer its root's activeElement: `el.blur()`, and focus moving to another
 // element in light or shadow DOM, in Chromium, Firefox and WebKit.
+/** @param {Element} element @param {() => unknown} leave */
 export function whenLeft(element, leave) {
   const blur = () => {
-    if (element.getRootNode().activeElement === element) return;
+    if (activeIn(element.getRootNode()) === element) return;
     element.removeEventListener("blur", blur);
     leave();
   };
   element.addEventListener("blur", blur);
 }
 
+/** @param {Element} destination @param {FocusOptions} options */
 function lendStop(destination, options) {
   if (destination.hasAttribute("tabindex")) return;
   // Only the `-1` lent here is taken back: a box that came to scroll meanwhile wears
@@ -234,8 +270,8 @@ function lendStop(destination, options) {
       destination.removeAttribute("tabindex");
   };
   lent.add(destination);
-  destination.tabIndex = -1;
-  destination.focus(options);
+  destination.setAttribute("tabindex", "-1");
+  nativeFocusTarget(destination).focus(options);
   if (!landedOn(destination)) {
     giveBack();
     return;
@@ -246,23 +282,64 @@ function lendStop(destination, options) {
 // The input types whose selection the platform will answer for. Reading `selectionStart`
 // on any other throws rather than returning null.
 const CARETED = new Set(["text", "search", "url", "tel", "password"]);
+/** @param {Element} node
+ * @returns {node is HTMLInputElement | HTMLTextAreaElement | import('./composing/text-field.js').LeafTextElement} */
 const holdsCaret = (node) =>
-  node.matches(TEXT_BOX) || (node.tagName === "INPUT" && CARETED.has(node.type));
+  isHTML(node) &&
+  (node.matches(TEXT_BOX) || (isHTML(node, "input") && CARETED.has(node.type)));
 
 // Where the user is inside an element, or null where the element holds no caret. The
 // reading is a plain triple so that it can be stored and read back in another document.
+/** @param {Element | null} node @returns {Caret | null} */
 export function readCaret(node) {
-  if (!node || !holdsCaret(node) || node.selectionStart === null) return null;
-  return [node.selectionStart, node.selectionEnd, node.selectionDirection];
+  if (!node || !holdsCaret(node)) return null;
+  const { selectionStart, selectionEnd, selectionDirection } = node;
+  if (selectionStart === null || selectionEnd === null || selectionDirection === null)
+    return null;
+  return [selectionStart, selectionEnd, selectionDirection];
 }
 
 // The element holding focus, followed down through every open shadow tree containing it
 // from `at`. A closed tree answers with its host, which is the text field's case: the
 // field is the box the user is in.
+/** @param {Element | null} [at] @returns {Element | null} */
 export const deepFocus = (at = document.activeElement) => {
   while (at?.shadowRoot?.activeElement) at = at.shadowRoot.activeElement;
   return at;
 };
+
+/** @param {Node} root @returns {root is Document | ShadowRoot} */
+const focusRoot = (root) =>
+  root.nodeType === Node.DOCUMENT_NODE ||
+  (root.nodeType === Node.DOCUMENT_FRAGMENT_NODE && "host" in root);
+/** @param {Node} root */
+const activeIn = (root) => (focusRoot(root) ? root.activeElement : null);
+
+/** @typedef {Element & Pick<HTMLElement, "focus" | "blur" | "tabIndex">} NativeFocusTarget */
+/** Native focus methods belong to HTML, SVG and MathML elements; an arbitrary
+ * namespace Element need not implement them.
+ * @param {Element} element @returns {element is NativeFocusTarget} */
+function hasNativeFocus(element) {
+  return (
+    "focus" in element &&
+    typeof element.focus === "function" &&
+    "blur" in element &&
+    typeof element.blur === "function" &&
+    "tabIndex" in element &&
+    typeof element.tabIndex === "number"
+  );
+}
+/** @param {Element} element */
+export function nativeFocusTarget(element) {
+  if (!hasNativeFocus(element))
+    throw new TypeError(`Element ${element.localName} has no native focus capability`);
+  return element;
+}
+/** Blur the current native focus without moving the page's sequential focus origin. */
+export function blurFocused() {
+  const active = deepFocus();
+  if (active) nativeFocusTarget(active).blur();
+}
 
 // A press on a label can blur the element the user was on to the body, or let a
 // containing thread take focus, before the platform focuses the label's control at its
@@ -277,6 +354,7 @@ export const deepFocus = (at = document.activeElement) => {
 // a native menu, which swallows the release. A cancel, the window losing focus, a key
 // (which puts the user back on the held element) and a runtime placement each end it
 // too. A second contact meanwhile is no part of it.
+/** @type {LabelPress | null} */
 let labelPress = null;
 const heldByLabel = () => (labelPress?.held.isConnected ? labelPress.held : null);
 function finishLabelPress() {
@@ -307,23 +385,41 @@ function landLabelPress() {
 // the host of the shadow tree the user is in, for a reader comparing or containing
 // nodes of that tree. Every reading of focus outside this module asks here, so none
 // misses a label press or a shadow tree (eslint's `architecture/current-location-reads`).
-// Keyboard reflection follows this revision explicitly. Mechanical focus queries made
-// while rendering stay untracked, so restoring focus cannot subscribe a render to itself.
+// Mechanical focus queries made while rendering stay untracked, so restoring focus
+// cannot subscribe a render to itself. Keyboard reflection follows where the user is
+// through this revision, either explicitly or by reading inside `followingFocus`, where
+// asking `focused` subscribes the reading: a move then reads again only what asked.
 const currentLocation = signal(0);
 export const focusRevision = () => currentLocation.value;
+let following = 0;
+/** @template T @param {() => T} read @returns {T} */
+export function followingFocus(read) {
+  following += 1;
+  try {
+    return read();
+  } finally {
+    following -= 1;
+  }
+}
+/** @param {Node | null} [tree] */
 export const focused = (tree = null) => {
-  let at = heldByLabel() ?? deepFocus();
-  if (tree) while (at && at.getRootNode() !== tree) at = shadowHost(at.getRootNode());
-  return at;
+  if (following) focusRevision();
+  const at = heldByLabel() ?? deepFocus();
+  return tree ? hostIn(at, tree) : at;
 };
 
 // The selection the user drew in the tree containing `node`, where the browser keeps it.
+/** @param {Node} node */
 const selectionOf = (node) => {
   const root = node.getRootNode();
   // Only Chromium's shadow roots answer their own selection; Firefox and WebKit
   // keep it on the document.
-  const own = /** @type {{getSelection?: () => Selection}} */ (root);
-  return (root instanceof ShadowRoot && own.getSelection?.()) || getSelection();
+  return (
+    (focusRoot(root) &&
+      root.nodeType === Node.DOCUMENT_FRAGMENT_NODE &&
+      root.getSelection?.()) ||
+    getSelection()
+  );
 };
 
 // Where the user is, nearest first: the focused node, unless focus rests on the
@@ -338,12 +434,13 @@ export function currentLocationNodes() {
     at && at !== document.body ? at : null,
     selection?.focusNode ?? null,
     selection?.anchorNode ?? null,
-  ].filter(Boolean);
+  ].filter((node) => node !== null);
 }
 
 // Whether the user is on `node` or on something in it: where they are
 // (`currentLocationNodes`) is inside it, or a selection they drew reaches into it. A change
 // that puts `node` away would take that place from them.
+/** @param {Node | null} node */
 export function currentLocationTouches(node) {
   if (!node) return false;
   if (currentLocationNodes().some((at) => at === node || node.contains(at)))
@@ -416,6 +513,7 @@ let placements = 0;
 // going on from there, so the dropped place is forgotten: a later owner putting them
 // back in it would take them from whatever they went on to. While they still have a current location, the same inputs are them working there, and change nothing.
 // A removed place remains available to its replacement, but owns no node lifetime.
+/** @type {WeakRef<Element> | null} */
 let lastLocation = null;
 // Every change to where the user is goes to each reader `onCurrentLocation` names, as
 // `read(node, cause, left)`: the node they are now on, null where they are nowhere;
@@ -450,11 +548,14 @@ let lastLocation = null;
 // the title the user was already on, inside the list's own `focus`, before the
 // list's `focusin`. A focus that leaves for nowhere and returns, as a window losing
 // and regaining focus does, is none.
+/** @type {Set<LocationReader>} */
 const readers = new Set();
+/** @param {LocationReader} read */
 export const onCurrentLocation = (read) => {
   readers.add(read);
   return () => readers.delete(read);
 };
+/** @type {WeakRef<Element> | null} */
 let published = null;
 let departed = false;
 let readings = 0;
@@ -466,11 +567,26 @@ let readings = 0;
 // Current location is synchronous, but its paint uses the gesture's final destination:
 // a layer can return focus in one microtask and move it again in another during one
 // gesture. Painting those intermediate arrivals would restore unchanged marks.
+/** @type {WeakRef<Element> | null} */
 let paintDestination = null;
+/** @type {Element | null} */
 let paintedFocus = null;
+/** @type {Set<Element>} */
 let paintedWithin = new Set();
+/** @type {Element | null} */
 let paintedVisible = null;
+/** @type {Set<Element>} */
 let paintedVisibleWithin = new Set();
+// Modality can change the cue without moving the destination. Paint readers need
+// that change too; navigation readers must not hear it as another focus move.
+/** @type {Set<() => unknown>} */
+const visibilityReaders = new Set();
+/** @param {() => unknown} read */
+export const onFocusVisibility = (read) => {
+  visibilityReaders.add(read);
+  return () => visibilityReaders.delete(read);
+};
+/** @param {Element} node @param {string} name @param {boolean} present */
 function markFocus(node, name, present) {
   keeps(node, `data-lf-${name}`, present ? "" : null);
   // Removing an absent token still rewrites the attribute.
@@ -482,6 +598,26 @@ function markFocus(node, name, present) {
   )
     node.part.add(`lf-${name}`);
 }
+// The keyboard cue's destination, read before or after its attributes are painted.
+// Current location and its visibility are separate: a click keeps a control as the
+// keyboard destination without advertising a keyboard cue. The browser owns
+// focus-visible (including text entry and modality changes on the same node).
+// Closed text-field roots expose their host, not the focused editor; text
+// entry always needs a cue, as it does for native editors. A frame never matches
+// :focus-visible on its host, so it takes the platform's rule from the inputs: visible
+// unless a press put the user there (`inputInFrame`).
+/** @param {Element | null} [node] */
+export function visibleFocus(node = focused()) {
+  return node &&
+    node !== document.body &&
+    node !== document.documentElement &&
+    (node.matches(":focus-visible") ||
+      node.matches(TEXT_BOX) ||
+      (node.localName === "iframe" && !pressLed()))
+    ? node
+    : null;
+}
+/** @param {Element | null} node */
 function paintFocus(node) {
   const next =
     node === document.body || node === document.documentElement ? null : node;
@@ -507,24 +643,12 @@ function paintFocus(node) {
     if (!paintedWithin.has(owner)) markFocus(owner, "focus-within", true);
   }
   paintedWithin = within;
-  // Current location and its visibility are separate: a click keeps a control as the
-  // keyboard destination without advertising a keyboard cue. The browser owns
-  // focus-visible (including text entry and modality changes on the same node).
-  // Closed text-field roots expose their host, not the focused editor; text
-  // entry always needs a cue, as it does for native editors. A frame never matches
-  // :focus-visible on its host, so it takes the platform's rule from the inputs: visible
-  // unless a press put the user there (`inputInFrame`).
-  const visible =
-    next &&
-    (next.matches(":focus-visible") ||
-      next.matches(TEXT_BOX) ||
-      (next.localName === "iframe" && !pressLed()))
-      ? next
-      : null;
+  const visible = visibleFocus(next);
   if (visible !== paintedVisible) {
     if (paintedVisible) markFocus(paintedVisible, "focus-visible", false);
     if (visible) markFocus(visible, "focus-visible", true);
     paintedVisible = visible;
+    for (const read of visibilityReaders) read();
   }
   const visibleWithin = visible ? within : new Set();
   for (const owner of paintedVisibleWithin) {
@@ -566,7 +690,9 @@ const queueReturnFocusPaint = () => {
     refreshFocusPaint();
   });
 };
+/** @type {WeakSet<Node>} */
 const paintRoots = new WeakSet();
+/** @param {Node} root */
 function watchFocusPaintIn(root) {
   if (paintRoots.has(root)) return;
   paintRoots.add(root);
@@ -576,6 +702,7 @@ function watchFocusPaintIn(root) {
   });
   root.addEventListener("slotchange", queueFocusPaint);
 }
+/** @param {Element | null} node @param {CurrentLocationCause} cause */
 function publish(node, cause) {
   watchCurrentLocationAround(node);
   paintDestination = node && new WeakRef(node);
@@ -599,7 +726,7 @@ function publish(node, cause) {
   if (node) placeInput = "focus";
   // What a reader places is its own act: it names its own cause, and it is a newer word
   // to a hold even inside a hold's restore.
-  const was = [placing, restoring];
+  const was = { placing, restoring };
   [placing, restoring] = [null, false];
   try {
     for (const read of readers) {
@@ -612,34 +739,42 @@ function publish(node, cause) {
       if (readings !== reading) return;
     }
   } finally {
-    [placing, restoring] = was;
+    placing = was.placing;
+    restoring = was.restoring;
   }
 }
 // The press the user last made, as weak readings of the nodes under it, until a
 // key follows it. Remembering the input modality does not own the old markup.
+/** @type {PressedPath | null} */
 let pressedPath = null;
 // Whether a node is what that press asked for: a node under it, or the control of a
 // label under it, which the platform focuses at the press's click.
+/** @param {Element | null} node */
 const pressedOn = (node) =>
-  Boolean(pressedPath) &&
+  pressedPath !== null &&
   pressedPath.some((ref) => {
     const at = ref.deref();
-    return at === node || (at?.localName === "label" && at.control === node);
+    return at === node || (isHTML(at, "label") && at.control === node);
   });
 // Whether the user's latest input was a press rather than a key, so that a `move` is a
 // route a press began: what the platform's `:focus-visible` guesses from, read here
 // from the inputs themselves. No input yet reads as no press.
 export const pressLed = () => pressedPath !== null;
 // The Tab the user is pressing, from its keydown until the task that moves them ends.
+/** @type {KeyboardEvent | null} */
 let stepping = null;
 // Focus coming out of a dialog or popover that no longer stands is that layer handing it
 // back as it closes, whether the platform or the layer's owner moves it. A nonmodal
 // dialog closing hands focus back too, so a dialog stands while it is `open`, modal or
 // not, and a popover while it is a native layer.
+/** @param {unknown} left */
 const leftClosedLayer = (left) => {
-  const layer = left?.closest?.("dialog, [popover]");
-  return Boolean(layer) && !(layer.open === true || isNativeLayer(layer));
+  const layer = isElement(left) ? left.closest("dialog, [popover]") : null;
+  return (
+    layer !== null && !((isHTML(layer, "dialog") && layer.open) || isNativeLayer(layer))
+  );
 };
+/** @param {Element | null} node @param {unknown} [left] @returns {PlacementCause} */
 const cause = (node, left = null) =>
   placing ??
   (leftClosedLayer(left)
@@ -650,8 +785,11 @@ const cause = (node, left = null) =>
         ? "step"
         : "move");
 // One move fires once at the document and again at each stage it crosses into.
+/** @type {WeakSet<Event>} */
 const read = new WeakSet();
+/** @param {Event} event */
 function readFocusEvent(event) {
+  if (!("relatedTarget" in event)) return;
   if (read.has(event)) return;
   read.add(event);
   // A closing layer’s temporary focus is not a new current location (`closeLayer`).
@@ -671,19 +809,24 @@ function readFocusEvent(event) {
 // Entering a component subscribes this owner to its subsequent internal moves.
 // Those moves do not reach the document; guessing them at the next input would
 // make their cause depend on the old node's later ancestry and lifetime.
+/** @param {Element | null} node */
 function watchCurrentLocationAround(node) {
-  for (let at = node; at; at = renderedParent(at))
-    watchCurrentLocationIn(at.getRootNode());
+  for (let at = node; at; at = renderedParent(at)) {
+    const root = at.getRootNode();
+    if (focusRoot(root)) watchCurrentLocationIn(root);
+  }
 }
 // A shadow root reads the moves inside it, which reach the document as no event.
 // Subscribe on captured focus, before a component's handler forwards first entry
 // within its root and suppresses the original focusin. Stages can subscribe earlier;
 // retained moves without an event subscribe through the paint ancestry reading.
+/** @param {Event} event */
 function enter(event) {
   if (read.has(event)) return;
   read.add(event);
   watchCurrentLocationAround(deepFocus());
 }
+/** @param {Node} root */
 export function watchCurrentLocationIn(root) {
   root.addEventListener("focus", enter, true);
   root.addEventListener("focusin", readFocusEvent, true);
@@ -702,14 +845,18 @@ watchCurrentLocationAround(deepFocus());
 document.addEventListener(
   "focusout",
   (event) => {
-    if (event.relatedTarget !== null) {
-      departed = true;
-      return;
-    }
-    const left = event.composedPath()[0];
+    // A component can forward entry and leave nobody focused, without a focusin.
+    // The related target names an intended arrival; read where focus ended below.
+    if (event.relatedTarget !== null) departed = true;
+    const left = eventSource(event);
+    if (!isElement(left)) return;
     lastLocation = new WeakRef(left);
     if (restoring) return;
-    queueMicrotask(() => {
+    const departure = readings;
+    // Native pointer focus can checkpoint microtasks between departure and arrival.
+    // Read after that task, when an intended arrival has either completed or failed.
+    setTimeout(() => {
+      if (readings !== departure) return;
       const at = document.activeElement;
       if (at !== null && at !== document.body) return;
       if (heldByLabel()) return;
@@ -726,6 +873,7 @@ document.addEventListener(
 // A Tab moves the user as its keydown's default action, in the same task, and a handler
 // standing in for the browser moves them inside the keydown itself, so the step ends
 // with the task; holding Tab down repeats the keydown and so the step.
+/** @param {KeyboardEvent} event */
 const sequential = (event) =>
   event.key === "Tab" && !event.altKey && !event.ctrlKey && !event.metaKey;
 // Where the user is, read again once a key's or a press's task ends, and once a
@@ -734,6 +882,7 @@ const sequential = (event) =>
 // the final input reading also covers a label's held intermediate move. Leaving for
 // nowhere is the `focusout` reading's, except from a frame, which focus leaves with no
 // event here when a press on this document takes it back.
+/** @param {KeyboardEvent | null} step @param {PressedPath | null} pressed */
 function reconcile(step, pressed) {
   if (heldByLabel()) return;
   const deep = deepFocus();
@@ -742,12 +891,13 @@ function reconcile(step, pressed) {
   if (at === was || (!at && was?.localName !== "iframe")) return;
   placements += 1;
   lastLocation = at && new WeakRef(at);
-  const input = [stepping, pressedPath];
+  const input = { stepping, pressedPath };
   [stepping, pressedPath] = [step, pressed];
   try {
     publish(at, cause(at));
   } finally {
-    [stepping, pressedPath] = input;
+    stepping = input.stepping;
+    pressedPath = input.pressedPath;
   }
 }
 // A press inside a frame goes to the frame's document, and focus follows it there with
@@ -757,6 +907,7 @@ function reconcile(step, pressed) {
 // whether the frame wears its ring, and one that left focus in a frame the user was not
 // yet on, which only a press does without an event here, puts them on the frame as a
 // Tab into it would have.
+/** @param {HTMLIFrameElement} frame @param {string} type */
 export function inputInFrame(frame, type) {
   if (deepFocus() !== frame) return;
   if (type === "keydown") pressedPath = null;
@@ -780,10 +931,11 @@ addEventListener(
 // window losing focus, as find-in-page takes it. Delayed work compares the count it
 // began at (user-intent.js), as a hand-back waiting a frame for its target does. A scroll is none of these: the runtime's own landings fire
 // it, and each of the user's ways of scrolling begins with one that is.
-const inputs = document.documentElement.lfInputs;
+
 export const inputCount = () => inputs.count;
 // Mechanical owners may stop motion at the input edge, before a command or drawing
 // handler consumes it. Observation adds no binding and never claims the event.
+/** @type {typeof inputs.observe} */
 export const onUserInput = (read) => inputs.observe(read);
 
 // Where the caret was, as a key went down, in each box the key went down in, before
@@ -791,12 +943,14 @@ export const onUserInput = (read) => inputs.observe(read);
 // as ↑ from the start of a box walks out of it, reads this rather than the caret the
 // field has already moved by the time the command's row is asked. It holds until the
 // task after the key's, so a row read outside a key falls back to the live caret.
+/** @type {Map<Element, Caret> | null} */
 let keyCarets = null;
 onUserInput((event) => {
   if (event.type !== "keydown") return;
+  /** @type {Map<Element, Caret>} */
   const carets = new Map();
   for (const node of event.composedPath()) {
-    const caret = node instanceof Element && readCaret(node);
+    const caret = isElement(node) && readCaret(node);
     if (caret) carets.set(node, caret);
   }
   keyCarets = carets;
@@ -804,6 +958,7 @@ onUserInput((event) => {
     if (keyCarets === carets) keyCarets = null;
   });
 });
+/** @param {Element} node */
 export const caretAtKey = (node) => keyCarets?.get(node) ?? null;
 onUserInput((event) => {
   if (event.type !== "blur") return;
@@ -825,28 +980,119 @@ addEventListener(
   "click",
   (event) => {
     if (event.isTrusted && event.button === 0)
-      placeInput = focused()?.contains(event.composedPath()[0]) ? "focus" : "pointer";
+      placeInput = focused()?.contains(eventSource(event)) ? "focus" : "pointer";
   },
   { capture: true, passive: true },
 );
 export const recentPlaceInput = () => placeInput;
 
-// The primary pointer's press, from its `pointerdown` until it ends: its pointer and the
-// nodes under its start, read after the event has gone, when the platform no longer
+// The primary pointer's press, from its `pointerdown` until it is over: its pointer and
+// the nodes under its start, read after the event has gone, when the platform no longer
 // reports its path. `onPress(start, path)` hears each press begin and returns what
-// hears it end, as `end(event, completed)`. A release completes it. Every other end does
-// not: a cancel, which the browser sends when it took the press for something else,
-// commonly a touch scroll; a native menu the press opened, which swallows the release;
-// and the window losing it altogether. So a gesture judged where it starts and acted on
-// where it ends reads both from one press.
+// hears it end, as `end(event, completed)`, which may in turn return what hears it be
+// over. A release completes it. Every other end does not: a cancel, which the browser
+// sends when it took the press for something else, commonly a touch scroll; a native
+// menu the press opened, which swallows the release; and the window losing it
+// altogether. So a gesture judged where it starts and acted on where it ends reads both
+// from one press.
+//
+// An ended press is `released` and still the one `pressing()` returns until the browser
+// has delivered what its release owes: the compatibility `mouseup` and `click` (or
+// `auxclick`) the page's controls act on. A mouse delivers them in the release's own
+// task in every engine; a finger's tap only once the browser has recognised it, in a
+// later task, and a drag none, nor does WebKit after a cancelled touch `pointerdown`.
+// So the press is over at the task after its click; at the task after an end that owes
+// none; at the task after any newer input, which no compatibility event of this press
+// follows; and as the next press begins, before it, since the browser may deliver that
+// press ahead of any task queued at the release. An owner keeps what it knows of one
+// press against the press itself (`pressRecords`), so what it knows can't outlast it: a
+// release a widget stops, or one let go off the window, still ends it here, where no
+// widget's listener runs first.
+/**
+ * @typedef {{
+ *   pointerId: number,
+ *   path: EventTarget[],
+ *   ends: ((event: Event, completed: boolean) => (() => void) | void | null)[],
+ *   overs: (() => void)[],
+ *   released: boolean,
+ *   clickClaimed: boolean,
+ * }} Press
+ */
+/** @type {Press | null} */
 let press = null;
 export const pressing = () => press;
+/** @type {Set<(start: PointerEvent, from: EventTarget[]) => ((end: Event, completed: boolean) => (() => void) | void | null) | null | void>} */
 const pressReaders = new Set();
 // Returns what stops hearing presses, for an owner torn down before the page is.
+/** @param {(start: PointerEvent, from: EventTarget[]) => ((end: Event, completed: boolean) => (() => void) | void | null) | null | void} read */
 export const onPress = (read) => {
   pressReaders.add(read);
   return () => pressReaders.delete(read);
 };
+// What one owner knows of a press, kept against it: `keep(event, value)` at the press's
+// own pointerdown records it, and `kept()` returns it until that press is over, then
+// null. Another contact's pointerdown keeps nothing, since it is no part of the press.
+/** @template T @typedef {{keep: (event: PointerEvent, value: T) => T, kept: () => T | null}} PressRecords */
+/** @template T @returns {PressRecords<T>} */
+export function pressRecords() {
+  /** @type {WeakMap<object, T>} */
+  const records = new WeakMap();
+  return {
+    keep(event, value) {
+      if (press?.pointerId === event.pointerId && !press.released)
+        records.set(press, value);
+      return value;
+    },
+    kept: () => (press && records.get(press)) ?? null,
+  };
+}
+// Whether a pointer event is the press under way's own: its pointer's events while it is
+// down, and the release or cancel that ends it, but not that pointer hovering on after.
+/** @param {PointerEvent} event */
+export const pressHolds = (event) =>
+  press !== null &&
+  press.pointerId === event.pointerId &&
+  (event.type !== "pointermove" || !press.released);
+/** @param {Press} ended */
+function overPress(ended) {
+  if (press !== ended) return;
+  press = null;
+  for (const over of ended.overs) over();
+}
+/** @param {Press} ended */
+const overSoon = (ended) => setTimeout(() => overPress(ended));
+// A press that commits at its release, as a held word does or the panel's field handing
+// selected words to the comment box, leaves the browser's own click after it to land on
+// whatever the release put under the pointer. The release claims that click, the one the
+// press under way owes; a keyboard's carries no count and is never it.
+export const claimReleaseClick = () => {
+  if (press) press.clickClaimed = true;
+};
+document.addEventListener(
+  "click",
+  (event) => {
+    if (!press?.clickClaimed || !event.isTrusted || pressIsKeyboardActivation(event))
+      return;
+    press.clickClaimed = false;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+  },
+  { capture: true },
+);
+/** @type {readonly ("click" | "auxclick")[]} */
+const clickEvents = ["click", "auxclick"];
+for (const type of clickEvents)
+  addEventListener(
+    type,
+    (event) => {
+      if (press?.released && event.isTrusted && !pressIsKeyboardActivation(event))
+        overSoon(press);
+    },
+    { capture: true, passive: true },
+  );
+onUserInput((event) => {
+  if (press?.released && event.type !== "pointerdown") overSoon(press);
+});
 // A press away from a surface puts it away: a primary press that begins outside it and
 // completes outside it, `away(path)` reading each end's composed path. That is how the
 // platform judges its own light dismissal (a popover's, a dialog's `closedby`), so a
@@ -860,6 +1106,7 @@ export const onPress = (read) => {
 // than by a listener of its own on `pointerdown`, `mousedown` or `click`, each of which
 // judged a different press. A surface decides for itself whether a press a pointer
 // mode claims, a stroke or a capture, is one away from it.
+/** @param {(path: EventTarget[]) => boolean} away @param {(path: EventTarget[], from: EventTarget[]) => void} dismiss */
 export const onPressAway = (away, dismiss) =>
   onPress((start, from) =>
     start.button === 0 && away(from)
@@ -873,30 +1120,56 @@ addEventListener(
   "pointerdown",
   (event) => {
     if (!event.isPrimary) return;
+    if (press) {
+      // The press before is over as this one begins: one still owed its click, or one
+      // whose release never came, as one let go off a window that never heard it, which
+      // ends here as one that did not complete.
+      const before = press;
+      endPress(event, false);
+      overPress(before);
+    }
     const path = event.composedPath();
-    const ends = [];
-    press = { pointerId: event.pointerId, path, ends };
+    /** @type {Press} */
+    const begun = {
+      pointerId: event.pointerId,
+      path,
+      ends: [],
+      overs: [],
+      released: false,
+      clickClaimed: false,
+    };
+    press = begun;
     for (const read of pressReaders) {
       const end = read(event, path);
-      if (end) ends.push(end);
+      if (end) begun.ends.push(end);
     }
     if (event.button !== 0 || labelPress) return;
-    const label = /** @type {(EventTarget & Partial<HTMLLabelElement>)[]} */ (
-      path
-    ).find((node) => node?.localName === "label" && node.control);
+    const label = path.find(
+      /** @returns {node is HTMLLabelElement} */ (node) =>
+        isHTML(node, "label") && node.control !== null,
+    );
     const held = label && deepFocus();
-    if (!held || held === document.body) return;
+    if (!label || !held || held === document.body) return;
     labelPress = { held, pointerId: event.pointerId, label };
   },
   { capture: true, passive: true },
 );
+/** @param {Event} event @param {boolean} completed */
 function endPress(event, completed) {
   if (!press) return;
-  const { ends } = press;
-  press = null;
-  for (const end of ends) end(event, completed);
+  const ended = press;
+  if (!ended.released) {
+    ended.released = true;
+    for (const end of ended.ends) {
+      const over = end(event, completed);
+      if (over) ended.overs.push(over);
+    }
+  }
+  if (!completed) overSoon(ended);
 }
-for (const type of /** @type {const} */ (["pointerup", "pointercancel"]))
+/** @type {readonly ("pointerup" | "pointercancel")[]} */
+const pointerEnds = ["pointerup", "pointercancel"];
+for (const type of pointerEnds)
   addEventListener(
     type,
     (event) => {
@@ -922,15 +1195,19 @@ addEventListener("click", landLabelPress, { capture: true, passive: true });
 // A key ends a label press, since it changes the input the user works with: they go back
 // on the element the press held them on, before the key's dispatch and default run,
 // and the key's own route reads that element as its target (`recoveredLabelFocus`).
+/** @type {WeakMap<KeyboardEvent, Element>} */
 const recoveredLabelKeys = new WeakMap();
-export const recoveredLabelFocus = (event) => recoveredLabelKeys.get(event);
+/** @param {KeyboardEvent} event */
+export const recoveredLabelFocus = (event) => recoveredLabelKeys.get(event) ?? null;
 addEventListener(
   "keydown",
   (event) => {
     placeInput = "focus";
-    if (!labelPress || event.isComposing || MODIFIER_KEYS.includes(event.key)) return;
+    const recovering = labelPress;
+    if (!recovering || event.isComposing || MODIFIER_KEYS.includes(event.key)) return;
     const active = deepFocus();
-    const { held } = finishLabelPress();
+    finishLabelPress();
+    const { held } = recovering;
     if (active === held || !held.isConnected) return;
     focusDestination(held, "return");
     if (deepFocus() === held) recoveredLabelKeys.set(event, held);
@@ -947,7 +1224,7 @@ for (const type of ["keydown", "pointerdown", "wheel", "touchstart"])
       else if (type === "keydown") pressedPath = null;
       stepping = null;
       if (type === "keydown" || type === "pointerdown") {
-        const step = type === "keydown" && sequential(event) ? event : null;
+        const step = event instanceof KeyboardEvent && sequential(event) ? event : null;
         const pressed = pressedPath;
         stepping = step;
         setTimeout(() => {
@@ -964,27 +1241,28 @@ for (const type of ["keydown", "pointerdown", "wheel", "touchstart"])
     { capture: true, passive: true },
   );
 // The box that wears the focus ring for `node`. A rule that rings a control's face
-// rather than the control declares it there, `--lf-wears-ring: 1` (theme.css), as a
+// rather than the control declares it there, `--lf-wears-ring: 1` (base.css), as a
 // playground's choice rings its radio and words together; the nearest such box around
 // the control is the one. Anything else wears its own. Those rules ring the face of the
 // control the focus paint marks, so only that control has one. A landing in the
 // focus task reads the carrier from native focus before Leaf paints. Reading the
 // ring must not paint an intermediate focus destination: a return in the same
 // task would otherwise remove and restore the previous focus marks.
+/** @template {Element | Range} T @param {T} node @returns {T | Element} */
 export function ringBox(node) {
-  if (!node?.matches?.(":focus, [data-lf-focus]")) return node;
-  for (
-    let box = renderedParent(node);
-    box instanceof Element;
-    box = renderedParent(box)
-  )
+  if (!isElement(node) || !node.matches(":focus, [data-lf-focus]")) return node;
+  for (let box = renderedParent(node); isElement(box); box = renderedParent(box))
     if (getComputedStyle(box).getPropertyValue("--lf-wears-ring") === "1") return box;
   return node;
 }
+// A focus place excludes inert content, even while its closing animation paints it.
 // Drawn counts `visibility: hidden` as hidden: a node under it keeps focus for a frame
 // and then the browser blurs it to the body, as it does a node under `display: none`.
+/** @param {Element | null | undefined} node */
 export const drawn = (node) =>
-  node?.isConnected && node.checkVisibility({ visibilityProperty: true });
+  node?.isConnected &&
+  !excludedByInert(node) &&
+  node.checkVisibility({ visibilityProperty: true });
 // The node hidden or removed by a change that left the user with no current location.
 const dropped = () => {
   const at = deepFocus();
@@ -998,11 +1276,13 @@ const dropped = () => {
 // the nearest item that survived after it, then before it, before the caller's own
 // stand-ins: the user is never left on the body because the row they were on left the
 // list.
+/** @param {Element} scope @param {{key?: string | null}} [options] @returns {FocusRestore | null} */
 export function holdFocus(scope, { key = null } = {}) {
   const node = heldIn(scope);
   if (!node) return null;
   const restore = holdOn(node);
   if (!key) return restore;
+  /** @type {Element | null} */
   let item = node;
   while (item && !item.matches?.(`[${key}]`)) item = renderedParent(item);
   if (!item || item === scope || !renderedUnder(item, scope)) return restore;
@@ -1017,7 +1297,7 @@ export function holdFocus(scope, { key = null } = {}) {
   const order = [keys[at], ...keys.slice(at + 1), ...keys.slice(0, at).reverse()];
   // In an item, the control like the one the user was on, as Remove for Remove, read
   // in the item's own tree, or the item itself where it holds none.
-  // Not shadow.js's `hostIn`, which answers null where the climb leaves the item's tree:
+  // Not shadow-tree.js's `hostIn`, which answers null where the climb leaves the item's tree:
   // this keeps the outermost host it reached.
   let control = node;
   while (control.getRootNode() !== item.getRootNode()) {
@@ -1032,14 +1312,20 @@ export function holdFocus(scope, { key = null } = {}) {
   return (...standIns) => {
     // The items now present, by key, read once for the whole restore: a list whose keys
     // all changed tries every held key against it.
+    /** @type {Map<string | null | undefined, Element[]> | null} */
     let byKey = null;
+    /** @param {string | null | undefined} value */
     const keyed = (value) => {
       if (!byKey) {
         byKey = new Map();
         for (const each of items()) {
           const at = each.getAttribute(key);
-          if (!byKey.has(at)) byKey.set(at, []);
-          byKey.get(at).push(each);
+          let group = byKey.get(at);
+          if (!group) {
+            group = [];
+            byKey.set(at, group);
+          }
+          group.push(each);
         }
       }
       return byKey.get(value) ?? [];
@@ -1047,27 +1333,31 @@ export function holdFocus(scope, { key = null } = {}) {
     // The drawn item keyed so, where a hidden copy of it stands too. One key may mark
     // several nodes of one place, as a diff line's text and its gutter's Comment: the one
     // like the control the user was on, or holding one, comes first.
+    /** @param {Element} root @returns {Element | null} */
     const matching = (root) => {
       if (root.matches(like) && drawn(root)) return root;
-      const assigned =
-        root.localName === "slot" ? root.assignedElements({ flatten: true }) : [];
+      const assigned = isHTML(root, "slot")
+        ? root.assignedElements({ flatten: true })
+        : [];
       for (const child of assigned.length ? assigned : root.children) {
         const found = matching(child);
         if (found) return found;
       }
       return null;
     };
+    /** @param {string | null | undefined} value */
     const find = (value) => {
       const found = keyed(value).filter(drawn);
       return (
-        (like && found.find((each) => each.matches(like))) ??
-        (like && found.map(matching).find(Boolean)) ??
+        found.find((each) => each.matches(like)) ??
+        found.map(matching).find(Boolean) ??
         found[0] ??
         null
       );
     };
     // The item keyed the same is the same place, so the caret goes with the user; a
     // neighbour is another place, which this hold lands on with no caret.
+    /** @param {string | null | undefined} value */
     const neighbour = (value) => () => {
       const place = find(value);
       if (!place || !drawn(place)) return null;
@@ -1077,11 +1367,12 @@ export function holdFocus(scope, { key = null } = {}) {
     return restore(() => find(same), ...rest.map(neighbour), ...standIns);
   };
 }
+/** @param {Element} scope */
 const heldIn = (scope) => {
   const held = heldByLabel();
   if (held) return renderedUnder(held, scope) ? held : null;
   const currentLocation = deepFocus(
-    scope.getRootNode().activeElement ?? scope.ownerDocument.activeElement,
+    activeIn(scope.getRootNode()) ?? scope.ownerDocument.activeElement,
   );
   if (
     currentLocation &&
@@ -1095,6 +1386,7 @@ const heldIn = (scope) => {
 };
 
 // Whether the user is in `scope`, across every shadow tree between them.
+/** @param {Node | null} scope */
 export const currentLocationIn = (scope) => {
   const at = focused();
   return Boolean(at) && at !== document.body && renderedUnder(at, scope);
@@ -1102,6 +1394,7 @@ export const currentLocationIn = (scope) => {
 
 // The roving stop of a group: `stop` is the one item Tab reaches, and every other item
 // is reached by the group's own arrows. Null leaves the group no stop.
+/** @param {Iterable<Element>} items @param {Element | null | undefined} stop */
 export function rove(items, stop) {
   for (const item of items) keeps(item, "tabindex", item === stop ? 0 : -1);
 }
@@ -1110,10 +1403,13 @@ export function rove(items, stop) {
 // opened, or the one its opener names, as a menu row's door. Recorded once at the opening
 // (`openLayer`) and read by the close (`openerOf`), so no layer keeps its own record.
 // The body is nowhere, so a layer opened from it hands back nothing and lets go.
+/** @type {WeakMap<object, Element | null>} */
 const openers = new WeakMap();
+/** @param {object} layer @param {Element | null} [opener] */
 export function openLayer(layer, opener = focused()) {
   openers.set(layer, opener && opener !== document.body ? opener : null);
 }
+/** @param {object} layer */
 export const openerOf = (layer) => openers.get(layer) ?? null;
 
 // Closing a layer the user may be in and handing them on, as one act. `close` hides
@@ -1130,6 +1426,7 @@ export const openerOf = (layer) => openers.get(layer) ?? null;
 // is part of that act: it lands nobody and tells nobody. The outer close's landing
 // takes the user on, or where it names none, the first inner landing does.
 let closing = 0;
+/** @type {(() => unknown) | null} */
 let deferredLanding = null;
 let landingLayer = false;
 // A landing a closer builds away from its `closeLayer` call, as a surface's landing on
@@ -1137,6 +1434,7 @@ let landingLayer = false;
 // other time it would be a layer return beside the close, which readers hear as a
 // second move and holds read as a newer word, so it throws. Lint lets `handBack` stand
 // only in a close's `land` argument or in a function this wraps (`layer-returns`).
+/** @template {unknown[]} A @template R @param {(...args: A) => R} land @returns {(...args: A) => R} */
 export function layerLanding(land) {
   return (...args) => {
     if (!landingLayer)
@@ -1192,8 +1490,17 @@ export function holdCurrentLocation() {
 // The node a hold carried the user to from the one it held, with the input count then:
 // the same place under a new node, so work waiting on the held node follows it there
 // while the user has done nothing since (user-intent.js).
+/** @type {WeakMap<Element, {from: Element, inputs: number}>} */
 const carried = new WeakMap();
+/** @param {Element} node */
 export const carriedFrom = (node) => carried.get(node) ?? null;
+/** @param {StandInResult} value @returns {value is PromiseLike<StandInDestination>} */
+const isCompletion = (value) =>
+  value !== null &&
+  typeof value === "object" &&
+  "then" in value &&
+  typeof value.then === "function";
+/** @param {Element} held @returns {FocusRestore} */
 function holdOn(held) {
   const caret = readCaret(held);
   const began = placements;
@@ -1209,10 +1516,10 @@ function holdOn(held) {
       // An asynchronous owner lands under its original input intent before returning
       // the destination. Continue its caret only while that exact editor still holds
       // focus; a Promise is never permission to find or focus another stand-in.
-      if (place?.then)
+      if (isCompletion(place))
         return place.then((destination) => {
           if (
-            !(destination instanceof Element) ||
+            !isElement(destination) ||
             !drawn(destination) ||
             deepFocus() !== destination
           )
@@ -1223,7 +1530,7 @@ function holdOn(held) {
           });
         });
       if (place === true) return true;
-      if (!(place instanceof Element) || !drawn(place)) continue;
+      if (!isElement(place) || !drawn(place)) continue;
       if (place === held && deepFocus() === held) return true;
       const landed = land(() => {
         focusDestination(place, "return", { caret });
@@ -1246,6 +1553,7 @@ function holdOn(held) {
     return false;
   };
 }
+/** @template T @param {() => T} landing @returns {T} */
 const land = (landing) => {
   const was = restoring;
   restoring = true;
@@ -1264,6 +1572,7 @@ export const takesLetters = inputs.takesLetters;
 
 // Radio and range controls own their arrow navigation before a containing widget.
 // Custom controls expose the same role at their focused element as the native input.
+/** @param {Element | null} node */
 export function controlNavigationKeys(node) {
   if (node?.matches('input[type="radio"], [role="radio"]'))
     return ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"];
@@ -1290,11 +1599,12 @@ export function controlNavigationKeys(node) {
 // user lands, since that is the whole of what the rung is for, and letting go of an obligation
 // names the act, since they were on the page all along.
 //
-// Where they land is the block they are reading in the page region they last acted in
-// (reading-regions.js, `pageReadingRegion`), which is a reading of that region's current
-// scroll rather than a place remembered from before the press: a surface closing moves
-// the page under them, and what they can see when it has gone is the answer. Only the
-// region is remembered, so no revision, repaint or reflow can strand the block.
+// Where they land is beside what they let go of, while they see it, since that is what
+// they were reading; otherwise the block they are reading in the page region they last
+// acted in (reading-regions.js, `pageReadingRegion`), which is a reading of that region's
+// current scroll rather than a place remembered from before the press: a surface closing
+// moves the page under them, and what they can see when it has gone is the answer. Only
+// the region is remembered, so no revision, repaint or reflow can strand the block.
 //
 // Focus and then blur, which is the pair and not either half. The focus moves the
 // browser's sequential focus navigation starting point to the block, so the user's next
@@ -1309,7 +1619,9 @@ export function controlNavigationKeys(node) {
 // such as a run of figures, where the honest answer is that the user has no reading
 // position for the browser to continue from. A region in that state still has one: the
 // declared reading lands on its body (reading-place.js, `landingPlace`).
+/** @type {(from?: Element | null) => HTMLElement | null} */
 let readingBlock = () => null;
+/** @param {typeof readingBlock} read */
 export function declareReading(read) {
   readingBlock = read;
 }
@@ -1331,6 +1643,7 @@ export function releaseFocus() {
 // Other landings reach the page without letting go of anything — `g p`, a surface
 // closing — so the release is its own act rather than something read off focus leaving.
 let released = () => {};
+/** @param {() => unknown} release */
 export function declareRelease(release) {
   released = release;
 }
@@ -1342,16 +1655,28 @@ export function release() {
   released();
   if (letGoes === before) letGo();
 }
-// A landing on the page is the user going on to it, a `move`.
-export function letGo() {
+// A landing on the page is the user going on to it, a `move`. It leaves them at nothing,
+// beside what they let go of rather than anywhere else, and each reader `onLetGo` names
+// hears that node once the landing is done (current-target.js, `walkOrigin`). A closer
+// whose layer stands for a place on the page, as a thread card stands for its target,
+// names that place as `from`, since the node focused in the layer is beside nothing.
+/** @type {Set<(from: Element) => unknown>} */
+const letGoReaders = new Set();
+/** @param {(from: Element) => unknown} read */
+export const onLetGo = (read) => {
+  letGoReaders.add(read);
+  return () => letGoReaders.delete(read);
+};
+/** @param {Element | null} [from] */
+export function letGo(from = focused()) {
   letGoes++;
-  const block = readingBlock();
-  if (!block?.isConnected) {
-    releaseFocus();
-    return;
+  const block = readingBlock(from);
+  if (!block?.isConnected) releaseFocus();
+  else {
+    focusDestination(block, "move");
+    block.blur();
   }
-  focusDestination(block, "move");
-  block.blur();
+  if (from && from !== document.body) for (const read of letGoReaders) read(from);
 }
 
 // Handing the user back when a layer closes with them inside it. The closer names where,
@@ -1369,8 +1694,11 @@ export function letGo() {
 // that frame keeps its place: a user who moved on, or a caller that landed them itself,
 // said the newer word. That is the placement count every hold reads, so a move between
 // two nodes of one shadow tree counts as well.
+/** @param {(Element | null | undefined)[]} destinations */
 export function handBack(...destinations) {
-  const places = destinations.filter((node) => node && node !== document.body);
+  const places = destinations.flatMap((node) =>
+    node && node !== document.body ? [node] : [],
+  );
   // A reader of a landing that moved the user elsewhere said a newer word, and no
   // later destination lands over it.
   const landed = () => {

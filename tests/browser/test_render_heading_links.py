@@ -4,7 +4,7 @@ import re
 
 from playwright.sync_api import expect
 from render_cases_interaction import live_url
-from render_harness import leaf_page, open_page, told
+from render_harness import leaf_page, open_page, select_words, told
 
 LINK = ".lf-chrome .lf-heading-link"
 SOURCE = leaf_page(
@@ -64,7 +64,7 @@ def test_a_heading_copies_the_link_to_the_section_it_opens(browser, serve):
     page.evaluate("navigator.clipboard.writeText('')")
     page.keyboard.press("?")
     page.locator(".lf-command-reference").get_by_role(
-        "button", name="Copy link to section", exact=True
+        "option", name="Copy link to section", exact=True
     ).click()
     until_copied(page, link)
 
@@ -110,3 +110,107 @@ def test_a_tap_shows_a_headings_link_and_a_second_tap_copies_it(browser, serve):
     assert copied(page) == ""
     page.locator(LINK).get_by_role("button", name="Copy link to section").tap()
     until_copied(page, page.url.split("#")[0] + "#rates%252Flimits")
+
+
+def test_each_shown_link_stands_by_its_heading(browser, serve):
+    """A link stands in the gutter beside its own heading wherever it shows: for the
+    heading the user is on and the one under the pointer at once, after a press while
+    focus stays in it, beside a heading whose author named it for a box of their own,
+    which stays where the author put it, after another box anchored to a heading while
+    its link showed, and beside a heading the author's stylesheet names only after its
+    link first showed."""
+    source = leaf_page(
+        "Links",
+        '<section id="a"><h2>First</h2><p>Words.</p></section>'
+        '<section id="b"><h2>Second</h2><p>Words.</p></section>'
+        '<section id="c"><h2 id="named">Named</h2><p>Words.</p>'
+        '<p class="tag">Tag</p></section>'
+        '<section id="d"><h2>Fourth</h2><p>Words.</p></section>'
+        '<section id="e"><h2 id="late">Late</h2><p>Words.</p></section>',
+        head="<style>#named { anchor-name: --mine; } .tag { position: absolute;"
+        " position-anchor: --mine; top: anchor(bottom); left: anchor(right); }"
+        " #late.anchored { anchor-name: --late; }</style>",
+    )
+    page = open_page(browser, live_url(serve(source)))
+    links = page.locator(LINK)
+
+    def standing():
+        """Each shown link's heading, by the heading's text, where it stands beside
+        that heading's first line."""
+        return page.evaluate(
+            """(selector) => [...document.querySelectorAll(selector)]
+              .filter((link) => getComputedStyle(link).opacity === "1")
+              .map((link) => {
+                const box = link.getBoundingClientRect();
+                const middle = (box.top + box.bottom) / 2;
+                const heading = [...document.querySelectorAll("h2")].find((h) => {
+                  const at = h.getBoundingClientRect();
+                  return at.top <= middle && middle <= at.bottom &&
+                    box.right <= at.left + 0.5 && at.left - box.right < 48;
+                });
+                return heading?.textContent ?? null;
+              })
+              .sort()""",
+            LINK,
+        )
+
+    tag = page.locator(".tag").bounding_box()
+    page.locator("#named").hover()
+    expect(links).to_have_count(1)
+    assert standing() == ["Named"]
+    assert page.locator(".tag").bounding_box() == tag
+
+    page.evaluate(
+        "const h = document.querySelector('#a > h2'); h.tabIndex = -1; h.focus()"
+    )
+    page.locator("#b > h2").hover()
+    expect(links).to_have_count(3)
+    assert standing() == ["First", "Second"]
+
+    # A press leaves focus in the link's button, which keeps it shown when the pointer
+    # moves on to another heading.
+    links.nth(2).get_by_role("button").click()
+    page.locator("#named").hover()
+    assert standing() == ["Named", "Second"]
+    page.mouse.move(2, 2)
+    assert standing() == ["Second"]
+    assert page.locator(".tag").bounding_box() == tag
+
+    # Words selected in a heading under the pointer bring the anchored comment box,
+    # which names the heading while its link shows. The link the pointer then shows
+    # for an earlier heading stands by that heading, not by the one the box named.
+    page.mouse.click(2, 2)
+    select_words(page, "#d > h2")
+    assert standing() == ["Fourth"]
+    page.locator("#a > h2").hover()
+    assert standing() == ["First"]
+
+    # A rule of the author's that starts naming a heading after its link first showed,
+    # here through a class the page's script adds, keeps its name and outranks the
+    # runtime's sheet, so the link stands by the heading under a name beside it.
+    page.locator("#late").hover()
+    assert standing() == ["Late"]
+    page.mouse.move(2, 2)
+    page.evaluate("document.querySelector('#late').classList.add('anchored')")
+    page.locator("#late").hover()
+    assert standing() == ["Late"]
+    names = page.locator("#late").evaluate("h => getComputedStyle(h).anchorName")
+    assert "--late" in names.split(", ")
+
+
+def test_enter_copies_a_link_no_pointer_has_shown(browser, serve):
+    """Enter on a decision `m` landed on copies its link, though the press itself makes
+    the link's control, which has not drawn its button yet."""
+    source = leaf_page(
+        "A decision's link",
+        '<lf-ask id="q"><h3>Which store?</h3><lf-options id="c" choose>'
+        '<lf-option id="a">Redis</lf-option><lf-option id="b">Postgres</lf-option>'
+        "</lf-options></lf-ask>",
+    )
+    url = live_url(serve(source))
+    context = browser.new_context(permissions=["clipboard-read", "clipboard-write"])
+    page = open_page(browser, url, context=context)
+    page.keyboard.press("m")
+    expect(page.locator("#q")).to_be_focused()
+    page.keyboard.press("Enter")
+    until_copied(page, page.url.split("#")[0] + "#q")

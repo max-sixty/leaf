@@ -42,7 +42,7 @@
         </p>
       </aside>
 
-      <section id="security-finding">
+      <section id="security-finding" class="layout-flow">
         <h2 id="security-finding-heading">
           Before: workspace ownership crossed phases
         </h2>
@@ -55,9 +55,9 @@
           one known consumer while Git, PATH entries, language startup files, action
           manifests, and setup-generated shims remained open paths into runner work.
         </p>
-        <lf-diagram id="security-before-flow" data-height="77" parts="all">
+        <lf-diagram id="security-before-flow" data-height="449" parts="all">
           <pre>
-flowchart LR
+flowchart TD
   accTitle: Shared checkout crosses the sandbox boundary
   accDescr: Runner setup hands its checkout to the agent, then resumes runner steps and action POSTs on the same writable tree.
   R0[Runner checkout] --> R1[Runner setup]
@@ -76,7 +76,7 @@ flowchart LR
         </aside>
       </section>
 
-      <section id="security-contract-summary">
+      <section id="security-contract-summary" class="layout-flow">
         <h2>Four contracts define the boundary</h2>
         <ol class="steps" id="security-contract-list">
           <li>
@@ -106,7 +106,7 @@ flowchart LR
           Full architecture, lifecycle, migration, and adversarial proof
         </summary>
 
-        <aside class="sidebar" id="security-page-route">
+        <aside id="security-page-route">
           <lf-toc id="security-page-contents" max-level="2"></lf-toc>
         </aside>
 

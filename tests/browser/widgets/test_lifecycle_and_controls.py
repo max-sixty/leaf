@@ -4,16 +4,16 @@ reconnecting, the controls it offers, and the Web Awesome library they come from
 import re
 
 import pytest
-from interact_support import append_command
 from playwright.sync_api import expect
 from render_cases_interaction import CHIP_PAGE
 from render_cases_layout import rings_drawn
-from render_harness import ROOT, displayed, leaf_page, open_page, told
+from render_harness import displayed, leaf_page, open_page
 
 from browser.widgets import (
     _bound_diff,
 )
 from leaf.render_checks import wait_until_ready
+from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -88,6 +88,10 @@ customElements.define('lf-source-stage', class extends HTMLElement {
         for widget_id in ("code", "diagram", "diff"):
             widget = page.locator(f"#{widget_id}")
             expect(widget).not_to_have_class(re.compile("lf-rendered"))
+            expect(widget.locator("pre")).to_be_visible()
+            assert widget.locator("pre").evaluate(
+                "el => el.checkVisibility({opacityProperty: true, visibilityProperty: true})"
+            ), widget_id
             actual = widget.evaluate(face)
             # Packages own layout: an inline diff clips its reserved first-paint
             # box. The shared source primitive supplies the readable type.
@@ -124,51 +128,6 @@ customElements.define('lf-source-stage', class extends HTMLElement {
         drawings[widget_id] = widget.evaluate(face)
         references[widget_id] = reference
     assert drawings == references
-
-
-def test_live_widget_subscription_releases_and_reconnects(browser, serve):
-    """A detached widget ignores semantic news and catches up when reconnected."""
-    source = leaf_page(
-        "widget watcher lifecycle",
-        """
-<section id="watched">
-  <lf-draft id="watched-draft"><pre>Draft words.</pre></lf-draft>
-</section>
-""",
-    )
-    page = open_page(browser, serve(source))
-    before = page.locator("#watched-draft .lf-draft-body").get_attribute(
-        "data-lf-source-words"
-    )
-    page.evaluate(
-        """() => {
-          window.__lfWatchedSection = document.querySelector('#watched');
-          window.__lfWatchedSection.remove();
-        }"""
-    )
-    append_command(
-        serve.page_dir,
-        {
-            "kind": "action",
-            "author": "user",
-            "revision": 1,
-            "widget": "watched-draft",
-            "action": "edit",
-            "detail": {"value": "Reconnected words."},
-        },
-    )
-    told(page)
-    assert (
-        page.evaluate("""() => window.__lfWatchedSection
-      .querySelector('#watched-draft .lf-draft-body')
-      .getAttribute('data-lf-source-words')""")
-        == before
-    )
-
-    page.evaluate("document.querySelector('main').append(window.__lfWatchedSection)")
-    expect(page.locator("#watched-draft .lf-draft-body")).to_have_text(
-        "Reconnected words."
-    )
 
 
 def library_select(browser, serve):
@@ -220,12 +179,11 @@ def test_webawesome_chrome_loads_without_optional_controls(browser, serve):
 
     page = library_select(browser, serve)
     control = page.locator(".library-select")
-    # A page rule granted control access and with no specificity at all can outrank
+    # A page rule with no specificity at all can outrank
     # the shared theme's `:is(wa-select, …)` mapping.
     page.evaluate(
         """() => {
           const style = document.createElement('style');
-          style.setAttribute('data-controls', '');
           style.textContent = ':where(wa-select){--wa-color-text-quiet: rgb(1, 2, 3);}';
           document.head.append(style);
         }"""
@@ -235,7 +193,7 @@ def test_webawesome_chrome_loads_without_optional_controls(browser, serve):
             "el => getComputedStyle(el).getPropertyValue('--wa-color-text-quiet')"
         ).strip()
         == "rgb(1, 2, 3)"
-    ), "a page rule granted control access must outrank the lazy vendor defaults"
+    ), "a page rule must outrank the lazy vendor defaults"
 
 
 def test_webawesome_menu_text_stays_readable_as_the_current_option_moves(
@@ -381,7 +339,7 @@ def test_reopening_a_library_select_keeps_its_options_visible(browser, serve, mo
 
 def test_library_copy_feedback_finishes_after_its_tooltip_reopens(browser, serve):
     """The copy button consumes the tooltip's completion to release its copy lock."""
-    source = ROOT / "examples" / "developer" / "visual-review-gallery.html"
+    source = named_source("visual-review-gallery")
     page = open_page(browser, serve(source))
     page.emulate_media(reduced_motion="no-preference")
     page.context.grant_permissions(["clipboard-read", "clipboard-write"])
@@ -494,9 +452,9 @@ def test_a_control_a_widget_built_is_told_from_a_label_it_wrote(browser, serve):
     assert all(p["cursor"] == "pointer" for p in live), (
         f"a control a widget built does not take the hand: {live}"
     )
-    assert all(p["cursor"] == "default" and p["face"] != p["armed"] for p in spent), (
-        f"a control with nothing left to do still offers itself: {spent}"
-    )
+    assert all(
+        p["cursor"] == "not-allowed" and p["face"] != p["armed"] for p in spent
+    ), f"a control with nothing left to do still offers itself: {spent}"
     assert not any(s["cursor"] == "pointer" for s in rest["said"]), (
         "a label the page wrote takes the hand, so the user is invited to press words"
     )

@@ -79,6 +79,9 @@ def resource_reference(
     resolved = posixpath.normpath(path)
     if resolved.startswith("//") or not resolved.startswith("/"):
         raise ReferenceError("dependency-escapes")
-    if module and Path(resolved).suffix not in JAVASCRIPT_SUFFIXES:
+    # A module is JavaScript, or JSON its import reads `with { type: "json" }`, as
+    # the runtime reads its kernel registry; the browser refuses JSON imported
+    # without it, which a page's render check reports as a console error.
+    if module and Path(resolved).suffix not in {*JAVASCRIPT_SUFFIXES, ".json"}:
         raise ReferenceError("module-type")
     return resolved, url.search + url.hash

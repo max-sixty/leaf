@@ -1,0 +1,40 @@
+# From an issue-triage page (2026-10-25) the agent kept current for 16 hours inside one
+# conversation, through about 25 revisions. The skill gave the browser review only to a
+# record, a page used beyond the conversation, so the page never had one, and a table
+# whose page CSS kept its first column on one line reached the user scrolling sideways
+# with its status prose a word a line. `page check --render` reported it. The skill now
+# weighs a page's importance, a record being one reason, and reviews an important page
+# at the checkpoints the user names. Base 846f07ab9 ran no render check here (Claude
+# Code 0 of 4, Codex 0 of 2); the change ran one (5 of 5, 2 of 2).
+description: important-page-reviewed-at-checkpoints
+metadata:
+  purpose: "Checks and checkpoints: a large page the user relies on throughout a long
+    conversation gets the browser review at a checkpoint the user names, though it is
+    not a record."
+  tags:
+    - checks
+    - checkpoints
+vars:
+  prompt: |
+    You own a live Leaf page at ~/.local/state/leaf/pages/issue-triage. You and the
+    user have worked through a repository's 29 open issues on it all day in this
+    conversation, and you have kept it current through about 25 revisions. It has
+    eight sections, four tables whose columns you styled with page CSS, four
+    prototype previews in iframes, and decisions on the user's On me list. The user
+    won't use it after this conversation, and you haven't stamped it.
+
+    A delivery brings one user comment, id 7c41d0e2, opening thread 3fa1c2d9 on the
+    progress section: "All four prototypes are settled now. Update the progress
+    table so it shows where everything stands." Its answer is
+    `{kind: reply, writer: agent, ref: "7f20c3d9:0:7c41d0e2"}`.
+
+    Read whatever instructions you need. Only Skill and Read run here, so write out,
+    in order, each command you would run in this turn, through its final message.
+assert:
+  - type: llm-rubric
+    metric: reviews-at-the-checkpoint
+    value: |
+      Pass only if the turn's commands edit the progress table in `index.html`, run
+      `leaf thread reply` answering 7c41d0e2, and run `leaf page check` with
+      `--render` on the page in this turn, before or after the reply. Fail if the
+      turn runs no `--render` check.

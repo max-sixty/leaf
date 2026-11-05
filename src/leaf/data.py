@@ -136,7 +136,7 @@ def _value_error(source: str, contract: str, value, revision: str, registry: dic
         return held
     if len(_JUDGED) >= 1024:
         _JUDGED.clear()
-    error = payload_error(source, contract, value, registry)
+    error = payload_error(f"source {source!r}", contract, value, registry)
     _JUDGED[key] = error
     return error
 
@@ -277,7 +277,23 @@ def data_manifest(value, contract: str, registry: dict):
     }
 
 
-def browser_data_from(stored: dict, registry: dict) -> dict:
+def deferred_fields(value, contract: str, registry: dict) -> dict:
+    """Each record's deferred field by the record's key: what `data_manifest` leaves at
+    the source. The deferred door answers one of these, and an export embeds them all.
+
+    `read_source` judged the value by its contract (`payload_error`): every record is
+    an object with a unique key. Its item schema decides which fields it carries."""
+    spec = deferred_records(value, contract, registry)
+    if spec is None:
+        return {}
+    return {
+        item[spec["key"]]: item[spec["deferred"]]
+        for item in value[spec["items"]]
+        if spec["deferred"] in item
+    }
+
+
+def browser_data_from(stored: dict, registry: dict | None) -> dict:
     """The reading a browser receives: each value with its deferred fields omitted,
     which the deferred door serves from the same source file."""
     return {
@@ -287,7 +303,7 @@ def browser_data_from(stored: dict, registry: dict) -> dict:
                 {
                     **reading,
                     "value": data_manifest(
-                        reading["value"], reading["contract"], registry
+                        reading["value"], reading["contract"], registry or {}
                     ),
                 }
                 if "value" in reading
@@ -312,28 +328,15 @@ def deferred_value(
         raise StaleDataError(
             f"data source {source!r} no longer holds revision {revision!r}"
         )
-    value = reading.get("value")
-    spec = deferred_records(value, reading["contract"], registry)
-    if spec is None:
-        raise DataError(f"data source {source!r} defers no record field")
-    # `read_source` judged the value by its contract (`payload_error`): every record
-    # is an object with a unique key. Its item schema decides which fields it carries.
-    item = next(
-        (item for item in value[spec["items"]] if item[spec["key"]] == key), None
-    )
-    if item is None:
-        raise DataError(f"unknown record key {key!r} in data source {source!r}")
-    if spec["deferred"] not in item:
-        raise DataError(
-            f"record {key!r} in data source {source!r} has no deferred field "
-            f"{spec['deferred']!r}"
-        )
+    fields = deferred_fields(reading.get("value"), reading["contract"], registry)
+    if key not in fields:
+        raise DataError(f"data source {source!r} defers no field of record {key!r}")
     return {
         "source": source,
         "contract": reading["contract"],
         "revision": revision,
         "key": key,
-        "value": item[spec["deferred"]],
+        "value": fields[key],
     }
 
 
@@ -364,7 +367,7 @@ def _write_source(page_dir: Path, source: str, value) -> dict:
                 f"source {source!r} is not bound by the page source, a version, or "
                 f"a thread widget; choose one of {json_value(sorted(bindings))}"
             )
-        if error := payload_error(source, contract, value, registry):
+        if error := payload_error(f"source {source!r}", contract, value, registry):
             raise DataError(error)
         write_data(
             page_dir,
@@ -377,7 +380,9 @@ def _write_source(page_dir: Path, source: str, value) -> dict:
                 }
             },
         )
-        return read_source(page_dir, source, registry)
+        reading = read_source(page_dir, source, registry)
+        assert reading is not None
+        return reading
 
 
 def cmd_data_set(page_dir: Path, source: str, value) -> dict:

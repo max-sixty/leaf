@@ -5,8 +5,9 @@ import sys
 from pathlib import Path
 from threading import Event, Thread
 
-import leaf_website
 from interact_support import STATED_TIMEOUT
+
+import leaf_website
 
 
 def test_default_website_harnesses_keep_independent_app_servers(tmp_path, monkeypatch):

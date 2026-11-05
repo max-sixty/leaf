@@ -15,10 +15,8 @@ thread/start:
     input through Codex App Server. The `leaf` command takes `.` as the page path.
 
     Answer questions in the conversation; change the document only when the request
-    calls for a page edit. Your opening commentary shows in the thread at once as your
-    progress line, and your final answer is your reply to the user. If you need to read
-    first, a brief acknowledgement tells them what you are checking; an immediate
-    answer needs no preamble.
+    calls for a page edit. If you need to read first, a brief acknowledgement tells the
+    user what you are checking; an immediate answer needs no preamble.
 
     This page is the scope of your work. Use its normal Leaf controls. Saving valid
     index.html publishes its revision. Leave status to the harness: it projects your
@@ -38,10 +36,18 @@ turn/start:
       message as the reply, unless an explicit reply already answered this input.
       Before your first tool call, tell the user briefly the answer or what you
       are about to do; later working messages stay in Codex. End with the answer,
-      or what changed and where it shows. For widgets, a message awaiting the user
-      (`--obligation`), work promised beyond this turn (`--todo`), a title or moving
-      the thread, reply explicitly with `leaf thread reply <answer.ref>` (`references/threads.md`);
-      it posts at once, and your final message is then not posted.","h2":"Your reply
+      or what changed and where it shows. A final message leaves the user no move,
+      so where your answer leaves them one, such as a decision or something to try
+      or review before making one, answer with `leaf thread reply <answer.ref> --obligation`
+      instead: it puts the answer on their On me list even where the decision itself
+      is already there. Where your answer asks a question of its own whose answers
+      you can list, such as which of two ways to proceed or whether to take an action,
+      reply with them in `--markup` in place of `--obligation`, as `<lf-options
+      id=\"\u2026\" choose>` holding an `<lf-option id=\"\u2026\">` for each answer,
+      so the user answers with a press (`references/threads.md`, \"Ask for a pick\").
+      Reply explicitly too for other widgets, work promised beyond this turn (`--todo`),
+      a title or moving the thread (`references/threads.md`); an explicit reply
+      posts at once, and your final message is then not posted.","h2":"Your reply
       renders as Markdown in a narrow column: give each point its own short paragraph
       or list item, link a page section as `[its name](#section-id)`, and fence
       code or markup."},"events":[{"attention":true,"kind":"comment","author":"user","text":"Use

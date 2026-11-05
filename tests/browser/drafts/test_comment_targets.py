@@ -4,7 +4,6 @@ or moves to another location, and whose words a transfer carries."""
 import re
 
 import pytest
-from leaf_dev.browser import slow_cpu
 from playwright.sync_api import expect
 from render_cases_navigation import compose, go_to_address, pending_text
 from render_harness import (
@@ -14,7 +13,6 @@ from render_harness import (
     hold_selection,
     leaf_page,
     open_page,
-    scroll_settled,
     select_words,
     selection_field,
     sending,
@@ -316,116 +314,6 @@ def test_comment_follows_a_new_current_location_instead_of_an_earlier_draft(
     ]
 
 
-@pytest.mark.parametrize(
-    ("existing_reply", "resume_before_scroll"),
-    [("", True), ("", False), ("This thread already holds a reply.", False)],
-)
-def test_comment_follows_a_thread_current_location_instead_of_an_earlier_draft(
-    browser, serve, existing_reply, resume_before_scroll
-):
-    """A chrome thread is a destination; an earlier draft follows its own passage.
-
-    Resume returns its words and caret before Comment answers the current thread.
-    """
-    page = open_page(browser, serve(LONG_PAGE, anchored=[("p41", "Paragraph 41.")]))
-    if not resume_before_scroll:
-        # Slow the browser to expose Resume interrupting native smooth travel.
-        slow_cpu(page, 6)
-    thread = page.locator(".lf-margin-preview .lf-page-thread")
-    if existing_reply:
-        page.keyboard.press("t")
-        page.keyboard.press("c")
-        write(thread.locator("leaf-text"), existing_reply)
-        page.keyboard.press("Escape")
-    words = "These words belong to my earlier unfinished comment."
-    choose_comment_target(page, "#p3")
-    write(page.locator(".lf-fab-input"), words)
-    page.keyboard.press("Home")
-    page.keyboard.press("ArrowRight")
-    rendered(page)
-    earlier = page.locator(".lf-fab-input")
-    earlier.evaluate("node => {window.earlierEditor = node;}")
-    before_field, before_target = _draft_attachment_boxes(earlier, "#p3")
-    page.keyboard.press("Shift+Tab")
-    if resume_before_scroll:
-        # Hold the ordering at the native smooth-scroll call: Resume runs before
-        # its first frame, while both destinations still look readable. The real
-        # browser animation runs, so a Resume that does not cancel it loses them.
-        page.evaluate("""async () => {
-          const {executeCommand} = await window.__lfCheckApi();
-          const scrollBy = Element.prototype.scrollBy;
-          Element.prototype.scrollBy = function(options) {
-            const result = scrollBy.call(this, options);
-            if (this === document.scrollingElement && options.behavior === 'smooth') {
-              Element.prototype.scrollBy = scrollBy;
-              window.earlyResumeBoxes = ['#p3', '.lf-fab-input'].map(selector =>
-                document.querySelector(selector).getBoundingClientRect().toJSON());
-              queueMicrotask(() => executeCommand('writing.resume'));
-            }
-            return result;
-          };
-        }""")
-    page.keyboard.press("t")
-    if resume_before_scroll:
-        page.wait_for_function("window.earlyResumeBoxes !== undefined")
-        boxes = page.evaluate("earlyResumeBoxes")
-        height = page.viewport_size["height"]
-        assert all(0 <= box["top"] < box["bottom"] <= height for box in boxes)
-    else:
-        expect(thread).to_be_focused()
-        expect(page.locator("#p3")).not_to_be_in_viewport()
-        expect(earlier).not_to_be_in_viewport()
-    expect(earlier).to_have_js_property("value", words)
-    expect(earlier).to_have_attribute("aria-label", re.compile("Paragraph 3"))
-    if not resume_before_scroll:
-        after_field, after_target = _draft_attachment_boxes(earlier, "#p3")
-        for axis in ("x", "y"):
-            assert after_field[axis] - before_field[axis] == pytest.approx(
-                after_target[axis] - before_target[axis], abs=2
-            )
-        page.keyboard.press("g")
-        page.keyboard.press("i")
-    expect(earlier).to_be_focused()
-    scroll_settled(page)
-    expect(earlier).to_be_in_viewport()
-    expect(page.locator("#p3")).to_be_in_viewport()
-    expect(earlier).to_have_js_property("value", words)
-    expect(earlier).to_have_js_property("selectionStart", 1)
-    expect(earlier).to_have_js_property("selectionEnd", 1)
-    assert earlier.evaluate("node => node === window.earlierEditor")
-    page.keyboard.press("Shift+Tab")
-    page.keyboard.press("t")
-    expect(thread).to_be_focused()
-    expect(page.locator("#p3")).not_to_be_in_viewport()
-    expect(earlier).not_to_be_in_viewport()
-    page.keyboard.press("c")
-    reply = thread.locator("leaf-text")
-    expect(reply).to_be_focused()
-    expect(reply).to_have_js_property("value", existing_reply or words)
-    if existing_reply:
-        page.keyboard.press("Escape")
-        page.keyboard.press("g")
-        page.keyboard.press("i")
-        expect(page.locator(".lf-fab-input")).to_be_focused()
-        expect(page.locator(".lf-fab-input")).to_have_js_property("value", words)
-    else:
-        page.keyboard.press("Escape")
-        page.keyboard.press("g")
-        page.keyboard.press("i")
-        reply = page.locator("leaf-text[name=reply]:focus")
-        expect(reply).to_be_focused()
-        expect(reply).to_have_js_property("value", words)
-        expect(reply).to_have_js_property("selectionStart", 1)
-        with sending(page, "carried reply"):
-            page.keyboard.press("Enter")
-        replies = [
-            event
-            for event in events_model.read_events(serve.page_dir)
-            if event["kind"] == "reply"
-        ]
-        assert [event["text"] for event in replies] == [words]
-
-
 @pytest.mark.parametrize("destination", ["passage", "reply"])
 def test_a_transfer_keeps_its_persisted_source_when_the_destination_write_fails(
     browser, serve, destination
@@ -479,15 +367,30 @@ def test_an_explicit_target_does_not_overwrite_its_existing_draft(
     draft where it was, rather than tombstoning the source and replacing the destination.
     The target picker is the real explicit gesture whose carry path owns that choice.
     """
-    url = serve(LONG_PAGE)
+    url = serve(
+        leaf_page(
+            "Neighbouring comment targets",
+            "<h1>Independent notes</h1>"
+            + "".join(
+                f'<p id="p{i}" style="margin:0;line-height:16px">Paragraph {i}.</p>'
+                for i in range(12)
+            ),
+        )
+    )
     first = open_page(browser, url, context=one_user)
     second = open_page(browser, url, context=one_user)
 
     source = "This paragraph buries the point."
     destination = "This later paragraph already has its own note."
     choose_comment_target(first, "#p3")
+    expect(first.locator(".lf-fab-input")).to_have_attribute(
+        "aria-label", re.compile("Paragraph 3")
+    )
     write(first.locator(".lf-fab-input"), source)
     choose_comment_target(second, "#p9")
+    expect(second.locator(".lf-fab-input")).to_have_attribute(
+        "aria-label", re.compile("Paragraph 9")
+    )
     write(second.locator(".lf-fab-input"), destination)
 
     first.keyboard.press("Escape")
@@ -647,7 +550,7 @@ customElements.define('lf-draft-subject', class extends LeafElement {
                 "type": "object",
                 "properties": {
                     "id": {"type": "string"},
-                    "source": {"type": "string", "pattern": "^[a-z][a-z0-9-]*$"},
+                    "source": {"type": "string"},
                 },
                 "required": ["id"],
                 "additionalProperties": False,

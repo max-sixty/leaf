@@ -14,7 +14,6 @@ function composer(initial = "") {
   let value = initial;
   let constructionFailure = false;
   let startFailure = false;
-  let controller;
   class Recognition {
     constructor() {
       if (constructionFailure) throw new Error("Recognizer construction failed");
@@ -35,7 +34,7 @@ function composer(initial = "") {
       this.aborted = true;
     }
   }
-  controller = createDictation({
+  const controller = createDictation({
     Recognition,
     read: () => value,
     write: (next) => {

@@ -4,7 +4,9 @@
 //
 // Arguments: the session id, then the driver's options as JSON: `pluginRoot`, the
 // plugin's directory in place of this tree; `throwSpawn`, which makes every
-// `$.process.spawn` throw; and `env`, Claude Code's environment, all that `$.env`
+// `$.process.spawn` throw; `forkReply`, the text `$.model.fork` answers with;
+// `forkRejects`, which makes every fork reject; and `env`, Claude Code's
+// environment, all that `$.env`
 // reads and what the module's processes inherit over the driver's own. Each stdin line is `{"emit": <event>, "e": <input>}`:
 // the driver runs that event's hooks over `e`, the bottom of the chain answering
 // with the input it reached, and prints `{"event", "result"}` once they resolve. A
@@ -109,6 +111,9 @@ const $ = {
   env: {
     get: async (name) => options.env?.[name],
   },
+  clock: {
+    now: async () => Date.now(),
+  },
   ui: {
     // A line for Claude Code's debug log prints as `{"debug": <text>}`.
     log: (text, options) =>
@@ -128,6 +133,23 @@ const $ = {
     toast: (text) => print({ toast: text }),
     // A redraw of the band, printed as `{"band": {<surface>: <its tree, or null>}}`.
     invalidate: () => setImmediate(drawBand),
+  },
+  // A fork answers with `options.forkReply`, printing the prompt it was asked as
+  // `{"forked": <prompt>}`; with none it has nothing to fork, as before a turn's end.
+  model: {
+    fork: async ({ prompt }) => {
+      print({ forked: prompt });
+      if (options.forkRejects) throw new Error("the model refused the request");
+      const usage = {
+        input_tokens: 10,
+        output_tokens: 20,
+        cache_read_input_tokens: 1000,
+        cache_creation_input_tokens: 0,
+      };
+      return options.forkReply === undefined
+        ? { isAnswered: false, reason: "nothing-to-fork" }
+        : { isAnswered: true, text: options.forkReply, usage };
+    },
   },
   process: {
     run: (argv, init = {}) =>
@@ -172,6 +194,9 @@ function drawn(key, node = band.terminal) {
   }
 }
 
+// The events whose hooks stream, as Claude Code's declarations name them.
+const STREAMING = new Set(["turn.step"]);
+
 // The driver raises each event it is given, so a matcher selects nothing here but
 // a render hook's component, under which it files the hook: `ui.render:<component>`.
 await register((event, ...rest) => {
@@ -191,9 +216,24 @@ for await (const line of readline.createInterface({ input: process.stdin })) {
     print({ flushed: true });
     continue;
   }
+  // A streaming event's hook is an async generator over the stream beneath, here
+  // one that yields nothing and returns the input it reached.
+  const streams = STREAMING.has(emit);
   const chain = (hooks.get(emit) ?? []).reduceRight(
     (next, hook) => (input) => hook($, input, next),
-    async (input) => input,
+    streams
+      ? async function* (input) {
+          yield* [];
+          return input;
+        }
+      : async (input) => input,
   );
-  print({ event: emit, result: (await chain(e)) ?? null });
+  let result = chain(e);
+  if (streams) {
+    let step;
+    do step = await result.next();
+    while (!step.done);
+    result = step.value;
+  }
+  print({ event: emit, result: (await result) ?? null });
 }

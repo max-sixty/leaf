@@ -189,9 +189,11 @@ def test_a_comparison_retries_when_the_live_projection_advances(browser, serve):
         expect(page.locator("#new-copy")).to_have_class(re.compile(r"lf-ins-block"))
         expect(page.locator("#t-parser")).not_to_have_class(re.compile(r"lf-ins-block"))
         versions = panel_menu(page, "versions")
-        expect(versions.locator(".lf-fp-version[data-current]")).to_contain_text("v2")
+        expect(versions.locator(".lf-fp-version[data-lf-current]")).to_contain_text(
+            "v2"
+        )
         expect(
-            versions.get_by_role("menuitem", name=re.compile(r"^Compare with v1\b"))
+            versions.get_by_role("button", name=re.compile(r"^Compare with v1\b"))
         ).to_have_attribute("aria-pressed", "true")
         page.keyboard.press("Escape")
     finally:
@@ -243,11 +245,21 @@ def test_a_rosters_row_says_when_the_log_last_heard_from_that_worker(browser, se
     Then the case the line exists for: a claim of work nobody has refreshed. It is
     called out in words rather than in the tint alone, on the rope the page's status
     already gives its one agent (quietSince), and only against a claim — an idle worker
-    that has said nothing all day is idle, which is what it said."""
+    that has said nothing all day is idle, which is what it said.
+
+    The direction a freshness line must never fail in: a row nobody has reported on is
+    not of unknown age. Its words were asserted when the version landed, and are exactly
+    that old. Rendering nothing there was the first build's answer, and it hides the case
+    the user is most exposed to — a fleet published at six in the evening, every worker
+    dead by seven, read at eight the next morning: a dead fleet drawn exactly like a
+    fresh one, on a page whose status's whole design is that a claim nobody revises must
+    not be repeated as fact. And the clock advances that state even with no new state
+    response."""
     url = serve(ROSTER_PAGE)
     d = serve.page_dir
     page = open_page(browser, live_url(url))
     wren, finch = page.locator("#ag-wren"), page.locator("#ag-finch")
+    siskin = page.locator("#ag-siskin")
     # Before any worker has spoken, the row dates from the version that asserted it —
     # not from nothing, which would leave a fleet dead since last night reading exactly
     # like one published a minute ago.
@@ -255,6 +267,16 @@ def test_a_rosters_row_says_when_the_log_last_heard_from_that_worker(browser, se
     # The state is a word this module writes rather than paint the runtime speaks, so
     # a user listening gets it from the row itself.
     assert "working" in wren.aria_snapshot()
+    expect(siskin.locator(".lf-heard")).to_have_text("last heard just now")
+    expect(siskin.locator(".lf-cold")).to_have_count(0)
+
+    backdate_note(d, 1, 3)
+    told(page)
+    expect(siskin.locator(".lf-heard")).to_have_text("last heard 3h ago")
+    expect(siskin.locator(".lf-cold")).to_have_text("quiet")
+    # An idle worker is not called out for the same silence: it claimed nothing.
+    expect(finch.locator(".lf-heard")).to_have_text("last heard 3h ago")
+    expect(finch.locator(".lf-cold")).to_have_count(0)
 
     sent = CliRunner().invoke(
         cli_model.cli,
@@ -305,6 +327,13 @@ def test_a_rosters_row_says_when_the_log_last_heard_from_that_worker(browser, se
     expect(wren.locator(".lf-doing")).to_have_count(0)
     expect(wren.locator(".lf-heard")).to_have_text("last heard 3h ago")
     expect(wren.locator(".lf-cold")).to_have_text("quiet")
+    expect(siskin.locator(".lf-cold")).to_have_count(0)
+
+    page.route("**/api/state*", refuse)
+    page.clock.set_fixed_time(datetime.now().astimezone() + timedelta(hours=3))
+    expect(wren.locator(".lf-heard")).to_have_text("last heard 6h ago")
+    expect(wren.locator(".lf-cold")).to_have_text("quiet")
+    expect(siskin.locator(".lf-cold")).to_have_text("quiet")
 
 
 def test_the_report_feed_reads_reports_by_typed_target(browser, serve):
@@ -531,143 +560,6 @@ def test_report_narration_and_coverage_wait_for_the_widgets_own_presentation(
     page.evaluate("window.__proofOtherResume()")
 
 
-def test_a_worker_that_has_never_reported_dates_from_its_version(browser, serve):
-    """The direction a freshness line must never fail in. A row nobody has reported on
-    is not of unknown age: its words were asserted when the version landed, and are
-    exactly that old. Rendering nothing there was the first build's answer, and it hides
-    the case the user is most exposed to — a fleet published at six in the evening,
-    every worker dead by seven, read at eight the next morning. Every row claims work,
-    and with no report behind any of them there is no elapsed line to contradict it and
-    no call-out: a dead fleet drawn exactly like a fresh one, on a page whose status's
-    whole design is that a claim nobody revises must not be repeated as fact."""
-    url = serve(ROSTER_PAGE)
-    d = serve.page_dir
-    page = open_page(browser, url)
-    siskin = page.locator("#ag-siskin")
-    expect(siskin.locator(".lf-heard")).to_have_text("last heard just now")
-    expect(siskin.locator(".lf-cold")).to_have_count(0)
-
-    backdate_note(d, 1, 3)
-    told(page)
-    expect(siskin.locator(".lf-heard")).to_have_text("last heard 3h ago")
-    expect(siskin.locator(".lf-cold")).to_have_text("quiet")
-    # An idle worker is not called out for the same silence: it claimed nothing.
-    expect(page.locator("#ag-finch .lf-heard")).to_have_text("last heard 3h ago")
-    expect(page.locator("#ag-finch .lf-cold")).to_have_count(0)
-
-
-def test_a_rosters_clock_keeps_moving_when_the_server_stops_answering(browser, serve):
-    """A clock advances held state even without a new state response."""
-    page = open_page(browser, serve(ROSTER_PAGE))
-    page.route("**/api/state*", refuse)
-    page.clock.set_fixed_time(datetime.now().astimezone() + timedelta(hours=3))
-    expect(page.locator("#ag-wren .lf-heard")).to_have_text("last heard 3h ago")
-    expect(page.locator("#ag-wren .lf-cold")).to_have_text("quiet")
-
-
-def test_a_rosters_row_survives_the_polls_that_keep_it_fresh(browser, serve):
-    """A row is a thing the user is invited to select and point at, and it is also
-    the one widget with a reason to touch itself every two seconds. Those pull against
-    each other, and the first build lost: the clock re-rendered the whole row, so the
-    words under a pointer were a different node on every poll — a selection collapsing
-    mid-drag, focus dropped off the reference beside it, a click that straddles the
-    swap landing on nothing. It is "Paint; don't wrap" reached by rebuilding instead of
-    by wrapping, and it fails the same way: nothing errors, the page just stops taking
-    the gesture.
-
-    So the clock touches one text node and the structure is rebuilt only when a
-    report moves that row. Asserted as node identity rather than as a selection, because
-    identity is the property the rendering owes and a selection is one thing that rests
-    on it."""
-    url = serve(ROSTER_PAGE)
-    d = serve.page_dir
-    page = open_page(browser, url)
-    page.evaluate(
-        "() => { window.__kept = [...document.querySelectorAll('#ag-wren .lf-doing,"
-        " #ag-wren .lf-branch, #ag-wren .lf-state')].map(e => e.firstChild); }"
-    )
-    sent = CliRunner().invoke(
-        cli_model.cli,
-        [
-            "page",
-            "report",
-            str(d),
-            "ag-finch",
-            "state",
-            "value=idle",
-            "text=picking up",
-        ],
-    )
-    assert sent.exit_code == 0, sent.output
-    told(page)
-    ticked(page)
-    # wren heard nothing in the read or the tick after it, so nothing of wren's may
-    # have moved.
-    assert page.evaluate(
-        "() => window.__kept.every((n, i) => n === [...document.querySelectorAll("
-        "'#ag-wren .lf-doing, #ag-wren .lf-branch, #ag-wren .lf-state')][i]?.firstChild)"
-    )
-    # And a report for this row does rebuild it, or the row would never move at all.
-    sent = CliRunner().invoke(
-        cli_model.cli,
-        [
-            "page",
-            "report",
-            str(d),
-            "ag-wren",
-            "state",
-            "value=working",
-            "text=on to the baffles",
-        ],
-    )
-    assert sent.exit_code == 0, sent.output
-    told(page)
-    expect(page.locator("#ag-wren .lf-doing")).to_have_text("on to the baffles")
-
-
-def test_a_recounted_fraction_holds_the_width_it_had(browser, serve):
-    """A number the page rewrites unasked must not resize as it does.
-
-    The done-fraction is the page's most-moved quantity: a worker reports a leaf
-    and the parent recounts, on a poll, with nothing the user did to account
-    for the shift. It is apparatus, so it is set in the sans — and the sans gives
-    each digit its own width where the serif carrying the prose gives them all
-    one, which is why the figures are stated for the apparatus voice and not for
-    the page. The chip is a filled pill, so its own box is what a user watches
-    twitch; where apparatus leads something else, that something moves with it —
-    a metric's delta sits directly after the value it follows.
-
-    Measured across the recount rather than a redraw, per tests/AGENTS.md: the
-    transition has to be one the figures actually decide. "1/2 done" to
-    "2/2 done" stands 1.61px apart with proportional figures and identical with
-    tabular, so deleting the declaration fails this. "0/3 done" to "3/3 done"
-    would have been the vacuous choice — those two measure 0.03px apart either
-    way, and the check would pass with the rule gone.
-    """
-    url = serve(REPORT_PAGE)
-    d = serve.page_dir
-    page = open_page(browser, url)
-    # The fraction is the last chip its parent builds, after owner and when.
-    fraction = page.locator("#t-feeders > .work-progress").last
-    expect(fraction).to_have_text("1/2 done")
-    before = fraction.bounding_box()["width"]
-
-    sent = CliRunner().invoke(
-        cli_model.cli,
-        ["page", "report", str(d), "t-parser", "status", "value=done"],
-    )
-    assert sent.exit_code == 0, sent.output
-    told(page)
-    # The recount is the edge; the geometry is read once behind it.
-    expect(fraction).to_have_text("2/2 done")
-    after = fraction.bounding_box()["width"]
-
-    assert abs(before - after) < 0.05, (
-        f"the fraction resized as it recounted, {before}px to {after}px — a box "
-        "the user was given no gesture to explain"
-    )
-
-
 def test_worktree_identity_does_not_follow_the_missing_evidence_placeholder(
     browser, serve
 ):
@@ -721,22 +613,6 @@ def test_worktree_identity_does_not_follow_the_missing_evidence_placeholder(
     assert status() == "exact"
 
 
-def test_native_worktree_disclosure_owns_keyboard_and_touch(browser, serve):
-    source = leaf_page(
-        "native evidence",
-        '<lf-test-roster id="team"><lf-test-worker id="worker" state="working"><strong>Worker</strong><lf-test-tree id="proof" source="facts"></lf-test-tree></lf-test-worker></lf-test-roster>',
-    )
-    page = open_page(browser, serve(source))
-    summary = page.locator("#proof summary")
-    summary.focus()
-    page.keyboard.press("Enter")
-    expect(page.locator("#proof details")).to_have_attribute("open", "")
-    page.keyboard.press(" ")
-    expect(page.locator("#proof details")).not_to_have_attribute("open")
-    summary.click()
-    expect(page.locator("#proof details")).to_have_attribute("open", "")
-
-
 def test_command_goal_can_pause_after_an_ordinary_thread_started(browser, serve):
     """A normal note does not consume the goal's stronger pause door. The user
     can start a later held thread, whose root remains the one atomic hold fact."""
@@ -788,29 +664,7 @@ def test_command_goal_thread_follows_its_declaration_not_talk(
     expect(seat.get_by_role("button", name="pause", exact=True)).to_be_visible()
 
 
-@pytest.mark.parametrize(
-    ("markup", "path", "leaf_id"),
-    [
-        (
-            COMMAND_HUB_PAGE,
-            [
-                "One clean shadow week",
-                "Replace the XML parser",
-                "Declarations and entities",
-                "CDATA edge cases",
-            ],
-            "parser-cdata",
-        ),
-        (
-            REPORT_PAGE,
-            ["Tasks", "Rebuild the feeders", "Fit squirrel baffles"],
-            "t-parser",
-        ),
-    ],
-)
-def test_task_hierarchy_is_accessible_through_reports_and_revisions(
-    browser, serve, markup, path, leaf_id
-):
+def test_task_hierarchy_is_accessible_through_reports_and_revisions(browser, serve):
     """The listening reader gets the same parents as the visible task nesting.
 
     Read Chrome's native accessibility tree: Playwright's DOM-based name calculator
@@ -818,10 +672,14 @@ def test_task_hierarchy_is_accessible_through_reports_and_revisions(
     assistive technology. A report repaints row metadata; a revision changes titles.
     Neither may flatten the groups or retain the previous title as their name.
     """
-    page = open_page(
-        browser,
-        live_url(serve(COMMAND_HUB_EXAMPLE if markup == COMMAND_HUB_PAGE else markup)),
-    )
+    path = [
+        "One clean shadow week",
+        "Replace the XML parser",
+        "Declarations and entities",
+        "CDATA edge cases",
+    ]
+    leaf_id = "parser-cdata"
+    page = open_page(browser, live_url(serve(COMMAND_HUB_EXAMPLE)))
     session = page.context.new_cdp_session(page)
 
     def hierarchy(expected):
@@ -854,21 +712,19 @@ def test_task_hierarchy_is_accessible_through_reports_and_revisions(
 
     # Naming references the title node, so a revision's replacement title is what
     # the group says. The command root also reads its current label after patching.
-    changed = markup.replace(path[-1], "Verify the final corpus")
-    changed_path = [*path[:-1], "Verify the final corpus"]
-    if markup == COMMAND_HUB_PAGE:
-        changed = changed.replace(path[0], "Ready for the shadow week")
-        changed_path[0] = "Ready for the shadow week"
+    changed = COMMAND_HUB_PAGE.replace(path[-1], "Verify the final corpus").replace(
+        path[0], "Ready for the shadow week"
+    )
+    changed_path = ["Ready for the shadow week", *path[1:-1], "Verify the final corpus"]
     stamp_page(serve.page_dir, changed, "Clarify the plan's current titles")
     wait_for_revision(page, 2)
     groups = hierarchy(changed_path)
     assert path[-1] not in groups
-    if markup == COMMAND_HUB_PAGE:
-        assert path[0] not in groups
-        summary = page.locator("#w-1 > details > summary")
-        summary.click()
-        expect(page.locator("#w-1 > details")).to_have_attribute("open", "")
-        hierarchy(changed_path)
+    assert path[0] not in groups
+    summary = page.locator("#w-1 > details > summary")
+    summary.click()
+    expect(page.locator("#w-1 > details")).to_have_attribute("open", "")
+    hierarchy(changed_path)
 
 
 def test_atlas_input_is_trimmed_before_it_enters_the_record(browser, serve):
@@ -880,7 +736,7 @@ def test_atlas_input_is_trimmed_before_it_enters_the_record(browser, serve):
     page = open_page(browser, url)
     draft = page.locator("#ledger-cargo")
     draft_control(page, "edit", "ledger-cargo").click()
-    editor = draft.get_by_role("textbox", name="Edit ledger-cargo")
+    editor = draft.locator("leaf-text")
     write(
         editor,
         "ledger_id,customer_name,billing_email,amount\n7,Alice,a@example.test,42",

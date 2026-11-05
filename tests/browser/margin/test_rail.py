@@ -8,7 +8,8 @@ from interact_support import append_carried_log_record
 from playwright.sync_api import expect
 from render_cases_interaction import PANEL_PAGE, live_url
 from render_harness import (
-    EXAMPLES,
+    RELEASE_FOCUS,
+    expect_open_threads,
     leaf_page,
     margins_laid_out,
     open_page,
@@ -24,6 +25,7 @@ from browser.margin import (
     _comment_on,
 )
 from leaf.render_checks import rendered
+from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -35,16 +37,18 @@ def test_column_width_does_not_clear_a_sidenote(browser, serve):
         "Column beside sidenote",
         """
 <h1 id="title">Column beside sidenote</h1>
-<aside class="sidenote" id="note"><p>Supporting context in the margin, long enough to
-run several lines beside the prose and the callout that follow it.</p></aside>
+<div class="layout-note"><div>
 <p id="before">The first line of ordinary prose.</p>
 <aside class="callout" id="column"><p>A callout keeps the column.</p></aside>
 <p id="after">The following line of ordinary prose.</p>
+</div><aside class="note" id="note"><p>Supporting context in the margin, long enough to
+run several lines beside the prose and the callout that follow it.</p></aside></div>
 """,
+    ).replace(
+        '<main class="layout-column">', '<main class="layout-column layout-notes">'
     )
     page = open_page(browser, serve(source))
     resized(page, 1400, 900)
-    expect(page.locator("#note")).to_have_css("float", "right")
     at = page.evaluate(
         """() => ({
           column: document.getElementById('column').getBoundingClientRect().top,
@@ -93,7 +97,9 @@ def test_the_rail_stands_where_the_room_beside_the_column_holds_it(
     everywhere else, so the column keeps its measure at every width. A finger's larger
     entries widen the rail, so each pointer flips at its own width: the column's box
     (720 and 2 x 24 of padding) and a rail on each side. The sweep walks down through
-    that width and reads where the markers stand."""
+    that width and reads where the markers stand. A margin card stands on a window with
+    that room and nowhere else (content-layout.js, `windowHoldsRail`), so a column
+    page's card and its rail come and go together."""
     context = browser.new_context(
         viewport={"width": 1200, "height": 900}, has_touch=touch
     )
@@ -105,19 +111,19 @@ def test_the_rail_stands_where_the_room_beside_the_column_holds_it(
         """() => parseFloat(getComputedStyle(document.querySelector('main'))
              .getPropertyValue('--rail'))"""
     )
-    floor = 720 + 2 * 24 + 2 * rail
+    floor = 720 + 2 * rail
     places = set()
     for width in range(round(floor) + 30, round(floor) - 30, -6):
         resized(page, width, 900)
         margins_laid_out(page)
         reading = page.evaluate(
-            """() => {
-              const main = document.querySelector('main');
-              const style = getComputedStyle(main);
+            """async () => {
+              const {windowHoldsRail} = await window.__lfCheckApi();
               const row = document.querySelector('[data-lf-margin-for="lede"]');
               return {
                 place: row.dataset.lfPlace,
-                column: Math.round(parseFloat(style.width)),
+                card: windowHoldsRail(),
+                column: Math.round(document.querySelector('#lede').getBoundingClientRect().width),
                 shell: document.body.clientWidth,
               };
             }"""
@@ -130,8 +136,30 @@ def test_the_rail_stands_where_the_room_beside_the_column_holds_it(
             f"at a {reading['shell']}px shell, with a {rail:g}px rail needing "
             f"{floor:g}px, the markers stood as {reading['place']}"
         )
+        assert reading["card"] == (expected == "rail"), reading
         places.add(reading["place"])
     assert places == {"rail", "pin"}, "the sweep never crossed the rail's width"
+
+
+def test_a_page_s_own_body_and_column_units_keep_its_cards(browser, serve):
+    """Whether a card stands asks the window, not the page's boxes: a page that narrows
+    its body still opens a card from its marker on a wide window. A column the page
+    states as a percentage keeps its width, and with no window width of its own
+    (tokens.css, `--lf-rail-room`) leaves cards opening at every width. Measuring the body
+    took the card from the first page, and registering `--col` as a length left the
+    second a 0px column."""
+    page = open_page(browser, serve(PANEL_PAGE, events=[_comment_on("lede")]))
+    resized(page, 1440, 900)
+    page.add_style_tag(
+        content=":root { --col: min(100%, 46rem) }"
+        " body { max-width: 860px; margin-inline: auto }"
+    )
+    margins_laid_out(page)
+    assert page.locator("#lede").evaluate(
+        "node => node.getBoundingClientRect().width"
+    ) == pytest.approx(736, abs=1)
+    page.locator('[data-lf-margin-for="lede"] .lf-margin-marker').click()
+    expect(page.locator(".lf-margin-preview")).to_be_visible()
 
 
 def test_the_first_rail_allocation_matches_its_native_row(browser, serve):
@@ -147,9 +175,6 @@ def test_the_first_rail_allocation_matches_its_native_row(browser, serve):
         viewport={"width": 1400, "height": 900}, has_touch=True
     )
     page = open_page(browser, serve(source), context=context)
-    expect(page.locator("main")).to_have_attribute(
-        "data-lf-margin", re.compile(r"rail")
-    )
     expect(page.locator(".lf-margin-entry")).to_have_count(0)
     prospective = page.evaluate("""async () => {
       const owner = await window.__lfOverlayApi();
@@ -206,12 +231,11 @@ def test_the_first_rail_allocation_matches_its_native_row(browser, serve):
     assert expanded["right"] - expanded["left"] == pytest.approx(55)
 
 
-# Either side of the width where the prose column gains its rail, and a catalog
-# narrower and wider than its own measure.
+# A prose column with its rail, and a catalog narrower and wider than its own measure.
 @pytest.mark.parametrize(
     ("width", "wide"),
-    [(1207, False), (1208, False), (1000, True), (1720, True)],
-    ids=["prose-1207", "prose-1208", "catalog-1000", "catalog-1720"],
+    [(1208, False), (1000, True), (1720, True)],
+    ids=["prose-1208", "catalog-1000", "catalog-1720"],
 )
 def test_a_live_page_leaves_no_empty_thread_column_and_keeps_its_reading_position(
     browser, serve, width, wide
@@ -221,8 +245,8 @@ def test_a_live_page_leaves_no_empty_thread_column_and_keeps_its_reading_positio
         "A passage",
         '<p id="passage">A passage to discuss.</p>',
         head=(
-            "<style>main { width: min(var(--wide), var(--lf-room)); "
-            "max-width: var(--wide); }</style>"
+            "<style>main { box-sizing: border-box; width: 100%; "
+            "max-width: var(--wide); margin-inline: auto; }</style>"
             if wide
             else ""
         ),
@@ -271,9 +295,7 @@ def test_a_live_page_leaves_no_empty_thread_column_and_keeps_its_reading_positio
         {"kind": "resolve", "author": "user", "parent": comment["id"]},
     )
     told(page)
-    expect(page.locator(".lf-fp-threads")).to_have_attribute(
-        "aria-label", "Threads, 0 open"
-    )
+    expect_open_threads(page, 0)
     assert position() == initial
 
 
@@ -292,7 +314,7 @@ def test_a_page_that_can_grow_margin_status_reserves_its_rail_before_the_first_g
     Measured on the shipped board rather than a fixture, because the strip is only worth
     reserving where a real page's width, its claims and its exhibits meet; a fixture
     built to make those agree would prove nothing about any page a user opens."""
-    example = next(page for page in EXAMPLES if page.stem == "triage-board")
+    example = named_source("triage-board")
     page = open_page(browser, live_url(serve(example)))
     margins_laid_out(page)
     column = page.locator("main").evaluate(
@@ -336,20 +358,23 @@ def test_a_marker_level_with_a_hanging_note_pins_and_one_below_it_keeps_the_rail
     filler = "".join(f"<p>Filler paragraph {i}.</p>" for i in range(12))
     source = leaf_page(
         "a note beside its paragraph",
-        '<h1 id="t">Notes</h1><aside class="sidenote" id="note">A note beside the '
-        "paragraph it glosses, long enough to stand a few lines tall.</aside>"
-        f'<p id="beside">The paragraph the note glosses.</p>{filler}'
+        '<h1 id="t">Notes</h1><div class="layout-note">'
+        '<p id="beside">The paragraph the note glosses.</p>'
+        '<aside class="note" id="note">A note beside the '
+        "paragraph it glosses, long enough to stand a few lines tall.</aside></div>"
+        f"{filler}"
         '<p id="below">A paragraph well below the note.</p>',
+    ).replace(
+        '<main class="layout-column">', '<main class="layout-column layout-notes">'
     )
     page = open_page(
         browser, serve(source, events=[_comment_on("beside"), _comment_on("below")])
     )
     resized(page, 1600, 900)
     margins_laid_out(page)
-    assert (
-        page.evaluate("() => getComputedStyle(document.getElementById('note')).float")
-        == "right"
-    )
+    note = page.locator("#note").bounding_box()
+    prose = page.locator("#beside").bounding_box()
+    assert note["x"] >= prose["x"] + prose["width"]
     for target, place in (("beside", "pin"), ("below", "rail")):
         row = page.locator(f'.lf-margin-cluster[data-lf-margin-for="{target}"]')
         expect(row).to_have_attribute("data-lf-place", place)
@@ -395,8 +420,7 @@ def test_the_page_form_decides_the_rail_and_body_can_say_otherwise(
     assert page.evaluate(given) == 0
 
 
-@pytest.mark.parametrize("rail", [None, "right"])
-def test_a_workspace_page_keeps_no_rail(browser, serve, rail):
+def test_a_workspace_page_keeps_no_rail_even_when_asked(browser, serve):
     """A workspace takes the window, which leaves no room beside it for a rail, so a
     comment in a pane stands on its block as a pin. Asking for a rail changes neither:
     a row stands in the rail only beside what the page scrolls, and a workspace scrolls
@@ -407,9 +431,7 @@ def test_a_workspace_page_keeps_no_rail(browser, serve, rail):
         '<lf-pane id="pane" label="Queue"><div><p id="p">A paragraph.</p></div>'
         "</lf-pane>",
         layout="workspace",
-    )
-    if rail:
-        source = source.replace("<body>", f'<body data-rail="{rail}">')
+    ).replace("<body>", '<body data-rail="right">')
     page = open_page(browser, serve(source, events=[_comment_on("p")]))
     resized(page, 1440, 900)
     margins_laid_out(page)
@@ -459,7 +481,9 @@ def test_the_margin_layer_follows_the_page_in_the_tab_order(browser, serve):
     page's last control reaches them, and Shift+Tab goes back the way it came."""
     page = open_page(browser, serve(MARGIN_ENTRY_KEYBOARD_PAGE))
     resized(page, 1440, 900)
-    accept = page.locator('[data-lf-margin-for="sug-refill"] .lf-sug-accept')
+    accept = page.locator(
+        '[data-lf-margin-for="sug-refill"] [data-lf-margin-entry-key=accept]'
+    )
     page.locator("#after-margin-entries").focus()
     reached = 0
     for presses in range(1, 80):
@@ -524,8 +548,10 @@ def test_a_quoted_passage_stands_its_own_rail_row_level_with_its_words(browser, 
 
 
 @pytest.mark.watch_shifts
-@pytest.mark.parametrize("focused", [False, True])
-def test_new_rail_keeps_a_pin_reachable(browser, serve, focused):
+def test_new_rail_keeps_a_pin_reachable(browser, serve, subtests):
+    """A new rail row leaves a pin where it stood, held or not, with both still taking
+    their presses. The unheld case goes first, on a page where nothing has been held,
+    and each case takes its new row and its card off again even if it fails."""
     body = '<h1>Held marker</h1><section style="position:relative"><div id="pin-target" style="height:100px;width:calc(100% + 96px);max-width:none">Wide figure</div><p id="rail-target" style="position:absolute;top:0;left:0;margin:0">Rail target</p></section>'
     events = [
         {
@@ -546,43 +572,61 @@ def test_new_rail_keeps_a_pin_reachable(browser, serve, focused):
     pin = page.locator('[data-lf-margin-for="pin-target"]')
     expect(pin).to_have_attribute("data-lf-place", "pin")
     marker = pin.get_by_role("button", name="Thread,", exact=False)
-    if focused:
-        marker.focus()
-        expect(marker).to_have_attribute("data-lf-label-side", re.compile(".+"))
-        label_before = marker.locator(".lf-margin-entry-label").bounding_box()
-    else:
-        page.mouse.move(20, 20)
-    before = pin.bounding_box()
-    page.evaluate("""async()=>{
-      const {contributionEntry,registerContribution}=await window.__lfWidgetApi();
-      registerContribution({key:'new-rail',target:document.querySelector('#rail-target'),read:()=>({entries:[contributionEntry({key:'activate',glyph:'R',label:'Activate rail'})]}),activate:()=>{window.railActivated=true;}});
-    }""")
-    margins_laid_out(page)
     rail = page.locator('[data-lf-margin-for="rail-target"]')
-    expect(rail).to_have_attribute("data-lf-place", "rail")
-    a, b = pin.bounding_box(), rail.bounding_box()
-    assert a == before
-    if focused:
-        assert marker.locator(".lf-margin-entry-label").bounding_box() == label_before
-        expect(marker).to_be_focused()
-    assert not (
-        a["x"] < b["x"] + b["width"]
-        and b["x"] < a["x"] + a["width"]
-        and a["y"] < b["y"] + b["height"]
-        and b["y"] < a["y"] + a["height"]
-    )
-    marker.press("Enter")
-    rendered(page)
-    expect(page.locator("#lf-margin-preview")).to_contain_text("Hold the figure marker")
-    page.keyboard.press("Escape")
-    page.keyboard.press("Escape")
-    rail.get_by_role("button", name="Activate rail", exact=True).click()
-    assert page.evaluate("()=>window.railActivated")
+    card = page.locator(".lf-margin-preview")
+    for focused in (False, True):
+        with subtests.test(focused=focused):
+            if focused:
+                marker.focus()
+                expect(marker).to_have_attribute("data-lf-label-side", re.compile(".+"))
+                label_before = marker.locator(".lf-margin-entry-label").bounding_box()
+            else:
+                page.mouse.move(20, 20)
+            before = pin.bounding_box()
+            page.evaluate("""async()=>{
+              const {contributionEntry,registerContribution}=await window.__lfWidgetApi();
+              window.railActivated=false;
+              window.newRail=registerContribution({key:'new-rail',target:document.querySelector('#rail-target'),read:()=>({entries:[contributionEntry({key:'activate',glyph:'R',label:'Activate rail'})]}),activate:()=>{window.railActivated=true;}});
+            }""")
+            try:
+                margins_laid_out(page)
+                expect(rail).to_have_attribute("data-lf-place", "rail")
+                a, b = pin.bounding_box(), rail.bounding_box()
+                assert a == before
+                if focused:
+                    assert (
+                        marker.locator(".lf-margin-entry-label").bounding_box()
+                        == label_before
+                    )
+                    expect(marker).to_be_focused()
+                assert not (
+                    a["x"] < b["x"] + b["width"]
+                    and b["x"] < a["x"] + a["width"]
+                    and a["y"] < b["y"] + b["height"]
+                    and b["y"] < a["y"] + a["height"]
+                )
+                marker.press("Enter")
+                rendered(page)
+                expect(page.locator("#lf-margin-preview")).to_contain_text(
+                    "Hold the figure marker"
+                )
+                page.keyboard.press("Escape")
+                page.keyboard.press("Escape")
+                rail.get_by_role("button", name="Activate rail", exact=True).click()
+                assert page.evaluate("()=>window.railActivated")
+            finally:
+                page.evaluate("()=>window.newRail.unregister()")
+                if card.is_visible():
+                    page.locator(".lf-margin-preview-close").click()
+                page.evaluate(RELEASE_FOCUS)
+                margins_laid_out(page)
 
 
 @pytest.mark.watch_shifts
-@pytest.mark.parametrize("focused", [False, True])
-def test_new_pin_keeps_a_rail_reachable(browser, serve, focused):
+def test_new_pin_keeps_a_rail_reachable(browser, serve, subtests):
+    """A new pin leaves a rail row where it stood, held or not, with both still taking
+    their presses. The unheld case goes first, on a page where nothing has been held,
+    and each case takes its new row off again even if it fails."""
     body = '<h1>Held rail</h1><section style="position:relative"><div id="pin-target" style="height:100px;width:calc(100% + 96px);max-width:none">Wide figure</div><p id="rail-target" style="position:absolute;top:0;left:0;margin:0">Rail target</p></section>'
     context = browser.new_context(viewport={"width": 1440, "height": 900})
     page = open_page(
@@ -597,30 +641,42 @@ def test_new_pin_keeps_a_rail_reachable(browser, serve, focused):
     rail = page.locator('[data-lf-margin-for="rail-target"]')
     expect(rail).to_have_attribute("data-lf-place", "rail")
     control = rail.get_by_role("button", name="Activate rail", exact=True)
-    if focused:
-        control.focus()
-        expect(control).to_have_attribute("data-lf-label-side", re.compile(".+"))
-        label_before = control.locator(".lf-margin-entry-label").bounding_box()
-    else:
-        page.mouse.move(20, 20)
-    before = rail.bounding_box()
-    page.evaluate("()=>window.registerPlacementControl('pin')")
-    margins_laid_out(page)
     pin = page.locator('[data-lf-margin-for="pin-target"]')
-    expect(pin).to_have_attribute("data-lf-place", "pin")
-    expect(pin).to_be_visible()
-    a, b = rail.bounding_box(), pin.bounding_box()
-    assert a == before
-    if focused:
-        assert control.locator(".lf-margin-entry-label").bounding_box() == label_before
-        expect(control).to_be_focused()
-    assert not (
-        a["x"] < b["x"] + b["width"]
-        and b["x"] < a["x"] + a["width"]
-        and a["y"] < b["y"] + b["height"]
-        and b["y"] < a["y"] + a["height"]
-    )
-    control.press("Enter")
-    assert page.evaluate("()=>window.placementActivated") == "rail"
-    pin.get_by_role("button", name="Activate pin", exact=True).click()
-    assert page.evaluate("()=>window.placementActivated") == "pin"
+    for focused in (False, True):
+        with subtests.test(focused=focused):
+            if focused:
+                control.focus()
+                expect(control).to_have_attribute(
+                    "data-lf-label-side", re.compile(".+")
+                )
+                label_before = control.locator(".lf-margin-entry-label").bounding_box()
+            else:
+                page.mouse.move(20, 20)
+            before = rail.bounding_box()
+            page.evaluate("()=>{window.newPin=window.registerPlacementControl('pin')}")
+            try:
+                margins_laid_out(page)
+                expect(pin).to_have_attribute("data-lf-place", "pin")
+                expect(pin).to_be_visible()
+                a, b = rail.bounding_box(), pin.bounding_box()
+                assert a == before
+                if focused:
+                    assert (
+                        control.locator(".lf-margin-entry-label").bounding_box()
+                        == label_before
+                    )
+                    expect(control).to_be_focused()
+                assert not (
+                    a["x"] < b["x"] + b["width"]
+                    and b["x"] < a["x"] + a["width"]
+                    and a["y"] < b["y"] + b["height"]
+                    and b["y"] < a["y"] + a["height"]
+                )
+                control.press("Enter")
+                assert page.evaluate("()=>window.placementActivated") == "rail"
+                pin.get_by_role("button", name="Activate pin", exact=True).click()
+                assert page.evaluate("()=>window.placementActivated") == "pin"
+            finally:
+                page.evaluate("()=>window.newPin.unregister()")
+                page.evaluate(RELEASE_FOCUS)
+                margins_laid_out(page)

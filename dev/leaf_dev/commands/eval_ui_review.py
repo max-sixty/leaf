@@ -16,13 +16,9 @@ import shutil
 import subprocess
 import sys
 import tempfile
-from contextlib import contextmanager
 from datetime import UTC, datetime
-from functools import partial
-from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from importlib.metadata import version
 from pathlib import Path
-from threading import Thread
 from urllib.error import HTTPError
 from urllib.request import urlopen
 
@@ -33,6 +29,7 @@ from playwright.sync_api import expect, sync_playwright
 from leaf_dev import ROOT
 from leaf_dev.arms import environment
 from leaf_dev.commands.eval import PROMPTFOO
+from leaf_dev.plain_html import serving
 from leaf_dev.screenshot_judge import screenshot_judge
 
 SOURCE = ROOT / "evals/ui-review-detection"
@@ -45,7 +42,12 @@ MODELS = {
 CASES = {
     "timeline": "recording-times",
     "shift": "recording-stepping",
+    "edge": "message-copy-placement",
+    "cover": "later-message-controls",
+    "press": "controls-after-a-press",
 }
+# Families whose target needs an input after arrival, unobservable to no-tools discovery.
+TRANSITIONS = {"shift", "edge", "cover", "press"}
 
 
 def write_json(path, value):
@@ -56,30 +58,7 @@ def digest(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-@contextmanager
-def served(site):
-    """Expose only staged public files; directory listings and private paths fail."""
-
-    class Handler(SimpleHTTPRequestHandler):
-        def list_directory(self, _):
-            self.send_error(404)
-
-        def log_message(self, *_):
-            pass
-
-    with ThreadingHTTPServer(
-        ("127.0.0.1", 0), partial(Handler, directory=str(site))
-    ) as server:
-        thread = Thread(target=server.serve_forever, daemon=True)
-        thread.start()
-        try:
-            yield f"http://127.0.0.1:{server.server_port}"
-        finally:
-            server.shutdown()
-            thread.join()
-
-
-def capture(browser, origin, variant, identity, output, mode, *, include_images=True):
+def capture(browser, site_url, variant, identity, output, mode, *, include_images=True):
     """Assert the historical contrast and capture neutral, ordered observations."""
     family = variant.split("-", 1)[0]
     page = browser.new_page(
@@ -87,7 +66,7 @@ def capture(browser, origin, variant, identity, output, mode, *, include_images=
     )
     errors = []
     page.on("pageerror", lambda error: errors.append(str(error)))
-    page.goto(f"{origin}/{identity}.html")
+    page.goto(f"{site_url}{identity}.html")
     page.wait_for_function("window.__fixtureReady === true")
     images, labels = [], []
 
@@ -113,6 +92,43 @@ def capture(browser, origin, variant, identity, output, mode, *, include_images=
         screenshot("After selecting the later t input marker")
         row.update(visible_anchors=visible, after=page.locator("#readout").inner_text())
         assert "1.650 s" in row["after"]
+    elif family in ("edge", "cover"):
+        agent, later = page.locator(".msg.agent"), page.locator(".msg.later.user")
+        agent.locator(".text li").first.hover()
+        screenshot("Pointer over the agent's reply")
+        later.locator(".text").hover()
+        screenshot("Pointer over the later reply from Me")
+        copy = later.locator(".copy")
+        reading = copy.evaluate(
+            """copy => {
+              const box = copy.getBoundingClientRect();
+              const close = document.querySelector('.actions .close').getBoundingClientRect();
+              return {
+                opacity: getComputedStyle(copy).opacity,
+                edge_gap: close.right - box.right,
+                hit: copy.contains(document.elementFromPoint(
+                  box.x + box.width / 2, box.y + box.height / 2)),
+              };
+            }"""
+        )
+        assert reading["opacity"] == "1"
+        defect = variant.endswith("defect")
+        if family == "edge":
+            assert (reading["edge_gap"] > 60) == defect, reading
+        else:
+            assert abs(reading["edge_gap"]) < 1 and reading["hit"] != defect, reading
+        row.update(reading)
+    elif family == "press":
+        first, agent = page.locator(".msg.first"), page.locator(".msg.agent")
+        first.locator(".text").hover()
+        screenshot("Pointer over the first message")
+        first.locator(".copy").click()
+        screenshot("After pressing Copy on the first message")
+        agent.locator(".text li").first.hover()
+        screenshot("After moving the pointer onto the agent's reply")
+        shown = first.locator(".copy").evaluate("c => getComputedStyle(c).opacity")
+        assert (shown == "1") == variant.endswith("defect"), shown
+        row.update(first_copy_opacity_after_leaving=shown)
     else:
         widget = page.locator("lf-trace")
         image = widget.locator("img")
@@ -137,7 +153,7 @@ def capture(browser, origin, variant, identity, output, mode, *, include_images=
             "prompt": "request.md",
             "images": images,
             "evidenceLabels": labels,
-            "url": f"{origin}/{identity}.html",
+            "url": f"{site_url}{identity}.html",
         },
     )
     return row
@@ -241,7 +257,7 @@ def grading(output, login):
 def summarize(output):
     """Derive outcomes from Promptfoo's export, excluding unscored denominators."""
     exported = json.loads((output / "results.json").read_text())
-    rows = []
+    rows: list[dict] = []
     for result in exported["results"]["results"]:
         metadata = result["testCase"]["metadata"]
         components = (result.get("gradingResult") or {}).get("componentResults", [])
@@ -333,21 +349,21 @@ def eval_ui_review(models, condition, mode, repeat, prepare_only, output):
     conditions = ["no-tools", "browser"] if condition == "both" else [condition]
     with (
         tempfile.TemporaryDirectory(prefix="leaf-ui-grader-login-") as temporary,
-        served(output / "site") as origin,
+        serving(output / "site") as site_url,
     ):
         for private in (
-            "/private/provenance.json",
-            "/../rubric.json",
-            "/provenance.json",
-            "/",
+            "private/provenance.json",
+            "../rubric.json",
+            "provenance.json",
+            "",
         ):
             try:
-                urlopen(origin + private)
+                urlopen(site_url + private)
             except HTTPError as error:
                 assert error.code == 404
             else:
                 raise click.ClickException(
-                    f"Private fixture path was exposed: {private}"
+                    f"Private fixture path was exposed: /{private}"
                 )
         tests, readings = [], {}
         # Playwright's Chrome for Testing, the browser `provider.mjs` gives the model's
@@ -369,7 +385,7 @@ def eval_ui_review(models, condition, mode, repeat, prepare_only, output):
                 (packet / "request.md").write_text(prompt)
                 readings[identity] = capture(
                     browser,
-                    origin,
+                    site_url,
                     variant,
                     identity,
                     packet,
@@ -405,7 +421,7 @@ def eval_ui_review(models, condition, mode, repeat, prepare_only, output):
                             "privateVariant": variant,
                             "mode": mode,
                             "noToolsTargetUnobservable": mode == "discovery"
-                            and family == "shift",
+                            and family in TRANSITIONS,
                         },
                     }
                 )

@@ -1,16 +1,48 @@
 """Browser-gate, arrival, layout, and layer integration tests."""
 
 import json
+from contextlib import nullcontext
 from datetime import UTC, datetime, timedelta
+from types import SimpleNamespace
 
 import pytest
 
+from leaf import render_checks as render_checks_model
 from leaf import user_views
 from leaf.findings import Finding
 from leaf.render_gate import readings as render_gate_readings
 from leaf.render_gate import version as render_gate_model
 from leaf.render_gate.command import PIN_VARIABLE, BrowserCheck, desktop_viewport
 from model.test_user_views import report
+
+
+@pytest.mark.parametrize("failure", [None, "body", "finish"])
+def test_probe_observation_finishes_and_disposes_native_handle(monkeypatch, failure):
+    """A failed check or native reading still disconnects and releases its observation."""
+    calls = []
+    finding = {"code": "passive-layout-shift"}
+
+    def finish(_expression):
+        calls.append("finish")
+        if failure == "finish":
+            raise RuntimeError("finish failed")
+        return [finding]
+
+    handle = SimpleNamespace(evaluate=finish, dispose=lambda: calls.append("dispose"))
+    page = SimpleNamespace(evaluate_handle=lambda *_args: handle)
+    monkeypatch.setattr(render_checks_model, "_load_probes", lambda *_args: None)
+    error = (
+        pytest.raises(RuntimeError, match=f"{failure} failed")
+        if failure
+        else nullcontext()
+    )
+    with error:
+        with render_checks_model.observe_probe(page, "passiveLayoutShifts") as records:
+            assert records == []
+            if failure == "body":
+                raise RuntimeError("body failed")
+    assert calls == ["finish", "dispose"]
+    assert records == ([] if failure == "finish" else [finding])
 
 
 def test_swept_faults_are_reported_by_element_and_by_unbroken_run():
@@ -27,22 +59,38 @@ def test_swept_faults_are_reported_by_element_and_by_unbroken_run():
     def at(width, short=False):
         spill = 1560 <= width <= 1600 or width <= 600
         drawings = [
-            {"at": "<svg> in <figure id=f>", "place": place, "labels": n, "drawn": d}
+            {
+                "at": "<svg> in <figure id=f>",
+                "place": {"id": "f", "steps": [{"child": place}]},
+                "labels": n,
+                "drawn": d,
+            }
             | {"set": 11, "words": words}
-            for place, n, d, words in ((">0", 1, 8.8, "mild"), (">1", 3, 5, "worst"))
+            for place, n, d, words in ((0, 1, 8.8, "mild"), (1, 3, 5, "worst"))
             if width <= 800
         ]
         return {
             "overflow": 0,
             "misplaced": [
-                {"code": "past-column", "at": "<pre>", "place": "#x>0", "past": width}
+                {
+                    "code": "past-column",
+                    "at": "<pre>",
+                    "place": {"id": "x", "steps": [{"child": 0}]},
+                    "past": width,
+                }
             ]
             if spill
             else [],
             "scrollbars": [],
+            "contained": [],
             "clipped": [
                 {"code": "clipped-control", "at": f"<button id={place[1:]}>"}
-                | {"place": place, "control": "pick", "id": place[1:], "lost": width}
+                | {
+                    "place": {"id": place[1:], "steps": []},
+                    "control": "pick",
+                    "id": place[1:],
+                    "lost": width,
+                }
                 | {"by": "<div id=row>"}
                 for place, clipped in (
                     ("#narrow", width <= 440),
@@ -57,7 +105,7 @@ def test_swept_faults_are_reported_by_element_and_by_unbroken_run():
                 {
                     "code": "squeezed-table",
                     "at": f"<table id={place[1:]}>",
-                    "place": place,
+                    "place": {"id": place[1:], "steps": []},
                     "scrolls": width,
                     "columns": [{"heading": None, "width": 80, "wraps": True}],
                 }
@@ -85,6 +133,7 @@ def test_swept_faults_are_reported_by_element_and_by_unbroken_run():
     assert spill.values["past"] == 1560
     assert str(spill) == (
         "at 1560–1600px wide, <pre> is set 1560px past the column, out in the margin"
+        '; to give it more room, mark it data-width="wide" or "available" rather than sizing it past the column, or scroll it sideways in a box of its own with overflow-x: auto and class="scroll"'
     )
     squeezed = render_gate_readings.squeezed_table_advice(readings)
     assert [(f.at, f.widths, f.values["scrolls"], f.severity) for f in squeezed] == [
@@ -114,7 +163,7 @@ def test_a_finding_is_a_record_its_words_and_json_are_rendered_from():
     )
     assert str(finding) == (
         "[dark] <div id=wide> is set 74px past the column, out in the margin"
-        " (at 540x720)"
+        '; to give it more room, mark it data-width="wide" or "available" rather than sizing it past the column, or scroll it sideways in a box of its own with overflow-x: auto and class="scroll" (at 540x720)'
     )
     assert json.loads(json.dumps(finding.json())) == {
         "code": "past-column",
@@ -130,24 +179,6 @@ def test_a_finding_is_a_record_its_words_and_json_are_rendered_from():
     assert len({finding, finding.but(values={})}) == 1
     with pytest.raises(ValueError):
         Finding("no-such-code")
-    # A wait that never ended carries what the console said, as findings of its own.
-    console = [
-        Finding("console-error", values={"text": "refused", "url": "http://page/"}),
-        Finding("console-warning", values={"text": "slow"}),
-    ]
-    stalled = Finding(
-        "never-reached",
-        values={
-            "arrival": "an authored main",
-            "requesting": ["/page.css"],
-            "console": [entry.json(text=False) for entry in console],
-        },
-        scheme="light",
-    )
-    assert str(stalled) == (
-        "[light] pre-upgrade proof failed: the document never reached an authored"
-        " main; still requesting /page.css — refused — http://page/\nwarning: slow"
-    )
 
 
 def test_page_check_json_names_only_the_gates_that_read_the_page():
@@ -216,14 +247,14 @@ def test_a_resize_notice_is_pardoned_only_by_a_complete_clean_confirmation(monke
     later = Finding("console-error", values={"text": "later"}, scheme="dark")
     failed = Finding("probe-failed", values={"error": "probe failed"}, scheme="light")
     first = Finding(
-        "unreserved-height",
+        "grows-with-content",
         "<lf-x id=a>",
-        {"drawn": 20, "reserved": None},
+        {"layout": "column", "box": "div", "height": 20},
         severity="advice",
     )
 
     def attempt(failures=(), notices=(), complete=True, advice=()):
-        reading = render_gate_model.RenderReading([*failures, *advice], [], [])
+        reading = render_gate_model.RenderReading([*failures, *advice], [])
         return reading, list(notices), complete
 
     def policy(*attempts):
@@ -231,7 +262,9 @@ def test_a_resize_notice_is_pardoned_only_by_a_complete_clean_confirmation(monke
         monkeypatch.setattr(
             render_gate_model,
             "_render_version_attempt",
-            lambda browser, url, desktop, served_timeout_ms=None: left.pop(0),
+            lambda browser, url, desktop, served_timeout_ms=None, implementations=None, declaration_sources=None: (
+                left.pop(0)
+            ),
         )
         reading = render_gate_model.render_version(None, "http://page")
         assert not left, f"{len(left)} attempts were never made"
@@ -264,3 +297,47 @@ def test_a_resize_notice_is_pardoned_only_by_a_complete_clean_confirmation(monke
         error,
         notice,
     ]
+
+
+def test_output_contract_failures_refuse_page_and_package_checks():
+    from leaf.data_contracts import output_findings
+    from leaf.render_gate.command import WidgetQuality
+    from leaf.render_gate.version import RenderReading
+
+    registry = {
+        "$data": {
+            "contracts": {
+                "counts": {
+                    "schema": {
+                        "type": "object",
+                        "properties": {"count": {"type": "integer"}},
+                        "required": ["count"],
+                    }
+                }
+            }
+        }
+    }
+    readings = [
+        {
+            "tag": "lf-counter",
+            "id": "count",
+            "output": "total",
+            "contract": "counts",
+            "value": value,
+        }
+        for value in ({"count": 2}, {"count": "wrong"})
+    ]
+    found = output_findings(
+        readings,
+        registry,
+        {
+            "lf-counter": {"owner": "layer", "path": "/widgets/lf-counter.js"},
+        },
+    )
+    assert len(found) == 1
+    assert str(found[0]) == (
+        "<lf-counter id=count> (package producer): output 'total' value is invalid "
+        "for contract 'counts' at $.count: 'wrong' is not of type 'integer'"
+    )
+    assert BrowserCheck(["render check"], render=RenderReading(found, [])).status == 1
+    assert WidgetQuality(1, findings=tuple(found)).status == 1

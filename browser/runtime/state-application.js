@@ -17,10 +17,10 @@ import {
   readApplication,
 } from "./semantic-state.js";
 import { reportCarried, sameLayer } from "./layer-client.js";
-import { importWidgets } from "./widget-loader.js";
+import { holdUserPlace } from "./user-place.js";
 import { observeServerNow, observeWorkingGrace } from "./presence.js";
 import { settleAcceptedDrafts } from "./drafts.js";
-import { notice } from "./notifications.js";
+import { announce, notice } from "./notifications.js";
 import { markStateApplied, settlePageInterface } from "./presentation.js";
 import {
   loadMessageMarkdown,
@@ -36,18 +36,24 @@ import {
   semanticNewsReading,
 } from "./semantic-news.js";
 
+/** @param {{
+ * prepareActivation: ReturnType<typeof import("./version.js").createVersionController>["prepareActivation"],
+ * acceptData: typeof import("./data.js").acceptData,
+ * notifyDataSubscribers: typeof import("./data.js").notifyDataSubscribers,
+ * accountPending: (events: readonly import("../types/domain.js").Event[]) => void
+ * }} dependencies */
 export function createStateApplication({
   prepareActivation,
   acceptData,
   notifyDataSubscribers,
   accountPending,
 }) {
-  let observedSemanticNews = null;
-  let presentedNewsReading = null;
-  const markupRead = new Set();
+  /** @type {{reading: import("./semantic-news.js").NewsReading, observed: import("./semantic-news.js").ObservedNews} | null} */
+  let presentedNews = null;
   let stateApplying = false;
   let admission = Promise.resolve();
 
+  /** @template T @param {() => T | Promise<T>} operation */
   async function runSerialized(operation) {
     const prior = admission;
     /** @type {PromiseWithResolvers<void>} */
@@ -61,6 +67,7 @@ export function createStateApplication({
     }
   }
 
+  /** @param {import("./layer-client.js").CompletedState} state */
   async function receiveState(state) {
     if (!sameLayer(state.layer.generation)) return;
     // Data is ordered by when the server took the reading, even in a crossed older log read.
@@ -73,40 +80,39 @@ export function createStateApplication({
 
     // Every view holds the same messages, read under its own registry; the active
     // one is always served.
-    const threads = state.browser.views[state.active.revision].thread.threads;
-    const frozenDocuments = [];
-    const preparations = [
+    const activeView = state.browser.views[state.active.revision];
+    if (!activeView)
+      throw new Error(`State has no view for active revision ${state.active.revision}`);
+    const threads = activeView.thread.threads;
+    const messages = threads.flatMap((thread) =>
+      thread.msgs.map((message) => ({
+        message,
+        preparation:
+          "markup" in message && message.markup
+            ? prepareAuthoredMessage(message, thread.id)
+            : null,
+      })),
+    );
+    const [activation, , frozenDocuments] = await Promise.all([
       prepareActivation(state),
       threads.length ? loadMessageMarkdown() : null,
-    ];
-    // The log retains withdrawn messages; only the current thread inventory owns
-    // authored islands that this reading can prepare and publish.
-    for (const thread of threads)
-      for (const message of thread.msgs) {
-        if (!message.markup) continue;
-        const authored = prepareAuthoredMessage(message, thread.id);
-        frozenDocuments.push(authored);
-        if (markupRead.has(message.id)) continue;
-        preparations.push(
-          importWidgets(authored.root).then(() => markupRead.add(message.id)),
-        );
-      }
-    const [activation] = await Promise.all(preparations);
-    const bodies = new Map(
-      threads.flatMap((thread) =>
-        thread.msgs.map((message) => {
-          const authored = message.markup
-            ? prepareAuthoredMessage(message, thread.id).body
-            : null;
-          return [
-            message.id,
-            {
-              ...(authored ?? {}),
-              text: [messageText(message), authored?.text].filter(Boolean).join("\n"),
-            },
-          ];
-        }),
+      Promise.all(
+        messages.map(async ({ message, preparation }) => ({
+          message,
+          frozen: await preparation,
+        })),
       ),
+    ]);
+    const bodies = new Map(
+      frozenDocuments.map(({ message, frozen }) => [
+        message.id,
+        frozen
+          ? {
+              ...frozen.body,
+              text: [messageText(message), frozen.body.text].filter(Boolean).join("\n"),
+            }
+          : { text: messageText(message) },
+      ]),
     );
 
     return runSerialized(async () => {
@@ -123,11 +129,13 @@ export function createStateApplication({
       // A reload never returns to install this candidate in the old realm. A patch
       // does, and adoption is where the revision it installed becomes current, so the
       // document and the state that speaks for it reach the page in one reading.
-      const installed = following !== null ? await activation.install() : null;
+      const installed =
+        following !== null && activation ? await activation.install() : null;
       const prior = installed?.document ?? readApplication().document;
       let authored = prior.authored;
       let descriptors = prior.descriptors;
-      for (const frozen of frozenDocuments) {
+      for (const { frozen } of frozenDocuments) {
+        if (!frozen) continue;
         for (const [id, baseline] of frozen.authored) {
           if (authored.has(id)) continue;
           if (authored === prior.authored) authored = new Map(authored);
@@ -145,7 +153,12 @@ export function createStateApplication({
         descriptors,
         messageBodies: bodies,
       };
-      for (const frozen of frozenDocuments) commitWidgetDescriptors(frozen.descriptors);
+      for (const { frozen } of frozenDocuments)
+        if (frozen) commitWidgetDescriptors(frozen.descriptors);
+      // The user's place across the change this reading brings, kept once the page
+      // shows it (user-place.js, `holdUserPlace`). A revision places the reader with its
+      // own landing instead (version.js).
+      const keepPlace = installed ? null : holdUserPlace();
       if (!applicationState.adopt(state, documentCapture)) {
         await notifyChangedData();
         return;
@@ -166,24 +179,40 @@ export function createStateApplication({
         // it cannot turn accepted truth into a refusal or strand proved receipts.
         if (installed) await installed.land();
         await notifyDataSubscribers();
+        keepPlace?.();
         markStateApplied(state);
-        accountPending(state.browser.receipts);
+        accountPending(state.events);
         // Only the accepted candidate that this full document just presented can
         // establish news. A queued notice formats against the latest such reading,
         // so a later answer does not repeat a superseded failure or edit.
-        presentedNewsReading = semanticNewsReading(readApplication());
-        const reading = observeSemanticNews(observedSemanticNews, presentedNewsReading);
-        observedSemanticNews = reading.observed;
-        if (reading.news.length) {
-          const format = (value) =>
-            semanticNewsNotice(
-              currentSemanticNews(value, presentedNewsReading, observedSemanticNews),
+        const newsReading = semanticNewsReading(readApplication());
+        const reading = observeSemanticNews(
+          presentedNews?.observed ?? null,
+          newsReading,
+        );
+        if (presentedNews) {
+          presentedNews.reading = newsReading;
+          presentedNews.observed = reading.observed;
+        } else presentedNews = { reading: newsReading, observed: reading.observed };
+        // The agent's new words are heard, not shown: the On me mark's dot and each
+        // margin marker's already show unread news, so the seat keeps the agent's status.
+        // The user chose this on 25 October over a line counting the messages.
+        if (reading.news.length) announce(semanticNewsNotice(reading.news));
+        const shown = reading.news.filter((item) => item.kind !== "agent_content");
+        if (shown.length) {
+          const current = presentedNews;
+          /** @param {readonly import("./semantic-news.js").SemanticNews[]} value */
+          const format = (value) => {
+            return semanticNewsNotice(
+              currentSemanticNews(value, current.reading, current.observed),
             );
-          notice(format(reading.news), {
+          };
+          notice(format(shown), {
             background: true,
+            announce: false,
             group: {
               key: "semantic-news",
-              value: reading.news,
+              value: shown,
               combine: combineSemanticNews,
               format,
             },

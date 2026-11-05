@@ -5,7 +5,7 @@ import re
 
 import pytest
 from playwright.sync_api import expect
-from render_cases_interaction import OBLIGATIONS_PAGE
+from render_cases_interaction import OBLIGATIONS_PAGE, live_url
 from render_cases_navigation import (
     ADDRESSED_PAGE,
     CHIPS,
@@ -21,10 +21,10 @@ from render_harness import (
     PANEL,
     leaf_page,
     open_page,
-    opened_tab,
     panel_view,
     resized,
     shown,
+    told,
 )
 
 from browser.navigation import expect_walk_position
@@ -35,23 +35,15 @@ from leaf.render_checks import one_frame, rendered
 pytestmark = pytest.mark.shifts_unsurveyed
 
 
-def test_a_render_that_keeps_an_external_link_gives_back_the_mark_it_dropped(
-    browser, serve
-):
-    """The link's treatment stands inside the link, so a render that rebuilds the
-    children around a kept link leaves nothing beside it to lose. A render that rebuilds
-    the link's own words drops its mark, and the link must get the mark back, or it keeps
-    describing itself by an id nothing carries."""
-    page = open_page(
-        browser,
-        serve(
-            leaf_page(
-                "kept link",
-                '<h1 id="t">Links</h1><p id="holder">Read <a id="ext" '
-                'href="https://example.com/source">the source</a> first.</p>',
-            )
-        ),
+def test_a_render_of_an_external_links_words_keeps_its_treatment(browser, serve):
+    """CSS paint and the root's accessible description survive a link's text render."""
+    source = leaf_page(
+        "kept link",
+        '<h1 id="t">Links</h1><p id="holder">Read <a id="ext" '
+        'href="https://example.com/source">the source</a> first.</p>'
+        '<p id="other">Other words.</p>',
     )
+    page = open_page(browser, live_url(serve(source)))
     link = page.locator("#ext")
     expect(link).to_have_accessible_description("opens in a new tab")
     expect(page.locator("#ext ~ *")).to_have_count(0)
@@ -63,7 +55,19 @@ def test_a_render_that_keeps_an_external_link_gives_back_the_mark_it_dropped(
         }"""
     )
     rendered(page)
-    expect(link.locator(":scope > .lf-external-mark")).to_have_count(1)
+    expect(link).to_have_attribute("data-lf-external", "")
+    expect(link).to_have_accessible_description("opens in a new tab")
+
+    # A source revision compares authored hrefs, not the marker prepaint lent the
+    # first document. An unrelated edit leaves the same link and its treatment.
+    page.evaluate("window.keptLink = document.getElementById('ext')")
+    (serve.page_dir / "index.html").write_text(
+        source.replace("Other words.", "Revised other words.")
+    )
+    told(page)
+    expect(page.locator("#other")).to_have_text("Revised other words.")
+    assert page.evaluate("window.keptLink === document.getElementById('ext')")
+    expect(link).to_have_attribute("data-lf-external", "")
     expect(link).to_have_accessible_description("opens in a new tab")
 
 
@@ -95,60 +99,13 @@ def test_a_stage_built_before_its_host_arrives_holds_its_links_and_bounds(
           await new Promise(requestAnimationFrame);
           return {
             target: link.getAttribute('target'),
-            marked: Boolean(link.querySelector(':scope > .lf-external-mark')),
+            marked: link.hasAttribute('data-lf-external'),
             scroller: scrollerFor(log.querySelector('p')) === log,
             atEnd: log.scrollHeight - log.scrollTop - log.clientHeight <= 2,
           };
         }"""
     )
     assert held == {"target": "_blank", "marked": True, "scroller": True, "atEnd": True}
-
-
-def test_opened_tab_replaces_the_native_target_with_one_it_can_control(
-    browser, one_user
-):
-    """One native target proves the press, then leaves no unreachable tab behind."""
-    page = one_user.new_page()
-    destination = "about:blank#expected"
-    page.set_content(f'<a id="open" target="_blank" href="{destination}">open</a>')
-    browser_session = browser.new_browser_cdp_session()
-
-    def targets():
-        return {
-            target["targetId"]: target["url"]
-            for target in browser_session.send("Target.getTargets")["targetInfos"]
-            if target["type"] == "page"
-        }
-
-    before = targets()
-    presses = 0
-    native = {}
-
-    def press():
-        nonlocal presses
-        presses += 1
-        page.locator("#open").click()
-        native.update(
-            {
-                target_id: url
-                for target_id, url in targets().items()
-                if target_id not in before
-            }
-        )
-
-    tab = opened_tab(page, destination, press)
-    assert presses == 1
-    assert len(native) == 1
-    assert tab.context is page.context
-    assert tab.url == destination
-    after = targets()
-    assert not (native.keys() & after.keys())
-    assert [url for target_id, url in after.items() if target_id not in before] == [
-        destination
-    ]
-    tab.close()
-    assert targets() == before
-    browser_session.detach()
 
 
 def test_a_link_hint_leaves_a_newer_gesture_where_it_is(browser, serve):
@@ -170,13 +127,20 @@ def test_a_link_hint_leaves_a_newer_gesture_where_it_is(browser, serve):
             )
         ),
     )
+    # Revealing the holder waits for its update, which the test holds.
     page.evaluate(
-        """() => document.getElementById('holder').addEventListener('lf-reveal',
-             (event) => event.detail.present(new Promise((r) => (window.__release = r))))"""
+        """() => {
+          const holder = document.getElementById('holder');
+          holder.hidden = 'until-found';
+          holder.addEventListener('beforematch', () => {
+            holder.updateComplete = new Promise((r) => (window.__release = r));
+          });
+        }"""
     )
     go_to_address(page, "Link", "internal")
     page.wait_for_url(re.compile(r"#arrival$"))
     page.wait_for_function("() => typeof window.__release === 'function'")
+    expect(page.locator("#arrival")).not_to_be_in_viewport()
     page.locator("#elsewhere").click()
     page.evaluate("() => window.__release()")
     one_frame(page)
@@ -198,14 +162,15 @@ def test_generated_hints_include_links_revealed_by_a_page_widget(browser, serve)
             leaf_page(
                 "generated page links",
                 """
-<h1>Migration plan</h1>
-<aside class="sidebar"><lf-toc id="contents"></lf-toc></aside>
+<aside><div class="layout-track"><lf-toc id="contents"></lf-toc></div></aside>
+<div class="layout-column"><h1>Migration plan</h1>
 <section><h2>Prepare</h2><p>Take a snapshot.</p></section>
 <div style="height: 700px"></div>
 <section><h2 id="move">Move</h2><p>Shift one cohort at a time.</p></section>
 <div style="height: 700px"></div>
-<section><h2 id="verify">Verify</h2><p>Compare the totals.</p></section>
+<section><h2 id="verify">Verify</h2><p>Compare the totals.</p></section></div>
 """,
+                layout="sidebar",
             )
         ),
     )
@@ -342,11 +307,9 @@ def test_a_transient_notice_does_not_move_generated_address_hints(browser, serve
 
     # The paint that can read a notice is the one taken while it shows, and only a
     # notice wide enough to reach under the hint could move it.
-    page.evaluate(
-        "async () => (await window.__lfWidgetApi()).notice('Moved to Done — sent.')"
-    )
+    page.evaluate("async () => (await window.__lfWidgetApi()).notice('Moved to Done.')")
     expect(page.locator(".lf-fp-field leaf-text")).to_have_attribute(
-        "data-says", "notice"
+        "data-lf-says", "notice"
     )
     page.keyboard.press("g")
     expect(fixed_link_hint).to_be_visible()
@@ -358,7 +321,7 @@ def test_a_transient_notice_does_not_move_generated_address_hints(browser, serve
         == quiet_top
     )
     expect(page.locator(".lf-fp-field leaf-text")).to_have_attribute(
-        "data-says", "notice"
+        "data-lf-says", "notice"
     )
 
 
@@ -532,7 +495,7 @@ def test_the_g_chord_opens_an_empty_page_map(browser, serve):
     ).to_be_focused()
     # The one close control every surface wears: the cross, named for what it closes,
     # at the header's end.
-    header = sheet.locator(".lf-page-map-head")
+    header = sheet.locator(".lf-dialog-head")
     close = header.get_by_role("button", name="Close Page Map", exact=True)
     expect(close.locator('svg[data-lf-icon="cross"]')).to_have_count(1)
     header_box, close_box = header.bounding_box(), close.bounding_box()
@@ -740,8 +703,9 @@ def test_global_destinations_switch_from_a_covering_workspace(
     page.keyboard.press("Escape")
     expect(page_map).to_be_hidden()
 
-    # From a thread open in the panel, Versions turns the leaf's menu to its list, and
-    # Escape goes back from it with the thread still open.
+    # From a thread open in the panel, Versions opens over the leaf's menu in the
+    # thread's place, as every view does; Escape steps back to the menu, then puts the
+    # view away.
     thread_id = next(
         event["id"]
         for event in events_model.read_events(serve.page_dir)
@@ -750,10 +714,15 @@ def test_global_destinations_switch_from_a_covering_workspace(
     open_panel_thread(page, thread_id).focus()
     page.keyboard.press("g")
     page.keyboard.press("Shift+v")
-    versions = page.locator('.lf-fp-menu[data-level="versions"]')
+    versions = view("versions")
     expect(versions).to_be_visible()
-    assert versions.evaluate("menu => menu.contains(document.activeElement)")
+    assert versions.evaluate("view => view.contains(document.activeElement)")
     expect(versions.locator(".lf-fp-version")).to_have_count(2)
+    expect(page.locator(".lf-fp-head .lf-fp-back")).to_have_accessible_name(
+        "Back to Menu"
+    )
     page.keyboard.press("Escape")
     expect(versions).to_have_count(0)
-    expect(page.locator(PANEL)).to_have_attribute("data-open", "thread")
+    expect(page.locator(PANEL)).to_have_attribute("data-lf-open", "menu")
+    page.keyboard.press("Escape")
+    expect(page.locator(PANEL)).not_to_have_attribute("data-lf-open", re.compile("."))

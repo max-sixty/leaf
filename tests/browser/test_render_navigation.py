@@ -16,8 +16,6 @@ from render_cases_navigation import (
     go_to_address,
 )
 from render_harness import (
-    CORPUS_SOURCES,
-    EXAMPLES,
     RELEASE_FOCUS,
     expect_comment_notes,
     leaf_page,
@@ -31,13 +29,14 @@ from render_harness import (
 
 from leaf import server as server_model
 from leaf.render_checks import rendered
+from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
 
 def test_each_comparison_result_keeps_its_own_comment_destination(browser, serve):
     """Each policy owns a separate anchor and pane-local return route."""
-    example = next(e for e in CORPUS_SOURCES if e.stem == "current-proposed-comparison")
+    example = named_source("current-proposed-comparison")
     page = open_page(
         browser,
         serve(
@@ -86,7 +85,7 @@ def test_each_comparison_result_keeps_its_own_comment_destination(browser, serve
 
 def test_the_pr_walkthrough_exercises_an_inline_diff_thread(browser, serve):
     """The diff package's worked page carries a real line thread through both seats."""
-    source = next(example for example in EXAMPLES if example.stem == "pr-walkthrough")
+    source = named_source("pr-walkthrough")
     url = live_url(serve(source))
     page = open_page(browser, url)
     diff = page.locator("#pr-exact-patch")
@@ -109,13 +108,13 @@ def test_the_pr_walkthrough_exercises_an_inline_diff_thread(browser, serve):
         },
     )
     told(page)
-    thread = diff.locator(f'.lf-page-thread[data-thread="{root["id"]}"]')
+    thread = diff.locator(f'.lf-page-thread[data-lf-thread="{root["id"]}"]')
     expect(thread).to_contain_text(
         "Keep this review note beside the line that changes it."
     )
     send = thread.locator(".lf-compose-submit")
     expect(send).to_be_disabled()
-    expect(thread.locator(".lf-compose-field > button:visible")).to_have_count(1)
+    expect(thread.get_by_role("textbox", name="Reply", exact=True)).to_be_visible()
     markers = page.locator('.lf-margin-marker[data-lf-kinds~="comment"]')
     baseline = markers.count()
 
@@ -153,7 +152,9 @@ def test_the_pr_walkthrough_exercises_an_inline_diff_thread(browser, serve):
     expect(heading).to_be_focused()
     page.keyboard.press("t")
     expect(
-        page.locator(f'.lf-margin-preview .lf-page-thread[data-thread="{prose["id"]}"]')
+        page.locator(
+            f'.lf-margin-preview .lf-page-thread[data-lf-thread="{prose["id"]}"]'
+        )
     ).to_be_focused()
     page.keyboard.press("t")
     expect(thread).to_be_focused()
@@ -176,7 +177,7 @@ def test_a_thread_walk_card_leaves_and_returns_with_its_anchor(browser, serve):
     card = page.locator(".lf-margin-preview")
     # Whichever thread the walk reaches first; the page's order decides that.
     expect(card.locator(".lf-page-thread")).to_be_focused()
-    walked = card.locator(".lf-page-thread").get_attribute("data-thread")
+    walked = card.locator(".lf-page-thread").get_attribute("data-lf-thread")
     owner = page.locator(
         '.lf-margin-marker[data-lf-kinds~="comment"]'
         '[aria-controls="lf-margin-preview"][aria-expanded="true"]:not([hidden])'
@@ -213,7 +214,7 @@ def test_a_thread_walk_card_leaves_and_returns_with_its_anchor(browser, serve):
     assert card.evaluate("node => node.getBoundingClientRect().top") == pytest.approx(
         placed, abs=0.5
     )
-    expect(card.locator(f'.lf-page-thread[data-thread="{walked}"]')).to_be_focused()
+    expect(card.locator(f'.lf-page-thread[data-lf-thread="{walked}"]')).to_be_focused()
     # A press the page answers leaves the window where the user put it: `g G` carries the
     # card away, and `g` then opens Go-to over the page's foot rather than bringing the
     # card back and mapping the window around it.
@@ -286,10 +287,43 @@ def test_a_thread_walk_card_leaves_and_returns_with_its_anchor(browser, serve):
     page.keyboard.press("c")
     expect(reply).to_be_focused()
     page.wait_for_function(shown)
+    # A click from the card's thread into its Reply, cut off at the window's top, leaves
+    # the page and the box under the pointer still: the pointer found the box where it
+    # is. The first word typed there brings the card back, as a browser brings a field
+    # back for its caret.
+    page.keyboard.press("Escape")
+    expect(card.locator(".lf-page-thread")).to_be_focused()
+    reply.evaluate(
+        """async (box) => {
+          const frame = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+          while (box.getBoundingClientRect().top >= 0) {
+            scrollBy(0, 2);
+            await frame();
+          }
+        }"""
+    )
+    rendered(page)
+    pressed = reply.bounding_box()
+    assert pressed["y"] < 0 < pressed["y"] + pressed["height"] - 8
+    held = page.evaluate("() => document.scrollingElement.scrollTop")
+    page.mouse.click(
+        pressed["x"] + pressed["width"] / 2, pressed["y"] + pressed["height"] - 6
+    )
+    expect(reply).to_be_focused()
+    rendered(page)
+    assert page.evaluate("() => document.scrollingElement.scrollTop") == held
+    assert reply.bounding_box()["y"] == pytest.approx(pressed["y"], abs=0.5)
+    page.keyboard.type("S")
+    page.wait_for_function(
+        "() => document.querySelector('.lf-margin-preview leaf-text')"
+        ".getBoundingClientRect().top >= 0"
+    )
 
 
 def test_thread_navigation_lands_after_resizing_an_open_reply(browser, serve):
-    """A fixed card cannot reveal itself by scrolling its already-visible passage away."""
+    """A reply open in a card goes on in the floating panel once the window narrows to a
+    phone's, and the walk back lands in the panel's view of the previous thread, with
+    its reply in view."""
     page = open_page(
         browser,
         live_url(serve(WORKSHOP_THREADS_PAGE, events=WORKSHOP_THREAD_EVENTS)),
@@ -313,13 +347,15 @@ def test_thread_navigation_lands_after_resizing_an_open_reply(browser, serve):
     expect(page.get_by_role("textbox", name="Reply", exact=True)).to_be_focused()
     resized(page, 390, 844)
     scroll_settled(page)
+    expect(card).to_be_hidden()
+    reply = page.locator(".lf-fp-field leaf-text")
+    expect(reply).to_be_focused()
     page.keyboard.press("Escape")
     page.keyboard.press("Shift+t")
-    expect(thread).to_be_focused()
-    scroll_settled(page)
-    expect(thread).to_be_in_viewport(ratio=1)
+    view = page.locator(".lf-fp-view:not([data-lf-leaving])")
+    expect(view).to_be_focused()
+    expect(view).to_contain_text("Is lunch provided")
     page.keyboard.press("c")
-    reply = page.get_by_role("textbox", name="Reply", exact=True)
     expect(reply).to_be_focused()
     scroll_settled(page)
     expect(reply).to_be_in_viewport(ratio=1)
@@ -390,7 +426,6 @@ def test_an_external_link_says_and_opens_where_it_goes(
     )
     page = open_page(browser, url, context=one_user)
     external = page.locator("#external")
-    mark = external.locator(":scope > .lf-external-mark")
 
     expect(external).to_have_attribute("target", "_blank")
     expect(external).to_have_attribute("rel", re.compile(r"(?:^| )noopener(?: |$)"))
@@ -398,15 +433,22 @@ def test_an_external_link_says_and_opens_where_it_goes(
     expect(external).to_have_accessible_description("curated source opens in a new tab")
     # The treatment stands inside the link, so the paragraph ends where it was written.
     expect(page.locator("#external ~ *")).to_have_count(0)
-    expect(mark).to_be_visible()
-    assert mark.evaluate("node => node.localName") == "svg"
-    expect(mark.locator(":scope > path")).to_have_count(1)
-    expect(mark).to_have_attribute("aria-hidden", "true")
-    expect(page.locator("#fragment > .lf-external-mark")).to_have_count(0)
+    expect(external).to_have_attribute("data-lf-external", "")
+    mark = external.evaluate("""link => {
+      const style = getComputedStyle(link, '::after');
+      return {display: style.display, width: parseFloat(style.width), mask: style.maskImage};
+    }""")
+    assert mark["display"] == "inline-block"
+    assert mark["width"] > 0
+    assert "data:image/svg+xml" in mark["mask"]
+    expect(page.locator("#fragment")).not_to_have_attribute("data-lf-external", "")
     expect(page.locator("#fragment")).not_to_have_attribute("target", "_blank")
-    expect(page.locator("#svg-external > .lf-external-mark")).to_have_count(0)
+    expect(page.locator("#svg-external")).not_to_have_attribute("data-lf-external", "")
     expect(page.locator("#svg-external")).not_to_have_attribute("target", "_blank")
 
     tab = opened_tab(page, destination, external.click)
     expect(tab).to_have_url(f"{other_url}/")
     expect(page).to_have_url(url.split("?", 1)[0])
+
+
+import pytest

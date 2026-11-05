@@ -1,6 +1,7 @@
 """Added-option presentation and replay tests."""
 
 import base64
+import re
 
 import pytest
 from browser_sources import browser_function
@@ -17,7 +18,6 @@ from render_cases_layout import (
     token_colour,
 )
 from render_harness import (
-    EXAMPLES,
     consume_browser_errors,
     example_media,
     expect_error_waits_in_menu,
@@ -25,6 +25,7 @@ from render_harness import (
     holding,
     http_error_console,
     open_page,
+    open_threads,
     round_trip,
     sending,
     shown,
@@ -35,6 +36,7 @@ from render_harness import (
 )
 
 from leaf import event_log as events_model
+from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -62,11 +64,11 @@ def test_an_add_field_reconnects_to_its_shared_draft(browser, serve, one_user):
 
 
 def test_the_add_field_previews_the_option_it_will_make(browser, serve):
-    """The user writes on the same line and in the same voice as the options.
+    """The user writes on the same line and in the same font as the options.
 
     The trailing action stays out of an empty row, then submits on the shared margin entry
     corner rather than borrowing the selection mark's circle. It remains a full-sized
-    pointer target aligned with the last line as the textarea grows.
+    pointer target aligned with the field, which keeps pasted line breaks on one line.
     """
     page = open_page(browser, serve(OBLIGATION_PAGE))
     option = page.locator("#job-camera")
@@ -130,16 +132,17 @@ def test_the_add_field_previews_the_option_it_will_make(browser, serve):
     )
     assert 0 < form_box["y"] + form_box["height"] - add_box["y"] - add_box["height"] < 8
     write(field, "First line\nSecond line\nThird line")
-    grown_form_box = form.bounding_box()
-    grown_field_box = field.bounding_box()
-    grown_add_box = add.bounding_box()
-    assert grown_field_box["height"] > field_box["height"]
+    expect(field).to_have_js_property("value", "First line Second line Third line")
+    pasted_form_box = form.bounding_box()
+    pasted_field_box = field.bounding_box()
+    pasted_add_box = add.bounding_box()
+    assert pasted_field_box["height"] == field_box["height"]
     assert (
         0
-        < grown_form_box["y"]
-        + grown_form_box["height"]
-        - grown_add_box["y"]
-        - grown_add_box["height"]
+        < pasted_form_box["y"]
+        + pasted_form_box["height"]
+        - pasted_add_box["y"]
+        - pasted_add_box["height"]
         < 8
     )
     face = glyph_action_face(add)
@@ -462,8 +465,47 @@ def test_an_arrival_cannot_hide_an_obligation_draft(browser, serve):
     ]
     action = next(e for e in events_model.read_events(d) if e["kind"] == "action")
     assert action["detail"] == {"option": added.get_attribute("id"), "text": draft}
-    page.locator(".lf-fp-threads").click()
-    expect(page.locator(f'.lf-fp-thread[data-key="{external["id"]}"]')).to_have_count(1)
+    open_threads(page)
+    expect(
+        page.locator(f'.lf-fp-thread[data-lf-key="{external["id"]}"]')
+    ).to_have_count(1)
+
+
+def test_on_a_phone_options_draw_no_keys_and_return_adds_a_written_one(browser, serve):
+    """A phone has no keys to press, so a group the user is in draws no digits, while
+    its controls keep their shortcuts for a keyboard someone attaches. Return on a
+    phone's keyboard breaks a line in a comment, but an option's title is one line, so
+    there it adds the option, and a line break pasted into it becomes a space."""
+    context = browser.new_context(
+        viewport={"width": 390, "height": 844}, has_touch=True, is_mobile=True
+    )
+    page = open_page(browser, live_url(serve(OBLIGATION_PAGE)), context=context)
+    page.locator("#br-steel").tap()
+    round_trip(page)
+    expect(page.locator("#br-steel")).to_have_attribute("chosen", "")
+    faces = page.locator(
+        ".lf-key-badge[data-lf-binding-badge], .lf-command-binding-badge"
+    )
+    expect(faces).to_have_count(0)
+    expect(page.locator("#br-cedar .lf-pick")).to_have_attribute(
+        "aria-keyshortcuts", re.compile(".")
+    )
+
+    field = page.locator("#bracket > .lf-another").get_by_role(
+        "textbox", name="Another option", exact=True
+    )
+    expect(field).to_have_attribute("aria-multiline", "false")
+    field.tap()
+    page.keyboard.type("Ask the neighbours first")
+    page.keyboard.press("Enter")
+    added = page.locator("#bracket > lf-option[data-lf-added]")
+    expect(added).to_have_attribute("chosen", "")
+    expect(added).to_contain_text("Ask the neighbours first")
+    expect(field).to_have_js_property("value", "")
+    # Words with a line break, as a paste brings them, stay on the one line.
+    field.tap()
+    page.keyboard.insert_text("Ask the neighbours\nfirst")
+    expect(field).to_have_js_property("value", "Ask the neighbours first")
 
 
 def test_the_add_field_says_its_whole_hint_on_a_phone(browser, serve):
@@ -472,7 +514,7 @@ def test_the_add_field_says_its_whole_hint_on_a_phone(browser, serve):
     "Another option — add to select" to "Another option — ad…", which lost the verb.
     The hint says the same in words that fit, and the room it keeps is measured here
     rather than restated."""
-    example = next(p for p in EXAMPLES if p.stem == "alert-review")
+    example = named_source("alert-review")
     context = browser.new_context(
         viewport={"width": 360, "height": 740}, has_touch=True, is_mobile=True
     )
@@ -489,6 +531,17 @@ def test_the_add_field_says_its_whole_hint_on_a_phone(browser, serve):
       return {room, words: pen.measureText(field.getAttribute('placeholder')).width};
     }""")
     assert fit["words"] <= fit["room"], fit
+
+
+def test_a_closed_group_answers_only_from_its_options(browser, serve):
+    """`closed` leaves out the field for an unlisted answer, so a page that draws its
+    own choice ends at its own options; the listed options still answer."""
+    page = open_page(
+        browser, serve(OBLIGATION_PAGE.replace('id="jobs"', 'id="jobs" closed'))
+    )
+
+    expect(page.locator("#jobs > lf-option").first).to_be_visible()
+    expect(page.locator("#jobs > .lf-another")).to_have_count(0)
 
 
 def test_another_option_becomes_a_real_option_without_starting_a_thread(browser, serve):

@@ -1,10 +1,6 @@
-// `syncLayout` places what floats over the page against the room the page has now, and
-// asks which margin elements stand in the page's margin (`scheduleMarginContentLayout`,
-// content-layout.js), the one posture JavaScript decides for the document: it reads the
-// room beside `main`, which the page's own CSS sets. CSS owns the rest of the shell:
-// `body` is the named `lf-shell` inline-size container, and a query on it may answer a
-// narrow column's facts. Nothing Leaf draws changes the shell: the floating panel stands
-// over the page.
+// `syncLayout` places floating controls against the native document geometry. CSS
+// owns the reading column, sidebars, notes and wide content; JavaScript reads their
+// boxes to position annotations and shared headers without rearranging the document.
 //
 // `layoutSizes` watches `document.body`'s content-box size without deriving a posture
 // from it. A width change schedules `syncLayout` and page repaint in the following
@@ -20,16 +16,16 @@
 // and browser UI all use that same root. Root scroll events are reported on `document`,
 // while nested scrollports report on their elements. Use `scrollerFor(el)` where a widget
 // may be one an agent sent, since a widget in a message is scrolled by the view that
-// draws it. `--lf-room` and `--lf-sidebar-placement` are CSS-owned readings resolved on
-// the box the page's Layout arranges (`main` or a child of it; layouts.css), which is
-// the named `lf-content-frame` style container whose values margin content reads.
+// draws it. Layout tracks and sidebar slots are defined by layouts.css.
 
 // Application composition supplies feature-local geometry. This owner cannot open
 // surfaces, send commands, or reconcile thread DOM.
 import { sizeObserver } from "./rendering.js";
-import { scheduleMarginContentLayout } from "./content-layout.js";
-import { syncLayoutRegion } from "./reading-regions.js";
+import { scheduleDocumentLayout } from "./content-layout.js";
 
+/** @param {{scheduleThreadPreviewPosition?: (() => unknown) | undefined,
+ * syncReactLayout: () => boolean, refreshFab: () => unknown,
+ * pageShifted: () => unknown, repaintPage: () => unknown}} dependencies */
 export function createPageLayout({
   scheduleThreadPreviewPosition,
   syncReactLayout,
@@ -41,8 +37,7 @@ export function createPageLayout({
   // boundary changes shape: a resize moves every rect. It is re-placed against its
   // durable anchor so it cannot overhang the shell.
   function syncLayout() {
-    syncLayoutRegion();
-    scheduleMarginContentLayout();
+    scheduleDocumentLayout();
     scheduleThreadPreviewPosition?.();
     if (syncReactLayout()) return;
     refreshFab();
@@ -58,13 +53,15 @@ export function createPageLayout({
   // watched box cannot create an undelivered-notification loop.
   let bodyContentWidth = 0;
   let bodyContentHeight = 0;
-  const layoutSizes = sizeObserver(([{ contentRect }]) => {
-    const widthChanged = contentRect.width !== bodyContentWidth;
-    const moved = widthChanged || contentRect.height !== bodyContentHeight;
-    bodyContentWidth = contentRect.width;
-    bodyContentHeight = contentRect.height;
-    if (widthChanged) repaintPage();
-    else if (moved) pageShifted();
+  const layoutSizes = sizeObserver((entries) => {
+    for (const { contentRect } of entries) {
+      const widthChanged = contentRect.width !== bodyContentWidth;
+      const moved = widthChanged || contentRect.height !== bodyContentHeight;
+      bodyContentWidth = contentRect.width;
+      bodyContentHeight = contentRect.height;
+      if (widthChanged) repaintPage();
+      else if (moved) pageShifted();
+    }
   });
   // Mount only after the chrome is attached. Constructors perform no observation or
   // listener installation, so importing the public widget API cannot start layout.

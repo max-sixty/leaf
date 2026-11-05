@@ -2,19 +2,36 @@
 
 import json
 import re
+from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 
-from jsonschema._utils import equal as same_state_definition
-
 from leaf.files import read_json
-from leaf.schema import WIDGET_NAME
+from leaf.schema import DATA_CONTRACT_NAME, DATA_SOURCE_NAME, ELEMENT_ID, WIDGET_NAME
 
 from ..findings import Finding, Rejected, element_at
 from .kernel import verb_writers
 
 
-def matches_when(attrs: dict, when: dict) -> bool:
+def same_state_definition(recorded, current) -> bool:
+    """Whether two recorded state definitions, or values in them, are one JSON value,
+    as the browser compares them (`registry-contract.js`): `true` is not `1`, which
+    Python's `==` takes it for, while `1.0` is `1`, as in JavaScript."""
+    if isinstance(recorded, dict) and isinstance(current, dict):
+        return recorded.keys() == current.keys() and all(
+            same_state_definition(value, current[key])
+            for key, value in recorded.items()
+        )
+    if isinstance(recorded, list) and isinstance(current, list):
+        return len(recorded) == len(current) and all(
+            map(same_state_definition, recorded, current)
+        )
+    return (
+        isinstance(recorded, bool) == isinstance(current, bool) and recorded == current
+    )
+
+
+def matches_when(attrs: dict, when: dict | None) -> bool:
     """Every attribute `when` names holds one of the matching values, a flag's
     two values being its presence and its absence."""
     return all(
@@ -50,18 +67,9 @@ def element_declarations(registry: dict) -> dict:
     return {name: entry for name, entry in registry.items() if is_element_name(name)}
 
 
-def prepaint_markup(registry, tag: str) -> str | None:
-    """The markup a widget's first paint shows (`x-prepaint`): its own, or that of the
-    widget it names with `as`, which validation holds to one that declares markup."""
-    declared = registry.get(tag, {}).get("x-prepaint")
-    if isinstance(declared, dict):
-        declared = registry[declared["as"]]["x-prepaint"]
-    return declared
-
-
 def event_clauses(entry: dict, registry: dict | None) -> list[dict]:
     """What the layer asks of the agent for one delivered event, read off the
-    vendored `$events`: the event kind's `handling` clauses, then the `answering`
+    registry's `$events`: the event kind's `handling` clauses, then the `answering`
     clauses of the answer it owes, each kept when its `when` schema matches.
 
     `entry` is the event record, plus the `answer` a delivery captured when the
@@ -74,7 +82,7 @@ def event_clauses(entry: dict, registry: dict | None) -> list[dict]:
     thread's missing title. An event owing nothing is told nothing about
     answering: a pick before Done, or a message a newer one in its thread answers
     through. A project layer restates a kind's clauses merge-patch style, so the
-    event carries the rule the page was vendored with. A missing or invalid
+    event carries the rule of the layer the page selects. A missing or invalid
     registry leaves the event unexplained; it never substitutes instructions from a
     different layer. What each case of each kind receives from the shipped layer,
     clause by clause, is snapshotted in `tests/_regtest_outputs/`, by
@@ -187,25 +195,52 @@ class RegistryError(Rejected):
     """A registry that is not a vocabulary, raised rather than exited because two doors
     read one. The CLI prints the message and stops; the page server owes the browser an
     answer, and `sys.exit` inside its request handler killed the connection mid-POST
-    while every other rejection beside it returned a 400 — so a page whose vendored
+    while every other rejection beside it returned a 400 — so a page whose
     stamp had fallen behind the running layer met the user's click with a dead socket
     and no words. The CLI renders it with Click's standard Error prefix, while the
     server catches the same rejection and answers the request.
 
-    It carries the one finding the check stopped at, which `page check` and `package
-    check` report as it is."""
+    It carries the first finding in each unit the check holds independent of the
+    others (`gathering`), which `page check` and `package check` report as they are,
+    so an author repairs them all from one check."""
 
-    def __init__(self, finding: Finding):
-        super().__init__([finding])
+
+def registry_finding(code: str, registry=None, tag: str = "", /, **values) -> Finding:
+    """One registry problem: `code` names it, `registry` the file or composition it
+    was read in, `tag` the element declaration it concerns, and `values` what the
+    check read there."""
+    if registry is not None:
+        values["registry"] = str(registry)
+    return Finding(code, element_at(tag) if tag else "", values)
 
 
 def registry_error(code: str, registry=None, tag: str = "", /, **values):
-    """The refusal of one registry problem: `code` names it, `registry` the file or
-    composition it was read in, `tag` the element declaration it concerns, and
-    `values` what the check read there."""
-    if registry is not None:
-        values["registry"] = str(registry)
-    return RegistryError(Finding(code, element_at(tag) if tag else "", values))
+    """The refusal of one registry problem (`registry_finding`)."""
+    return RegistryError([registry_finding(code, registry, tag, **values)])
+
+
+@contextmanager
+def gathering():
+    """Run independent registry checks and refuse once with what each refused.
+
+    Each check runs inside the `unit()` this yields and stops at its own first
+    finding; the next unit still runs, and leaving the block refuses with every
+    unit's findings. A unit is independent when nothing it reads depends on another
+    passing, such as each element declaration once the layer's facts hold. A check
+    whose readings depend on an earlier one runs after that one's block, which
+    refuses before it starts."""
+    found: list[Finding] = []
+
+    @contextmanager
+    def unit():
+        try:
+            yield
+        except RegistryError as error:
+            found.extend(error.findings)
+
+    yield unit
+    if found:
+        raise RegistryError(found)
 
 
 def read_registry_declarations(path: Path):
@@ -259,32 +294,51 @@ RANK = "[0-9a-z]*[1-9a-z]"
 _IDENTITY = {"type": "string", "minLength": 1}
 
 
-def detail_schema(entry: dict, spec: dict) -> dict:
+def detail_schema(
+    entry: dict, spec: dict, *, attrs: dict | None = None, registry: dict | None = None
+) -> dict:
     """The event payload contract: an effect's fixed fields or custom command data.
 
     Recorded values use `value`; positions add `unit` and `rank`, and a verb
     declaring `text: true` adds a required non-empty `text`. Attribute values
     inherit the destination's exact schema. Every identity the event depends on
     (`event_meaning.direct_dependencies`) is a nonempty string: a custom verb's
-    fold unit, and an attribute set's or position's ids. Derived schemas are
-    readings, never inserted into the registry beside the effect that owns them.
+    fold unit, and an attribute set's or position's ids. A verb that creates a
+    child names it by its fold unit, which therefore holds an element id. Derived
+    schemas are readings, never inserted into the registry beside the effect that
+    owns them.
+
+    A custom verb may bind one field to a data contract named by an authored
+    attribute. Without an instance this reads the package's base schema. With an
+    instance it also applies the selected contract, keeping each schema's local
+    references rooted in that schema. An unknown contract refuses every value;
+    markup validation reports the unknown name before the page is published.
     """
     record = spec.get("record")
     if record is None:
         detail, unit = spec["detail"], spec["unit"]
-        if unit == "widget":
-            return detail
-        # Into the unit's own declaration rather than an `allOf` around the detail,
-        # which would move the base a `#/properties/…` reference inside it resolves on.
-        properties = detail.get("properties", {})
-        declared = properties.get(unit, {})
-        return {
-            **detail,
-            "properties": {
-                **properties,
-                unit: {**declared, "minLength": max(declared.get("minLength", 0), 1)},
-            },
-        }
+        properties = dict(detail.get("properties", {}))
+        if unit != "widget":
+            # Keep the base of `#/properties/…` references in the declared detail.
+            declared = properties[unit]
+            properties[unit] = {
+                **declared,
+                "minLength": max(declared.get("minLength", 0), 1),
+            }
+            if spec.get("creates"):
+                properties[unit]["pattern"] = f"^{ELEMENT_ID}$"
+        binding = spec.get("contract")
+        if binding and attrs and (name := attrs.get(binding["attribute"])):
+            assert registry is not None
+            contract = registry["$data"]["contracts"].get(name)
+            selected = (
+                {"$id": f"leaf:contract/{name}", **contract["schema"]}
+                if contract is not None
+                else False
+            )
+            field = binding["field"]
+            properties[field] = {"allOf": [properties[field], selected]}
+        return {**detail, "properties": properties}
     kind = record["kind"]
     if kind == "value":
         value = entry["properties"][record["attr"]]
@@ -311,11 +365,12 @@ def detail_schema(entry: dict, spec: dict) -> dict:
 
 
 def decides(spec: dict) -> bool:
-    """Whether one verb is a deciding verb: its detail declares the reserved
-    `outcome`, which says which retirable members leave the page (x-retired-when,
-    x-withdrawn-as). The browser reads the answer from `$decisions`
+    """Whether a verb declares the role that selects retirable members
+    (x-retired-when, x-withdrawn-as). Its required `outcome` carries that choice;
+    the same field name on any other verb is ordinary domain data.
+    The browser reads the role from `$decisions`
     (`registry.contract.stamp_decisions`)."""
-    return not spec.get("record") and "outcome" in spec["detail"].get("properties", {})
+    return spec.get("decides", False)
 
 
 def deciding_verbs(entry: dict) -> list[str]:
@@ -329,11 +384,15 @@ def deciding_verb(entry: dict) -> str | None:
 
 
 def deciding_outcomes(entry: dict) -> list[str]:
-    """The outcomes the deciding verb may stand under; empty without one."""
+    """The outcomes the deciding verb may stand under; empty without one, or where
+    the verb declares no `outcome` words. Validation reads it before holding the
+    verb to its shape (`state.validate_deciding_verb`), and a declaration reads it
+    of another whose own check may have failed."""
     verb = deciding_verb(entry)
     if verb is None:
         return []
-    schema = entry["x-state"][verb]["detail"]["properties"]["outcome"]
+    detail = entry["x-state"][verb].get("detail") or {}
+    schema = detail.get("properties", {}).get("outcome")
     return list(schema.get("enum", [])) if isinstance(schema, dict) else []
 
 
@@ -406,13 +465,22 @@ def _semantic_schema(schema):
     return result
 
 
-def state_definition(origin: str, entry: dict, spec: dict) -> dict:
+def state_definition(
+    origin: str,
+    entry: dict,
+    spec: dict,
+    *,
+    attrs: dict | None = None,
+    registry: dict | None = None,
+) -> dict:
     """The admitted semantic definition and payload domain of one widget verb.
 
     Later declarations may reuse a verb's name with different meaning or types.
     Recorded definitions distinguish those new operations from history, while
     descriptive schema annotations remain free to change. A verb's `text` flag
-    is not recorded: all it changes is the required `text` in `detail`.
+    is not recorded: all it changes is the required `text` in `detail`. Its
+    `attention` declaration changes delivery, not the state operation; admission
+    records that decision separately on the event.
     """
     from copy import deepcopy
 
@@ -422,7 +490,10 @@ def state_definition(origin: str, entry: dict, spec: dict) -> dict:
             "unit": spec["unit"],
             "record": spec.get("record"),
             "creates": spec.get("creates"),
-            "detail": _semantic_schema(detail_schema(entry, spec)),
+            "decides": decides(spec),
+            "detail": _semantic_schema(
+                detail_schema(entry, spec, attrs=attrs, registry=registry)
+            ),
         }
     )
 
@@ -512,11 +583,53 @@ def stamp_words(registry: dict) -> dict:
     validation refuses any other word, and an author reading the entry sees which it
     may write.
 
+    An attribute's schema may be `true`, which then becomes the words alone, or
+    `false`, which admits no word already and is left as it is.
+
     Each composition stamps it (`registry.layer.stamp_composition`)."""
     for key, fact in DECLARED_WORDS:
         for tag, entry in registry.items():
-            if is_element_name(tag) and (attr := entry.get(key)):
-                entry["properties"][attr]["enum"] = list(registry[fact]["names"])
+            if not (is_element_name(tag) and (attr := entry.get(key))):
+                continue
+            properties = entry["properties"]
+            if properties[attr] is True:
+                properties[attr] = {}
+            if isinstance(properties[attr], dict):
+                properties[attr]["enum"] = list(registry[fact]["names"])
+    return registry
+
+
+def _named_attributes(entry: dict):
+    """(attribute, grammar) for each attribute of one element declaration whose value
+    is a name Leaf looks up: the element's own `id`, an `x-data` input's source
+    attribute and a verb's `contract` attribute. An `x-refers` attribute is left out:
+    `page check` resolves its value to the element it names, whatever that element's
+    id or key."""
+    yield "id", ELEMENT_ID
+    for spec in entry.get("x-data", {}).values():
+        if source := spec.get("source"):
+            yield source, DATA_SOURCE_NAME
+    for _verb, spec in state_specs(entry):
+        if binding := spec.get("contract"):
+            yield binding["attribute"], DATA_CONTRACT_NAME
+
+
+def stamp_grammars(registry: dict) -> dict:
+    """Write into a validated vocabulary the grammar of each attribute
+    `_named_attributes` finds, as its schema's `pattern`, replacing any the
+    declaration gave. Leaf owns these grammars, so a package declares only that such
+    an attribute is a string, and validation and an author reading the entry read the
+    grammar here. An attribute's schema may be `true`, which then becomes the
+    grammar alone, or `false`, which admits no value already and is left as it is.
+
+    Each composition stamps it (`registry.layer.stamp_composition`)."""
+    for entry in element_declarations(registry).values():
+        properties = entry.get("properties", {})
+        for attr, grammar in _named_attributes(entry):
+            if properties.get(attr) is True:
+                properties[attr] = {}
+            if isinstance(properties.get(attr), dict):
+                properties[attr]["pattern"] = f"^{grammar}$"
     return registry
 
 

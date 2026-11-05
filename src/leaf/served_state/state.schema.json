@@ -2,9 +2,29 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://leaf.page/schema/served-state.json",
   "title": "Served state",
-  "description": "The answer `GET /api/state` serves a page's runtime, which the POST /api/event answer carries as `state` and leaf.page publishes as `/_leaf/state/*.json`: `Reading`, which `served_state.page.read_served_page` composes, with what the serving route adds. Leaf alone writes it, so nothing validates it in flight; the tests validate real readings against this schema, and the browser build generates its type from it (`build/browser/contract-types.mjs`). It is not part of the page protocol: the runtime that reads it comes from the Leaf that serves it (`runtime_selection.py`), so a change needs no bump. `leaf:event` refers to any kernel event record, `leaf:event/<kind>` to one kind's and `leaf:verb` to an x-state verb, as `registry.schema.leaf_resources` composes them; an object here adding served fields to an event record closes it again with `unevaluatedProperties`.",
+  "description": "The answer `GET /api/state` serves a page's runtime, which the POST /api/event answer carries as `state` and leaf.page publishes as `/_leaf/state/*.json`: `Reading`, which `served_state.page.read_served_page` composes, with what the serving route adds; a request naming a reading the tab holds may be answered with a `Tail` instead. Leaf alone writes it, so nothing validates it in flight; the tests validate real readings against this schema, and the browser build generates its type from it (`build/browser/contract-types.mjs`). It is not part of the page protocol: the runtime that reads it comes from the Leaf that serves it (`runtime_selection.py`), so a change needs no bump. `leaf:event` refers to any kernel event record, `leaf:event/<kind>` to one kind's and `leaf:verb` to an x-state verb, as `registry.schema.leaf_resources` composes them; an object here adding served fields to an event record closes it again with `unevaluatedProperties`.",
   "$ref": "#/$defs/Reading",
   "properties": {
+    "layer": {
+      "description": "The identity of the layer the shown revision was read under, or the page's before a revision exists (`layer-registry.md`): its generation and selection, and the fingerprint and producer of the layer the serving Leaf composes for it (`served_state.page.served_layer_identity`).",
+      "type": "object",
+      "properties": {
+        "generation": { "type": "string" },
+        "fingerprint": { "type": "string" },
+        "packages": { "type": "array", "items": { "type": "string" } },
+        "theme": {
+          "type": ["object", "null"],
+          "properties": {
+            "name": { "type": "string" },
+            "source": { "enum": ["explicit", "default"] }
+          },
+          "required": ["name", "source"],
+          "additionalProperties": false
+        },
+        "producer": { "$ref": "#/$defs/Provenance" }
+      },
+      "required": ["generation", "fingerprint"]
+    },
     "others": {
       "description": "The machine's other live pages, each its compact row (`server_rows.py`), named by `page_key` and linked by `url` (`presence.other_leaves`). A row is open: a neighbor's Leaf may publish fields this one ignores. An export holds none.",
       "type": "array",
@@ -15,7 +35,35 @@
           "url": { "type": "string" },
           "title": { "type": "string" },
           "session_cwd": { "type": ["string", "null"] },
-          "activity": { "type": "object" }
+          "activity": {
+            "type": "object",
+            "properties": {
+              "kind": { "$ref": "#/$defs/Activity/properties/kind" },
+              "held": { "$ref": "#/$defs/Activity/properties/held" },
+              "dropped": { "$ref": "#/$defs/Activity/properties/dropped" },
+              "detail": { "$ref": "#/$defs/Activity/properties/detail" },
+              "observed": { "$ref": "#/$defs/Activity/properties/observed" },
+              "observed_kind": { "$ref": "#/$defs/Activity/properties/observed_kind" },
+              "awaiting": { "$ref": "#/$defs/Activity/properties/awaiting" },
+              "counts": { "$ref": "#/$defs/Activity/properties/counts" },
+              "ts": { "$ref": "#/$defs/Activity/properties/ts" },
+              "next_transition_at": {
+                "$ref": "#/$defs/Activity/properties/next_transition_at"
+              }
+            },
+            "required": [
+              "kind",
+              "held",
+              "dropped",
+              "detail",
+              "observed",
+              "observed_kind",
+              "awaiting",
+              "counts",
+              "ts",
+              "next_transition_at"
+            ]
+          }
         },
         "required": ["page_key", "url", "title", "session_cwd", "activity"]
       }
@@ -24,34 +72,18 @@
       "description": "The news token of the facts this answer read (`served_state.reading`), which the tab's freshness reads compare.",
       "type": "string"
     },
-    "leaf": {
-      "description": "The Leaf serving the page, as `layer.payload_provenance` reads it, sent only where it is another than the one that vendored the page.",
-      "$ref": "#/$defs/Provenance"
-    },
     "release": {
       "description": "The leaf.page release that served the page.",
       "type": "string"
     }
   },
-  "required": ["others", "reading"],
+  "required": ["layer", "others", "reading"],
   "unevaluatedProperties": false,
   "$defs": {
     "Reading": {
-      "description": "One page's state as `served_state.page.read_served_page` composes it from one transaction, before the serving route adds its neighbors and token. Before the page has an active revision, `active` and `browser` are null.",
+      "description": "One page's state as `served_state.page.read_served_page` composes it from one transaction, before the serving route adds the layer it serves under, its neighbors and token. Before the page has an active revision, `active` and `browser` are null.",
       "type": "object",
       "properties": {
-        "layer": {
-          "description": "The identity of the layer the shown revision was read under, or the vendored layer's before a revision exists (`layer-registry.md`). A layer another Leaf at this protocol vendored may carry more.",
-          "type": "object",
-          "properties": {
-            "generation": { "type": "string" },
-            "fingerprint": { "type": "string" },
-            "server": { "type": "string" },
-            "packages": { "type": "array", "items": { "type": "string" } },
-            "producer": { "$ref": "#/$defs/Provenance" }
-          },
-          "required": ["generation", "fingerprint"]
-        },
         "now": {
           "description": "The server clock used to calibrate browser timestamps and relative ages; a laptop an hour out would otherwise date new comments an hour out too. An edge host refreshes this and `taken` together at delivery; captured event timestamps and already-folded activity keep their original dates.",
           "type": "string"
@@ -93,6 +125,10 @@
           "type": "object",
           "additionalProperties": { "type": "string" }
         },
+        "seen": {
+          "description": "The newest revision a tab showed the user while they were there, posted as they left (`read_state.seen_revision`), from which the browser counts what changed since (since-seen.js). Null before any, and on a hosted copy, whose reader is not the page's user.",
+          "anyOf": [{ "$ref": "#/$defs/Revision" }, { "type": "null" }]
+        },
         "source_error": {
           "description": "Why activating the page's authored source failed, or null.",
           "type": ["string", "null"]
@@ -105,7 +141,7 @@
             "sources": {
               "type": "object",
               "additionalProperties": {
-                "description": "One source (`data.read_source`): its contract and, once a value file exists, the publication's revision, run receipt and `updated` instant, and its `value` or `error`.",
+                "description": "One published source (`data.read_source`), with its publication metadata and value or validation error. Sources without a publication are omitted by `read_data`.",
                 "type": "object",
                 "properties": {
                   "contract": { "type": "string" },
@@ -115,7 +151,11 @@
                   "value": true,
                   "error": { "type": "string" }
                 },
-                "required": ["contract"],
+                "required": ["contract", "revision", "run", "updated"],
+                "oneOf": [
+                  { "required": ["value"], "not": { "required": ["error"] } },
+                  { "required": ["error"], "not": { "required": ["value"] } }
+                ],
                 "additionalProperties": false
               }
             }
@@ -187,8 +227,8 @@
           "description": "What the claimant's harness calls its session now (`Harness.session_name`), or null where it names none.",
           "type": ["string", "null"]
         },
-        "claim_turn": {
-          "description": "The claimant's current turn, which an opened delivery names, or null.",
+        "turn": {
+          "description": "The claimant's current turn, which an opened delivery names, or null. It and the two stamps after it are the claim's turn under the session record's names, which `state.turn_open` and `state.turn_closed` read.",
           "type": ["string", "null"]
         },
         "turn_closed": {
@@ -201,6 +241,10 @@
         },
         "turn_takes_input": {
           "description": "Whether an open turn of the claimant's takes new input before it ends (`Harness.turn_takes_input`).",
+          "type": "boolean"
+        },
+        "input_wakes": {
+          "description": "Whether the nudge the claimant's next input gets would start a turn of its session's (`Harness.input_wakes`).",
           "type": "boolean"
         },
         "session_cwd": {
@@ -275,13 +319,13 @@
         }
       },
       "required": [
-        "layer",
         "now",
         "working_grace_ms",
         "taken",
         "active",
         "versions",
         "revision_labels",
+        "seen",
         "source_error",
         "data",
         "files",
@@ -294,10 +338,11 @@
         "agent",
         "claim_session",
         "session_name",
-        "claim_turn",
+        "turn",
         "turn_closed",
         "turn_opened",
         "turn_takes_input",
+        "input_wakes",
         "session_cwd",
         "activity",
         "workflows",
@@ -411,7 +456,6 @@
           "properties": {
             "active": { "type": "integer" },
             "handling": { "type": "integer" },
-            "handling_comments": { "type": "integer" },
             "queued": { "type": "integer" },
             "picked_up": { "type": "integer" },
             "pending": { "type": "integer" },
@@ -421,7 +465,6 @@
           "required": [
             "active",
             "handling",
-            "handling_comments",
             "queued",
             "picked_up",
             "pending",
@@ -478,7 +521,27 @@
       "required": ["state", "turn", "settles", "attempt"],
       "additionalProperties": false
     },
+    "WorkflowLine": {
+      "description": "A workflow's last explicit work line comes from a start record, so its text and log position arrive together (`workflows.workflow`); a failed delivery has neither.",
+      "type": "object",
+      "anyOf": [
+        {
+          "properties": {
+            "detail": { "type": "string" },
+            "detail_seq": { "type": "integer" }
+          }
+        },
+        {
+          "properties": {
+            "detail": { "type": "null" },
+            "detail_seq": { "type": "null" }
+          }
+        }
+      ],
+      "required": ["detail", "detail_seq"]
+    },
     "Workflow": {
+      "$ref": "#/$defs/WorkflowLine",
       "description": "One update the user handed over that has not settled (`workflows.py`).",
       "type": "object",
       "properties": {
@@ -603,7 +666,36 @@
         "at_work",
         "thread"
       ],
-      "additionalProperties": false
+      "additionalProperties": false,
+      "anyOf": [
+        {
+          "properties": {
+            "subject": {
+              "type": "object",
+              "properties": {
+                "kind": { "const": "widget" },
+                "id": { "type": "string" }
+              },
+              "required": ["kind", "id"],
+              "additionalProperties": false
+            },
+            "revision": { "type": "integer" }
+          }
+        },
+        {
+          "properties": {
+            "subject": {
+              "type": "object",
+              "properties": {
+                "kind": { "const": "thread" },
+                "id": { "type": "string" }
+              },
+              "required": ["kind", "id"],
+              "additionalProperties": false
+            }
+          }
+        }
+      ]
     },
     "Start": {
       "description": "The start running on a to-do (`todos.running`).",
@@ -626,7 +718,6 @@
       "type": "object",
       "properties": {
         "id": { "type": "string" },
-        "owner": { "enum": ["agent", "user"] },
         "subject": { "$ref": "#/$defs/Subject" },
         "title": { "type": "string" },
         "state": { "enum": ["open", "done", "failed", "dropped"] },
@@ -660,7 +751,6 @@
       },
       "required": [
         "id",
-        "owner",
         "subject",
         "title",
         "state",
@@ -727,6 +817,13 @@
         "verb": { "type": "string" }
       },
       "required": ["form"],
+      "oneOf": [
+        { "properties": { "form": { "const": "choice" } }, "required": ["chosen"] },
+        { "properties": { "form": { "const": "move" } }, "required": ["unit", "to"] },
+        { "properties": { "form": { "const": "edit" } }, "required": [] },
+        { "properties": { "form": { "const": "add" } }, "required": ["words"] },
+        { "properties": { "form": { "const": "verb" } }, "required": ["verb"] }
+      ],
       "additionalProperties": false
     },
     "HistoryRow": {
@@ -783,6 +880,28 @@
         "version": { "type": "integer" }
       },
       "required": ["id", "ts", "kind", "author", "agent", "undone"],
+      "oneOf": [
+        {
+          "properties": { "kind": { "const": "comment" } },
+          "required": ["anchor", "about"]
+        },
+        { "properties": { "kind": { "const": "reply" } }, "required": ["thread"] },
+        { "properties": { "kind": { "const": "edit" } }, "required": ["thread"] },
+        { "properties": { "kind": { "const": "resolve" } }, "required": ["thread"] },
+        { "properties": { "kind": { "const": "unresolve" } }, "required": ["thread"] },
+        {
+          "properties": { "kind": { "const": "action" } },
+          "required": ["widget", "gesture"]
+        },
+        {
+          "properties": { "kind": { "const": "report" } },
+          "required": ["widget", "value", "excerpt"]
+        },
+        {
+          "properties": { "kind": { "const": "note" } },
+          "required": ["version", "excerpt"]
+        }
+      ],
       "additionalProperties": false
     },
     "Browser": {
@@ -790,9 +909,12 @@
       "type": "object",
       "properties": {
         "basis": {
-          "description": "The log position the reading was taken through.",
+          "description": "The log position the reading was taken through, and, in an answer a page server sent, `key`, the reading's name, a digest of its content, which a request sends back in `Leaf-Held-Basis` to be answered with only what changed since (`Tail`).",
           "type": "object",
-          "properties": { "through_seq": { "type": "integer" } },
+          "properties": {
+            "through_seq": { "type": "integer" },
+            "key": { "type": "string" }
+          },
           "required": ["through_seq"],
           "additionalProperties": false
         },
@@ -829,11 +951,6 @@
             { "type": "null" }
           ]
         },
-        "receipts": {
-          "description": "Every logged event a browser attempt wrote, which carries its `attempt`.",
-          "type": "array",
-          "items": { "$ref": "#/$defs/Event" }
-        },
         "thread_memberships": {
           "description": "Every thread whose history each logged event changes (`thread_context.thread_memberships`), which the browser reads for the gesture an unsent undo takes back or an unsent action replaces.",
           "type": "object",
@@ -850,7 +967,6 @@
         "views",
         "todos",
         "plan",
-        "receipts",
         "thread_memberships",
         "version_notes"
       ],
@@ -938,7 +1054,7 @@
           }
         },
         "undo": {
-          "description": "The user's gestures this document can take back, newest first (`served_state.document.browser_undo_candidates`); `newest` marks the user's newest gesture, `gesture` says what that one did when it is an action, and `picked_up` marks a gesture a delivery handed into an agent's turn.",
+          "description": "The user's gestures this document can take back, newest first (`served_state.document.browser_undo_candidates`), or in an answer with `since` those new or changed since; `newest` marks the user's newest gesture, and `gesture` says what that one did when it is an action.",
           "type": "array",
           "items": {
             "type": "object",
@@ -946,28 +1062,9 @@
               "event": { "$ref": "#/$defs/Event" },
               "coordinate": { "type": "array", "items": { "type": "string" } },
               "newest": { "const": true },
-              "gesture": { "$ref": "#/$defs/Gesture" },
-              "picked_up": { "const": true }
+              "gesture": { "$ref": "#/$defs/Gesture" }
             },
             "required": ["event"],
-            "additionalProperties": false
-          }
-        },
-        "coverage": {
-          "description": "Each widget event and undo with the coordinate it is classified at in this view, or null.",
-          "type": "array",
-          "items": {
-            "type": "object",
-            "properties": {
-              "event": { "$ref": "#/$defs/Event" },
-              "coordinate": {
-                "anyOf": [
-                  { "type": "array", "items": { "type": "string" } },
-                  { "type": "null" }
-                ]
-              }
-            },
-            "required": ["event", "coordinate"],
             "additionalProperties": false
           }
         },
@@ -991,7 +1088,6 @@
         "obligations",
         "reports",
         "undo",
-        "coverage",
         "published_at",
         "queues"
       ],
@@ -1002,6 +1098,7 @@
       "type": "object",
       "properties": {
         "entries": {
+          "description": "Each widget event this projection classifies, in log order, or in an answer with `since` those new or changed since.",
           "type": "array",
           "items": {
             "type": "object",
@@ -1058,88 +1155,75 @@
       "required": ["entries", "actions", "reports", "desired"],
       "additionalProperties": false
     },
+    "ObligationAnswer": {
+      "type": "object",
+      "properties": {
+        "value": true,
+        "event": { "anyOf": [{ "$ref": "#/$defs/EventReference" }, { "type": "null" }] }
+      },
+      "required": ["value", "event"],
+      "additionalProperties": false
+    },
+    "WidgetObligationSource": {
+      "type": "object",
+      "properties": {
+        "kind": { "const": "widget" },
+        "id": { "type": "string" },
+        "tag": { "type": "string" },
+        "unit": {
+          "description": "A data record within the owning widget; its projected datum and action unit share this key.",
+          "type": "string"
+        }
+      },
+      "required": ["kind", "id", "tag"],
+      "additionalProperties": false
+    },
+    "UpdateObligationSource": {
+      "description": "An update the user handed over: `id` is the input's event, `subject` the thread or widget it stands on.",
+      "type": "object",
+      "properties": {
+        "kind": { "const": "update" },
+        "id": { "type": "string" },
+        "subject": { "$ref": "#/$defs/Subject" }
+      },
+      "required": ["kind", "id", "subject"],
+      "additionalProperties": false
+    },
+    "MessageObligationSource": {
+      "type": "object",
+      "properties": { "kind": { "const": "message" }, "id": { "type": "string" } },
+      "required": ["kind", "id"],
+      "additionalProperties": false
+    },
+    "ObligationPrompt": {
+      "type": "object",
+      "properties": {
+        "text": { "type": ["string", "null"] },
+        "target": {
+          "description": "Where the user goes to answer: the id of a widget's prompt context, or of the thread or widget an update stands on; null for a message, whose thread supplies navigation.",
+          "type": ["string", "null"]
+        }
+      },
+      "required": ["text", "target"],
+      "additionalProperties": false
+    },
     "Obligation": {
-      "description": "One request and its contained answer (`obligations.py`, which owns the statuses): what a message, user task, or widget waits on the user for, or what a user update is owed (`workflows.handed_over`). The source owns the canonical value; identity includes its kind so authored ids and message ids cannot collide.",
+      "description": "One request and its contained answer (`obligations.py`, which owns the statuses): what a message or widget waits on the user for, or what a user update is owed (`workflows.handed_over`). The source owns the canonical value; identity includes its kind so authored ids and message ids cannot collide.",
       "type": "object",
       "properties": {
         "id": { "type": "string" },
         "source": {
           "anyOf": [
-            {
-              "type": "object",
-              "properties": {
-                "kind": { "const": "widget" },
-                "id": { "type": "string" },
-                "tag": { "type": "string" },
-                "unit": {
-                  "description": "A data record within the owning widget; its projected datum and action unit share this key.",
-                  "type": "string"
-                }
-              },
-              "required": ["kind", "id", "tag"],
-              "additionalProperties": false
-            },
-            {
-              "description": "An update the user handed over: `id` is the input's event, `subject` the thread or widget it stands on.",
-              "type": "object",
-              "properties": {
-                "kind": { "const": "update" },
-                "id": { "type": "string" },
-                "subject": { "$ref": "#/$defs/Subject" }
-              },
-              "required": ["kind", "id", "subject"],
-              "additionalProperties": false
-            },
-            {
-              "type": "object",
-              "properties": {
-                "kind": { "const": "message" },
-                "id": { "type": "string" }
-              },
-              "required": ["kind", "id"],
-              "additionalProperties": false
-            },
-            {
-              "type": "object",
-              "properties": {
-                "kind": { "const": "todo" },
-                "id": { "type": "string" },
-                "subject": { "$ref": "#/$defs/Subject" }
-              },
-              "required": ["kind", "id", "subject"],
-              "additionalProperties": false
-            }
+            { "$ref": "#/$defs/WidgetObligationSource" },
+            { "$ref": "#/$defs/UpdateObligationSource" },
+            { "$ref": "#/$defs/MessageObligationSource" }
           ]
         },
         "thread": { "type": ["string", "null"] },
         "message": { "type": ["string", "null"] },
-        "prompt": {
-          "type": "object",
-          "properties": {
-            "text": { "type": ["string", "null"] },
-            "target": {
-              "description": "Where the user goes to answer: the id of a widget's prompt context, or of the thread or widget an update stands on; null for a message or page-wide task, whose source and thread supply navigation.",
-              "type": ["string", "null"]
-            }
-          },
-          "required": ["text", "target"],
-          "additionalProperties": false
-        },
+        "prompt": { "$ref": "#/$defs/ObligationPrompt" },
         "answer": {
-          "anyOf": [
-            {
-              "type": "object",
-              "properties": {
-                "value": true,
-                "event": {
-                  "anyOf": [{ "$ref": "#/$defs/EventReference" }, { "type": "null" }]
-                }
-              },
-              "required": ["value", "event"],
-              "additionalProperties": false
-            },
-            { "type": "null" }
-          ]
+          "anyOf": [{ "$ref": "#/$defs/ObligationAnswer" }, { "type": "null" }]
         },
         "status": { "enum": ["open", "answered", "answered_elsewhere", "withdrawn"] },
         "end": {
@@ -1181,22 +1265,103 @@
         "end",
         "next_actor"
       ],
-      "additionalProperties": false
+      "additionalProperties": false,
+      "anyOf": [
+        {
+          "anyOf": [
+            {
+              "properties": {
+                "thread": { "type": "null" },
+                "message": { "type": "null" }
+              }
+            },
+            {
+              "properties": {
+                "thread": { "type": "string" },
+                "message": { "type": "string" }
+              }
+            }
+          ],
+          "properties": {
+            "source": { "$ref": "#/$defs/WidgetObligationSource" },
+            "answer": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/ObligationAnswer",
+                  "properties": { "value": true },
+                  "required": ["value"]
+                },
+                { "type": "null" }
+              ]
+            }
+          }
+        },
+        {
+          "properties": {
+            "source": { "$ref": "#/$defs/UpdateObligationSource" },
+            "answer": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/ObligationAnswer",
+                  "properties": { "value": { "type": "null" } },
+                  "required": ["value"]
+                },
+                { "type": "null" }
+              ]
+            }
+          }
+        },
+        {
+          "properties": {
+            "source": { "$ref": "#/$defs/MessageObligationSource" },
+            "thread": { "type": "string" },
+            "message": { "type": "string" },
+            "answer": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/ObligationAnswer",
+                  "properties": {
+                    "value": {
+                      "type": "object",
+                      "properties": {
+                        "text": { "type": "string" },
+                        "token": { "type": "string" }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": ["value"]
+                },
+                { "type": "null" }
+              ]
+            }
+          }
+        }
+      ]
     },
     "QueueRow": {
-      "description": "One row of On me or On <agent> (`served_state.queues`); `owner` names its list and `live` whether the agent has it in hand now. A record's row names its obligation by `id`, whose record is the view's `obligations` entry, and an agent to-do row names its record in the page's `todos` entry.",
+      "description": "One row of On me or On <agent> (`served_state.queues`); `owner` names its list and `live` whether the agent has it in hand now. A record's row names its obligation by `id`, whose record is the view's `obligations` entry, and a to-do row names its record in the page's `todos` entry.",
       "anyOf": [
         { "$ref": "#/$defs/ObligationRow", "unevaluatedProperties": false },
         { "$ref": "#/$defs/TodoRow", "unevaluatedProperties": false }
       ]
     },
     "ObligationRow": {
+      "anyOf": [
+        {
+          "properties": {
+            "kind": { "enum": ["widget", "message"] },
+            "owner": { "const": "user" }
+          }
+        },
+        { "properties": { "kind": { "const": "update" } } }
+      ],
       "description": "An obligation record's row in On me or On <agent> (`served_state.queues`).",
       "type": "object",
       "properties": {
         "kind": {
           "description": "The record's `source.kind`.",
-          "enum": ["widget", "update", "message", "todo"]
+          "enum": ["widget", "update", "message"]
         },
         "id": {
           "description": "The obligation, whose record is the view's `obligations` entry.",
@@ -1211,15 +1376,20 @@
           "description": "The thread it stands in, or null.",
           "type": ["string", "null"]
         },
+        "also": {
+          "description": "The other obligations the user answers at the same place, each a view's `obligations` entry: the further records a thread's reply answers, and on an obligation's row those of a thread about it.",
+          "type": "array",
+          "items": { "type": "string" }
+        },
         "live": {
           "description": "Whether the agent has it in hand now: an update it is at work on whose work has not gone quiet or stopped.",
           "type": "boolean"
         }
       },
-      "required": ["kind", "id", "owner", "subject", "thread", "live"]
+      "required": ["kind", "id", "owner", "subject", "thread", "also", "live"]
     },
     "TodoRow": {
-      "description": "An agent to-do's row in On <agent> (`served_state.queues`).",
+      "description": "A to-do's row in On <agent> (`served_state.queues`).",
       "type": "object",
       "properties": {
         "kind": { "const": "todo" },
@@ -1266,8 +1436,11 @@
       "description": "A message as a served thread holds it.",
       "anyOf": [
         {
-          "description": "A logged comment or reply, with its current content version (`read_state.content_version`), which the browser marks read once its words have been shown. An agent's message carries the name it is shown under as `agent` (`schema.agent_name`). An input's first answer carries `key`, the name a provisional reply and the answer that retires it share.",
-          "anyOf": [{ "$ref": "leaf:event/comment" }, { "$ref": "leaf:event/reply" }],
+          "description": "A logged comment or reply, with its latest edit's words, and its current content version (`read_state.content_version`), which the browser marks read once its words have been shown. An agent's message carries the name it is shown under as `agent` (`schema.agent_name`). An input's first answer carries `key`, the name a provisional reply and the answer that retires it share.",
+          "anyOf": [
+            { "$ref": "leaf:message/comment" },
+            { "$ref": "leaf:message/reply" }
+          ],
           "properties": {
             "agent": { "type": "string" },
             "key": { "type": "string" },
@@ -1286,6 +1459,17 @@
                 "was": { "type": "string" }
               },
               "required": ["id", "seq", "ts", "was"],
+              "additionalProperties": false
+            },
+            "withdrawn": {
+              "description": "The undo that took the message back while something still stood on it, and what it said; the message keeps its place with no words and no mark (`events.build_threads`).",
+              "type": "object",
+              "properties": {
+                "id": { "type": "string" },
+                "ts": { "type": "string" },
+                "was": { "type": "string" }
+              },
+              "required": ["id", "ts", "was"],
               "additionalProperties": false
             }
           },
@@ -1451,9 +1635,9 @@
           }
         },
         "unread": {
-          "description": "The content versions the user hasn't read (`read_state.unread_content`).",
-          "type": "array",
-          "items": { "$ref": "#/$defs/ContentVersion" }
+          "description": "The content version of each message the user hasn't read, by the message's id, in log order (`read_state.unread_content`).",
+          "type": "object",
+          "additionalProperties": { "type": "string" }
         },
         "attention": { "$ref": "#/$defs/Attention" }
       },
@@ -1486,14 +1670,101 @@
       "required": ["browser"],
       "additionalProperties": false
     },
+    "Tail": {
+      "description": "What a page server sends a tab in place of a reading when the tab's request names, in `Leaf-Held-Basis`, the `browser.basis.key` of a reading it holds and the server still remembers that reading (`served_state.tail`). The browser applies `patch` to the reading `since` names and completes the whole answer from it (`completeState` in `layer-client.js`).",
+      "type": "object",
+      "properties": {
+        "since": {
+          "description": "The reading the changes start from.",
+          "type": "object",
+          "properties": { "key": { "type": "string" } },
+          "required": ["key"],
+          "additionalProperties": false
+        },
+        "patch": {
+          "description": "The changes from that reading to this one, in order. They leave out `events` and `data`.",
+          "type": "array",
+          "items": { "$ref": "#/$defs/Change" }
+        },
+        "events": {
+          "description": "The events logged after that reading's `through_seq`.",
+          "type": "array",
+          "items": { "$ref": "#/$defs/Event" }
+        },
+        "data": { "$ref": "#/$defs/Reading/properties/data" }
+      },
+      "required": ["since", "patch", "events", "data"],
+      "additionalProperties": false
+    },
+    "Change": {
+      "description": "One change a `Tail` makes to the reading it starts from, at `at`, a path of keys through its objects from the root of what it changes: the reading, or for a change inside a list's item, that item (`served_state.tail`).",
+      "anyOf": [
+        {
+          "description": "The value at `at` is now `value`, whole.",
+          "type": "object",
+          "properties": {
+            "at": { "type": "array", "items": { "type": "string" } },
+            "value": {}
+          },
+          "required": ["at", "value"],
+          "additionalProperties": false
+        },
+        {
+          "description": "The object holding the last key of `at` no longer holds it.",
+          "type": "object",
+          "properties": { "at": { "type": "array", "items": { "type": "string" } } },
+          "required": ["at"],
+          "additionalProperties": false
+        },
+        {
+          "description": "The list at `at`, whose items are each named by its `id` (`by` `id`), its event's `id` (`event`) or itself, a string (`self`), changed: `items` holds its new items whole, `changed` pairs the name of each item it held that is now otherwise with the changes from that item to what it is now, `dropped` names those it no longer holds, and `after` pairs each item that is new or moved, in the list's order, with the name of the item now before it, or null for the first. Every other item keeps its place.",
+          "type": "object",
+          "properties": {
+            "at": { "type": "array", "items": { "type": "string" } },
+            "by": { "enum": ["id", "event", "self"] },
+            "items": { "type": "array" },
+            "changed": {
+              "type": "array",
+              "items": {
+                "type": "array",
+                "prefixItems": [
+                  { "type": "string" },
+                  { "type": "array", "items": { "$ref": "#/$defs/Change" } }
+                ],
+                "items": false
+              }
+            },
+            "dropped": { "type": "array", "items": { "type": "string" } },
+            "after": {
+              "type": "array",
+              "items": {
+                "type": "array",
+                "prefixItems": [{ "type": "string" }, { "type": ["string", "null"] }],
+                "items": false
+              }
+            }
+          },
+          "required": ["at", "by"],
+          "additionalProperties": false
+        }
+      ]
+    },
     "EventAnswer": {
       "description": "The answer `POST /api/event` gives once its gates pass (`event_endpoint`).",
       "anyOf": [
         {
-          "description": "Accepted, with the page's state, which holds the event's receipt.",
+          "description": "Accepted, with the event the log holds for it and the page's state, which holds the event's receipt (`event_endpoint.with_state`).",
           "type": "object",
-          "properties": { "ok": { "const": true }, "state": { "$ref": "#" } },
-          "required": ["ok", "state"],
+          "properties": {
+            "ok": { "const": true },
+            "event": { "$ref": "#/$defs/Event" },
+            "needs_reply": {
+              "description": "Whether the event owes the agent an answer: its update stands among those the agent owes (`obligations.update_obligation`).",
+              "type": "boolean"
+            },
+            "state": { "anyOf": [{ "$ref": "#" }, { "$ref": "#/$defs/Tail" }] }
+          },
+          "required": ["ok", "event", "needs_reply", "state"],
           "additionalProperties": false
         },
         {
@@ -1505,7 +1776,7 @@
             "error": { "type": "string" },
             "findings": { "type": "array", "items": { "$ref": "#/$defs/Finding" } },
             "attempt": { "description": "The posted `attempt`, echoed as it came." },
-            "state": { "$ref": "#" }
+            "state": { "anyOf": [{ "$ref": "#" }, { "$ref": "#/$defs/Tail" }] }
           },
           "required": ["ok", "final", "error", "findings"],
           "additionalProperties": false

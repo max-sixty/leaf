@@ -35,8 +35,8 @@ first:
 leaf thread reply <answer.ref> --ephemeral --text "<what you will do, in a line>"
 ```
 
-The line shows at once as the thread's working message and the panel's **Working**
-status, and it starts the update. Start any other item, such as a
+The line shows at once as the thread's working message and the panel's status, and it
+starts the update. Start any other item, such as a
 to-do or an action on a page widget, with `leaf task start`:
 
 ```bash
@@ -46,7 +46,10 @@ leaf task start <page> <id> --text "reading the reconnect traces" && <command>
 Post or start again whenever the user would describe your work differently, such as
 moving from reading to editing or testing. Chained before the step's command, a start
 costs no extra tool call. Name the operation and its subject; "Working on it" says
-nothing.
+nothing. The user reads the line at a glance, in the panel and in the list of their
+pages, so say in a few of their words what you are doing ("checking the fix in
+Firefox"): not a to-do's title, which reads as an instruction to them, and without
+commit hashes, ids or the mechanics of a CI run.
 
 Work asked for in chat, or begun on your own, gets a to-do. Open it on the widget or
 element it concerns, or on `page`; on a new page, open and start it before
@@ -60,12 +63,13 @@ leaf task end <page> <todo> done --text "<where the result is>"
 ```
 
 `leaf task create` prints the to-do's `id`.
-Housekeeping such as re-vendoring, restarting the server, or merging needs
+Housekeeping such as changing packages, restarting the server, or merging needs
 no to-do.
 
 When the work runs to several steps, some of which may wait on the user, write your plan
-before you start the first step, so the user can follow it in the panel's Plan tab: the
-goal, its steps in order, the one under way, and those waiting on them.
+before you start the first step, so the user can follow it in the panel's list of your
+work, under the plan's progress, and see On me grouped by its goals: the goal, its steps
+in order, the one under way, and those waiting on them.
 `leaf task plan <page>` reads the whole outline from stdin as a JSON list of steps: the
 goal at depth 0, each step one deeper than the step it belongs to, and each either a
 `title` with a `state` (`open`, `working`, `done` or `dropped`) or the `item` it names:
@@ -92,9 +96,8 @@ When input arrives:
 
 ## Page availability and handoff
 
-Before handing over, reconcile both lists ("The On lists"). Put questions that need
-an answer in a thread message with `--obligation`, so the user can open the thread
-from On me and reply there. Page availability does not ask the user for anything.
+Before handing over, reconcile both lists ("The On lists"). Page availability does
+not ask the user for anything.
 
 Leave the page available for optional feedback, putting down your current starts:
 
@@ -140,6 +143,15 @@ exceptions are a command hub worker (the `worker` value from
 your conversation inherits the page too. Work that needs its own conversation with
 the user belongs in its own session, with its own page.
 
+Decisions built from a worker's report tend to keep the report's shape, and the
+brief sets that shape. When the user will decide on what a worker finds, such as an
+audit's candidates, ask it for each decision's material rather than a record of each
+finding: the question the finding raises, each option titled by the result the user
+would get for that finding (not a kind of change shared by every finding, such as
+Remove), and each result shown as the user would meet it, such as a capture of the
+interface with the change applied beside today's, or a request the service would
+then refuse (`authoring-on-me.md`, "What a question holds").
+
 A start lasts only for the turn that wrote it.
 Within a long turn a start goes stale after about 15 minutes. The status shows the item you started last, so
 start the one that best describes what is running. While a worker produces an
@@ -174,41 +186,56 @@ Work on an update that finishes inside the turn needs no to-do.
 The user's **On me** list holds everything waiting on them: each decision your work
 leaves to them, whether or not your next step depends on it, and each answer,
 permission, review, or outside action you need. That includes every option you
-present for their judgment, not only the one you recommend. Ask each as a direct
-question by a route in the table below, grouped as `authoring-decisions.md` says, and keep
-it until the user decides or you withdraw it. A question written in prose, a heading,
-a status line or chat isn't on On me; only the routes in the table put it there.
-Information they may comment on but need not decide is not an obligation.
+present for their judgment, not only the one you recommend. Ask each by a route in
+the table below, grouped as `authoring-on-me.md` says, and keep it until the user
+decides or you withdraw it. A question written in prose, a heading, a status line or
+chat isn't on On me; only the routes in the table put it there. Information they may
+comment on but need not decide is not an obligation.
+
+In Claude Code, as each turn ends, an experimental check of Leaf's reads the
+conversation for decisions, answers or steps you left to the user that On me doesn't
+hold. It asks each in a new thread as your message with `--obligation`, on the passage
+it concerns or the page, and tells you at your next step what it wrote. Where a few of
+a page's words have gone stale, it swaps in new ones and tells you the old and new
+words; change them back or rewrite them if they're wrong, and carry the change into
+any file you build the page from. It also tells you what else it found, such as a
+page that still says what has since changed, an On me item the user settled
+elsewhere, or work you set running that no page shows, for you to act on where it
+still holds; `turn-end-check.md` is what it asks. That catches what slips; it doesn't
+ask for you, so keep asking by the routes below. What it writes is yours like
+anything you write: the user's reply reaches you as any reply does, and you end one
+that isn't theirs with `leaf task end <page> message:<id> dropped`.
 
 On me also lists any update of the user's that failed to send. Your own list shows as
 **On <your name>**. The user presses `m` to step through On me in page order. Each
 press lands where the obligation is answered; on a widget's obligation, its numbered actions
-(`1`–`9`) answer it there. A to-do's press lands on its subject. The margin marks that
-subject with the to-do's title, and once the user is there the panel shows the title
-with a Done. A to-do on a thread shows its title and Done at the top of the thread. The
-title is all the user reads of the to-do, so it names the action without the page's
-help.
+(`1`–`9`) answer it there, and on a thread message, its thread opens on it. Leaf adds
+no control of its own, such as a Done, to answer an item: on the page, the user answers
+through the widget's own actions or a reply in the thread, and you record an answer
+they give elsewhere, such as in chat, with `leaf task end` (below).
 
-| Request                                                                         | Register it                                                                                                                       | What answers it                                                                       |
-| ------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
-| A decision or input recorded by a widget                                        | Author a decision widget (`authoring-decisions.md`); optional `lf-ask` frames its question and evidence                           | The widget's declared answer; a multiple-choice widget also needs the user's Done     |
-| A conversational answer                                                         | `--obligation` on `thread create` or `thread reply` (`threads.md`)                                                                | The user's next message there or a settling reaction                                  |
-| Permission for a stated action                                                  | A decision with the action and an option keeping things as they are (`authoring-decisions.md`, "Permission")                      | The user's pick and its row in On me                                                  |
-| An action neither route records, such as trying a build or connecting a browser | `leaf task create <page> <id> --title "<direct question naming the action>" --on user`, on its thread, widget, section, or `page` | The user's Done; end it yourself when their action is established or no longer needed |
+| Request                                                                  | Register it                                                                                                                      | What answers it                                                                                 |
+| ------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| A decision or input recorded by a widget                                 | Author a widget that records it, on the page or in a thread message's `--markup` (`authoring-on-me.md`)                          | The widget's declared answer; a multiple-choice widget also needs the user's Done               |
+| A question answered in words                                             | `--obligation` on `thread create` or `thread reply` (`threads.md`)                                                               | The user's next message there or a settling reaction                                            |
+| Permission for a stated action                                           | Options to take the action or keep things as they are (`authoring-on-me.md`, "Permission")                                       | The user's pick and its row in On me                                                            |
+| An action the user takes, such as trying a build or connecting a browser | `--obligation` on a message saying what to do and asking for a reply once it's done, in a thread on what it concerns or the page | The user's reply or a settling reaction, or your `leaf task end … done` if you confirm it first |
 
-Generally pass `--obligation` when a message hands the next move to the user.
-Progress and information that need no response create no obligation. When a widget
-already captures the same answer, its obligation is sufficient.
+Generally pass `--obligation` when a message hands the next move to the user,
+including an answer that informs a decision already on On me. A message that asks a
+new question whose answers you can list asks with a widget in its markup instead
+(`threads.md`, "Ask for a pick"); the command refuses both together. Progress and
+information that need no response create no obligation.
 
 Obligation ids are `message:<message>` for an explicit message request,
-`widget:<widget-id>` for a widget, `lf-ask` included,
+`widget:<widget-id>` for a widget that asks,
 and `update:<event-id>` for an update
-the user handed over. A to-do on the user keeps the id `task create` printed. It can sit on a thread; replies discuss the action and Done completes it.
+the user handed over.
 The user's next message in a thread answers every conversational request before it.
-A clarification hands the conversation back to you; if you still need input, make
-the next request with `--obligation`. A reply does not claim outside work is done.
-Ask a dependent question only once its prerequisite is answered. The user's Done on a
-to-do says they did it; it grants nothing its question did not ask.
+A clarification hands the conversation back to you, as does a question about an
+action, such as "where do I run it?"; if you still need input, or the action is still
+to do, make the next request with `--obligation`. Ask a dependent question only once
+its prerequisite is answered. An answer grants nothing its question did not ask.
 
 Read the lists before a handoff, before waiting for the user, and after taking in an
 answer:
@@ -219,7 +246,9 @@ leaf page state <page> | jq '{source, obligations, todos, queues}'
 
 `queues.on_user` is On me. `queues.on_agent` is your list: the updates you owe a
 reply or a version, and your to-dos. Read them as given rather than rebuilding them
-from events. A row names its obligation or to-do by `id`. An obligation's record in
+from events. A row names its obligation or to-do by `id`, and in `also` the other
+obligations the user answers at the same place: an answer of yours in a thread about a
+widget's question rides on that widget's row. An obligation's record in
 `obligations` holds its `prompt`, its `answer` once given, its `status` and its
 `next_actor`, and a widget's obligation takes its answer from the widget's state; a
 to-do's record in `todos` holds its `title` and the start `running` on it.
@@ -236,17 +265,16 @@ without asking again. Ask about a paused project only when resuming or dropping 
 needs the user's decision. Put a blocked action on the user only when they can
 unblock it, and leave questions about another session's work to that session.
 
-When the user answers a conversational question elsewhere, use the answer and end
+When the user answers a question your message asked by another route than the one it
+offered, such as in chat, or in words where it offered a choice, use the answer and end
 its obligation with `leaf task end`, using the id from `page state`: `done` records
 where they answered; `dropped` withdraws a question that no longer applies. Neither
 outcome fabricates an answer in the page's history:
 
 ```bash
 leaf task end <page> message:<message> done --text "<where the answer is>"
-leaf task end <page> message:<message> dropped --text "<why>"
+leaf task end <page> widget:<widget-id> dropped --text "<why>"
 ```
 
-For a reply-answered widget, use its `widget:<widget-id>` obligation id instead.
-An obligation answered through a widget's controls ends through its state or an
-authored withdrawal (`authoring-revisions.md`). Explicit user to-dos also end with
-`leaf task end` when the work is complete, failed or dropped.
+A page widget's obligation ends through its state or an authored withdrawal
+(`authoring-revisions.md`).

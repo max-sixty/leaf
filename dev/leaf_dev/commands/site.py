@@ -9,8 +9,8 @@ private copy through Leaf's canonical Python server. The catalog previews and th
 product card come from the max-sixty/leaf-assets revision pinned in `leaf-assets.json`.
 
 The worked examples and developer package galleries become complete Leaf page directories
-under examples/<name>/. The same preparation path that serves a local fixture vendors
-each page's selected layer, stamps its authored versions, applies its companion event
+under examples/<name>/. The same preparation path that serves a local fixture records
+each page's selected packages, stamps its authored versions, applies its companion event
 log and data, and closes the finished page without claiming it for an agent. A second,
 derived tree contains the immutable live shell Cloudflare serves before the canonical
 server answers its API requests.
@@ -22,8 +22,8 @@ publishes beside each revision. The website's container image installs the same 
 so a revision a hosted session writes captures the layer the published revisions were
 built from and runs the same runtime. The suite and
 `refresh-previews` serve the site with this checkout's adapter, which refuses pages
-another Leaf vendored, so they build with the checkout's own Leaf; the suite's browser
-probes also import source modules a compiled kernel no longer has.
+at another page protocol, so they build with the checkout's own Leaf; the suite's
+browser probes also import source modules a compiled kernel no longer has.
 
 A dead link is the failure a static host cannot report, so the build resolves every
 local href and src it wrote through the website server's routing and refuses a site
@@ -54,6 +54,31 @@ from pathlib import Path
 from urllib.parse import unquote, urljoin, urlsplit
 
 import click
+
+from leaf.event_log import initialized
+from leaf.files import latest_revision, list_revisions
+from leaf.live_shell import write_live_shell
+from leaf.schema import (
+    BROWSER_DIRS,
+    DATA_DIR,
+    LAYER_TOP_FILES,
+    PAGE_STATE_FILES,
+    SESSION_ROUTE_DIRS,
+)
+from leaf.structure import FRAME_ANCESTORS_CSP
+from leaf_dev import LEAF_COMMAND, ROOT, docs
+from leaf_dev.arms import environment
+from leaf_dev.commands.distribution import prepare
+from leaf_dev.docs import catalog_preview, media_url, product_route, product_sources
+from leaf_dev.example_data import catalog_sources, document_metadata, published_sources
+from leaf_dev.leaf_assets import pinned_assets
+from leaf_dev.page_fixtures import (
+    fixture_environment,
+    package_selection_args,
+    prepare_page,
+    read_fixture,
+    source_packages,
+)
 from leaf_website import (
     SITE_MANIFEST,
     SITE_ORIGIN,
@@ -62,32 +87,6 @@ from leaf_website import (
     site_metadata,
 )
 
-from leaf.files import latest_revision, list_revisions
-from leaf.live_shell import write_live_shell
-from leaf.schema import (
-    BROWSER_DIRS,
-    DATA_DIR,
-    PAGE_STATE_FILES,
-    SESSION_ROUTE_DIRS,
-    VENDORED_FILES,
-)
-from leaf.structure import FRAME_ANCESTORS_CSP
-from leaf_dev import LEAF_COMMAND, ROOT, docs
-from leaf_dev.arms import environment
-from leaf_dev.commands.distribution import prepare
-from leaf_dev.docs import catalog_preview, media_url, product_route, product_sources
-from leaf_dev.example_data import catalog_sources, document_metadata
-from leaf_dev.leaf_assets import pinned_assets
-from leaf_dev.page_fixtures import (
-    package_selection_args,
-    prepare_page,
-    read_fixture,
-    source_packages,
-)
-
-EXAMPLES = ROOT / "examples"
-INTERNAL_EXAMPLES = {"corpus"}
-DEVELOPER_PAGES = tuple(sorted((EXAMPLES / "developer").glob("*.html")))
 OUT = ROOT / ".tmp" / "site"
 BUNDLE_RUNTIME = ROOT / "worker" / "bundle-runtime.mjs"
 
@@ -147,7 +146,7 @@ def published_pages(
     examples = [
         (page, f"/examples/{page.name}")
         for page in sorted((out / "examples").iterdir())
-        if (page / "events.jsonl").is_file()
+        if initialized(page)
     ]
     return product + examples
 
@@ -211,7 +210,7 @@ def leaf(
     done = subprocess.run(
         [*command, *args],
         cwd=ROOT,
-        env=env,
+        env=fixture_environment(env),
         capture_output=True,
         text=True,
         input=input_text,
@@ -219,16 +218,6 @@ def leaf(
     )
     if done.returncode:
         sys.exit(f"leaf {' '.join(args)}:\n{done.stdout}{done.stderr}")
-
-
-def published_page_sources() -> list[Path]:
-    """Authored pages the public site publishes, including developer references."""
-    worked = [
-        source
-        for source in sorted(EXAMPLES.glob("*.html"))
-        if source.stem not in INTERNAL_EXAMPLES
-    ]
-    return [*worked, *DEVELOPER_PAGES]
 
 
 def product_page(out: Path, source_name: str) -> Path:
@@ -250,8 +239,8 @@ def install_tree(out: Path) -> Path:
 
 
 def checkout_leaf() -> Callable:
-    """Run `leaf` commands from this checkout, whose pages vendor its committed kernel
-    while that is current and its source modules otherwise."""
+    """Run `leaf` commands from this checkout, whose pages run its runtime's source
+    modules."""
     # `environment()` keeps the builder's harness session out of published version notes.
     return partial(leaf, LEAF_COMMAND, environment())
 
@@ -309,7 +298,9 @@ def write_crawler_directives(assets: Path, routes: list[str]) -> None:
     )
 
 
-def deduplicate_tree(root: Path, *, mutable_names: set[str] = frozenset()) -> None:
+def deduplicate_tree(
+    root: Path, *, mutable_names: frozenset[str] | set[str] = frozenset()
+) -> None:
     """Hard-link identical build outputs without changing their public paths.
 
     `mutable_names` names files, or directories whose files, a served page rewrites;
@@ -331,7 +322,7 @@ def deduplicate_tree(root: Path, *, mutable_names: set[str] = frozenset()) -> No
 
 def publish_examples(out: Path, run: Callable, *, assets: Path) -> None:
     """Publish worked examples and developer references without product pages."""
-    for source in published_page_sources():
+    for source in published_sources():
         published = out / "examples" / source.stem
         fixture = read_fixture(source)
         prepare_page(
@@ -406,7 +397,7 @@ def publish_live_shells(
         "routes": {
             "layer": list(BROWSER_DIRS),
             "session": list(SESSION_ROUTE_DIRS),
-            "files": list(VENDORED_FILES),
+            "files": list(LAYER_TOP_FILES),
         },
         "pages": {},
     }

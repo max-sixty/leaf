@@ -19,17 +19,19 @@ from render_cases_interaction import (
     live_url,
 )
 from render_harness import (
-    PANEL_THREAD,
     SAMPLE_PAGE,
     active_digit_bindings,
     available_commands,
     open_page,
     resized,
+    rgb_pixel,
     stamp_page,
     told,
     wait_for_revision,
     write,
 )
+
+from leaf_dev.browser import PANEL_THREAD
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -89,27 +91,23 @@ def test_a_selected_obligation_keeps_one_action_context_while_tab_reaches_its_fi
     expect(box).not_to_be_focused()
     expect(page.locator("#storage-options > lf-option[chosen]")).to_have_count(0)
 
-    # The controls remain in document order: the other mark, then the text box. It keeps
-    # Shift+Enter keeps a native newline; Enter submits the option.
+    # The controls remain in document order: the other mark, then the text box.
+    # An option title is one line: Shift+Enter leaves it intact; Enter submits it.
     page.keyboard.press("Tab")
     expect(page.locator("#storage-stop .lf-pick")).to_be_focused()
     page.keyboard.press("Tab")
     expect(box).to_be_focused()
     write(box, "Keep both layers")
+    expect(box).to_have_attribute("aria-multiline", "false")
     page.keyboard.press("Shift+Enter")
-    page.keyboard.type("Keep them together")
-    page.keyboard.press("Shift+Enter")
-    page.keyboard.type("Preserve both histories")
-    expect(box).to_have_js_property(
-        "value", "Keep both layers\nKeep them together\nPreserve both histories"
-    )
+    expect(box).to_have_js_property("value", "Keep both layers")
     expect(box).to_have_attribute("aria-keyshortcuts", "Enter Meta+Enter Control+Enter")
     expect(page.locator("#storage-options > lf-option[data-lf-added]")).to_have_count(0)
     page.keyboard.press("Enter")
     added = page.locator("#storage-options > lf-option[data-lf-added]")
     expect(added).to_contain_text("Keep both layers")
     expect(added.locator(".lf-option-words")).to_have_css("white-space", "normal")
-    expect(added.locator("br")).to_have_count(2)
+    expect(added.locator("br")).to_have_count(0)
     page.close()
 
     page = open_page(browser, serve(OBLIGATION_WITH_CONTEXT_PAGE))
@@ -363,17 +361,29 @@ def test_the_gutter_runs_beside_the_exhibit_and_no_further(source, browser, serv
                 f"truncated image"
             )
             strip = Image.open(io.BytesIO(page.screenshot(clip=clip))).convert("RGB")
+            # The pixels answer for the geometry only if nothing moved between the two
+            # reads: a layout change landing between them makes the strip read as a bar
+            # of the wrong length, which the edge asserts below would blame on the theme.
+            settled = (
+                page.locator(f"#{spec}").bounding_box(),
+                page.evaluate(EXHIBIT_EXTENT, spec),
+            )
+            assert settled == (box, exhibit), (
+                f"#{spec} moved while its {edge} strip was taken: {(box, exhibit)} "
+                f"before the screenshot, {settled} after — the page was still "
+                f"settling, so the strip does not read the gutter the rects describe"
+            )
             assert strip.height == clip["height"] * scale, (
                 f"the clip asked for {clip['height']} CSS px at dpr {scale} and came "
                 f"back {strip.height} device px: the arithmetic below no longer "
                 f"locates its edge"
             )
-            rows = [strip.getpixel((0, y)) for y in range(strip.height)]
+            rows = [rgb_pixel(strip, (0, y)) for y in range(strip.height)]
             if edge == "bottom":
                 rows.reverse()  # both edges read from the far end of the strip inward
             painted = 0
             while painted < len(rows) and all(
-                abs(a - b) <= 6 for a, b in zip(rows[-1 - painted], ink)
+                abs(a - b) <= 6 for a, b in zip(rows[-1 - painted], ink, strict=True)
             ):
                 painted += 1
             assert painted, (

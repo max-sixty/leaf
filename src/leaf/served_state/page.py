@@ -1,4 +1,5 @@
-"""The complete state response for one served page.
+"""The state response for one served page, whole; the page server sends a tab that
+holds an earlier reading only what changed since (`tail.py`).
 
 `state.schema.json` beside this module declares its shape and is each field's home: a
 field's meaning is its description there. The tests hold real readings to it
@@ -12,6 +13,7 @@ from typing import NamedTuple
 from ..activity import WORKING_GRACE
 from ..data import browser_data_from
 from ..files import revision_label
+from ..read_state import seen_revision
 from .browser import BrowserReading, project_browser_state
 from .context import PageRead, read_page
 
@@ -50,6 +52,7 @@ def read_served_page(
     source_error: str | None = None,
     view_revision: int | None = None,
 ) -> ServedPage:
+    """The whole answer."""
     active = context.active
     projected = project_browser_state(context, view_revision)
     browser, reading = projected if projected is not None else (None, None)
@@ -59,9 +62,9 @@ def read_served_page(
         if active is not None
         else context.registry
     )
-    identity = selected_registry["$layer"] if active is not None else context.layer
+    if active is not None:
+        assert selected_registry is not None
     state = {
-        "layer": identity,
         "now": context.now,
         "working_grace_ms": WORKING_GRACE // timedelta(milliseconds=1),
         "taken": context.taken,
@@ -74,6 +77,12 @@ def read_served_page(
                 | {event["revision"] for event in context.events if "revision" in event}
             )
         },
+        # What the page's own user last saw; a hosted copy's reader is someone else.
+        "seen": (
+            context.descriptor(seen)
+            if not publication and (seen := seen_revision(context.events)) is not None
+            else None
+        ),
         "source_error": source_error,
         "data": browser_data_from(context.data, selected_registry),
         "files": context.bound_files(),
@@ -101,3 +110,17 @@ def read_served_page(
         ),
     }
     return ServedPage(state, reading, context.data)
+
+
+def served_layer_identity(context: PageRead, view_revision: int | None) -> dict:
+    """The identity of the layer the shown revision was read under, or the page's
+    before a revision exists, with the fingerprint of the layer this Leaf composes to
+    serve it (`registry.storage.served_layer`). The serving route adds it to the
+    page's reading (`read_served_page`), because the fingerprint digests every file
+    the layer serves, and a reader of the page's state such as `leaf page state` has
+    no use for it."""
+    active = context.active
+    if active is None:
+        return context.layer
+    shown = context.revision(view_revision or active["revision"]).registry
+    return context.serve_layer(shown["$layer"])

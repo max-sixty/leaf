@@ -1,6 +1,8 @@
 """A reply editor's native session: what typing, clicks, sends, resolution and a
 replaced outlet leave of its caret, focus, reading position and Send."""
 
+import re
+
 import pytest
 from interact_support import append_carried_log_record
 from playwright.sync_api import expect
@@ -8,8 +10,6 @@ from render_cases_interaction import panel_comment
 from render_cases_navigation import source_revision
 from render_harness import (
     LONG_PAGE,
-    PANEL_THREAD,
-    consume_browser_errors,
     holding,
     leaf_page,
     open_page,
@@ -26,6 +26,7 @@ from browser.threads import PANEL_REPLY, open_panel_thread, seed_panel_threads
 from leaf import data as data_model
 from leaf import event_log as events_model
 from leaf.render_checks import rendered, wait_until_ready
+from leaf_dev.browser import PANEL_THREAD
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -141,6 +142,12 @@ diff --git a/reading.py b/reading.py
  def reading():
 -    return "before"
 +    return "after"
+diff --git a/notes.md b/notes.md
+--- a/notes.md
++++ b/notes.md
+@@ -1 +1 @@
+-before
++after
 </pre></lf-diff>""",
         },
     )
@@ -203,7 +210,7 @@ def open_reply(page, surface, root):
     else:
         page.keyboard.press("t")
         thread = page.locator(
-            f'.lf-margin-preview .lf-page-thread[data-thread="{root}"]'
+            f'.lf-margin-preview .lf-page-thread[data-lf-thread="{root}"]'
         )
         page.keyboard.press("c")
         field = thread.locator("leaf-text")
@@ -213,13 +220,16 @@ def open_reply(page, surface, root):
 
 def expect_resolved(page, surface, thread, resolved):
     """The thread reads resolved, or not: the panel's by its head's Resolve or Reopen,
-    a margin card by its own state."""
+    which names the agent that resolved it before Reopen, a margin card by its own
+    state."""
     if surface == "panel":
-        expect(page.locator(".lf-fp-settle")).to_have_accessible_name(
-            "Reopen" if resolved else "Resolve thread"
+        expect(
+            page.locator(".lf-fp-thread-controls :is(.lf-resolve, .lf-reopen)")
+        ).to_have_accessible_name(
+            re.compile(r"Reopen$") if resolved else "Resolve thread"
         )
     else:
-        expect(thread).to_have_attribute("data-resolved", str(resolved).lower())
+        expect(thread).to_have_attribute("data-lf-resolved", str(resolved).lower())
 
 
 def send_button(page, surface, thread):
@@ -305,6 +315,37 @@ def test_reply_admission_finishes_or_restores_its_native_session(
     assert stored_draft_text(page, "reply:" + root) == next_words
 
 
+def test_typing_in_the_box_a_send_left_keeps_its_reply_through_settlement(
+    browser, serve
+):
+    """The box Send leaves the caret in counts as written in once the user types there.
+
+    An agent's Resolve then retains the card and its editor, as it does for any reply
+    the user is writing, though the caret never left the box to come back to it.
+    """
+    url = serve(LONG_PAGE, anchored=[("p3", "Paragraph 3.")])
+    root = thread_root(serve.page_dir, "margin")
+    page = open_page(browser, url)
+    card, field = open_reply(page, "margin", root)
+    write(field, "The first reply.")
+    with sending(page, "the first reply"):
+        page.keyboard.press("ControlOrMeta+Enter")
+    rendered(page)
+    expect(field).to_be_focused()
+    words = "A second reply, typed without leaving the box."
+    page.keyboard.type(words)
+    expect(field).to_have_js_property("value", words)
+    events_model.append_event(
+        serve.page_dir,
+        {"kind": "resolve", "author": "agent", "agent": "Codex", "parent": root},
+    )
+    told(page)
+    rendered(page)
+    expect_resolved(page, "margin", card, True)
+    expect(field).to_be_focused()
+    expect(field).to_have_js_property("value", words)
+
+
 @pytest.mark.parametrize(
     "surface, resolution",
     [("panel", "user"), ("margin", "active-agent"), ("panel", "inactive-agent")],
@@ -314,8 +355,9 @@ def test_reply_editing_and_saved_words_have_separate_resolution_lifetimes(
 ):
     """Only an external settlement interrupting active editing retains the editor.
 
-    Deliberate Resolve and reload close it. Every path preserves the words for an
-    explicit Reopen, while an interrupted writer retains the native caret.
+    Deliberate Resolve and reload close it. Every path preserves the words, which the
+    panel's reply box shows in the resolved thread and keeps through Reopen, while an
+    interrupted writer retains the native caret.
     """
     url = serve(LONG_PAGE, anchored=[("p3", "Paragraph 3.")])
     root = thread_root(serve.page_dir, surface)
@@ -326,7 +368,7 @@ def test_reply_editing_and_saved_words_have_separate_resolution_lifetimes(
     field.evaluate("box => box.setSelectionRange(5, 5)")
     if resolution == "user":
         with sending(page, "the deliberate resolution"):
-            page.locator(".lf-fp-settle").click()
+            page.locator(".lf-fp-thread-controls :is(.lf-resolve, .lf-reopen)").click()
     else:
         if resolution == "inactive-agent":
             page.keyboard.press("Escape")
@@ -350,32 +392,22 @@ def test_reply_editing_and_saved_words_have_separate_resolution_lifetimes(
     if resolution == "user":
         # Resolving from the panel moves the user on, so the field is the next
         # thread's.
-        expect(page.locator(f'{PANEL_THREAD}[data-thread="{root}"]')).to_have_count(0)
+        expect(page.locator(f'{PANEL_THREAD}[data-lf-thread="{root}"]')).to_have_count(
+            0
+        )
+    elif surface == "panel":
+        # The panel's reply box stands in a resolved thread, its words with it.
+        expect(field).to_have_js_property("value", words)
     else:
         expect(field).not_to_be_visible()
     assert stored_draft_text(page, f"reply:{root}") == words
-    if resolution == "inactive-agent":
-        # The thread drew its inactive reply box after Escape, and agent settlement
-        # then closes it, as this lifecycle deliberately requires. The generic words
-        # sensor cannot infer that ending the editing session made this later passive
-        # close legitimate. Calibrate only this exact loss here; Escape itself, active
-        # settlement, and every other field remain strict.
-        errors = consume_browser_errors(
-            page,
-            {
-                "code": "words-left-screen",
-                "words": words,
-                "place": ["leaf-text.lf-ui.scroll"],
-            },
-        )
-        assert len(errors) == 1
 
     page.reload()
     wait_until_ready(page)
     recovered = open_panel_thread(page, root)
-    expect(page.locator(PANEL_REPLY)).not_to_be_visible()
+    expect(page.locator(PANEL_REPLY)).to_have_js_property("value", words)
     with sending(page, "reopen with the saved reply"):
-        page.locator(".lf-fp-settle").click()
+        page.locator(".lf-fp-thread-controls :is(.lf-resolve, .lf-reopen)").click()
     expect(recovered).to_be_visible()
     expect(page.locator(PANEL_REPLY)).to_be_visible()
     expect(page.locator(PANEL_REPLY)).to_have_js_property("value", words)
@@ -408,7 +440,11 @@ def test_a_resolved_reply_composition_stays_open_until_deliberately_dismissed(
         expect(field).to_be_focused()
         expect(field).to_have_js_property("value", "")
         field.press("Escape")
-        expect(field).not_to_be_visible()
+        # The panel's field stands in a resolved thread, where a reply reopens it.
+        if surface == "panel":
+            expect(field).not_to_be_focused()
+        else:
+            expect(field).not_to_be_visible()
         assert stored_draft_text(page, f"reply:{root}") == ""
         return
     page.keyboard.press("Tab")
@@ -446,7 +482,7 @@ def test_send_follows_a_reply_composition_whose_diff_outlet_disappears(browser, 
     )
     source = LONG_PAGE.replace(
         "<p id='p3'>",
-        '<lf-diff id="patch" source="review-patch"><pre></pre></lf-diff><p id="p3">',
+        '<lf-diff id="patch" source="review-patch"></lf-diff><p id="p3">',
     )
     url = serve(source)
     data_model.cmd_data_set(serve.page_dir, "review-patch", patch)
@@ -466,7 +502,7 @@ def test_send_follows_a_reply_composition_whose_diff_outlet_disappears(browser, 
         },
     )["id"]
     page = open_page(browser, url)
-    inline = page.locator(f'lf-diff .lf-page-thread[data-thread="{root}"]')
+    inline = page.locator(f'lf-diff .lf-page-thread[data-lf-thread="{root}"]')
     words = "I still need to send my answer about that line."
     write(inline.locator("leaf-text"), words)
     events_model.append_event(
@@ -482,7 +518,7 @@ def test_send_follows_a_reply_composition_whose_diff_outlet_disappears(browser, 
     )
     told(page)
     expect(inline).to_have_count(0)
-    card = page.locator(f'.lf-margin-preview .lf-page-thread[data-thread="{root}"]')
+    card = page.locator(f'.lf-margin-preview .lf-page-thread[data-lf-thread="{root}"]')
     expect(card.get_by_role("button", name="Send", exact=True)).to_be_focused()
     expect(card.locator("leaf-text")).to_have_js_property("value", words)
     with sending(page, "the reply after its Send moved"):
@@ -502,7 +538,7 @@ def test_tab_browsing_keeps_a_reply_when_its_diff_outlet_is_replaced(
     )
     source = LONG_PAGE.replace(
         "<p id='p3'>",
-        '<lf-diff id="patch" source="review-patch"><pre></pre></lf-diff><a id="after-diff" href="#p3">After the diff</a><p id="p3">',
+        '<lf-diff id="patch" source="review-patch"></lf-diff><a id="after-diff" href="#p3">After the diff</a><p id="p3">',
     )
     url = serve(source)
     data_model.cmd_data_set(serve.page_dir, "review-patch", patch)
@@ -522,7 +558,7 @@ def test_tab_browsing_keeps_a_reply_when_its_diff_outlet_is_replaced(
         },
     )["id"]
     page = open_page(browser, url)
-    inline = page.locator(f'lf-diff .lf-page-thread[data-thread="{root}"]')
+    inline = page.locator(f'lf-diff .lf-page-thread[data-lf-thread="{root}"]')
     words = "I still need to send my answer about that line."
     write(inline.locator("leaf-text"), words)
     if cleared:
@@ -554,9 +590,79 @@ def test_tab_browsing_keeps_a_reply_when_its_diff_outlet_is_replaced(
     expect(page.locator("lf-diff").get_by_text("new = 1", exact=True)).to_be_visible()
     expect(inline).to_have_count(0)
     expect(after).to_be_focused()
-    card = page.locator(f'.lf-margin-preview .lf-page-thread[data-thread="{root}"]')
+    card = page.locator(f'.lf-margin-preview .lf-page-thread[data-lf-thread="{root}"]')
     expect(card.locator("leaf-text")).to_be_visible()
     expect(card.locator("leaf-text")).to_have_js_property("value", words)
+
+
+def test_keyboard_file_navigation_keeps_its_destination_beside_a_retained_reply(
+    browser, serve
+):
+    """A tabbed-away reply continues without reopening the file the reader left."""
+    patch = "".join(
+        f"diff --git a/{path} b/{path}\n--- a/{path}\n+++ b/{path}\n"
+        f'@@ -1 +1 @@\n-return "old"\n+return "{value}"\n'
+        for path, value in [("app.py", "new"), ("tests.py", "checked")]
+    )
+    url = serve(
+        leaf_page(
+            "Review files beside a reply",
+            '<h1>Review the patch</h1><lf-diff id="patch" source="review-patch" '
+            'view="file"></lf-diff>'
+            '<lf-file-tree id="files" for="patch"></lf-file-tree>'
+            '<a id="after-files" href="#patch">Back to the patch</a>',
+        ),
+        packages=("diff", "file-tree"),
+    )
+    data_model.cmd_data_set(serve.page_dir, "review-patch", patch)
+    root = events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "What about this return value?",
+            "anchor": {
+                "section": "patch",
+                "datum": '["app.py","new",1]',
+                "source": "review-patch",
+                "source_revision": source_revision(serve.page_dir, "review-patch"),
+            },
+        },
+    )["id"]
+    page = open_page(browser, url)
+    reply = page.locator(f'lf-diff .lf-page-thread[data-lf-thread="{root}"] leaf-text')
+    words = "Keep this draft while I inspect the test."
+    write(reply, words)
+    page.keyboard.press("Home")
+    page.keyboard.press("ArrowRight")
+    caret = reply.evaluate("node => node.selectionStart")
+    search = page.locator("#files").get_by_role("textbox")
+    for _ in range(20):
+        page.keyboard.press("Tab")
+        if search.evaluate('node => node.matches(":focus")'):
+            break
+    expect(search).to_be_focused()
+    page.keyboard.press("Tab")
+    page.keyboard.press("End")
+    target = page.locator("#files").get_by_role("treeitem", name="tests.py", exact=True)
+    expect(target).to_be_focused()
+    page.keyboard.press("Enter")
+    wait_until_ready(page)
+    expect(target).to_have_attribute("aria-selected", "true")
+    expect(
+        page.locator("#patch").get_by_text('return "checked"', exact=True)
+    ).to_be_visible()
+    expect(target).to_be_focused()
+    assert stored_draft_text(page, f"reply:{root}") == words
+    # Resuming is explicit; merely inspecting another file must not take the reader back.
+    page.keyboard.press("Tab")
+    expect(page.locator("#after-files")).to_be_focused()
+    page.keyboard.press("g")
+    page.keyboard.press("i")
+    resumed = page.locator("leaf-text:focus")
+    expect(resumed).to_have_js_property("value", words)
+    expect(resumed).to_have_js_property("selectionStart", caret)
 
 
 def test_tab_browsing_continues_a_displaced_reply_without_an_annotation_overlay(
@@ -569,7 +675,7 @@ def test_tab_browsing_continues_a_displaced_reply_without_an_annotation_overlay(
     )
     source = LONG_PAGE.replace(
         "<p id='p3'>",
-        '<lf-diff id="patch" source="review-patch"><pre></pre></lf-diff><a id="after-diff" href="#p3">After the diff</a><a id="second-link" href="#p3">Second link</a><p id="p3">',
+        '<lf-diff id="patch" source="review-patch"></lf-diff><a id="after-diff" href="#p3">After the diff</a><a id="second-link" href="#p3">Second link</a><p id="p3">',
     )
     source = source.replace("<body>", '<body data-annotations="page">', 1)
     url = serve(source)
@@ -590,7 +696,7 @@ def test_tab_browsing_continues_a_displaced_reply_without_an_annotation_overlay(
         },
     )["id"]
     page = open_page(browser, url)
-    inline = page.locator(f'lf-diff .lf-page-thread[data-thread="{root}"]')
+    inline = page.locator(f'lf-diff .lf-page-thread[data-lf-thread="{root}"]')
     page.keyboard.press("t")
     page.keyboard.press("c")
     words = "I still need to send my answer about that line."
@@ -629,7 +735,7 @@ def test_tab_browsing_continues_a_displaced_reply_without_an_annotation_overlay(
     expect(second).to_be_focused()
     expect(page.locator(".lf-margin-preview")).to_have_count(0)
     # A page drawing no margin continues the reply in the panel's thread.
-    expect(page.locator(f'{PANEL_THREAD}[data-thread="{root}"]')).to_be_visible()
+    expect(page.locator(f'{PANEL_THREAD}[data-lf-thread="{root}"]')).to_be_visible()
     reply = page.locator(PANEL_REPLY)
     expect(reply).to_be_visible()
     expect(reply).to_have_js_property("value", words)

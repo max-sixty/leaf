@@ -24,9 +24,10 @@ from typing import NamedTuple, TextIO
 
 import click
 
+from leaf.registry.kernel import title_limit
 from leaf.render_gate.browser import VARIABLES as BROWSER_VARIABLES
 from leaf.schema import WAIT_BATCH_OUTPUT_INSTRUCTION
-from leaf.state import EVENTS_FILE, PLUGIN_ROOT
+from leaf.state import PLUGIN_ROOT
 
 
 class Reported(NamedTuple):
@@ -39,6 +40,7 @@ class Reported(NamedTuple):
 def resolve_dir(dir_arg: str, *, renew: bool = True) -> Path:
     """The page a command names. A write may renew an older layer for its owning
     session (`vendoring.renew_layer`); reads and service stops leave it alone."""
+    from leaf.event_log import initialized
     from leaf.interaction_log import acting_on
 
     page_dir = page_path(dir_arg)
@@ -46,7 +48,7 @@ def resolve_dir(dir_arg: str, *, renew: bool = True) -> Path:
         raise click.ClickException(
             f"{page_dir} is a file; a page command takes the page's directory"
         )
-    if not (page_dir / EVENTS_FILE).is_file():
+    if not initialized(page_dir):
         raise click.ClickException(
             f"{page_dir} is not an initialized page; "
             f"run `leaf page init {shlex.quote(str(page_dir))}`"
@@ -58,7 +60,7 @@ def resolve_dir(dir_arg: str, *, renew: bool = True) -> Path:
     from leaf.harness import session_harness
     from leaf.vendoring import renew_layer
 
-    if unready := renew_layer(page_dir, session_harness()):
+    if unready := renew_layer(page_dir, session_harness(), command=True):
         note(unready)
     return page_dir
 
@@ -85,7 +87,7 @@ class _Page(click.ParamType):
 def page_argument(*, renew: bool, required: bool = True):
     """Declare a command's PAGE, passed as `page_dir`, the page it names. Every
     command says whether naming the page renews its layer: a write may, while a read
-    or a service stop must not re-vendor the page it acts on."""
+    or a service stop must not renew the page it acts on."""
     return click.argument(
         "page_dir", metavar="PAGE", type=_Page(renew=renew), required=required
     )
@@ -128,10 +130,10 @@ def _print_result(result) -> None:
     """Print what a command returned: text as it is, a dict as one JSON line, and
     each item of a list, such as the records a write appended, as a line of its own,
     the way `page events` prints a record."""
-    from leaf.event_log import jsonl_line
-
     if result is None:
         return
+    from leaf.event_log import jsonl_line
+
     if isinstance(result, str):
         click.echo(result)
         return
@@ -184,6 +186,16 @@ class LeafGroup(click.Group):
     prints its help, and any other exception surfaces with its traceback.
     """
 
+    group_class = type
+
+    def resolve_command(self, ctx, args):
+        name, command, remaining = super().resolve_command(ctx, args)
+        # Click has resolved this path, including options before its subcommand.
+        ctx.ensure_object(dict)["leaf_command"] = (
+            f"{ctx.command_path} {name}".removeprefix(f"{ctx.find_root().info_name} ")
+        )
+        return name, command, remaining
+
     def invoke(self, ctx: click.Context):
         from leaf.machine import sandbox_refusal
         from leaf.refusals import Refused
@@ -208,22 +220,16 @@ class LeafGroup(click.Group):
     ):
         if not standalone_mode:
             return super().main(args, prog_name, complete_var, False, **extra)
-        from leaf.interaction_log import record_command
+        from leaf.session_runtime import hand_off_command
 
+        hand_off_command(sys.argv[1:] if args is None else list(args))
+        invocation = extra.setdefault("obj", {})
         try:
             self._run_standalone(args, prog_name, complete_var, **extra)
         finally:
-            record_command(self.command_name(sys.argv[1:] if args is None else args))
+            from leaf.interaction_log import record_command
 
-    def command_name(self, args: list[str]) -> str:
-        """The command words `args` begin with, such as `thread reply`."""
-        words, group = [], self
-        for word in args:
-            if not isinstance(group, click.Group) or word not in group.commands:
-                break
-            words.append(word)
-            group = group.commands[word]
-        return " ".join(words)
+            record_command(invocation.get("leaf_command", ""))
 
     def _run_standalone(self, args, prog_name, complete_var, **extra) -> None:
         try:
@@ -273,6 +279,29 @@ def cli() -> None:
     """Build and run interactive pages a session shares with its user."""
 
 
+@cli.command(hidden=True)
+@click.option("--harness", required=True)
+@click.option("--if-claimed", is_flag=True, expose_value=False)
+@click.option("--watch", is_flag=True)
+@click.option("--pages", is_flag=True)
+@click.option("--fork", is_flag=True)
+def hook(harness: str, watch: bool, pages: bool, fork: bool) -> None:
+    """Answer a native harness hook from its JSON payload on stdin."""
+    if watch + pages + fork > 1:
+        raise click.UsageError("--watch, --pages and --fork are mutually exclusive")
+    from leaf.hooks import main
+
+    main(harness, watch=watch, pages=pages, fork=fork)
+
+
+@cli.command(hidden=True)
+def session_end() -> None:
+    """End the harness instance named by the JSON payload on stdin."""
+    from leaf.state import main
+
+    main()
+
+
 @cli.group(short_help="Launch the experimental Codex terminal.")
 def codex() -> None:
     """Launch Codex or run Leaf's delivery adapter."""
@@ -315,7 +344,7 @@ def page() -> None:
     """Create, check, stamp, and read pages."""
 
 
-@page.command(short_help="Create or re-vendor a page directory.")
+@page.command(short_help="Create a page directory or change its packages.")
 @click.argument("dir", metavar="PAGE")
 @click.option(
     "--package",
@@ -328,21 +357,36 @@ def page() -> None:
 @click.option(
     "--no-packages",
     is_flag=True,
-    help="remove all explicit packages from an existing page",
+    help="remove all explicit packages, keeping the theme",
+)
+@click.option("--theme", metavar="NAME", help="select a theme from `leaf theme list`")
+@click.option(
+    "--no-theme",
+    is_flag=True,
+    help="take no theme, so the page starts from the browser's defaults",
 )
 @click.option(
     "--dry-run",
     is_flag=True,
-    help="report whether re-vendoring would change an initialized page",
+    help="report whether initialization would change an initialized page",
 )
-def init(dir: str, selected: tuple[str, ...], no_packages: bool, dry_run: bool) -> dict:
-    """Create or re-vendor a page directory.
+def init(
+    dir: str,
+    selected: tuple[str, ...],
+    no_packages: bool,
+    theme: str | None,
+    no_theme: bool,
+    dry_run: bool,
+) -> dict:
+    """Create a page directory, recording the packages and theme it selects.
 
-    Creates PAGE/revisions/, then vendors the widget layer.
-    The author writes PAGE/index.html. Re-running preserves the page's explicit packages unless --package or
-    --no-packages replaces them, and validates the current vocabulary and markup.
-    A changed layer restarts its server at the same URL; identical initialization
-    leaves it running. --dry-run reports the planned change without writing it.
+    The author writes PAGE/index.html; every Leaf that serves or checks the page
+    composes its layer from the selection. A new page takes the default theme
+    (`leaf theme list`). Re-running preserves the page's explicit packages unless
+    --package or --no-packages replaces them, and its theme unless --theme or
+    --no-theme replaces it, and validates the current vocabulary and markup. A changed selection restarts its server at the
+    same URL; identical initialization leaves it running. --dry-run reports the
+    planned change without writing it.
     A package may contain any subset of the package layout, including zero, one,
     or many widgets.
     """
@@ -350,12 +394,31 @@ def init(dir: str, selected: tuple[str, ...], no_packages: bool, dry_run: bool) 
 
     if selected and no_packages:
         raise click.UsageError("--package and --no-packages cannot be used together")
+    if theme is not None and no_theme:
+        raise click.UsageError("--theme and --no-theme cannot be used together")
     if any(not selection for selection in selected):
         raise click.UsageError("--package selections cannot be empty")
     if len(set(selected)) != len(selected):
         raise click.UsageError("each --package selection may appear only once")
     selections = () if no_packages else selected or None
-    return cmd_init(page_path(dir), selections, dry_run=dry_run)
+    return cmd_init(
+        page_path(dir),
+        selections,
+        theme=False if no_theme else theme,
+        dry_run=dry_run,
+    )
+
+
+@cli.group(short_help="Discover themes for page authoring.")
+def theme() -> None:
+    """Discover themes for page authoring."""
+
+
+@theme.command("list", short_help="List themes and their author instructions.")
+def theme_list() -> dict:
+    from leaf.themes import cmd_list
+
+    return cmd_list()
 
 
 @cli.group(short_help="Create, check, install, and run packages.")
@@ -479,8 +542,14 @@ def check(page_dir: Path, render: bool) -> Reported:
     metavar="N",
     help="inspect captured revision N instead of mutable source",
 )
-def inspect_page(page_dir: Path, revision: int | None) -> dict:
-    """Report attributed CSS counts and retained browser views as JSON.
+@click.option(
+    "--compare-to",
+    type=click.IntRange(min=1),
+    metavar="N",
+    help="compare inspected source with captured revision N",
+)
+def inspect_page(page_dir: Path, revision: int | None, compare_to: int | None) -> dict:
+    """Report attributed source inventories and retained browser views as JSON.
 
     Metrics are observations, not a quality score or a pass/fail check. Opens no
     browser and changes no page state. Browser observations name their own revision,
@@ -488,7 +557,7 @@ def inspect_page(page_dir: Path, revision: int | None) -> dict:
     """
     from leaf.page_inspection import cmd_inspect
 
-    return cmd_inspect(page_dir, revision)
+    return cmd_inspect(page_dir, revision, compare_to)
 
 
 @page.command()
@@ -542,6 +611,18 @@ def instructions(
     return page_instructions(page_dir, entries=entries, contracts=contracts)
 
 
+@page.command(short_help="Print the vocabulary the page is written in as JSON.")
+@page_argument(renew=False)
+def vocabulary(page_dir: Path) -> dict:
+    """Print the vocabulary PAGE/index.html is checked against: the layer this Leaf
+    composes for the page's packages, with the page's own declarations over it.
+    Ordinary keys are element names or CSS selectors; `$` keys are facts shared
+    across the layer."""
+    from leaf.registry.storage import require_candidate
+
+    return require_candidate(page_dir).registry
+
+
 @page.command("list", short_help="List this machine's pages and who holds each.")
 def page_list() -> list:
     """Print each page on this machine as a JSON line: every serving page, and
@@ -583,7 +664,8 @@ def state(
     MESSAGE_OR_WIDGET narrows the output to what it names. A message, or a widget
     frozen into one, names its thread: the output is that thread with a page of its
     messages, their frozen markup, and the state of its widgets, paged by --after
-    and --limit. A widget on the page names itself: its element, its current
+    and --limit. Each action in force and each message carries what its delivery
+    added to it, such as a choice's words and a message's `unsent`. A widget on the page names itself: its element, its current
     actions and reports, its obligations and to-dos, and its workflows."""
     from leaf.agent_state import cmd_page_state
 
@@ -635,7 +717,7 @@ def stamp(
     )
 
 
-@page.command(short_help="Export a stamped version to one HTML file.")
+@page.command(short_help="Export a stamped version or current draft to one HTML file.")
 @page_argument(renew=False)
 @click.option(
     "-o",
@@ -650,15 +732,24 @@ def stamp(
     metavar="N",
     help="stamped version to export (default: latest)",
 )
-def export(page_dir: Path, out: Path, version: int) -> dict:
-    """Export a stamped version to one HTML file that opens offline.
+@click.option(
+    "--draft",
+    is_flag=True,
+    help="export current source without stamping (cannot combine with --version)",
+)
+def export(page_dir: Path, out: Path, version: int | None, draft: bool) -> dict:
+    """Export a stamped version or current draft to one HTML file that opens offline.
+
+    By default exports the latest stamped version, including its version number in
+    the result. --draft checks and captures current source without adding a stamp.
+    The result names the captured revision in either mode.
 
     The file runs the page's own runtime against its captured state, with no Leaf
     server or host behind it.
     """
     from leaf.exporting import cmd_export
 
-    return cmd_export(page_dir, out, version)
+    return cmd_export(page_dir, out, version, draft=draft)
 
 
 @page.command(short_help="Picture a drawing comment as the user saw it.")
@@ -1037,7 +1128,8 @@ LIFETIMES = {
     "the page (persistent from a shell outside any session)",
     "persistent": "declines the session claim, so only `leaf server stop` ends it, "
     "for a page kept up across sessions",
-    "temporary": "serves on loopback for this command only, without claiming the page",
+    "temporary": "serves on loopback without claiming the page, until interrupted or "
+    "until the process that ran this command exits",
 }
 
 
@@ -1116,7 +1208,7 @@ def run(page_dir: Path, host: str | None, lifetime: str) -> None:
 
 
 @server.command("_serve", hidden=True)
-# A re-vendor here would restart the server this process is becoming.
+# Renewing the layer here would restart the server this process is becoming.
 @page_argument(renew=False)
 @serve_flags("session", "persistent")
 @click.option("--revive", is_flag=True, hidden=True)
@@ -1225,7 +1317,7 @@ def _title_option(command):
         "--title",
         help=(
             "name the thread for the panel unless it has a name: a few words, at "
-            "most 80 characters"
+            f"most {title_limit()} characters"
         ),
     )(command)
 
@@ -1257,7 +1349,9 @@ def thread_create(
     the work as a whole.
 
     Use --obligation when the next move is the user's: the message waits on
-    On me until their reply or settling reaction. Refuses a quote the active revision does not
+    On me until their reply or settling reaction. A question whose answers you
+    can list takes an `lf-options` choice in --markup instead, which waits on
+    the user until they pick. Refuses a quote the active revision does not
     hold, or holds more than once. The comment's id is the thread's.
     """
     from leaf.thread import cmd_comment
@@ -1307,7 +1401,8 @@ def thread_reply(
     thread PAGE MESSAGE names, which is refused while that thread owes an answer.
 
     An answer declares what it leaves with --done, --todo or --obligation, or
-    carries a widget in --markup that asks; --ephemeral progress declares nothing,
+    carries a widget in --markup that asks, as an `lf-options` choice asks a
+    question whose answers you can list; --ephemeral progress declares nothing,
     and --done needs a reference. The reply
     publishes your saved page edits, checked as `page check` checks them without a
     browser. The Leaf skill's references/threads.md says which to use and what
@@ -1358,7 +1453,10 @@ def thread_reply(
 @body_options("the replacement text")
 @click.option(
     "--title",
-    help="rename MESSAGE's thread for the panel: a few words, at most 80 characters",
+    help=(
+        "rename MESSAGE's thread for the panel: a few words, at most "
+        f"{title_limit()} characters"
+    ),
 )
 def thread_edit(
     page_dir: Path, message: str, text: str | None, body_file, title: str | None
@@ -1397,37 +1495,28 @@ def task() -> None:
     lay out your plan.
 
     Your list, On <your name>, holds each update you owe an answer and each to-do
-    you opened; a to-do `--on user` is on the user's On me instead. Every write
-    prints the record it appended, one JSON line, as `page events` prints it. The
-    Leaf skill's references/conversation-loop.md, "Long-running work" and "The On
-    lists", says when to use each.
+    you opened. What waits on the user is asked by a widget or a message with
+    --obligation, never a to-do. Every write prints the record it appended, one JSON
+    line, as `page events` prints it. The Leaf skill's references/conversation-loop.md,
+    "Long-running work" and "The On lists", says when to use each.
     """
 
 
-@task.command("create", short_help="Create a to-do, yours or the user's.")
+@task.command("create", short_help="Create a to-do of yours.")
 @page_argument(renew=True)
 @click.argument("subject", metavar="SUBJECT")
 @click.option("--title", required=True, help="the to-do, in a few words")
-@click.option(
-    "--on",
-    "owner",
-    type=click.Choice(["agent", "user"]),
-    default="agent",
-    show_default=True,
-    help="whose list the to-do is on: yours, or the user's On me",
-)
-def task_create(page_dir: Path, subject: str, title: str, owner: str) -> dict:
+def task_create(page_dir: Path, subject: str, title: str) -> dict:
     """Create a to-do titled --title on SUBJECT and print it; its `id` names it later.
 
     SUBJECT is a thread id, an element's id, or `page` for the whole page.
-    Your own to-do on a widget needs a widget that declares x-work or holds an
-    unsettled update. With `--on user` the to-do is the user's: their Done ends it,
-    and you can end it too. A thread attachment provides discussion context;
-    replying does not complete the task. For a conversational request instead,
-    send the message with --obligation."""
+    A to-do on a widget needs a widget that declares x-work or holds an
+    unsettled update. A thread attachment provides discussion context;
+    replying does not complete the task. To leave the user something to do or
+    answer, send a message with --obligation instead."""
     from leaf.todos import cmd_create
 
-    return cmd_create(page_dir, subject, title, owner)
+    return cmd_create(page_dir, subject, title)
 
 
 @task.command(
@@ -1459,7 +1548,7 @@ def task_start(page_dir: Path, item: str, line: str) -> dict:
 def task_end(page_dir: Path, task_id: str, outcome: str, detail: str | None) -> dict:
     """End the to-do or conversational obligation named by ID in `page state`.
 
-    A to-do, yours or the user's, ends done, failed or dropped. --text says where
+    A to-do ends done, failed or dropped. --text says where
     the result is, such as the version or reply holding it, or why there is none.
 
     For a message obligation (`message:<id>`) or a question widget answered in

@@ -11,10 +11,9 @@ on:
     paths:
       - "docs/**"
       - "examples/**"
-      # Browser source, compiled kernel and packages compose what visitors load;
-      # Python and skill instructions run the hosted agent.
+      # Browser source and packages compose what visitors load; Python and skill
+      # instructions run the hosted agent.
       - "browser/**"
-      - "dist/kernel/**"
       - "packages/**"
       - "src/**"
       - "skills/leaf/**"
@@ -130,18 +129,19 @@ jobs:
       # follows runs the deployed turn alone rather than re-sampling readings the wait
       # settled.
       - name: Verify the exact public release in a browser
+        # Capture APIRequestContext's Node sockets, including failures before a
+        # Worker invocation exists. The preload emits only allowlisted metadata.
+        env:
+          NODE_OPTIONS: --require=${{ github.workspace }}/dev/leaf_dev/http_transport.cjs
+          # The journey's sample lands where the upload step below reads it.
+          XDG_STATE_HOME: ${{ runner.temp }}/state
         run: |
           release=$(jq --raw-output .release .tmp/site/_leaf/site.json)
           uv run leaf-dev verify-site --release "$release" --wait 900
           uv run leaf-dev journey https://leaf.page --release "$release"
-        env:
-          # The sample lands where the upload step below reads it.
-          XDG_STATE_HOME: ${{ runner.temp }}/state
 
-      # The journey's timed sample is the only record of how the deployed release
-      # responded; `leaf-dev journey-chart --from-ci` charts these across releases.
+      # `leaf-dev journey-chart --from-ci` charts these samples across releases.
       - name: Keep the journey's sample
-        if: success()
         uses: actions/upload-artifact@v7
         with:
           name: journey-sample

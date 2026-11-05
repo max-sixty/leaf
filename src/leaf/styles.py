@@ -10,83 +10,70 @@ the wrapper or a later sheet inside this sheet's last block, string or comment.
 
 from functools import lru_cache
 
-import tinycss2
-
 from .findings import Finding
 
 
 def css_block(css):
     """What a block holds: the declarations it states, and the rules nested inside it. A
     style="" attribute is a block written without the braces around it."""
+    import tinycss2
+
     return tinycss2.parse_blocks_contents(css, skip_comments=True, skip_whitespace=True)
 
 
 @lru_cache(maxsize=32)
 def css_stylesheet(css: str):
-    """One independent stylesheet's read-only syntax tree, including EOF recovery."""
-    return tinycss2.parse_stylesheet(css)
+    """One independent stylesheet's read-only syntax tree, including EOF recovery,
+    without its comments, which no reading needs and no page receives."""
+    import tinycss2
+
+    return tinycss2.parse_stylesheet(css, skip_comments=True)
 
 
-@lru_cache(maxsize=32)
-def css_syntax_errors(css: str, source: str, *, block=False) -> tuple[Finding, ...]:
-    """Every parse error in a stylesheet or declaration block, including nested rules.
-    `source` names the sheet as its author finds it: a file, the page's <style>, or
-    one element's style attribute."""
-    parse = css_block if block else css_stylesheet
-    errors = []
-    seen = set()
+# Whether a declaration or rule a browser drops refuses its sheet (`dropped_css`):
+# "error" refuses it, "advice" reports it beside a passing check. Advice, by the
+# maintainer's decision: delivery reads such a sheet whole, so refusing it protects
+# nothing of Leaf's, and the browser forgives the author's mistake.
+DROPPED_SEVERITY = "advice"
 
-    def record(node):
-        key = (node.source_line, node.source_column, node.message)
-        if key in seen:
-            return
-        seen.add(key)
-        errors.append(
-            Finding(
-                "css-syntax",
-                values={
-                    "sheet": source,
-                    "row": node.source_line,
-                    "column": node.source_column,
-                    "message": node.message,
-                },
-            )
-        )
 
-    def walk_tokens(tokens):
-        for token in tokens:
-            if token.type == "error":
-                record(token)
-            for attr in ("arguments", "content"):
-                nested = getattr(token, attr, None)
-                if isinstance(nested, list):
-                    walk_tokens(nested)
+def dropped_css(css: str, sheet: str, *, block=False) -> tuple[Finding, ...]:
+    """Each declaration or nested rule a browser drops from a sheet that delivery's
+    reader reads whole (`revision_artifact._read_css`), as `css-dropped`.
 
-    def walk_rules(nodes):
+    The reader parses a stylesheet into its rules and their tokens, and refuses
+    what it can't read: an error token anywhere, or a malformed top-level rule. A
+    rule's block it keeps as tokens, which a browser parses as declarations and
+    nested rules, dropping each one that doesn't parse, such as `broken;` in
+    `p { color: red; broken; }`. Those are what this reports, so no problem is
+    reported by both. A style attribute (`block`) the reader parses as its list of
+    declarations, so it holds nothing more to drop. `sheet` names the sheet as its
+    author finds it: a file, the page's <style>, or one element's style attribute."""
+    if block:
+        return ()
+    errors = {}
+
+    def walk(nodes):
         for node in nodes:
-            if node.type == "error":
-                record(node)
-            for attr in ("prelude", "value"):
-                tokens = getattr(node, attr, None)
-                if isinstance(tokens, list):
-                    walk_tokens(tokens)
             if node.type in {"qualified-rule", "at-rule"} and node.content is not None:
-                walk_tokens(node.content)
-                walk_rules(css_block(node.content))
+                inner = css_block(node.content)
+                for item in inner:
+                    if item.type == "error":
+                        key = (item.source_line, item.source_column, item.message)
+                        errors.setdefault(
+                            key,
+                            Finding(
+                                "css-dropped",
+                                values={
+                                    "sheet": sheet,
+                                    "row": item.source_line,
+                                    "column": item.source_column,
+                                    "message": item.message,
+                                },
+                                severity=DROPPED_SEVERITY,
+                            ),
+                        )
+                walk(inner)
 
-    walk_rules(parse(css))
-    return tuple(errors)
-
-
-def scoped(css: str, root: str) -> str:
-    """Place one package stylesheet inside its browser-owned widget scope.
-
-    Package authors name their root with :scope; ordinary selectors name its
-    descendants. Native CSS owns selector parsing, nesting, and scope proximity.
-    """
-    return f"@scope ({root}) {{\n{css}}}\n"
-
-
-def inline_style_at(inline: dict) -> str:
-    """Name one style="" by the element and line an author finds it at."""
-    return f"<{inline['tag']} style> (line {inline['line']})"
+    walk(css_stylesheet(css))
+    return tuple(errors.values())

@@ -30,6 +30,7 @@ from browser.drafts import (
     editing_revision_source,
     replace_editing_document,
 )
+from browser.margin import leave_card
 from browser.threads import open_panel_thread, seed_panel_threads
 from leaf import event_log as events_model
 from leaf.render_checks import wait_until_ready
@@ -193,18 +194,21 @@ def test_resume_writing_keeps_editor_identity_caret_and_sent_conversation(
         == 1
     )
     page.keyboard.press("Escape")
+    expect(page.locator(".lf-margin-preview .lf-page-thread")).to_be_focused()
+    # Leaving the reply keeps its card; close that layer before editing beneath it.
+    leave_card(page)
     page.locator("#editable .lf-draft-body").click()
     edit = page.locator("#editable .lf-draft-edit")
     write(edit, "Rewritten page text")
     page.keyboard.press("Home")
     page.keyboard.press("ArrowRight")
-    # Escape would cancel the edit; stepping out to the page leaves it open.
-    page.locator("h1").click()
+    # Escape discards and a press away saves; Tab leaves the edit open to resume.
+    page.keyboard.press("Tab")
     expect(edit).not_to_be_focused()
     # The desktop More reference invokes the same semantic command as gi.
     page.keyboard.press("?")
     page.get_by_role("combobox", name="Search commands").fill("Resume writing")
-    page.get_by_role("button", name="Resume writing", exact=True).click()
+    page.keyboard.press("Enter")
     expect(edit).to_be_focused()
     expect(edit).to_have_js_property("value", "Rewritten page text")
     assert edit.evaluate("el => el.selectionStart") == 1

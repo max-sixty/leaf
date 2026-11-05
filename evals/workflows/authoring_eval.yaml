@@ -2,4 +2,4 @@
 prompt: |-
   {prompt}
 
-  Author the page in {page}/index.html. The page is initialized and writable. Your working directory is {cwd}; cited capture files are relative to it.
+  Author the page under {page}. Make the completed page available at {page}/index.html. Your working directory is {cwd}; cited capture files are relative to it.

@@ -133,14 +133,12 @@ def script_kind(attrs: dict) -> str:
 
 
 # Same-origin parents already share the page's DOM and request authority. Permit
-# embedding there; a different origin must not disguise a live decision under its
-# own controls, even when same-site cookies authorize the framed page. The server
-# sends this policy as a header and the site manifest carries it to the Worker.
+# embedding there; any other origin must not disguise a live decision under its
+# own controls, even when same-site cookies authorize the framed page. A page's
+# running server adds the other live Leaf servers under its key
+# (`http.PageEndpoint._frame_ancestors`); the site manifest carries this policy to
+# the Worker as it stands.
 FRAME_ANCESTORS_CSP = "frame-ancestors 'self'"
-# Non-painting document structure that may stand outside the authored main. Head
-# metadata is allowed only while the parser is actually inside head.
-DOCUMENT_WRAPPERS = {"html", "head", "body", "main"}
-HEAD_METADATA_TAGS = {"base", "link", "meta", "script", "style", "title"}
 
 
 def _srcset_urls(value: str):
@@ -196,6 +194,39 @@ def element_attrs(element) -> dict:
     }
 
 
+def delivered_elements(tree):
+    """Every element a parsed document delivers, in document order: its own, those
+    in each template's contents, and those in each declarative shadow root, which
+    delivery serializes. Delivery's rewrite (`revision_delivery.rebase_document`)
+    walks this, and so does every reader of the CSS it rewrites
+    (`delivered_sheets`), so they meet the same sheets."""
+    roots = [tree]
+    for root in roots:
+        for element in root.find_all(True):
+            if element.shadow_root is not None:
+                roots.append(element.shadow_root)
+            yield element
+
+
+def delivered_sheets(document: "SourceDocument"):
+    """Each stylesheet delivery rewrites in `document` (`delivered_elements`), as its
+    CSS, the name its author finds it by, and whether it is a style attribute's
+    declarations: each `<style>` element's text and each `style` attribute."""
+    index = source_index(document.html)
+    for element in delivered_elements(document.tree):
+        location = element.source_location
+        if location is None:
+            continue
+        line = location.start_tag.start_line
+        style = element.attrs.get("style")
+        if isinstance(style, str):
+            yield style, f"<{element.tag} style> (line {line})", True
+        if element.tag == "style" and location.end_tag is not None:
+            start = index(location.start_tag.end_line, location.start_tag.end_col)
+            end = index(location.end_tag.start_line, location.end_tag.start_col)
+            yield document.html[start:end], f"page <style> (line {line})", False
+
+
 @lru_cache(maxsize=4096)
 def _local_resource(value: str) -> tuple[str, str] | None:
     """Read an attribute candidate; arbitrary prose need not be a valid URL.
@@ -225,16 +256,19 @@ def attribute_references(tag: str, attrs: dict, name: str, value: str):
             yield from ((start, end) for start, end, _ in _srcset_urls(value))
         return
     if (
-        name in {"src", "poster"}
-        and normalized_tag not in {"script", "iframe"}
-        or name in {"href", "xlink:href"}
-        and (
-            normalized_tag in {"feimage", "image", "use"}
-            or normalized_tag == "link"
-            and "icon" in attrs.get("rel", [])
+        (name in {"src", "poster"} and normalized_tag not in {"script", "iframe"})
+        or (
+            name in {"href", "xlink:href"}
+            and (
+                normalized_tag in {"feimage", "image", "use"}
+                or (normalized_tag == "link" and "icon" in attrs.get("rel", []))
+            )
         )
         or (
-            (reference := _local_resource(value)) is not None
+            # A path under `/media/` takes a separator, written or escaped, that an
+            # id or a word lacks, so only a value holding one is parsed as a URL.
+            any(separator in value for separator in "/\\%")
+            and (reference := _local_resource(value)) is not None
             and reference[0].startswith(f"/{MEDIA_DIR}/")
         )
     ):
@@ -311,13 +345,15 @@ class SourceDocument:
         # The record of each lf-* element, by where its start tag begins, for the
         # authoring walk: the parser hands out a new object per visit of an element.
         self._records = {}
-        self.tree = (
+        tree = (
             turbohtml.parse_fragment(
                 source, context="template", scripting=True, source_locations=True
             ).parent
             if fragment
             else turbohtml.parse(source, scripting=True, source_locations=True)
         )
+        assert isinstance(tree, turbohtml.Document)
+        self.tree: turbohtml.Document = tree
         for child in self.tree.children:
             if isinstance(child, turbohtml.Element):
                 self._index(child, holder=None, in_svg=False)
@@ -536,18 +572,13 @@ class Authoring:
         # document metadata alike: one index of what the head names, so a user
         # after a description does not need a second parse of the same head.
         self.named_metas = []
-        # The authored page lives under one direct body > main because that is the
-        # element the first-replay presentation boundary withholds. Both assets that
-        # establish that boundary belong in head; anything paintable outside main would
-        # stand outside it. Scripts carry no paint; executable identity owns their
-        # lifetime, including moves between head, main, and retained body.
-        # Body lines come from source tokens because recovery erases a
-        # duplicate <body>; main placement comes from the recovered tree.
+        # Body lines come from source tokens because recovery erases a duplicate
+        # <body>; main placement comes from the recovered tree. The authored body
+        # is the revision boundary; main remains the page's semantic Layout box.
         self.body_lines = []
         self.head_lines = []
         self.head_elements = []  # (line, direct child of authored html)
         self.main_elements = []  # (line, direct child of authored body)
-        self.outside_main = []  # paintable content with no main ancestor
         # /media/ paths any attribute points at, so the check reads references and not
         # mentions: a page documenting Leaf can write one in prose without demanding a
         # screenshot that nothing displays.
@@ -608,6 +639,7 @@ class Authoring:
                 "head",
                 "body",
             }:
+                assert token.source is not None
                 start = document._source_index(token.line, token.col)
                 self.wrapper_tags.setdefault(
                     token.tag, (start, start + len(token.source))
@@ -657,12 +689,11 @@ class Authoring:
             < self._first_body_position
         )
         in_head = "head" in ancestors
-        in_main = "main" in ancestors
         if tag == "script":
             script = {
                 "attrs": attrs,
                 "parent": parent_tag,
-                "patch_region": "head" if in_head else "main" if in_main else "body",
+                "patch_region": "head" if in_head else "body",
                 "position": (line, column),
                 "early_head": in_head and before_body,
                 "line": line,
@@ -728,13 +759,6 @@ class Authoring:
 
         if tag == "noscript":
             self.errors.append(Finding("noscript", "<noscript>", {"line": line}))
-        if (
-            not in_main
-            and tag not in DOCUMENT_WRAPPERS
-            and tag != "script"
-            and not (in_head and tag in HEAD_METADATA_TAGS)
-        ):
-            self.outside_main.append({"tag": tag, "line": line, "text": False})
 
     def _visit(
         self,
@@ -835,14 +859,6 @@ class Authoring:
                 self._visit(child, child_output, ancestors=next_ancestors)
             elif isinstance(child, turbohtml.Text):
                 child_output.append(child.data)
-                if (
-                    child.data.strip()
-                    and "main" not in next_ancestors
-                    and element.tag not in {"script", "style", "title"}
-                ):
-                    self.outside_main.append(
-                        {"tag": element.tag, "line": line, "text": True}
-                    )
 
         if element.tag == "template" and "data-sample" in attrs and not attrs.get("id"):
             self.errors.append(Finding("unnamed-sample", "<template>", {"line": line}))
@@ -883,7 +899,7 @@ def page_layout(document: SourceDocument, registry: Mapping):
     Layout's carry (`layout-column` is `column`), space-separated, or None.
 
     A page Layout's class is on `main`, on a shown child of a `main` that carries none,
-    or on the child of each part of such a `main`'s parts (`x-views: "parts"`,
+    or on the child of each part of such a `main`'s parts (`x-views.parts`,
     layouts.css, `--lf-layout-box`). The parser reaches those after it has begun
     painting the body, so delivery repeats them on the root for the Layout's own body
     rules to read before the first paint. Which part opens is the browser's, so every
@@ -913,7 +929,7 @@ def page_layout(document: SourceDocument, registry: Mapping):
         boxes += [
             child
             for holder in shown(main)
-            if registry.get(holder.tag, {}).get("x-views") == "parts"
+            if registry.get(holder.tag, {}).get("x-views", {}).get("parts")
             for part in shown(holder)
             for child in shown(part)
         ]

@@ -1,12 +1,12 @@
 """Registry-declared markup instance validation."""
 
+import re
+
 from leaf.findings import Finding, element_at
 from leaf.gesture_words import leading_title_node
 from leaf.obligations import (
     encloses,
     local_obligation_entry,
-    quoted_in,
-    replied,
 )
 from leaf.projection import enclosing_widgets, recorded_owner
 from leaf.registry.contract import (
@@ -23,6 +23,8 @@ from leaf.structure import AUTHORED_ALLOCATIONS, SourceDocument
 
 from .markup import found_at, structure_errors
 
+_GLOBAL_ATTRIBUTE = re.compile(r"class|style|title|lang|dir|aria-[a-z]+|data-(?!lf-).+")
+
 
 def member_holders(rec: dict, registry: dict):
     """An element's enclosing widgets within its quotation, innermost first.
@@ -37,7 +39,7 @@ def member_holders(rec: dict, registry: dict):
 
 
 def thread_markup_contract_errors(parser, registry: dict) -> list[Finding]:
-    """Registry-derived errors shared by admission and re-vendoring."""
+    """Registry-derived errors shared by admission and `page init`."""
     errors = fragment_errors(parser, registry)
     settled = retirement_slots(registry)
     errors.extend(
@@ -69,21 +71,36 @@ def widget_errors(lf_elements: list, registry: dict) -> list[Finding]:
         # The element validates as the instance built from its attributes:
         # values as strings, flag attributes as True. HTML's two flag spellings
         # (bare and ="") both mean true; a literal value on a flag stays a string
-        # so it fails loudly rather than silently meaning true. `class` and `style`
-        # are the page's styling hooks on any element, outside every schema: no
-        # widget reads them, the runtime sets its own classes and custom properties
-        # beside the author's (`classList`, `style.setProperty`), and Leaf's own `lf-`
-        # classes are refused as markers.
+        # so it fails loudly rather than silently meaning true. HTML's global
+        # attributes that say nothing a widget records stand outside every schema
+        # unless the entry declares one: `class` and `style` are the page's styling
+        # hooks (the runtime sets its own classes and custom properties beside the
+        # author's, and Leaf's own `lf-` classes are refused as markers), and `title`,
+        # `lang`, `dir`, `aria-*` and the page's own `data-*` describe the element as
+        # on any other. `data-lf-*` stays Leaf's; `hidden` and `inert` still validate,
+        # since either could hide what the widget asks of the user.
         props = entry.get("properties", {})
         instance = {}
         for name, value in rec["attrs"].items():
-            if name in AUTHORED_ALLOCATIONS or name in ("class", "style"):
+            if name in AUTHORED_ALLOCATIONS or (
+                name not in props and _GLOBAL_ATTRIBUTE.fullmatch(name)
+            ):
                 continue
             prop = props.get(name)
             is_flag = isinstance(prop, dict) and prop.get("type") == "boolean"
             instance[name] = True if value in (None, "") and is_flag else (value or "")
         for err in sorted(json_validator(entry).iter_errors(instance), key=str):
             errors.append(found_at("attribute-schema", rec, **schema_reading(err)))
+        for verb, spec in state_specs(entry):
+            binding = spec.get("contract")
+            if not binding or not (name := rec["attrs"].get(binding["attribute"])):
+                continue
+            if name not in registry["$data"]["contracts"]:
+                errors.append(
+                    found_at(
+                        "instance-contract", rec, verb=verb, contract=name, **binding
+                    )
+                )
         for input_name, spec in entry.get("x-data", {}).items():
             if rec["attrs"].get(spec.get("source")) and rec["attrs"].get(
                 spec.get("reference")
@@ -113,17 +130,26 @@ def widget_errors(lf_elements: list, registry: dict) -> list[Finding]:
                 )
             )
         # Tags that name this declaration in x-owners are its admissible members under
-        # any content model. "data" takes one <pre>, "members" takes element members
+        # any content model. "data" takes one <pre>, or none where the markup binds an
+        # x-data input, whose value is then the text; "members" takes element members
         # only, and "empty" takes nothing at all.
         content = entry["x-content"]
         allowed = members_of.get(tag, set())
         stray = sorted({c for c in rec["children"] if c not in allowed})
+        bound = any(
+            rec["attrs"].get(spec.get(key))
+            for spec in entry.get("x-data", {}).values()
+            for key in ("source", "reference")
+        )
         if content == "empty" and (rec["children"] or rec["text"]):
             errors.append(found_at("content-empty", rec))
         elif content == "data":
             others = [c for c in stray if c != "pre"]
-            if rec["children"].count("pre") != 1 or others:
-                errors.append(found_at("data-body", rec, children=rec["children"]))
+            pres = rec["children"].count("pre")
+            if pres != (0 if bound else 1) or others:
+                errors.append(
+                    found_at("data-body", rec, children=rec["children"], bound=bound)
+                )
             if rec["text"]:
                 errors.append(found_at("text-outside-pre", rec))
         elif content == "members":
@@ -202,12 +228,12 @@ def layout_errors(lf_elements: list, registry: dict) -> list[Finding]:
 
 
 def parts_errors(document: SourceDocument, registry: dict) -> list[Finding]:
-    """A page's parts (`x-views: "parts"`) written directly in `main` lay the page out
+    """A page's parts (`x-views.parts`) written directly in `main` lay the page out
     themselves, each part's child carrying its own Layout, so the `main` holding them
     carries none. With one, its Layout and the parts' both arrange the page, and the
     page renders with nothing out of reach, so the render check passes it."""
     main = document.tree.select_one("body > main")
-    classes = main.attrs.get("class", []) if main else []
+    classes = (main.attrs.get("class") or []) if main else []
     layouts = [token for token in classes if token.startswith("layout-")]
     if not layouts:
         return []
@@ -215,7 +241,7 @@ def parts_errors(document: SourceDocument, registry: dict) -> list[Finding]:
         found_at("parts-in-layout", rec, rec["attrs"].get("id", ""), layout=layouts[0])
         for rec in document.lf_elements
         if rec["parent"] == "main"
-        and registry.get(rec["tag"], {}).get("x-views") == "parts"
+        and registry.get(rec["tag"], {}).get("x-views", {}).get("parts")
     ]
 
 
@@ -244,50 +270,44 @@ def unasked(rec: dict, entry: dict) -> dict:
 
 
 def enclosing_errors(document: SourceDocument, registry: dict) -> list[Finding]:
-    """An enclosing widget (`x-awaits.encloses`) supplies a leading title and
+    """An enclosing widget (`x-encloses`) supplies a leading title and
     arrival region for the obligations inside it.
 
     It never owns obligation identity or registration. Any number of sources can select
     it, and each source retains its independent answer and lifecycle. An enclosing
     widget whose widgets none ask shows a question the On me list never counts and
     the user can't answer, so the error names what each enclosed widget lacks to
-    ask (`unasked`). One holding no widget asks only if it declares its own
-    reply-answered obligation (`x-awaits.reply`), and then needs no heading: its words
-    are the question.
+    ask (`unasked`), or that it holds none.
     """
-
-    def encloser_of(rec):
-        return next(
-            (
-                holder
-                for holder in enclosing_widgets(rec)
-                if encloses(registry.get(holder["tag"], {}))
-            ),
-            None,
-        )
 
     lf_elements = document.lf_elements
     regions = [rec for rec in lf_elements if encloses(registry.get(rec["tag"], {}))]
     framed = {id(region): [] for region in regions}
+    # A widget asks inside every frame around it, so a frame holding only a nested frame
+    # is as full as that one; the nearest still gives the obligation its prompt. A
+    # sample's widgets ask nothing beyond it (obligations.py, `shown_in`), so the walk
+    # stops there and a frame inside the sample still counts them.
     for rec in lf_elements:
         entry = registry.get(rec["tag"], {})
-        region = encloser_of(rec)
-        if local_obligation_entry(entry) and region and not quoted_in(rec, registry):
-            framed[id(region)].append((rec, unasked(rec, entry)))
+        if not local_obligation_entry(entry):
+            continue
+        for holder in enclosing_widgets(rec):
+            holder_entry = registry.get(holder["tag"], {})
+            if holder_entry.get("x-exhibit"):
+                break
+            if encloses(holder_entry):
+                framed[id(holder)].append((rec, unasked(rec, entry)))
     errors = []
     for region in regions:
         held = framed[id(region)]
         # The obligation's title is what the shared name rule reads, so this asks that rule
         # rather than restating a shape it accepts. It must be a heading as well, the
         # question's place in the outline and in heading navigation.
-        title = leading_title_node(document.authoring.node_of(region))
+        node = document.authoring.node_of(region)
+        assert node is not None
+        title = leading_title_node(node)
         titled = bool(title) and title["tag"] in {f"h{n}" for n in range(1, 7)}
-        # A question is its words alone. A heading over no widget is a frame whose
-        # widget is missing, as when a revision drops the decision it framed.
-        if not held and replied(registry[region["tag"]]) and not titled:
-            continue
-        # A quoted enclosing widget is a mention whose widgets ask nothing by design.
-        if not quoted_in(region, registry) and all(lacks for _, lacks in held):
+        if all(lacks for _, lacks in held):
             widgets = [
                 {
                     "at": element_at(rec["tag"], rec["attrs"].get("id", "")),

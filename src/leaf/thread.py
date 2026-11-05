@@ -1,9 +1,10 @@
 """Thread writes, addressed response admission, and provider reply reservations."""
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from hashlib import sha256
 from pathlib import Path
-from typing import NamedTuple
+from typing import NamedTuple, Never
 
 from leaf.activity import answer_command, reply_command
 from leaf.delivery import (
@@ -23,16 +24,11 @@ from leaf.files import (
 from leaf.findings import Finding, Rejected, note
 from leaf.harness import message_identity
 from leaf.leases import contract_writer
-from leaf.obligations import local_obligation_entry, quoted_in
+from leaf.obligations import local_obligation_entry, shown_in
 from leaf.passages import SourceReading
-from leaf.projection import (
-    generated_children,
-    page_reading,
-    retirement_outcomes,
-    rewritten_bodies,
-)
+from leaf.projection import page_reading
 from leaf.registry.contract import matches_when
-from leaf.registry.kernel import kinds_declaring
+from leaf.registry.kernel import kinds_declaring, title_limit
 from leaf.revision_artifact import active_enclosing, read_revision
 from leaf.service import PageTransaction, delivery_reply_attempt, same_claim
 from leaf.thread_context import thread_message, thread_names
@@ -54,7 +50,68 @@ def _messages(events: list) -> dict[str, dict]:
     }
 
 
-def _unknown_message(page_dir: Path, events: list, name: str) -> None:
+def asking_widget(fragment, registry: dict) -> dict | None:
+    """The first widget in a message's markup that waits on the user (`x-awaits`),
+    which makes it the message's request for an answer."""
+    return next(
+        (
+            rec
+            for rec in fragment.lf_elements
+            if local_obligation_entry(registry.get(rec["tag"]) or {})
+            and matches_when(rec["attrs"], registry[rec["tag"]]["x-awaits"].get("when"))
+            and not shown_in(rec, registry)
+        ),
+        None,
+    )
+
+
+def unasked_widget(fragment, registry: dict) -> dict:
+    """The first widget in the markup that could wait on the user but whose
+    attributes keep it from asking, with the attributes it would ask with, so an
+    undeclared answer's refusal names what to add rather than only the flags."""
+    for rec in fragment.lf_elements:
+        entry = registry.get(rec["tag"]) or {}
+        if not local_obligation_entry(entry) or shown_in(rec, registry):
+            continue
+        when = entry["x-awaits"].get("when") or {}
+        needs = [
+            _attribute_written(attr, values)
+            for attr, values in when.items()
+            if not matches_when(rec["attrs"], {attr: values})
+        ]
+        return {
+            "tag": rec["tag"],
+            "id": rec["attrs"].get("id"),
+            "needs": " and ".join(needs),
+        }
+    return {}
+
+
+def _attribute_written(attr: str, values: list) -> str:
+    """How markup meets one `when` condition: a flag's presence or absence, or
+    the first value it allows."""
+    if True in values:
+        return f"`{attr}`"
+    if values == [False]:
+        return f"no `{attr}`"
+    return f'`{attr}="{values[0]}"`'
+
+
+def refuse_second_request(asking: dict | None) -> None:
+    """A message asks once. `--obligation` beside a widget that asks would stay on
+    On me after the user answers the widget, since only their words answer it."""
+    if asking is not None:
+        raise Rejected(
+            [
+                Finding(
+                    "obligation-beside-widget",
+                    values={"tag": asking["tag"], "id": asking["attrs"].get("id")},
+                )
+            ]
+        )
+
+
+def _unknown_message(page_dir: Path, events: list, name: str) -> Never:
     held = logged_id(page_dir, events, name, current_responses(page_dir, events))
     raise Rejected(
         [
@@ -193,18 +250,14 @@ def _capture_anchor(
     from leaf.anchor_capture import capture_anchor
 
     page = page_reading(reading, events, revision)
-    decided = retirement_outcomes(page.projection.actions)
-    edited = rewritten_bodies(page.projection.actions)
     try:
         anchor = capture_anchor(
             page.document,
             page.registry,
             quote,
             section,
-            decided,
-            edited,
-            part,
-            additions=generated_children(page.projection.desired, page.document.ids),
+            part=part,
+            **page.logged_words,
         )
     except ValueError as err:
         held = (
@@ -249,33 +302,63 @@ def cmd_comment(
         # Apart from the page lease, since a browser run takes about a second.
         message_check(page_dir, "comment", markup)
     with PageTransaction(page_dir) as page:
-        events = page.events
-        revision, anchor = current_anchor(
-            page_dir, events, quote, section, part, transaction=page
+        return open_thread(
+            page_dir,
+            page,
+            body,
+            quote,
+            section,
+            part,
+            markup,
+            title=title,
+            obligation=obligation,
         )
-        if markup:
-            check_markup(
-                page_dir,
-                "comment",
-                markup,
-                events,
-                publication=revision_publication(page_dir, revision),
-            )
-        event = {
-            "kind": "comment",
-            "author": "agent",
-            "revision": revision,
-            "text": body,
-        }
+
+
+def open_thread(
+    page_dir: Path,
+    page: PageTransaction,
+    body: str,
+    quote: str = "",
+    section: str = "",
+    part: str = "",
+    markup: str = "",
+    *,
+    title: str | None = None,
+    obligation: bool = False,
+    identity: dict | None = None,
+) -> dict:
+    """The agent's thread opened in `page`, an open transaction, as `cmd_comment`
+    describes, from a `body` already checked (`checked_text`); `identity` names the
+    agent and session where the writer isn't the agent's own process, as Leaf's
+    clerk is (`clerk.apply_answer`)."""
+    events = page.events
+    revision, anchor = current_anchor(
+        page_dir, events, quote, section, part, transaction=page
+    )
+    if markup:
+        publication = revision_publication(page_dir, revision)
+        fragment = check_markup(
+            page_dir, "comment", markup, events, publication=publication
+        )
         if obligation:
-            event["obligation"] = True
-        if anchor:
-            event["anchor"] = anchor
-        if markup:
-            event["markup"] = markup
-        if title is not None:
-            event["title"] = title
-        return append_admitted(page, event)[0]
+            refuse_second_request(asking_widget(fragment, publication.registry))
+    event = {
+        "kind": "comment",
+        "author": "agent",
+        **(identity or {}),
+        "revision": revision,
+        "text": body,
+    }
+    if obligation:
+        event["obligation"] = True
+    if anchor:
+        event["anchor"] = anchor
+    if markup:
+        event["markup"] = markup
+    if title is not None:
+        event["title"] = title
+    return append_admitted(page, event)[0]
 
 
 def successful_replies(events: list[dict], responds: str) -> list[dict]:
@@ -306,11 +389,16 @@ class ProviderFinal:
 
 @dataclass(frozen=True)
 class Receipt:
-    """A harness's failure receipt: an update that no longer owes an answer takes
-    none. With `only_if_unclaimed`, an update some turn already picked up is left to
-    the writer following that turn."""
+    """A writer that answers only what is still owed: a harness's failure receipt,
+    or the reply of a fork of the agent's conversation (`forks`). An update that no
+    longer owes an answer takes none. With `only_if_unclaimed`, an update some turn
+    already picked up is left to the writer following that turn. With `fence`, the
+    receipt writes only while `fence` holds of the page under the lock its append
+    takes, as a fork's reply writes only while Leaf still holds its thread from the
+    session."""
 
-    only_if_unclaimed: bool
+    only_if_unclaimed: bool = False
+    fence: Callable[[PageTransaction], bool] | None = None
 
 
 Settlement = Refuse | ProviderFinal | Receipt
@@ -566,6 +654,7 @@ def _resolve_obligation(
                 [Finding("unowed-reply", values={"event": responds, "held": held})]
             )
         parent = expected["parent"]
+    assert parent is not None
     thread_id, parent = thread_addressed(page_dir, events, parent)
     in_hand = None
     if responds is not None:
@@ -601,6 +690,7 @@ def _resolve_obligation(
             elif not ephemeral and (
                 address.get("input") is None or failure is not None
             ):
+                assert expected is not None
                 raise Rejected(
                     [
                         Finding(
@@ -627,10 +717,12 @@ def _resolve_obligation(
                     )
                 ]
             )
-    if (
-        isinstance(settlement, Receipt)
-        and settlement.only_if_unclaimed
-        and pickup_receipts(events, phase=None, input_id=responds)
+    if isinstance(settlement, Receipt) and (
+        (
+            settlement.only_if_unclaimed
+            and pickup_receipts(events, phase=None, input_id=responds)
+        )
+        or (settlement.fence is not None and not settlement.fence(page))
     ):
         return None
     return _Obligation(parent, thread_id, None if ephemeral else responds, in_hand)
@@ -722,6 +814,7 @@ def _compose_and_append(
                 ]
             )
         reply_revision = planned_activation(page_dir, checked).revision
+        assert reply_revision is not None
         if moving:
             prospective_anchor = _capture_anchor(
                 page_dir,
@@ -768,25 +861,14 @@ def _compose_and_append(
             publication=publication,
             thread=thread_id,
         )
+    asking = asking_widget(fragment, publication.registry) if markup else None
+    if explicit_obligation:
+        refuse_second_request(asking)
     # A markup-only answer must itself request input. Explicit obligations need
     # no widget: the message is their source.
-    if (
-        asks_back
-        and not explicit_obligation
-        and not (
-            markup
-            and any(
-                local_obligation_entry(publication.registry.get(rec["tag"]) or {})
-                and matches_when(
-                    rec["attrs"],
-                    publication.registry[rec["tag"]]["x-awaits"].get("when"),
-                )
-                and not quoted_in(rec, publication.registry)
-                for rec in fragment.lf_elements
-            )
-        )
-    ):
-        raise Rejected([Finding("undeclared-answer")])
+    elif asks_back and asking is None:
+        unasked = unasked_widget(fragment, publication.registry) if markup else {}
+        raise Rejected([Finding("undeclared-answer", values=unasked)])
     if ephemeral:
         event["ephemeral"] = True
     if in_hand is not None:
@@ -953,6 +1035,18 @@ def _fail_markup_answer(
             return None
         [update] = [event for event in events if event["id"] == responds]
         return record_pickup(page, [update], phase="failed", failure=failure)
+
+
+def fit_title(words: str) -> str:
+    """`words` as a title a model wrote: on one line, and cut at a word to fit
+    `title_limit`, ending in an ellipsis where it was cut. A model can't count
+    characters, so Leaf fits its title rather than refusing it, which would leave
+    the thread untitled or drop the ask it names."""
+    title = " ".join(words.split())
+    limit = title_limit()
+    if len(title) <= limit:
+        return title
+    return title[: limit - 1].rsplit(" ", 1)[0].rstrip(" ,;:") + "…"
 
 
 def title_event(thread: str, title: str, identity: dict | None = None) -> dict:

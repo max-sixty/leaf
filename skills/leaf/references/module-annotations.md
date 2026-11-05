@@ -43,8 +43,10 @@ syncActions() { this.actions.update(); }
 
 `read()` returns data, never controls: the actions available in the widget's current
 state, built with `contributionEntry`. Call `update()` whenever that state changes, and
-every surface redraws from the new entries. Each entry needs a `key`, a `label`, and
-either a `glyph` (text) or an `icon` (a Leaf icon name). `behavior`, `tone`, `rank` and
+every surface redraws from the new entries. Each entry needs a `key`, a `label`, and one
+of a `glyph` (text), an `action` (one of Leaf's actions, whose symbol it shows;
+`module-reading.md`, "Icons") or an `icon` (a Leaf icon, for an entry that shows what it
+holds rather than what it does). `behavior`, `tone`, `rank` and
 `state` default to an ordinary primary action; `CONTRIBUTION_ENTRY_SCHEMA` lists their
 values.
 
@@ -65,6 +67,11 @@ draws its own control as an entry with
 `presentContributionEntry(control, entry, {selected})`, and shows whether the agent is
 working on it with `presentContributionReceipts(control, receipt, awaitsUser)`, where
 `receipt` is a workflow's `{id, subject, stage, detail}` or `null`.
+
+The returned registration's `hasCurrentLocation()` says whether the user's focus is
+inside any control presenting that contribution, across shadow roots and presentation
+surfaces. Its `contains(node)` answers the same ownership question for an arbitrary
+node. Use the focus query when retaining a focused entry while updating its reading.
 
 ## Visual parts
 
@@ -90,10 +97,20 @@ Thread's turns, and `threadSummary(thread)` its `topic`, its name in words, and 
 Address a Thread by its `key`, which stays the same after the server admits it; its `id`
 is the name obligations and workflows use. `root` is its opening message, `anchor` names
 the `section` and `datum` it is attached to, and `attention.kind` is `"needs_user"` when
-it waits on the user and `"waiting"` when it is with the agent. `offers: {open, reply,
-resolve, reopen}` says which actions are available now. A message's `reactions` lists
-the reactions it takes and those in force, and is `null` on a message that takes none.
-An agent's message carries `agent`, the name it shows under.
+it waits on the user and `"waiting"` when it is with the agent. `resolved` is set while
+it stands resolved. A message's `reactions` lists the reactions it takes and those in
+force, and is `null` on a message that takes none. An agent's message carries `agent`,
+the name it shows under.
+
+`agentName()` returns the page's current agent name, or "the agent" when none is
+supplied. Use it when a package attributes agent activity.
+
+`threadInput(element)` returns the reply editor of the Thread containing that element,
+or `null` outside one. `landInThread(editor, {target, line})` enters an existing reply
+editor and records where Escape returns when the Thread has no own focus destination:
+`target` is the package's return element and `line` is its accessible return label.
+It returns whether it could land. Use `threadActions.open` below when starting from a
+Thread key rather than an editor already present.
 
 `threadActions` acts on Threads through Leaf's own path, showing the result at once:
 
@@ -151,23 +168,53 @@ inside the messages it draws live there.
 `render(shownCollection, parts)` names outlets inside the widget: a whole conversation
 with `parts.thread(thread.key, outlet)`, or its parts with
 `parts.message(thread.key, message.key, outlet)` for each of its `threadTurns` and
-`parts.reply(thread.key, outlet)`. `parts.transcript(thread.key, outlet)` draws all of
-its turns as a whole conversation does, for a widget that draws the conversation's head
-itself, in place of message parts. Leaf fills the outlets and keeps the rendering,
+`parts.reply(thread.key, outlet)`. Leaf fills the outlets and keeps the rendering,
 reactions, read tracking and reply draft; the package keeps layout, order, selection,
-scroll and disclosure. A rewrite of the user's message opens where the message stands,
-its frame reaching a little past the message's edges, so a scroller holding message
+scroll and disclosure. The user's message editor opens in place of the message,
+with its frame extending slightly beyond the message's edges, so a scroller holding message
 parts keeps about 12px of padding beside them (the worked example's `.reader`).
+
+A widget that draws the conversation's head itself, as Leaf's floating panel does,
+passes `parts.thread` a third argument, `{head, reply, quote, landing, drawn}`, each
+part optional:
+
+- `head: {news, controls}` names two places on the widget's head line. The notice of
+  news the thread holds back stands in `news`, and Resolve, or Reopen, in `controls`.
+  Without it, both stand beside the first message's head.
+- `reply: {outlet, options}` names where the reply box stands, at the thread's end
+  without `outlet`, with the options `parts.reply` takes, except that `hint` is called
+  with `{resolved, attention}`: the thread as it is drawn, held news included, so the
+  box's words agree with Resolve and the notice. `attention` is what the thread waits
+  on, with the `word` Threads says it in, or null where it waits on nothing, as once
+  it is resolved.
+- `quote: true` quotes the words the thread is about over its messages.
+- `landing(resolved)` is called as the user presses Resolve or Reopen, with whether
+  the thread stood resolved before the press. It returns a step Leaf runs once the
+  settlement shows, which returns whether it moved the user, or `null` to leave the
+  user to the thread: Reopen then puts the caret in the reply box, wherever it stands.
+  With a landing, taking the settlement back opens the thread in this widget again.
+- `drawn(answer)` runs once the thread's DOM is placed, before asynchronous widget
+  preparation finishes, so layout and scroll can follow the words before the next
+  frame. `answer` is null except when this draw answers the user's last turn; then it
+  is the read-only `{turn, reply}` message keys, with `reply: null` while only work
+  under way has arrived. A render abandoned before drawing calls nothing. The handle's
+  `update()` still waits for the widgets' preparation.
+
+Each place, as an outlet, stands inside the widget, and may stand in its shadow tree.
+A whole thread, as a reply part does, takes the reply being written in it that no
+other view holds, so the user goes on writing there.
+
 `parts.reply` takes `{hint, accessibleName, sent}`, where
-`sent()` runs after a send instead of moving the user to the thread. The collection
-holds back changes that would move what the user sees behind a notice, placed where
-`parts.news(thread.key, outlet)` names or else at the end of the first part's head,
-while `readThreads()` stays current for counts. A feed of single turns supplies Resolve
-and Reopen through `threadActions`.
+`sent()` runs after a send instead of moving the user to the thread. The reply box
+stands in a resolved thread too, and a reply there reopens it. The collection
+holds back changes that would move what the user sees behind a notice, which a whole
+conversation stands as a card does, or where its `head` names, and message parts at
+the end of the first part's head, while `readThreads()` stays current for counts. A
+feed of single turns supplies Resolve and Reopen through `threadActions`.
 
 Await the handle's `update()` after a local layout change, or `update({release: true})`
 to show held news for a deliberate change of view. If `render` throws or names an outlet
-outside the widget, that update rejects, the threads go back to Leaf's floating panel,
+or a place outside the widget, that update rejects, the threads go back to Leaf's floating panel,
 and `primary` reads false until the next `update()` takes them back.
 
 `reveal(key, request)` shows the requested part in the package's layout, or returns
@@ -199,8 +246,7 @@ threadOutlets(targets, { onCommit }) {
 ```
 
 Return `null` for data that is filtered out, collapsed or not loaded, and its thread
-stays in the margin. A thread the agent starts on a visible datum also waits in the
-margin until the user opens it. Call `threadSurface(this).update()` after a change that
+stays in the margin. Call `threadSurface(this).update()` after a change that
 only shows or hides data.
 
 The widget creates, lays out and removes its outlets, and Leaf fills them. An outlet you
@@ -211,8 +257,14 @@ node holding outlets at another time, such as when its data goes, first calls
 `releaseOutlets(node)`, before any `holdFocus`. If `threadOutlets` throws, Leaf returns
 the widget's threads to the margin until the next pass.
 
-`threadSurface(this).open(datum)` opens the comment box on one of the widget's data
-items, in its outlet; Leaf keeps the draft and the sending.
+`threadSurface(this).open` is the reactive opener for the comment box on one of the
+widget's data items, or `null` while no surface is registered. Read it while rendering
+and offer comment controls only when it exists; call it with the datum to open its
+outlet. Leaf keeps the draft and the sending. Registration can follow the widget's
+first drawing, and departure retires the opener until the widget returns.
+
+`threadSurface` and `releaseOutlets` also load through `portable-api.js`. Without a
+registered Leaf surface, there is nothing to update or release, and `open` is `null`.
 
 ### Page annotation presentation
 

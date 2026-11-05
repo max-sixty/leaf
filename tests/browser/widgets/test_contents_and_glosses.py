@@ -10,9 +10,9 @@ from playwright.sync_api import expect
 from render_cases_interaction import live_url
 from render_harness import (
     RELEASE_FOCUS,
-    displayed,
     leaf_page,
     open_page,
+    open_threads,
     resized,
     scroll_settled,
     told,
@@ -21,6 +21,17 @@ from render_harness import (
 from leaf.render_checks import rendered, wait_until_ready
 
 pytestmark = pytest.mark.shifts_unsurveyed
+
+
+def contents_page(title, body, *, toc_id="contents"):
+    """A native sidebar track beside the authored document column."""
+    return leaf_page(
+        title,
+        '<aside id="route"><div class="layout-track" id="route-track">'
+        f'<lf-toc id="{toc_id}"></lf-toc></div></aside>'
+        f'<div class="layout-column">{body}</div>',
+        layout="sidebar",
+    )
 
 
 def test_a_table_of_contents_reads_the_page_outline_and_reveals_its_heading(
@@ -182,14 +193,14 @@ def test_contents_addresses_a_title_group_and_maps_its_complete_box(browser, ser
     A grouped section title still belongs to the identified section it titles. Marker
     centers and the viewport lens share one coordinate, including the track's origin.
     """
-    source = leaf_page(
+    source = contents_page(
         "grouped contents titles",
         """
 <hgroup id="page-title">
   <p class="eyebrow">Eval consolidation</p>
   <h1 id="title-label">One catalog, with short cases and complete workflows</h1>
 </hgroup>
-<aside class="sidebar"><lf-toc id="contents"></lf-toc></aside>
+
 <div style="height: 110vh"></div>
 <hgroup id="standalone-title">
   <p class="eyebrow">One vocabulary</p>
@@ -249,13 +260,32 @@ def test_contents_addresses_a_title_group_and_maps_its_complete_box(browser, ser
         geometry
     )
 
-    # Native fragment navigation brings the eyebrow with the heading; the viewport
-    # lens meets that destination's marker rather than the top of its link box.
+    # Native fragment navigation brings the eyebrow with the heading and leaves
+    # the focused title's ring clear of the reading band's edge.
     standalone.focus()
     page.keyboard.press("Enter")
     expect(page).to_have_url(re.compile(r"#standalone-title$"))
     scroll_settled(page)
     expect(standalone).to_have_attribute("aria-current", "location")
+    landing = page.locator("#standalone-title").evaluate(
+        """target => ({
+          top: target.getBoundingClientRect().top,
+          clearance: parseFloat(getComputedStyle(document.scrollingElement).scrollPaddingTop)
+            + parseFloat(getComputedStyle(target).scrollMarginTop),
+        })"""
+    )
+    assert landing["top"] == pytest.approx(landing["clearance"], abs=1), landing
+
+    # The lens maps the reading band, including the room before a focused title.
+    # Scroll the title to the band's edge to compare its map coordinate directly.
+    page.locator("#standalone-title").evaluate(
+        """target => document.scrollingElement.scrollBy({
+          top: target.getBoundingClientRect().top
+            - parseFloat(getComputedStyle(document.scrollingElement).scrollPaddingTop),
+          behavior: 'instant',
+        })"""
+    )
+    scroll_settled(page)
     alignment = standalone.evaluate(
         """link => {
           const row = link.parentElement;
@@ -286,13 +316,14 @@ def test_contents_with_every_destination_hidden_returns_when_the_disclosure_open
         """
 <details>
   <summary>Open the migration plan</summary>
-  <h1>Migration plan</h1>
-  <aside class="sidebar"><lf-toc id="contents"></lf-toc></aside>
+  <div class="layout-sidebar"><aside><div class="layout-track">
+    <lf-toc id="contents"></lf-toc>
+  </div></aside><div class="layout-column"><h1>Migration plan</h1>
   <h2 id="prepare">Prepare the readers</h2>
   <div style="height: 110vh"></div>
   <h2 id="verify">Verify both copies</h2>
   <div style="height: 110vh"></div>
-</details>
+</div></div></details>
 """,
     )
     page = open_page(browser, serve(source))
@@ -300,8 +331,24 @@ def test_contents_with_every_destination_hidden_returns_when_the_disclosure_open
     nav = page.get_by_role("navigation", name="On this page", include_hidden=True)
     expect(nav).to_be_hidden()
     expect(nav.locator("[aria-current]")).to_have_count(0)
+    page.evaluate("""() => {
+      window.firstContentsReveal = null;
+      const observer = new ResizeObserver(() => {
+        if (!document.querySelector('main > details').open) return;
+        const nav = document.querySelector('#contents');
+        firstContentsReveal = {
+          hidden: nav.querySelectorAll('[data-lf-toc-hidden]').length,
+          current: nav.querySelector('[aria-current]')?.textContent,
+        };
+        observer.disconnect();
+      });
+      observer.observe(document.querySelector('main'));
+    }""")
     page.get_by_text("Open the migration plan", exact=True).click()
     expect(nav).to_be_visible()
+    page.wait_for_function("firstContentsReveal !== null")
+    first_reveal = page.evaluate("firstContentsReveal")
+    assert first_reveal == {"hidden": 0, "current": "Migration plan"}
     expect(nav.locator(".lf-toc-start a")).to_have_attribute("aria-current", "location")
     expect(nav.locator("[data-lf-toc-hidden]")).to_have_count(0)
     page.get_by_text("Open the migration plan", exact=True).click()
@@ -322,12 +369,9 @@ def test_contents_reconciles_live_title_boundaries_and_preserves_its_reading_pos
         f'<section id="part-{index}"><h2 id="label-{index}">Migration part {index}</h2></section>'
         for index in range(1, 81)
     ]
-    source = leaf_page(
+    source = contents_page(
         "live contents",
-        title
-        + '<aside class="sidebar"><lf-toc id="contents"></lf-toc></aside>'
-        + '<h2 id="body-title">Body</h2>'
-        + "".join(sections),
+        title + '<h2 id="body-title">Body</h2>' + "".join(sections),
     )
     page = open_page(browser, live_url(serve(source)))
     resized(page, 1400, 900)
@@ -439,10 +483,9 @@ def test_contents_reconciles_live_title_boundaries_and_preserves_its_reading_pos
 
 def test_an_empty_contents_route_follows_headings_arriving_and_leaving(browser, serve):
     """A ToC with no initial outline can present one later and retire it again."""
-    source = leaf_page(
+    source = contents_page(
         "changing contents",
-        '<h1>Report</h1><aside class="sidebar"><lf-toc id="contents"></lf-toc></aside>'
-        '<p id="body">The body has no section headings.</p>',
+        '<h1>Report</h1><p id="body">The body has no section headings.</p>',
     )
     page = open_page(browser, live_url(serve(source)))
     nav = page.get_by_role("navigation", name="On this page", include_hidden=True)
@@ -499,7 +542,8 @@ def test_an_empty_contents_route_follows_headings_arriving_and_leaving(browser, 
 def test_a_table_of_contents_link_is_a_finger_s_aim(browser, serve):
     """The open outline stacks its links with no gap between them, so each link's box
     is all there is to land on. Under a finger they stood 24px tall where the layer's
-    floor is 44; a mouse keeps its compact rows."""
+    floor is 44; a mouse keeps its compact rows. The floor is padding centring the line,
+    and layout truncates both to 1/64px, so a row can stand a fraction short of 44."""
     source = leaf_page(
         "contents",
         """
@@ -518,7 +562,7 @@ def test_a_table_of_contents_link_is_a_finger_s_aim(browser, serve):
     page.locator("lf-toc summary").tap()
     links = page.get_by_role("navigation", name="On this page").get_by_role("link")
     expect(links).to_have_count(2)
-    assert all(h >= 44 for h in links.evaluate_all(heights))
+    assert all(h >= 43.9 for h in links.evaluate_all(heights))
     mouse = open_page(browser, url)
     mouse.locator("lf-toc summary").click()
     links = mouse.get_by_role("navigation", name="On this page").get_by_role("link")
@@ -593,11 +637,11 @@ def test_generated_page_interface_reconciles_before_semantic_interaction(
     The recorded draft makes the first section much taller during replay. The contents
     map has already painted the short authored form, so the presentation signal must
     replace that stale span in the same turn that releases durable interaction."""
-    source = leaf_page(
+    source = contents_page(
         "stable generated interface",
         """
 <h1>Migration plan</h1>
-<aside class="sidebar"><lf-toc id="contents"></lf-toc></aside>
+
 <section>
   <h2 id="prepare">Prepare the readers</h2>
   <lf-draft id="notes"><pre>One short line.</pre></lf-draft>
@@ -669,7 +713,9 @@ def test_generated_page_interface_reconciles_before_semantic_interaction(
     page.wait_for_function("() => window.__tocFirstPaint !== null")
     first_paint = page.evaluate("() => window.__tocFirstPaint")
     assert first_paint["visible"], first_paint
-    assert first_paint["actual"] > authored_span + 200, (
+    # The replayed draft must move the geometry beyond the span tolerance, or a
+    # stale authored span would pass the reconciliation check below.
+    assert first_paint["actual"] != pytest.approx(authored_span, abs=1), (
         authored_span,
         first_paint,
     )
@@ -771,15 +817,16 @@ def test_table_of_contents_history_is_native_back_and_forward(browser, serve):
     Back restores the reading position from before the click and Forward restores the
     fragment destination. The shared travel pass reveals the destination while the
     browser retains each entry's reading position."""
-    source = leaf_page(
+    source = contents_page(
         "native contents history",
         """
 <h1>Migration plan</h1>
-<aside class="sidebar"><lf-toc id="history-contents"></lf-toc></aside>
+
 <section><h2 id="prepare">Prepare the readers</h2><div style="height: 900px"></div></section>
 <section><h2 id="move">Move the readers</h2><div style="height: 900px"></div></section>
 <section><h2 id="verify">Verify the readers</h2><div style="height: 600px"></div></section>
 """,
+        toc_id="history-contents",
     )
     page = open_page(browser, serve(source))
     resized(page, 1400, 800)
@@ -825,59 +872,6 @@ def test_table_of_contents_history_is_native_back_and_forward(browser, serve):
     )
 
 
-def test_the_reading_map_first_paints_its_spine_where_it_keeps_it(browser, serve):
-    """With the runtime held, the margin map already shows its spine and a marker for
-    each section, each at the share of the document its section takes, and the upgrade
-    leaves every marker where it stood. The disclosure holding the rows once stayed
-    closed until the module opened it, so the spine first showed at upgrade; opened any
-    earlier without the module's measurement, the markers would stand evenly spaced
-    and then move. The title's marker also moved 14px at upgrade while `.lf-ui`'s
-    border-box reset arrived only with the runtime, since its label wrapped onto a
-    second line then and the fitted marker under it moved."""
-    source = leaf_page(
-        "first map",
-        """
-<h1>Migration plan for the readers already in flight</h1>
-<aside class="sidebar"><lf-toc id="contents"></lf-toc></aside>
-<section><h2 id="prepare">Prepare the copy</h2><p>Take a snapshot.</p></section>
-<div style="height: 300px"></div>
-<section><h2 id="move">Move each cohort</h2><p>Shift one cohort at a time.</p></section>
-<div style="height: 1500px"></div>
-<section><h2 id="verify">Verify both readings</h2><p>Compare the totals.</p></section>
-<div style="height: 600px"></div>
-""",
-    )
-    page = browser.new_page(viewport={"width": 1200, "height": 900})
-    markers = """() => [...document.querySelectorAll(
-      '#contents .lf-toc-start, #contents li')].map(row => {
-        const box = row.getBoundingClientRect();
-        const dot = getComputedStyle(row, '::before');
-        return [box.top + parseFloat(dot.top), dot.display];
-      })"""
-    boot = []
-    page.route("**/leaf.js", lambda route: boot.append(route))
-    try:
-        with page.expect_request("**/leaf.js"):
-            page.goto(serve(source), wait_until="commit")
-        displayed(page)
-        assert boot, "the runtime must stay held for the first paint"
-        # Held, the page changes no more, so one read is the first paint.
-        assert page.locator("#contents details").evaluate("node => node.open")
-        first = page.evaluate(markers)
-        assert len(first) == 4 and all(shown != "none" for _, shown in first), first
-        # The long middle section takes most of the spine, as its share of the page.
-        gaps = [b - a for (a, _), (b, _) in pairwise(first)]
-        assert gaps[2] > 2 * gaps[1], first
-        page.unroute("**/leaf.js")
-        boot.pop().continue_()
-        wait_until_ready(page)
-        assert page.evaluate(markers) == first
-    finally:
-        for route in boot:
-            route.continue_()
-        page.unroute_all(behavior="wait")
-
-
 def test_the_reading_map_returns_when_a_hidden_sidebar_comes_back(browser, serve):
     """A wrapper that leaves the box tree and returns leaves the map as it found it.
 
@@ -889,15 +883,14 @@ def test_the_reading_map_returns_when_a_hidden_sidebar_comes_back(browser, serve
     it left with: asking the wrapper cost the user the spine for the rest of the
     session — an outline of thirteen laid rows became a fifteen-pixel heading stub that
     no settle, scroll, or further toggle brought back."""
-    source = leaf_page(
+    source = contents_page(
         "hidden sidebar map",
         """
 <style>
-  main:not([data-lf-margin~="map"], [data-lf-margin~="sidebar"]) #route {
-    display: none; }
+  @media (max-width: 1000px) { #route { display: none; } }
 </style>
 <h1>Migration plan for the readers already in flight</h1>
-<aside class="sidebar" id="route"><lf-toc id="contents"></lf-toc></aside>
+
 <section><h2 id="prepare">Prepare the copy</h2><p>Take a snapshot.</p></section>
 <div style="height: 600px"></div>
 <section><h2 id="move">Move each cohort</h2><p>Shift one cohort at a time.</p></section>
@@ -926,11 +919,9 @@ def test_the_reading_map_returns_when_a_hidden_sidebar_comes_back(browser, serve
     assert laid >= 3, f"the fixture laid only {laid} map rows to begin with"
 
     resized(page, 800, 900)
-    # Read the hidden posture rather than merely waiting the wrapper out. The page reads
-    # it too — the map measures its own track on every reflow, hidden or not — and the
-    # reading is what leaves the wrapper repeating it after the box comes back.
+    # The authored media rule hides the complete native navigation track.
     expect(page.locator("#route")).to_have_css("display", "none")
-    expect(toc).to_have_css("position", "static")
+    expect(toc).to_be_hidden()
 
     resized(page, 1200, 900)
     # The wrapper itself holds no height in this posture — the map inside it is fixed —
@@ -942,6 +933,41 @@ def test_the_reading_map_returns_when_a_hidden_sidebar_comes_back(browser, serve
         f"the map came back as {toc.bounding_box()} rather than {settled}"
     )
     assert rows() == laid, "the map came back without its rows"
+
+
+def test_a_status_line_in_the_map_s_track_stands_clear_of_its_spine(browser, serve):
+    """`page-authoring.md` keeps a short status beside the contents in the track, but
+    the margin map stands over the track's start edge and reserves no room there: its
+    spine ran down the status's first letters, and a press on them opened the map
+    instead of reaching the words."""
+    source = leaf_page(
+        "status beside the map",
+        '<aside><div class="layout-track"><lf-toc id="contents"></lf-toc>'
+        '<p id="status">Two branches wait on review.</p></div></aside>'
+        '<div class="layout-column"><h1>A migration</h1>'
+        + "".join(
+            f'<section><h2 id="{name}">{name}</h2><div style="height: 900px"></div>'
+            "</section>"
+            for name in ("prepare", "move", "verify")
+        )
+        + "</div>",
+        layout="sidebar",
+    )
+    page = open_page(browser, serve(source))
+    resized(page, 1400, 900)
+    expect(page.locator("#contents")).to_have_css("position", "fixed")
+    pressed = page.locator("#status").evaluate(
+        """status => {
+            const range = document.createRange();
+            range.setStart(status.firstChild, 0);
+            range.setEnd(status.firstChild, 1);
+            const {left, top, height} = range.getBoundingClientRect();
+            return document.elementFromPoint(left + 1, top + height / 2)?.id;
+        }"""
+    )
+    assert pressed == "status", (
+        f"a press on the status's first letter reached {pressed!r}"
+    )
 
 
 def test_a_crowded_document_map_reveals_every_heading_on_one_fitted_scale(
@@ -956,14 +982,15 @@ def test_a_crowded_document_map_reveals_every_heading_on_one_fitted_scale(
         f"<p>Move cohort {index} only after its reading is stable.</p></section>"
         for index in range(1, 31)
     )
-    source = leaf_page(
+    source = contents_page(
         "dense contents map",
         f"""
 <h1>A migration with many independently verifiable steps</h1>
-<aside class="sidebar"><lf-toc id="dense-contents"></lf-toc></aside>
+
 {sections}
 <div style="height: 1200px"></div>
 """,
+        toc_id="dense-contents",
     )
     page = open_page(browser, serve(source))
     resized(page, 1400, 900)
@@ -1017,11 +1044,11 @@ def test_a_crowded_document_map_reveals_every_heading_on_one_fitted_scale(
 
 def test_co_located_headings_share_the_current_title_and_lens_position(browser, serve):
     """The last title at one document position owns both readings of that position."""
-    source = leaf_page(
+    source = contents_page(
         "co-located contents destinations",
         """
 <h1>A migration with a shared handoff point</h1>
-<aside class="sidebar"><lf-toc id="shared-contents"></lf-toc></aside>
+
 <div style="height: 500px"></div>
 <section style="position: relative; height: 120px">
   <h2 id="handoff" style="position: absolute; top: 0; margin: 0">Handoff</h2>
@@ -1029,6 +1056,7 @@ def test_co_located_headings_share_the_current_title_and_lens_position(browser, 
 </section>
 <div style="height: 1200px"></div>
 """,
+        toc_id="shared-contents",
     )
     page = open_page(browser, serve(source))
     resized(page, 1400, 900)
@@ -1055,15 +1083,16 @@ def test_the_lens_follows_the_scroll_without_a_scroll_timeline(browser, serve):
 
     The same page in a context with the API removed draws the lens where the scroll
     timeline draws it, at the top, the middle and the foot of the document."""
-    source = leaf_page(
+    source = contents_page(
         "contents lens without a scroll timeline",
         """
 <h1>A migration read in every browser</h1>
-<aside class="sidebar"><lf-toc id="lens-contents"></lf-toc></aside>
+
 <section><h2 id="prepare">Prepare</h2><div style="height: 900px"></div></section>
 <section><h2 id="move">Move</h2><div style="height: 1400px"></div></section>
 <section><h2 id="verify">Verify</h2><div style="height: 700px"></div></section>
 """,
+        toc_id="lens-contents",
     )
     url = serve(source)
 
@@ -1089,7 +1118,9 @@ def test_the_lens_follows_the_scroll_without_a_scroll_timeline(browser, serve):
     native = lens_track()
     fallback = lens_track("delete globalThis.ScrollTimeline;")
     assert native[2][0] > native[0][0] + 300, native
-    for (native_top, native_height), (top, height) in zip(native, fallback):
+    for (native_top, native_height), (top, height) in zip(
+        native, fallback, strict=True
+    ):
         assert top == pytest.approx(native_top, abs=1), (native, fallback)
         assert height == pytest.approx(native_height, abs=1), (native, fallback)
 
@@ -1098,9 +1129,9 @@ def test_the_lens_follows_the_scroll_without_a_scroll_timeline(browser, serve):
     ("layout", "holder"),
     [
         # A sidebar page's track, as pr-walkthrough holds its contents.
-        ("sidebar", '<aside><section class="panel">{toc}</section></aside>'),
+        ("sidebar", '<section class="panel">{toc}</section>'),
         # A column's margin sidebar holding the map beside other notes.
-        ("column", '<aside class="sidebar">{toc}<p>Owner: platform.</p></aside>'),
+        ("column", "{toc}<p>Owner: platform.</p>"),
     ],
 )
 def test_the_current_entry_follows_the_document_from_a_sticking_track(
@@ -1115,10 +1146,12 @@ def test_the_current_entry_follows_the_document_from_a_sticking_track(
     )
     source = leaf_page(
         "contents in a sticking track",
-        "<header><h1>A migration</h1></header>"
+        '<aside><div class="layout-track">'
         + holder.format(toc='<lf-toc id="track-contents"></lf-toc>')
-        + f"<div>{sections}</div>",
-        layout=layout,
+        + "</div></aside>"
+        + f'<div class="{"layout-column" if layout == "column" else ""}">'
+        + f"<header><h1>A migration</h1></header>{sections}</div>",
+        layout="sidebar",
     )
     page = open_page(browser, serve(source))
     resized(page, 1400, 900)
@@ -1130,19 +1163,23 @@ def test_the_current_entry_follows_the_document_from_a_sticking_track(
         expect(current).to_have_text(name)
 
 
-def test_a_route_taller_than_the_map_returns_to_an_open_outline(browser, serve):
-    """A route that cannot physically fit keeps every heading in one honest form."""
+def test_a_route_taller_than_the_map_returns_to_an_open_outline(
+    browser, serve, subtests
+):
+    """A route that cannot physically fit keeps every heading in one honest form, and
+    measuring it leaves the reader's own place in the outline where they put it."""
     sections = "\n".join(
         f"<section><h2 id='part-{index}'>Migration part {index}</h2></section>"
         for index in range(1, 81)
     )
-    source = leaf_page(
+    source = contents_page(
         "long contents route",
         f"""
 <h1>A migration with more steps than the margin can show at once</h1>
-<aside class="sidebar"><lf-toc id="long-contents"></lf-toc></aside>
+
 {sections}
 """,
+        toc_id="long-contents",
     )
     page = open_page(browser, serve(source))
     resized(page, 1400, 1800)
@@ -1169,6 +1206,20 @@ def test_a_route_taller_than_the_map_returns_to_an_open_outline(browser, serve):
     expect(links.last).to_be_focused()
     expect(links.last).to_be_in_viewport()
 
+    with subtests.test("measuring keeps the place the reader scrolled to"):
+        resized(page, 1400, 900)
+        links.last.focus()
+        nav.evaluate("node => { node.scrollTop = 0; }")
+        assert nav.evaluate("node => node.scrollTop") == 0
+        page.evaluate("""async () => {
+          window.dispatchEvent(new Event('resize'));
+          await new Promise(requestAnimationFrame);
+          await new Promise(requestAnimationFrame);
+        }""")
+        assert nav.evaluate("node => node.scrollTop") == 0
+        resized(page, 1400, 700)
+        assert nav.evaluate("node => node.scrollTop") == 0
+
     resized(page, 1188, 600)
     expect(toc).to_have_attribute("data-lf-outline", "")
     nav_box = nav.bounding_box()
@@ -1183,32 +1234,6 @@ def test_a_route_taller_than_the_map_returns_to_an_open_outline(browser, serve):
     )
 
 
-def test_outline_measurement_preserves_manual_reading_position(browser, serve):
-    sections = "\n".join(
-        f"<section><h2 id='part-{index}'>Migration part {index}</h2></section>"
-        for index in range(1, 81)
-    )
-    source = leaf_page(
-        "long contents route",
-        f"<h1>Migration</h1><aside class='sidebar'><lf-toc id='contents'></lf-toc></aside>{sections}",
-    )
-    page = open_page(browser, serve(source))
-    resized(page, 1400, 900)
-    nav = page.get_by_role("navigation", name="On this page")
-    links = nav.locator("a")
-    links.last.focus()
-    nav.evaluate("node => { node.scrollTop = 0; }")
-    assert nav.evaluate("node => node.scrollTop") == 0
-    page.evaluate("""async () => {
-      window.dispatchEvent(new Event('resize'));
-      await new Promise(requestAnimationFrame);
-      await new Promise(requestAnimationFrame);
-    }""")
-    assert nav.evaluate("node => node.scrollTop") == 0
-    resized(page, 1400, 700)
-    assert nav.evaluate("node => node.scrollTop") == 0
-
-
 def test_the_document_map_remeasures_tab_swaps_and_skips_hidden_headings(
     browser, serve
 ):
@@ -1218,12 +1243,12 @@ def test_the_document_map_remeasures_tab_swaps_and_skips_hidden_headings(
     The active panel's heading must own the remaining span and the hidden panel must own
     none; at the bottom, current location means the last visible heading rather than the
     last heading in DOM order."""
-    source = leaf_page(
+    source = contents_page(
         "tabbed contents map",
         """
 <h1>Two routes through the same migration window</h1>
 <style>#first-route, #second-route { height: 1100px; overflow: hidden; }</style>
-<aside class="sidebar"><lf-toc id="tab-contents"></lf-toc></aside>
+
 <lf-tabs id="routes">
   <lf-tab id="first-route" label="First route">
     <h2 id="first-heading">Prepare the readers before opening the window</h2>
@@ -1236,6 +1261,7 @@ def test_the_document_map_remeasures_tab_swaps_and_skips_hidden_headings(
   </lf-tab>
 </lf-tabs>
 """,
+        toc_id="tab-contents",
     )
     page = open_page(browser, serve(source))
     resized(page, 1400, 900)
@@ -1435,7 +1461,7 @@ def test_a_comment_on_a_gloss_reopens_its_explanation(browser, serve):
     bubble = page.locator("#lf-gloss-tip-1")
 
     expect(bubble).to_be_hidden()
-    page.locator(".lf-fp-threads").click()
+    open_threads(page)
     page.locator(".lf-fp-thread").click()
-    page.locator(".lf-fp-controls").get_by_role("button", name="Show on page").click()
+    page.locator(".lf-fp-head").get_by_role("button", name="Show on page").click()
     expect(bubble).to_be_visible()

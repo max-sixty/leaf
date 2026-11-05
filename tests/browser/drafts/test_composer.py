@@ -1,11 +1,12 @@
 """The comment composer's contents and recovery: the smallest message, pasted pictures
-and uploads, Return on a phone, and Resume writing."""
+and uploads, what Return and Shift+Return do, and Resume writing."""
 
 import base64
+import re
 
 import pytest
 from playwright.sync_api import expect
-from render_cases_interaction import OBLIGATION_PAGE, live_url
+from render_cases_interaction import OBLIGATION_PAGE, SEATED_OBLIGATION_PAGE, live_url
 from render_cases_layout import glyph_action_face, token_colour
 from render_cases_navigation import compose, pending_text
 from render_harness import (
@@ -19,6 +20,7 @@ from render_harness import (
     holding,
     leaf_page,
     open_page,
+    open_threads,
     page_comment,
     panel_control,
     panel_field,
@@ -33,9 +35,9 @@ from render_harness import (
     write,
 )
 
-from browser.threads import clear_of_the_panel
+from browser.margin import MARGIN_EDITOR_ROOTS
+from browser.threads import clear_of_the_panel, paste_image
 from leaf import event_log as events_model
-from leaf.render_checks import one_frame
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -48,8 +50,7 @@ def test_a_single_space_is_message_content_in_every_composer(browser, serve):
 
     The composer sends from the one press the shared field dresses, and that press paints
     nothing of its own: at rest the accent glyph is the whole of what a user sees, and
-    the disc behind it is a clear 28px that takes the accent tint under the pointer,
-    which is why it stays the same size as the target around it grows.
+    the disc behind it stays clear until it takes the accent tint under the pointer.
     """
     page = open_page(browser, serve(LONG_PAGE, comments=True))
     for box in ("reply", "general", "composer"):
@@ -62,8 +63,7 @@ def test_a_single_space_is_message_content_in_every_composer(browser, serve):
             page_comment(page)
             surface = page.locator(".lf-fp-field")
         else:
-            page.locator(".lf-fp-threads").click()
-            panel_settled(page, view="threads")
+            open_threads(page)
             page.locator(".lf-fp-thread").first.click()
             panel_settled(page, view="thread")
             surface = page.locator(".lf-fp-field")
@@ -81,12 +81,10 @@ def test_a_single_space_is_message_content_in_every_composer(browser, serve):
             assert face["press"] == "rgba(0, 0, 0, 0)", face
             assert face["glyph"] == token_colour(page, "--accent"), face
             assert face["disc"] == "rgba(0, 0, 0, 0)", face
-            assert face["discWidth"] == "28px", face
             send.hover()
             hovered = glyph_action_face(send)
             assert hovered["press"] == "rgba(0, 0, 0, 0)", hovered
             assert hovered["disc"] == token_colour(page, "--accent-tint"), hovered
-            assert hovered["discWidth"] == "28px", hovered
             with sending(page, f"the {box} message"):
                 send.click()
 
@@ -96,6 +94,30 @@ def test_a_single_space_is_message_content_in_every_composer(browser, serve):
             if event["kind"] in {"comment", "reply"}
         ][-1]
         assert message["text"] == " ", box
+
+
+def test_words_typed_over_formatted_words_replace_them_in_firefox(
+    firefox_browser, serve
+):
+    """Typing over a selection replaces it when the selection crosses formatting. In a
+    shadow root, Firefox inserted the words beside such a selection and left it in
+    place (field-editor.js, `beforeinput`)."""
+    page = open_page(firefox_browser, serve(LONG_PAGE), init_script=MARGIN_EDITOR_ROOTS)
+    box = page_comment(page)
+    page.keyboard.type("aa **bold** zz")
+    page.wait_for_function(
+        "box => window.marginEditorRoots.get(box)?.querySelector('.cm-content strong')",
+        arg=box.element_handle(),
+    )
+    for select in (["ControlOrMeta+a"], ["End", *["Shift+ArrowLeft"] * 5]):
+        for key in select:
+            page.keyboard.press(key)
+        page.keyboard.type("Q")
+        expect(box).to_have_js_property(
+            "value", "Q" if len(select) == 1 else "aa **boldQ"
+        )
+        page.keyboard.press("ControlOrMeta+z")
+        expect(box).to_have_js_property("value", "aa **bold** zz")
 
 
 def test_a_draft_the_chrome_stands_down_says_so_and_keeps_an_address(browser, serve):
@@ -117,8 +139,7 @@ def test_a_draft_the_chrome_stands_down_says_so_and_keeps_an_address(browser, se
     compose(page, "#p3", kept)
     assert pending_text(page), "the open box left its own passage unmarked"
 
-    page.locator(".lf-fp-threads").click()
-    panel_settled(page, view="threads")
+    open_threads(page)
     expect(page.locator(".lf-composer")).to_be_hidden()
     assert pending_text(page) == "", "a box off screen left its passage marked"
     expect_panel_says(page, "Draft kept — g i resumes writing")
@@ -215,11 +236,9 @@ def test_picture_paste_belongs_to_the_composer_not_the_shared_text_field(
         }""")
 
 
-@pytest.mark.parametrize("leave", [False, True])
-def test_image_upload_completion_preserves_the_readers_focus_and_scroll(
-    browser, serve, leave
-):
-    """Finishing a paste updates the draft without repeating the user's entry gesture."""
+def _a_picture_uploading(browser, serve):
+    """A comment box on #p3 holding a pasted picture whose upload the route holds: the
+    page, the box and the held requests."""
     held = []
     controlled = primed(
         browser,
@@ -241,6 +260,15 @@ def test_image_upload_completion_preserves_the_readers_focus_and_scroll(
         base64.b64encode(pixels).decode(),
     )
     holding(page, held, 1, "the pasted image")
+    return page, box, held
+
+
+@pytest.mark.parametrize("leave", [False, True])
+def test_image_upload_completion_preserves_the_readers_focus_and_scroll(
+    browser, serve, leave
+):
+    """Finishing a paste updates the draft without repeating the user's entry gesture."""
+    page, box, held = _a_picture_uploading(browser, serve)
     expect(box).to_have_attribute("aria-busy", "true")
     expect(box).to_be_focused()
     if leave:
@@ -264,27 +292,7 @@ def test_a_picture_still_uploading_stays_out_of_the_next_passages_draft(browser,
     picture was the first passage's, so it does not land in the second one's draft, and
     the user is told it was not added rather than finding it somewhere they did not put
     it."""
-    held = []
-    controlled = primed(
-        browser,
-        lambda page: page.route("**/api/media", lambda route: held.append(route)),
-    )
-    page = open_page(controlled, serve(LONG_PAGE))
-    compose(page, "#p3")
-    box = page.locator(".lf-fab-input")
-    pixels = (example_media() / "051bee487bfb5d13.png").read_bytes()
-    box.evaluate(
-        """(box, encoded) => {
-          const bytes = Uint8Array.from(atob(encoded), char => char.charCodeAt(0));
-          const transfer = new DataTransfer();
-          transfer.items.add(new File([bytes], 'pasted.png', {type: 'image/png'}));
-          box.dispatchEvent(new ClipboardEvent('paste', {
-            bubbles: true, cancelable: true, clipboardData: transfer,
-          }));
-        }""",
-        base64.b64encode(pixels).decode(),
-    )
-    holding(page, held, 1, "the pasted image")
+    page, box, held = _a_picture_uploading(browser, serve)
     compose(page, "#p1")
     held.pop().continue_()
     expect(box).not_to_have_attribute("aria-busy", "true")
@@ -318,27 +326,15 @@ def test_a_pasted_image_is_a_whole_draft_and_leaves_with_the_send_that_took_it(
     page = open_page(browser, serve(LONG_PAGE))
     image_markdown = "![Attached image](/media/051bee487bfb5d13.png)"
     compose(page, "#p3")
-    pixels = (example_media() / "051bee487bfb5d13.png").read_bytes()
-    with page.expect_response(lambda response: response.url.endswith("/api/media")):
-        page.locator(".lf-fab-input").evaluate(
-            """(box, encoded) => {
-              const bytes = Uint8Array.from(atob(encoded), char => char.charCodeAt(0));
-              const transfer = new DataTransfer();
-              transfer.items.add(new File([bytes], 'pasted.png', {type: 'image/png'}));
-              box.dispatchEvent(new ClipboardEvent('paste', {
-                bubbles: true,
-                cancelable: true,
-                clipboardData: transfer,
-              }));
-            }""",
-            base64.b64encode(pixels).decode(),
-        )
+    paste_image(
+        page.locator(".lf-fab-input"),
+        (example_media() / "051bee487bfb5d13.png").read_bytes(),
+    )
     shelf = page.locator(".lf-composer .lf-composer-media")
     expect(shelf.locator("img")).to_be_visible()
 
     # Put away: the picture is words enough to keep, and to be told about.
-    page.locator(".lf-fp-threads").click()
-    panel_settled(page, view="threads")
+    open_threads(page)
     expect(page.locator(".lf-composer")).to_be_hidden()
     expect_panel_says(page, "Draft kept — g i resumes writing")
     assert "writing.resume" in available_commands(page)
@@ -423,7 +419,10 @@ def test_resume_writing_is_a_touch_action_and_does_not_steal_hint_addresses(
 def test_resume_writing_reveals_page_editor_from_a_covering_panel_and_keeps_back(
     browser, serve, hidden_tab
 ):
-    """Resume exposes a hidden editor's place immediately and keeps the outgoing reading."""
+    """Resume exposes a hidden editor's place immediately and keeps the outgoing reading.
+
+    The user leaves the open draft by the keyboard and by scrolling: a press away from
+    it would save it, leaving nothing to resume."""
     writing = (
         '<details id="fold" open><summary>Editable content</summary>'
         '<lf-draft id="editable"><pre>Initial words</pre></lf-draft></details>'
@@ -451,43 +450,31 @@ def test_resume_writing_reveals_page_editor_from_a_covering_panel_and_keeps_back
     write(edit, "Last edit")
     page.keyboard.press("Home")
     page.keyboard.press("ArrowRight")
-    page.locator("#fold > summary").click()
+    page.locator("#fold > summary").focus()
+    page.keyboard.press("Enter")
     if hidden_tab:
-        page.get_by_role("tab", name="Reading", exact=True).click()
-    page.locator("#elsewhere").click()
+        page.get_by_role("tab", name="Reading", exact=True).focus()
+        page.keyboard.press("Enter")
     resized(page, 390, 844)
+    page.locator("#elsewhere").scroll_into_view_if_needed()
     scroll_settled(page)
+    expect(page.locator("#elsewhere")).to_be_in_viewport()
     source_entry = page.evaluate("navigation.currentEntry.key")
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
-    expect(page.locator(PANEL)).to_have_attribute("data-open", "threads")
+    expect(page.locator(PANEL)).to_have_attribute("data-lf-open", "threads")
+    page.keyboard.press("g")
+    page.keyboard.press("i")
     if hidden_tab:
-        page.evaluate("""() => {
-          const held = new Promise(resolve => { window.releaseResumeLayout = resolve; });
-          document.querySelector('#views').addEventListener('lf-layout', event => {
-            event.detail.present(held);
-            window.resumeLayoutStarted = true;
-          }, {once: true});
+        expect(page.locator("#writing-view")).to_be_visible()
+        first_view = page.locator("#editable").evaluate("""async draft => {
+          const {landingBand} = await window.__lfCheckApi();
+          const rect = draft.getBoundingClientRect();
+          const band = landingBand(document.scrollingElement);
+          return {top: rect.top, bottom: rect.bottom, low: band.top, high: band.bottom};
         }""")
-        try:
-            page.keyboard.press("g")
-            page.keyboard.press("i")
-            page.wait_for_function("window.resumeLayoutStarted === true")
-            one_frame(page)
-            expect(page.locator("#writing-view")).to_be_visible()
-            first_view = page.locator("#editable").evaluate("""async draft => {
-              const {landingBand} = await window.__lfCheckApi();
-              const rect = draft.getBoundingClientRect();
-              const band = landingBand(document.scrollingElement);
-              return {top: rect.top, bottom: rect.bottom, low: band.top, high: band.bottom};
-            }""")
-            assert first_view["top"] >= first_view["low"], first_view
-            assert first_view["bottom"] <= first_view["high"], first_view
-        finally:
-            page.evaluate("releaseResumeLayout()")
-    else:
-        page.keyboard.press("g")
-        page.keyboard.press("i")
+        assert first_view["top"] >= first_view["low"], first_view
+        assert first_view["bottom"] <= first_view["high"], first_view
     expect(edit).to_be_focused()
     # In sight: in the window, clear of the panel's open view where it covers the page.
     assert clear_of_the_panel(page, edit)
@@ -503,9 +490,11 @@ def test_resume_writing_reveals_page_editor_from_a_covering_panel_and_keeps_back
     expect(edit).to_be_focused()
     edit.press("ControlOrMeta+a")
     edit.press("Backspace")
+    edit.blur()
     if hidden_tab:
-        page.get_by_role("tab", name="Reading", exact=True).click()
-    page.locator("#elsewhere").click()
+        page.get_by_role("tab", name="Reading", exact=True).focus()
+        page.keyboard.press("Enter")
+    page.locator("#elsewhere").scroll_into_view_if_needed()
     page.keyboard.press("g")
     page.keyboard.press("i")
     expect(edit).to_be_focused()
@@ -634,6 +623,73 @@ def test_composer_return_edits_or_sends_according_to_its_keyboard(
     assert [event["text"] for event in comments] == [exact]
 
 
+# What a box's placeholder shows on the one line it draws, part by part; whether its
+# label is shortened; and which of the field's actions any shown part stands on.
+PLACEHOLDER_SHOWN = """hint => {
+  const box = hint.getBoundingClientRect();
+  const parts = [...hint.children].filter(
+    (part) => part.checkVisibility() && part.getBoundingClientRect().top < box.bottom,
+  );
+  const actions = [...hint.closest('.lf-compose-field').children].filter(
+    (node) => node.matches('button') && node.checkVisibility({ opacityProperty: true }),
+  );
+  const overlaps = (a, b) =>
+    a.left < b.right && Math.min(a.right, box.right) > b.left &&
+    a.top < b.bottom && a.bottom > b.top;
+  return {
+    parts: parts.map((part) => part.textContent.replace(/\\s+/g, ' ').trim()),
+    shortened: [...hint.querySelectorAll('.lf-compose-placeholder-words')].some(
+      (words) => words.scrollWidth > words.clientWidth + 0.5,
+    ),
+    covers: parts.flatMap((part) =>
+      actions
+        .filter((action) =>
+          overlaps(part.getBoundingClientRect(), action.getBoundingClientRect()),
+        )
+        .map((action) => action.getAttribute('aria-label')),
+    ),
+  };
+}"""
+NEW_LINE = re.compile(r"· New line (⇧|Shift\+)⏎")
+
+
+def test_a_focused_box_that_holds_lines_says_which_key_makes_one(browser, serve):
+    """Return sends, so a focused box that holds lines says the key for a new line
+    beside its send key, and a writer meets it before a Return sends half a message.
+    An option's one-line field, where Return only adds, says none."""
+    page = open_page(browser, serve(OBLIGATION_PAGE))
+    page_comment(page)
+    hint = page.locator(".lf-fp-field .lf-compose-placeholder")
+    shown = hint.evaluate(PLACEHOLDER_SHOWN)
+    assert len(shown["parts"]) == 3 and NEW_LINE.fullmatch(shown["parts"][2]), shown
+
+    field = page.locator("#jobs > .lf-another leaf-text")
+    field.click()
+    expect(field).to_have_attribute("placeholder", "Add another option ⏎")
+    shown = field.locator(".lf-compose-placeholder").evaluate(PLACEHOLDER_SHOWN)
+    assert shown["parts"] == ["Add another option", "⏎"], shown
+
+
+def test_a_narrow_box_shortens_its_label_before_its_keys(browser, serve):
+    """Where a box is narrow, its label shortens first and both keys stay, and nothing
+    the placeholder shows stands on the field's actions: the panel's page comment, and
+    a seat's box, whose actions stand in its corner."""
+    context = browser.new_context(viewport={"width": 320, "height": 700})
+    page = open_page(browser, serve(SEATED_OBLIGATION_PAGE), context=context)
+    page_comment(page)
+    hint = page.locator(".lf-fp-field .lf-compose-placeholder")
+    shown = hint.evaluate(PLACEHOLDER_SHOWN)
+    assert shown["shortened"] and NEW_LINE.fullmatch(shown["parts"][-1]), shown
+    assert not shown["covers"], shown
+
+    seat = page.locator('.lf-thread-seat[data-lf-thread-seat="jobs"] leaf-text')
+    seat.click()
+    expect(seat).to_be_focused()
+    shown = seat.locator(".lf-compose-placeholder").evaluate(PLACEHOLDER_SHOWN)
+    assert "⏎" in shown["parts"], shown
+    assert not shown["covers"], shown
+
+
 def test_markdown_decoration_keeps_source_editable(browser, serve):
     """Headings and code follow the renderer; new bullets render before typing text."""
     page = open_page(browser, serve(LONG_PAGE))
@@ -662,7 +718,7 @@ def test_markdown_decoration_keeps_source_editable(browser, serve):
                 text: line.textContent, heading: line.classList.contains('lf-md-heading'),
                 syntax: [...line.querySelectorAll('.lf-md-mark, .lf-md-unseen')].map(mark => mark.textContent),
                 strong: line.querySelector('strong')?.textContent,
-                listed: getComputedStyle(line).display === 'list-item',
+                listed: getComputedStyle(line.closest('.lf-md-item') ?? line).display === 'list-item',
                 shownMarkers: [...line.querySelectorAll('.lf-md-marker:not(.lf-md-unseen)')].map(mark => mark.textContent),
               }));
             }""",

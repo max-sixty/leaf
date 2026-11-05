@@ -17,7 +17,6 @@ from render_cases_widgets import (
     visual_widgets,
 )
 from render_harness import (
-    EXAMPLES,
     LONG_PAGE,
     consume_browser_errors,
     expect_obligations_answered,
@@ -25,6 +24,7 @@ from render_harness import (
     is_problem,
     leaf_page,
     open_page,
+    open_threads,
     open_versions,
     page_comment,
     panel_field,
@@ -41,11 +41,13 @@ from render_harness import (
 from browser.threads import open_panel_thread
 from leaf import event_log as events_model
 from leaf.render_checks import wait_until_ready
+from leaf.render_gate.page_code import run_page_code
+from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
 # The status the panel's empty field says while the first state answer is held.
-LOADING = re.compile("^Loading saved state…")
+LOADING = re.compile("^Loading comments and choices…")
 
 
 VISUAL_ACTION_TIMING = """
@@ -173,7 +175,9 @@ def test_authored_page_paints_but_durable_controls_wait_for_first_replay(
     expect(choice).to_be_visible()
     choice.dispatch_event("click")
     expect(page.locator("#startup-a")).not_to_have_attribute("chosen", "")
-    suggestion_accept = page.locator("[data-lf-margin-for='sug'] .lf-sug-accept")
+    suggestion_accept = page.locator(
+        "[data-lf-margin-for='sug'] [data-lf-margin-entry-key=accept]"
+    )
     expect(suggestion_accept).to_be_disabled()
     assert suggestion_accept.evaluate(
         """button => lfUnwatched(() => {
@@ -205,10 +209,12 @@ def test_authored_page_paints_but_durable_controls_wait_for_first_replay(
     assert frames and all(frame["height"] > 0 for frame in frames), (
         f"the authored state was never laid out: {frames}"
     )
-    assert all(frame["authoredPainted"] for frame in frames), (
+    ready_frames = [frame for frame in frames if frame["upgraded"]]
+    assert ready_frames, frames
+    assert all(frame["authoredPainted"] for frame in ready_frames), (
         f"authored state did not paint while replay was pending: {frames}"
     )
-    assert any(frame["authoredHit"] for frame in frames), (
+    assert any(frame["authoredHit"] for frame in ready_frames), (
         f"the authored document never entered the hit-test tree: {frames}"
     )
     assert page.locator("#startup-link").evaluate(
@@ -244,7 +250,7 @@ def test_authored_page_paints_but_durable_controls_wait_for_first_replay(
 
 def test_playground_joins_initial_widget_settlement(browser, serve):
     """An optional package paints locally while its durable action still waits."""
-    source = next(path for path in EXAMPLES if path.stem == "notification-playground")
+    source = named_source("notification-playground")
     url = serve(source)
     held = []
     page = browser.new_page(viewport={"width": 1440, "height": 900})
@@ -261,6 +267,7 @@ def test_playground_joins_initial_widget_settlement(browser, serve):
     expect(submit).to_be_disabled()
     expect(panel_field(page)).to_have_attribute("placeholder", LOADING)
 
+    playground.get_by_role("radio", name="Status strip", exact=True).check()
     playground.get_by_role("button", name="Needs attention").click()
     compact = playground.get_by_role("switch", name="Compact spacing")
     expect(compact).to_be_checked()
@@ -270,6 +277,9 @@ def test_playground_joins_initial_widget_settlement(browser, serve):
     wait_until_ready(page)
     expect(submit).to_be_enabled()
     expect(compact).to_be_checked()
+    expect(
+        playground.get_by_role("radio", name="Status strip", exact=True)
+    ).to_be_checked()
     expect(panel_field(page)).not_to_have_attribute("placeholder", LOADING)
 
 
@@ -328,10 +338,10 @@ def test_on_me_claims_nothing_before_the_first_replay(browser, serve):
     # The blanket answer claims no action before the first state answer.
     expect_panel_offers(page, "blanket:accept", offered=False)
 
-    threads = page.locator(".lf-fp-threads")
-    expect(threads).to_be_enabled()
-    threads.click()
-    panel_settled(page, view="threads")
+    on_me = page.locator(".lf-fp-on-user")
+    expect(on_me).to_be_enabled()
+    on_me.click()
+    panel_settled(page, view="queue")
     # The page's field takes words while the first state answer is still held.
     expect(page_comment(page)).to_be_editable()
     page.keyboard.press("Escape")
@@ -367,8 +377,7 @@ def test_comments_wait_for_the_first_log_to_be_renderable(browser, serve):
     assert held, "the positive control did not hold the Markdown renderer"
 
     rows = page.locator(f"{panel_view('threads')} .lf-fp-thread")
-    page.locator(".lf-fp-threads").click()
-    panel_settled(page, view="threads")
+    open_threads(page)
     expect(rows).to_have_count(0)
 
     held.pop(0).continue_()
@@ -395,7 +404,7 @@ def test_an_unavailable_first_poll_releases_a_useful_page(browser, serve):
     )
     expect(page.locator("main")).to_be_visible()
     expect(panel_field(page)).to_have_attribute(
-        "placeholder", re.compile("^Server offline")
+        "placeholder", re.compile("^Lost the connection")
     )
     assert page.locator("body").get_attribute("data-lf-applied") is None
     assert page.evaluate("() => window.__lfPresentation.releases") == 1
@@ -426,14 +435,20 @@ def test_a_startup_failure_keeps_authored_page_readable(browser, serve):
         predicate=lambda message: "page failed to start" in message.text
     ):
         page.goto(url, wait_until="load")
-    expect(panel_field(page)).to_have_attribute("placeholder", re.compile("reload"))
+    expect(page.get_by_role("status")).to_contain_text("Leaf couldn't start")
+    expect(page.get_by_role("status")).to_be_visible()
     expect(page.locator("body")).not_to_have_attribute("data-lf-presented", "1")
     expect(page.locator("#sug lf-old")).to_be_visible()
     assert (
         page.evaluate("() => getComputedStyle(document.body, '::after').content")
         == "none"
     )
-    consume_browser_errors(page, "page failed to start")
+    # The deliberately empty registry has no $layer; unrelated startup failures
+    # must still reach the browser fixture.
+    reported_browser_errors(
+        page,
+        "page failed to start: Cannot read properties of undefined (reading 'generation')",
+    )
 
 
 def test_visual_comments_arrive_with_the_initialized_document(browser, serve):
@@ -506,14 +521,14 @@ def test_a_malformed_first_state_keeps_interaction_unresolved(browser, serve):
             page.goto(url, wait_until="load")
         page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
         expect(panel_field(page)).to_have_attribute(
-            "placeholder", re.compile("^Page couldn't apply current state — reload")
+            "placeholder", re.compile("^Couldn't show the latest — reload")
         )
         expect(page.locator("body")).not_to_have_attribute("data-lf-presented", "1")
         expect(page.locator("body")).not_to_have_attribute("data-lf-applied", "1")
         expect(page.locator("#sug lf-old")).to_be_visible()
         # Versions is out of reach until state applies.
         expect(
-            panel_menu(page).locator('.lf-fp-item[data-row="versions"]')
+            panel_menu(page).locator('.lf-fp-item[data-lf-row="versions"]')
         ).to_be_disabled()
         # No producer below the feed saw the body, so the feed's report is the one
         # that reaches the agent.
@@ -619,6 +634,52 @@ def test_the_first_startup_fault_names_the_page(browser, serve):
     )
 
 
+def test_a_boot_that_fails_after_it_waits_names_the_startup_fault(browser, serve):
+    """The entry boots in an async function, which the bundler needs (leaf.js), and a
+    failure after its first wait still reaches the window as an uncaught error, which
+    names the page's startup fault. Its annotation renderer, the module the boot
+    waits for, is refused here."""
+    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    page.route(re.compile(r"annotation-overlay(/index)?\.js$"), refuse)
+    page.goto(serve(SHORT_SUGGESTION), wait_until="load")
+    root = page.locator("html")
+    expect(root).to_have_attribute(
+        "data-lf-startup-error", re.compile("dynamically imported module")
+    )
+    assert "annotation-overlay" in root.evaluate(
+        "root => root.lfStartupException.message"
+    )
+    consume_browser_errors(page, "dynamically imported module")
+
+
+def test_what_an_inline_classic_script_throws_reaches_the_check(browser, serve):
+    """An inline classic script throws, and rejects, at once. Delivery holds it until
+    the runtime has read the page and listens (`revision_delivery._deferred`), so
+    plain `page check`, which hears what the runtime reports, names each with its
+    throw site as it would a module's."""
+    url = serve(
+        leaf_page("Early fault", '<p id="words">Words.</p>').replace(
+            "</main>",
+            "</main><script>function parseTimeFault() {"
+            " throw new TypeError('thrown while parsing'); }"
+            " Promise.reject(new RangeError('rejected while parsing'));"
+            " parseTimeFault();</script>",
+        )
+    )
+    reports = [
+        finding.values["text"]
+        for finding in run_page_code(browser.unwatched, url)
+        if finding.code == "page-report"
+    ]
+    assert any(
+        "TypeError: thrown while parsing" in text and "parseTimeFault" in text
+        for text in reports
+    ), reports
+    assert any("RangeError: rejected while parsing" in text for text in reports), (
+        reports
+    )
+
+
 def test_a_page_the_suite_opens_has_read_the_log(browser, serve):
     """`open_page` promises a page that has finished becoming itself, and the log is half
     of what that means. The instrument is a refusal of the first `/api/state`. Replay then
@@ -646,7 +707,7 @@ def test_a_page_the_suite_opens_has_read_the_log(browser, serve):
     )
     page = open_page(browser, url.replace("v1.html", "v2.html"), context=context)
     open_versions(page)
-    expect(page.locator('.lf-fp-menu[data-level="versions"]')).to_be_visible()
+    expect(page.locator(panel_view("versions"))).to_be_visible()
 
 
 def test_unavailable_optional_user_view_checks_create_no_agent_work(browser, serve):
@@ -660,7 +721,9 @@ def test_unavailable_optional_user_view_checks_create_no_agent_work(browser, ser
         page.goto(serve(SUGGESTION_PAGE), wait_until="load")
     wait_until_ready(page)
     with sending(page, "the suggestion decision"):
-        page.locator("[data-lf-margin-for='sug-refill'] .lf-sug-accept").click()
+        page.locator(
+            "[data-lf-margin-for='sug-refill'] [data-lf-margin-entry-key=accept]"
+        ).click()
     expect(page.locator("#sug-refill")).to_have_attribute("data-lf-state", "accept")
     assert not [
         event

@@ -4,6 +4,14 @@ import io
 import re
 
 import pytest
+from browser.threads import (
+    CHANGE_HEAD,
+    capture_page,
+    open_capture_area,
+    open_panel_thread,
+    paste_image,
+    pressed_send_surface,
+)
 from interact_support import (
     append_carried_log_record,
 )
@@ -14,16 +22,16 @@ from render_cases_interaction import (
     panel_comment,
 )
 from render_harness import (
-    EXAMPLES,
     LONG_PAGE,
-    PANEL_THREAD,
     consume_browser_errors,
     example_media,
     expect_panel_says,
     http_error_console,
+    leaf_page,
     open_page,
     panel_field,
     resized,
+    rgb_pixel,
     round_trip,
     sending,
     told,
@@ -32,18 +40,11 @@ from render_harness import (
 
 from leaf import event_log as events_model
 from leaf.render_checks import rendered, wait_until_ready
+from leaf_dev.browser import PANEL_THREAD
+from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
-from browser.threads import (
-    CHANGE_HEAD,
-    capture_page,
-    open_capture_area,
-    open_panel_thread,
-    paste_image,
-    pressed_send_surface,
-)
-from render_harness import leaf_page
 
 # The same page with the change taken out of it, for the arm that carries the change
 # in a message instead: the two must differ in which document holds it and in nothing
@@ -65,9 +66,7 @@ CAPTURE_SAMPLE_PAGE = leaf_page(
 
 def test_a_diff_outlet_keeps_the_shared_attachment_controls(browser, serve):
     """An attachment keeps its face and keyboard routes inside a widget tree."""
-    page = open_page(
-        browser, serve(next(p for p in EXAMPLES if p.stem == "pr-walkthrough"))
-    )
+    page = open_page(browser, serve(named_source("pr-walkthrough")))
     page.locator("#pr-exact-patch .lf-diff-file-comment").first.click()
     bar = page.locator('lf-diff .lf-fab-bar[data-lf-presentation="inline"]')
     field = bar.locator("leaf-text")
@@ -124,7 +123,7 @@ def test_a_diff_outlet_keeps_the_shared_attachment_controls(browser, serve):
     expect(bar.locator(".lf-response-options")).to_be_visible()
     page.keyboard.press("Escape")
     expect(field).to_be_focused()
-    action = bar.locator(".lf-compose-field > button:visible")
+    action = bar.get_by_role("button", name="Other responses", exact=True)
     action.focus()
     expect(action).to_be_focused()
     page.keyboard.press("Escape")
@@ -156,7 +155,7 @@ def test_a_phone_editor_inside_a_marked_widget_keeps_pointer_entry(browser, serv
     )
     page = open_page(
         browser,
-        serve(next(p for p in EXAMPLES if p.stem == "pr-walkthrough")),
+        serve(named_source("pr-walkthrough")),
         context=context,
     )
     comment = page.locator("#pr-exact-patch .lf-diff-file-comment").first
@@ -250,7 +249,7 @@ def test_a_pasted_image_survives_the_reply_draft_and_renders_from_the_message(
         root,
         f"Fault is here\n\n{image_markdown}",
     )
-    image = thread.locator(".lf-msg.user .lf-msg-body img")
+    image = thread.locator(".lf-msg[data-lf-author=user] .lf-msg-body img")
     expect(image).to_have_attribute("src", "/media/051bee487bfb5d13.png")
     media_open = image.locator("xpath=..")
     expect(media_open).to_have_attribute(
@@ -312,209 +311,6 @@ def test_a_pasted_image_survives_the_reply_draft_and_renders_from_the_message(
     assert (serve.page_dir / "media" / "051bee487bfb5d13.png").read_bytes() == pixels
 
 
-def test_firefox_paints_the_author_and_words_in_the_same_send_flash(
-    firefox_browser, serve
-):
-    """A natural send fades its sticky author and words together in actual frames.
-
-    Pausing the animation or repeatedly reading styles invalidates Firefox's paint
-    and conceals a stale inherited background. Native screencast frames observe its
-    ordinary compositor path, including the receipt repaint, without those reads.
-    """
-    page, _box, send, _after, _reply = pressed_send_surface(
-        firefox_browser, serve, "card"
-    )
-    page.emulate_media(reduced_motion="no-preference")
-    page.evaluate(
-        """() => {
-          window.__sendFlash = new Promise((resolve, reject) => {
-            const root = document.querySelector('.lf-margin-preview');
-            const observer = new MutationObserver(() => {
-              const message = [...root.querySelectorAll('.lf-msg')].find(node =>
-                node.textContent.includes('Sent from the box.'));
-              if (!message) return;
-              observer.disconnect();
-              const cue = message.getAnimations()[0];
-              if (!cue) {
-                reject(new Error('the sent message has no arrival cue'));
-                return;
-              }
-              cue.finished.then(() => {
-                const head = message.querySelector('.lf-msg-head').getBoundingClientRect();
-                const body = message.querySelector('.lf-msg-body').getBoundingClientRect();
-                // Clear of the card's actions, whose own ground stands beside the
-                // heads of the messages they are level with.
-                const actions = root.querySelector('.lf-margin-thread-controls')
-                  ?.getBoundingClientRect();
-                const beside = actions && actions.top < head.bottom
-                  && actions.bottom > head.top;
-                const x = Math.min(head.left + head.width * 0.7,
-                  beside ? actions.left - 6 : Infinity);
-                // The card's own edge on the same two rows, which says whether a frame
-                // drew the card there at all.
-                const edge = root.getBoundingClientRect().right - 1.5;
-                resolve({head: [x, head.top + 3], body: [x, body.bottom - 3],
-                  headEdge: [edge, head.top + 3], bodyEdge: [edge, body.bottom - 3]});
-              }, reject);
-            });
-            observer.observe(root, {subtree: true, childList: true});
-          });
-        }"""
-    )
-    frames = []
-    with page.screencast.start(
-        on_frame=lambda frame: frames.append(frame),
-        quality=100,
-        size=page.viewport_size,
-    ):
-        send.click()
-        points = page.evaluate("() => window.__sendFlash")
-    readings = []
-    for frame in frames:
-        pixels = Image.open(io.BytesIO(frame["data"])).convert("RGB")
-        colours = {
-            name: pixels.getpixel(tuple(round(coordinate) for coordinate in point))
-            for name, point in points.items()
-        }
-        # Headless Firefox's capture without the classic bars now and then hands over a
-        # frame with the page drawn across the card in a band, the card's edge gone
-        # there as well (main's own panel chrome shows it too). Such a frame says
-        # nothing about the message's two grounds, so it is read only where the
-        # card's edge stands the same on both rows.
-        drawn = (
-            max(
-                abs(a - b)
-                for a, b in zip(colours["headEdge"], colours["bodyEdge"], strict=True)
-            )
-            <= 6
-        )
-        if drawn:
-            readings.append(colours)
-    # The light card fades from yellow (#fff8c5) to paper. Require an actual
-    # sequence of intermediate colours: a discrete jump, or the constant .5
-    # pending opacity blending yellow with paper, must not pass as a fade.
-    fading = [
-        reading
-        for reading in readings
-        if reading["body"][0] > 245 and 205 < reading["body"][2] < 240
-    ]
-    assert fading, readings
-    blues = {reading["body"][2] for reading in fading}
-    assert len(blues) >= 3 and max(blues) - min(blues) >= 12, fading
-    assert all(
-        max(abs(a - b) for a, b in zip(reading["head"], reading["body"], strict=True))
-        <= 3  # Native JPEG rounding of otherwise uniform ground.
-        for reading in fading
-    ), fading
-
-
-def test_a_rewrite_never_replaces_words_it_did_not_see(browser, serve):
-    """Another tab holding a message's old words behind its news notice opened a rewrite
-    on them, and its save silently took the place of the rewrite the first tab had made.
-    A rewrite opened before the words changed is refused, its words kept; opened again,
-    it shows the other's words on the message and is written over them."""
-    url = serve(THREAD_DIFF_PAGE)
-    mine = append_carried_log_record(
-        serve.page_dir,
-        {
-            "kind": "comment",
-            "id": "rewritten",
-            "author": "user",
-            "revision": 1,
-            "text": "Fit the north bracket.",
-            "anchor": {"section": "cd-q"},
-        },
-    )
-    context = browser.new_context()
-    tabs = []
-    for _ in range(2):
-        tab = open_page(browser, url, context=context)
-        resized(tab, 1200, 900)
-        open_panel_thread(tab, mine["id"])
-        tabs.append(tab)
-    a, b = tabs
-    in_a, in_b = (
-        tab.locator(f'{PANEL_THREAD} .lf-msg[data-message="{mine["id"]}"]')
-        for tab in tabs
-    )
-    expect(in_a).to_be_visible()
-    expect(in_b).to_be_visible()
-    # B opens a rewrite before A's lands.
-    in_b.locator(".lf-msg-text").dblclick()
-    expect(in_b.locator(".lf-msg-editor leaf-text")).to_be_focused()
-    a.bring_to_front()
-    in_a.locator(".lf-msg-text").dblclick()
-    a.keyboard.press("ControlOrMeta+a")
-    a.keyboard.type("Saved in A.")
-    a.keyboard.press("Enter")
-    round_trip(a)
-    b.bring_to_front()
-    in_b.locator(".lf-msg-editor leaf-text").focus()
-    b.keyboard.press("ControlOrMeta+a")
-    b.keyboard.type("Saved in B.")
-    b.keyboard.press("Enter")
-    round_trip(b)
-    consume_browser_errors(b, http_error_console(400))
-    # Refused, B's words wait as its rewrite.
-    expect(in_b.locator(".lf-msg-editor")).to_have_count(0)
-    expect(in_b.locator(".lf-msg-kept")).to_have_text("unsaved edit")
-    told(b)
-    edits = [e for e in events_model.read_events(serve.page_dir) if e["kind"] == "edit"]
-    assert [e["text"] for e in edits] == ["Saved in A."]
-    # Opened again, the rewrite shows A's words on the message and is written over them.
-    in_b.locator(".lf-msg-text").dblclick()
-    editor = in_b.locator(".lf-msg-editor leaf-text")
-    expect(editor).to_have_js_property("value", "Saved in B.")
-    expect(in_b.locator(".lf-edited")).to_have_attribute(
-        "title", re.compile("Before, it said: “Fit the north bracket.”")
-    )
-    b.keyboard.press("Enter")
-    round_trip(b)
-    edits = [e for e in events_model.read_events(serve.page_dir) if e["kind"] == "edit"]
-    assert [(e["text"], e["base"]) for e in edits] == [
-        ("Saved in A.", mine["id"]),
-        ("Saved in B.", edits[0]["id"]),
-    ]
-
-
-def test_a_region_capture_keeps_scrolled_shadow_pixels_and_its_comment_anchor(
-    browser, serve
-):
-    page = capture_page(browser, serve)
-    target = page.locator("#capture-target").bounding_box()
-    left, top = int(target["x"]) + 10, int(target["y"]) + 10
-    surface = open_capture_area(page)
-    page.mouse.move(left, top)
-    page.mouse.down()
-    page.mouse.move(left + 360, top + 180, steps=5)
-    with page.expect_response(lambda response: response.url.endswith("/api/media")):
-        page.mouse.up()
-    expect(surface).to_be_hidden()
-    attachment = page.locator(".lf-composer-media-item img")
-    expect(attachment).to_be_visible()
-    media_url = attachment.get_attribute("src")
-    pixels = (serve.page_dir / media_url.lstrip("/")).read_bytes()
-    image = Image.open(io.BytesIO(pixels)).convert("RGB")
-    assert image.size == (720, 360)
-    assert image.getpixel((40, 80)) == (30, 80, 240)
-    assert image.getpixel((440, 280)) == (10, 150, 30)
-    field = page.locator(".lf-fab-bar leaf-text")
-    expect(field).to_be_focused()
-    write(field, "Inspect this captured diagram.")
-    with sending(page, "the anchored screenshot comment"):
-        field.press("ControlOrMeta+Enter")
-    sent = events_model.read_events(serve.page_dir)[-1]
-    assert sent["kind"] == "comment"
-    assert sent["anchor"]["section"] == "capture-target"
-    assert media_url in sent["text"]
-    assert "Inspect this captured diagram." in sent["text"]
-    page.reload()
-    wait_until_ready(page)
-    thread = open_panel_thread(page, sent["id"])
-    expect(thread.locator(".lf-message-media img")).to_have_attribute("src", media_url)
-    assert (serve.page_dir / media_url.lstrip("/")).read_bytes() == pixels
-
-
 def test_a_region_capture_draws_live_samples_and_survives_removed_links(browser, serve):
     """The parent cannot read a sample's opaque frame, so a capture without the child's
     own image showed a placeholder box where the user saw the practice page. An image
@@ -562,7 +358,7 @@ def test_a_region_capture_draws_live_samples_and_survives_removed_links(browser,
     paint = page.locator("#capture-sample iframe").content_frame.locator("#child-paint")
     inside = paint.bounding_box()
     at = (round((inside["x"] + 20 - left) * 2), round((inside["y"] + 20 - top) * 2))
-    assert image.getpixel(at) == (200, 40, 40)
+    assert rgb_pixel(image, at) == (200, 40, 40)
     assert not [text for text in warnings if "cross-origin iframe" in text]
     expect_panel_says(page, "An image near this area could not be drawn")
     consume_browser_errors(page, "localhost", "ERR_FAILED")
@@ -579,3 +375,215 @@ def test_a_region_capture_draws_live_samples_and_survives_removed_links(browser,
         });
     })""")
     assert errors == []
+
+
+def test_a_rewrite_never_replaces_words_it_did_not_see(browser, serve):
+    """Another tab holding a message's old words behind its news notice opened a rewrite
+    on them, and its save silently took the place of the rewrite the first tab had made.
+    A rewrite opened before the words changed is refused, its words kept; opened again,
+    it shows the other's words on the message and is written over them."""
+    url = serve(THREAD_DIFF_PAGE)
+    mine = append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "id": "rewritten",
+            "author": "user",
+            "revision": 1,
+            "text": "Fit the north bracket.",
+            "anchor": {"section": "cd-q"},
+        },
+    )
+    context = browser.new_context()
+    tabs = []
+    for _ in range(2):
+        tab = open_page(browser, url, context=context)
+        resized(tab, 1200, 900)
+        open_panel_thread(tab, mine["id"])
+        tabs.append(tab)
+    a, b = tabs
+    in_a, in_b = (
+        tab.locator(f'{PANEL_THREAD} .lf-msg[data-lf-message="{mine["id"]}"]')
+        for tab in tabs
+    )
+    expect(in_a).to_be_visible()
+    expect(in_b).to_be_visible()
+    # B opens a rewrite before A's lands.
+    in_b.locator(".lf-msg-text").dblclick()
+    expect(in_b.locator(".lf-msg-editor leaf-text")).to_be_focused()
+    a.bring_to_front()
+    in_a.locator(".lf-msg-text").dblclick()
+    a.keyboard.press("ControlOrMeta+a")
+    a.keyboard.type("Saved in A.")
+    a.keyboard.press("Enter")
+    round_trip(a)
+    b.bring_to_front()
+    in_b.locator(".lf-msg-editor leaf-text").focus()
+    b.keyboard.press("ControlOrMeta+a")
+    b.keyboard.type("Saved in B.")
+    b.keyboard.press("Enter")
+    round_trip(b)
+    consume_browser_errors(b, http_error_console(400))
+    # Refused, B's words wait as its rewrite.
+    expect(in_b.locator(".lf-msg-editor")).to_have_count(0)
+    expect(in_b.locator(".lf-msg-kept")).to_have_text("unsaved edit")
+    told(b)
+    edits = [e for e in events_model.read_events(serve.page_dir) if e["kind"] == "edit"]
+    assert [e["text"] for e in edits] == ["Saved in A."]
+    # Opened again, the rewrite shows A's words on the message and is written over them.
+    in_b.locator(".lf-msg-text").dblclick()
+    editor = in_b.locator(".lf-msg-editor leaf-text")
+    expect(editor).to_have_js_property("value", "Saved in B.")
+    expect(in_b.locator(".lf-edited")).to_have_attribute(
+        "title", re.compile("Before, it said: “Fit the north bracket.”")
+    )
+    b.keyboard.press("Enter")
+    round_trip(b)
+    edits = [e for e in events_model.read_events(serve.page_dir) if e["kind"] == "edit"]
+    assert [(e["text"], e["base"]) for e in edits] == [
+        ("Saved in A.", mine["id"]),
+        ("Saved in B.", edits[0]["id"]),
+    ]
+
+
+import pytest
+from browser.threads import (
+    CHANGE_HEAD,
+)
+from render_harness import (
+    leaf_page,
+)
+
+
+def test_a_region_capture_keeps_scrolled_shadow_pixels_and_its_comment_anchor(
+    browser, serve
+):
+    page = capture_page(browser, serve)
+    target = page.locator("#capture-target").bounding_box()
+    left, top = int(target["x"]) + 10, int(target["y"]) + 10
+    surface = open_capture_area(page)
+    page.mouse.move(left, top)
+    page.mouse.down()
+    page.mouse.move(left + 360, top + 180, steps=5)
+    with page.expect_response(lambda response: response.url.endswith("/api/media")):
+        page.mouse.up()
+    expect(surface).to_be_hidden()
+    attachment = page.locator(".lf-composer-media-item img")
+    expect(attachment).to_be_visible()
+    media_url = attachment.get_attribute("src")
+    pixels = (serve.page_dir / media_url.lstrip("/")).read_bytes()
+    image = Image.open(io.BytesIO(pixels)).convert("RGB")
+    assert image.size == (720, 360)
+    assert rgb_pixel(image, (40, 80)) == (30, 80, 240)
+    assert rgb_pixel(image, (440, 280)) == (10, 150, 30)
+    field = page.locator(".lf-fab-bar leaf-text")
+    expect(field).to_be_focused()
+    write(field, "Inspect this captured diagram.")
+    with sending(page, "the anchored screenshot comment"):
+        field.press("ControlOrMeta+Enter")
+    sent = events_model.read_events(serve.page_dir)[-1]
+    assert sent["kind"] == "comment"
+    assert sent["anchor"]["section"] == "capture-target"
+    assert media_url in sent["text"]
+    assert "Inspect this captured diagram." in sent["text"]
+    page.reload()
+    wait_until_ready(page)
+    thread = open_panel_thread(page, sent["id"])
+    expect(thread.locator(".lf-message-media img")).to_have_attribute("src", media_url)
+    assert (serve.page_dir / media_url.lstrip("/")).read_bytes() == pixels
+
+
+def test_firefox_paints_the_author_and_words_in_the_same_send_flash(
+    firefox_browser, serve
+):
+    """A natural send fades its sticky author and words together in actual frames.
+
+    Pausing the animation or repeatedly reading styles invalidates Firefox's paint
+    and conceals a stale inherited background. Native screencast frames observe its
+    ordinary compositor path, including the receipt repaint, without those reads.
+    """
+    page, _box, send, _after, _reply = pressed_send_surface(
+        firefox_browser, serve, "card"
+    )
+    page.emulate_media(reduced_motion="no-preference")
+    page.evaluate(
+        """() => {
+          window.__sendFlash = new Promise((resolve, reject) => {
+            const root = document.querySelector('.lf-margin-preview');
+            const observer = new MutationObserver(() => {
+              const message = [...root.querySelectorAll('.lf-msg')].find(node =>
+                node.textContent.includes('Sent from the box.'));
+              if (!message) return;
+              observer.disconnect();
+              const cue = message.getAnimations()[0];
+              if (!cue) {
+                reject(new Error('the sent message has no arrival cue'));
+                return;
+              }
+              cue.finished.then(() => {
+                const head = message.querySelector('.lf-msg-head').getBoundingClientRect();
+                const body = message.querySelector('.lf-msg-body').getBoundingClientRect();
+                // Clear of the card's actions, whose controls stand beside the heads
+                // of the messages they are level with.
+                const actions = root.querySelector('.lf-margin-thread-controls')
+                  ?.getBoundingClientRect();
+                const beside = actions && actions.top < head.bottom
+                  && actions.bottom > head.top;
+                const x = Math.min(head.left + head.width * 0.7,
+                  beside ? actions.left - 6 : Infinity);
+                // The card's own edge on the same two rows, which says whether a frame
+                // drew the card there at all.
+                const edge = root.getBoundingClientRect().right - 1.5;
+                resolve({head: [x, head.top + 3], body: [x, body.bottom - 3],
+                  headEdge: [edge, head.top + 3], bodyEdge: [edge, body.bottom - 3]});
+              }, reject);
+            });
+            observer.observe(root, {subtree: true, childList: true});
+          });
+        }"""
+    )
+    frames = []
+    with page.screencast.start(
+        on_frame=lambda frame: frames.append(frame),
+        quality=100,
+        size=page.viewport_size,
+    ):
+        send.click()
+        points = page.evaluate("() => window.__sendFlash")
+    readings = []
+    for frame in frames:
+        pixels = Image.open(io.BytesIO(frame["data"])).convert("RGB")
+        colours = {
+            name: rgb_pixel(pixels, tuple(round(coordinate) for coordinate in point))
+            for name, point in points.items()
+        }
+        # Headless Firefox's capture without the classic bars now and then hands over a
+        # frame with the page drawn across the card in a band, the card's edge gone
+        # there as well (main's own panel chrome shows it too). Such a frame says
+        # nothing about the message's two grounds, so it is read only where the
+        # card's edge stands the same on both rows.
+        drawn = (
+            max(
+                abs(a - b)
+                for a, b in zip(colours["headEdge"], colours["bodyEdge"], strict=True)
+            )
+            <= 6
+        )
+        if drawn:
+            readings.append(colours)
+    # The light card fades from yellow (#fff8c5) to paper. Require an actual
+    # sequence of intermediate colours: a discrete jump, or the constant .5
+    # pending opacity blending yellow with paper, must not pass as a fade.
+    fading = [
+        reading
+        for reading in readings
+        if reading["body"][0] > 245 and 205 < reading["body"][2] < 240
+    ]
+    assert fading, readings
+    blues = {reading["body"][2] for reading in fading}
+    assert len(blues) >= 3 and max(blues) - min(blues) >= 12, fading
+    assert all(
+        max(abs(a - b) for a, b in zip(reading["head"], reading["body"], strict=True))
+        <= 3  # Native JPEG rounding of otherwise uniform ground.
+        for reading in fading
+    ), fading

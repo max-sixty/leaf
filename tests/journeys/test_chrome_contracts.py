@@ -54,7 +54,7 @@ def test_a_conversation_keeps_its_face_and_sends_from_margin_and_panel(
     )
     context = browser.new_context(has_touch=touch, is_mobile=touch, color_scheme=scheme)
     page = open_page(browser, url, context=context)
-    resized(page, 390 if touch else 1440, 900)
+    resized(page, 1440, 900)
     page.locator('.lf-margin-marker[data-lf-kinds~="comment"]').click()
     margin = page.locator(".lf-margin-preview .lf-page-thread")
     expect(margin.get_by_role("textbox", name="Reply", exact=True)).to_be_visible()
@@ -90,7 +90,7 @@ def test_a_conversation_keeps_its_face_and_sends_from_margin_and_panel(
     viewed = faces(page.locator(".lf-floating-panel"))
     assert viewed["messages"] == anchored["messages"], scheme
     assert viewed["metadata"] == anchored["metadata"], scheme
-    expect(panel.locator(f'.lf-msg[data-event="{answer["id"]}"]')).to_contain_text(
+    expect(panel.locator(f'.lf-msg[data-lf-event="{answer["id"]}"]')).to_contain_text(
         "Keep the evidence."
     )
     write(panel_field(page), "Sent from Threads.")
@@ -118,6 +118,50 @@ def test_a_conversation_keeps_its_face_and_sends_from_margin_and_panel(
         (root, "Sent from Threads."),
         (root, "Sent beside the page."),
     ]
+
+
+# The scheme reaches every surface through the same tokens, so dark runs once, on the
+# composer a widget's thread outlet holds inside the widget's own tree.
+
+
+import pytest
+from render_harness import (
+    page_comment,
+)
+
+from leaf.render_checks import rendered
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_scrolling_draft_shows_the_caret_s_row_with_the_padding_beside_it(
+    engine, request, serve
+):
+    """A line typed at the end of a draft that scrolls leaves nothing below it to scroll
+    to, and the caret taken to the first line leaves nothing above. Revealing only the
+    caret, as a native textarea does, left the field's padding out of view, and in
+    Firefox the foot of the caret's row too."""
+    page = open_page(request.getfixturevalue(engine), serve(LONG_PAGE))
+    field = page_comment(page)
+    hidden = """box => ({
+      below: box.scrollHeight - box.clientHeight - box.scrollTop,
+      above: box.scrollTop,
+    })"""
+    page.keyboard.type("line 0")
+    for line in range(1, 40):
+        page.keyboard.press("Shift+Enter")
+        page.keyboard.type(f"line {line}")
+        if field.evaluate("box => box.scrollHeight > box.clientHeight + 40"):
+            break
+    else:
+        raise AssertionError("the draft never scrolled")
+    for key in ("Shift+Enter", "w", "ControlOrMeta+Home"):
+        page.keyboard.press(key)
+        rendered(page)
+        shown = field.evaluate(hidden)
+        if key == "ControlOrMeta+Home":
+            assert shown["above"] < 1, shown
+        else:
+            assert shown["below"] < 1, (key, shown)
 
 
 def test_opening_a_line_under_the_last_moves_no_words(browser, serve):
@@ -192,7 +236,3 @@ def test_opening_a_line_under_the_last_moves_no_words(browser, serve):
     assert [row["right"] for row in opened["rows"]] == [
         row["right"] for row in full["rows"]
     ], (full, opened)
-
-
-# The scheme reaches every surface through the same tokens, so dark runs once, on the
-# composer a widget's thread outlet holds inside the widget's own tree.

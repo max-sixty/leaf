@@ -1,0 +1,25 @@
+/* Authored remarks keep their prose face before and after shadow staging. */
+/* Source rows sit inside the file's one-pixel inline borders. Reserve that
+   inset while notes still stand beside the authored patch. */
+lf-diff > lf-diff-note {
+  margin-inline: 1px;
+}
+lf-diff-note {
+  display: block;
+  box-sizing: border-box;
+  min-inline-size: 0;
+  padding: 10px 18px;
+  border-block: 1px solid var(--rule);
+  background: var(--paper);
+  color: var(--ink);
+  white-space: normal;
+  overflow-wrap: anywhere;
+  font: var(--font-widget);
+  contain: inline-size;
+}
+lf-diff-note[data-lf-unmatched]::before {
+  content: attr(data-lf-unmatched);
+  display: block;
+  color: var(--muted);
+  font: var(--font-small);
+}

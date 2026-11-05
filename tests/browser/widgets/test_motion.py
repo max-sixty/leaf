@@ -1,9 +1,21 @@
 """Motion studies share an inspectable clock across authored views and release it
 when detached. Playback and seeking remain local presentation state."""
 
+import shutil
+
 import pytest
 from playwright.sync_api import expect
-from render_harness import leaf_page, open_page
+from render_cases_interaction import live_url
+from render_harness import (
+    example_media,
+    leaf_page,
+    open_page,
+    reported_browser_errors,
+    resized,
+    scroll_settled,
+    stamp_page,
+    wait_for_revision,
+)
 
 from leaf.render_checks import wait_until_ready
 
@@ -175,11 +187,45 @@ def test_motion_recordings_share_native_playback_and_a_sticky_transport(browser,
     assert page.evaluate("window.videoSeeks") == 0
     play.tap()
     assert videos.evaluate_all("vs => vs.every(v => v.paused)")
+    # A fractional seek exercises native media precision without timing playback.
+    for requested_time in (None, 252.00699999999998):
+        if requested_time is not None:
+            page.locator("#study").evaluate(
+                "(study, time) => study.currentTime = time", requested_time
+            )
+        moments = videos.evaluate_all("vs => vs.map(v => v.currentTime)")
+        assert moments[0] == moments[1]
+        # Native seeking can truncate a microsecond; allow that plus float rounding.
+        assert moments[0] * 1000 == pytest.approx(
+            page.locator("#study").evaluate("study => study.currentTime"),
+            rel=0,
+            abs=0.002,
+        )
+
+    # Pausing aligns every recording to the furthest one's time. Chromium truncates
+    # a seek to whole microseconds, which moves about one playback position in fifty
+    # back by one, so a recording left unseeked would stay a microsecond ahead.
+    play.tap()
+    videos.last.evaluate("trailing => trailing.pause()")
+    # Pause and resume the leading recording natively until it stops on such a
+    # position; without one the step cannot tell the fix from the old seek loop, so
+    # the wait's deadline fails the test rather than letting it pass.
+    page.wait_for_function(
+        """() => {
+          if (window.resumingLeader) return false;
+          const leading = document.querySelector('video');
+          leading.pause();
+          const time = leading.currentTime;
+          if (Math.trunc(time * 1e6) !== Math.round(time * 1e6)) return true;
+          window.resumingLeader = leading.play().finally(() => {
+            window.resumingLeader = null;
+          });
+          return false;
+        }"""
+    )
+    play.tap()
     moments = videos.evaluate_all("vs => vs.map(v => v.currentTime)")
     assert moments[0] == moments[1]
-    assert moments[0] * 1000 == pytest.approx(
-        page.locator("#study").evaluate("study => study.currentTime")
-    )
 
     page.get_by_role("combobox", name="Speed").select_option("0.25")
     assert videos.evaluate_all("vs => vs.every(v => v.playbackRate === 0.25)")
@@ -212,3 +258,205 @@ def test_motion_recordings_share_native_playback_and_a_sticky_transport(browser,
     assert page.evaluate(
         "[...detachedStudy.querySelectorAll('video')].every(v => v.paused)"
     )
+
+
+def test_a_motion_failure_shows_beside_the_study_and_reaches_the_agent(browser, serve):
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Motion failures",
+                """<h1>Motion failures</h1>
+<lf-motion id="sketch" duration="1000" aria-label="A sketch that breaks past its start">
+  <figure id="sketch-study"><svg viewBox="0 0 300 80" role="img" aria-label="Travel">
+    <circle id="dot" cx="20" cy="40" r="10" /></svg></figure>
+</lf-motion>
+<lf-motion id="recording" duration="1000" aria-label="A recording that cannot play">
+  <figure><video muted playsinline width="160" height="90" aria-label="Clip"></video>
+  </figure>
+</lf-motion>""",
+                head='<script type="module" src="/page/draw.js"></script>',
+            ),
+            packages=("motion",),
+            page_files={
+                "draw.js": """
+await customElements.whenDefined('lf-motion');
+document.getElementById('sketch').renderFrame = time => {
+  if (time > 0) throw new Error('the frame broke');
+};
+"""
+            },
+        ),
+    )
+    # A press the browser refuses to play says so in the clock's place, and the agent
+    # hears why.
+    page.evaluate(
+        """() => { HTMLMediaElement.prototype.play = () =>
+          Promise.reject(new DOMException('no source to play', 'NotSupportedError')); }"""
+    )
+    recording = page.locator("#recording")
+    recording.locator(".lf-motion-play").click()
+    expect(recording.locator(".lf-motion-clock")).to_have_text("Failed")
+    expect(recording.locator(".lf-motion-play")).to_have_accessible_name("Play")
+    reported_browser_errors(page, "Playback failed: no source to play")
+
+    # A frame that throws shows the box beside the transport, leaves the study whole,
+    # and stops the clock: the box stays one, however often the failure recurs.
+    sketch = page.locator("#sketch")
+    expect(sketch.locator(".lf-motion-play")).not_to_have_attribute(
+        "aria-disabled", "true"
+    )
+    time = sketch.get_by_role("slider", name="Time", exact=True)
+    time.press("End")
+    box = sketch.locator(":scope > .lf-error")
+    expect(box).to_have_text("<lf-motion> failed: the frame broke")
+    time.press("ArrowLeft")
+    sketch.locator(".lf-motion-play").click()
+    expect(box).to_have_count(1)
+    expect(sketch.locator(".lf-motion-controls")).to_be_visible()
+    expect(page.locator("#sketch-study #dot")).to_be_visible()
+    expect(sketch.locator(".lf-motion-play")).to_have_accessible_name("Play")
+    # The agent hears each of the three draws that threw: End, ArrowLeft and Play.
+    reported_browser_errors(page, *["the frame broke"] * 3)
+    # A frame that draws again takes the box away.
+    time.press("Home")
+    expect(box).to_have_count(0)
+
+
+# Record each Play button's first observable availability when its widget draws.
+# Authored content precedes modules; generated controls arrive with their behavior.
+FIRST_PAINT_PLAY = """
+window.firstPlay = {};
+new MutationObserver(() => {
+  for (const study of document.querySelectorAll('lf-motion')) {
+    const play = study.querySelector('.lf-motion-play');
+    if (play && !(study.id in window.firstPlay))
+      window.firstPlay[study.id] = play.getAttribute('aria-disabled');
+  }
+}).observe(document, {childList:true, subtree:true});
+"""
+
+
+def test_play_arrives_available_only_where_there_is_something_to_play(browser, serve):
+    context = browser.new_context()
+    context.add_init_script(FIRST_PAINT_PLAY)
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Play availability",
+                """<h1>Play availability</h1>
+<lf-motion id="recording" duration="1000" aria-label="A recording">
+  <figure><video muted playsinline width="160" height="90" aria-label="Clip"></video>
+  </figure>
+</lf-motion>
+<lf-motion id="sketch" duration="1000" aria-label="A sketch nothing draws">
+  <figure><svg viewBox="0 0 300 80" role="img" aria-label="Travel"></svg></figure>
+</lf-motion>""",
+            ),
+            packages=("motion",),
+        ),
+        context=context,
+    )
+    assert page.evaluate("window.firstPlay") == {"recording": None, "sketch": "true"}
+    recording = page.locator("#recording .lf-motion-play")
+    sketch = page.locator("#sketch .lf-motion-play")
+    expect(recording).not_to_have_attribute("aria-disabled", "true")
+    expect(sketch).to_have_attribute("aria-disabled", "true")
+    # A study with nothing to play takes no press.
+    sketch.click(force=True)
+    expect(sketch).to_have_accessible_name("Play")
+
+
+def revised_study(added=""):
+    """A study long enough to read inside, whose revision adds paragraphs at its top."""
+    notes = "".join(
+        f'<p id="note-{n}">Note {n} on the travel sketch.</p>' for n in range(40)
+    )
+    return leaf_page(
+        "Motion revision",
+        f"""<h1>Motion revision</h1>
+<lf-motion id="study" duration="1000" aria-label="A travel sketch">
+  <p>The sketch, introduced.</p>{added}
+  <svg viewBox="0 0 300 80" role="img" aria-label="Travel">
+    <circle cx="20" cy="40" r="10" /></svg>
+  {notes}
+</lf-motion>
+<div style="height: 1200px"></div>""",
+    )
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_revision_inside_a_study_keeps_the_paragraph_read_where_it_stood(
+    request, serve, engine
+):
+    """A study builds its transport beside the authored previews and reads none of
+    them (`x-patch: members`), so a revision adding paragraphs above the one the reader
+    reads inside it edits the study in place: the paragraph stays the node the browser's
+    scroll anchoring holds, and stands where it stood. Replaced whole, the study took
+    that node away."""
+    page = open_page(
+        request.getfixturevalue(engine),
+        live_url(serve(revised_study(), packages=("motion",))),
+    )
+    resized(page, 900, 600)
+    read = page.locator("#note-20")
+    read.evaluate(
+        "el => { window.__read = el;"
+        " scrollBy({top: el.getBoundingClientRect().top - 300, behavior: 'instant'}); }"
+    )
+    scroll_settled(page)
+    before = read.evaluate("el => el.getBoundingClientRect().top")
+    # The revision adds its paragraphs after this one, above the window.
+    intro = page.locator("#study > p").first
+    assert intro.evaluate("el => el.getBoundingClientRect().bottom") < 0
+    added = "".join(f"<p>Context {n} the revision adds.</p>" for n in range(5))
+    stamp_page(serve.page_dir, revised_study(added), "add context to the study")
+    wait_for_revision(page, 2)
+    expect(page.locator("#study p", has_text="Context 4")).to_have_count(1)
+    assert page.evaluate("window.__read === document.getElementById('note-20')"), (
+        "the revision replaced the paragraph being read"
+    )
+    assert read.evaluate("el => el.getBoundingClientRect().top") == pytest.approx(
+        before, abs=1
+    )
+    # The transport the study built stays first, where it sticks over the previews.
+    expect(page.locator("#study .lf-motion-controls")).to_have_count(1)
+    expect(page.locator("#study > .lf-motion-transport:first-child")).to_have_count(1)
+
+
+def test_recordings_a_revision_adds_join_the_studys_clock(browser, serve):
+    """A revision edits inside a study in place, so recordings it adds to a study the
+    reader has already sought arrive into a clock that is running its course. Once
+    their metadata loads they stand at the clock's time, rather than at their first
+    frame, and Play has them to play."""
+
+    def study(added=""):
+        return leaf_page(
+            "Recording revision",
+            f"""<h1>Recording revision</h1>
+<lf-motion id="study" duration="8000" aria-label="Two recordings">
+  <p>The recordings follow.</p>{added}
+</lf-motion>""",
+        )
+
+    page = open_page(browser, live_url(serve(study(), packages=("motion",))))
+    play = page.locator("#study .lf-motion-play")
+    expect(play).to_have_attribute("aria-disabled", "true")
+    page.locator("#study").evaluate("study => study.currentTime = 2000")
+    # The recordings' file joins the page as `leaf page media` puts it there.
+    (serve.page_dir / "media").mkdir(exist_ok=True)
+    shutil.copy2(example_media() / "2930ad3df7819c50.mp4", serve.page_dir / "media")
+    recordings = "".join(
+        f'<video muted playsinline width="320" height="180" aria-label="{label}"'
+        ' src="/media/2930ad3df7819c50.mp4"></video>'
+        for label in ("Current", "Candidate")
+    )
+    stamp_page(serve.page_dir, study(recordings), "add the recordings")
+    wait_for_revision(page, 2)
+    page.wait_for_function(
+        "[...document.querySelectorAll('#study video')].map(v => v.currentTime)"
+        ".join() === '2,2'",
+        timeout=10_000,
+    )
+    expect(play).not_to_have_attribute("aria-disabled", "true")

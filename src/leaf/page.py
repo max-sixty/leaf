@@ -12,8 +12,7 @@ from pathlib import Path
 
 from .refusals import Refused
 from .registry.contract import is_element_name
-from .registry.storage import read_page_registry
-from .schema import INSTRUCTIONS_DIR
+from .registry.storage import layer_record, require_candidate, selected_vocabulary
 from .structure import SourceDocument
 
 
@@ -91,20 +90,18 @@ def page_instructions(
     contracts: Collection[str] = (),
 ) -> dict[str, str]:
     """Compose shared and selected instructions by their declared audience."""
-    vocabulary = read_page_registry(page_dir)
-    if vocabulary is None:
-        raise Refused(f"no registry.json in {page_dir}; run `leaf page init` first")
-    registry = vocabulary.registry
+    registry = require_candidate(page_dir).registry
     selected_entries, selected_contracts = instruction_selection(
         registry, entries, contracts
     )
     parts: dict[str, list[str]] = {}
-    directory = page_dir / INSTRUCTIONS_DIR
-    if directory.is_dir():
-        for path in sorted(directory.iterdir()):
-            text = path.read_text(encoding="utf-8").strip()
-            if text:
-                parts.setdefault(path.stem, []).append(text)
+    record = layer_record(page_dir)
+    assert record is not None
+    vocabulary = selected_vocabulary(record, page_dir)
+    for name, data in sorted(vocabulary.instructions.items()):
+        text = data.decode("utf-8").strip()
+        if text:
+            parts.setdefault(Path(name).stem, []).append(text)
     for contract in selected_contracts:
         declaration = registry["$data"]["contracts"][contract]
         for audience, text in sorted(declaration.get("instructions", {}).items()):

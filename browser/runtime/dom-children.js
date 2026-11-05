@@ -1,8 +1,57 @@
 /* Retained DOM child reconciliation. */
 import { diffArrays } from "/vendor/jsdiff.esm.js";
-import { move } from "./dom-move.js";
+import { holdSelection, move } from "./dom-move.js";
+
+/** Source/live correspondence retains the native kind established by capture and matching.
+ * @extends {WeakMap<Node, Node>} */
+export class SourcePairs extends WeakMap {
+  constructor() {
+    super();
+  }
+  /** @overload @param {Element} source @returns {Element | undefined} */
+  /** @overload @param {CharacterData} source @returns {CharacterData | undefined} */
+  /** @overload @param {Node} source @returns {Node | undefined} */
+  /** @param {Node} source */
+  get(source) {
+    return super.get(source);
+  }
+
+  /** @overload @param {Element} source @param {Element} live @returns {this} */
+  /** @overload @param {CharacterData} source @param {CharacterData} live @returns {this} */
+  /** @param {Node} source @param {Node} live */
+  set(source, live) {
+    return super.set(source, live);
+  }
+
+  /** @overload @param {Element} source @returns {Element} */
+  /** @overload @param {CharacterData} source @returns {CharacterData} */
+  /** @overload @param {Node} source @returns {Node} */
+  /** @param {Node} source */
+  require(source) {
+    const live = this.get(source);
+    if (!live) throw new Error("The authored source has no paired native node");
+    return live;
+  }
+
+  /** Pair native nodes at the source-capture boundary.
+   * @param {Node} source @param {Node} live */
+  pair(source, live) {
+    if (source instanceof Element && live instanceof Element)
+      return this.set(source, live);
+    if (
+      source instanceof CharacterData &&
+      live instanceof CharacterData &&
+      source.nodeType === live.nodeType
+    )
+      return this.set(source, live);
+    throw new Error(
+      "An authored source and its live node must have the same native kind",
+    );
+  }
+}
 
 // Make `parent`'s children `nodes`, in order, without moving a node already in place.
+/** @param {Node & ParentNode} parent @param {Iterable<Node>} nodes */
 export function setChildren(parent, nodes) {
   setChildLists([[parent, nodes]]);
 }
@@ -13,16 +62,29 @@ export function setChildren(parent, nodes) {
 // it. Ordering walks past a stale node, so no survivor moves for it; once every list is
 // placed, what still stands in a list's parent is a node no list holds, and is removed.
 // Lists are placed in the order given, so name a parent before any list inside it: a
-// node then moves into a parent that is already connected.
+// node then moves into a parent that is already connected. A page selection inside a
+// moved node goes back once the nodes have landed (`holdSelection`), before anything
+// the caller does next edits their text.
+/** @param {readonly (readonly [Node & ParentNode, Iterable<Node>])[]} lists */
 export function setChildLists(lists) {
-  for (const [parent, nodes] of lists) orderChildren(parent, nodes);
-  for (const [parent, nodes] of lists) {
+  const placed = lists.map(
+    ([parent, nodes]) => /** @type {const} */ ([parent, [...nodes]]),
+  );
+  const restore = holdSelection(
+    (function* () {
+      for (const [, nodes] of placed) yield* nodes;
+    })(),
+  );
+  for (const [parent, nodes] of placed) orderChildren(parent, nodes);
+  for (const [parent, nodes] of placed) {
     const keep = new Set(nodes);
     for (const child of [...parent.childNodes]) if (!keep.has(child)) child.remove();
   }
+  restore?.();
 }
 
 // Order this renderer's children without taking ownership of their siblings.
+/** @param {Node & ParentNode} parent @param {Iterable<Node>} nodes */
 export function orderChildren(parent, nodes) {
   const owned = new Set(nodes);
   order(parent, nodes, (node) => !owned.has(node));
@@ -31,20 +93,34 @@ export function orderChildren(parent, nodes) {
 // Replace a renderer-owned subtree using the same matching and text edits as an
 // authored revision. The caller owns every descendant's attributes and contents;
 // controls with independent state belong outside it. Current nodes pair to themselves,
-// so unchanged text and native Ranges stay in place without a source mirror.
-export function setRenderedChildren(parent, nodes) {
+// so unchanged text and native Ranges stay in place without a source mirror. A caller
+// that drew its subtree whole before, as setting `innerHTML` does, passes `bounded`: a
+// list whose diff would cost more than `BOUNDED_DIFF_WORK` is then replaced, so an
+// edit rewriting every paragraph costs the list's length rather than its square.
+/** @param {Node & ParentNode} parent @param {Iterable<Node>} nodes @param {{bounded?: boolean}} [options] */
+export function setRenderedChildren(parent, nodes, { bounded = false } = {}) {
   const after = document.createDocumentFragment();
   after.append(...nodes);
   patchChildren(parent, parent, after, {
-    pairs: new Map([...sourceNodes(parent)].map((node) => [node, node])),
+    diffWork: bounded ? BOUNDED_DIFF_WORK : Infinity,
+    pairs: selfPairs(parent),
     arrive: (node) => node,
-    sameValue: (name, held, wanted) => held === wanted,
+    sameValue: (held, wanted) => held === wanted,
     touched: () => {},
     declared: () => false,
     body: () => null,
     same: (held, wanted) => held.isEqualNode(wanted),
     generated: () => false,
+    contains: (target, owner) => Boolean(owner?.contains(target)),
+    reaches: () => false,
   });
+}
+
+/** @param {Node} parent */
+function selfPairs(parent) {
+  const pairs = new SourcePairs();
+  for (const node of sourceNodes(parent)) pairs.pair(node, node);
+  return pairs;
 }
 
 // Put `nodes` in order under `parent`, walking past the children `passed` names, and
@@ -54,7 +130,7 @@ export function setRenderedChildren(parent, nodes) {
 // whatever ends the viewport. So the nodes that stay are the most that can, elements
 // before text (`staying`): a revision that drops a section moves the whitespace that
 // stood after it, not each section below.
-/** @param {(node: Node) => boolean} [passed] */
+/** @param {Node & ParentNode} parent @param {Iterable<Node>} nodes @param {(node: Node) => boolean} [passed] */
 function order(parent, nodes, passed = () => false) {
   const list = [...nodes];
   const stay = staying(parent, list);
@@ -73,35 +149,39 @@ function order(parent, nodes, passed = () => false) {
 // weigh the same it keeps the later nodes, so a swap moves the earlier of the two, as a
 // cursor walk does. A Fenwick tree holds the heaviest run ending at or before each place,
 // so a long list costs n log n.
+/** @typedef {{node: Node, weight: number, previous: Chain | null}} Chain */
+/** @param {Node} parent @param {readonly Node[]} nodes */
 function staying(parent, nodes) {
+  /** @type {Map<Node, number>} */
   const places = new Map([...parent.childNodes].map((node, at) => [node, at + 1]));
   const size = places.size;
-  const best = new Array(size + 1).fill(-1);
-  const weightAt = new Array(size + 1).fill(0);
-  const weights = [];
-  const previous = [];
-  let last = -1;
-  nodes.forEach((node, at) => {
+  /** @type {(Chain | undefined)[]} */
+  const best = new Array(size + 1);
+  /** @type {Chain | null} */
+  let last = null;
+  for (const node of nodes) {
     const place = places.get(node);
-    if (!place) return;
-    let before = -1;
-    for (let i = place - 1; i > 0; i -= i & -i)
-      if (best[i] >= 0 && (before < 0 || weightAt[i] >= weights[before]))
-        before = best[i];
+    if (!place) continue;
+    /** @type {Chain | null} */
+    let before = null;
+    for (let i = place - 1; i > 0; i -= i & -i) {
+      const candidate = best[i];
+      if (candidate && (!before || candidate.weight >= before.weight))
+        before = candidate;
+    }
     const weight =
       (node.nodeType === Node.ELEMENT_NODE ? nodes.length + 1 : 1) +
-      (before < 0 ? 0 : weights[before]);
-    weights[at] = weight;
-    previous[at] = before;
-    for (let i = place; i <= size; i += i & -i)
-      if (best[i] < 0 || weight >= weightAt[i]) {
-        best[i] = at;
-        weightAt[i] = weight;
-      }
-    if (last < 0 || weight >= weights[last]) last = at;
-  });
+      (before?.weight ?? 0);
+    /** @type {Chain} */
+    const chain = { node, weight, previous: before };
+    for (let i = place; i <= size; i += i & -i) {
+      const held = best[i];
+      if (!held || weight >= held.weight) best[i] = chain;
+    }
+    if (!last || weight >= last.weight) last = chain;
+  }
   const stay = new Set();
-  for (let at = last; at >= 0; at = previous[at]) stay.add(nodes[at]);
+  for (let chain = last; chain; chain = chain.previous) stay.add(chain.node);
   return stay;
 }
 
@@ -117,7 +197,7 @@ function staying(parent, nodes) {
    authored container is swept out as markup the source does not have.
 
    So both sides of the diff are source. `before` and `after` are the two revisions'
-   authored `main`, inert and untouched by anything: whatever they agree on, this does not
+   authored body, inert and untouched by anything: whatever they agree on, this does not
    touch. `pairs` carries the correspondence, from a source node to the live node standing
    for it — built by a lockstep walk at boot, when the page is still exactly its own
    source, and kept up by every patch since.
@@ -135,7 +215,7 @@ function staying(parent, nodes) {
      controller owns its children, with `parent` as the live element it will stand under,
      since a reading about its place in the document is made before it has one. Returns
      the live node to place.
-   - `sameValue(name, before, after)`: two revisions spell this attribute the same way.
+   - `sameValue(before, after)`: two revisions spell this attribute the same way.
      A resource address is written per revision, so it is read past that root.
    - `touched(element)`: this live element's attributes changed, and whatever a dressing
      pass reads off its attributes is owed again.
@@ -148,13 +228,15 @@ function staying(parent, nodes) {
      author wrote them, and the two revisions differ only inside those members. What
      changed is then authored markup the patch can write, and nothing the controller
      built from the widget is stale.
-   - `unchanged(before, after)`: that widget's authored markup is the same markup. The
-     caller compares the digests each revision's capture recorded.
    - `same(before, after)`: two source elements are spelled the same way, read past the
      address each revision was delivered at. Asked of an element whose interior a pass
-     other than a controller has taken, since no capture digested it.
+     other than a controller has taken, or a widget owns.
    - `generated(node)`: the live node is the runtime's own. Only placement asks, because
      only placement walks live children; nothing here matches or removes on it.
+   - `diffWork`: the most one sibling diff may cost, its lists' length times the edits
+     between them, before it pairs nothing in that list and the patch replaces it. A
+     revision's is unbounded, since its nodes carry the user's state; so is a rendered
+     subtree's, unless its caller replaced it whole before (`setRenderedChildren`).
 
    Matching runs in three passes, narrowest first, and each pass only sees what the one
    before it left. An id is a name the author gave, so it wins outright. Then the siblings
@@ -162,8 +244,16 @@ function staying(parent, nodes) {
    words under it — through `diffArrays`, so a list of paragraphs stays still when one is
    inserted among them. Only the gaps between those pins are diffed again, by kind alone,
    which is what pairs a paragraph with its own rewrite. */
+/** @typedef {{pairs: SourcePairs, contains: (target: Node, owner: Node | null | undefined) => boolean,
+ * declared: (element: Element) => boolean, body: (element: Element) => Element | null,
+ * reaches: (before: Element, after: Element) => boolean,
+ * same: (before: Element, after: Element) => boolean, sameValue: (before: string, after: string) => boolean,
+ * diffWork: number}} RetentionRules */
+/** @typedef {RetentionRules & {arrive: (node: Node, parent: Node) => Node,
+ * touched: (element: Element) => void, generated: (node: Node) => boolean}} PatchRules */
+/** @param {Element} before @param {Element} after @param {PatchRules} rules */
 export function patchTree(before, after, rules) {
-  const live = rules.pairs.get(before);
+  const live = rules.pairs.require(before);
   patchAttributes(live, before, after, rules);
   patchChildren(holder(live, rules), tree(before), tree(after), rules);
 }
@@ -173,55 +263,59 @@ export function patchTree(before, after, rules) {
 // with its own renderer. Use the patch's matching and ownership rules for both readings.
 // `contains(node, owner)` reads containment in the caller’s rendered tree. This is a
 // reading only; the commit rechecks it against the current source/live pairs.
+/** @param {Element} before @param {Element} after @param {Node | null | undefined} target @param {RetentionRules} rules */
 export function patchRetains(before, after, target, rules) {
   if (!target?.isConnected) return false;
   // Runtime chrome is outside the authored patch. Ask source pairs, not DOM place:
-  // eviction also removes authored nodes a page module moved outside main.
+  // eviction also removes authored nodes a page module moved outside its original parent.
   if (!sourceOwns(before, target, rules)) return true;
   return retainedWithin(before, after, target, rules);
 }
 
+/** @param {Node} source @param {Node} target @param {RetentionRules} rules */
 function sourceOwns(source, target, rules) {
-  const owns = (node) => rules.contains(target, rules.pairs.get(node));
+  const owns = (/** @type {Node} */ node) =>
+    rules.contains(target, rules.pairs.get(node));
   if (owns(source)) return true;
   for (const node of sourceNodes(source)) if (owns(node)) return true;
   return false;
 }
 
+/** @param {Element} before @param {Element} after @param {Node} target @param {RetentionRules} rules @returns {boolean} */
 function retainedWithin(before, after, target, rules) {
   const live = rules.pairs.get(before);
   if (!live || !sourceOwns(before, target, rules)) return false;
   // An unchanged source also preserves editors its renderer added underneath it.
-  if (kept(before, after, rules)) return true;
+  if (rules.same(before, after)) return true;
   if (live === target) return false;
   // A containing identity is part of the durable anchor even when the rendered
   // subject is an anonymous paragraph. Keep its attributes as well as its node.
   if (
     before.attributes.length !== after.attributes.length ||
-    [...before.attributes].some(
-      ({ name, value }) =>
-        !after.hasAttribute(name) ||
-        !rules.sameValue(name, value, after.getAttribute(name)),
-    )
+    [...before.attributes].some(({ name, value }) => {
+      const attribute = after.getAttributeNode(name);
+      return !attribute || !rules.sameValue(value, attribute.value);
+    })
   )
     return false;
   const children = [...tree(before).childNodes];
-  const matches = new Map(
-    [...matchNodes(children, [...tree(after).childNodes])].map(([wanted, held]) => [
-      held,
-      wanted,
-    ]),
-  );
+  const arriving = [...tree(after).childNodes];
+  const forward = matchNodes(children, arriving, rules.diffWork);
+  const matches = new SourcePairs();
+  for (const wanted of arriving) {
+    const held = forward.get(wanted);
+    if (held) matches.pair(held, wanted);
+  }
   for (const held of children) {
+    if (!(held instanceof Element)) continue;
     const node = rules.pairs.get(held);
-    if (node?.nodeType !== Node.ELEMENT_NODE || !sourceOwns(held, target, rules))
-      continue;
+    if (!node || !sourceOwns(held, target, rules)) continue;
     const wanted = matches.get(held);
     if (!wanted) return false;
     // Like patchTree, the root is traversed; atomic ownership is decided for each
     // child by patchChildren, which either keeps that complete subtree or rebuilds it.
     const retains = atomic(held, wanted, node, rules)
-      ? kept(held, wanted, rules)
+      ? rules.same(held, wanted)
       : retainedWithin(held, wanted, target, rules);
     if (!retains) return false;
   }
@@ -233,38 +327,71 @@ function retainedWithin(before, after, target, rules) {
 
 // A template's tree is its content fragment, not its children; `childNodes` is empty
 // however much markup it holds.
-const tree = (node) => (node.localName === "template" ? node.content : node);
+/** @template {Node} T @param {T} node @returns {T | DocumentFragment} */
+const tree = (node) => (node instanceof HTMLTemplateElement ? node.content : node);
 // Where a live element's authored children stand: its tree, or the authored body its
 // widget's module moved them into.
+/** @param {Element} live @param {RetentionRules} rules */
 const holder = (live, rules) => rules.body(live) ?? tree(live);
 
 // Only where the two revisions disagree. An attribute they both carry is left exactly as
 // the page has it, which is the whole of how a user's `<details open>`, a tab stop
 // `focus.js` lent to land them somewhere, and anything a page module wrote survive a
 // revision that never mentioned them.
+/** @param {Element} live @param {Element} before @param {Element} after @param {PatchRules} rules */
 function patchAttributes(live, before, after, rules) {
   let changed = false;
   for (const { name, value } of [...before.attributes]) {
     if (after.hasAttribute(name)) continue;
     if (name === "class") live.classList.remove(...tokens(value));
+    else if (name === "style") restyle(live, value, "");
     else live.removeAttribute(name);
     changed = true;
   }
   for (const { name, value } of after.attributes) {
     const held = before.getAttribute(name);
-    if (held !== null && rules.sameValue(name, held, value)) continue;
-    // Classes are a set the page shares with the runtime, so only the author's own
-    // members move; every mark and state class beside them stays.
+    if (held !== null && rules.sameValue(held, value)) continue;
+    // Classes and inline declarations are sets the page shares with the runtime, so
+    // only the author's own members move; every mark, state class and property the
+    // runtime wrote beside them stays.
     if (name === "class") {
       live.classList.remove(...tokens(held ?? ""));
       live.classList.add(...tokens(value));
-    } else live.setAttribute(name, value);
+    } else if (name === "style") restyle(live, held ?? "", value);
+    else live.setAttribute(name, value);
     changed = true;
   }
   if (changed) rules.touched(live);
 }
 
+// The runtime and page scripts write properties of their own inline on authored
+// elements, `body`'s included (composing/aim.js, content-layout.js), so a revision
+// writes whatever the live element holds that neither the old text nor the new one
+// declares, then the author's new text, in one write. The carried part goes as
+// serialized text, since a shorthand written with `var()` reads back empty longhand by
+// longhand, so moving declarations by name drops it. The author's text comes last,
+// where it ends the attribute as it would alone: a `calc(` or quote it leaves open
+// still closes at the end, and its `margin-inline-start` beats a script's
+// `margin-left`, which the names alone don't match.
+/** @param {Element} live @param {string} held @param {string} next */
+function restyle(live, held, next) {
+  const parse = (/** @type {string} */ text) => {
+    const parsed = document.createElement("div").style;
+    parsed.cssText = text;
+    return parsed;
+  };
+  const names = (/** @type {CSSStyleDeclaration} */ declared) =>
+    Array.from({ length: declared.length }, (_, at) => declared.item(at));
+  const carried = parse(live.getAttribute("style") ?? "");
+  for (const property of [...names(parse(held)), ...names(parse(next))])
+    carried.removeProperty(property);
+  const text = [carried.cssText, next.trim()].filter(Boolean).join(" ");
+  if (text) live.setAttribute("style", text);
+  else live.removeAttribute("style");
+}
+
 // Source text, so any run of whitespace separates two classes.
+/** @param {string} value */
 const tokens = (value) => value.split(/\s+/).filter(Boolean);
 
 // Only the run of words that actually changed. Assigning `data` replaces the node's
@@ -273,6 +400,7 @@ const tokens = (value) => value.split(/\s+/).filter(Boolean);
 // paragraph a revision rewrote while they were reading it. Trimming to the differing
 // middle leaves every offset on either side of it where it was, so a selection over
 // words the revision kept survives the words beside it changing.
+/** @param {CharacterData} node @param {string} next */
 function writeText(node, next) {
   const held = node.data;
   if (held === next) return;
@@ -297,18 +425,20 @@ function writeText(node, next) {
 // node paired under it that a page module had since moved elsewhere in the document.
 // Removing the element alone would leave that node standing for a source that is gone,
 // and its rebuilt replacement would then stand beside it under the same name.
+/** @param {Node} before @param {Node} live @param {PatchRules} rules */
 function evict(before, live, rules) {
-  live.remove();
+  live.parentNode?.removeChild(live);
   for (const inner of sourceNodes(before)) {
     const stray = rules.pairs.get(inner);
     // Still in some tree, and not the one that just left with the element. Asked of
     // the parent rather than the document, because a template's content is a fragment
     // nothing is ever connected to.
     if (!stray?.parentNode || live.contains(stray)) continue;
-    stray.remove();
+    stray.parentNode.removeChild(stray);
   }
 }
 
+/** @param {Node} node @returns {Generator<ChildNode>} */
 function* sourceNodes(node) {
   for (const child of tree(node).childNodes) {
     yield child;
@@ -316,45 +446,78 @@ function* sourceNodes(node) {
   }
 }
 
+/** @param {Node & ParentNode} liveParent @param {Node} beforeParent @param {Node} afterParent @param {PatchRules} rules */
 function patchChildren(liveParent, beforeParent, afterParent, rules) {
   const held = [...beforeParent.childNodes];
   const wanted = [...afterParent.childNodes];
-  const matches = matchNodes(held, wanted);
-  const matched = new Set(matches.values());
+  const matches = matchNodes(held, wanted, rules.diffWork);
+  const matched = new Set(wanted.map((node) => matches.get(node)));
   for (const node of held) {
-    if (matched.has(node)) continue;
-    evict(node, rules.pairs.get(node), rules);
+    if (!matched.has(node)) evict(node, rules.pairs.require(node), rules);
   }
   const placed = [];
   for (const node of wanted) {
-    const before = matches.get(node);
-    const held = before && rules.pairs.get(before);
-    // An unmatched source node is new, and so is one whose live counterpart has left
-    // every tree. One a page module moved elsewhere is still that element: the author's
-    // change reaches it where it stands, and placement leaves it there. Being there is having
-    // a parent rather than a connection, since a template's content is never connected.
-    const live = held?.parentNode ? held : null;
-    if (!live) {
+    const pair = patchPair(node, matches, rules.pairs);
+    // A new source, or one whose live counterpart has left every tree, arrives afresh.
+    // A node a page module moved elsewhere keeps that native owner and its place.
+    if (!pair || !pair.live.parentNode) {
       placed.push(rules.arrive(node, liveParent));
       continue;
     }
-    if (node.nodeType !== Node.ELEMENT_NODE) writeText(live, node.data);
-    else if (!atomic(before, node, live, rules)) patchTree(before, node, rules);
-    else if (!kept(before, node, rules)) {
-      // Its interior is not this patch's to reach into, so a changed one cannot be
-      // corrected from outside. It leaves, and its replacement arrives as a new element.
-      evict(before, live, rules);
-      placed.push(rules.arrive(node, liveParent));
-      continue;
+    const { live } = pair;
+    if (pair.kind === "data") {
+      writeText(pair.live, pair.after.data);
+      rules.pairs.set(pair.after, pair.live);
+    } else {
+      const { before, after } = pair;
+      if (!atomic(before, after, pair.live, rules)) patchTree(before, after, rules);
+      else if (!rules.same(before, after)) {
+        evict(before, pair.live, rules);
+        placed.push(rules.arrive(after, liveParent));
+        continue;
+      } else pairInterior(before, after, rules);
+      rules.pairs.set(after, pair.live);
     }
-    rules.pairs.set(node, live);
     if (live.parentNode === liveParent) placed.push(live);
   }
-  // `orderChildren`'s ordering pass, walking past what the runtime put here. A node
-  // already in its place is left alone, which is the whole point: the common
-  // revision moves nothing at all. A kept node the revision moves keeps the user
-  // standing in it, as nothing else would: the carry restores only replaced nodes.
+  // Walk past runtime-owned siblings and move only the authored nodes that changed order.
   order(liveParent, placed, rules.generated);
+}
+
+/** @typedef {{kind: "element", before: Element, after: Element, live: Element} |
+ * {kind: "data", before: CharacterData, after: CharacterData, live: CharacterData}} PatchPair */
+/** @param {Node} after @param {SourcePairs} matches @param {SourcePairs} pairs @returns {PatchPair | null} */
+function patchPair(after, matches, pairs) {
+  if (after instanceof Element) {
+    const before = matches.get(after);
+    const live = before && pairs.get(before);
+    return before && live ? { kind: "element", before, after, live } : null;
+  }
+  if (after instanceof CharacterData) {
+    const before = matches.get(after);
+    const live = before && pairs.get(before);
+    return before && live ? { kind: "data", before, after, live } : null;
+  }
+  throw new Error("Authored child nodes must be elements or character data");
+}
+
+// A kept element's interior is the same markup in both revisions, so each of its source
+// nodes stands for whatever live node the one it replaces stood for, wherever the
+// controller holds it now. A digest that matched over markup of another shape pairs
+// nothing rather than pair the wrong nodes.
+/** @param {Element} before @param {Element} after @param {PatchRules} rules */
+function pairInterior(before, after, rules) {
+  const held = [...sourceNodes(before)];
+  const wanted = [...sourceNodes(after)];
+  if (held.length !== wanted.length) return;
+  const originals = held[Symbol.iterator]();
+  for (const node of wanted) {
+    const original = originals.next().value;
+    if (!original)
+      throw new Error("An unchanged source must retain its complete node sequence");
+    const live = rules.pairs.get(original);
+    if (live) rules.pairs.pair(node, live);
+  }
 }
 
 // Whether this element's interior is beyond the patch. A widget's is its controller's
@@ -369,6 +532,7 @@ function patchChildren(liveParent, beforeParent, afterParent, rules) {
 // rather than rebuilding the page for one sentence.
 // A stylesheet's parsed rules belong to CSSOM. Replacing a changed source owner
 // reparses its original text, including when only its access declaration changed.
+/** @param {Element} before @param {Element} after @param {Element} live @param {RetentionRules} rules */
 const atomic = (before, after, live, rules) =>
   before.matches('style, link[rel~="stylesheet" i]') ||
   (rules.declared(before) && !rules.reaches(before, after)) ||
@@ -376,22 +540,18 @@ const atomic = (before, after, live, rules) =>
     (node) => rules.pairs.get(node)?.parentNode !== holder(live, rules),
   );
 
-// Whether the two revisions spell such an element the same way. A widget answers from
-// the digests its captures recorded, which is the markup the server read of each; nothing
-// else has a capture, and answers from the markup itself, read past the delivery address
-// each revision wrote into it.
-const kept = (before, after, rules) =>
-  rules.declared(before) ? rules.unchanged(before, after) : rules.same(before, after);
-
-function matchNodes(held, wanted) {
-  const matches = new Map();
+/** @param {readonly Node[]} held @param {readonly Node[]} wanted @param {number} work */
+function matchNodes(held, wanted, work) {
+  const matches = new SourcePairs();
+  /** @type {Set<Node>} */
   const matched = new Set();
+  /** @type {Map<string, Element>} */
   const byId = new Map();
   for (const node of held)
-    if (node.nodeType === Node.ELEMENT_NODE && node.id && !byId.has(node.id))
+    if (node instanceof Element && node.id && !byId.has(node.id))
       byId.set(node.id, node);
   for (const node of wanted) {
-    if (node.nodeType !== Node.ELEMENT_NODE || !node.id) continue;
+    if (!(node instanceof Element) || !node.id) continue;
     const match = byId.get(node.id);
     if (!match || match.localName !== node.localName || matched.has(match)) continue;
     matches.set(node, match);
@@ -401,8 +561,24 @@ function matchNodes(held, wanted) {
     held.filter((node) => !matched.has(node)),
     wanted.filter((node) => !matches.has(node)),
     matches,
+    work,
   );
   return matches;
+}
+
+// A sibling diff costs the lists' length times the edits between them: an edit that
+// rewrote every paragraph cost the square of the list's length.
+const BOUNDED_DIFF_WORK = 2 ** 18;
+/** @param {readonly unknown[]} held @param {readonly unknown[]} wanted @param {number} work */
+const editBudget = (held, wanted, work) =>
+  Math.max(1, Math.floor(work / (held.length + wanted.length + 1)));
+
+/** jsdiff's unchanged runs pair these two source positions.
+ * @param {readonly Node[]} nodes @param {number} index */
+function diffNode(nodes, index) {
+  const node = nodes[index];
+  if (!node) throw new Error("A child diff named a source position outside its input");
+  return node;
 }
 
 const COLLAPSE = /\s+/g;
@@ -410,30 +586,39 @@ const COLLAPSE = /\s+/g;
 // Exact enough that two of them being equal means the revision left this sibling alone,
 // and loose enough that reindenting the source does not unpin the whole list. Both sides
 // are authored markup, so every word under the node is the author's to compare.
+/** @param {Node} node */
 const signature = (node) => {
-  if (node.nodeType !== Node.ELEMENT_NODE) return `${node.nodeType}:${node.data}`;
-  const words = (node.localName === "template" ? node.content : node).textContent;
+  if (node instanceof CharacterData) return `${node.nodeType}:${node.data}`;
+  if (!(node instanceof Element))
+    throw new Error("Authored child nodes must be elements or character data");
+  const words = tree(node).textContent ?? "";
   return `1:${node.localName}#${node.id}:${words.replace(COLLAPSE, " ").trim()}`;
 };
 
-function alignRest(held, wanted, matches) {
+/** @param {readonly Node[]} held @param {readonly Node[]} wanted @param {SourcePairs} matches @param {number} work */
+function alignRest(held, wanted, matches, work) {
   let heldAt = 0;
   let wantedAt = 0;
+  /** @type {Node[]} */
   let gapHeld = [];
+  /** @type {Node[]} */
   let gapWanted = [];
   const closeGap = () => {
-    pairInGap(gapHeld, gapWanted, matches);
+    pairInGap(gapHeld, gapWanted, matches, work);
     gapHeld = [];
     gapWanted = [];
   };
-  for (const run of diffArrays(held.map(signature), wanted.map(signature))) {
+  const runs = diffArrays(held.map(signature), wanted.map(signature), {
+    maxEditLength: editBudget(held, wanted, work),
+  });
+  for (const run of runs ?? []) {
     const count = run.value.length;
     if (run.added) gapWanted.push(...wanted.slice(wantedAt, (wantedAt += count)));
     else if (run.removed) gapHeld.push(...held.slice(heldAt, (heldAt += count)));
     else {
       closeGap();
       for (let at = 0; at < count; at++)
-        matches.set(wanted[wantedAt + at], held[heldAt + at]);
+        matches.pair(diffNode(wanted, wantedAt + at), diffNode(held, heldAt + at));
       heldAt += count;
       wantedAt += count;
     }
@@ -454,23 +639,31 @@ function alignRest(held, wanted, matches) {
 // that name being given or taken away, which is a thing to do to an element. A key can
 // state the first or the second and not both — `p#a` would have to equal `p` while `p#a`
 // differs from `p#b` — so the rule travels as the comparator it is.
-function pairInGap(held, wanted, matches) {
+/** @param {Node[]} held @param {Node[]} wanted @param {SourcePairs} matches @param {number} work */
+function pairInGap(held, wanted, matches, work) {
   let heldAt = 0;
   let wantedAt = 0;
-  for (const run of diffArrays(held, wanted, { comparator: interchangeable })) {
+  const runs = diffArrays(held, wanted, {
+    comparator: interchangeable,
+    maxEditLength: editBudget(held, wanted, work),
+  });
+  for (const run of runs ?? []) {
     const count = run.value.length;
     if (run.added) wantedAt += count;
     else if (run.removed) heldAt += count;
     else {
       for (let at = 0; at < count; at++)
-        matches.set(wanted[wantedAt + at], held[heldAt + at]);
+        matches.pair(diffNode(wanted, wantedAt + at), diffNode(held, heldAt + at));
       heldAt += count;
       wantedAt += count;
     }
   }
 }
 
+/** @param {Node} held @param {Node} wanted */
 const interchangeable = (held, wanted) =>
   held.nodeType === wanted.nodeType &&
-  (held.nodeType !== Node.ELEMENT_NODE ||
-    (held.localName === wanted.localName && !(held.id && wanted.id)));
+  (!(held instanceof Element) ||
+    (wanted instanceof Element &&
+      held.localName === wanted.localName &&
+      !(held.id && wanted.id)));

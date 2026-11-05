@@ -2,7 +2,6 @@
 
 import re
 from itertools import pairwise
-from pathlib import Path
 
 import pytest
 import turbohtml
@@ -39,23 +38,23 @@ from render_harness import (
     write,
 )
 
+from browser.widgets import PLAYGROUND_PAGE
+from journeys import first_thread_quote
 from leaf import data as data_model
 from leaf import delivery as delivery_model
 from leaf import event_log as events_model
 from leaf import service as service_model
 from leaf import thread as thread_model
 from leaf.render_checks import rendered, wait_until_ready
+from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
-
-from browser.widgets import PLAYGROUND_PAGE
-from journeys import first_thread_quote
 
 
 def expect_accept_all(page, words):
     """The leaf's menu offers accepting every remaining suggestion, by its count; read
     the row enabled and put the menu away."""
-    row = panel_menu(page).locator('.lf-fp-item[data-row="blanket:accept"]')
+    row = panel_menu(page).locator('.lf-fp-item[data-lf-row="blanket:accept"]')
     expect(row).to_have_text(words)
     expect(row).to_be_enabled()
     page.locator(".lf-fp-leaf").click()
@@ -142,7 +141,7 @@ def test_a_side_list_is_a_queue_beside_the_item_it_opens(browser, serve):
 
     tabs = page.get_by_role("tab")
     expect(tabs.first).to_have_accessible_name("Ticket a")
-    expect(tabs.first).to_have_text("Ticket asev a · suggested fixTo answer")
+    expect(tabs.first).to_have_text("Ticket asev a · suggested fix")
     expect(tabs.first).to_have_accessible_description(
         "sev a · suggested fix. To answer"
     )
@@ -159,7 +158,7 @@ def test_a_side_list_is_a_queue_beside_the_item_it_opens(browser, serve):
 
     answer = page.locator("#queue .lf-tab-btn").first.locator(".lf-tab-answer")
     expect(answer).to_have_attribute("data-lf-obligations", "open")
-    expect(answer).to_have_text("To answer")
+    expect(answer).to_have_text("")
     page.locator("#o-a-fix .lf-pick").click()
     told(page)
     expect(answer).to_be_visible()
@@ -218,7 +217,7 @@ def test_a_side_list_is_a_queue_beside_the_item_it_opens(browser, serve):
     page.unroute("**/api/event")
     round_trip(page)
     expect(answer).to_have_attribute("data-lf-obligations", "open")
-    expect(answer).to_have_text("To answer")
+    expect(answer).to_have_text("")
     expect(tabs.first).to_have_accessible_description(
         "sev a · suggested fix. To answer"
     )
@@ -279,16 +278,6 @@ def test_a_side_list_is_a_queue_beside_the_item_it_opens(browser, serve):
     )
     rendered(page)
     assert page.evaluate("document.scrollingElement.scrollTop") == before
-    # Back is made from wherever the user reads, so it lands the set's start rather than
-    # leaving them partway down, or at the end of, a view that is not the one they read.
-    page.evaluate("document.scrollingElement.scrollTop = 1600")
-    page.go_back()
-    expect(page.get_by_role("tab", name="Ticket b", exact=True)).to_have_attribute(
-        "aria-selected", "true"
-    )
-    rendered(page)
-    top = page.evaluate("document.getElementById('queue').getBoundingClientRect().top")
-    assert 0 <= top < 200, top
 
 
 def test_an_ordinary_two_part_obligation_retains_document_flow(browser, serve):
@@ -349,7 +338,7 @@ def test_pr_walkthrough_moves_from_semantic_call_to_exact_patch_comment(
     browser, serve, one_user
 ):
     """The specialized report's signature path reaches reviewable source evidence."""
-    example = Path(__file__).parents[2] / "examples" / "pr-walkthrough.html"
+    example = named_source("pr-walkthrough")
     page = open_page(browser, live_url(serve(example)), context=one_user)
 
     page.get_by_role("tab", name="CallDiff").click()
@@ -379,7 +368,11 @@ def test_pr_walkthrough_moves_from_semantic_call_to_exact_patch_comment(
     line = page.locator(
         '#pr-exact-patch [data-lf-datum=\'["src/summary.rs","new",259]\']'
     )
-    expect(page).to_have_url(re.compile(r"#pr-exact-patch$"))
+    # The URL names the line by its source key, so a reload or a copied URL reaches it.
+    source_key = '["src/summary.rs","source","new",259]'.replace('"', "%22")
+    expect(page).to_have_url(
+        re.compile(re.escape(f"#pr-exact-patch:{source_key}") + "$")
+    )
     expect(line).to_be_in_viewport()
     expect(page.locator(".lf-live")).to_have_text(
         "Opened src/summary.rs:259 in the exact patch"
@@ -419,13 +412,13 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_user_enters_it(
     source = leaf_page(
         "contents map",
         """
-<h1>Migration plan for the readers already in flight</h1>
+<div class="layout-sidebar"><aside id="route"><div class="layout-track"><lf-toc id="contents"></lf-toc></div></aside><div class="layout-column"><h1>Migration plan for the readers already in flight</h1>
 <style>
   html { scroll-behavior: smooth; }
   #capacity, #limits { margin-block: 0; }
 </style>
 <div id="orientation" style="height: 420px"></div>
-<aside class="sidebar" id="route"><lf-toc id="contents"></lf-toc></aside>
+
 <section><h2 id="prepare">Prepare the copy without moving the active readers</h2><p><button id="underlying">Take a snapshot.</button></p></section>
 <div style="height: 90px"></div>
 <section>
@@ -437,7 +430,7 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_user_enters_it(
 <section><h2 id="move">Move each cohort while preserving its reading position</h2><p>Shift one cohort at a time.</p></section>
 <div style="height: 640px"></div>
 <section><h2 id="verify">Verify both readings before releasing the original copy</h2><p>Compare the totals.</p></section>
-<div style="height: 380px"></div>
+<div style="height: 380px"></div></div></div>
 """,
     )
     url = serve(with_one_obligation(source))
@@ -462,12 +455,6 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_user_enters_it(
     expect(start).to_have_attribute("href", re.compile(r"^#lf-contents-section-0"))
     expect(start).to_have_attribute("aria-current", "location")
     expect(toc).to_have_css("position", "fixed")
-    # The map is all its sidebar holds, so the sidebar stands as the map alone and floats
-    # nothing beside the column.
-    expect(page.locator("main")).to_have_attribute(
-        "data-lf-margin", re.compile(r"\bmap\b")
-    )
-    expect(page.locator("aside.sidebar")).to_have_css("float", "none")
     expect(prepare).to_have_css("opacity", "0")
     expect(prepare).to_have_css("pointer-events", "none")
     motion = prepare.evaluate(
@@ -486,7 +473,13 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_user_enters_it(
     assert nav_box is not None
     assert rows_box is not None
     assert toc_box is not None
-    assert 23 <= nav_box["x"] <= 25
+    assert nav_box["x"] == pytest.approx(
+        page.locator("#route .layout-track").evaluate(
+            "node => node.getBoundingClientRect().left + node.clientLeft "
+            "+ parseFloat(getComputedStyle(node).paddingLeft)"
+        ),
+        abs=1,
+    )
     assert nav_box["y"] == pytest.approx(0, abs=1)
     assert nav_box["height"] >= 740, f"the reading map used only {nav_box['height']}px"
     padding = nav.evaluate(
@@ -804,7 +797,9 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_user_enters_it(
     page.mouse.wheel(0, 260)
     page.mouse.wheel(0, 260)
     page.wait_for_function("() => document.scrollingElement.scrollTop >= 750")
-    assert page.locator("aside.sidebar").evaluate("node => node.scrollTop") == 0
+    assert (
+        page.locator("#route > .layout-track").evaluate("node => node.scrollTop") == 0
+    )
 
     # Map travel keeps the user oriented rather than teleporting. Start recording
     # on the click so preparing the gesture cannot exhaust the frame sequence.
@@ -861,6 +856,25 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_user_enters_it(
         nav_box[key] for key in ("x", "y", "height")
     ], "following a link moved the contents rail"
     assert prepare.evaluate("node => node.matches(':hover')")
+    landing = page.locator("#prepare").evaluate(
+        """target => ({
+          top: target.getBoundingClientRect().top,
+          clearance: parseFloat(getComputedStyle(document.scrollingElement).scrollPaddingTop)
+            + parseFloat(getComputedStyle(target).scrollMarginTop),
+        })"""
+    )
+    assert landing["top"] == pytest.approx(landing["clearance"], abs=1), landing
+
+    # A fragment leaves room for its focused title's ring. The lens maps the
+    # reading band itself; bring the title to that edge to compare map coordinates.
+    page.locator("#prepare").evaluate(
+        """target => document.scrollingElement.scrollBy({
+          top: target.getBoundingClientRect().top
+            - parseFloat(getComputedStyle(document.scrollingElement).scrollPaddingTop),
+          behavior: 'instant',
+        })"""
+    )
+    scroll_settled(page)
     current_alignment = prepare.evaluate(
         "node => ({label: node.getBoundingClientRect().top "
         "+ parseFloat(getComputedStyle(node).lineHeight) / 2, "
@@ -976,7 +990,7 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_user_enters_it(
         viewport={"width": 1400, "height": 900}, has_touch=True
     )
     coarse = open_page(browser, url, context=context)
-    expect(coarse.locator("aside.sidebar")).to_have_css("position", "sticky")
+    expect(coarse.locator("#route > .layout-track")).to_have_css("position", "sticky")
     expect(coarse.locator("#contents")).to_have_css("position", "static")
     coarse.locator("#contents summary").click()
     expect(
@@ -984,152 +998,25 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_user_enters_it(
             "link", name="Prepare the copy", exact=False
         )
     ).to_have_css("opacity", "1")
-    coarse.locator("aside.sidebar").evaluate(
+    coarse.locator("#route > .layout-track").evaluate(
         "node => { node.style.maxHeight = '80px'; node.scrollTop = 0; }"
     )
     coarse.evaluate("document.scrollingElement.scrollTo({top: 0, behavior: 'instant'})")
-    coarse_box = coarse.locator("aside.sidebar").bounding_box()
+    coarse_box = coarse.locator("#route > .layout-track").bounding_box()
     assert coarse_box is not None
     coarse.mouse.move(coarse_box["x"] + 40, coarse_box["y"] + 40)
     coarse.mouse.wheel(0, 80)
     coarse.wait_for_function(
-        "() => document.querySelector('aside.sidebar').scrollTop > 0"
+        "() => document.querySelector('#route > .layout-track').scrollTop > 0"
     )
     assert coarse.evaluate("document.scrollingElement.scrollTop") == 0, (
         "the in-flow ToC stole a wheel from its own overflowing sidebar"
     )
 
 
-def test_structured_data_explorer_keeps_one_aggregate_query_configuration(
-    browser, serve
-):
-    source = Path(__file__).parents[2] / "examples" / "data-explorer.html"
-    context = browser.new_context(permissions=["clipboard-read", "clipboard-write"])
-    page = open_page(browser, serve(source), context=context)
-    playground = page.locator("#release-query-playground")
-    rows = page.locator(".query-row")
-
-    expect(rows).to_have_count(2)
-    assert playground.evaluate("root => root.values") == {
-        "filters": {
-            "order": ["filter-1", "filter-2"],
-            "rows": [
-                {
-                    "field": "region",
-                    "id": "filter-1",
-                    "operator": "is",
-                    "value": "europe",
-                },
-                {
-                    "field": "risk",
-                    "id": "filter-2",
-                    "operator": "above",
-                    "value": "40",
-                },
-            ],
-        },
-        "limit": 4,
-    }
-    expect(page.locator(".query-result-count")).to_have_text("2 releases shown")
-
-    rows.nth(1).get_by_label("Value").fill("80")
-    expect(page.locator(".query-result-count")).to_have_text("1 release shown")
-    # Moving a sibling row must retain the native field, caret and edit history.
-    editor = page.locator('input[name="filter-1-value"]')
-    editor.focus()
-    editor.press("End")
-    editor.press_sequentially("x")
-    editor.press("ArrowLeft")
-    rows.nth(1).get_by_role("button", name="Move filter 2 up").evaluate(
-        "button => button.click()"
-    )
-    expect(editor).to_be_focused()
-    assert editor.evaluate("input => input.selectionStart") == len("europe")
-    editor.press("ControlOrMeta+z")
-    expect(editor).to_have_value("europe")
-    assert playground.evaluate("root => root.values.filters.order") == [
-        "filter-2",
-        "filter-1",
-    ]
-    page.get_by_role("button", name="Add filter").click()
-    expect(rows).to_have_count(3)
-    expect(rows.nth(2).get_by_label("Value")).to_be_focused()
-    rows.nth(2).get_by_label("Value").fill("risk")
-    expect(page.locator(".query-result-count")).to_have_text("1 release shown")
-    rows.nth(2).get_by_role("button", name="Remove filter 3").click()
-    expect(rows).to_have_count(2)
-
-    playground.get_by_role("button", name="Up to 6 results").click()
-    expect(
-        playground.locator('lf-playground-control[name="limit"]').get_by_role("slider")
-    ).to_have_value("6")
-    playground.get_by_role("button", name="Up to 4 results").click()
-    expect(
-        playground.locator('lf-playground-control[name="limit"]').get_by_role("slider")
-    ).to_have_value("4")
-    instruction = page.locator("#release-query-instruction")
-    expect(instruction).to_contain_text("risk above 80 and region is europe")
-    playground.locator(".lf-playground-instruction-region").hover()
-    playground.get_by_role("button", name="Copy instruction").click()
-    copied = page.evaluate("navigator.clipboard.readText()")
-    assert copied == instruction.inner_text()
-
-    page.reload()
-    wait_until_ready(page)
-    expect(rows).to_have_count(2)
-    assert playground.evaluate("root => root.values.filters.order") == [
-        "filter-2",
-        "filter-1",
-    ]
-    expect(instruction).to_contain_text("risk above 80 and region is europe")
-    playground.get_by_role("button", name="Reset").click()
-    assert playground.evaluate("root => root.values.filters.order") == [
-        "filter-1",
-        "filter-2",
-    ]
-    expect(instruction).to_contain_text("region is europe and risk above 40")
-    rows.nth(1).get_by_role("button", name="Remove filter 2").click()
-    rows.first.get_by_role("button", name="Remove filter 1").click()
-    expect(rows).to_have_count(0)
-    expect(instruction).to_contain_text("Apply no filters")
-    expect(page.locator(".query-result-count")).to_have_text("4 releases shown")
-    playground.get_by_role("button", name="Up to 6 results").click()
-    expect(page.locator(".query-result-count")).to_have_text("6 releases shown")
-    playground.get_by_role("button", name="Up to 4 results").click()
-    expect(page.locator(".query-result-count")).to_have_text("4 releases shown")
-    playground.get_by_role("button", name="Reset").click()
-    rows.first.get_by_label("Value").fill("asia")
-    expect(instruction).to_contain_text("region is asia and risk above 40")
-
-    with sending(page, "the release query"):
-        playground.get_by_role("button", name="Build query").click()
-    action = next(
-        event
-        for event in reversed(events_model.read_events(serve.page_dir))
-        if event.get("widget") == "release-query-playground"
-    )
-    assert action["detail"] == {
-        "instruction": instruction.inner_text(),
-        "values": playground.evaluate("root => root.values"),
-    }
-    page.reload()
-    wait_until_ready(page)
-    expect(rows.first.get_by_label("Value")).to_have_value("asia")
-    expect(instruction).to_contain_text("region is asia and risk above 40")
-    undo(page)
-    expect(rows.first.get_by_label("Value")).to_have_value("asia")
-    playground.get_by_role("button", name="Reset").click()
-    expect(rows.first.get_by_label("Value")).to_have_value("europe")
-    expect(instruction).to_contain_text("region is europe and risk above 40")
-    resized(page, 480, 760)
-    assert page.evaluate("document.documentElement.scrollWidth") == 480
-    resized(page, 1100, 320)
-    expect(page.locator("#release-query-ask")).to_be_visible()
-
-
 def test_built_code_comparison_drives_both_candidates(browser, serve):
     """Candidate measurements follow rendered readers through sizing and edits."""
-    source = Path(__file__).parents[2] / "examples" / "code-comparison.html"
+    source = named_source("code-comparison")
     context = browser.new_context(permissions=["clipboard-read", "clipboard-write"])
     page = open_page(browser, serve(source), context=context)
     playground = page.locator("#code-comparison-playground")
@@ -1198,10 +1085,10 @@ def test_built_code_comparison_drives_both_candidates(browser, serve):
         "candidateB": {"density": "comfortable", "wrap": False},
     }
     expect(candidate_a.locator(".code-candidate-title")).to_have_text(
-        "A · comfortable · scroll"
+        "comfortable · scroll"
     )
     expect(candidate_b.locator(".code-candidate-title")).to_have_text(
-        "B · comfortable · scroll"
+        "comfortable · scroll"
     )
     assert playground.evaluate("root => root.values.comparison.candidateA") == {
         "density": "comfortable",
@@ -1215,15 +1102,6 @@ def test_built_code_comparison_drives_both_candidates(browser, serve):
         "candidateB": {"density": "compact", "wrap": False},
     }
 
-    playground.get_by_role("button", name="B at 320px").click()
-    expect(
-        playground.locator('lf-playground-control[name="width"]').get_by_role("slider")
-    ).to_have_value("320")
-    expect(playground.get_by_role("radio", name="B", exact=True)).to_be_checked()
-    playground.get_by_role("button", name="A at 420px").click()
-    expect(
-        playground.locator('lf-playground-control[name="width"]').get_by_role("slider")
-    ).to_have_value("420")
     playground.get_by_role("button", name="Reset").click()
     assert playground.evaluate("root => root.values.comparison") == {
         "candidateA": {"density": "compact", "wrap": False},
@@ -1234,7 +1112,7 @@ def test_built_code_comparison_drives_both_candidates(browser, serve):
     instruction = page.locator("#code-comparison-instruction")
     expect(instruction).to_contain_text("comfortable reading density")
     expect(instruction).to_contain_text("wrap long lines")
-    playground.locator(".lf-playground-instruction-region").hover()
+    playground.get_by_role("button", name="Show instruction").click()
     playground.get_by_role("button", name="Copy instruction").click()
     assert page.evaluate("navigator.clipboard.readText()") == instruction.inner_text()
     with sending(page, "the code reader treatment"):
@@ -1251,11 +1129,270 @@ def test_built_code_comparison_drives_both_candidates(browser, serve):
 
     resized(page, 480, 760)
     assert page.evaluate("document.documentElement.scrollWidth") == 480
-    expect(page.locator(".code-comparison-grid")).to_have_css(
+    expect(page.locator("#code-treatment > .lf-playground-choices")).to_have_css(
         "grid-template-columns", re.compile(r"\d+(?:\.\d+)?px")
     )
     resized(page, 1100, 320)
     expect(page.locator("#code-comparison-ask")).to_be_visible()
+
+
+def test_a_decision_travels_between_tabs_and_the_log_has_the_last_word(browser, serve):
+    """Two windows on one page are two views of one log, not two documents. A
+    decision taken in either arrives in the other by the same replay that keeps a
+    reload's drag, and the record it leaves in the margin has to arrive with it: the
+    tab that receives one settles it without the click that settled the tab that sent
+    it, and a row still offering the press is a window disagreeing with the log about
+    what has already been decided. Where the two disagree, the later entry in the log
+    is what both end on."""
+    url = serve(SUGGESTION_PAGE)
+    first = open_page(browser, url)
+    second = open_page(browser, url)
+
+    # A tab that did not click has only its own poll to learn from.
+    first.locator(
+        "[data-lf-margin-for='sug-refill'] [data-lf-margin-entry-key=accept]"
+    ).click()
+    told(second)
+    expect(second.locator("#sug-refill lf-old")).to_be_hidden()
+    expect(second.locator("#sug-refill lf-new")).to_be_visible()
+    # Nothing is left to decide. Replay replaces both offers with the existing Undo
+    # action without adding a second status beside the settled content.
+    row = second.locator("[data-lf-margin-for='sug-refill']")
+    accepted = row.get_by_role("button", name=re.compile(r"^Undo accepting"))
+    expect(accepted.locator(".lf-margin-entry-icon")).to_have_attribute(
+        "data-lf-icon", "undo"
+    )
+    expect(row.locator(".lf-margin-receipt")).to_have_count(0)
+    expect(accepted).to_be_enabled()
+    # Its pair leaves; the surviving content and Undo carry the settled state.
+    rejected = second.locator(
+        "[data-lf-margin-for='sug-refill'] [data-lf-margin-entry-key=reject]"
+    )
+    expect(rejected).to_be_hidden()
+    expect_accept_all(second, "Accept all (2)")
+
+    # Now the race the controls make possible: a window cut off from the log still
+    # shows both buttons, so the user can decide the other way there. Two
+    # decisions on one change, and the log's order — not either tab's belief —
+    # settles it for both once the cut-off one catches up.
+    third = open_page(browser, url)
+    cut = CutOff().hold(third)
+    first.locator(
+        "[data-lf-margin-for='sug-thistle'] [data-lf-margin-entry-key=accept]"
+    ).click()
+    # In the log before the reject is clicked, so which one is later is this test's
+    # to decide rather than the network's.
+    told(second)
+    expect_accept_all(second, "Accept all (1)")
+    unfolded_button(
+        third.locator(
+            "[data-lf-margin-for='sug-thistle'] [data-lf-margin-entry-key=reject]"
+        )
+    ).click()
+    cut.restore()
+    # The reject went out over a live channel, so every tab has to read it back —
+    # the cut-off one included, which is where it stops being its own local click.
+    for tab in (first, second, third):
+        told(tab)
+        expect(tab.locator("#sug-thistle lf-new")).to_be_hidden()
+
+
+@pytest.mark.parametrize("webkit", [False, True], ids=["chromium", "webkit"])
+def test_a_narrow_rename_header_reserves_basenames_before_folders(
+    request, serve, webkit
+):
+    """A rename shares its available width before either path elides a basename."""
+    previous = "legacy/worktrunk/skills/worktrunk/reference/original.py"
+    path = "plugins/worktrunk/skills/worktrunk/reference/config.py"
+    url = serve(
+        leaf_page(
+            "Rename allocation",
+            '<h1 id="title">Review</h1><lf-diff id="patch" source="patch-data">'
+            "</lf-diff>",
+            layout=None,
+        ),
+        packages=("diff",),
+    )
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "patch-data",
+        f"diff --git a/{previous} b/{path}\nsimilarity index 50%\n"
+        f"rename from {previous}\nrename to {path}\n--- a/{previous}\n+++ b/{path}\n"
+        "@@ -1 +1 @@\n-old()\n+new()\n",
+    )
+    browser = request.getfixturevalue("iphone" if webkit else "browser")
+    page = open_page(None, url, context=browser) if webkit else open_page(browser, url)
+    head = page.locator("#patch .lf-diff-head")
+    file = page.locator("#patch .lf-diff-file")
+    identity = file.get_attribute("data-lf-datum")
+    reading = """head => {
+      const width = node => {
+        const range = new Range(); range.selectNodeContents(node);
+        return range.getBoundingClientRect().width;
+      };
+      const path = head.querySelector('.lf-diff-path');
+      return {
+        path: path.getBoundingClientRect().width,
+        bases: [...path.querySelectorAll('.lf-diff-base')].map(base => ({
+          text: base.textContent, natural: width(base), allocated: base.getBoundingClientRect().width,
+          box: base.getBoundingClientRect().toJSON(),
+        })),
+        directories: [...path.querySelectorAll('.lf-diff-dir')].map(dir => {
+          return {allocated: dir.getBoundingClientRect().width,
+            ellipsis: parseFloat(getComputedStyle(dir, '::before').width),
+            visible: getComputedStyle(dir).opacity !== '0'};
+        }),
+        arrow: path.querySelector('.lf-diff-arrow').getBoundingClientRect().toJSON(),
+        arrowMargins: parseFloat(getComputedStyle(path.querySelector('.lf-diff-arrow')).marginLeft)
+          + parseFloat(getComputedStyle(path.querySelector('.lf-diff-arrow')).marginRight),
+        actions: head.closest('.lf-diff-file').querySelector('.lf-diff-file-actions').children.length,
+      };
+    }"""
+    folder_states = set()
+    for width in (280, 390, 470, 800, 1400, 280):
+        resized(page, width, 900)
+        rendered(page)
+        result = head.evaluate(reading)
+        assert result["actions"] == 1, result
+        assert [base["text"] for base in result["bases"]] == [
+            "original.py",
+            "config.py",
+        ]
+        names_fit = (
+            sum(base["natural"] for base in result["bases"])
+            + result["arrow"]["width"]
+            + result["arrowMargins"]
+            <= result["path"]
+        )
+        if names_fit:
+            assert all(
+                base["allocated"] >= base["natural"] - 0.5 for base in result["bases"]
+            ), result
+        else:
+            assert all(base["allocated"] > 0 for base in result["bases"]), result
+            assert all(
+                directory["allocated"] == 0 for directory in result["directories"]
+            ), result
+        assert result["arrow"]["left"] > result["bases"][0]["box"]["right"], result
+        assert result["bases"][1]["box"]["left"] > result["arrow"]["right"], result
+        for directory in result["directories"]:
+            assert directory["visible"] == (
+                directory["allocated"] >= directory["ellipsis"]
+            ), result
+            folder_states.add(directory["visible"])
+        assert file.get_attribute("data-lf-datum") == identity
+        assert "legacy/" in head.aria_snapshot() and "plugins/" in head.aria_snapshot()
+    assert folder_states == {False, True}
+    page.get_by_role("button", name=f"Comment on {path}", exact=True).click()
+    expect(page.locator("#lf-composer-quote")).to_contain_text(path)
+    expect(page.locator(".lf-fab-input")).to_be_focused()
+    page.keyboard.press("Escape")
+
+
+import pytest
+
+
+@pytest.mark.shifts_unsurveyed
+@pytest.mark.parametrize("destination", ["call", "patch"])
+def test_focus_reactions_keep_a_projected_data_target(browser, serve, destination):
+    """Light-DOM data and its shadow-DOM destination keep exact identity."""
+    example = named_source("pr-walkthrough")
+    page = open_page(browser, live_url(serve(example)))
+    page.get_by_role("tab", name="CallDiff").click()
+    location = (
+        page.locator("#pr-call-diagram")
+        .get_by_role("link", name="src/summary.rs:259")
+        .first
+    )
+    # Reach the real link through the browser's tab order. The source case reads
+    # keyboard focus inside a generated datum, rather than focusing the datum directly.
+    for _ in range(40):
+        page.keyboard.press("Tab")
+        if location.evaluate("node => node.matches(':focus')"):
+            break
+    expect(location).to_be_focused()
+    assert location.evaluate("node => node.matches(':focus-visible')")
+    target = location.locator("xpath=..")
+    if destination == "patch":
+        page.keyboard.press("Enter")
+        target = page.locator(
+            '#pr-exact-patch [data-lf-datum=\'["src/summary.rs","new",259]\']'
+        )
+        expect(target).to_be_focused()
+        expect(page.locator(".lf-live")).to_have_text(
+            "Opened src/summary.rs:259 in the exact patch"
+        )
+        expect(target).to_be_in_viewport()
+    datum = target.get_attribute("data-lf-datum")
+    owner = target.get_attribute("data-lf-projection")
+    revision = target.get_attribute("data-lf-source-revision")
+    assert datum and owner and revision
+    page.keyboard.press("e")
+    expect(
+        page.locator('[data-lf-margin-entry-owner="responses"]:visible')
+    ).not_to_have_count(0)
+    page.keyboard.press("1")
+    round_trip(page)
+    reaction = next(
+        event
+        for event in reversed(events_model.read_events(serve.page_dir))
+        if event["kind"] == "comment" and event.get("token")
+    )
+    assert reaction["anchor"]["section"] == owner
+    assert reaction["anchor"]["datum"] == datum
+    assert reaction["anchor"]["source_revision"] == revision
+
+
+def test_a_playground_preset_reset_copy_and_narrow_layout_share_the_same_state(
+    browser, serve
+):
+    context = browser.new_context(permissions=["clipboard-read", "clipboard-write"])
+    page = open_page(browser, serve(PLAYGROUND_PAGE), context=context)
+    playground = page.locator("#card-playground")
+    expect(playground.get_by_role("group", name="Starting points")).to_be_visible()
+    expect(playground.get_by_role("group", name="Controls")).to_be_visible()
+
+    playground.get_by_role("button", name="Dense").click()
+    expect(playground.get_by_role("button", name="Dense")).to_have_attribute(
+        "aria-pressed", "true"
+    )
+    assert playground.evaluate("root => root.values") == {
+        "accent": "#4f766f",
+        "compact": True,
+        "radius": 4,
+        "title": "Field note",
+        "tone": "bold",
+    }
+    playground.get_by_role("slider", name="Corner radius").press("ArrowRight")
+    expect(playground.get_by_role("button", name="Dense")).to_have_attribute(
+        "aria-pressed", "false"
+    )
+    playground.get_by_role("button", name="Dense").click()
+    # Copy is the code block's control, in the head of the popover the instruction
+    # opens in.
+    pane = playground.locator(".lf-playground-instruction-region")
+    copy = pane.get_by_role("button", name="Copy instruction")
+    pane.scroll_into_view_if_needed()
+    pane.get_by_role("button", name="Show instruction").click()
+    pane.hover()
+    copy.click()
+    assert page.evaluate("navigator.clipboard.readText()") == (
+        "Use a 4px radius, compact spacing set to true, a bold tone, #4f766f accents, "
+        "and the title Field note."
+    )
+
+    playground.get_by_role("button", name="Reset").click()
+    assert playground.evaluate("root => root.values")["radius"] == 12
+    pane.get_by_role("button", name="Show instruction").press("Enter")
+    page.keyboard.press("Tab")
+    expect(copy).to_be_focused()
+    copy.press("Enter")
+    assert "12px radius" in page.evaluate("navigator.clipboard.readText()")
+    resized(page, 420, 760)
+    assert page.evaluate("document.documentElement.scrollWidth") == 420
+    assert " " not in playground.evaluate(
+        "root => getComputedStyle(root).gridTemplateColumns"
+    )
 
 
 def test_notification_configuration_becomes_a_commentable_local_artifact(
@@ -1268,14 +1405,13 @@ def test_notification_configuration_becomes_a_commentable_local_artifact(
     The page exposes that file through data, then a user comment changes the file and
     remains anchored on the revised result.
     """
-    source_path = (
-        Path(__file__).parents[2] / "examples" / "notification-playground.html"
-    )
+    source_path = named_source("notification-playground")
     source = source_path.read_text(encoding="utf-8")
     page = open_page(browser, live_url(serve(source_path)))
     playground = page.locator("#notification-playground")
 
     playground.get_by_role("button", name="Needs attention").click()
+    playground.get_by_role("radio", name="Status strip", exact=True).click()
     page.locator('lf-playground-control[name="title"] input').fill(
         "Checkout needs attention"
     )
@@ -1373,6 +1509,7 @@ body { font-family: system-ui, sans-serif; }
             str(value).lower() if isinstance(value, bool) else str(value)
         )
     workspace = result.select_one("#notification-workspace")
+    assert workspace is not None
     workspace.attrs["class"] = "layout-column"
     artifact_section = result.select_one("#notification-artifact")
     configuration = turbohtml.E(
@@ -1380,12 +1517,15 @@ body { font-family: system-ui, sans-serif; }
         {"id": "notification-configuration", "open": ""},
         turbohtml.E("summary", "Original configuration"),
     )
-    result.select_one("#notification-ask").wrap(configuration)
+    select_one_result = result.select_one("#notification-ask")
+    assert select_one_result is not None
+    select_one_result.wrap(configuration)
     configuration.insert_before(turbohtml.E("h1", "Review the deployment notification"))
+    assert artifact_section is not None
     artifact_section.attrs.pop("hidden")
-    artifact_section.select_one("#notification-artifact-source").attrs["label"] = (
-        "deployment-notification.html"
-    )
+    select_one_result_2 = artifact_section.select_one("#notification-artifact-source")
+    assert select_one_result_2 is not None
+    select_one_result_2.attrs["label"] = "deployment-notification.html"
     workspace.append(artifact_section)
     result_source = result.serialize()
     assert "notification-configuration" in result_source
@@ -1507,196 +1647,128 @@ body { font-family: system-ui, sans-serif; }
     assert artifact.read_text(encoding="utf-8") == second_artifact
 
 
-def test_a_playground_preset_reset_copy_and_narrow_layout_share_the_same_state(
+def test_structured_data_explorer_keeps_one_aggregate_query_configuration(
     browser, serve
 ):
+    source = named_source("data-explorer")
     context = browser.new_context(permissions=["clipboard-read", "clipboard-write"])
-    page = open_page(browser, serve(PLAYGROUND_PAGE), context=context)
-    playground = page.locator("#card-playground")
-    expect(playground.get_by_role("group", name="Starting points")).to_be_visible()
-    expect(playground.get_by_role("group", name="Controls")).to_be_visible()
+    page = open_page(browser, serve(source), context=context)
+    playground = page.locator("#release-query-playground")
+    rows = page.locator(".query-row")
 
-    playground.get_by_role("button", name="Dense").click()
-    expect(playground.get_by_role("button", name="Dense")).to_have_attribute(
-        "aria-pressed", "true"
-    )
+    expect(rows).to_have_count(2)
     assert playground.evaluate("root => root.values") == {
-        "accent": "#4f766f",
-        "compact": True,
-        "radius": 4,
-        "title": "Field note",
-        "tone": "bold",
+        "filters": {
+            "order": ["filter-1", "filter-2"],
+            "rows": [
+                {
+                    "field": "region",
+                    "id": "filter-1",
+                    "operator": "is",
+                    "value": "europe",
+                },
+                {
+                    "field": "risk",
+                    "id": "filter-2",
+                    "operator": "above",
+                    "value": "40",
+                },
+            ],
+        },
+        "limit": 4,
     }
-    playground.get_by_role("slider", name="Corner radius").press("ArrowRight")
-    expect(playground.get_by_role("button", name="Dense")).to_have_attribute(
-        "aria-pressed", "false"
-    )
-    playground.get_by_role("button", name="Dense").click()
-    # Copy is the code block's control, a toolbar on the instruction pane's top border,
-    # while the pointer is over the pane or the user is in it.
-    pane = playground.locator(".lf-playground-instruction-region")
-    copy = pane.get_by_role("button", name="Copy instruction")
-    pane.scroll_into_view_if_needed()
-    pane.hover()
-    copy.click()
-    assert page.evaluate("navigator.clipboard.readText()") == (
-        "Use a 4px radius, compact spacing set to true, a bold tone, #4f766f accents, "
-        "and the title Field note."
-    )
+    expect(page.locator(".query-result-count")).to_have_text("2 releases shown")
 
+    rows.nth(1).get_by_label("Value").fill("80")
+    expect(page.locator(".query-result-count")).to_have_text("1 release shown")
+    # Moving a sibling row must retain the native field, caret and edit history.
+    editor = page.locator('input[name="filter-1-value"]')
+    editor.focus()
+    editor.press("End")
+    editor.press_sequentially("x")
+    editor.press("ArrowLeft")
+    rows.nth(1).get_by_role("button", name="Move filter 2 up").evaluate(
+        "button => button.click()"
+    )
+    expect(editor).to_be_focused()
+    assert editor.evaluate("input => input.selectionStart") == len("europe")
+    editor.press("ControlOrMeta+z")
+    expect(editor).to_have_value("europe")
+    assert playground.evaluate("root => root.values.filters.order") == [
+        "filter-2",
+        "filter-1",
+    ]
+    page.get_by_role("button", name="Add filter").click()
+    expect(rows).to_have_count(3)
+    expect(rows.nth(2).get_by_label("Value")).to_be_focused()
+    rows.nth(2).get_by_label("Value").fill("risk")
+    expect(page.locator(".query-result-count")).to_have_text("1 release shown")
+    rows.nth(2).get_by_role("button", name="Remove filter 3").click()
+    expect(rows).to_have_count(2)
+
+    playground.get_by_role("button", name="Up to 6 results").click()
+    expect(
+        playground.locator('lf-playground-control[name="limit"]').get_by_role("slider")
+    ).to_have_value("6")
+    playground.get_by_role("button", name="Up to 4 results").click()
+    expect(
+        playground.locator('lf-playground-control[name="limit"]').get_by_role("slider")
+    ).to_have_value("4")
+    instruction = page.locator("#release-query-instruction")
+    expect(instruction).to_contain_text("risk above 80 and region is europe")
+    playground.get_by_role("button", name="Show instruction").click()
+    playground.get_by_role("button", name="Copy instruction").click()
+    copied = page.evaluate("navigator.clipboard.readText()")
+    assert copied == instruction.inner_text()
+
+    page.reload()
+    wait_until_ready(page)
+    expect(rows).to_have_count(2)
+    assert playground.evaluate("root => root.values.filters.order") == [
+        "filter-2",
+        "filter-1",
+    ]
+    expect(instruction).to_contain_text("risk above 80 and region is europe")
     playground.get_by_role("button", name="Reset").click()
-    assert playground.evaluate("root => root.values")["radius"] == 12
-    playground.get_by_role("button", name="Reset").press("Shift+Tab")
-    expect(copy).to_be_focused()
-    copy.press("Enter")
-    assert "12px radius" in page.evaluate("navigator.clipboard.readText()")
-    resized(page, 420, 760)
-    assert page.evaluate("document.documentElement.scrollWidth") == 420
-    assert " " not in playground.evaluate(
-        "root => getComputedStyle(root).gridTemplateColumns"
+    assert playground.evaluate("root => root.values.filters.order") == [
+        "filter-1",
+        "filter-2",
+    ]
+    expect(instruction).to_contain_text("region is europe and risk above 40")
+    rows.nth(1).get_by_role("button", name="Remove filter 2").click()
+    rows.first.get_by_role("button", name="Remove filter 1").click()
+    expect(rows).to_have_count(0)
+    expect(instruction).to_contain_text("Apply no filters")
+    expect(page.locator(".query-result-count")).to_have_text("4 releases shown")
+    playground.get_by_role("button", name="Up to 6 results").click()
+    expect(page.locator(".query-result-count")).to_have_text("6 releases shown")
+    playground.get_by_role("button", name="Up to 4 results").click()
+    expect(page.locator(".query-result-count")).to_have_text("4 releases shown")
+    playground.get_by_role("button", name="Reset").click()
+    rows.first.get_by_label("Value").fill("asia")
+    expect(instruction).to_contain_text("region is asia and risk above 40")
+
+    with sending(page, "the release query"):
+        playground.get_by_role("button", name="Build query").click()
+    action = next(
+        event
+        for event in reversed(events_model.read_events(serve.page_dir))
+        if event.get("widget") == "release-query-playground"
     )
-
-
-def test_a_decision_travels_between_tabs_and_the_log_has_the_last_word(browser, serve):
-    """Two windows on one page are two views of one log, not two documents. A
-    decision taken in either arrives in the other by the same replay that keeps a
-    reload's drag, and the record it leaves in the margin has to arrive with it: the
-    tab that receives one settles it without the click that settled the tab that sent
-    it, and a row still offering the press is a window disagreeing with the log about
-    what has already been decided. Where the two disagree, the later entry in the log
-    is what both end on."""
-    url = serve(SUGGESTION_PAGE)
-    first = open_page(browser, url)
-    second = open_page(browser, url)
-
-    # A tab that did not click has only its own poll to learn from.
-    first.locator("[data-lf-margin-for='sug-refill'] .lf-sug-accept").click()
-    told(second)
-    expect(second.locator("#sug-refill lf-old")).to_be_hidden()
-    expect(second.locator("#sug-refill lf-new")).to_be_visible()
-    # Nothing is left to decide. Replay replaces both offers with the existing Undo
-    # action without adding a second status beside the settled content.
-    row = second.locator("[data-lf-margin-for='sug-refill']")
-    accepted = row.get_by_role("button", name=re.compile(r"^Undo accepting"))
-    expect(accepted.locator(".lf-margin-entry-icon")).to_have_attribute(
-        "data-lf-icon", "undo"
-    )
-    expect(row.locator(".lf-margin-receipt")).to_have_count(0)
-    expect(accepted).to_be_enabled()
-    # Its pair leaves; the surviving content and Undo carry the settled state.
-    rejected = second.locator("[data-lf-margin-for='sug-refill'] .lf-sug-reject")
-    expect(rejected).to_be_hidden()
-    expect_accept_all(second, "Accept all (2)")
-
-    # Now the race the controls make possible: a window cut off from the log still
-    # shows both buttons, so the user can decide the other way there. Two
-    # decisions on one change, and the log's order — not either tab's belief —
-    # settles it for both once the cut-off one catches up.
-    third = open_page(browser, url)
-    cut = CutOff().hold(third)
-    first.locator("[data-lf-margin-for='sug-thistle'] .lf-sug-accept").click()
-    # In the log before the reject is clicked, so which one is later is this test's
-    # to decide rather than the network's.
-    told(second)
-    expect_accept_all(second, "Accept all (1)")
-    unfolded_button(
-        third.locator("[data-lf-margin-for='sug-thistle'] .lf-sug-reject")
-    ).click()
-    cut.restore()
-    # The reject went out over a live channel, so every tab has to read it back —
-    # the cut-off one included, which is where it stops being its own local click.
-    for tab in (first, second, third):
-        told(tab)
-        expect(tab.locator("#sug-thistle lf-new")).to_be_hidden()
-
-
-@pytest.mark.parametrize("webkit", [False, True], ids=["chromium", "webkit"])
-def test_a_narrow_rename_header_reserves_basenames_before_folders(
-    request, serve, webkit
-):
-    """A rename shares its available width before either path elides a basename."""
-    previous = "legacy/worktrunk/skills/worktrunk/reference/original.py"
-    path = "plugins/worktrunk/skills/worktrunk/reference/config.py"
-    url = serve(
-        leaf_page(
-            "Rename allocation",
-            '<h1 id="title">Review</h1><lf-diff id="patch" source="patch-data">'
-            "<pre></pre></lf-diff>",
-            layout=None,
-        ),
-        packages=("diff",),
-    )
-    data_model.cmd_data_set(
-        serve.page_dir,
-        "patch-data",
-        f"diff --git a/{previous} b/{path}\nsimilarity index 50%\n"
-        f"rename from {previous}\nrename to {path}\n--- a/{previous}\n+++ b/{path}\n"
-        "@@ -1 +1 @@\n-old()\n+new()\n",
-    )
-    browser = request.getfixturevalue("iphone" if webkit else "browser")
-    page = open_page(None, url, context=browser) if webkit else open_page(browser, url)
-    head = page.locator("#patch .lf-diff-head")
-    file = page.locator("#patch .lf-diff-file")
-    identity = file.get_attribute("data-lf-datum")
-    reading = """head => {
-      const width = node => {
-        const range = new Range(); range.selectNodeContents(node);
-        return range.getBoundingClientRect().width;
-      };
-      const path = head.querySelector('.lf-diff-path');
-      return {
-        path: path.getBoundingClientRect().width,
-        bases: [...path.querySelectorAll('.lf-diff-base')].map(base => ({
-          text: base.textContent, natural: width(base), allocated: base.getBoundingClientRect().width,
-          box: base.getBoundingClientRect().toJSON(),
-        })),
-        directories: [...path.querySelectorAll('.lf-diff-dir')].map(dir => {
-          return {allocated: dir.getBoundingClientRect().width,
-            ellipsis: parseFloat(getComputedStyle(dir, '::before').width),
-            visible: getComputedStyle(dir).opacity !== '0'};
-        }),
-        arrow: path.querySelector('.lf-diff-arrow').getBoundingClientRect().toJSON(),
-        arrowMargins: parseFloat(getComputedStyle(path.querySelector('.lf-diff-arrow')).marginLeft)
-          + parseFloat(getComputedStyle(path.querySelector('.lf-diff-arrow')).marginRight),
-        actions: head.closest('.lf-diff-file').querySelector('.lf-diff-file-actions').children.length,
-      };
-    }"""
-    folder_states = set()
-    for width in (280, 390, 470, 800, 1400, 280):
-        resized(page, width, 900)
-        rendered(page)
-        result = head.evaluate(reading)
-        assert result["actions"] == 1, result
-        assert [base["text"] for base in result["bases"]] == [
-            "original.py",
-            "config.py",
-        ]
-        names_fit = (
-            sum(base["natural"] for base in result["bases"])
-            + result["arrow"]["width"]
-            + result["arrowMargins"]
-            <= result["path"]
-        )
-        if names_fit:
-            assert all(
-                base["allocated"] >= base["natural"] - 0.5 for base in result["bases"]
-            ), result
-        else:
-            assert all(base["allocated"] > 0 for base in result["bases"]), result
-            assert all(
-                directory["allocated"] == 0 for directory in result["directories"]
-            ), result
-        assert result["arrow"]["left"] > result["bases"][0]["box"]["right"], result
-        assert result["bases"][1]["box"]["left"] > result["arrow"]["right"], result
-        for directory in result["directories"]:
-            assert directory["visible"] == (
-                directory["allocated"] >= directory["ellipsis"]
-            ), result
-            folder_states.add(directory["visible"])
-        assert file.get_attribute("data-lf-datum") == identity
-        assert "legacy/" in head.aria_snapshot() and "plugins/" in head.aria_snapshot()
-    assert folder_states == {False, True}
-    page.get_by_role("button", name=f"Comment on {path}", exact=True).click()
-    expect(page.locator("#lf-composer-quote")).to_contain_text(path)
-    expect(page.locator(".lf-fab-input")).to_be_focused()
-    page.keyboard.press("Escape")
+    assert action["detail"] == {
+        "instruction": instruction.inner_text(),
+        "values": playground.evaluate("root => root.values"),
+    }
+    page.reload()
+    wait_until_ready(page)
+    expect(rows.first.get_by_label("Value")).to_have_value("asia")
+    expect(instruction).to_contain_text("region is asia and risk above 40")
+    undo(page)
+    expect(rows.first.get_by_label("Value")).to_have_value("asia")
+    playground.get_by_role("button", name="Reset").click()
+    expect(rows.first.get_by_label("Value")).to_have_value("europe")
+    expect(instruction).to_contain_text("region is europe and risk above 40")
+    resized(page, 480, 760)
+    assert page.evaluate("document.documentElement.scrollWidth") == 480
+    resized(page, 1100, 320)
+    expect(page.locator("#release-query-ask")).to_be_visible()

@@ -9,10 +9,7 @@ import re
 from pathlib import Path
 from urllib.parse import urlsplit
 
-import jmespath
-from jmespath.exceptions import JMESPathError
-
-from .files import list_revisions
+from .files import latest_revision
 from .findings import Finding, element_at
 from .refusals import Refused
 from .registry.contract import element_declarations
@@ -20,7 +17,7 @@ from .registry.schema import (
     json_validator,
     json_value,
 )
-from .revision_artifact import read_revision
+from .revision_artifact import read_revision, revision_history
 from .schema import DATA_SOURCE_NAME, DIR_FILES, MEDIA_DIR
 from .structure import SourceDocument
 from .thread_context import logged_fragment
@@ -38,6 +35,9 @@ def resource_urls(value, declaration: dict) -> set[str]:
     Local references use the canonical page media namespace; remote references
     stay remote and are never fetched by snapshot or export.
     """
+    import jmespath
+    from jmespath.exceptions import JMESPathError
+
     urls = set()
     for expression in declaration.get("resources", []):
         try:
@@ -192,26 +192,28 @@ def page_data_document_readings(
     without revisions uses the initial registry. These readings permit historical
     producers and inventories without restricting later documents' bindings.
     """
-    documents = []
-    registries = {}
-    for revision in list_revisions(page_dir):
-        reading = read_revision(page_dir, revision)
-        registries[revision] = reading.registry
-        documents.append(
-            [
-                (records, f"revision r{revision}{label}", declarations)
-                for records, label, declarations in reading.inventory.data_documents
-            ]
-        )
+    documents = [
+        [
+            (records, f"revision r{revision}{label}", declarations)
+            for records, label, declarations in readings
+        ]
+        for revision, readings in revision_history(page_dir).data_documents
+    ]
     active_document = documents.pop() if documents else None
+    newest = latest_revision(page_dir)
     for event in events:
         if event.get("markup"):
-            revision = event.get("revision") or max(registries, default=None)
+            revision = event.get("revision") or newest
+            selected_registry = (
+                registry
+                if revision is None
+                else read_revision(page_dir, revision).registry
+            )
             documents.append(
                 data_document_readings(
                     logged_fragment(event),
                     f"event {event['id']!r} markup",
-                    registries[revision] if registries else registry,
+                    selected_registry,
                 )
             )
     # The active document owns current bindings ahead of older thread markup.
@@ -389,12 +391,17 @@ def record_labels(contract: str, registry: dict) -> set[str]:
     }
 
 
-def payload_error(source: str, contract: str, value, registry: dict) -> str | None:
+def payload_error(producer: str, contract: str, value, registry: dict) -> str | None:
+    """Validate one produced value; `producer` is its reader-facing identity.
+
+    External sources and exercised widget outputs share the same schema, resource
+    and record invariants. Output withdrawal is not a value and bypasses this check.
+    """
     declaration = registry.get("$data", {}).get("contracts", {}).get(contract)
     if declaration is None:
         declared = sorted(registry.get("$data", {}).get("contracts", {}))
         return (
-            f"source {source!r} uses undeclared contract {contract!r}; "
+            f"{producer} uses undeclared contract {contract!r}; "
             f"available contracts are {json_value(declared)}"
         )
     try:
@@ -405,14 +412,14 @@ def payload_error(source: str, contract: str, value, registry: dict) -> str | No
         )
     except RecursionError:
         return (
-            f"source {source!r} contract {contract!r} could not validate its value: "
+            f"{producer} contract {contract!r} could not validate its value: "
             "a recursive reference did not terminate"
         )
     if error is None:
         try:
             resource_urls(value, declaration)
         except DataError as error:
-            return f"source {source!r} contract {contract!r}: {error}"
+            return f"{producer} contract {contract!r}: {error}"
         records = declaration.get("records")
         items = (
             value.get(records["items"]) if records and isinstance(value, dict) else None
@@ -420,7 +427,7 @@ def payload_error(source: str, contract: str, value, registry: dict) -> str | No
         if items is not None:
             if not isinstance(items, list):
                 return (
-                    f"source {source!r} contract {contract!r} record field "
+                    f"{producer} contract {contract!r} record field "
                     f"{records['items']!r} must be an array"
                 )
             keys = set()
@@ -430,22 +437,75 @@ def payload_error(source: str, contract: str, value, registry: dict) -> str | No
                 key = item.get(records["key"]) if isinstance(item, dict) else None
                 if not isinstance(key, str) or not key:
                     return (
-                        f"source {source!r} contract {contract!r} record "
+                        f"{producer} contract {contract!r} record "
                         f"{index} needs a non-empty string {records['key']!r}"
                     )
                 for label in labels:
                     if not isinstance(item.get(label), str) or not item[label].strip():
-                        return f"source {source!r} contract {contract!r} record {index} needs a non-empty string obligation label {label!r}"
+                        return f"{producer} contract {contract!r} record {index} needs a non-empty string obligation label {label!r}"
                 if key in keys:
                     duplicates.add(key)
                 keys.add(key)
             if duplicates:
                 return (
-                    f"source {source!r} contract {contract!r} record keys must be "
+                    f"{producer} contract {contract!r} record keys must be "
                     f"unique; repeated {json_value(sorted(duplicates))}"
                 )
         return None
     return (
-        f"source {source!r} value is invalid for contract {contract!r} at "
+        f"{producer} value is invalid for contract {contract!r} at "
         f"{error.json_path}: {error.message}"
     )
+
+
+def output_findings(
+    readings: list[dict],
+    registry: dict,
+    implementations: dict | None = None,
+    declaration_sources: dict[str, str] | None = None,
+) -> list[Finding]:
+    """Judge exercised outputs, naming both the code and declaration owners.
+
+    A page can override either the module or its declaration independently. Captured
+    provenance reports both, without choosing which side should change. Direct render
+    probes may lack that artifact; they still report the producer and contract.
+    """
+    found = []
+    for reading in readings:
+        if error := payload_error(
+            f"output {reading['output']!r}",
+            reading["contract"],
+            reading["value"],
+            registry,
+        ):
+            implementation = (implementations or {}).get(reading["tag"], {})
+            finding = Finding(
+                "invalid-output",
+                at=element_at(reading["tag"], reading["id"]),
+                values={
+                    "tag": reading["tag"],
+                    "output": reading["output"],
+                    "contract": reading["contract"],
+                    "owner": {"layer": "package", "page": "page"}.get(
+                        implementation.get("owner"), "widget"
+                    ),
+                    "declaration_owner": {"layer": "package", "page": "page"}.get(
+                        (declaration_sources or {}).get(reading["tag"])
+                    ),
+                    "contract_owner": {"layer": "package", "page": "page"}.get(
+                        (declaration_sources or {}).get(
+                            f"$data.contracts.{reading['contract']}"
+                        )
+                    ),
+                    "module": implementation.get("path"),
+                    **(
+                        {"document": reading["document"]}
+                        if "document" in reading
+                        else {}
+                    ),
+                    "error": error,
+                },
+            )
+            if finding not in found:
+                found.append(finding)
+    return found

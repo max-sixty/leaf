@@ -8,7 +8,6 @@ import pytest
 from playwright.sync_api import expect
 from render_cases_interaction import SHORT_SUGGESTION, live_url
 from render_harness import (
-    TOKEN,
     consume_browser_errors,
     holding,
     http_error_console,
@@ -22,6 +21,7 @@ from render_harness import (
 )
 
 from leaf import event_log as events_model
+from leaf import server as server_model
 from leaf.render_checks import rendered, wait_until_ready
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -88,40 +88,48 @@ window.authoredModuleRan = true;
     )
 
 
-def test_a_live_page_refuses_a_same_site_parent_at_another_port(browser, serve):
-    """SameSite cookies do not isolate ports, so a different origin can authenticate
-    the frame even without knowing its key. CSP blocks disguising its controls."""
+def test_a_live_page_admits_only_leaf_parents_under_its_key(browser, serve, live_leaf):
+    """SameSite cookies do not isolate ports, so any server on the host can
+    authenticate a frame of a live page without knowing its key. CSP keeps every
+    other origin from disguising its controls, and admits another live Leaf server
+    under the same key, whose page then shows the framed page live."""
+    child_url, _ = live_leaf("child", "Child")
+    parent_url, _ = live_leaf("parent", "Parent")
+    key = server_model.host_key()
     context = browser.new_context()
-    child = open_page(
+    # One keyed arrival earns the cookie every same-key frame below goes out under.
+    open_page(browser, f"{child_url}/?t={key}", context=context)
+    foreign = open_page(
         browser,
-        live_url(serve(leaf_page("Child", '<h1 id="h">Child</h1>'))),
+        live_url(serve(leaf_page("Foreign", '<h1 id="foreign">Foreign</h1>'))),
         context=context,
     )
-    child_url = child.url
-    parent_url = live_url(serve(leaf_page("Parent", '<h1 id="parent">Parent</h1>')))
-    assert urlparse(child_url).port != urlparse(parent_url).port
-    parent = open_page(browser, parent_url, context=context)
-    with parent.expect_response(child_url) as loaded:
-        parent.locator("body").evaluate(
-            """async (body, url) => {
-                const frame = document.createElement('iframe');
-                frame.id = 'blocked-leaf';
-                frame.src = url;
-                const loaded = new Promise(resolve => frame.addEventListener('load', resolve, {once: true}));
-                body.append(frame);
-                await loaded;
-            }""",
-            child_url,
-        )
-    response = loaded.value
-    assert response.status == 200
-    assert TOKEN in response.request.all_headers()["cookie"]
-    assert "t=" not in response.url
-    errors = consume_browser_errors(parent, "Content Security Policy")
+    leaf = open_page(browser, f"{parent_url}/?t={key}", context=context)
+    for parent in (foreign, leaf):
+        assert urlparse(parent.url).port != urlparse(child_url).port
+        with parent.expect_response(f"{child_url}/") as loaded:
+            parent.locator("body").evaluate(
+                """async (body, url) => {
+                    const frame = document.createElement('iframe');
+                    frame.id = 'framed-leaf';
+                    frame.src = url;
+                    const loaded = new Promise(resolve => frame.addEventListener('load', resolve, {once: true}));
+                    body.append(frame);
+                    await loaded;
+                }""",
+                f"{child_url}/",
+            )
+        response = loaded.value
+        assert response.status == 200
+        assert key in response.request.all_headers()["cookie"]
+    errors = consume_browser_errors(foreign, "Content Security Policy")
     assert any(is_problem(error, "frame-ancestors 'self'") for error in errors), errors
-    assert parent.locator("#blocked-leaf").evaluate(
+    assert foreign.locator("#framed-leaf").evaluate(
         "frame => frame.contentDocument === null"
     )
+    framed = leaf.frame_locator("#framed-leaf")
+    expect(framed.locator("body")).to_have_attribute("data-lf-presented", "1")
+    expect(framed.locator("#t")).to_have_text("Long")
 
 
 @pytest.mark.parametrize("outcome", ["presented", "abandoned", "offline", "slow"])
@@ -173,7 +181,7 @@ def test_public_startup_reports_upgrade_separately_from_held_state(
     assert held, "the positive control did not hold the first state read"
     expect(page.locator("body")).not_to_have_attribute("data-lf-presented", "1")
     expect(panel_field(page)).to_have_attribute(
-        "placeholder", re.compile("^Loading saved state…")
+        "placeholder", re.compile("^Loading comments and choices…")
     )
     assert reports == []
     assert page.evaluate("firstStateResponses") == []
@@ -264,18 +272,28 @@ def test_a_website_example_shows_its_public_session_reference(browser, serve):
     page.route("**/api/state*", identify)
     page.goto(url, wait_until="load")
     wait_until_ready(page)
-    # The reference is no part of the status the panel's field says, and one press in
-    # the leaf's menu copies it.
+    # The reference is no part of the status the panel's field says; About this page
+    # shows it and copies it in one press.
     expect(panel_field(page)).not_to_have_attribute(
         "placeholder", re.compile("239383829012")
     )
-    reference = panel_control(page, "session")
-    expect(reference).to_have_text("Copy session reference")
-    reference.click()
-    expect(panel_field(page)).to_have_attribute(
-        "placeholder", re.compile("^Session reference copied")
+    about = about_this_page(page)
+    expect(about.get_by_label("Session reference", exact=True)).to_have_text(
+        "239383829012"
     )
-    assert page.evaluate("() => navigator.clipboard.readText()") == "239383829012"
+    about.get_by_role("button", name="Copy Session reference", exact=True).click()
+    page.wait_for_function(
+        "navigator.clipboard.readText().then(text => text === '239383829012')"
+    )
+
+
+def about_this_page(page):
+    """Open About this page from the leaf's menu and return the dialog; it alone shows
+    the session reference (page-about.js, the `about` group)."""
+    panel_control(page, "inspection").click()
+    about = page.get_by_role("dialog", name="About this page", exact=True)
+    expect(about).to_be_visible()
+    return about
 
 
 @pytest.mark.parametrize(
@@ -283,12 +301,12 @@ def test_a_website_example_shows_its_public_session_reference(browser, serve):
     [
         (
             {"status": 503, "body": ""},
-            "Server offline — reconnecting",
+            "Lost the connection — reconnecting",
             http_error_console(503),
         ),
         (
             {"status": 200, "body": "{"},
-            "Page couldn't apply current state",
+            "Couldn't show the latest",
             "read failed",
         ),
     ],
@@ -310,7 +328,9 @@ def test_a_website_session_reference_survives_a_failed_first_read(
         expect(panel_field(page)).to_have_attribute(
             "placeholder", re.compile(status_words)
         )
-        expect(panel_control(page, "session")).to_have_text("Copy session reference")
+        expect(
+            about_this_page(page).get_by_label("Session reference", exact=True)
+        ).to_have_text("239383829012")
     finally:
         page.close()
     # The route stands for the whole test and the page asks again every two seconds,
@@ -350,7 +370,9 @@ def held_sample_page(
     )
 
     def route(request_route):
-        sample = SAMPLE_DOCUMENT.search(request_route.request.url).group(1)
+        match = SAMPLE_DOCUMENT.search(request_route.request.url)
+        assert match is not None
+        sample = match.group(1)
         if not hold_first and (not passing or sample in passing):
             passing.append(sample)
             request_route.continue_()
@@ -364,13 +386,15 @@ def held_sample_page(
     def release(failing=()):
         templates = {f"{sample}-source" for sample in failing}
         broken = {
-            SAMPLE_DOCUMENT.search(allocation.json()["url"]).group(1)
+            next(SAMPLE_DOCUMENT.finditer(allocation.json()["url"])).group(1)
             for allocation in allocations
             if allocation.request.post_data_json["template"] in templates
         }
         page.unroute(SAMPLE_DOCUMENT)
         for each in held:
-            if SAMPLE_DOCUMENT.search(each.request.url).group(1) in broken:
+            match_2 = SAMPLE_DOCUMENT.search(each.request.url)
+            assert match_2 is not None
+            if match_2.group(1) in broken:
                 each.fulfill(**NOT_LEAF)
             else:
                 each.continue_()
@@ -425,20 +449,22 @@ def test_a_sample_reached_while_loading_holds_growth_the_reader_did_not_cause(
     """A block sample below the window starts loading at once, but the page presents
     and takes keys without it, reading as arriving until it has. A reader who scrolls
     to it while it loads sees its frame keep its loading height as the child arrives,
-    so what follows stays put. Growth their own gesture in the child causes, such as a
-    disclosure they open, applies at once. Growth the child makes of its own accord
-    while still arriving waits until they press inside it, the frame leaves their
-    sight, or the tab is hidden.
+    so what follows stays put, until the frame leaves their sight or the tab is
+    hidden. A wheel over the frame scrolls past it and claims nothing. Once they click
+    inside it, its growth is theirs: a disclosure they open, and growth the child makes
+    of its own accord afterwards, apply at once.
 
-    The inner window sample's document is held throughout, so the child is still
-    arriving at every step."""
+    The inner window sample keeps the child arriving until the final step, which
+    checks that completing arrival does not release later unsolicited growth."""
     page = browser.new_page(viewport={"width": 1200, "height": 900})
     watched(page)
     held = []
     passing = set()
 
     def hold(request_route):
-        if SAMPLE_DOCUMENT.search(request_route.request.url).group(1) in passing:
+        match_3 = SAMPLE_DOCUMENT.search(request_route.request.url)
+        assert match_3 is not None
+        if match_3.group(1) in passing:
             request_route.continue_()
         else:
             held.append(request_route)
@@ -471,7 +497,9 @@ def test_a_sample_reached_while_loading_holds_growth_the_reader_did_not_cause(
     after = page.locator("#after").bounding_box()
     # The sample's document goes on; the inner sample's, once asked for, waits.
     first = held.pop(0)
-    passing.add(SAMPLE_DOCUMENT.search(first.request.url).group(1))
+    match_4 = SAMPLE_DOCUMENT.search(first.request.url)
+    assert match_4 is not None
+    passing.add(match_4.group(1))
     first.continue_()
     expect(page.locator("#practice .lf-sample-status")).to_have_text("")
     holding(page, held, 1, "the inner sample's document")
@@ -489,44 +517,64 @@ def test_a_sample_reached_while_loading_holds_growth_the_reader_did_not_cause(
             arg=expected,
         )
 
-    def child_grows_by_itself(room):
-        # Once the last gesture's rendering has settled, growth comes of nothing the
-        # reader did, and the frame keeps its height.
-        rendered(child_document)
-        before = frame.evaluate(height)
+    def child_grows(room):
         child.locator("#room").evaluate(
             f"room => {{ room.style.height = '{room}px'; }}"
         )
+        return child.locator("body").evaluate(body)
+
+    def child_grows_unseen(room):
+        before = frame.evaluate(height)
+        child_grows(room)
         rendered(child_document)
         rendered(page)
         assert frame.evaluate(height) == before
-        return before
 
-    child.locator("#more > summary").click()
-    expect(child.locator("#more")).to_have_attribute("open", "")
-    opened = child.locator("body").evaluate(body)
-    grows_to(opened)
-
-    child_grows_by_itself(1400)
-    child.locator("#top").click()
-    grows_to(opened + 200)
-
-    child_grows_by_itself(1600)
+    child_grows_unseen(1400)
     # Off the frame, so the wheel is the containing page's alone.
     assert page.evaluate("!document.elementFromPoint(5, 450).closest('lf-sample')")
     page.mouse.move(5, 450)
     page.mouse.wheel(0, -20000)
-    grows_to(opened + 400)
+    grows_to(child.locator("body").evaluate(body))
 
     frame.scroll_into_view_if_needed()
-    child_grows_by_itself(1800)
+    child_grows_unseen(1600)
+    # Over the frame, so the child's document hears the wheel too.
+    on_frame = frame.bounding_box()
+    x, y = on_frame["x"] + 20, max(on_frame["y"], 0) + 20
+    assert page.evaluate(
+        "([x, y]) => document.elementFromPoint(x, y)?.localName === 'iframe'", [x, y]
+    )
+    page.mouse.move(x, y)
+    before = frame.evaluate(height)
+    page.mouse.wheel(0, 40)
+    rendered(child_document)
+    rendered(page)
+    assert frame.evaluate(height) == before
     page.evaluate("""() => {
       Object.defineProperty(document, 'visibilityState', {
         configurable: true, get: () => 'hidden',
       });
       document.dispatchEvent(new Event('visibilitychange'));
     }""")
-    grows_to(opened + 600)
+    grows_to(child.locator("body").evaluate(body))
+    page.evaluate("""async () => {
+      window.continuity = await window.__lfCheckApi();
+      delete document.visibilityState;
+      document.dispatchEvent(new Event('visibilitychange'));
+    }""")
+    # The reading resumes once the returning page's first refreshed reading lands.
+    page.wait_for_function("continuity.readingReturn() === null")
+
+    page.unroute(SAMPLE_DOCUMENT)
+    for each in held:
+        each.continue_()
+    wait_until_ready(page)
+    child_grows_unseen(1800)
+    child.locator("#more > summary").click()
+    expect(child.locator("#more")).to_have_attribute("open", "")
+    grows_to(child.locator("body").evaluate(body))
+    grows_to(child_grows(2000))
 
 
 def test_a_narrow_window_samples_status_keeps_its_row_as_it_arrives_or_fails(
@@ -583,9 +631,9 @@ def test_a_narrow_window_samples_status_keeps_its_row_as_it_arrives_or_fails(
 def test_a_sample_counts_each_document_its_frame_loads(browser, serve):
     """A sample's child counts as arrived only once its own samples have, so the page
     holding it reads as arriving until then. A departure to a page that is not Leaf's
-    ends the count of the document that left, whose inner sample never comes. Reset,
-    and a Reset inside the sample's child, each begin a document the page counts as
-    arriving until it, and the samples inside it, have arrived."""
+    ends the count of the document that left, whose inner sample never comes. Reset
+    begins a document the page counts as arriving until it, and the samples inside
+    it, have arrived."""
     page, _ = held_sample_page(browser, serve, NESTED, hold_first=False)
     page.locator("#outer").evaluate("sample => sample.ready")
     child = page.locator("#outer iframe").content_frame
@@ -595,8 +643,8 @@ def test_a_sample_counts_each_document_its_frame_loads(browser, serve):
     wait_until_ready(page)
 
     # The departed document's inner sample is never answered; from here every sample
-    # document waits until its step releases it. Each new document starts with its
-    # admission: the outer one Reset allocates, or the inner one the inner Reset does.
+    # document waits until the step releases it. Each new document starts with its
+    # admission.
     page.unroute(SAMPLE_DOCUMENT)
     admissions = []
     page.on(
@@ -604,56 +652,11 @@ def test_a_sample_counts_each_document_its_frame_loads(browser, serve):
         lambda request: request.method == "HEAD" and admissions.append(request),
     )
 
-    def counts_until_released(reset):
-        held = []
-        page.route(SAMPLE_DOCUMENT, lambda route: held.append(route))
-        admitted = len(admissions)
-        reset.click()
-        holding(page, admissions, admitted + 1, "the new document's sample admission")
-        assert readiness(page) == "arrived"
-        page.unroute(SAMPLE_DOCUMENT)
-        for each in held:
-            each.continue_()
-        wait_until_ready(page)
-
-    counts_until_released(page.locator("#outer").get_by_role("button", name="Reset"))
-    counts_until_released(child.locator("#inner").get_by_role("button", name="Reset"))
-
-
-def test_a_sample_arriving_again_holds_growth_the_reader_did_not_cause(browser, serve):
-    """A Reset inside an arrived sample's child begins its arrival again, and while
-    the new document waits the frame holds growth that came of nothing the reader
-    did, as it did on the first arrival, so what follows the frame stays put."""
-    page, release = held_sample_page(
-        browser,
-        serve,
-        "<h1>Containing page</h1>"
-        + live_sample(
-            "outer",
-            content='<div id="room" style="height: 400px"></div>'
-            + live_sample("inner", " window", "<p>Inner</p>"),
-        )
-        + "<p><button id=after>After the sample</button></p>",
-        hold_first=False,
-    )
-    release()
-    wait_until_ready(page)
-    frame = page.locator("#outer iframe")
-    child = frame.content_frame
-    child_document = frame.element_handle().content_frame()
     held = []
     page.route(SAMPLE_DOCUMENT, lambda route: held.append(route))
-    child.locator("#inner").get_by_role("button", name="Reset").click()
-    holding(page, held, 1, "the inner sample's new document")
+    page.locator("#outer").get_by_role("button", name="Reset").click()
+    holding(page, admissions, 1, "the new document's sample admission")
     assert readiness(page) == "arrived"
-    rendered(child_document)
-    before = frame.evaluate("frame => frame.clientHeight")
-    after = page.locator("#after").bounding_box()
-    child.locator("#room").evaluate("room => { room.style.height = '700px'; }")
-    rendered(child_document)
-    rendered(page)
-    assert frame.evaluate("frame => frame.clientHeight") == before
-    assert page.locator("#after").bounding_box() == after
     page.unroute(SAMPLE_DOCUMENT)
     for each in held:
         each.continue_()

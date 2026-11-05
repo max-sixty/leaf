@@ -1,10 +1,14 @@
-/* Horizontal scrollbars must leave the words and controls at the end of their
- * content readable. macOS widens an overlay track to 15px under the pointer. The
+/* Horizontal scrollbars should leave the words and controls at the end of their
+ * content readable, which the gate reports as advice (readings.py, `swept_faults`). macOS widens an overlay track to 15px under the pointer. The
  * earlier code/table and opted-in widget spacers protect those layouts; this
  * reading asks the composed geometry, including unmarked and shadow scrollers.
  * It reads the content at its vertical end without scrolling or changing styles,
  * so a check neither disturbs the reader nor depends on whether a hidden overlay
- * scrollbar happened to paint in the headless browser. SVG readings use native
+ * scrollbar happened to paint in the headless browser. It passes over what an
+ * off-screen `content-visibility: auto` box skips, such as a long text document's runs,
+ * since asking about those elements makes the browser style them first: the live
+ * view's reading of a megabyte of text spent 1.4 s doing that. So it can't see the end
+ * of such a document while the reader is away from it. SVG readings use native
  * primitive bounds: stroke/filter extents, clip paths and nested SVG viewport
  * transforms are not reconstructed here. */
 import {
@@ -16,26 +20,34 @@ import {
 import { at, place } from "./locate.js";
 import { openRoots } from "./open-roots.js";
 
+/** @param {Element} el */
 const visible = (el) =>
-  el.checkVisibility({ opacityProperty: true, visibilityProperty: true }) &&
-  !el.closest("[hidden], script, style");
-const px = (value) => parseFloat(value) || 0;
+  el.checkVisibility({
+    contentVisibilityAuto: true,
+    opacityProperty: true,
+    visibilityProperty: true,
+  }) && !el.closest("[hidden], script, style");
+const px = (/** @type {string} */ value) => parseFloat(value) || 0;
 const controls = 'button, input, select, textarea, [role="button"], a[href], img';
+/** @param {HTMLElement} el */
 const scaleY = (el) => el.getBoundingClientRect().height / el.offsetHeight;
 
 // A nested clip's hidden words are not paint in the outer scroller. Keep the
 // vertical intersection only: every horizontal position is reachable by scrolling.
+/** @param {Element} el @param {DOMRectReadOnly} rect @param {Element} scroller */
 const paintedBottom = (el, rect, scroller) => {
   let top = rect.top,
     bottom = rect.bottom;
-  for (let node = el; node && node !== scroller; node = renderedParent(node)) {
+  /** @type {Element | null} */
+  let node = el;
+  for (; node && node !== scroller; node = renderedParent(node)) {
     const style = getComputedStyle(node);
     if (style.position === "fixed") return -Infinity;
     if (style.overflowY !== "visible") {
       const bounds = node.getBoundingClientRect();
       // SVG clips to its viewport and has no HTML offsetHeight/clientTop box.
       // Dividing by that absent offsetHeight silently discarded all its ink.
-      if (node instanceof SVGElement) {
+      if (!(node instanceof HTMLElement)) {
         top = Math.max(top, bounds.top);
         bottom = Math.min(bottom, bounds.bottom);
       } else {
@@ -60,7 +72,7 @@ export function scrollbarClearance() {
       ...(tree === root ? [root] : []),
       ...tree.querySelectorAll("*"),
     ]) {
-      if (!visible(box)) continue;
+      if (!(box instanceof HTMLElement) || !visible(box)) continue;
       const style = getComputedStyle(box);
       if (!userScrollport(style.overflowX) || box.scrollWidth <= box.clientWidth + 1)
         continue;
@@ -81,6 +93,7 @@ export function scrollbarClearance() {
       if (!required) continue;
       let last = -Infinity,
         content = "";
+      /** @param {Element} el @param {DOMRectReadOnly} rect @param {string} kind */
       const take = (el, rect, kind) => {
         const bottom = paintedBottom(el, rect, box);
         if (bottom > last) {
@@ -92,7 +105,7 @@ export function scrollbarClearance() {
         const walk = document.createTreeWalker(scope, NodeFilter.SHOW_TEXT);
         for (let node; (node = walk.nextNode());) {
           const parent = upFrom(node);
-          if (!node.data.trim() || !visible(parent)) continue;
+          if (!parent || !node.textContent?.trim() || !visible(parent)) continue;
           const range = document.createRange();
           range.selectNodeContents(node);
           for (const rect of range.getClientRects()) take(parent, rect, "words");

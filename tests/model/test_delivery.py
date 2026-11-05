@@ -15,6 +15,7 @@ from interact_support import (
     _start,
     append_carried_log_record,
     append_command,
+    declare_on_page,
     delivered,
     freeze_events,
     last_deliverable_seq,
@@ -36,11 +37,13 @@ from leaf import codex as codex_model
 from leaf import delivery as delivery_model
 from leaf import event_log as events_model
 from leaf import revisioning as revisioning_model
+from leaf import schema as schema_model
 from leaf import service as service_model
 from leaf import session as session_model
 from leaf import thread as thread_model
 from leaf.registry import contract as registry_contract
 from leaf.registry import storage as registry_storage
+from model.interact_contract import _stateful_page_declaration
 
 
 def test_delivery_ids_are_short_and_rerolled_under_the_store_lock(monkeypatch):
@@ -147,11 +150,12 @@ def test_each_delivered_event_says_only_what_its_own_case_asks(page_dir, capsys)
     assert not set(replying) & set(on_page + in_thread)
 
 
-def test_active_handling_survives_a_mutable_layer_edit(page_dir, capsys):
+def test_active_handling_survives_a_broken_page_declaration(page_dir, capsys):
+    """An event is delivered with the handling of the revision it was read under, so
+    a page declaration the next revision cannot take leaves that handling intact."""
     activated = revisioning_model.activate_source(page_dir)
     assert activated.error is None and activated.revision == 1
-    registry_path = page_dir / "registry.json"
-    registry = json.loads(registry_path.read_text())
+    registry = registry_storage.active_registry(page_dir)
     comment = {"kind": "comment", "id": "c1", "author": "user", "text": "hi"}
     active = registry_contract.event_clauses(
         {
@@ -161,9 +165,8 @@ def test_active_handling_survives_a_mutable_layer_edit(page_dir, capsys):
         },
         registry,
     )
-    del registry["$events"]["handling"]
-    del registry["$events"]["answering"]
-    registry_path.write_text(json.dumps(registry))
+    (page_dir / "page").mkdir(exist_ok=True)
+    (page_dir / "page" / "registry.json").write_text('{"$events": {"handling": ')
 
     serving(page_dir, 1)
     session_model.cmd_waiting(page_dir)
@@ -197,12 +200,14 @@ def test_codex_delivery_carries_only_the_selected_events_handling(page_dir):
         append_carried_log_record(page_dir, {"author": "user", **event})
     with service_model.PageTransaction(page_dir) as transaction:
         selected = transaction.events[:3]
-        queued, _, _ = codex_model.append_batch(
+        append_batch_result = codex_model.append_batch(
             "handling-test", page_dir, transaction, transaction.events
         )
-    payload = codex_model.offer_delivery(
-        queued, codex_model.read_record(queued), transport="queue"
-    ).payload
+        assert append_batch_result is not None
+        queued, _, _ = append_batch_result
+    record = codex_model.read_record(queued)
+    assert isinstance(record, (codex_model.Collecting, codex_model.Offering))
+    payload = codex_model.offer_delivery(queued, record, transport="queue").payload
     [batch] = payload["batches"]
     assert [event["id"] for event in batch["events"]] == [
         event["id"] for event in selected
@@ -231,8 +236,8 @@ def test_codex_delivery_carries_only_the_selected_events_handling(page_dir):
     assert delivery_model.read_delivery(payload["id"]) == payload
 
 
-def test_delivery_without_a_registry_has_no_handling(page_dir):
-    (page_dir / "registry.json").unlink()
+def test_delivery_without_a_layer_has_no_handling(page_dir):
+    (page_dir / schema_model.LAYER_FILE).unlink()
     comment = append_carried_log_record(
         page_dir, {"kind": "comment", "author": "user", "text": "hello"}
     )
@@ -382,6 +387,112 @@ def test_delivery_distinguishes_composing_an_obligation_from_changing_input_in_h
     assert undone in selected and changed in selected
 
 
+def test_recordless_requests_wake_without_user_obligations(
+    page_dir, sessionless, capsys
+):
+    from leaf.files import latest_revision
+    from leaf.served_state.context import read_page
+
+    (page_dir / "page").mkdir(exist_ok=True)
+    declaration = _stateful_page_declaration(page_dir, "lf-archive")
+    verb = {
+        "unit": "widget",
+        "detail": {"type": "object", "properties": {}, "additionalProperties": False},
+    }
+    declaration["x-state"] = {
+        "archive": {**verb, "attention": True},
+        "edit": verb,
+    }
+    declare_on_page(
+        page_dir, lambda registry: registry.__setitem__("lf-archive", declaration)
+    )
+    source = PAGE.replace(
+        "</section>", '<lf-archive id="row">Archive this</lf-archive></section>'
+    )
+    (page_dir / "index.html").write_text(source)
+    serving(page_dir, 1)
+    publish(page_dir)
+    session_model.cmd_waiting(page_dir)
+
+    def action(verb, widget="row"):
+        return append_command(
+            page_dir,
+            {
+                "kind": "action",
+                "author": "user",
+                "revision": latest_revision(page_dir),
+                "widget": widget,
+                "action": verb,
+                "detail": {},
+            },
+        )
+
+    def work():
+        return read_page(page_dir, events_model.read_events(page_dir)).work.durable
+
+    assert work().all_obligations["all"] == []
+    quiet = action("edit")
+    assert not quiet["attention"]
+    first = action("archive")
+    assert first["attention"]
+    assert work().all_obligations["all"] == []
+    assert owed_answers(page_dir) == []
+    assert session_model.cmd_wait(page_dir) == 0
+    payload, _, events = printed(capsys.readouterr().out)
+    assert [event["id"] for event in events] == [first["id"]]
+    assert "answer" not in events[0]
+    delivery_model.receive_delivery(payload["id"])
+    assert page_state(page_dir)["pending"] == 0
+
+    repeated = action("archive")
+    assert repeated["attention"]
+    assert not action("edit")["attention"]
+    (page_dir / "index.html").write_text(
+        source.replace("Archive this", "Archive this row")
+    )
+    note = publish(page_dir)
+    assert not note["attention"]
+    assert work().workflows == []
+    # A stamp settles the receipt; taking back the requested state still needs
+    # to reach the agent, just as changing it again does.
+    undone = append_command(
+        page_dir, {"kind": "undo", "author": "user", "undoes": repeated["id"]}
+    )
+    assert undone["attention"]
+    fresh = action("archive")
+    assert fresh["attention"]
+    assert service_model.unacknowledged(
+        events_model.read_events(page_dir), first["seq"]
+    ) == [repeated, undone, fresh]
+
+    # The same declaration belongs to a widget frozen into a thread message.
+    thread = append_command(
+        page_dir,
+        {
+            "kind": "comment",
+            "author": "agent",
+            "revision": latest_revision(page_dir),
+            "text": "An optional command:",
+            "markup": '<lf-archive id="thread-row">Archive this</lf-archive>',
+        },
+    )
+    frozen = action("archive", "thread-row")
+    assert frozen["attention"]
+    assert "answer" not in frozen["meaning"]
+    assert owed_answers(page_dir) == []
+    append_command(
+        page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "parent": thread["id"],
+            "text": "Archived.",
+        },
+    )
+    assert not any(item["input"] == frozen["id"] for item in work().workflows)
+    assert action("archive", "thread-row")["attention"]
+
+
 def test_widget_actions_withdrawals_reports_and_errors_remain_deliverable(page_dir):
     source = PAGE.replace(
         "</section>",
@@ -438,10 +549,7 @@ def test_widget_actions_withdrawals_reports_and_errors_remain_deliverable(page_d
     assert page_state(page_dir)["pending"] == 2
 
 
-@pytest.mark.parametrize("title", [None, "Workshop venue"])
-def test_first_delivery_carries_thread_title_without_repeating_messages(
-    page_dir, title
-):
+def test_first_delivery_carries_thread_title_without_repeating_messages(page_dir):
     publish(page_dir)
     serving(page_dir, 1)
     root = append_carried_log_record(
@@ -453,19 +561,18 @@ def test_first_delivery_carries_thread_title_without_repeating_messages(
             "text": "Which space will be easier for everyone to find?",
         },
     )
-    if title is not None:
-        named = CliRunner().invoke(
-            cli_model.cli,
-            [
-                "thread",
-                "edit",
-                str(page_dir),
-                root["id"],
-                "--title",
-                title,
-            ],
-        )
-        assert named.exit_code == 0, named.output
+    named = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "thread",
+            "edit",
+            str(page_dir),
+            root["id"],
+            "--title",
+            "Workshop venue",
+        ],
+    )
+    assert named.exit_code == 0, named.output
     assert service_model.claim_page(page_dir)
     waited = CliRunner().invoke(cli_model.cli, ["wait", str(page_dir)])
     assert waited.exit_code == 0, waited.output
@@ -474,7 +581,7 @@ def test_first_delivery_carries_thread_title_without_repeating_messages(
     assert header["threads"] == [
         {
             "id": root["id"],
-            "title": title,
+            "title": "Workshop venue",
             "anchor": None,
             "detached_from": None,
             "resolved": None,
@@ -608,7 +715,8 @@ def test_a_delivered_gesture_on_a_sent_widget_carries_its_thread(page_dir, capsy
             "revision": 1,
             "text": "Which mitigations should I carry into the patch?",
             "markup": '<lf-options id="gm" choose>'
-            '<lf-option id="m-cap"><strong>Cap retries</strong></lf-option>'
+            '<lf-option id="m-cap"><small class="tag">recommended</small>'
+            "<strong>Cap retries</strong> Bound retry load.</lf-option>"
             '<lf-option id="m-alert"><strong>Alert</strong></lf-option>'
             "</lf-options>",
         },
@@ -635,7 +743,8 @@ def test_a_delivered_gesture_on_a_sent_widget_carries_its_thread(page_dir, capsy
     assert 'id="m-cap"' in thread["messages"][0]["markup"]
     # And the pick in words, read from that frozen message: the group is left
     # out because it only encloses the option chosen in it.
-    assert shown[0]["says"] == {"m-cap": "Cap retries"}
+    assert shown[0]["says"] == {"m-cap": "recommended Cap retries Bound retry load."}
+    assert shown[0]["names"] == {"m-cap": "Cap retries"}
 
     # In force, so a later delivery in this thread carries what the user
     # settled. Without it the agent meets the question with no answer under it
@@ -685,7 +794,9 @@ def test_a_delivered_gesture_says_what_the_user_chose_on_their_version(
     (page_dir / "index.html").write_text(asked)
     publish(page_dir)
     (page_dir / "index.html").write_text(
-        asked.replace("Ship dark.", "Ship behind the flag, reworded.")
+        asked.replace("Ship dark.", "Ship behind the flag, reworded.").replace(
+            "<strong>Flag first</strong>", "<strong>Reworded choice</strong>"
+        )
     )
     advanced = stamp(page_dir, "Reworded the first plan")
     assert advanced.exit_code == 0, advanced.output
@@ -718,6 +829,18 @@ def test_a_delivered_gesture_says_what_the_user_chose_on_their_version(
     _, _, shown = delivered(capsys)
     assert [e["id"] for e in shown] == [answered["id"]]
     assert chose["attention"] is False
+    [chosen] = freeze_events(page_dir, [chose])["batches"][0]["events"]
+    assert chosen["names"] == {"flag-first": "Flag first"}
+    # A session that missed the delivery reads the same facts on the choice in force.
+    read = CliRunner().invoke(cli_model.cli, ["page", "state", str(page_dir)])
+    assert read.exit_code == 0, read.output
+    [in_force] = [
+        entry
+        for entry in json.loads(read.output)["state"]
+        if entry["seq"] == chose["seq"]
+    ]
+    facts = ("subject", "threads", "says", "names")
+    assert {key: in_force[key] for key in facts} == {key: chosen[key] for key in facts}
     [(widget, whole)] = shown[0]["says"].items()
     assert widget == "plan-choice"
     assert "Ship behind the flag, reworded." in whole and "Backfill first" in whole
@@ -731,6 +854,7 @@ def test_a_delivered_gesture_says_what_the_user_chose_on_their_version(
     assert undone["says"] == {
         "flag-first": "effort: low risk: med Flag first Ship dark."
     }
+    assert undone["names"] == {"flag-first": "Flag first"}
 
 
 def test_one_action_can_belong_to_its_widget_thread_and_the_thread_it_resolves(
@@ -864,9 +988,11 @@ def test_a_delivered_gesture_on_a_sent_widget_keeps_its_message_in_a_long_thread
 
     assert session_model.cmd_wait(page_dir) == 0
     _, header, shown = printed(capsys.readouterr().out)
+    assert header is not None
     assert [event["id"] for event in shown] == [chose["id"]]
     [thread] = header["threads"]
     assert thread["id"] == root["id"]
+    assert asking_message is not None
     carried = next(
         message
         for message in thread["messages"]
@@ -1030,7 +1156,7 @@ def test_a_settling_reaction_wakes_only_when_it_answers_the_agent(
     publish(page_dir)
     session_model.cmd_waiting(page_dir)
     question = thread_model.cmd_comment(
-        page_dir, "", "", "", "One question:", '<lf-ask id="forty">Forty?</lf-ask>'
+        page_dir, "", "", "", "Forty?", "", obligation=True
     )
     quiet = append_command(
         page_dir,
@@ -1144,3 +1270,191 @@ def test_every_delivery_an_eval_pastes_is_the_envelope_leaf_writes():
             with_leaf_resources(delivery_model.DELIVERY.schema), envelope
         )
         assert error is None, f"{case}: {error}"
+
+
+def test_a_pick_carries_the_questions_still_waiting_about_its_decision(page_dir):
+    """An action on a decision carries, in `waiting`, the agent's questions that still
+    wait on the user in a thread about that decision, so the agent can judge which the
+    pick settles; a question in a thread elsewhere stays out."""
+    source = PAGE.replace(
+        "</section>",
+        '</section><section id="ship-ask"><h2>Ship on Friday?</h2>'
+        '<lf-options id="permit" choose><lf-option id="publish">Publish</lf-option>'
+        '<lf-option id="hold">Keep it private</lf-option></lf-options></section>'
+        '<p id="aside">An aside.</p>',
+    )
+    (page_dir / "index.html").write_text(source)
+    publish(page_dir)
+
+    def asked(anchor):
+        root = append_carried_log_record(
+            page_dir,
+            {
+                "kind": "comment",
+                "author": "user",
+                "revision": 1,
+                "text": "Show me.",
+                "anchor": {"section": anchor},
+            },
+        )
+        return append_carried_log_record(
+            page_dir,
+            {
+                "kind": "reply",
+                "author": "agent",
+                "agent": "Claude",
+                "revision": 1,
+                "parent": root["id"],
+                "responds": root["id"],
+                "text": "Try it before choosing.",
+                "obligation": True,
+            },
+        )["id"]
+
+    about = asked("ship-ask")
+    asked("aside")
+    pick = append_command(
+        page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "permit",
+            "action": "choose",
+            "detail": {"value": ["publish"]},
+        },
+    )
+    [batch] = freeze_events(page_dir, [pick])["batches"]
+    [event] = batch["events"]
+    assert event["waiting"] == [
+        {"id": f"message:{about}", "text": "Try it before choosing."}
+    ]
+    assert any("`waiting`" in batch["handling"][clause] for clause in event["handling"])
+
+
+def test_a_message_on_a_playground_carries_the_settings_it_showed(
+    tmp_path, initialized_page
+):
+    """Unsent work wakes no one, so no batch carries a playground's settings, and the
+    agent answering "too round" needs the radius the preview showed, which current
+    state may already have moved past. Each message or edit about the widget carries,
+    as `unsent`, the work in force when the user wrote it: an undo before it takes a
+    setting back and one after it doesn't, a thread later moved to another
+    playground keeps what its earlier messages were about, a playground sent in a
+    thread counts for that thread, and a message elsewhere carries none. `page state`
+    prints the same work on each message of a thread it reads."""
+    page_dir = initialized_page(tmp_path / "page", ("playground",))
+
+    def playground(ident, card):
+        return (
+            f'<lf-playground id="{ident}">'
+            '<lf-playground-control name="radius" label="Radius" kind="range" '
+            'value="8" max="20"></lf-playground-control>'
+            f'<lf-playground-preview><p id="{card}">Deployed.</p>'
+            "</lf-playground-preview>"
+            "<lf-playground-output>Build it.</lf-playground-output></lf-playground>"
+        )
+
+    (page_dir / "index.html").write_text(
+        '<!doctype html><html lang="en"><head><title>t</title></head><body><main>'
+        + playground("notify", "card")
+        + playground("other", "other-card")
+        + '<p id="aside">An aside.</p></main></body></html>'
+    )
+    publish(page_dir)
+
+    def user(event):
+        dated = {} if event["kind"] in {"undo", "edit"} else {"revision": 1}
+        return append_command(page_dir, {"author": "user", **dated, **event})
+
+    def tune(widget, radius):
+        return user(
+            {
+                "kind": "action",
+                "widget": widget,
+                "action": "tune",
+                "detail": {"values": {"radius": radius}},
+            }
+        )
+
+    round_ = tune("notify", 12)
+    user({"kind": "undo", "undoes": tune("notify", 4)["id"]})
+    # The submission the agent got already is sent work, so it isn't carried again.
+    submit = {"values": {"radius": 12}, "instruction": "Build it."}
+    user({"kind": "action", "widget": "notify", "action": "choose", "detail": submit})
+    comment = {"kind": "comment", "text": "Too round."}
+    opened = user({**comment, "anchor": {"section": "card"}})
+    sharper = tune("notify", 6)
+    reply = user({"kind": "reply", "parent": opened["id"], "text": "Now too sharp."})
+    user({"kind": "undo", "undoes": sharper["id"]})
+    moved = tune("other", 3)
+    agent = {"author": "agent", "agent": "Claude"}
+    append_command(
+        page_dir,
+        {
+            **agent,
+            "kind": "reply",
+            "revision": 1,
+            "parent": reply["id"],
+            "text": "Compare it with this one.",
+            "anchor": {"section": "other-card"},
+        },
+    )
+    edit = user({"kind": "edit", "message": reply["id"], "text": "Still too sharp."})
+    aside = user({**comment, "anchor": {"section": "aside"}})
+    asked = append_carried_log_record(
+        page_dir,
+        {
+            **agent,
+            "kind": "comment",
+            "revision": 1,
+            "text": "Try this one.",
+            "markup": playground("sent", "sent-card"),
+        },
+    )
+    sent = tune("sent", 2)
+    answered = user({"kind": "reply", "parent": asked["id"], "text": "Too sharp."})
+
+    def shown(inputs):
+        [batch] = freeze_events(page_dir, inputs)["batches"]
+        return {event["id"]: event.get("unsent") for event in batch["events"]}
+
+    fields = ("id", "seq", "author", "widget", "action", "detail")
+    on_page = {
+        opened["id"]: [{key: round_[key] for key in fields}],
+        reply["id"]: [{key: sharper[key] for key in fields}],
+        edit["id"]: [{key: moved[key] for key in fields}],
+        aside["id"]: None,
+    }
+    assert shown([opened, reply, edit, aside, answered]) == {
+        **on_page,
+        answered["id"]: [{key: sent[key] for key in fields}],
+    }
+
+    # A session that never got those deliveries reads the same work on each message
+    # of the thread, an edited message reading what stood at its latest edit.
+    def read(thread):
+        result = CliRunner().invoke(
+            cli_model.cli, ["page", "state", str(page_dir), thread]
+        )
+        assert result.exit_code == 0, result.output
+        return {
+            message["message"]: message.get("unsent")
+            for message in json.loads(result.output)["content"]
+            if message["author"] == "user"
+        }
+
+    assert read(opened["id"]) == {
+        opened["id"]: on_page[opened["id"]],
+        reply["id"]: on_page[edit["id"]],
+    }
+    assert read(asked["id"]) == {answered["id"]: [{key: sent[key] for key in fields}]}
+
+    # The version the user wrote on says what its verbs recorded, so a later one
+    # redeclaring the verb leaves what the earlier messages were about.
+    declare_on_page(
+        page_dir,
+        lambda registry: registry["lf-playground"]["x-state"]["tune"].pop("unsent"),
+    )
+    publish(page_dir)
+    assert shown([opened, reply, edit, aside]) == on_page

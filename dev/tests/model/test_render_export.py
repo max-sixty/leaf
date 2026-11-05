@@ -5,18 +5,18 @@ import time
 from interact_support import (
     STATED_TIMEOUT,
 )
+
 from leaf_dev.commands import preview as preview_model
 
 
 def test_a_watch_subscription_collects_before_its_first_read(tmp_path):
     """An edit made while nobody is reading the subscription is still in it.
 
-    watchfiles starts its rust watcher on the subscription's first read, and the
-    read a preview's loop makes comes after the preview has announced its URL —
-    so the edit a developer makes the moment that URL appears used to land in a
-    window nothing was watching. The interval here is that announcement: long
-    enough that the write is over and reported by the platform before anything
-    reads, which is what an unstarted subscription cannot survive.
+    A preview's loop first reads its subscription after the preview has announced
+    its URL, so the edit a developer makes the moment that URL appears lands before
+    that read. The interval here is that announcement: long enough that the write
+    is over and reported by the platform before anything reads, which a
+    subscription installed only on its first read would miss.
     """
     edited = tmp_path / "source.html"
     edited.write_text("<p>authored</p>", encoding="utf-8")

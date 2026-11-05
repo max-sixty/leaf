@@ -2,7 +2,7 @@
  * share the frame scale and crop translation; neither package consumers nor the
  * pixel/outline renderers reinterpret that geometry. Shared Leaf controls own
  * button faces, targets, focus, disabled and pressed states. */
-:scope:is(lf-shot) {
+lf-shot {
   display: flex;
   flex-direction: column;
   min-inline-size: 0;
@@ -22,10 +22,9 @@
   flex: none;
   min-inline-size: 0;
   anchor-scope: --lf-shot-options;
-  font: var(--t-working-label)/1.4 var(--sans);
+  font: var(--font-compact);
 }
 .lf-shot-actions,
-.lf-shot-views,
 .lf-shot-tools {
   display: flex;
   align-items: center;
@@ -35,11 +34,10 @@
 .lf-shot-actions {
   grid-area: actions;
 }
-.lf-shot-views > .lf-btn,
 .lf-shot-tools > .lf-btn,
 .lf-shot-scale-options > .lf-btn {
   /* Selection changes the face, never the width of its words. */
-  font-weight: 500;
+  font: var(--font-choice);
   white-space: nowrap;
 }
 .lf-shot-toolbar > .lf-shotcap[data-lf-state="before"] {
@@ -55,32 +53,20 @@
   min-inline-size: var(--aim-floor);
   anchor-name: --lf-shot-options;
 }
+/* The options hang below their trigger, or above it where the window has no room
+   below, on the popover face (controls.css, `.lf-popover`). */
 .lf-shotoptions {
   box-sizing: border-box;
   position: fixed;
-  inset: 0;
-  margin: auto;
+  position-anchor: --lf-shot-options;
+  position-area: bottom span-left;
+  position-try-fallbacks: flip-block;
+  inset: auto;
+  margin: var(--sp-2) 0;
   inline-size: max-content;
   max-inline-size: calc(100vw - 32px);
   padding: var(--sp-2);
-  border: 1px solid var(--border-2);
-  border-radius: var(--r);
-  background: var(--paper);
-  color: var(--ink);
-  box-shadow: var(--raise-2);
-  font: var(--t-working-label)/1.4 var(--sans);
-}
-@supports (position-area: bottom) {
-  .lf-shotoptions {
-    position-anchor: --lf-shot-options;
-    position-area: bottom span-left;
-    inset: auto;
-    margin: var(--sp-2) 0;
-    position-try-fallbacks: flip-block;
-  }
-}
-.lf-shotoptions::backdrop {
-  background: transparent;
+  font: var(--font-compact);
 }
 .lf-shot-scale-options {
   display: flex;
@@ -108,10 +94,11 @@
   outline: none;
 }
 .lf-shotframe:has(.lf-shot-open[data-lf-focus-visible]) {
-  /* The source can scroll beyond its frame; focus stays on the visible image. */
+  /* The source can scroll beyond its frame; focus stays on the visible image, at a
+     region's gap (base.css). */
   --lf-wears-ring: 1;
   outline: var(--focus-ring);
-  outline-offset: var(--focus-ring-gap);
+  --lf-ring-at: var(--focus-region-gap);
 }
 .lf-shot-pixel-key {
   border-block-start: 1px solid var(--rule);
@@ -140,8 +127,18 @@
   .lf-shot-actions {
     justify-content: space-between;
   }
+  /* The views share their row with the tools. A view that wrapped below the others
+     would stand inside their touch targets and push the images down, so here the
+     views give up their gap and, last, a little of their padding. */
   .lf-shot-views {
+    min-inline-size: 0;
+  }
+  .lf-shot-views::part(form-control-input) {
+    flex-wrap: nowrap;
     gap: 0;
+  }
+  .lf-shot-views > .lf-shot-view::part(label) {
+    white-space: nowrap;
   }
   .lf-shot-tools {
     gap: 0;
@@ -164,16 +161,24 @@
   flex: 1 1 auto;
   min-inline-size: 0;
   min-block-size: 0;
-  overflow: auto;
+  /* The stage scrolls only on an axis its drawing can outgrow (reading regions, in
+     skills/leaf/references/module-scroll-and-motion.md): at 100%, sideways, and down
+     too where the shot holds its height (below); in Pair each capture's window
+     scrolls instead. Fit shows every capture whole, so there it clips, and the stable
+     gutter keeps its width the same at both scales. */
+  overflow: hidden;
   /* Native chaining belongs to ordinary document evidence. A bounded parent or
      modal decides its own outer scrolling boundary. */
   overscroll-behavior: auto;
   --lf-top: 0px;
   scrollbar-gutter: stable;
 }
-:scope:is(lf-shot)[data-lf-shot-mode="compare"] .lf-shotstage {
-  /* Keep the same content width as the other modes on classic-scrollbar hosts. */
-  overflow: hidden;
+/* Each view is the screen's: paper prints every source whole (print, below). */
+@media screen {
+  lf-shot[data-lf-shot-scale="actual"]:not([data-lf-shot-mode="compare"])
+    .lf-shotstage {
+    overflow-x: auto;
+  }
 }
 .lf-shotcanvas {
   display: grid;
@@ -190,8 +195,10 @@
   background: var(--card);
   overflow: clip;
 }
-:scope:is(lf-shot)[data-lf-shot-mode="compare"] .lf-shotframe {
-  inline-size: calc(var(--lf-shot-viewport-width) + 2px);
+@media screen {
+  lf-shot[data-lf-shot-mode="compare"] .lf-shotframe {
+    inline-size: calc(var(--lf-shot-viewport-width) + 2px);
+  }
 }
 .lf-shotviewport {
   inline-size: var(--lf-shot-frame-width);
@@ -199,12 +206,17 @@
 }
 /* Each capture's window keeps the height the fit gave it, and at actual size the reader
    scrolls the capture inside it, so both frames keep one size. */
-:scope:is(lf-shot)[data-lf-shot-mode="compare"] .lf-shotviewport {
-  --lf-holds-height: 1;
-  inline-size: var(--lf-shot-viewport-width);
-  block-size: var(--lf-shot-viewport-height);
-  overflow: auto;
-  overscroll-behavior: auto;
+@media screen {
+  lf-shot[data-lf-shot-mode="compare"] .lf-shotviewport {
+    --lf-holds-height: 1;
+    inline-size: var(--lf-shot-viewport-width);
+    block-size: var(--lf-shot-viewport-height);
+    overflow: hidden;
+    overscroll-behavior: auto;
+  }
+  lf-shot[data-lf-shot-mode="compare"][data-lf-shot-scale="actual"] .lf-shotviewport {
+    overflow: auto;
+  }
 }
 .lf-shot-frame-label {
   box-sizing: border-box;
@@ -212,18 +224,18 @@
   align-items: center;
   block-size: var(--lf-shot-label-height);
   border-block-end: 1px solid var(--rule);
-  font: 600 var(--t-working-label)/1.4 var(--sans);
 }
-:scope:is(lf-shot)[data-lf-shot-mode="compare"][data-lf-shot-layout="stack"]
-  .lf-shot-frame-label {
+lf-shot[data-lf-shot-mode="compare"][data-lf-shot-layout="stack"] .lf-shot-frame-label {
   display: flex;
 }
 /* Stacked frames carry their own labels; the toolbar only holds controls. */
-:scope:is(lf-shot)[data-lf-shot-mode="compare"][data-lf-shot-layout="stack"]
+lf-shot[data-lf-shot-mode="compare"][data-lf-shot-layout="stack"]
   .lf-shot-toolbar
   > .lf-shotcap {
   display: none;
 }
+/* A frame's name is a label (`.lf-label`, which it wears), so it takes the label font
+   from the class and states only where it stands. */
 .lf-shotcap {
   box-sizing: border-box;
   display: block;
@@ -231,7 +243,6 @@
   max-inline-size: 100%;
   padding: var(--sp-1) var(--sp-2);
   border-radius: var(--r);
-  font: 600 var(--t-working-label)/1.4 var(--sans);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -279,33 +290,23 @@
   padding: 0;
   margin: 0;
 }
-:scope:is(lf-shot)[data-lf-shot-mode="compare"][data-lf-shot-layout="side"]
-  .lf-shotcanvas {
+lf-shot[data-lf-shot-mode="compare"][data-lf-shot-layout="side"] .lf-shotcanvas {
   /* Match the toolbar's source labels even when captures leave spare room. */
   inline-size: 100%;
   justify-content: space-between;
   grid-template-columns: repeat(2, calc(var(--lf-shot-viewport-width) + 2px));
 }
-:scope:is(lf-shot)[data-lf-shot-mode="compare"][data-lf-shot-layout="stack"]
-  .lf-shotcanvas {
+lf-shot[data-lf-shot-mode="compare"][data-lf-shot-layout="stack"] .lf-shotcanvas {
   grid-template-columns: calc(var(--lf-shot-viewport-width) + 2px);
 }
-:scope:is(lf-shot):not([data-lf-shot-mode="compare"]) .lf-shotcanvas {
+lf-shot:not([data-lf-shot-mode="compare"]) .lf-shotcanvas {
   grid-template-columns: calc(var(--lf-shot-frame-width) + 2px);
   gap: 0;
 }
-:scope:is(lf-shot):not([data-lf-shot-mode="compare"]) .lf-shotcanvas > .lf-shotframe {
-  grid-area: 1 / 1;
-}
-:scope:is(lf-shot)[data-lf-shot-mode="flip"]
-  .lf-shotcanvas
-  > .lf-shotframe[data-lf-state="before"] {
-  /* Match the first slider drawing while its deferred control loads. */
-  clip-path: inset(0 50% 0 0);
-  z-index: 1;
-}
-:scope:is(lf-shot)[data-lf-shot-mode="pixels"] .lf-shotframe {
-  display: none;
+@media screen {
+  lf-shot[data-lf-shot-mode="pixels"] .lf-shotframe {
+    display: none;
+  }
 }
 .lf-shotcomparison {
   display: block;
@@ -368,10 +369,10 @@
 .lf-shotdiff > span[data-lf-shot-mark="moved"] {
   border-color: var(--accent);
 }
-:scope:is(lf-shot):not([data-lf-shot-outlines="true"]) .lf-shotdiff {
+lf-shot:not([data-lf-shot-outlines="true"]) .lf-shotdiff {
   display: none;
 }
-:scope:is(lf-shot)[data-lf-shot-focus="true"][data-lf-shot-crop="false"]
+lf-shot[data-lf-shot-focus="true"][data-lf-shot-crop="false"]
   .lf-shotframe
   .lf-shotplane::after {
   content: "";
@@ -391,8 +392,10 @@
   block-size: calc(var(--lf-shot-frame-height) + 2px);
   border: 1px solid transparent;
 }
-:scope:is(lf-shot)[data-lf-shot-mode="pixels"] .lf-shotpixels {
-  display: block;
+@media screen {
+  lf-shot[data-lf-shot-mode="pixels"] .lf-shotpixels {
+    display: block;
+  }
 }
 .lf-shotpixels .lf-shotplane > img {
   filter: grayscale(1);
@@ -409,53 +412,57 @@
   background: var(--warn);
 }
 @container style(--lf-full-height:1) {
-  :scope:is(lf-shot) {
+  lf-shot {
     --lf-holds-height: 1;
     block-size: 100%;
     overflow: clip;
   }
 }
-/* A shot that holds its height scrolls its drawing in the stage, which holds that
-   height too; the declaration doesn't inherit, so the stage states it. */
+/* A shot that holds its height scrolls its drawing down the stage at 100%, and the
+   stage holds that height too; the declaration doesn't inherit, so the stage states
+   it. */
 @container style(--lf-holds-height:1) {
-  :scope:is(lf-shot) > .lf-shotstage {
+  lf-shot > .lf-shotstage {
     --lf-holds-height: 1;
+  }
+  @media screen {
+    lf-shot[data-lf-shot-scale="actual"]:not([data-lf-shot-mode="compare"])
+      > .lf-shotstage {
+      overflow-y: auto;
+    }
   }
 }
 @media print {
-  :scope:is(lf-shot) {
+  lf-shot {
     block-size: auto;
     overflow: visible;
   }
   /* Paper drops the toolbar and the outlines, which are offers (state.css), and prints
      the drawing (`shotBox`, shot-view.js): both complete sources, one above the
      other at the sheet's width, whichever view the screen shows. */
-  .lf-shotpixels {
-    display: none !important;
-  }
-  .lf-shotstage {
-    overflow: visible;
-  }
   .lf-shotstage,
   .lf-shotcanvas,
   .lf-shotcomparison,
   .lf-shotframe,
-  :scope:is(lf-shot)[data-lf-shot-mode="pixels"] .lf-shotframe,
   .lf-shot-frame-label,
   .lf-shotviewport,
   .lf-shotimage,
   .lf-shotplane {
     display: block;
-    inline-size: 100% !important;
-    block-size: auto !important;
-    visibility: visible !important;
-    overflow: visible !important;
+    inline-size: 100%;
+    block-size: auto;
+    visibility: visible;
+    overflow: visible;
+  }
+  /* The pixel view is an image too, and the one paper leaves out. */
+  .lf-shotpixels {
+    display: none;
   }
   .lf-shotcomparison::part(after),
   .lf-shotcomparison::part(before) {
     position: static;
     display: block;
-    clip-path: none !important;
+    clip-path: none;
   }
   .lf-shotcomparison::part(base) {
     display: flex;
@@ -484,6 +491,5 @@
   }
   .lf-shotframe {
     margin-block-end: var(--sp-3);
-    clip-path: none !important;
   }
 }

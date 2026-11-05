@@ -5,6 +5,8 @@ when a server is constructed, so stopping or reviving a service doesn't load a
 second server stack in the client process.
 """
 
+from __future__ import annotations
+
 import contextlib
 import errno
 import functools
@@ -21,6 +23,7 @@ import traceback
 from dataclasses import dataclass
 from enum import Enum, auto
 from pathlib import Path
+from typing import TYPE_CHECKING
 from urllib.parse import urlsplit
 
 from .detached import Handshake, StartRefused, starting_detached
@@ -33,6 +36,7 @@ from .leases import (
     release_lease,
     take_lease,
 )
+from .machine import caller_exited
 from .refusals import Refused
 from .schema import SERVER_LOCK, SERVICE_FILE
 from .server import (
@@ -41,6 +45,7 @@ from .server import (
     host_key,
     loopback_only,
     page_access,
+    page_origin,
     page_url,
     read_service,
     running_server,
@@ -56,6 +61,11 @@ from .service import (
     prepare_claim,
     same_claim,
 )
+from .session_runtime import select_checkout
+
+if TYPE_CHECKING:
+    from .record_types import ServiceRecord
+    from .server import PageAddress
 
 # The side that closes a TCP connection first keeps its address in TIME_WAIT, for
 # 60 s on Linux and 30 s on macOS. A server is that side for the keep-alive
@@ -63,6 +73,12 @@ from .service import (
 # it stops. Wait out what address reuse cannot pass, without waiting forever for an
 # address another live process holds.
 PORT_WAIT_SECONDS = 90
+
+# How long a stopping server lets its clients finish before it drops their
+# connections (`_page_uvicorn`). A page's answers take milliseconds, so a client
+# still unfinished after this has stopped sending or reading. It is generous, so a
+# route slowed by a loaded machine still delivers its answer.
+STOP_GRACE_SECONDS = 30
 
 # Linux refuses a SO_REUSEADDR bind beside any listener on an overlapping address
 # (socket(7)). BSD kernels, macOS among them, admit one at a specific address beside
@@ -182,6 +198,9 @@ class LeafHTTPServer:
     this server's own (`_page_uvicorn`).
     """
 
+    # Initialized by http.page_app while constructing the server application.
+    samples: dict
+
     def __init__(self, address, endpoint) -> None:
         import uvicorn
 
@@ -211,7 +230,7 @@ class LeafHTTPServer:
             )
         )
         self.socket = listening_socket(*address)
-        self.server_address = self.socket.getsockname()[:2]
+        self.server_address: tuple[str, int] = self.socket.getsockname()[:2]
 
     def fileno(self) -> int:
         return self.socket.fileno()
@@ -242,25 +261,38 @@ class LeafHTTPServer:
 
 @functools.cache
 def _page_uvicorn():
-    """Uvicorn's server, stopping when asked rather than on its next poll.
+    """Uvicorn's server, stopping when asked rather than on its next poll, and
+    never waiting on a client for longer than `STOP_GRACE_SECONDS`.
 
     Uvicorn notices `should_exit` on a 0.1 s tick, then sleeps a fixed 0.1 s after
     asking each connection to finish and polls every 0.1 s until they have. A page
     server that has nothing in flight therefore took ~0.18 s to stop, and the browser
-    suite stops one per test. Here the tick also wakes on `wake()`, and the stop waits
-    exactly as long as its connections and tasks take, polling at 5 ms. The order is
-    uvicorn's: close the listeners, ask each connection to finish, wait for them
-    unless a second signal forces the exit, then for the servers. Its graceful-shutdown timeout and lifespan shutdown are absent
-    because a page server sets neither. Built on first use, since uvicorn loads only
-    when a server is constructed.
+    suite stops one per test. Here the tick also wakes on `wake()`, and the stop polls
+    at 5 ms. The order is uvicorn's: close the listeners, ask each connection to
+    finish, and wait for the connections and their requests, unless a second signal
+    forces the exit.
+
+    Two departures keep a client from holding the stop open. Uvicorn asks only the
+    connections it has made when the stop begins, but the listener may already have
+    accepted one, such as a browser's preconnect, that asyncio makes a moment later;
+    an idle one of those stayed open for as long as its client kept it. So each poll
+    asks every connection it has not asked yet, and the wait lasts until the servers
+    report every connection gone. And a client that stops sending its request or
+    reading its answer keeps that request in flight forever, so after
+    `STOP_GRACE_SECONDS` the stop drops every connection still open. Uvicorn's own
+    graceful-shutdown timeout cancels the requests instead; cancelling cannot stop a
+    route running on a worker thread, so the stop goes on waiting for them, and no
+    route is left writing into a page its owner has removed. Lifespan shutdown is
+    absent because a page server sets no lifespan. Built on first use, since uvicorn
+    loads only when a server is constructed.
     """
     import asyncio
 
     import uvicorn
 
     class PageUvicorn(uvicorn.Server):
-        _loop = None
-        _woken = None
+        _loop: asyncio.AbstractEventLoop | None = None
+        _woken: asyncio.Event | None = None
 
         async def main_loop(self) -> None:
             self._woken = asyncio.Event()
@@ -272,7 +304,7 @@ def _page_uvicorn():
                     await asyncio.wait_for(self._woken.wait(), 0.1)
 
         def wake(self) -> None:
-            if self._loop is None:
+            if self._loop is None or self._woken is None:
                 return  # not serving yet; the first tick reads `should_exit`
             # A loop that already closed has already stopped: nothing to wake.
             with contextlib.suppress(RuntimeError):
@@ -283,13 +315,21 @@ def _page_uvicorn():
                 server.close()
             for sock in sockets or []:
                 sock.close()
-            for connection in list(self.server_state.connections):
-                connection.shutdown()
+            loop = asyncio.get_running_loop()
+            drop_at = loop.time() + STOP_GRACE_SECONDS
+            closed = asyncio.gather(*(server.wait_closed() for server in self.servers))
             state = self.server_state
-            while (state.connections or state.tasks) and not self.force_exit:
+            asked = set()
+            while (
+                state.connections or state.tasks or not closed.done()
+            ) and not self.force_exit:
+                for connection in state.connections - asked:
+                    connection.shutdown()
+                asked |= state.connections
+                if loop.time() >= drop_at:
+                    for connection in state.connections:
+                        connection.transport.abort()
                 await asyncio.sleep(0.005)
-            for server in self.servers:
-                await server.wait_closed()
 
     return PageUvicorn
 
@@ -322,7 +362,7 @@ class TemporaryPageServer:
 
     @property
     def origin(self) -> str:
-        return f"http://127.0.0.1:{self.httpd.server_address[1]}"
+        return page_origin("127.0.0.1", self.port)
 
     @property
     def port(self) -> int:
@@ -378,31 +418,37 @@ class TemporaryPageServer:
 
 def cmd_serve_temporary(page_dir: Path, host: str | None = None) -> None:
     """Run the process-owned page server used by browser automation, which binds
-    loopback only and so refuses a `host`."""
+    loopback only and so refuses a `host`.
+
+    No record names this server, so `server stop` can't reach it. It serves until
+    it is interrupted or the process that ran it exits (`machine.caller_exited`),
+    so a caller killed before it could stop the server, such as a timed-out test,
+    leaves nothing serving. It checks that process once a second."""
     if host:
         raise Refused("a temporary server is loopback-only; omit --host")
+    exited = caller_exited()
     server = TemporaryPageServer(page_dir)
     print(json.dumps({"url": server.url, "lifetime": "temporary"}), flush=True)
+
+    def stop_with_caller() -> None:
+        while not exited():
+            time.sleep(1.0)
+        server.httpd.shutdown()
+
+    threading.Thread(target=stop_with_caller, daemon=True).start()
     server.run()
 
 
 def server_reading(page_dir: Path) -> dict:
     """What a started server serves, beside its URL: the page, the server's lifetime
-    (`server.served_lifetime`) with the command that stops a persistent one, the
-    vendored layer's fingerprint and the Leaf that vendored it, and the Leaf serving
-    it (`payload_provenance`), or None for a service whose record names none."""
-    from .registry.storage import layer_metadata
-
-    layer = layer_metadata(page_dir)
+    (`server.served_lifetime`) with the command that stops a persistent one, and the
+    Leaf serving it (`payload_provenance`), or None for a service whose record names
+    none."""
     lifetime = served_lifetime(page_dir)
     reading = {"page": str(page_dir), "lifetime": lifetime}
     if lifetime == "persistent":
         reading["stop"] = f"leaf server stop {shlex.quote(str(page_dir))}"
     return reading | {
-        "layer": {
-            "fingerprint": layer["fingerprint"],
-            "leaf": layer.get("producer", {}),
-        },
         # An older live service has no trustworthy runtime identity. Naming this
         # command's payload instead would make the exact stale-server case this
         # reading exists to expose look current merely because a newer client
@@ -422,7 +468,7 @@ def started_server(page_dir: Path, url: str) -> dict:
 def _serve_claim(
     page_dir: Path,
     page: PageTransaction,
-    service: dict | None,
+    service: ServiceRecord | None,
     persistent: bool,
     revive: bool,
     harness: Harness | None,
@@ -463,12 +509,12 @@ def _reuse_server(page_dir: Path, host: str | None, persistent: bool) -> str | N
     URL is handed out as this Leaf's."""
     from .findings import Rejected
     from .layer import incompatible_layer
-    from .registry.storage import load_registry
+    from .registry.storage import layer_record
 
     existing = running_server(page_dir)
     if not existing:
         return None
-    if refusal := incompatible_layer(page_dir, load_registry(page_dir)):
+    if refusal := incompatible_layer(page_dir, layer_record(page_dir) or {}):
         raise Rejected([refusal])
     if host and urlsplit(existing["url"]).hostname != host.lower():
         raise Refused(
@@ -497,8 +543,12 @@ def _take_server_lease(page_dir: Path):
 
 
 def _service_record(
-    access: dict, httpd, persistent: bool, claimed: bool, runtime: dict
-) -> dict:
+    access: ServiceRecord | PageAddress,
+    httpd: LeafHTTPServer,
+    persistent: bool,
+    claimed: bool,
+    runtime: dict,
+) -> ServiceRecord:
     """The durable desired state for a newly bound server."""
     lifetime = (
         "persistent"
@@ -545,15 +595,16 @@ def cmd_serve(
 
     lease = None
     httpd = None
-    delivery = (
-        harness.preparing_delivery()
-        if acquire and not persistent and harness is not None and handshake is None
-        else contextlib.nullcontext()
-    )
+    delivery = contextlib.nullcontext()
+    if acquire and not persistent and harness is not None:
+        prepared_claim = prepared_claim or prepare_claim(harness, page_dir)
+        if handshake is None:
+            # The serve takes the page in this process, so it selects its Leaf
+            # before it prepares delivery (`session_runtime.select_checkout`).
+            select_checkout(harness.session)
+            delivery = harness.preparing_delivery()
     try:
         with delivery, page_locked(page_dir):
-            if acquire and not persistent and harness is not None:
-                prepared_claim = prepared_claim or prepare_claim(harness, page_dir)
             previous_service = service = read_service(page_dir)
             with PageTransaction(page_dir) as page:
                 claimed = (
@@ -593,6 +644,7 @@ def cmd_serve(
                         if acquire and claimed:
                             with page.publishing_claim(prepared_claim) as (_, claim):
                                 if httpd is not None:
+                                    assert service is not None
                                     write_service(page_dir, service)
                         else:
                             _serve_claim(
@@ -600,6 +652,7 @@ def cmd_serve(
                             )
                             claim = page.claim if claimed else None
                             if httpd is not None:
+                                assert service is not None
                                 write_service(page_dir, service)
                 except BaseException:
                     # A freshly bound resource is ours to withdraw. Reused servers
@@ -638,7 +691,8 @@ def cmd_serve(
         ).start()
         try:
             httpd.serve_forever()
-        except BaseException:  # noqa: BLE001 - reported, since `exit_serving` skips the interpreter's report
+        except BaseException:
+            # exit_serving skips the interpreter's exception report.
             traceback.print_exc()
         exit_serving(1)
     finally:
@@ -735,15 +789,16 @@ def claim_and_start(
     lifetime and cwd rather than discovering its detached process's ancestry.
     """
     harness = claim_harness(prepared_claim) if prepared_claim else session_harness()
-    delivery = (
-        harness.preparing_delivery()
-        if not persistent and harness is not None and prepared_claim is None
-        else contextlib.nullcontext()
-    )
+    claim = prepared_claim
+    delivery = contextlib.nullcontext()
+    if claim is None and not persistent and harness is not None:
+        claim = prepare_claim(harness, page_dir)
+        # The start takes the page in this process, so it selects its Leaf before
+        # it prepares delivery (`session_runtime.select_checkout`), as a detached
+        # preview's launcher did before preparing the claim it hands over.
+        select_checkout(harness.session)
+        delivery = harness.preparing_delivery()
     with delivery:
-        claim = prepared_claim or (
-            prepare_claim(harness, page_dir) if not persistent and harness else None
-        )
         try:
             with _starting_server(
                 page_dir, host, persistent, harness=harness, acquire=True, claim=claim
@@ -792,8 +847,10 @@ def cmd_stop(
             if owner is not _StopScope.ANY_OWNER
             else contextlib.nullcontext() as page,
         ):
-            if owner is not _StopScope.ANY_OWNER and not same_claim(page.claim, owner):
-                return stopped
+            if owner is not _StopScope.ANY_OWNER:
+                assert page is not None
+                if not same_claim(page.claim, owner):
+                    return stopped
             # The server may release its lease immediately after we disable it.
             service = read_service(page_dir)
             # Whether a server runs is the lease's to say: one an older Leaf started
@@ -815,13 +872,11 @@ def cmd_stop(
                 # started over it, which exits once its record is gone.
                 (page_dir / SERVICE_FILE).unlink(missing_ok=True)
             elif first:
-                disabled = {
-                    **{
-                        key: value for key, value in service.items() if key != "restart"
-                    },
-                    "enabled": False,
-                    **({"restart": restart} if restart else {}),
-                }
+                disabled = service.copy()
+                disabled.pop("restart", None)
+                disabled["enabled"] = False
+                if restart:
+                    disabled["restart"] = restart
                 if disabled != service:
                     write_service(page_dir, disabled)
             elif service["enabled"]:
@@ -839,8 +894,8 @@ def restarting_server(page_dir: Path, harness: Harness | None):
     """Hold a page's service down for the block, and start it again after, for the
     session `harness` names.
 
-    `page init` re-vendors inside this, since no server runs across a re-vendor:
-    the layer it serves and the code it runs are both what the re-vendor replaces.
+    `page init` rewrites a page's layer record inside this, since a server reads the
+    record once, as it starts, and one an older Leaf started runs that Leaf's code.
     The service goes down through `cmd_stop`, since a disabled service is what keeps
     a revival and a second start out of the block. A watching `leaf wait` goes on
     watching through the gap: a stopped service does not end a wait
@@ -891,8 +946,8 @@ def restarting_server(page_dir: Path, harness: Harness | None):
     cmd_stop(page_dir, restart=mark, owner=held)
     if not same_claim(page_claim(page_dir), held):
         raise Refused(
-            f"another session took {page_dir} while it was being re-vendored; "
-            "re-vendor it from there"
+            f"another session took {page_dir} while it was being re-initialized; "
+            "re-initialize it from there"
         )
     if not comes_back:
         note(Finding("server-unowned", values={"page": str(page_dir)}))
@@ -910,12 +965,12 @@ def restarting_server(page_dir: Path, harness: Harness | None):
             del service["restart"]
             write_service(page_dir, {**service, "enabled": True})
     if not resumed:
-        note(Finding("stopped-while-revendored", values={"page": str(page_dir)}))
+        note(Finding("stopped-during-init", values={"page": str(page_dir)}))
         return
     try:
         start_server(page_dir, persistent=persistent, revive=True, harness=harness)
     except StartRefused as error:
-        raise Refused(f"{page_dir}'s server did not start again: {error}")
+        raise Refused(f"{page_dir}'s server did not start again: {error}") from error
 
 
 def _restarts_for_session(page_dir: Path, harness: Harness | None) -> bool:
@@ -928,7 +983,7 @@ def _restarts_for_session(page_dir: Path, harness: Harness | None) -> bool:
     if harness is None or not claimant_matches(claim, harness):
         raise Refused(
             f"{page_dir} is served for another session, and only that session can "
-            "start its server again; re-vendor it from there, or take the page over "
-            f"first with `leaf server start {page_dir}`"
+            "start its server again; re-initialize it from there, or take the page "
+            f"over first with `leaf server start {page_dir}`"
         )
     return True

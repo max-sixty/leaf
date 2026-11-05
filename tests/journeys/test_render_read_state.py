@@ -1,13 +1,10 @@
 """Durable user acknowledgement through the rendered Thread surfaces."""
 
-import re
-
 import pytest
-from interact_support import append_carried_log_record, served_thread
+from interact_support import served_thread
 from playwright.sync_api import expect
 from render_cases_interaction import PANEL_PAGE, panel_comment
 from render_harness import (
-    PANEL_THREAD,
     Traffic,
     _traffic,
     leaf_page,
@@ -27,6 +24,7 @@ from leaf.render_checks import (
     SERVED_TIMEOUT_MS,
     rendered,
 )
+from leaf_dev.browser import PANEL_THREAD
 
 
 def _read_events(page_dir):
@@ -35,22 +33,24 @@ def _read_events(page_dir):
     ]
 
 
-# The panel's Threads mark says how many open threads hold news the user has not read,
-# and its dot shows while any do: the page's one standing sign of unread messages.
-def _threads_mark(page):
-    return page.locator(".lf-fp-threads")
+# The panel's control at rest, which a test focuses to stand the user in the panel.
+def _on_me_mark(page):
+    return page.locator(".lf-fp-on-user")
 
 
+# The page's one standing sign of unread messages: a dot on the On me mark, whose name
+# counts the threads holding news, and on the folded leaf. The leaf's dot stands
+# whatever view is open, where the view's ✕ takes the mark's seat, so it is read here.
 def _expect_news(page, news=True):
-    mark = _threads_mark(page)
+    dot = page.locator(".lf-fp-news-dot")
     if news:
-        expect(mark).to_have_attribute("aria-label", re.compile("with news"))
+        expect(dot).to_have_attribute("data-lf-shown", "")
     else:
-        expect(mark).not_to_have_attribute("aria-label", re.compile("with news"))
+        expect(dot).not_to_have_attribute("data-lf-shown", "")
 
 
 def _has_news(page):
-    return "with news" in _threads_mark(page).get_attribute("aria-label")
+    return page.locator(".lf-fp-news-dot").get_attribute("data-lf-shown") is not None
 
 
 def _first_unread(page):
@@ -65,7 +65,9 @@ def _said(page):
 
 
 def _thread_row(page, thread):
-    return page.locator(f'{panel_view("threads")} .lf-fp-thread[data-key="{thread}"]')
+    return page.locator(
+        f'{panel_view("threads")} .lf-fp-thread[data-lf-key="{thread}"]'
+    )
 
 
 def _select_new_route(page):
@@ -102,45 +104,6 @@ def _agent_update_reply(page_dir, root, number, for_event=None):
         f"Update {number}.\n\nCompleted steps: {number}.",
         settlement=thread_model.ProviderFinal("test-final"),
     )["id"]
-
-
-@pytest.mark.parametrize("origin", ["page", "reference"])
-def test_keyboard_first_unread_exposes_authored_reply(browser, serve, origin):
-    url = serve(PANEL_PAGE)
-    panel_comment(serve.page_dir, "The earlier user thread.")
-    root = thread_model.cmd_comment(
-        serve.page_dir,
-        None,
-        None,
-        None,
-        "Choose the next step.",
-        '<lf-ask id="read-decision"><h3>Which way?</h3>'
-        '<lf-options id="read-choice" choose>'
-        '<lf-option id="read-yes">Yes</lf-option>'
-        '<lf-option id="read-no">No</lf-option>'
-        "</lf-options></lf-ask>",
-    )["id"]
-    page = open_page(browser, url)
-    if origin == "reference":
-        page.keyboard.press("?")
-        page.get_by_role("combobox", name="Search commands").fill("g u")
-        route = page.locator(
-            '.lf-command-reference [role=row][data-lf-command="thread.unread.first"]'
-        )
-        expect(route.locator(".lf-binding-sequence > kbd")).to_have_text(["g", "u"])
-    with sending(page, "authored reply read"):
-        if origin == "reference":
-            route.get_by_role("button").click()
-        else:
-            page.keyboard.press("g")
-            page.keyboard.press("u")
-    card = page.locator(f'{PANEL_THREAD}[data-thread="{root}"]')
-    expect(card).to_be_visible()
-    expect(card.locator(f'.lf-msg[data-message="{root}"]')).to_be_focused()
-    _expect_news(page, False)
-    assert _read_events(serve.page_dir)[-1]["messages"] == [
-        {"message": root, "version": root}
-    ]
 
 
 def test_read_converges_across_two_tabs(browser, serve):
@@ -205,7 +168,7 @@ def _sample_reading_page(browser, serve, body, style):
 
 def _message_body(child):
     return child.locator(
-        f'{PANEL_THREAD} .lf-msg[data-message="{SAMPLE_READER}"] .lf-msg-body'
+        f'{PANEL_THREAD} .lf-msg[data-lf-message="{SAMPLE_READER}"] .lf-msg-body'
     )
 
 
@@ -219,7 +182,7 @@ def _open_first_unread(page, child):
     page.keyboard.press("g")
     page.keyboard.press("u")
     expect(
-        child.locator(f'{PANEL_THREAD}[data-thread="{SAMPLE_READER}"]')
+        child.locator(f'{PANEL_THREAD}[data-lf-thread="{SAMPLE_READER}"]')
     ).to_be_visible()
     panel_settled(child, view="thread")
     assert _message_body(child).evaluate("""body => {
@@ -275,7 +238,7 @@ def _read_by_the_sample(page, child):
     state = page.request.get(f"{child.url}api/state").json()
     (thread,) = served_thread(state["browser"])["threads"]
     assert thread["id"] == SAMPLE_READER
-    assert thread["unread"] == []
+    assert thread["unread"] == {}
 
 
 def test_clipped_sample_cannot_acknowledge_child_viewport(browser, serve):
@@ -287,7 +250,7 @@ def test_clipped_sample_cannot_acknowledge_child_viewport(browser, serve):
         '<h1>Practice page</h1><div id="read-clip">{sample}</div>',
         "#read-clip { height: 100px; overflow: auto; }",
     )
-    _threads_mark(child).focus()
+    _on_me_mark(child).focus()
     _open_first_unread(page, child)
     _still_unread(page, child)
 
@@ -309,9 +272,9 @@ def test_offscreen_sample_cannot_acknowledge_child_viewport(browser, serve):
         '<h1>Practice page</h1><div id="read-gap"></div>{sample}',
         "#read-gap { height: 2000px; }",
     )
-    # Below the first screen it shows nothing: the user focuses its Threads mark and
+    # Below the first screen it shows nothing: the user focuses its On me mark and
     # scrolls the containing page back to the top first.
-    _threads_mark(child).focus()
+    _on_me_mark(child).focus()
     page.evaluate("scrollTo(0, 0)")
     _open_first_unread(page, child)
     assert frame.bounding_box()["y"] > page.viewport_size["height"]
@@ -341,7 +304,7 @@ def test_a_sample_in_a_native_modal_escapes_inherited_inertness(browser, serve):
     page.locator("#owner-modal").evaluate(
         "dialog => { dialog.close(); dialog.showModal(); }"
     )
-    _threads_mark(child).focus()
+    _on_me_mark(child).focus()
     _open_first_unread(page, child)
     _scroll_to_message(page, child, "document.querySelector('#owner-modal')")
     _read_by_the_sample(page, child)
@@ -369,54 +332,6 @@ TASK_SEAT_PAGE = leaf_page(
 )
 
 
-# Scrolling the thread away releases held news the same way here as on a diff line,
-# whose case scrolls it.
-
-
-def _seat_comment(page_dir, author, text):
-    event = {
-        "kind": "comment",
-        "author": author,
-        "revision": 1,
-        "text": text,
-        "anchor": {"section": "jobs"},
-    }
-    if author == "agent":
-        event["agent"] = "Codex"
-    return append_carried_log_record(page_dir, event)["id"]
-
-
-def _agent_turn(page_dir, root, text):
-    return append_carried_log_record(
-        page_dir,
-        {
-            "kind": "reply",
-            "author": "agent",
-            "agent": "Codex",
-            "parent": root,
-            "revision": 1,
-            "text": text,
-        },
-    )["id"]
-
-
-def _to_upper_third(locator):
-    """Scroll the page, without input, so the element's top stands a third of the way
-    down the window and the page after it is on screen."""
-    locator.evaluate(
-        """node => document.scrollingElement.scrollBy({
-          top: node.getBoundingClientRect().top - innerHeight / 3,
-          behavior: 'instant'})"""
-    )
-
-
-# The keyboard's native summary activation, and a script setting `open` with no
-# summary press at all; Space and a pointer press reach the same native toggle.
-
-
-ROUTE_LINE = '["app/routes.py","new",201]'
-
-
 # Every element box in a card, keyed by the element itself, so a later reading
 # compares exactly the nodes that survived.
 _CARD_BOXES = """card => {
@@ -427,3 +342,42 @@ _CARD_BOXES = """card => {
   }
   return boxes;
 }"""
+
+
+@pytest.mark.parametrize("origin", ["page", "reference"])
+def test_keyboard_first_unread_exposes_authored_reply(browser, serve, origin):
+    url = serve(PANEL_PAGE)
+    panel_comment(serve.page_dir, "The earlier user thread.")
+    root = thread_model.cmd_comment(
+        serve.page_dir,
+        None,
+        None,
+        None,
+        "Choose the next step.",
+        '<lf-ask id="read-decision"><h3>Which way?</h3>'
+        '<lf-options id="read-choice" choose>'
+        '<lf-option id="read-yes">Yes</lf-option>'
+        '<lf-option id="read-no">No</lf-option>'
+        "</lf-options></lf-ask>",
+    )["id"]
+    page = open_page(browser, url)
+    if origin == "reference":
+        page.keyboard.press("?")
+        page.get_by_role("combobox", name="Search commands").fill("g u")
+        route = page.locator(
+            '.lf-command-reference [role=option][data-lf-command="thread.unread.first"]'
+        )
+        expect(route.locator(".lf-binding-sequence > kbd")).to_have_text(["g", "u"])
+    with sending(page, "authored reply read"):
+        if origin == "reference":
+            route.click()
+        else:
+            page.keyboard.press("g")
+            page.keyboard.press("u")
+    card = page.locator(f'{PANEL_THREAD}[data-lf-thread="{root}"]')
+    expect(card).to_be_visible()
+    expect(card.locator(f'.lf-msg[data-lf-message="{root}"]')).to_be_focused()
+    _expect_news(page, False)
+    assert _read_events(serve.page_dir)[-1]["messages"] == [
+        {"message": root, "version": root}
+    ]

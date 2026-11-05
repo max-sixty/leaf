@@ -15,15 +15,17 @@ from render_cases_interaction import (
 )
 from render_cases_navigation import source_revision
 from render_harness import (
-    PANEL,
-    PANEL_THREAD,
     leaf_page,
     open_page,
+    open_threads,
     page_comment,
     panel_field,
+    panel_menu,
     panel_settled,
     panel_view,
+    press_visible,
     scroll_settled,
+    show_resolved,
     write,
 )
 
@@ -32,63 +34,58 @@ from leaf import data as data_model
 from leaf import leases as leases_model
 from leaf import service as service_model
 from leaf.render_checks import rendered
+from leaf_dev.browser import PANEL_THREAD
 
 # The open thread's reply, the editor standing in the panel's field, and the thread's
 # held news, which the panel stands among its view's controls.
 PANEL_REPLY = '.lf-fp-field leaf-text[name="reply"]'
-PANEL_NEWS = ".lf-fp-controls .lf-thread-news"
-
-
-def open_threads(page):
-    """Stand the panel's Threads view open: by the open thread's way back to it, which
-    stands while the counts step aside for words being typed, else by its count."""
-    if page.locator(PANEL).get_attribute("data-open") == "threads":
-        return
-    back = page.locator(".lf-fp-controls .lf-fp-back", has_text="Threads")
-    (back if back.count() else page.locator(".lf-fp-threads")).click()
-    panel_settled(page, view="threads")
+PANEL_NEWS = ".lf-fp-head .lf-thread-news"
 
 
 def thread_row(page, key):
     """The thread `key`'s row in the panel's Threads view, opening Threads where it is
-    not the view standing open. Its `.lf-fp-value` says the thread's state, less the
-    word the filter showing it already says. `key` may be the thread's id: a thread this
+    not the view standing open, and unfolding Resolved for a resolved thread folded
+    there; a row the standing list holds in its place is drawn already. Its
+    `.lf-row-end` says the thread's state. `key` may be the thread's id: a thread this
     tab started is keyed by the attempt that sent it (thread/model.js, `threadKey`)."""
-    key = page.evaluate(
+    key, resolved = page.evaluate(
         """async (id) => {
           const {readThreads} = await window.__lfWidgetApi();
-          return readThreads().threads.find((t) => t.id === id)?.key ?? id;
+          const thread = readThreads().threads.find((t) => t.id === id || t.key === id);
+          return [thread?.key ?? id, Boolean(thread?.resolved)];
         }""",
         key,
     )
     open_threads(page)
-    return page.locator(f'{panel_view("threads")} .lf-fp-thread[data-key="{key}"]')
+    row = page.locator(f'{panel_view("threads")} .lf-fp-thread[data-lf-key="{key}"]')
+    if resolved and not row.count():
+        show_resolved(page)
+    return row
 
 
 def open_panel_thread(page, thread_id):
     """Open the thread `thread_id` in the panel the way a reader finds it, and return its
-    view, standing open: Threads, under the filter that lists it (Resolved for a
-    resolved thread, else Open), then its row. A thread already open there is left as it
-    stands. A row is keyed by the thread's key, which for a thread this tab started is
-    the attempt that sent it (thread/model.js, `threadKey`), so the page's own reading
-    finds it."""
-    view = page.locator(f'{PANEL_THREAD}[data-thread="{thread_id}"]')
+    view, standing open: Threads, then its row, among the open threads or under
+    Resolved. A thread already open there is left as it stands. A row is keyed by the
+    thread's key, which for a thread this tab started is the attempt that sent it
+    (thread/model.js, `threadKey`), so the page's own reading finds it."""
+    view = page.locator(f'{PANEL_THREAD}[data-lf-thread="{thread_id}"]')
     if view.count():
         return view
-    found = page.evaluate(
+    key, resolved = page.evaluate(
         """async (id) => {
           const {readThreads} = await window.__lfWidgetApi();
           const thread = readThreads().threads.find((t) => t.id === id);
-          return thread ? {key: thread.key, resolved: thread.resolved} : null;
+          return [thread?.key ?? null, Boolean(thread?.resolved)];
         }""",
         thread_id,
     )
-    assert found, f"the page holds no thread {thread_id}"
+    assert key, f"the page holds no thread {thread_id}"
     open_threads(page)
-    page.locator(".lf-fp-filters button").filter(
-        has_text="Resolved" if found["resolved"] else "Open"
-    ).click()
-    page.locator(f'.lf-fp-thread[data-key="{found["key"]}"]').click()
+    row = page.locator(f'.lf-fp-thread[data-lf-key="{key}"]')
+    if resolved and not row.count():
+        show_resolved(page)
+    row.click()
     expect(view).to_be_visible()
     panel_settled(page, view="thread")
     return view
@@ -148,9 +145,9 @@ def append_agent_reply(page_dir, parent, text, markup=None):
 def claim_for_codex(page_dir, request):
     """Claim the page for a Codex task listening on it, as App Server's adapter does."""
     claim = record_claim(page_dir, id="codex-thread", harness="codex", agent="Codex")
-    lease = leases_model.take_lease(
-        leases_model.waiter_lease_path(page_dir, claim["id"])
-    )
+    lease_path = leases_model.waiter_lease_path(page_dir, claim["id"])
+    assert lease_path is not None
+    lease = leases_model.take_wait_lease(lease_path)
     assert lease
     request.addfinalizer(lease.close)
     with service_model.PageTransaction(page_dir) as transaction:
@@ -203,7 +200,7 @@ def long_diff_thread(serve, lead=""):
         leaf_page(
             "a long diff thread",
             f'<h1 id="title">Review</h1>{lead}<lf-diff id="patch" source="review-patch">'
-            "<pre></pre></lf-diff><p>Reading the paragraph after the diff.</p>",
+            "</lf-diff><p>Reading the paragraph after the diff.</p>",
         )
     )
     data_model.cmd_data_set(
@@ -385,7 +382,7 @@ def reply_by_keyboard(page, root):
 # Where a node stands against the open panel view's landing band: its scrollport less
 # the scroll padding the focus ring takes.
 IN_LANDING_BAND = """node => {
-  const list = document.querySelector('.lf-fp-view:not([data-leaving])');
+  const list = document.querySelector('.lf-fp-view:not([data-lf-leaving])');
   const shown = list.getBoundingClientRect();
   const style = getComputedStyle(list);
   const band = [shown.top + (parseFloat(style.scrollPaddingTop) || 0),
@@ -530,12 +527,20 @@ def pressed_send_surface(browser, serve, surface):
             if surface == "pause"
             else seat.locator(":scope > .lf-page-thread > .lf-thread-reply leaf-text")
         )
+    elif surface == "diff-reply":
+        url, root = long_diff_thread(serve)
+        page = open_page(browser, url)
+        thread = page.locator(f'lf-diff .lf-page-thread[data-lf-thread="{root}"]')
+        box = thread.locator(".lf-thread-reply leaf-text")
+        box.click()
+        send = thread.locator(".lf-thread-reply .lf-compose-submit")
+        after = reply = box
     elif surface == "composer-widget":
         url = serve(
             leaf_page(
                 "diff",
                 '<h1 id="title">Review</h1><lf-diff id="patch" '
-                'source="review-patch"><pre></pre></lf-diff>',
+                'source="review-patch"></lf-diff>',
             )
         )
         data_model.cmd_data_set(serve.page_dir, "review-patch", SEAT_DIFF)
@@ -569,8 +574,7 @@ def pressed_send_surface(browser, serve, surface):
             box = holder.locator(".lf-thread-reply leaf-text")
         elif surface in {"composer", "composer-panel"}:
             if surface == "composer-panel":
-                page.locator(".lf-fp-threads").click()
-                panel_settled(page, view="threads")
+                open_threads(page)
             page.locator("#how-cap").click(click_count=3)
             page.locator(".lf-fab-input").click()
             holder = page.locator(".lf-composer")
@@ -581,12 +585,12 @@ def pressed_send_surface(browser, serve, surface):
             box = field.locator('leaf-text[name="reply"]')
             box.click()
         send = holder.locator(".lf-compose-submit")
-        # Conversation sends land where the conversation goes on: a card's on its card,
-        # the panel's in its field, a page comment opening its thread there, which the
+        # Conversation sends land where the conversation goes on: a reply in its box, a
+        # card's as the panel's, a page comment opening its thread there, which the
         # field then replies in.
         reply_box = field.locator('leaf-text[name="reply"]')
         after = {
-            "card": holder.locator(".lf-page-thread"),
+            "card": box,
             "composer": page.locator(".lf-margin-preview .lf-page-thread"),
             "composer-panel": page.locator(".lf-margin-preview .lf-page-thread"),
             "panel": reply_box,
@@ -594,7 +598,9 @@ def pressed_send_surface(browser, serve, surface):
         }[surface]
         reply = (
             page.locator(".lf-margin-preview .lf-thread-reply leaf-text")
-            if surface.startswith("composer") or surface == "card"
+            if surface.startswith("composer")
+            else box
+            if surface == "card"
             else reply_box
         )
     write(box, "Sent from the box.")
@@ -664,16 +670,12 @@ def open_capture_area(page, *, touch=False):
     """Enter the screenshot tool through its ordinary page-control route: the leaf's
     menu, Annotations, Capture area, and wait for it to dim the page. It opens with no
     area drawn, inviting a drag."""
-    menu = page.locator(".lf-fp-menu")
-    for press in (
-        page.locator(".lf-fp-leaf"),
-        menu.locator('.lf-fp-item[data-row="group:annotate"]'),
-        menu.locator('.lf-fp-item[data-row="command:capture.region.open"]'),
-    ):
-        if touch:
-            press.tap()
-        else:
-            press.click()
+    annotations = panel_menu(page, "annotate", touch=touch)
+    press_visible(
+        page,
+        annotations.locator('.lf-fp-item[data-lf-row="command:capture.region.open"]'),
+        touch=touch,
+    )
     surface = page.get_by_role("region", name="Capture area", exact=True)
     expect(surface).to_be_visible()
     expect(surface.locator(".lf-region-selection")).to_be_hidden()

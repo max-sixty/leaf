@@ -1,39 +1,49 @@
-"""Layer input resolution, composition, and content identity."""
+"""Layer input resolution, composition, and content identity.
+
+A selection has two compositions, each held for the process by the inputs it
+resolves to. Its vocabulary (`selected_vocabulary`, `LayerVocabulary`) is all a
+reader of the page needs, merged and stamped but not validated. The full composition
+(`selected_layer`, `LayerComposition`) is built over that vocabulary, validates its
+registry, and reads and validates every sheet and module the layer serves;
+`validation.command.cmd_check` and
+`http.page_endpoint` compose it so that `page check` and `server start` refuse a
+package that no longer composes (`layer-registry.md`)."""
 
 import hashlib
 import json
 import re
 import subprocess
+from collections.abc import Callable
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from functools import cache
+from functools import cache, cached_property, lru_cache
 from pathlib import Path
-from typing import NamedTuple
 
-import tinycss2
-
+from .files import file_stamp
 from .findings import Finding
 from .locations import first_overlap, located
 from .machine import package_store
 from .refusals import Refused
-from .registry.contract import element_declarations, is_element_name
+from .registry.contract import is_element_name
 from .registry.kernel import kernel_protocol
 from .schema import (
     ASSETS,
     BROWSER_DIRS,
     BUNDLED_PACKAGES,
     DEFAULT_PACKAGE,
-    EXTENSION_SCHEMA,
     HTML_NAME,
     INSTRUCTIONS_DIR,
     INSTRUCTIONS_FILE,
     JAVASCRIPT_SUFFIXES,
     KERNEL,
+    KERNEL_FILES,
+    LAYER_TOP_FILES,
     PACKAGE_DIRS,
+    PACKAGE_FILES,
     RUNTIME_DIRS,
     RUNTIME_ENTRY,
-    VENDORED_FILES,
 )
-from .state import PLUGIN_ROOT
+from .state import PLUGIN_ROOT, plugin_cache_copy
 
 
 def named_package(name: str) -> Path | None:
@@ -50,13 +60,14 @@ def named_package(name: str) -> Path | None:
     return bundled if bundled.is_dir() else None
 
 
-def resolve_packages(selected: tuple[str, ...]) -> list[Path]:
-    """Resolve recorded package selections without changing their order.
+def resolve_packages(selected: tuple[str, ...], base: Path) -> list[Path]:
+    """Resolve package selections without changing their order.
 
     A bare name selects an installed or bundled package. Other relative paths
-    are project-relative. A `~` path stays portable across the user's machines.
-    Absolute paths are not recorded because
-    `$layer.packages` is part of the page's public vendored registry.
+    resolve against `base`: the working directory of the `page init` naming them, or
+    the page directory for the copies its record names (`vendoring`). A `~` path
+    stays portable across the user's machines. Absolute paths are refused because
+    `$layer.packages` is served with the page.
     """
     packages = []
     for value in selected:
@@ -74,21 +85,24 @@ def resolve_packages(selected: tuple[str, ...]) -> list[Path]:
         if package_path.is_absolute():
             raise Refused(
                 f"package {value!r} is absolute; use a bundled name, "
-                "explicit project-relative path, or ~ path so the vendored registry "
+                "explicit project-relative path, or ~ path so the page "
                 "does not publish a machine path"
             )
         root = package_path.expanduser()
         if not root.is_absolute():
-            root = Path.cwd() / root
+            root = base / root
         if not (root.exists() or root.is_symlink()):
             raise Refused(f"package {value!r} is not a directory")
         packages.append(root)
     return packages
 
 
-def layer_inputs(selected: tuple[str, ...] = ()) -> list[Path]:
-    """The kernel, bundled default, and explicitly selected packages, in order."""
-    return [ASSETS, DEFAULT_PACKAGE, *resolve_packages(selected)]
+def layer_inputs(
+    selected: tuple[str, ...] = (), base: Path | None = None
+) -> list[Path]:
+    """The kernel, bundled default, and explicitly selected packages, in order, a
+    path selection resolving against `base` or else the working directory."""
+    return [ASSETS, DEFAULT_PACKAGE, *resolve_packages(selected, base or Path.cwd())]
 
 
 def checked_inputs(inputs: list[Path]) -> list[Path]:
@@ -103,7 +117,7 @@ def checked_inputs(inputs: list[Path]) -> list[Path]:
             continue
         if not root.is_dir():
             raise Refused(f"{root} must be a directory")
-        for name in VENDORED_FILES:
+        for name in KERNEL_FILES if root == ASSETS else PACKAGE_FILES:
             path = root / name
             if (path.exists() or path.is_symlink()) and not path.is_file():
                 raise Refused(f"{path} must be a file")
@@ -136,8 +150,13 @@ def input_paths(inputs: list[Path]) -> list[Path]:
         paths.append(root.resolve())
         paths.extend(
             path.resolve()
-            for name in VENDORED_FILES
+            for name in (KERNEL_FILES if root == ASSETS else PACKAGE_FILES)
             if ((path := root / name).exists() or path.is_symlink())
+        )
+        paths.extend(
+            imported
+            for sheet in sorted(root.glob("*.css"))
+            for imported in imported_sheets(sheet, root)
         )
         for sub in PACKAGE_DIRS:
             directory = root / sub
@@ -181,25 +200,22 @@ def composed_dir_files(inputs: list[Path], sub: str) -> dict[str, Path]:
 # The document's cascade tiers, lowest first. The chrome's form-control clearing
 # (`lf-reset`, runtime/chrome.css) stays below everything that chooses a face. The
 # kernel, every widget package, and each widget module's adopted sheet
-# (runtime/stylesheets.js) share one layer, so specificity, scope proximity, then
-# order rank their rules. The kernel's Layouts sit above it. A theme package, one that
-# declares no widgets, sits above those defaults and the Layouts (`lf-theme`), so it
-# styles every page the way the page's own sheet styles one; its rules reach Leaf's
-# controls only through an explicit controls.css sheet, as a page's marked stylesheet
-# does (runtime/page-sheets.js).
+# (runtime/base-layer.js) share one layer, so specificity, then order, rank their
+# rules. The kernel's Layouts sit above it. Package overrides
+# sit above those defaults and the Layouts (`lf-overrides`), so a package
+# styles every page the way the page's own sheet styles one.
 # Semantic state follows: retirement must outrank a theme's or package's default box
 # and a Layout's arrangement. The page's own sheet stays unlayered above these tiers,
 # and inline widget motion outranks them too. Chrome and apparatus marks stay
 # unlayered to beat page and widget alike; runtime/stylesheets.js owns their
 # precedence and defaults. `lf-shadow` holds shared shadow rules and is read only in
-# shadow trees, where it sits above adopted widget sheets and below theme packages.
+# shadow trees, where it sits above adopted widget sheets and below package overrides.
 CASCADE_LAYERS = (
     "lf-reset",
     "lf-base",
     "lf-layouts",
     "lf-shadow",
-    "lf-theme",
-    "lf-controls",
+    "lf-overrides",
     "lf-state",
 )
 
@@ -208,110 +224,306 @@ CASCADE_LAYERS = (
 _CSS_SURROGATES = dict.fromkeys(range(0xD800, 0xE000), 0xFFFD)
 
 
-def _sheet(source: Path) -> str:
-    """Validate one source and complete its EOF recovery before composition."""
-    from .styles import css_stylesheet, css_syntax_errors
+def stylesheet(source: Path, root: Path) -> str:
+    """One sheet as a page receives it: validated, its EOF recovery completed, its
+    comments dropped, and each `@import` replaced by the sheet it names.
 
+    A sheet's sources are what an author edits, so a sheet split into files needs no
+    build and can never be served older than its parts. An import names a file inside
+    `root`, relative to the importing sheet, optionally with `layer(name)`; its rules
+    stand where the import stood, so a relative `url()` in them resolves against the
+    page's copy of the importing sheet. The page then receives complete sheets and asks
+    for no import, which an adopted sheet couldn't make anyway. A dependency's sheet,
+    which an install has no `node_modules` to read, is bundled into a file beside its
+    importer (`build/styles.mjs`).
+    """
+    return _stylesheet(source, root, ())
+
+
+def _stylesheet(source: Path, root: Path, opened: tuple[Path, ...]) -> str:
+    """`stylesheet`, inside the imports of `opened`."""
+    opened = (*opened, source.resolve())
     try:
         css = source.read_text(encoding="utf-8")
-    except UnicodeDecodeError:
-        raise Refused(f"{source} must be UTF-8")
-    if errors := css_syntax_errors(css, str(source)):
-        raise Refused(str(errors[0]))
-    serialized = tinycss2.serialize(css_stylesheet(css)).translate(_CSS_SURROGATES)
+    except UnicodeDecodeError as error:
+        raise Refused(f"{source} must be UTF-8") from error
+    parts = []
+    for part in _stylesheet_parts(css, source):
+        if isinstance(part, str):
+            parts.append(part)
+        else:
+            path, layer = _import(part, source, root, opened)
+            sheet = _stylesheet(path, root, opened)
+            parts.append(f"@layer {layer} {{\n{sheet}}}\n" if layer else sheet)
+    serialized = "".join(parts).translate(_CSS_SURROGATES)
     return serialized if serialized.endswith("\n") else serialized + "\n"
 
 
-def widget_confinement(root: Path) -> tuple[str, str] | None:
-    """Native document and shadow scope roots for a package's declared widgets.
+@lru_cache(maxsize=512)
+def _stylesheet_parts(css: str, source: Path) -> tuple:
+    """One exact source's validated, normalized parts and read-only import rules.
 
-    The browser confines matching to each root and its descendants; authors name
-    a root with :scope. A widget-free package is an unscoped page theme.
+    Only source-local work is held: every composition reads each source again and
+    resolves its imports against that call's root and active import chain.
     """
-    registry = root / "registry.json"
-    tags = (
-        sorted(element_declarations(json.loads(registry.read_text())))
-        if registry.is_file()
-        else []
+    import tinycss2
+
+    from .revision_artifact import css_syntax_errors
+    from .styles import css_stylesheet
+
+    # Maintained layer code refuses declarations the browser drops; page CSS
+    # reports those as advice.
+    if errors := css_syntax_errors(css, str(source)):
+        raise Refused(str(errors[0]))
+    return tuple(
+        node if _is_import(node) else tinycss2.serialize([node])
+        for node in css_stylesheet(css)
     )
-    if not tags:
-        return None
-    listed = ", ".join(tags)
-    host = f":host(:is({listed}))"
-    return f":is({listed})", host
 
 
-# Every root's shared sheets, before a theme's optional controls.css.
-ROOT_SHEETS = ("shadow.css", "theme.css")
+def imported_sheets(source: Path, root: Path) -> list[Path]:
+    """Every file `stylesheet(source, root)` reads besides `source`, for a reader that
+    follows a sheet's inputs. An import composition would refuse is left out, since
+    composing reports it."""
+    return _imported_sheets(source, root, ())
+
+
+def _imported_sheets(source: Path, root: Path, opened: tuple[Path, ...]) -> list[Path]:
+    from .styles import css_stylesheet
+
+    opened = (*opened, source.resolve())
+    found = []
+    try:
+        rules = css_stylesheet(source.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError):
+        return found
+    for node in filter(_is_import, rules):
+        try:
+            path, _ = _import(node, source, root, opened)
+        except Refused:
+            continue
+        found += [path, *_imported_sheets(path, root, opened)]
+    return found
+
+
+def _is_import(node) -> bool:
+    return node.type == "at-rule" and node.lower_at_keyword == "import"
+
+
+def _import(
+    rule, source: Path, root: Path, opened: tuple[Path, ...]
+) -> tuple[Path, str | None]:
+    """The file one `@import` in `source` names, and the cascade layer it asks for.
+    `opened` is the chain of sheets importing it, `source` last."""
+    import tinycss2
+
+    target, *conditions = [t for t in rule.prelude if t.type != "whitespace"] or [None]
+    if target is not None and target.type == "function" and target.lower_name == "url":
+        target = next((t for t in target.arguments if t.type == "string"), None)
+    layer = None
+    if conditions and getattr(conditions[0], "lower_name", None) == "layer":
+        layer = tinycss2.serialize(conditions[0].arguments).strip() or None
+    unplaced = conditions[1:] if layer else conditions
+    if target is None or target.type not in ("string", "url") or unplaced:
+        raise Refused(
+            f"{source}: `@import {tinycss2.serialize(rule.prelude).strip()}` takes a "
+            "file's relative path and at most `layer(name)`; wrap the imported rules in "
+            "@media or @supports inside that file"
+        )
+    path = (source.parent / target.value).resolve()
+    if not path.is_relative_to(root.resolve()) or not path.is_file():
+        raise Refused(f"{source} imports {target.value!r}, which is no file in {root}")
+    if path in opened:
+        cycle = [*opened[opened.index(path) :], path]
+        raise Refused("stylesheets import each other: " + " -> ".join(map(str, cycle)))
+    return path, layer
+
+
+# Where each style rule of a package's chrome.css stands: in the chrome's scope, so it
+# matches only what the chrome holds, and under its root at two ids' weight, which no
+# rule of Leaf's chrome carries.
+CHROME_RESTYLE = "@scope (.lf-chrome) {{ :scope:not(#\\#):not(#\\#) {{ {} }} }}"
+# The group rules whose own rules are rewritten too. Every other at-rule, such as
+# @font-face, @keyframes or a @layer statement, stays as written where it stands.
+CHROME_RESTYLE_GROUPS = frozenset(
+    {"media", "supports", "container", "layer", "starting-style"}
+)
+
+
+def _holds_scope(nodes) -> bool:
+    """Whether any rule among `nodes`, at any depth, is an @scope."""
+    for node in nodes:
+        keyword = getattr(node, "lower_at_keyword", None) or (
+            node.lower_value if node.type == "at-keyword" else None
+        )
+        if keyword == "scope":
+            return True
+        for child in ("prelude", "content", "arguments"):
+            if (tokens := getattr(node, child, None)) and _holds_scope(tokens):
+                return True
+    return False
+
+
+def chrome_restyle(sheet: str, source: Path) -> str:
+    """A package's chrome.css as the chrome's sheet takes it, above Leaf's own rules.
+
+    The chrome's rules stand outside every layer, so they beat the page and every
+    package; a theme restyles the chrome on purpose only from here. Each style rule,
+    in its place and inside whatever conditions hold it, is nested in
+    `CHROME_RESTYLE`, so it reaches only what the chrome holds and wins over Leaf's
+    chrome rules whatever selector either writes. Nested, its selector is relative to
+    the chrome's root, so one keyed on the page around the chrome places `&` for that
+    root (`:root.dark & [part~="panel"]`). A rule inside a @layer stays layered, and so
+    loses to every unlayered chrome rule. Any other at-rule is global, as anywhere in
+    CSS. A package names what it restyles by part (`[part~="panel"]`), the chrome's
+    public names for its surfaces; its other classes are private and change without
+    notice. What the browser would drop as invalid is dropped here too, a rule whose
+    selector holds `;` included, which nesting would read as a declaration and a rule.
+
+    A sheet holding @scope is refused: at its top it would set a scope of its own
+    beside the chrome's, reaching the page, and nested in a rule Chromium matches
+    nothing in it.
+    """
+    import tinycss2
+
+    from .styles import css_stylesheet
+
+    if _holds_scope(css_stylesheet(sheet)):
+        raise Refused(
+            f"{source} holds @scope; Leaf already scopes chrome.css to its chrome, "
+            "so write its rules without one"
+        )
+
+    def restyled(nodes):
+        parts = []
+        for node in nodes:
+            # A `;` in a selector makes it invalid where it stands, but once nested
+            # it would end a declaration and leave the rest a rule of its own.
+            if node.type == "error" or (
+                node.type == "qualified-rule"
+                and any(token == ";" for token in node.prelude)
+            ):
+                continue
+            if node.type == "qualified-rule":
+                parts.append(CHROME_RESTYLE.format(tinycss2.serialize([node])))
+            elif (
+                node.type == "at-rule"
+                and node.content is not None
+                and node.lower_at_keyword in CHROME_RESTYLE_GROUPS
+            ):
+                inner = restyled(tinycss2.parse_rule_list(node.content))
+                prelude = tinycss2.serialize(node.prelude)
+                parts.append(f"@{node.at_keyword}{prelude}{{{inner}}}")
+            else:
+                parts.append(tinycss2.serialize([node]))
+        return "".join(parts)
+
+    return restyled(css_stylesheet(sheet))
 
 
 def composed_sheets(inputs: list[Path]) -> dict[str, bytes]:
-    """The layer's two stylesheets, each in layer precedence order.
+    """The layer's three stylesheets: each contribution in its role's cascade tier,
+    in input order. Leaf places sheets and rewrites none of their rules but
+    chrome.css's, which it nests in the chrome (`chrome_restyle`).
 
-    A root's shadow.css holds the rules a declared shadow tree has to see as well as
-    the document: the stage copies the composed shadow.css into each tree, and the
-    document's theme.css reads each root's shadow.css just ahead of its theme.css.
+    A sheet's filename sets its role. defaults.css holds a package's defaults in
+    lf-base, below Layouts: a widget's own, and a theme's element rules and idioms,
+    such as the bundled `reading` look. widget-shadow.css holds rules for both trees, in lf-base in the
+    document and lf-shadow in every declared shadow tree. Leaf adds no scope around
+    either, so each names the widgets it styles: by tag in the document, and by
+    `:host(tag)` in a shadow tree, where a rule reaches everything the tree holds,
+    including core views placed there, such as a diff's threads. overrides.css
+    holds rules meant to win over every package's defaults and the Layouts, in
+    lf-overrides. A theme reaches shadow trees through the custom properties they
+    inherit. chrome.css restyles Leaf's chrome, which takes it above its own rules
+    (`chrome_restyle`, `revision_delivery.delivery_sheets`). Each sheet
+    is read with its relative imports (`stylesheet`).
 
-    In the document, the kernel's and every widget package's sheets are the `lf-base`
-    cascade layer, the kernel's layouts.css and state.css name their higher tiers and
-    come last, and a theme package's sheets are `lf-theme`, between the two. In shadow
-    trees, shared shadow rules use `lf-shadow` above adopted widget sheets (`lf-base`),
-    preserving their precedence over vendor defaults, and a theme package's shadow.css
-    is `lf-theme` above them. state.css ranks above all of these, so declared
-    retirement has the same precedence in both trees. Authored unlayered styles and
-    inline widget motion remain above it.
-
-    Each widget package's sheet has one native @scope around its declared tags
-    in the document, or around their :host in shadow trees. :scope names the root,
-    ordinary selectors its descendants. CSS owns nested conditions and proximity;
-    composition neither rewrites selectors nor adds specificity. Widget-free
-    packages are unscoped themes that reach the page and every tree. In the document
-    the browser keeps ordinary theme rules off Leaf controls; controls.css explicitly
-    grants access from the lf-controls tier (runtime/page-sheets.js); a theme's shadow.css is written for widget internals and
-    stands as written.
+    The kernel supplies the base and shared shadow defaults. Its Layouts and semantic
+    state retain their own tiers. Page CSS remains unlayered.
     """
-    from .styles import scoped
-
-    if not any((root / "theme.css").is_file() for root in inputs):
-        raise Refused("the incoming layer has no theme.css")
+    kernel, *packages = inputs
+    if not (kernel / "base.css").is_file():
+        raise Refused("the incoming layer has no base.css")
     order = f"@layer {', '.join(CASCADE_LAYERS)};\n"
     theme = [order]
     shadow = [order]
-    for position, root in enumerate(inputs):
-        where = widget_confinement(root) if position else None
-        themes = position > 0 and where is None
-        if not themes and (root / "controls.css").is_file():
-            raise Refused(
-                f"{root}/controls.css belongs to a theme package; "
-                "a widget package styles its own controls in theme.css"
-            )
-        sheets = (*ROOT_SHEETS, "controls.css") if themes else ROOT_SHEETS
-        for name in sheets:
-            source = root / name
-            if not source.is_file():
-                continue
-            css = _sheet(source)
-            placed = scoped(css, where[0]) if where else css
-            if name == "shadow.css":
-                shadow_css = scoped(css, where[1]) if where else css
-                tier = "lf-theme" if themes else "lf-shadow"
-                shadow.append(f"@layer {tier} {{\n{shadow_css}}}\n")
-            tier = (
-                ("lf-controls" if name == "controls.css" else "lf-theme")
-                if themes
-                else "lf-base"
-            )
-            theme.append(f"@layer {tier} {{\n{placed}}}\n")
+    chrome = []
+
+    def place(sheets, tier, root, name):
+        source = root / name
+        if source.is_file():
+            sheets.append(f"@layer {tier} {{\n{stylesheet(source, root)}}}\n")
+
+    if (leading := kernel / "styles/shadow-leading.css").is_file():
+        shadow.insert(0, stylesheet(leading, kernel))
+    place(theme, "lf-base", kernel, "shadow.css")
+    place(shadow, "lf-shadow", kernel, "shadow.css")
+    place(theme, "lf-base", kernel, "base.css")
+    for root in packages:
+        place(theme, "lf-base", root, "widget-shadow.css")
+        place(shadow, "lf-shadow", root, "widget-shadow.css")
+        place(theme, "lf-base", root, "defaults.css")
+        place(theme, "lf-overrides", root, "overrides.css")
+        if (source := root / "chrome.css").is_file():
+            chrome.append(chrome_restyle(stylesheet(source, root), source))
     for name in ("layouts.css", "state.css"):
-        if (source := inputs[0] / name).is_file():
-            sheet = _sheet(source)
+        if (source := kernel / name).is_file():
+            sheet = stylesheet(source, kernel)
             theme.append(sheet)
             if name == "state.css":
                 shadow.append(sheet)
     return {
         "theme.css": "".join(theme).encode(),
         "shadow.css": "".join(shadow).encode(),
+        "chrome.css": "".join(chrome).encode(),
     }
+
+
+def portable_sheet(inputs: list[Path], tags: list[str]) -> bytes:
+    """The look a page without Leaf links for the widgets it runs (module-authoring.md,
+    "A widget that also runs off Leaf"), served as the layer's portable.css.
+
+    It holds the kernel's tokens, Web Awesome's (its theme's custom properties) and
+    Leaf's values for them, since the faces Leaf takes from that library read them,
+    then the kernel's shared sheet (shadow.css) nested under `:where(<the layer's tags>)`, then the sheets of each package that ships
+    widgets (widget-shadow.css and defaults.css), all in lf-base, the tier a widget
+    module's adopted rules take off Leaf too (runtime/base-layer.js). The nesting keeps
+    the shared sheet's page-wide control faces (`.button`, `.field`, a native control's
+    font) to the widgets' insides, so the host's own markup keeps its look; it adds no
+    specificity and keeps each rule's order, so a widget's insides rank as on a Leaf
+    page. A rule there that reaches the widget element itself, or declares on `:root`,
+    reaches nothing on the host, which is why the tokens stand outside it. The shared
+    sheet's `@property` and `@keyframes` rules can't nest, so they never reach a host
+    either: a thread's sheen and the registration of custom properties a widget's look
+    there doesn't rest on, as tests/smoke/test_plain_page.py holds.
+    A package
+    that ships no widgets, such as a theme, styles a page rather than its widgets, so
+    it stays out, as do base.css's page shell, the Layouts, semantic state and every
+    overrides.css and chrome.css. The host's unlayered rules outrank all of it.
+    """
+    kernel, *packages = inputs
+    parts = []
+
+    def place(sheet):
+        parts.append(f"@layer lf-base {{\n{sheet}}}\n")
+
+    for name in (
+        "styles/vendor/webawesome-theme.css",
+        "styles/tokens.css",
+        "styles/webawesome-tokens.css",
+    ):
+        if (tokens := kernel / name).is_file():
+            place(stylesheet(tokens, kernel))
+    if (shared := kernel / "shadow.css").is_file() and tags:
+        place(f":where({', '.join(tags)}) {{\n{stylesheet(shared, kernel)}}}\n")
+    for root in packages:
+        if not (root / "widgets").is_dir():
+            continue
+        for name in ("widget-shadow.css", "defaults.css"):
+            if (source := root / name).is_file():
+                place(stylesheet(source, root))
+    return "".join(parts).encode()
 
 
 def composed_instructions(inputs: list[Path]) -> dict[str, bytes]:
@@ -331,8 +543,8 @@ def composed_instructions(inputs: list[Path]) -> dict[str, bytes]:
                 continue
             try:
                 instructions = path.read_text(encoding="utf-8")
-            except UnicodeDecodeError:
-                raise Refused(f"{path} must be UTF-8")
+            except UnicodeDecodeError as error:
+                raise Refused(f"{path} must be UTF-8") from error
             if instructions.strip():
                 parts.setdefault(path.name, []).append(
                     f"# Package `{root.name}`\n\n{instructions.strip()}\n"
@@ -362,10 +574,98 @@ def kernel_runtime_paths() -> set[str]:
     }
 
 
-class LayerComposition(NamedTuple):
+@dataclass(frozen=True, eq=False)
+class LayerVocabulary:
+    """The part of a layer a reader of a page needs: the merged registry, the paths
+    of the files the layer's `widgets/` directory serves, and the packages'
+    instructions by audience file (`composed_instructions`).
+
+    Reading a page's documents, state or instructions needs only this
+    (`registry.storage.page_vocabulary`, `page.page_instructions`), so it is composed
+    apart from the layer's files (`LayerComposition`), which Leaf parses only to
+    serve, export, check or inspect a page, or to capture a revision whose markup
+    names one of them."""
+
     registry: dict
+    widgets: frozenset[str]
+    instructions: dict[str, bytes]
+    # What readers derive from this vocabulary, such as a revision's
+    # (`registry.storage.revision_vocabulary`), held for as long as it is.
+    readings: dict = field(default_factory=dict, repr=False)
+
+
+@dataclass(frozen=True, eq=False)
+class LayerComposition:
+    vocabulary: LayerVocabulary
     top_files: dict[str, bytes]
     directory_files: dict[str, dict[str, bytes]]
+
+    @cached_property
+    def fingerprint(self) -> str:
+        return layer_fingerprint(self)
+
+    @property
+    def files(self) -> dict[str, bytes]:
+        """Every file the layer serves, by its rooted page path."""
+        return {
+            **{f"/{name}": data for name, data in self.top_files.items()},
+            **{
+                f"/{directory}/{name}": data
+                for directory, entries in self.directory_files.items()
+                for name, data in entries.items()
+            },
+        }
+
+
+def selected_layer(
+    packages: tuple[str, ...], theme: str | None, page_dir: Path
+) -> LayerComposition:
+    """The layer this Leaf composes for the page at `page_dir` that selects
+    `packages` and the `theme`, composed before them: its core and
+    bundled packages, the user's installed ones, as this process first read them,
+    and the copies the page holds of packages it selects by path.
+
+    A page records only its selection (`registry.storage.LAYER`), so every Leaf
+    that serves, checks or exports it composes its own layer, the way it supplies
+    its own runtime (`runtime_selection`). Held for the process, since a plugin
+    update may replace the tree under a running server, which keeps answering with
+    the bytes it started with. Held by the package roots the selection resolves to
+    rather than its spelling, since a page's own copy is another directory in another
+    page, and an installed name another snapshot after `package install`; and a
+    page's copy by its stamp too, since its next `page init` replaces it in place."""
+    return _composed(*_selection(packages, theme, page_dir))
+
+
+def selected_vocabulary(
+    packages: tuple[str, ...], theme: str | None, page_dir: Path
+) -> LayerVocabulary:
+    """The vocabulary of the layer `selected_layer` composes for the same selection,
+    without reading the layer's files. Held for the process, as the layer is."""
+    return _vocabulary(*_selection(packages, theme, page_dir))
+
+
+def _selection(
+    packages: tuple[str, ...], theme: str | None, page_dir: Path
+) -> tuple[tuple[Path, ...], tuple]:
+    """The inputs a selection resolves to, and the stamps of the page's own copies
+    among them: what `selected_layer` and `selected_vocabulary` hold a layer by."""
+    if theme is not None:
+        packages = (theme, *(name for name in packages if name != theme))
+    inputs = tuple(layer_inputs(packages, page_dir))
+    copies = tuple(file_stamp(root) for root in inputs if root.is_relative_to(page_dir))
+    return inputs, copies
+
+
+@cache
+def _vocabulary(inputs: tuple[Path, ...], copies: tuple) -> LayerVocabulary:
+    return compose_vocabulary(checked_inputs(list(inputs)))
+
+
+@cache
+def _composed(inputs: tuple[Path, ...], copies: tuple) -> LayerComposition:
+    return _composition(
+        checked_layer_inputs(list(inputs)), lambda: _vocabulary(inputs, copies)
+    )
 
 
 def files_identity(files: dict[str, bytes]) -> str:
@@ -382,12 +682,12 @@ def files_identity(files: dict[str, bytes]) -> str:
 
 
 def layer_fingerprint(composition: LayerComposition) -> str:
-    """Identify the complete composed layer independently of its vendoring epoch."""
+    """Identify the complete composed layer independently of its generation."""
     return files_identity(
         {
             **composition.top_files,
             "registry.json": json.dumps(
-                composition.registry,
+                composition.vocabulary.registry,
                 ensure_ascii=False,
                 separators=(",", ":"),
                 sort_keys=True,
@@ -397,8 +697,23 @@ def layer_fingerprint(composition: LayerComposition) -> str:
                 for directory, entries in composition.directory_files.items()
                 for name, data in entries.items()
             },
+            **{
+                f"{INSTRUCTIONS_DIR}/{name}": data
+                for name, data in composition.vocabulary.instructions.items()
+            },
         }
     )
+
+
+def payload_python_inputs(root: Path) -> list[Path]:
+    """Code, schemas and dependencies a running Python process has loaded."""
+    return [
+        *sorted(path for path in (root / "src").rglob("*.py") if path.is_file()),
+        *sorted(path for path in (root / "src").rglob("*.json") if path.is_file()),
+        root / "browser/registry.json",
+        root / "pyproject.toml",
+        root / "uv.lock",
+    ]
 
 
 def payload_server_inputs(root: Path) -> list[Path]:
@@ -410,173 +725,71 @@ def payload_server_inputs(root: Path) -> list[Path]:
         root / "dist/kernel",
         root / "src/leaf/render-checks",
     ]
+    served = sorted(
+        path
+        for top in runtime
+        for path in ([top] if top.is_file() else top.rglob("*"))
+        if path.is_file()
+    )
     return [
-        *sorted((root / "src").rglob("*.py")),
-        *sorted(
-            path
-            for top in runtime
-            for path in ([top] if top.is_file() else top.rglob("*"))
-            if path.is_file()
+        *payload_python_inputs(root),
+        *served,
+        *(
+            sheet
+            for path in served
+            if path.suffix == ".css"
+            for sheet in imported_sheets(path, root / "browser")
         ),
-        root / "pyproject.toml",
-        root / "uv.lock",
     ]
 
 
-def payload_server_fingerprint() -> str:
-    """Identify serving inputs independently of a Git commit or Python build.
+def incompatible_layer(page_dir: Path, record: dict) -> Finding | None:
+    """Why this Leaf can neither serve a page nor write its log, given the page's
+    layer record (`registry.storage.LAYER`); None when it may. The record names the
+    page protocol a Leaf last initialized the page at, and this Leaf serves and
+    writes only a page at its own (`registry.kernel.kernel_protocol`).
 
-    A site builds pages on the CI host and serves them from a container with a
-    different interpreter. The vendored event contract depends on the payload's
-    files, not that interpreter's version string.
-    """
-    return files_identity(
-        {
-            path.relative_to(PLUGIN_ROOT).as_posix(): path.read_bytes()
-            for path in payload_server_inputs(PLUGIN_ROOT)
-        }
+    The page's layer is composed by whichever Leaf reads it (`selected_layer`), so
+    the protocol covers only what a page keeps across Leaf versions: its event log
+    and the records kept outside it (`layer-registry.md`, "Page protocol"). A page
+    at a higher number is refused as `newer-layer` (`newer_layer`), as is one whose
+    layer record a newer Leaf wrote at a later shape, before this reading
+    (`registry.storage.layer_record`), since its repair is a newer Leaf: this one
+    does not take it down (`vendoring._plan_page`). For a page at an
+    older number, the holding session's prompt and Stop hooks, and each of its
+    commands that names the page, take it to this Leaf's number first
+    (`vendoring.renew_layer`). Every server of the page's files, the website's
+    included (`http.page_endpoint`, `leaf_website.page_binding`), the one append
+    door and the writers that ask it first (`event_contracts.write_refusal`), and
+    `page check` refuse on this one reading, each naming its repair."""
+    recorded = record.get("protocol")
+    if type(recorded) is int and recorded == kernel_protocol():
+        return None
+    if type(recorded) is int and recorded > kernel_protocol():
+        return newer_layer(page_dir)
+    return Finding(
+        "foreign-layer",
+        values={
+            "page": str(page_dir),
+            "recorded": recorded if recorded is not None else "none",
+            "leaf": str(PLUGIN_ROOT),
+            "protocol": kernel_protocol(),
+        },
     )
 
 
-def incompatible_layer(page_dir: Path, registry: dict) -> Finding | None:
-    """Why this Leaf can neither serve a page nor write its log, given the registry it
-    would serve the page under; None when it may. Either the registry's `$events`
-    were vendored at another `protocol` than this Leaf's own
-    (`registry.kernel.kernel_protocol`), or its `$keys` document an x- key this Leaf
-    no longer admits (`schema.EXTENSION_SCHEMA`).
-
-    A Leaf serves and writes any page vendored at its own number, whichever Leaf
-    vendored it, so a plugin update leaves open pages working. A page vendored before
-    the number was declared names none, and is refused too. A page vendored at a
-    higher number is refused as `newer-layer`, naming the Leaf that vendored it,
-    since its repair is a newer Leaf: this one does not re-vendor it down
-    (`vendoring._plan_page`). A key renamed or removed since the page was vendored
-    is the same kind of fact: this Leaf would read the key's new name, find nothing,
-    and drop what the page's layer declares under the old one, so the page is
-    refused rather than misread. The check is one-sided: a key this Leaf added and
-    an older layer lacks refuses nothing. Every server of the page's live files, the
-    website's included (`http.page_endpoint`, `leaf_website.page_binding`), the one
-    append door and the writers that ask it first (`event_contracts.write_refusal`),
-    and `page check` refuse on this one reading, each naming its repair. For a page
-    vendored at an older number, the holding session's prompt and Stop hooks, and
-    each of its commands that names the page, make that re-vendor first
-    (`vendoring.renew_layer`). So does the source
-    check (`validation.source.check_source`), so activation writes no revision under
-    the layer and `page state` reports the refusal as `source.error`. A revision the
-    page saved before its last re-vendor is judged on its own registry
-    (`incompatible_revision`). The vendored layer's reader asks the protocol half
-    (`protocol_refusal`) before it validates the layer's shape
-    (`registry.storage.load_registry`).
-    """
-    if refusal := protocol_refusal(page_dir, registry):
-        return refusal
-    if retired := _retired_keys(registry):
-        return Finding(
-            "retired-layer",
-            values={
-                "page": str(page_dir),
-                "retired": retired,
-                "leaf": str(PLUGIN_ROOT),
-            },
-        )
-    return None
-
-
-def protocol_refusal(page_dir: Path, registry: dict) -> Finding | None:
-    """The half of `incompatible_layer` that reads only the page protocol a registry's
-    `$events` declare. It reads `$events` and `$layer` only where they are objects,
-    so it may run on a layer before this Leaf validates what its entries hold
-    (`registry.storage.load_registry`): that shape is this Leaf's protocol's, which a
-    layer vendored at another one need not have."""
-    if (vendored := _foreign_protocol(registry)) is not None:
-        if type(vendored) is int and vendored > kernel_protocol():
-            return Finding(
-                "newer-layer",
-                values={
-                    "page": str(page_dir),
-                    "vendored": vendored,
-                    "vendored_by": provenance_label(_producer(registry)),
-                    "leaf": str(PLUGIN_ROOT),
-                    "protocol": kernel_protocol(),
-                },
-            )
-        return Finding(
-            "foreign-layer",
-            values={
-                "page": str(page_dir),
-                "vendored": vendored,
-                "leaf": str(PLUGIN_ROOT),
-                "protocol": kernel_protocol(),
-            },
-        )
-    return None
-
-
-def incompatible_revision(revision: int, registry: dict) -> Finding | None:
-    """Why this Leaf can neither serve one of a page's revisions nor admit input made
-    against it, given the registry that revision captured: it was saved at another
-    protocol, or its vocabulary uses an x- key this Leaf no longer admits, the two
-    refusals `incompatible_layer` makes of the page's layer. None when it may.
-
-    Each revision captures the runtime and registry it was saved with, and a
-    re-vendor leaves existing revisions as they were, so a page re-vendored across a
-    bump still holds revisions saved before it. Served, one would run its own runtime
-    against this Leaf's server, which is the break the protocol announces. The
-    document server, a snapshot's capture (`page_snapshot.capture_page_snapshot`),
-    and the append door ask this of the revision they would serve or admit under;
-    readings of the log keep reading every revision's registry, so history still
-    projects. Serving the page saves its source as a revision first,
-    so its live revision is one of these only where the source no longer saves.
-    A revision whose vocabulary uses a retired key is refused for the reason the
-    layer is: this Leaf would read the key's new name there, find nothing, and draw
-    the revision without what it declares, such as a framed obligation's prompt.
-    """
-    if (saved := _foreign_protocol(registry)) is not None:
-        return Finding(
-            "foreign-revision",
-            values={
-                "revision": revision,
-                "saved": saved,
-                "protocol": kernel_protocol(),
-            },
-        )
-    if retired := _retired_keys(registry):
-        return Finding(
-            "retired-revision", values={"revision": revision, "retired": retired}
-        )
-    return None
-
-
-def _retired_keys(registry: dict) -> list[str]:
-    """The x- keys a vocabulary documents in `$keys` or declares on an entry that
-    this Leaf no longer admits (`schema.EXTENSION_SCHEMA`), in order; none where it
-    uses only admitted ones. One-sided: a key this Leaf added and the vocabulary
-    lacks is not among them."""
-    admitted = set(EXTENSION_SCHEMA["properties"])
-    keys = registry.get("$keys")
-    used = set(keys if isinstance(keys, dict) else ()) - {"description"}
-    for name, entry in registry.items():
-        if not name.startswith("$") and isinstance(entry, dict):
-            used |= {key for key in entry if key.startswith("x-")}
-    return sorted(used - admitted)
-
-
-def _foreign_protocol(registry: dict) -> int | str | None:
-    """The protocol a registry's `$events` declare where this Leaf does not speak
-    it, `"none"` where they declare none, or None where it is this Leaf's own."""
-    events = registry.get("$events")
-    declared = events.get("protocol") if isinstance(events, dict) else None
-    if type(declared) is int and declared == kernel_protocol():
-        return None
-    return declared if declared is not None else "none"
-
-
-def _producer(registry: dict) -> dict:
-    """The provenance a registry's `$layer` records, or none where a layer of
-    another shape records it elsewhere."""
-    layer = registry.get("$layer")
-    producer = layer.get("producer") if isinstance(layer, dict) else None
-    return producer if isinstance(producer, dict) else {}
+def newer_layer(page_dir: Path) -> Finding:
+    """The refusal of a page a newer Leaf initialized, at a higher page protocol or
+    a later shape of its layer record (`registry.storage.layer_record`). Its repair
+    is that newer Leaf, since this one does not take the page down."""
+    return Finding(
+        "newer-layer",
+        values={
+            "page": str(page_dir),
+            "leaf": str(PLUGIN_ROOT),
+            "protocol": kernel_protocol(),
+        },
+    )
 
 
 def payload_provenance(*, include_path: bool = False, root: Path | None = None) -> dict:
@@ -590,7 +803,7 @@ def payload_provenance(*, include_path: bool = False, root: Path | None = None) 
     """
     source = Path(__file__) if root is None else root / "src/leaf/layer.py"
     root = PLUGIN_ROOT if root is None else root.resolve()
-    provenance = {"path": str(root)} if include_path else {}
+    provenance: dict = {"path": str(root)} if include_path else {}
     distribution = root / "leaf-distribution.json"
     if distribution.is_file():
         published = json.loads(distribution.read_text())
@@ -600,14 +813,7 @@ def payload_provenance(*, include_path: bool = False, root: Path | None = None) 
     # whose final component is the resolved plugin version. Leaf leaves its manifest
     # version unset, so that component is the source commit SHA. The default root
     # follows this module: a newer sibling cannot change the running copy's identity.
-    parents = root.parents
-    if (
-        len(parents) >= 4
-        and root.parent.name == "leaf"
-        and parents[2].name == "cache"
-        and parents[3].name == "plugins"
-        and re.fullmatch(r"[0-9a-f]{7,40}", root.name)
-    ):
+    if plugin_cache_copy(root):
         # The copy stamps every file with the time it was made, and Leaf never
         # rewrites its own modules. A harness copies only the marketplace's newest
         # commit, one update sweep after it lands, so this dates the commit to
@@ -620,7 +826,10 @@ def payload_provenance(*, include_path: bool = False, root: Path | None = None) 
         )
         return provenance
 
-    git = ["git", "--no-optional-locks", "-C", str(root)]
+    # Reading provenance must leave the payload untouched. Optional locks suppress
+    # index writes; disabling fsmonitor also prevents Git from starting a daemon
+    # whose socket would make Codex refuse the installed plugin's hook fingerprint.
+    git = ["git", "--no-optional-locks", "-c", "core.fsmonitor=false", "-C", str(root)]
     try:
         identity = subprocess.run(
             [*git, "rev-parse", "--show-toplevel", "--short=12", "HEAD"],
@@ -672,22 +881,10 @@ def running_leaf() -> dict:
     return payload_provenance()
 
 
-def same_leaf(one: dict, other: dict) -> bool:
-    """Whether two provenances, as `payload_provenance` reads them, name one source:
-    the same commit, whichever abbreviates it, and the same dirty bit. Two with no
-    commit have nothing to tell apart."""
-    first, second = one.get("commit"), other.get("commit")
-    if not (first and second):
-        return first == second
-    return (first.startswith(second) or second.startswith(first)) and one.get(
-        "dirty"
-    ) == other.get("dirty")
-
-
 def provenance_label(provenance: dict) -> str:
     """One line naming a payload's commit and date, as `payload_provenance` read it.
 
-    `+` marks uncommitted changes, as the leaf's menu does.
+    `+` marks uncommitted changes, as About this page does.
     """
     commit = provenance.get("commit")
     if not commit:
@@ -699,23 +896,64 @@ def provenance_label(provenance: dict) -> str:
     return label
 
 
+def compose_vocabulary(roots: list[Path]) -> LayerVocabulary:
+    """Read the vocabulary of the layer checked inputs produce (`LayerVocabulary`),
+    refusing a registry that marks a widget upgraded whose module no input holds.
+
+    Its registry is merged and stamped but not validated. `page init` validated the
+    selection, and every Leaf that serves, exports or checks the page validates it
+    again when it composes the layer's files (`_composition`). A reader of the page
+    doesn't validate it."""
+    from .registry.layer import merged_registry, stamp_composition
+
+    incoming = stamp_composition(merged_registry(roots)[0])
+    widgets = frozenset(composed_dir_files(roots, "widgets"))
+    missing_modules = sorted(
+        tag
+        for tag, entry in incoming.items()
+        if is_element_name(tag) and entry["x-upgrade"] and f"{tag}.js" not in widgets
+    )
+    if missing_modules:
+        raise Refused(
+            "the incoming registry marks widgets as upgraded but their modules "
+            "are missing:\n"
+            + "\n".join(f"  - widgets/{tag}.js" for tag in missing_modules)
+        )
+    return LayerVocabulary(incoming, widgets, composed_instructions(roots))
+
+
 def compose_layer(roots: list[Path]) -> LayerComposition:
-    """Read and validate the complete layer produced by checked inputs.
+    """Read and validate the complete layer produced by checked inputs: its
+    vocabulary (`compose_vocabulary`) and every file it serves.
 
     The kernel's own runtime, `leaf.js` and its `runtime/` and `vendor/` files, is
     not part of it: the Leaf serving a page supplies that (`runtime_selection`), so
     the layer holds what packages add beside it, and the registry, theme and widgets
     every root contributes."""
+    return _composition(roots, lambda: compose_vocabulary(roots))
+
+
+def _composition(
+    roots: list[Path], vocabulary_of: Callable[[], LayerVocabulary]
+) -> LayerComposition:
+    """The layer `roots` produce: its registry validated as `page init` vendors it,
+    then the vocabulary `vocabulary_of` composes, whose stamping reads the registry
+    as valid, its modules checked for private kernel imports, and its sheets and
+    browser files read."""
     from .revision_artifact import (
+        PUBLIC_MODULES,
         dependency_reference,
         javascript_imports,
     )
     from .validation.composition import incoming_registry
 
+    incoming_registry(roots)
+    vocabulary = vocabulary_of()
+
     protected = kernel_runtime_paths()
-    private_modules = {"/leaf.js", *(f"/runtime/{name}" for name in protected)} - {
-        "/runtime/widget-api.js"
-    }
+    private_modules = {"/leaf.js", *(f"/runtime/{name}" for name in protected)} - set(
+        PUBLIC_MODULES
+    )
     for root in roots:
         if root.resolve() == ASSETS.resolve():
             continue
@@ -744,7 +982,6 @@ def compose_layer(roots: list[Path]) -> LayerComposition:
                             f"{module} imports private kernel module {specifier!r}; "
                             "use /runtime/widget-api.js"
                         )
-    incoming = incoming_registry(roots)
     directory_sources = {
         sub: composed_dir_files(
             [
@@ -756,22 +993,12 @@ def compose_layer(roots: list[Path]) -> LayerComposition:
         )
         for sub in BROWSER_DIRS
     }
-    missing_modules = sorted(
-        tag
-        for tag, entry in incoming.items()
-        if is_element_name(tag)
-        and entry["x-upgrade"]
-        and f"{tag}.js" not in directory_sources["widgets"]
-    )
-    if missing_modules:
-        raise Refused(
-            "the incoming registry marks widgets as upgraded but their modules "
-            "are missing:\n"
-            + "\n".join(f"  - widgets/{tag}.js" for tag in missing_modules)
+    top_files = composed_sheets(roots) | {
+        "portable.css": portable_sheet(
+            roots, sorted(filter(is_element_name, vocabulary.registry))
         )
-
-    top_files = composed_sheets(roots)
-    for name in VENDORED_FILES:
+    }
+    for name in LAYER_TOP_FILES:
         if name == "registry.json" or name in top_files:
             continue
         source = next(
@@ -787,5 +1014,4 @@ def compose_layer(roots: list[Path]) -> LayerComposition:
         }
         for sub in BROWSER_DIRS
     }
-    directory_files[INSTRUCTIONS_DIR] = composed_instructions(roots)
-    return LayerComposition(incoming, top_files, directory_files)
+    return LayerComposition(vocabulary, top_files, directory_files)

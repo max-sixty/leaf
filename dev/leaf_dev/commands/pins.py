@@ -11,10 +11,10 @@ page is opened at each of `VIEWPORTS`, each case scrolled into view, and its pin
 against what they may not cover (`faults`).
 
 The command builds that page from this working tree, and with `--base` from the merge
-base with `main` (or REF) too, and writes a Leaf page at `.tmp/pins/report/pins.html`
-that shows each case's crop at every viewport, its targets outlined in blue, beside the
-faults read there. With `--base` each crop is an `lf-shot` pair whose
-Pixels view marks where the base drew a pin in red and this tree in blue. Both
+base with `main` (or REF) too (`leaf_dev.arms.choose_arms`), and writes a Leaf page at
+`.tmp/pins/report/pins.html` that shows each case's crop at every viewport, its targets
+outlined in blue, beside the faults read there. With `--base` each crop is an `lf-shot`
+pair whose Pixels view marks where the base drew a pin in red and this tree in blue. Both
 arms' crops of a case cover the same rectangle, so the pair lines up. Each run rewrites
 that one page, so a running `--user` preview of it shows the new run as a revision, with
 the threads left on it where they were. It prints the command that starts that preview.
@@ -39,8 +39,15 @@ from PIL import Image, ImageDraw
 
 from leaf.media import media_name
 from leaf_dev import ROOT
-from leaf_dev.arms import base_ref, build_arm, run_directory, serving_source
-from leaf_dev.browser import headless_shell, load, tab, use_linux_fonts
+from leaf_dev.arms import base_option, choose_arms, run_directory, serving_source
+from leaf_dev.browser import (
+    WINDOWS,
+    headless_shell,
+    load,
+    screenshot,
+    tab,
+    use_linux_fonts,
+)
 
 OUT = ROOT / ".tmp" / "pins"
 # The report every run rewrites, so a preview of it follows each run as a revision of
@@ -55,8 +62,8 @@ SLIVER = 2
 # column draws it wider than the phone.
 SCALE = 2
 
-# Each viewport's size and whether a finger, rather than a mouse, drives it.
-VIEWPORTS = {"desktop": ((1280, 800), False), "phone": ((390, 844), True)}
+# The windows (`leaf_dev.browser.WINDOWS`) every case is read at.
+VIEWPORTS = ("desktop", "phone")
 
 
 @dataclass(frozen=True)
@@ -261,6 +268,28 @@ CASES = (
         ({"section": "tiles-1"}, {"section": "tiles-5"}),
     ),
     Case(
+        "board",
+        "A board's columns side by side, a narrow gap between them; the comment is on"
+        " the first column's first card, whose corner faces the next column's card.",
+        '<lf-board id="board-b">'
+        + "".join(
+            f'<lf-column id="board-{column}" label="{label}">'
+            + "".join(
+                f'<lf-card id="board-{column}-{i}"><strong>{title}</strong> Cosmetic'
+                " for most, wrong-day for UTC+13.</lf-card>"
+                for i, title in enumerate(titles)
+            )
+            + "</lf-column>"
+            for column, label, titles in (
+                ("now", "Blocking", ("Digest email uses server timezone",)),
+                ("next", "Next", ("CSV export quotes numerics", "Retries ignore")),
+                ("later", "Later", ("Avatar upload rejects HEIC",)),
+            )
+        )
+        + "</lf-board>",
+        ({"section": "board-now-0"},),
+    ),
+    Case(
         "form-field",
         "A full-width labelled input.",
         '<label id="form-field-l" style="display:block">Release name '
@@ -428,7 +457,15 @@ READING = """async (anchors) => {
     const el = document.getElementById(anchor.section);
     const rects = anchor.quote ? quoted(el, anchor.quote).getClientRects()
       : el.getClientRects();
-    return {for: anchor.section, parts: boxes(el, rects)};
+    // Every other block in the case, as far as it shows: not a run of words, since an
+    // inline box spans the empty ends of its lines, and neither the target's own nor
+    // holding it.
+    const blocks = [...box.querySelectorAll('*')]
+      .filter((other) => !(other instanceof SVGElement && other.ownerSVGElement) &&
+        !other.contains(el) && !el.contains(other) && other.checkVisibility() &&
+        getComputedStyle(other).display !== 'inline')
+      .flatMap((other) => boxes(other, [other.getBoundingClientRect()]));
+    return {for: anchor.section, parts: boxes(el, rects), blocks};
   });
   // Each comment's row: the one among its target's that holds the comment's words.
   const rows = [...document.querySelectorAll('[data-lf-margin-for]')];
@@ -486,9 +523,22 @@ def _distance(a: dict, b: dict) -> float:
     )
 
 
+def _beside(block: dict, parts: list[dict]) -> bool:
+    """Whether `block` stands level with the target drawn in `parts`, across from it
+    rather than above, below or over it."""
+    top = min(part["top"] for part in parts)
+    bottom = max(part["bottom"] for part in parts)
+    left = min(part["left"] for part in parts)
+    right = max(part["right"] for part in parts)
+    return min(block["bottom"], bottom) - max(block["top"], top) > SLIVER and (
+        block["left"] >= right - SLIVER or block["right"] <= left + SLIVER
+    )
+
+
 def faults(reading: dict) -> list[tuple[str, str]]:
     """Each fault in one case's reading, as its kind and the target it is about. A pin
-    is over `words`, `controls` or `media`; out of reach of its target (`far`), past
+    is over `words`, `controls` or `media`; over another block level with its target
+    (`beside`), where it reads as that block's; out of reach of its target (`far`), past
     the window's edge (`offscreen`), or over another pin (`overlap`); or a comment has
     no pin shown at all (`hidden`)."""
     found = []
@@ -511,6 +561,11 @@ def faults(reading: dict) -> list[tuple[str, str]]:
             for kind in ("words", "controls", "media"):
                 if any(_meets(entry, box) for box in reading[kind]):
                     found.append((kind, name))
+            if any(
+                parts and _meets(entry, block) and _beside(block, parts)
+                for block in target["blocks"]
+            ):
+                found.append(("beside", name))
             if any(other != pin["row"] and _meets(entry, box) for other, box in seated):
                 found.append(("overlap", name))
     return sorted(set(found))
@@ -565,7 +620,8 @@ def crop(seen: dict, rect: tuple[int, int, int, int], out: Path) -> Path:
                 outline=(40, 110, 230),
                 width=SCALE,
             )
-    image.crop(tuple(SCALE * edge for edge in rect)).save(out)
+    left, top, right, bottom = rect
+    image.crop((SCALE * left, SCALE * top, SCALE * right, SCALE * bottom)).save(out)
     return out
 
 
@@ -573,13 +629,13 @@ def capture(browser, address: str, out: Path) -> dict:
     """Open `address` at each viewport, screenshot each case under `out`, and return
     `{case: {viewport: {"faults", "unaccepted", "reading", "shot"}}}`."""
     result = {case.name: {} for case in CASES}
-    for viewport, (size, touch) in VIEWPORTS.items():
-        with tab(browser, size, touch=touch, scale=SCALE) as page:
+    for viewport in VIEWPORTS:
+        with tab(browser, WINDOWS[viewport], scale=SCALE) as page:
             load(page, address)
             for case in CASES:
                 reading = read(page, case)
                 shot = out / f"{case.name}-{viewport}-full.png"
-                page.screenshot(path=shot)
+                shot.write_bytes(screenshot(page))
                 result[case.name][viewport] = {
                     "faults": faults(reading),
                     "unaccepted": unaccepted(case, reading, viewport),
@@ -625,7 +681,7 @@ def report(arms: dict[str, tuple[str, dict]], out: Path) -> Path:
         for case in CASES
         if any(seen["unaccepted"] for seen in head[case.name].values())
     ]
-    against = f" against {escape(base[0])}" if base else ""
+    against = f" against the base, {base[0][:10]}" if base else ""
     summary = (
         "<p>No case has a fault its <code>allow</code> does not accept.</p>"
         if not failing
@@ -679,8 +735,8 @@ def report(arms: dict[str, tuple[str, dict]], out: Path) -> Path:
 <main class="layout-column">
 <header id="intro">
 <h1>Pin cases</h1>
-<p>{len(CASES)} cases on {escape(arms["head"][0])}{against}, at
-{" and ".join(f"{v} ({s[0][0]}px)" for v, s in VIEWPORTS.items())}. Targets are
+<p>{len(CASES)} cases on this working tree{against}, at
+{" and ".join(f"{v} ({WINDOWS[v].size[0]}px)" for v in VIEWPORTS)}. Targets are
 outlined in blue.{PAIRS if base else ""}</p>
 <p>These are few, and not chosen to flatter the placement: they are the shapes that
 came to mind for a pin to sit on. Where a page shows a placement that looks wrong,
@@ -698,13 +754,7 @@ add its shape here as a case.</p>
 
 
 @click.command()
-@click.option(
-    "--base",
-    is_flag=False,
-    flag_value="",
-    default=None,
-    help="Also seat the cases on the merge base with main, or the ref given.",
-)
+@base_option()
 def pins(base) -> None:
     """Seat every pin case on this working tree, and write a Leaf page of crops."""
     use_linux_fonts()
@@ -724,18 +774,14 @@ def pins(base) -> None:
             ),
             encoding="utf-8",
         )
-        arms = {"head": ("this working tree", ROOT)}
-        if base is not None:
-            commit = base_ref(base)
-            build_arm(commit, scratch / "base-arm")
-            arms["base"] = (commit[:10], scratch / "base-arm")
+        arms = choose_arms(base, scratch)
         readings = {}
         with headless_shell() as browser:
-            for arm, (label, arm_dir) in arms.items():
+            for arm, version in arms.items():
                 shots = out / arm
                 shots.mkdir()
-                with serving_source(arm_dir, fixture, scratch / arm) as address:
-                    readings[arm] = (label, capture(browser, address, shots))
+                with serving_source(version.directory, fixture, scratch / arm) as at:
+                    readings[arm] = (version.commit, capture(browser, at, shots))
     page = report(readings, out)
     click.echo(page)
     click.echo(f"uv run leaf-dev preview --source {page} --slot pins --user")

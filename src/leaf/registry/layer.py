@@ -1,48 +1,30 @@
-"""Layer registry composition and contract validation."""
+"""Layer registry composition: the kernel registry and each layer's declarations
+merged into one vocabulary, and the facts stamped into it that its readers read.
+
+Composing validates nothing; `registry.validation` does. A reader of a page reads its
+layer's vocabulary merged and stamped, and Leaf validates the vocabulary wherever it
+composes the layer's files (`layer._composition`)."""
 
 import json
+from pathlib import Path
 
-import jmespath
-import turbohtml
-from jmespath.exceptions import JMESPathError
-from jsonschema.exceptions import SchemaError
-
-from leaf.schema import (
-    AWAITS_SCHEMA,
-    EXTENSION_SCHEMA,
-    LAYER_FACTS_SCHEMA,
-    VERB_SCHEMA,
-)
+from leaf.state import KERNEL_REGISTRY
 
 from .contract import (
-    is_element_name,
+    read_registry_declarations,
     registry_error,
     stamp_decisions,
+    stamp_grammars,
     stamp_states,
     stamp_words,
-)
-from .kernel import answer_kinds
-from .schema import (
-    check_schema,
-    json_validator,
-    schema_reading,
-    unresolved_schema_reference,
 )
 
 # The `$events` members a layer may restate; the rest are the kernel's.
 LAYER_OWNED_EVENTS = frozenset({"handling", "answering"})
 # The facts both runtimes read from the kernel registry, each whole and none from a
-# layer (`registry.kernel`): Python reads the running Leaf's own copy and the browser a
-# copy generated from it, so a layer's change would reach neither. A page's older
-# runtime reads `$marks` from the vocabulary it was vendored with.
+# layer (`registry.kernel`): Python and the browser (`runtime/kernel-facts.js`) both
+# read the running Leaf's own copy, so a layer's change would reach neither.
 KERNEL_FACTS = frozenset({"$passages", "$names", "$marks", "$authored"})
-# The facts that document a declaration's keys, each beside the schema that admits
-# those keys (`validate_layer_declarations`).
-DOCUMENTED_KEYS = {
-    "$keys": EXTENSION_SCHEMA,
-    "$state": VERB_SCHEMA,
-    "$awaits": AWAITS_SCHEMA,
-}
 
 
 def merge_layer_declarations(merged: dict, declarations: dict) -> None:
@@ -92,147 +74,43 @@ def _canonical(value) -> str:
     return json.dumps(value, sort_keys=True)
 
 
+def merged_registry(packages: list[Path]) -> tuple[dict, str]:
+    """The kernel registry's facts with each package's registry declarations merged
+    over them, and the name a refusal gives the merge.
+
+    Packages are additive at the top level; `merge_layer_declarations` holds the
+    grain."""
+    merged = {}
+    merge_layer_declarations(merged, read_registry_declarations(KERNEL_REGISTRY))
+    paths = []
+    for package in packages:
+        path = package / "registry.json"
+        if not path.is_file():
+            continue
+        paths.append(path)
+        merge_layer_declarations(merged, read_registry_declarations(path))
+    if not paths:
+        raise registry_error("no-incoming-registry")
+    return merged, "merged registry (" + ", ".join(str(path) for path in paths) + ")"
+
+
 def stamp_composition(registry: dict) -> dict:
     """Write into a validated vocabulary what its readers read rather than derive:
     `$decisions` (`registry.contract.stamp_decisions`) and `$states`
     (`registry.contract.stamp_states`), which the browser reads, and each declared
-    attribute's words as its schema's `enum` (`registry.contract.stamp_words`),
-    which validation and an author reading the entry read.
+    attribute's words as its schema's `enum` (`registry.contract.stamp_words`) and
+    the grammar of each attribute naming what Leaf looks up as its `pattern`
+    (`registry.contract.stamp_grammars`), which validation and an author reading the
+    entry read.
 
     Each composition that ends in a vocabulary stamps it, `page init`'s layer and a
     page's own declarations over it, overwriting whatever a layer declared under
-    these names.
+    these names. A reader's composition stamps a vocabulary its process hasn't
+    validated (`layer.compose_vocabulary`), so a registry a package broke after
+    `page init` may fail here instead of being refused as invalid.
     """
     stamp_decisions(registry)
     stamp_states(registry)
     stamp_words(registry)
+    stamp_grammars(registry)
     return registry
-
-
-def check_layer_facts(registry: dict, path) -> None:
-    """Refuse a vocabulary whose shared layer facts depart from `LAYER_FACTS_SCHEMA`,
-    naming where and how."""
-    error = min(
-        json_validator(LAYER_FACTS_SCHEMA).iter_errors(registry), key=str, default=None
-    )
-    if error is not None:
-        raise registry_error("layer-facts", path, **schema_reading(error))
-
-
-def validate_layer_declarations(registry: dict, path) -> None:
-    """The layer facts' shape (`LAYER_FACTS_SCHEMA`), then what the schema cannot
-    say: each name one fact gives another, each `when` and contract `schema` a JSON
-    Schema, each `resources` entry JMESPath, the documented keys, and the idioms."""
-    check_layer_facts(registry, path)
-    events = registry["$events"]
-    # A layer instructs only the kinds there are: events of a declared kind, and the
-    # answers the kernel's own `answering` instructs.
-    declared = {"handling": sorted(events["kinds"]), "answering": answer_kinds()}
-    for key in ("handling", "answering"):
-        for kind, clauses in events[key].items():
-            if kind not in declared[key]:
-                raise registry_error(
-                    "undeclared-event-kind",
-                    path,
-                    key=key,
-                    kind=kind,
-                    declared=declared[key],
-                )
-            for clause in clauses:
-                if "when" not in clause:
-                    continue
-                try:
-                    check_schema(clause["when"])
-                except SchemaError as error:
-                    raise registry_error(
-                        "invalid-when",
-                        path,
-                        key=key,
-                        kind=kind,
-                        **schema_reading(error),
-                    ) from error
-    # Each documenting fact holds exactly the keys its schema admits, one string per
-    # key, beside its description: the keys are closed by that schema, so a member for
-    # a key that cannot be declared is documentation of nothing, and a key with no
-    # member is one an author reads the registry for and finds unsaid. Agents query
-    # them and the site's table is generated from $keys, which is what makes the pin
-    # worth keeping.
-    for fact, schema in DOCUMENTED_KEYS.items():
-        members = registry.get(fact)
-        admitted = set(schema["properties"])
-        documented = set(members or {}) - {"description"}
-        if (
-            not isinstance(members, dict)
-            or not isinstance(members.get("description"), str)
-            or not all(isinstance(text, str) and text for text in members.values())
-            or documented != admitted
-        ):
-            raise registry_error(
-                "keys-documentation",
-                path,
-                fact=fact,
-                missing=sorted(admitted - documented),
-                unadmitted=sorted(documented - admitted),
-            )
-    # Idioms share author-facing fields with elements and declare no marks: a mark is
-    # its tag's (`revision_delivery.mark_declared`). Validate every selector, because it
-    # remains an authored vocabulary identity.
-    allowed = {"description", "x-example", "x-instructions"}
-    probe = turbohtml.parse("<p></p>").find("p")
-    for selector, entry in registry.items():
-        if selector.startswith("$") or is_element_name(selector):
-            continue
-        try:
-            probe.matches(selector)
-        except turbohtml.SelectorSyntaxError as error:
-            raise registry_error(
-                "idiom-selector", path, selector=selector, error=str(error)
-            ) from None
-        if (
-            not isinstance(entry, dict)
-            or set(entry) - allowed
-            or not isinstance(entry.get("description"), str)
-            or not entry["description"].strip()
-            or not isinstance(entry.get("x-example"), str)
-            or not entry["x-example"].strip()
-        ):
-            raise registry_error("idiom-fields", path, selector=selector)
-        for key in set(entry) - {"description"}:
-            if not json_validator(EXTENSION_SCHEMA["properties"][key]).is_valid(
-                entry[key]
-            ):
-                raise registry_error(
-                    "idiom-value", path, selector=selector, key=key, value=entry[key]
-                )
-    languages = registry["$languages"]
-    if strays := sorted(
-        extension
-        for extension, language in languages["paths"].items()
-        if language not in languages["names"]
-    ):
-        raise registry_error("undeclared-language", path, extensions=strays)
-    for contract, declaration in registry["$data"]["contracts"].items():
-        for expression in declaration.get("resources", []):
-            try:
-                jmespath.compile(expression)
-            except JMESPathError as error:
-                raise registry_error(
-                    "contract-resource",
-                    path,
-                    contract=contract,
-                    expression=expression,
-                    error=str(error),
-                ) from error
-        records = declaration.get("records") or {}
-        if len(set(records.values())) != len(records):
-            raise registry_error("contract-records", path, contract=contract)
-        try:
-            check_schema(declaration["schema"])
-        except SchemaError as error:
-            raise registry_error(
-                "contract-schema", path, contract=contract, **schema_reading(error)
-            ) from error
-        if reference := unresolved_schema_reference(declaration["schema"]):
-            raise registry_error(
-                "contract-reference", path, contract=contract, reference=reference
-            )

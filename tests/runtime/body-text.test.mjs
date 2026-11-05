@@ -36,6 +36,8 @@ test("a rendered Markdown caret keeps its exact source position in long and stru
     "| First | Second |\n| --- | --- |\n| other | **word300** |",
     "\\* literal, &amp; then word300 and *later*.",
     "```text\nword300\n```",
+    "Run:\n\n    make word300\n\tlint",
+    "Title **word300**\n===",
     "![word300](data:text/html,unsafe)",
     "- first\n\tcontinued **word300**",
     "1. first\n\tcontinued **word300**",
@@ -65,10 +67,12 @@ test("a rendered Markdown caret keeps its exact source position in long and stru
   for (const source of ["First\nword300", "First  \nword300"]) {
     const body = document.createElement("div");
     paintMarkdown(body, source);
+    // A soft break reads as a file's space, inside the paragraph's one text.
     const node = body.querySelector("p").lastChild;
+    const at = node.data.indexOf("word300");
     for (const offset of [0, 2])
       assert.equal(
-        markdownSourceOffset(body, node, offset),
+        markdownSourceOffset(body, node, at + offset),
         source.indexOf("word300") + offset,
         source,
       );
@@ -82,9 +86,14 @@ test("Markdown body readings share file dialect, safe destinations and native st
   const cases = JSON.parse(
     readFileSync(new URL("../markdown_body_cases.json", import.meta.url)),
   );
-  for (const { source, words, links } of cases) {
+  for (const { source, words, blocks, links } of cases) {
     const body = document.createElement("div");
-    body.innerHTML = renderMarkdown(source);
+    body.innerHTML = renderMarkdown(source, false);
+    assert.deepEqual(
+      [...body.children].map((block) => block.localName),
+      blocks,
+      source,
+    );
     assert.deepEqual(
       [...body.querySelectorAll("a")].map((link) => ({
         text: link.textContent,
@@ -100,10 +109,14 @@ test("Markdown body readings share file dialect, safe destinations and native st
     );
   }
   const body = document.createElement("div");
-  body.innerHTML = renderMarkdown("<div>\n**bold**\n</div>\n\n<div>\nHeading\n---");
+  // A message reads a `---` under a line as a rule and a line's leading spaces as
+  // typed, where a file reads a heading and code.
+  body.innerHTML = renderMarkdown(
+    "<div>\n**bold**\n</div>\n\n<div>\nHeading\n---\n\n    leading spaces",
+  );
   assert.equal(
     body.innerHTML,
-    '<p data-lf-gap="0">&lt;div&gt;<br><strong>bold</strong><br>&lt;/div&gt;</p>\n<h2 data-lf-gap="1">&lt;div&gt;<br>Heading</h2>\n',
+    '<p data-lf-gap="0">&lt;div&gt;<br><strong>bold</strong><br>&lt;/div&gt;</p>\n<p data-lf-gap="1">&lt;div&gt;<br>Heading</p>\n<hr data-lf-gap="0">\n<p data-lf-gap="1">leading spaces</p>\n',
   );
   body.innerHTML = renderMarkdown("- [x] Done\n- [ ] Todo");
   assert.deepEqual(
@@ -139,6 +152,21 @@ test("Markdown body readings share file dialect, safe destinations and native st
   }
 });
 
+test("a draft's answer reads its words as its body draws them, as a file", async () => {
+  const { loadMarkdown, paintMarkdown } = await import("/runtime/markdown.js");
+  assert.equal(await loadMarkdown(), true);
+  await import("../../packages/default/widgets/lf-draft.js");
+  const source = "Title\n=====\n\nRun:\n\n    make";
+  const body = document.createElement("div");
+  paintMarkdown(body, source);
+  const collapsed = (text) => text.replace(/\s+/g, " ").trim();
+  assert.equal(collapsed(body.textContent), "Title Run: make");
+  assert.equal(
+    collapsed(customElements.get("lf-draft").answerWords(source)),
+    collapsed(body.textContent),
+  );
+});
+
 test("bare file names in Markdown stay text while explicit links remain links", async () => {
   const { loadMarkdown, renderMarkdown, renderInlineMarkdown } =
     await import("/runtime/markdown.js");
@@ -171,10 +199,10 @@ test("editor tokens retain native constructs and exact source syntax after parse
     ({ token }) => token.nesting === 1 && token.type !== "paragraph_open",
   );
   assert.deepEqual(
-    constructs.map(({ token, from, to, contentFrom, contentTo }) => [
+    constructs.map(({ token, from, to, content }) => [
       token.type,
       source.slice(from, to),
-      source.slice(contentFrom, contentTo),
+      source.slice(...content),
     ]),
     [
       ["em_open", "***nested***", "**nested**"],
@@ -195,10 +223,7 @@ test("editor tokens retain native constructs and exact source syntax after parse
     const link = placedMarkdownTokens(automatic).find(
       ({ token }) => token.type === "link_open",
     );
-    assert.equal(
-      automatic.slice(link.contentFrom, link.contentTo),
-      automatic.trim().split(" ").at(-1),
-    );
+    assert.equal(automatic.slice(...link.content), automatic.trim().split(" ").at(-1));
     assert.equal(link.to, automatic.length);
   }
   for (const automatic of ["**one** and reader@example.com foo@example.com"]) {
@@ -206,10 +231,10 @@ test("editor tokens retain native constructs and exact source syntax after parse
       ({ token }) => token.type === "link_open",
     );
     for (const link of links) {
-      const words = automatic.slice(link.contentFrom, link.contentTo);
+      const words = automatic.slice(...link.content);
       assert.match(words, /^(?:reader@example\.com|foo@example\.com)$/);
-      assert.equal(link.contentFrom, automatic.indexOf(words));
-      assert.equal(link.contentTo, link.contentFrom + words.length);
+      assert.equal(link.content[0], automatic.indexOf(words));
+      assert.equal(link.content[1], link.content[0] + words.length);
     }
     assert.equal(links.length, automatic.includes("foo@example.com") ? 2 : 1);
   }
@@ -219,19 +244,50 @@ test("editor tokens retain native constructs and exact source syntax after parse
     ["- [x] reader@example.com", "reader@example.com"],
     ["- [ ] reader@example.com", "reader@example.com"],
     ["https://example.com/a%20b", "https://example.com/a%20b"],
+    // The parser links a scheme after any character but a scheme's own; these are
+    // ones linkify-it's search wouldn't start a link after.
+    ["x `https://example.com", "https://example.com"],
+    ["URL=https://example.com", "https://example.com"],
+    ["参见https://example.com/a", "https://example.com/a"],
   ]) {
     const link = placedMarkdownTokens(automatic).find(
       ({ token }) => token.type === "link_open",
     );
-    assert.equal(automatic.slice(link.contentFrom, link.contentTo), expected);
-    assert.equal(link.contentFrom, automatic.indexOf(expected));
-    assert.equal(link.contentTo, automatic.indexOf(expected) + expected.length);
+    assert.equal(automatic.slice(...link.content), expected);
+    assert.equal(link.content[0], automatic.indexOf(expected));
+    assert.equal(link.content[1], automatic.indexOf(expected) + expected.length);
   }
-  const escaped = placedMarkdownTokens(source).flatMap(({ escapes = [] }) => escapes);
+  // Emphasis after a `*` bullet starts at its own mark, not the bullet's, on an item's
+  // first line and on a later line inside a quote.
+  for (const [source, expected] of [
+    ["* *e*", "*e*"],
+    ["> * **b** w", "**b**"],
+    ["> * a\n>   *e*", "*e*"],
+  ]) {
+    const emphasis = placedMarkdownTokens(source).find(({ token }) =>
+      /^(em|strong)_open$/.test(token.type),
+    );
+    assert.equal(source.slice(emphasis.from, emphasis.to), expected, source);
+  }
+  // Each span the message shows otherwise, and what it shows there.
+  const spelling = "**a &amp; b** \\* &#123; c\\\nd";
   assert.deepEqual(
-    escaped.map((at) => source.slice(at, at + 2)),
-    ["\\*"],
+    placedMarkdownTokens(spelling)
+      .flatMap(({ spelled = [] }) => spelled)
+      .map(([from, to, shown]) => [spelling.slice(from, to), shown]),
+    [
+      ["&amp;", "&"],
+      ["\\*", "*"],
+      ["&#123;", "{"],
+      ["\\", ""],
+    ],
   );
+  // A task item's box stands on its brackets.
+  const task = "- [x] done";
+  const box = placedMarkdownTokens(task).find(
+    ({ token }) => token.type === "html_inline",
+  );
+  assert.equal(task.slice(box.from, box.to), "[x]");
 });
 
 test("block markers retain native source spans inside containers and fences", async () => {
@@ -241,48 +297,63 @@ test("block markers retain native source spans inside containers and fences", as
     [
       "> - # Heading ##",
       [
-        ["blockquote_open", ["> "], null],
-        ["list_item_open", ["- "], null],
-        ["heading_open", ["# ", "##"], "> - # Heading ##"],
-      ],
-    ],
-    [
-      "> Heading\n> -------",
-      [
-        ["blockquote_open", ["> ", "> "], null],
-        ["heading_open", ["-------"], "> Heading\n"],
+        ["blockquote_open", ["> "]],
+        ["list_item_open", ["- "]],
+        ["heading_open", ["# ", "##"]],
       ],
     ],
     [
       "lead\r\n\r\n> # Heading",
       [
-        ["blockquote_open", ["> "], null],
-        ["heading_open", ["# "], "> # Heading"],
+        ["blockquote_open", ["> "]],
+        ["heading_open", ["# "]],
       ],
     ],
-    ["````\n```\nbody\n````", [["fence", ["````", "````"], null]]],
-    ["~~~\n```\nbody\n~~~", [["fence", ["~~~", "~~~"], null]]],
+    ["````\n```\nbody\n````", [["fence", ["````", "````"]]]],
+    ["~~~\n```\nbody\n~~~", [["fence", ["~~~", "~~~"]]]],
     [
       "> 1. ~~~\n>    ```\n>    body",
       [
-        ["blockquote_open", ["> ", "> ", "> "], null],
-        ["list_item_open", ["1. "], null],
-        ["fence", ["~~~"], null],
+        ["blockquote_open", ["> ", "> ", "> "]],
+        ["list_item_open", ["1. "]],
+        ["fence", ["~~~"]],
       ],
     ],
   ]) {
     assert.deepEqual(
       placedMarkdownTokens(source)
         .filter(({ markers }) => markers)
-        .map(({ token, markers, contentLines }) => [
+        .map(({ token, markers }) => [
           token.type,
           markers.filter(([a, b]) => a < b).map(([a, b]) => source.slice(a, b)),
-          contentLines ? source.slice(...contentLines) : null,
         ]),
       expected,
       source,
     );
   }
+});
+
+test("a list item records the indent its later lines stand at past its container's", async () => {
+  const { loadMarkdown, placedMarkdownTokens } = await import("/runtime/markdown.js");
+  await loadMarkdown();
+  for (const [source, expected] of [
+    ["- a", [2]],
+    ["10. a", [4]],
+    ["-   a", [4]],
+    ["-      a", [2]],
+    ["-", [2]],
+    ["  - a\n     - b", [4, 3]],
+    ["- a\n  1. b", [2, 3]],
+    ["- - a", [2, 2]],
+    ["> - a\n>   > 2) b", [2, 3]],
+  ])
+    assert.deepEqual(
+      placedMarkdownTokens(source)
+        .filter(({ token }) => token.type === "list_item_open")
+        .map(({ token }) => token.lfSource.indent),
+      expected,
+      source,
+    );
 });
 
 test("preloading an arriving Markdown widget preserves its exact authored body", async () => {
@@ -294,17 +365,20 @@ test("preloading an arriving Markdown widget preserves its exact authored body",
   try {
     const source = new DOMParser()
       .parseFromString(
-        '<main><lf-source-contract id="source"><pre>    code\n\n**Words**  \n</pre></lf-source-contract></main>',
+        '<main><lf-source-contract id="source"><pre>```\n    code\n```\n\n**Words**  \n</pre></lf-source-contract></main>',
         "text/html",
       )
       .querySelector("main");
     const authored = source.innerHTML;
     await preloadWidgets(source);
     assert.equal(source.innerHTML, authored);
-    assert.equal(dataBody(source.firstElementChild), "    code\n\n**Words**  \n");
+    assert.equal(
+      dataBody(source.firstElementChild),
+      "```\n    code\n```\n\n**Words**  \n",
+    );
     const arrival = document.importNode(source.firstElementChild, true);
     formatDeclaredMarkdown(arrival);
-    assert.equal(arrival.querySelector("pre").textContent, "code\n");
+    assert.equal(arrival.querySelector("pre").textContent, "    code\n");
     assert.equal(arrival.querySelector("strong").textContent, "Words");
     assert.equal(
       source.innerHTML,
@@ -316,9 +390,43 @@ test("preloading an arriving Markdown widget preserves its exact authored body",
   }
 });
 
+test("an arriving written Markdown file first paints its rendering beside its exact source", async () => {
+  const { registry } = await import("/runtime/registry.js");
+  const { importWidgets } = await import("/runtime/widget-loader.js");
+  const { prepaintDeclaredFiles } = await import("/runtime/markdown.js");
+  registry["lf-file-contract"] = { "x-prepaint": "notation" };
+  try {
+    const scope = new DOMParser()
+      .parseFromString(
+        '<main><lf-file-contract notation="markdown"><pre>**Fixed** words\nwrap on.</pre></lf-file-contract>' +
+          '<lf-file-contract notation="html"><pre>&lt;b&gt;bold&lt;/b&gt;</pre></lf-file-contract></main>',
+        "text/html",
+      )
+      .querySelector("main");
+    // A message's markup takes this path; a revision's arrivals call the prepaint alone.
+    await importWidgets(scope);
+    const [file, frame] = scope.children;
+    const rendering = ":scope > .lf-markdown-body[data-lf-prepaint]";
+    assert.equal(file.querySelectorAll(rendering).length, 1);
+    prepaintDeclaredFiles(scope);
+    const bodies = file.querySelectorAll(rendering);
+    assert.equal(bodies.length, 1, "one rendering, however often arrival paints");
+    assert.equal(bodies[0].querySelector("strong")?.textContent, "Fixed");
+    assert.equal(bodies[0].querySelector("br"), null, "a file's soft break is a space");
+    assert.equal(
+      file.querySelector(":scope > pre")?.textContent,
+      "**Fixed** words\nwrap on.",
+    );
+    assert.equal(frame.querySelector("[data-lf-prepaint]"), null);
+  } finally {
+    delete registry["lf-file-contract"];
+  }
+});
+
 test("Markdown paragraphs keep reading grain while annotations retain the authored host", async () => {
   const { registry } = await import("/runtime/registry.js");
-  const { prepareDeclaredMarkdown } = await import("/runtime/markdown.js");
+  const { loadDeclaredMarkdown, formatDeclaredMarkdown } =
+    await import("/runtime/markdown.js");
   const { annotationAt } = await import("/runtime/anchor-resolution.js");
   const { blockAt, elementReading } = await import("/runtime/passages.js");
   registry["lf-seat-contract"] = { "x-text-format": "markdown" };
@@ -326,7 +434,8 @@ test("Markdown paragraphs keep reading grain while annotations retain the author
     const host = document.createElement("lf-seat-contract");
     host.id = "authored-seat";
     host.innerHTML = "<pre>First **words**.\n\n- Second words.</pre>";
-    await prepareDeclaredMarkdown(host);
+    await loadDeclaredMarkdown(host);
+    formatDeclaredMarkdown(host);
     const first = host.querySelector("strong").firstChild;
     const second = host.querySelector("li").firstChild;
     assert.equal(blockAt(first), host.querySelector("p"));

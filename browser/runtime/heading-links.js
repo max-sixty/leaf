@@ -24,34 +24,52 @@
    heading's box.
 
    A control is made when its heading first shows it and released when the heading
-   leaves, so a long page pays nothing for the headings nobody reaches. */
+   leaves, so a long page pays nothing for the headings nobody reaches.
+
+   The control stands by an anchor name its heading holds only while the link shows. A
+   link shows for two headings at most, the one under the pointer and the one the user
+   is on, so each borrows one of two names, which marks.css gives it through an
+   attribute (`lend`) the margin doesn't hear (margin-layout.js, `heardPage`).
+   Rejected: a name of the heading's own written into its style, as other owners name
+   a box (css-anchors.js, `anchorReading`), which the margin heard as a restyle, so the
+   first time the pointer reached each heading, by a move or a scroll, it ran a pass
+   over every row. A heading named already, by its author or in its style, keeps
+   those names, and the link writes a name of the heading's own beside them into its
+   style, as other owners do, since a rule can't add a name to the ones a box has. */
 import { leadingTitle } from "./addressable-names.js";
+import { fragmentUrl } from "./anchor-coordinate.js";
 import { isAddressable } from "./anchor-resolution.js";
 import { watchOwner } from "./arrivals.js";
 import {
-  aimControl,
-  anchorControl,
   pressedElsewhere,
   readInsets,
   releaseControl,
   revealControl,
   standInChrome,
   tabFromBlock,
+  watchNear,
   writeInsets,
 } from "./block-controls.js";
-import { copyControl } from "./copy-control.js";
-import { headerLevels } from "./css-anchors.js";
+import { copyControl, copyTrigger } from "./copy-control.js";
+import { anchorReading, headerLevels, nameAnchor } from "./css-anchors.js";
 import { focusDestination, focused, onCurrentLocation } from "./focus.js";
-import { layoutPx } from "./keeps.js";
+import { inlineStyle, keeps, keepsHidden, layoutPx } from "./keeps.js";
 import { pageScope } from "./keyboard/register.js";
-import { inChrome, pageQueryAll } from "./passages.js";
+import { RUNTIME_PAINT_ATTRIBUTE } from "./page-paint.js";
+import { HEADING, inChrome, pageQueryAll } from "./passages.js";
+import { upFrom } from "./shadow-tree.js";
 
-const HEADING = "h1, h2, h3, h4, h5, h6";
-
+/** @typedef {{heading: Element, control: ReturnType<typeof copyControl>, shown: Set<string>, events: AbortController, stop: () => void}} HeadingLink */
+/** @type {Map<Element, HeadingLink>} */
 const links = new Map(); // heading → its link, from the first reveal until it leaves
+/** @type {WeakMap<Element, Element>} */
 const owners = new WeakMap(); // control → its heading
+/** @type {[HeadingLink | null, HeadingLink | null]} */
+const borrowers = [null, null]; // the link each of the two names is lent to
+const LENT = RUNTIME_PAINT_ATTRIBUTE.headingLink;
 
 /** The element `heading`'s link names, or null where it has no address (header). */
+/** @param {Element} heading */
 export function headingAddress(heading) {
   let address = isAddressable(heading) ? heading : null;
   for (let at = heading.parentElement; at && leadingTitle(at) === heading;) {
@@ -62,8 +80,9 @@ export function headingAddress(heading) {
 }
 
 // The page heading `node` stands in, where a link can stand over it.
+/** @param {Node | null | undefined} node */
 function headingAt(node) {
-  const element = node?.nodeType === Node.ELEMENT_NODE ? node : node?.parentElement;
+  const element = node instanceof Element ? node : node?.parentElement;
   const heading = element?.closest(HEADING);
   return heading && heading.getRootNode() === document && !inChrome(heading)
     ? heading
@@ -72,8 +91,9 @@ function headingAt(node) {
 
 // The heading whose link the user is on: the heading itself or the address it names.
 // A control inside the heading, such as a link, is somewhere else, with its own Enter.
+/** @param {Node | null | undefined} node */
 function headingOn(node) {
-  if (node?.nodeType !== Node.ELEMENT_NODE) return null;
+  if (!(node instanceof Element)) return null;
   if (headingAt(node) === node) return headingAddress(node) ? node : null;
   const title = leadingTitle(node);
   return title && headingAt(title) === title && headingAddress(title) === node
@@ -81,20 +101,30 @@ function headingOn(node) {
     : null;
 }
 
-const linkUrl = (address) =>
-  new URL(`#${encodeURIComponent(address.id)}`, location.href).href;
+// The heading whose link holds `node`, as the button a press focuses does.
+/** @param {Node | null | undefined} node */
+function linkHeading(node) {
+  for (let at = node; at; at = upFrom(at)) {
+    const heading = at instanceof Element && owners.get(at);
+    if (heading) return heading;
+  }
+  return null;
+}
 
+/** @param {Element} heading @returns {HeadingLink} */
 function makeLink(heading) {
   const control = copyControl("lf-heading-link", {
     label: "Copy link to section",
     success: "Link copied",
     error: "Unable to copy link",
-    icon: "link",
+    action: "copy-link",
+    role: "symbol",
   });
   control.tabIndex = -1;
   const link = {
     heading,
     control,
+    /** @type {Set<string>} */
     shown: new Set(),
     events: new AbortController(),
     stop: () => {},
@@ -105,7 +135,7 @@ function makeLink(heading) {
     (event) => {
       const address = headingAddress(heading);
       if (address && !pressedElsewhere(event, control)) {
-        control.value = linkUrl(address);
+        control.value = fragmentUrl(address);
         return;
       }
       event.preventDefault();
@@ -118,13 +148,13 @@ function makeLink(heading) {
   links.set(heading, link);
   link.stop = watchOwner(heading, { disconnect: () => retire(link) });
   // Read everything before the anchor is named or the control connects.
-  const reading = anchorControl(control, heading);
+  const near = watchNear(control, heading);
   const levels = headerLevels(heading);
   const insets = readInsets(heading);
   const line = firstLine(heading);
-  aimControl(reading);
+  keepsHidden(control, !near);
   writeInsets(control, insets);
-  standInChrome(control, heading, levels);
+  standInChrome(control, heading, levels, false);
   writeLine(control, line);
   return link;
 }
@@ -132,6 +162,7 @@ function makeLink(heading) {
 // Where the heading's first line of words stands in its box, so the control centers on
 // it. An anchor offers the box's edges and no line in it, and a heading that wraps
 // would otherwise center the control between its lines.
+/** @param {Element} heading */
 function firstLine(heading) {
   const box = heading.getBoundingClientRect();
   const range = document.createRange();
@@ -141,27 +172,69 @@ function firstLine(heading) {
     ? { top: line.top - box.top, height: line.height }
     : { top: 0, height: box.height };
 }
+/** @param {HTMLElement} control @param {{top: number, height: number}} line */
 function writeLine(control, { top, height }) {
-  for (const [property, length] of /** @type {[string, number][]} */ ([
-    ["--lf-heading-link-top", top],
-    ["--lf-heading-link-line", height],
-  ])) {
-    const value = layoutPx(length);
-    if (control.style.getPropertyValue(property) !== value)
-      control.style.setProperty(property, value);
+  for (const [property, length] of Object.entries({
+    "--lf-heading-link-top": top,
+    "--lf-heading-link-line": height,
+  })) {
+    control.style.setProperty(property, layoutPx(length));
   }
 }
 
 // Take a link out once its heading leaves, or loses its address to a revision.
+/** @param {HeadingLink} link */
 function retire(link) {
   link.stop();
   link.events.abort();
+  giveBack(link);
   releaseControl(link.control);
   links.delete(link.heading);
 }
 
+// The name a shown link's control stands by: one of the two lent to its heading, or one
+// its heading already answers to, or none while the link hides, which leaves the
+// control nowhere near the page. Whether the heading has names is read each time the
+// link starts to show, since a stylesheet or another owner can name it in between.
+/** @param {HeadingLink} link */
+function place(link) {
+  const { heading, control } = link;
+  let name = "";
+  if (!link.shown.size) giveBack(link);
+  else if (borrowers.includes(link) || getComputedStyle(heading).anchorName === "none")
+    name = lend(link);
+  else name = nameAnchor(anchorReading(heading));
+  if (control.style.positionAnchor !== name) control.style.positionAnchor = name;
+}
+/** @param {HeadingLink} link */
+function lend(link) {
+  let held = borrowers.indexOf(link);
+  if (held < 0) {
+    held = borrowers.indexOf(null);
+    if (held < 0) throw new Error("A third heading link asked for an anchor name");
+    borrowers[held] = link;
+  }
+  keeps(link.heading, LENT, held + 1);
+  return `--lf-heading-link-${held + 1}`;
+}
+/** @param {HeadingLink} link */
+function giveBack(link) {
+  const held = borrowers.indexOf(link);
+  if (held < 0) return;
+  borrowers[held] = null;
+  keeps(link.heading, LENT, null);
+  // An owner that named the heading while it held the name wrote that name into the
+  // heading's style beside its own (`anchorReading`), where it would outlast the loan.
+  const lent = `--lf-heading-link-${held + 1}`;
+  const style = inlineStyle(link.heading);
+  const names = style.anchorName.split(",").map((name) => name.trim());
+  if (names.includes(lent))
+    style.anchorName = names.filter((name) => name !== lent).join(", ");
+}
+
 // Show or hide the heading's link for one reason; it shows while any reason holds.
 // Returns the link, made on first showing, or null where the heading has no address.
+/** @param {Element} heading @param {string} reason @param {boolean} force */
 function show(heading, reason, force) {
   let link = links.get(heading);
   if (force && !headingAddress(heading)) {
@@ -169,12 +242,13 @@ function show(heading, reason, force) {
     return null;
   }
   if (force && !link) link = makeLink(heading);
-  else if (force) {
+  else if (force && link) {
     revealControl(link.control, heading);
     writeLine(link.control, firstLine(heading));
   }
   if (!link) return null;
   link.shown[force ? "add" : "delete"](reason);
+  place(link);
   link.control.classList.toggle("lf-heading-link-shown", link.shown.size > 0);
   return link;
 }
@@ -182,7 +256,9 @@ function show(heading, reason, force) {
 export function watchHeadingLinks() {
   // A live sample's URL is private to the page holding it.
   if (document.documentElement.lfSample) return;
+  /** @type {Element | null | undefined} */
   let hovered = null;
+  /** @param {Element | null | undefined} heading */
   const hover = (heading) => {
     if (heading === hovered) return;
     if (hovered) show(hovered, "hover", false);
@@ -193,7 +269,7 @@ export function watchHeadingLinks() {
     "pointerover",
     (event) => {
       if (event.pointerType === "touch") return;
-      const target = /** @type {Node} */ (event.target);
+      const target = event.target instanceof Node ? event.target : null;
       const control = target instanceof Element && target.closest(".lf-heading-link");
       hover(control ? owners.get(control) : headingAt(target));
     },
@@ -210,20 +286,27 @@ export function watchHeadingLinks() {
     "pointerdown",
     (event) => {
       if (event.pointerType !== "touch") return;
-      const heading = headingAt(/** @type {Node} */ (event.target));
+      const heading = headingAt(event.target instanceof Node ? event.target : null);
       if (heading && headingAddress(heading)) focusDestination(heading, "move");
     },
     { capture: true },
   );
+  /** @type {Element | null} */
   let current = null;
+  /** @param {Element | null} heading */
   const stand = (heading) => {
-    if (heading === current) return links.get(heading);
+    if (heading === current) return heading ? links.get(heading) : null;
     if (current) show(current, "current", false);
     current = heading;
     return heading && show(heading, "current", true);
   };
+  // The user is on a heading's link while focus is in its control, as after a press.
   onCurrentLocation((node) =>
-    stand(node?.nodeType === Node.ELEMENT_NODE ? headingAt(node) : null),
+    stand(
+      node?.nodeType === Node.ELEMENT_NODE
+        ? (headingAt(node) ?? linkHeading(node))
+        : null,
+    ),
   );
   pageScope("heading", {
     title: "On a section heading",
@@ -237,9 +320,13 @@ export function watchHeadingLinks() {
         title: "copy link to section",
         // The link's own control beside the heading takes a finger.
         touch: false,
-        run: () => {
+        // A control made by this press has not drawn its button yet.
+        run: async () => {
           const link = stand(headingOn(focused()));
-          link?.control.shadowRoot.querySelector("button").click();
+          if (!link) return;
+          await customElements.whenDefined(link.control.localName);
+          await link.control.updateComplete;
+          copyTrigger(link.control)?.click();
         },
       },
     ],

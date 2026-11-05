@@ -27,7 +27,7 @@ def test_live_and_archived_readers_ignore_foreign_formats_and_unknown_states(
     with PageTransaction(page) as transaction:
         captured = batch_data(page, transaction, [event])
     captured.update(session="concurrent-task")
-    accepted = {
+    accepted: dict = {
         "format": codex_model.RECORD.format,
         "state": "queued",
         "created_at": 1,
@@ -45,7 +45,7 @@ def test_live_and_archived_readers_ignore_foreign_formats_and_unknown_states(
         {**accepted, "state": "a-later-state"},
         {"format": "another-format"},
     ]
-    collecting = deepcopy(accepted)
+    collecting: dict = deepcopy(accepted)
     collecting["state"] = "collecting"
     collecting.pop("pending")
     collecting["batches"] = [deepcopy(captured)]
@@ -67,7 +67,7 @@ def test_live_and_archived_readers_ignore_foreign_formats_and_unknown_states(
             codex_model.accept_codex_delivery("concurrent-task", identity, None) == []
         )
         assert live.exists() and archived.exists()
-        gone = deepcopy(record)
+        gone: dict = deepcopy(record)
         if gone.get("batches") and "page" in gone["batches"][0]:
             gone["batches"][0]["page"] = str(tmp_path / "gone")
         write_json(live, gone)

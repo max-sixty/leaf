@@ -4,8 +4,10 @@ import { at, unique } from "./locate.js";
 import { openRoots } from "./open-roots.js";
 
 const generated = ".lf-ui, [data-lf-gen]";
+/** @param {Element} el */
 const declared = (el) =>
   declarationFor(el, "type") !== undefined || customElements.get(el.localName);
+/** @param {CSSStyleDeclaration} style */
 const frames = (style) =>
   ["1", "trim"].includes(style.getPropertyValue("--lf-block-frame").trim());
 
@@ -14,10 +16,11 @@ const frames = (style) =>
 // apparatus stays module-owned in either case, including across a shadow host. A
 // markup container whose module moved its children into an authored body keeps the
 // page's boxes inside that body; the boxes it built around it are its own.
+/** @param {Element} el */
 const moduleOwnsBox = (el) => {
   for (
     let child = el, parent = upFrom(child);
-    parent && parent.localName !== "main";
+    parent && parent.localName !== "body";
     child = parent, parent = upFrom(parent)
   ) {
     if (!declared(parent)) continue;
@@ -40,7 +43,7 @@ const moduleOwnsBox = (el) => {
 // is painted as the parent's inset instead. So the number a stylesheet states is not the
 // number a user sees, and which of the two they get depends on what the author wrote
 // inside: a card ending in a sentence showed its 16px, the same card ending in a paragraph
-// showed 29. theme.css states the trim and a box opts in where it draws the frame
+// showed 29. base.css states the trim and a box opts in where it draws the frame
 // (`--lf-block-frame`); this is what says when one hasn't.
 //
 // It is a reading of the rendered page because nothing else can be. The trim is a style
@@ -50,11 +53,10 @@ const moduleOwnsBox = (el) => {
 // lint over the CSS would be reading the declarations and not the result, which is the same
 // mistake the reserved-width lint made before the press sweep replaced it.
 //
-// A box that holds draws its frame by holding, since a box the reader sees ends where
-// it does. The root is the exception that is no exception: it holds every margin, as
-// the first formatting context, and its edge is the window's, so it frames only by the
-// padding or border it draws. Holding alone, it named the browser's 8px body margin on
-// every page with no Layout (layouts.css), a margin that shows exactly what it states.
+// A content box that holds draws its frame by holding, since the box ends where it
+// does. The document shell's padding instead spaces content from the viewport: Leaf's
+// panel clearance and the author's page gutters do not make paragraph margins wrong.
+// Only a border or an explicit frame declaration makes html/body a content frame.
 //
 // Two exclusions, both about what a margin means where it stands. A flex or grid container
 // collapses no margin anywhere, so a margin on an item at its edge is a placement rather
@@ -70,10 +72,10 @@ export function trappedMargins() {
   // the same reason UNMARKABLE_ITEMS imports its two: the runtime's layer holds shadow
   // roots of its own, and a `closest` written out here stops at the first of them and
   // calls what it finds the page's.
-  const px = (v) => parseFloat(v) || 0;
+  const px = (/** @type {string} */ v) => parseFloat(v) || 0;
   // The platform's own answer to "does a child's margin reach my edge, and can it get
   // past it": a box that establishes a formatting context keeps every margin inside.
-  const holds = (s) =>
+  const holds = (/** @type {CSSStyleDeclaration} */ s) =>
     s.display === "flow-root" ||
     s.display === "inline-block" ||
     s.display.startsWith("table") ||
@@ -86,14 +88,18 @@ export function trappedMargins() {
   // The page's own boxes in this box's flow, in order. Out-of-flow children are not in
   // it, a floated one spends its margins rather than reserving them, a generated one is
   // the layer's paint, and a boxless child hands its own children to the flow.
+  /** @typedef {{node: Element, s: CSSStyleDeclaration, contents?: string[]} | {node?: never, s?: never, contents?: string[]}} FlowItem */
+  /** @typedef {{margin: number, child: string, through: string[]}} EdgeMargin */
+  /** @param {Element} el @returns {FlowItem[]} */
   const flow = (el) => {
+    /** @type {FlowItem[]} */
     const out = [];
     for (const node of el.childNodes) {
-      if (node.nodeType === 3) {
+      if (node instanceof Text) {
         if (node.data.trim()) out.push({});
         continue;
       }
-      if (node.nodeType !== 1) continue;
+      if (!(node instanceof Element)) continue;
       const s = getComputedStyle(node);
       if (s.display === "none" || node.hasAttribute("hidden")) continue;
       if (s.position === "absolute" || s.position === "fixed") continue;
@@ -118,12 +124,13 @@ export function trappedMargins() {
   // them, which is where a margin inside the frame reaches the frame's edge. The shared
   // trim follows every edge child, so a margin found on this path means the frame
   // itself has not declared (or something overrides the trim).
+  /** @param {FlowItem | undefined} kid @param {"above" | "below"} edge @param {string[]} [through] @returns {EdgeMargin | null} */
   const edgeMargin = (kid, edge, through = []) => {
-    if (!kid.node) return null;
+    if (!kid?.node) return null;
     const path = [...through, ...(kid.contents || [])];
     const side = edge === "above" ? "Top" : "Bottom";
     const end = edge === "above" ? "Start" : "End";
-    const own = px(kid.s["marginBlock" + end]);
+    const own = px(kid.s.getPropertyValue(`margin-block-${end.toLowerCase()}`));
     let deeper = null;
     const s = kid.s;
     if (
@@ -132,8 +139,8 @@ export function trappedMargins() {
       !s.display.startsWith("inline") &&
       !s.display.includes("flex") &&
       !s.display.includes("grid") &&
-      !px(s["padding" + side]) &&
-      !px(s["border" + side + "Width"]) &&
+      !px(s.getPropertyValue(`padding-${side.toLowerCase()}`)) &&
+      !px(s.getPropertyValue(`border-${side.toLowerCase()}-width`)) &&
       getComputedStyle(kid.node, edge === "above" ? "::before" : "::after").content ===
         "none"
     ) {
@@ -160,14 +167,25 @@ export function trappedMargins() {
       if (s.display.includes("flex") || s.display.includes("grid")) continue;
       const kids = flow(el);
       if (!kids.length) continue;
-      for (const [edge, side, kid, pseudo] of [
+      /** @type {["above" | "below", "Top" | "Bottom", FlowItem | undefined, string][]} */
+      const edges = [
         ["above", "Top", kids[0], "::before"],
         ["below", "Bottom", kids[kids.length - 1], "::after"],
-      ]) {
-        if (!kid.node) continue;
+      ];
+      for (const [edge, side, kid, pseudo] of edges) {
+        if (!kid?.node) continue;
         if (getComputedStyle(el, pseudo).content !== "none") continue;
-        const drawn = px(s["padding" + side]) + px(s["border" + side + "Width"]);
-        if (!drawn && (!holds(s) || el === document.documentElement)) continue;
+        const drawn =
+          px(s.getPropertyValue(`padding-${side.toLowerCase()}`)) +
+          px(s.getPropertyValue(`border-${side.toLowerCase()}-width`));
+        const shell = el === document.documentElement || el === document.body;
+        if (
+          shell &&
+          !px(s.getPropertyValue(`border-${side.toLowerCase()}-width`)) &&
+          !frames(s)
+        )
+          continue;
+        if (!drawn && !holds(s)) continue;
         const leak = edgeMargin(kid, edge);
         if (leak && leak.margin > 0.5)
           found.push({
@@ -191,6 +209,7 @@ export function trappedMargins() {
 // The items a flex or grid box lays out: its children the page put there and the box
 // places, which leaves out what is not drawn, what is out of flow, and the layer's own
 // generated boxes. The arrangement reading (layout.js) counts the same items.
+/** @param {Element} box */
 export const laidOutItems = (box) =>
   [...box.children].filter((child) => {
     if (child.matches(generated)) return false;
@@ -201,11 +220,11 @@ export const laidOutItems = (box) =>
 // A frame's trim can split a row either at a box declaring the frame itself or where
 // its edge passes through a wrapper: one item's margin goes and those beside it stay.
 // A stylesheet cannot ask a box for its display, so a flex or grid box declares
-// --lf-holds-edge: 1 (theme.css) to hold either route. This names the actual split when
+// --lf-holds-edge: 1 (base.css) to hold either route. This names the actual split when
 // it hasn't; unequal margins outside a frame's trim remain the author's placement.
 // Items are in one row when their margin boxes start (or end) on the same line.
 export function splitEdges() {
-  const px = (v) => parseFloat(v) || 0;
+  const px = (/** @type {string} */ v) => parseFloat(v) || 0;
   const found = [];
   for (const root of openRoots(document))
     for (const el of root.querySelectorAll("*")) {
@@ -215,22 +234,28 @@ export function splitEdges() {
       if (s.getPropertyValue("--lf-holds-edge").trim() === "1") continue;
       const items = laidOutItems(el);
       if (items.length < 2) continue;
-      for (const [edge, token, prop, item, line] of [
-        [
-          "above",
-          "--lf-frame-start",
-          "marginBlockStart",
-          items[0],
-          (b, m) => b.top - m,
-        ],
-        [
-          "below",
-          "--lf-frame-end",
-          "marginBlockEnd",
-          items[items.length - 1],
-          (b, m) => b.bottom + m,
-        ],
-      ]) {
+      /** @typedef {{edge: string, token: string, prop: "marginBlockStart" | "marginBlockEnd", item: Element, line: (box: DOMRectReadOnly, margin: number) => number}} ItemEdge */
+      const edges = [
+        ...items.slice(0, 1).map(
+          /** @returns {ItemEdge} */ (item) => ({
+            edge: "above",
+            token: "--lf-frame-start",
+            prop: "marginBlockStart",
+            item,
+            line: (b, m) => b.top - m,
+          }),
+        ),
+        ...items.slice(-1).map(
+          /** @returns {ItemEdge} */ (item) => ({
+            edge: "below",
+            token: "--lf-frame-end",
+            prop: "marginBlockEnd",
+            item,
+            line: (b, m) => b.bottom + m,
+          }),
+        ),
+      ];
+      for (const { edge, token, prop, item, line } of edges) {
         if (!frames(s) && s.getPropertyValue(token).trim() !== "1") continue;
         const own = px(getComputedStyle(item)[prop]);
         if (own > 0.5) continue;
@@ -261,10 +286,10 @@ export function splitEdges() {
 // read its structure: which child is first, last, or only, and what an `h2 + p` rule
 // finds next. An element the runtime adds beside the page's own changes those answers for
 // as long as it stands, so the page's own rules restyle and move its content, which
-// nothing Leaf draws may do (assets/AGENTS.md, "Space and scrolling"). What the runtime
+// nothing Leaf draws may do (browser/AGENTS.md, "The page holds still under the user's aim"). What the runtime
 // says about an element stands in the chrome instead (details-shelf.js).
 //
-// The page's own elements are the document tree under `main`, the authored content root.
+// The page's own elements are the document tree under `body`, excluding Leaf's own surfaces.
 // A widget's own children are its module's to arrange, whether the layer declares it or
 // the page defines it, and so is everything inside one whose content is not the page's
 // markup or members, or that its module built around the authored body holding them;
@@ -276,7 +301,9 @@ export function apparatusAmongAuthored() {
   const found = [];
   // An element the page wrote stays the page's, whatever words a module fills it with.
   const served = servedElements();
-  for (const el of document.querySelectorAll(`main :is(${generated})`)) {
+  /** @type {NodeListOf<Element & {parentElement: HTMLElement}>} */
+  const elements = document.querySelectorAll(`body :is(${generated})`);
+  for (const el of elements) {
     const parent = el.parentElement;
     if (
       served.has(el) ||

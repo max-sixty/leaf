@@ -59,7 +59,7 @@ def test_check_refuses_the_runtimes_own_markers_in_authored_markup(page_dir):
     ]
 
 
-def test_check_requires_the_vendored_layer(tmp_path):
+def test_check_requires_an_initialized_page(tmp_path):
     d = tmp_path / "bare"
     d.mkdir(parents=True)
     (d / "index.html").write_text(PAGE)
@@ -88,6 +88,21 @@ def test_check_rejects_an_invalid_bound_and_loose_pane_text(page_dir):
         allowed=["start", "end"],
     )
     assert found(findings, "pane-body", "<lf-pane>", body=["#text", "p"])
+
+
+@pytest.mark.parametrize("target", ["Plan_Notes", "missing-notes"])
+def test_a_reference_names_any_element_the_page_holds(page_dir, target):
+    """An `x-refers` attribute takes the id of whatever element it names, a section
+    whose id a widget couldn't carry included, and `page check` refuses only a value
+    naming no element."""
+    (page_dir / "index.html").write_text(
+        PAGE.replace('<section id="plan">', '<section id="Plan_Notes">').replace(
+            '<lf-option id="flag-first">', f'<lf-option id="flag-first" for="{target}">'
+        )
+    )
+    _status, findings = check_findings(page_dir)
+    assert not found(findings, "attribute-schema", "<lf-option>")
+    assert bool(found(findings, "unknown-reference")) == (target == "missing-notes")
 
 
 def test_check_rejects_an_unknown_authored_width(page_dir):
@@ -228,7 +243,10 @@ def test_the_root_names_the_layout_of_a_child_of_a_main_without_one():
 def test_the_root_names_the_layouts_of_a_page_of_parts():
     """Which part opens is the browser's, so every part's Layout goes across, and a box
     at a part's depth under any other child names none."""
-    registry = {"lf-parts": {"x-views": "parts"}, "lf-tabs": {"x-views": True}}
+    registry = {
+        "lf-parts": {"x-views": {"members": "lf-part", "parts": True}},
+        "lf-tabs": {"x-views": {"members": "lf-tab"}},
+    }
     parts = structure_model.SourceDocument(
         '<main><header><h1>Review</h1></header><lf-parts id="parts">'
         '<lf-part id="try" label="Try"><div class="layout-workspace"></div></lf-part>'
@@ -243,30 +261,37 @@ def test_the_root_names_the_layouts_of_a_page_of_parts():
     assert structure_model.page_layout(tabs, registry) is None
 
 
+SAMPLE_DOCUMENT_CASES = [
+    ("<noscript>invisible</noscript>", "noscript", ("practice",)),
+    ('<lf-unknown id="bad">Unknown</lf-unknown>', "unknown-widget", ("practice",)),
+    ('<lf-draft id="change" restated><pre>Text</pre></lf-draft>', None, ()),
+    (
+        "<template data-sample><h1>Child</h1></template>",
+        "unnamed-sample",
+        ("practice",),
+    ),
+    (
+        '<p id="duplicate">One</p><p id="duplicate">Two</p>',
+        "duplicate-ids",
+        ("practice",),
+    ),
+    (
+        '<template id="nested" data-sample><noscript>hidden</noscript></template>',
+        "noscript",
+        ("practice", "nested"),
+    ),
+]
+
+
+# `source.sample_errors` is the one gate either door reads a child through, so the
+# message door takes the one case that also reaches a child's own samples.
 @pytest.mark.parametrize(
-    ("markup", "code", "samples"),
+    ("markup", "code", "samples", "holder"),
     [
-        ("<noscript>invisible</noscript>", "noscript", ("practice",)),
-        ('<lf-unknown id="bad">Unknown</lf-unknown>', "unknown-widget", ("practice",)),
-        ('<lf-draft id="change" restated><pre>Text</pre></lf-draft>', None, ()),
-        (
-            "<template data-sample><h1>Child</h1></template>",
-            "unnamed-sample",
-            ("practice",),
-        ),
-        (
-            '<p id="duplicate">One</p><p id="duplicate">Two</p>',
-            "duplicate-ids",
-            ("practice",),
-        ),
-        (
-            '<template id="nested" data-sample><noscript>hidden</noscript></template>',
-            "noscript",
-            ("practice", "nested"),
-        ),
+        *((*case, "page") for case in SAMPLE_DOCUMENT_CASES),
+        (*SAMPLE_DOCUMENT_CASES[-1], "message"),
     ],
 )
-@pytest.mark.parametrize("holder", ["page", "message"])
 def test_check_validates_each_sample_document(page_dir, markup, code, samples, holder):
     findings = sample_holder_findings(
         page_dir, holder, f'<template id="practice" data-sample>{markup}</template>'
@@ -277,6 +302,26 @@ def test_check_validates_each_sample_document(page_dir, markup, code, samples, h
         return
     [refused] = found(errors, code)
     assert refused.samples == samples
+
+
+@pytest.mark.parametrize("holder", ["page", "message"])
+def test_a_sample_child_naming_a_missing_picture_is_refused_once(page_dir, holder):
+    """A page's capture reads its samples' children with it, and a message, which no
+    capture reads, asks of the children it carries at its own gate: either way a
+    picture the page directory lacks is refused, and by one of the two. The capture
+    names a file once however many documents name it; the message's gate names it in
+    each child that does."""
+    picture = '<img src="/media/0000000000000009.png" alt="shot">'
+    findings = sample_holder_findings(
+        page_dir,
+        holder,
+        f'<template id="practice" data-sample><p>{picture}</p>'
+        f'<template id="nested" data-sample><p>{picture}</p></template></template>',
+    )
+    missing = found(findings, "missing-media", ref="/media/0000000000000009.png")
+    assert [refused.samples for refused in missing] == (
+        [()] if holder == "page" else [("practice",), ("practice", "nested")]
+    )
 
 
 @pytest.mark.parametrize("poster", ["agent", "fixture"])
@@ -408,6 +453,89 @@ def test_check_reports_css_syntax_errors_in_every_source_the_page_writes(page_di
     ]
 
 
+@pytest.mark.parametrize("style", ["color: red; } }", "& { color: red; }"])
+@pytest.mark.parametrize(
+    "holder",
+    [
+        "{}",
+        "<template>{}</template>",
+        '<div><template shadowrootmode="open">{}</template></div>',
+    ],
+    ids=["document", "template", "shadow-root"],
+)
+@pytest.mark.parametrize("door", ["page", "message"])
+def test_what_delivery_cannot_read_is_refused_at_each_door(
+    page_dir, style, holder, door
+):
+    """What a sheet must not hold is what delivery's reader can't read, so each door
+    asks that reader of every sheet delivery rewrites, a template's and a shadow
+    root's included, and refuses with its words. A nested rule in a style attribute
+    parses as a block's contents but not as the declaration list delivery reads,
+    and once passed every check only for delivery to refuse it with no reason."""
+    from leaf.revision_artifact import ArtifactError
+    from leaf.revision_delivery import DeliveryAddress, rebase_document
+
+    markup = holder.format(f'<p style="{style}">Shown</p>')
+    source = styled("", markup)
+    if door == "page":
+        (page_dir / "index.html").write_text(source)
+        _, findings = check_findings(page_dir)
+    else:
+        published(page_dir)
+        findings = command_findings(
+            "thread", "create", page_dir, "--text", "Look:", "--markup", markup
+        )
+    [refused] = findings if door == "message" else found(findings, "css-syntax")
+    assert refused.code == "css-syntax"
+    assert refused.values["sheet"].startswith("<p style>")
+    with pytest.raises(ArtifactError) as delivered:
+        rebase_document(source, DeliveryAddress("/root", "/revision"))
+    assert [f.values["message"] for f in delivered.value.findings] == [
+        refused.values["message"]
+    ]
+
+
+@pytest.mark.parametrize("door", ["page", "page-sample", "message-sample"])
+def test_a_sheet_delivery_refuses_reports_nothing_dropped(page_dir, door):
+    """A sheet delivery's reader refuses has its syntax error and nothing more: a
+    reparse past that error would report the rules it misreads as dropped."""
+    sheet = "<style>p { ] }</style>"
+    sample = f'<template id="practice" data-sample>{sheet}<h1>Child</h1></template>'
+    if door == "message-sample":
+        published(page_dir)
+        findings = command_findings(
+            "thread", "create", page_dir, "--text", "Try:", "--markup", sample
+        )
+    else:
+        (page_dir / "index.html").write_text(
+            styled("", sample) if door == "page-sample" else styled("p { ] }")
+        )
+        _, findings = check_findings(page_dir)
+    assert [
+        (f.code, f.values["message"]) for f in findings if f.severity == "error"
+    ] == [("css-syntax", "Unmatched ]")]
+
+
+def test_a_dropped_declaration_is_advice(page_dir):
+    """A declaration a browser drops is one delivery's reader reads whole, so it
+    refuses nothing of Leaf's: the check reports it beside a passing result, and a
+    message carrying it is admitted (`styles.DROPPED_SEVERITY`)."""
+    (page_dir / "index.html").write_text(styled("p { color: red; broken; }"))
+    status, findings = check_findings(page_dir)
+    [dropped] = found(findings, "css-dropped")
+    assert (status, dropped.severity) == (0, "advice")
+    published_markup = (
+        '<template id="practice" data-sample><style>p { broken; }</style>'
+        "<h1>Child</h1></template>"
+    )
+    (page_dir / "index.html").write_text(PAGE)
+    published(page_dir)
+    refused = command_findings(
+        "thread", "create", page_dir, "--text", "Try:", "--markup", published_markup
+    )
+    assert refused == []
+
+
 def test_a_sampled_thread_starts_as_its_source_log_leaves_it():
     """A child page sampling a thread holds one revision, its parent's document, so
     what a later version of the parent retracted stays behind rather than staying in force
@@ -475,117 +603,131 @@ def test_a_sampled_thread_starts_as_its_source_log_leaves_it():
     assert build_threads(copied, within)["c1"]["resolved"] is None
 
 
+SAMPLE_FIXTURE_REFUSALS = [
+    (
+        "[]",
+        'type="application/json"',
+        'data-sample-events="missing"',
+        "sample-script",
+        {"reference": "missing"},
+    ),
+    (
+        "[]",
+        'type="text/plain"',
+        'data-sample-events="fixture"',
+        "sample-script-type",
+        {},
+    ),
+    (
+        "[]",
+        'type="application/json" src="/page/history.json"',
+        'data-sample-events="fixture"',
+        "sample-script-type",
+        {},
+    ),
+    (
+        '[{"kind":"comment","text":NaN}]',
+        'type="application/json"',
+        'data-sample-events="fixture"',
+        "sample-json",
+        {"error": "NaN is not a JSON number"},
+    ),
+    (
+        "{",
+        'type="application/json"',
+        'data-sample-events="fixture"',
+        "sample-json",
+        {},
+    ),
+    (
+        "{}",
+        'type="application/json"',
+        'data-sample-events="fixture"',
+        "sample-array",
+        {},
+    ),
+    (
+        "[1]",
+        'type="application/json"',
+        'data-sample-events="fixture"',
+        "sample-array",
+        {},
+    ),
+    (
+        '[{"kind": []}]',
+        'type="application/json"',
+        'data-sample-events="fixture"',
+        "fixture-kind",
+        {"event": 1},
+    ),
+    (
+        '[{"kind":"reply","parent":"absent","text":"Reply"}]',
+        'type="application/json"',
+        'data-sample-events="fixture"',
+        "fixture-event",
+        {"event": 1},
+    ),
+    (
+        '[{"kind":"comment","id":"aabb0011","text":"One"},{"kind":"comment","id":"aabb0011","text":"Two"}]',
+        'type="application/json"',
+        'data-sample-events="fixture"',
+        "fixture-id-repeated",
+        {"event": 2, "id": "aabb0011"},
+    ),
+    (
+        '[{"kind":"comment","id":"child","text":"Collision"}]',
+        'type="application/json"',
+        'data-sample-events="fixture"',
+        "fixture-id-taken",
+        {"event": 1, "id": "child"},
+    ),
+    (
+        '[{"kind":"action","widget":"absent","action":"choose","detail":{"value":[]}}]',
+        'type="application/json"',
+        'data-sample-events="fixture"',
+        "fixture-event",
+        {"event": 1},
+    ),
+    (
+        '[{"kind":"action"}]',
+        'type="application/json"',
+        'data-sample-events="fixture"',
+        "fixture-event",
+        {"event": 1},
+    ),
+    (
+        '[{"kind":"comment","text":"Bad clock","ts":"yesterday"}]',
+        'type="application/json"',
+        'data-sample-events="fixture"',
+        "fixture-ts",
+        {"event": 1},
+    ),
+    (
+        "[]",
+        'type="application/json"',
+        'data-sample-events="fixture" data-sample-threads="aabb0011"',
+        "sample-source-both",
+        {},
+    ),
+]
+
+
+# `sample_content.initial_sample_events` reads a fixture for either door, so the
+# message door takes the one case a holder's own script and a child's ids both reach.
 @pytest.mark.parametrize(
-    ("history", "script_attrs", "template_attrs", "code", "values"),
+    ("history", "script_attrs", "template_attrs", "code", "values", "holder"),
     [
+        *((*case, "page") for case in SAMPLE_FIXTURE_REFUSALS),
         (
-            "[]",
-            'type="application/json"',
-            'data-sample-events="missing"',
-            "sample-script",
-            {"reference": "missing"},
-        ),
-        (
-            "[]",
-            'type="text/plain"',
-            'data-sample-events="fixture"',
-            "sample-script-type",
-            {},
-        ),
-        (
-            "[]",
-            'type="application/json" src="/page/history.json"',
-            'data-sample-events="fixture"',
-            "sample-script-type",
-            {},
-        ),
-        (
-            '[{"kind":"comment","text":NaN}]',
-            'type="application/json"',
-            'data-sample-events="fixture"',
-            "sample-json",
-            {"error": "NaN is not a JSON number"},
-        ),
-        (
-            "{",
-            'type="application/json"',
-            'data-sample-events="fixture"',
-            "sample-json",
-            {},
-        ),
-        (
-            "{}",
-            'type="application/json"',
-            'data-sample-events="fixture"',
-            "sample-array",
-            {},
-        ),
-        (
-            "[1]",
-            'type="application/json"',
-            'data-sample-events="fixture"',
-            "sample-array",
-            {},
-        ),
-        (
-            '[{"kind": []}]',
-            'type="application/json"',
-            'data-sample-events="fixture"',
-            "fixture-kind",
-            {"event": 1},
-        ),
-        (
-            '[{"kind":"reply","parent":"absent","text":"Reply"}]',
-            'type="application/json"',
-            'data-sample-events="fixture"',
-            "fixture-event",
-            {"event": 1},
-        ),
-        (
-            '[{"kind":"comment","id":"aabb0011","text":"One"},{"kind":"comment","id":"aabb0011","text":"Two"}]',
-            'type="application/json"',
-            'data-sample-events="fixture"',
-            "fixture-id-repeated",
-            {"event": 2, "id": "aabb0011"},
-        ),
-        (
-            '[{"kind":"comment","id":"child","text":"Collision"}]',
-            'type="application/json"',
-            'data-sample-events="fixture"',
-            "fixture-id-taken",
-            {"event": 1, "id": "child"},
-        ),
-        (
-            '[{"kind":"action","widget":"absent","action":"choose","detail":{"value":[]}}]',
-            'type="application/json"',
-            'data-sample-events="fixture"',
-            "fixture-event",
-            {"event": 1},
-        ),
-        (
-            '[{"kind":"action"}]',
-            'type="application/json"',
-            'data-sample-events="fixture"',
-            "fixture-event",
-            {"event": 1},
-        ),
-        (
-            '[{"kind":"comment","text":"Bad clock","ts":"yesterday"}]',
-            'type="application/json"',
-            'data-sample-events="fixture"',
-            "fixture-ts",
-            {"event": 1},
-        ),
-        (
-            "[]",
-            'type="application/json"',
-            'data-sample-events="fixture" data-sample-threads="aabb0011"',
-            "sample-source-both",
-            {},
+            *next(
+                case
+                for case in SAMPLE_FIXTURE_REFUSALS
+                if case[3] == "fixture-id-taken"
+            ),
+            "message",
         ),
     ],
 )
-@pytest.mark.parametrize("holder", ["page", "message"])
 def test_sample_fixture_refusals_reach_page_check(
     page_dir, history, script_attrs, template_attrs, code, values, holder
 ):

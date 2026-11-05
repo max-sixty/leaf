@@ -9,68 +9,24 @@ import {
 import { shownBox } from "../geometry.js";
 import { restrictUserIntent, retainUserIntent } from "../user-intent.js";
 import { closestAcross } from "../passages.js";
-import { upFrom } from "../shadow.js";
 import { nextRender } from "../rendering.js";
 import { repaint } from "../repaint.js";
-import { drawnThreadId, SAY_BOX, THREAD } from "./selectors.js";
-import { allThreads } from "./state.js";
-import { replyAvailable, replyControlDestination, replyThreadKey } from "./replies.js";
+import { drawnThreadId, threadPart, THREAD } from "./selectors.js";
+import { threadNamed } from "./state.js";
 import { threadKey } from "./model.js";
+import { replyControlDestination, replyIsEditing, replyThreadKey } from "./replies.js";
+
+/** @typedef {ReturnType<typeof retainUserIntent>} UserIntent */
+/** @typedef {ReturnType<typeof import("./destination.js").createThreadDestinations>["openPageThread"]} OpenThread */
+/** @typedef {{node: Element, id: string, intent: UserIntent, may: UserIntent, reply: boolean}} CarriedPlace */
 
 // A drawn thread's root is where the user is on it.
+/** @param {Element} thread @param {"move" | "return"} cause */
 export function focusThread(thread, cause) {
   focusDestination(thread, cause);
 }
 
-// A drawn thread's own parts: the box its reply is written in, and the control that
-// settles it, whose `lf-resolve` or `lf-reopen` says which way. A card draws both inside
-// itself. A presentation that draws one elsewhere, as the floating panel draws the reply
-// as its field and Resolve among its view's controls, declares on the thread element
-// where each stands (`declareThreadParts`): `reply` and `settlement`, each a function of
-// that element answering the part, or null while the thread has none there. Every reading
-// of a thread's reply or settlement goes through here (`threadPart`), so Enter, `r` and
-// `c` answer alike whichever chrome draws the thread. A thread drawn in pieces within
-// one that declares, as a reader's message parts in the panel's view, has the
-// enclosing drawing's parts where it holds none (`drawingsOf`).
-//
-// Such a presentation also declares `whole`, the element standing for the thread as a
-// whole where its pieces stand apart, as the panel's view does for its head and its
-// field (`wholeThread`).
-const declaredParts = new WeakMap();
-export const declareThreadParts = (thread, parts) => declaredParts.set(thread, parts);
-const ownParts = {
-  reply: (thread) => thread.querySelector(SAY_BOX),
-  settlement: (thread) =>
-    [...thread.querySelectorAll(".lf-resolve, .lf-reopen")].find(
-      (control) => control.closest(THREAD) === thread,
-    ) ?? null,
-};
-// The drawings of one thread from `thread` outward: itself, then each drawing of the
-// same thread around it.
-function* drawingsOf(thread) {
-  const id = drawnThreadId(thread);
-  for (
-    let at = thread;
-    at === thread || (at && id && drawnThreadId(at) === id);
-    at = closestAcross(upFrom(at), THREAD)
-  )
-    yield at;
-}
-// The whole of the thread drawn at `thread`: its outermost drawing, or the element that
-// drawing declares as the whole. It holds the thread's messages, so a reading of them
-// searches it, and it is the thread a keyboard stands on, as a reply box's way back.
-export function wholeThread(thread) {
-  const outer = [...drawingsOf(thread)].at(-1);
-  return declaredParts.get(outer)?.whole(outer) ?? outer;
-}
-export function threadPart(thread, name) {
-  for (const at of drawingsOf(thread)) {
-    const part = (declaredParts.get(at) ?? ownParts)[name](at);
-    if (part) return part;
-  }
-  return null;
-}
-
+/** @param {Element | null | undefined} thread */
 export const threadReplyInput = (thread) => {
   const input = thread && threadPart(thread, "reply");
   return input && shownBox(input).height ? input : null;
@@ -78,13 +34,16 @@ export const threadReplyInput = (thread) => {
 
 // Where in a drawing of a thread a route lands: the thread, its reply box (else the
 // thread), or the message `message` names.
-export function threadFocusDestination(
-  thread,
-  { part = "reply", message = null } = {},
-) {
-  if (part === "message")
-    return thread.querySelector(`.lf-msg[data-event="${CSS.escape(message)}"]`);
-  return (part === "thread" ? thread : null) ?? threadReplyInput(thread) ?? thread;
+/** @param {Element} thread
+ * @param {{part?: "thread" | "reply" | "message" | null, message: string} | {part?: "thread" | "reply" | null, message?: null}} [options] */
+export function threadFocusDestination(thread, options = {}) {
+  if (options.part === "message")
+    return thread.querySelector(
+      `.lf-msg[data-lf-event="${CSS.escape(options.message)}"]`,
+    );
+  return (
+    (options.part === "thread" ? thread : null) ?? threadReplyInput(thread) ?? thread
+  );
 }
 
 // The thread whose root holds focus. A control inside it keeps its own command scope.
@@ -96,8 +55,11 @@ export function focusedThreadTarget() {
 // The thread the user is in, wherever it is drawn — the Threads list, the margin card, a
 // seat on the page — with a control inside one standing in it too. Climbing from the
 // inner focus reaches a seat a widget stages in its shadow tree. The box's way out climbs
-// further, to a seat holding no thread yet (landing.js, `heldThreadOrSeat`).
-export const heldThread = () => closestAcross(focused(), THREAD);
+// further, to a seat holding no thread yet (landing.js, `heldThreadOrSeat`). A walk asks
+// the same of the node its origin was read from (`threadIn`).
+/** @param {Node | null | undefined} node */
+export const threadIn = (node) => closestAcross(node ?? null, THREAD);
+export const heldThread = () => threadIn(focused());
 
 // Its logged id.
 export const heldThreadId = () => drawnThreadId(heldThread());
@@ -111,6 +73,7 @@ export const heldThreadId = () => drawnThreadId(heldThread());
 // the press ends, when the current location repaint reads focus again. This is current location as drawn,
 // which lags focus across a press; a command acts on the held thread (`heldThreadId`).
 // The press is focus.js's (`onPress`), which ends it every way it can end.
+/** @type {string | null} */
 let pressed = null;
 let release = 0;
 function releasePress() {
@@ -121,20 +84,33 @@ function releasePress() {
     repaint();
   });
 }
-onPress((start) => {
-  if (start.button !== 0) return null;
-  pressed = heldThreadId();
-  return releasePress;
-});
+onPress(
+  /** @param {PointerEvent | MouseEvent} start */ (start) => {
+    if (start.button !== 0) return null;
+    pressed = heldThreadId();
+    return releasePress;
+  },
+);
 
 export const currentLocationThreadId = () => heldThreadId() ?? pressed;
 
-// The intent restricted to the thread `id` still present with a reply to write.
+// The intent restricted to the thread `id` still present: every thread takes a reply,
+// a resolved one too, which the reply reopens. A resolved thread takes the user's box
+// along only while a reply is being written in it (`replyIsEditing`): carrying the
+// caret would otherwise start that session itself, and keep a card that settlement
+// closed open over a box the user had finished with, as the empty box Send leaves.
+/** @param {string} id @param {UserIntent} intent */
 const mayReplyTo = (id, intent) =>
   restrictUserIntent(intent, () => {
-    const thread = allThreads().find((candidate) => candidate.id === id);
-    return Boolean(thread && replyAvailable(thread));
+    const thread = threadNamed(id);
+    return Boolean(thread && (!thread.resolved || replyIsEditing(threadKey(thread))));
   });
+// Whether the thread `id` names stands open.
+/** @param {string} id */
+const standsOpen = (id) => {
+  const thread = threadNamed(id);
+  return Boolean(thread && !thread.resolved);
+};
 
 // A pass that redraws threads hands the user on a thread across itself, under
 // the thread's identity. A surface that stops drawing a thread takes what the user was
@@ -168,6 +144,8 @@ const mayReplyTo = (id, intent) =>
 // From the pass's start until that step has run, the node is being carried
 // (`carryingThreadPlace`): a surface closing under the user meanwhile, as the margin card
 // does when its thread goes back to a widget, places no one, and the step decides.
+/** @param {string} id @param {OpenThread} open @param {UserIntent} intent
+ * @param {{destination?: (thread: Element) => Element | null, scroll?: boolean}} [options] */
 export async function replyDestination(
   id,
   open,
@@ -190,6 +168,7 @@ export async function replyDestination(
 // The thread itself, for a user whose node has no like where it now stands. Another
 // owner that put them on a drawn node meanwhile, as a list keeping its rows does, has
 // placed them already.
+/** @param {string} id @param {OpenThread} open @param {UserIntent} may */
 async function threadDestination(id, open, may) {
   const at = focused();
   if (at && at !== document.body && drawn(at)) return null;
@@ -197,19 +176,25 @@ async function threadDestination(id, open, may) {
   return shown instanceof Element && focused() === shown && may() ? shown : null;
 }
 
+/** @type {WeakSet<Element>} */
 const carried = new WeakSet();
+/** @type {CarriedPlace | null} */
 let carrying = null;
 // A seat can appear later in the pass, after its former margin card closes. The
 // close must defer its landing while the thread and the user's intent still stand;
 // `may` checks for the new seat only when the pass chooses its destination. A reply
-// already has its own availability rule, including a draft in a resolved thread.
-export const carryingThreadPlace = (node) =>
-  Boolean(node) &&
-  carrying?.node === node &&
-  (carrying.reply
-    ? carrying.may()
-    : carrying.intent() &&
-      allThreads().some((thread) => thread.id === carrying.id && !thread.resolved));
+// goes on in any thread still present, a resolved one included.
+/** @param {Element | null | undefined} node */
+export const carryingThreadPlace = (node) => {
+  const place = carrying;
+  return Boolean(
+    place &&
+    place.node === node &&
+    (place.reply ? place.may() : place.intent() && standsOpen(place.id)),
+  );
+};
+/** @param {OpenThread} open
+ * @param {{threadAt: (node: Element) => string | null, seated: (id: string) => boolean}} placement */
 export function holdThreadPlace(open, { threadAt, seated }) {
   carrying = null;
   const held = holdCurrentLocation();
@@ -222,7 +207,7 @@ export function holdThreadPlace(open, { threadAt, seated }) {
   const key = destination && replyThreadKey(node);
   const thread = !destination && closestAcross(node, ".lf-page-thread");
   const id = key
-    ? allThreads().find((each) => threadKey(each) === key)?.id
+    ? threadNamed(key)?.id
     : thread
       ? drawnThreadId(thread)
       : threadAt(node);
@@ -233,11 +218,7 @@ export function holdThreadPlace(open, { threadAt, seated }) {
   // no card or panel for them.
   const may = destination
     ? mayReplyTo(id, intent)
-    : restrictUserIntent(
-        intent,
-        () =>
-          allThreads().some((each) => each.id === id && !each.resolved) && seated(id),
-      );
+    : restrictUserIntent(intent, () => standsOpen(id) && seated(id));
   const carry = { node, id, intent, may, reply: Boolean(destination) };
   carrying = carry;
   return async () => {

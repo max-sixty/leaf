@@ -19,10 +19,8 @@ publication follows the asset head; only snapshot acceptance advances the expect
 that belong to this runtime. README image URLs name the media commit. Downloads land
 under .tmp, which both local builds and CI may discard and reconstruct.
 
-    uv run leaf-dev fetch-assets
-
-Every reader calls `pinned_assets()`, which fetches on a miss; the command only warms
-the cache, as `wt setup` does. A writer stages its files in a clone of the revision its
+Every reader calls `pinned_assets()`, which fetches on a miss; `leaf-dev setup` warms
+the cache for both pins. A writer stages its files in a clone of the revision its
 checkout pins, so what it adds, replaces or removes is measured against the set its own
 branch reads. `publish` replays that change onto the repository's head, which keeps
 files other branches published since, then moves the pin. A writer that owns a whole
@@ -105,7 +103,9 @@ def _download(repository: str, revision: str, target: Path) -> None:
                     if member.isfile():
                         path = payload / PurePosixPath(member.name)
                         path.parent.mkdir(parents=True, exist_ok=True)
-                        path.write_bytes(bundle.extractfile(member).read())
+                        content = bundle.extractfile(member)
+                        assert content is not None
+                        path.write_bytes(content.read())
             (payload / ".complete").write_text(revision, encoding="utf-8")
             try:
                 payload.rename(target)
@@ -236,8 +236,8 @@ def replay(checkout: Checkout, branch: str) -> None:
         f"{CHANGE}^",
         CHANGE,
         cwd=path,
-    ).split("\0")
-    changed = dict(zip(fields[1::2], fields[0::2]))
+    ).split("\0")[:-1]
+    changed = dict(zip(fields[1::2], fields[0::2], strict=True))
     if kept := [name for name, status in changed.items() if status != "D"]:
         run("git", "checkout", CHANGE, "--", *kept, cwd=path)
     if removed := [name for name, status in changed.items() if status == "D"]:

@@ -18,13 +18,26 @@ commit message; hold its claims to the standard the diff is held to.
 
 ## Review threshold
 
-Apply `AGENTS.md`'s **Stage** and **Fix the underlying issue** sections to the
-verdict. Once a change moves Leaf toward a coherent architecture and its claimed
-path works, the review is done. Reserve findings for architectural seams,
-cross-runtime invariants, public surface traps, regressions on the claimed path,
-or a central claim or test that is false. Omit bounded edge cases, exhaustive
-same-pattern cleanup, minor simplification, and prose or test polish unless they
-expose one of those problems.
+Load `/developing-leaf`, and apply its **Weigh what a change adds** and `AGENTS.md`'s
+**Stage** and **Fix the underlying issue** sections to the verdict; most of Tend's own
+pull requests land on this review alone. Once a change moves Leaf toward a coherent
+architecture, its claimed path works and what it adds is worth keeping, the review
+is done. Reserve findings for architectural seams, cross-runtime invariants, public
+surface traps, regressions anywhere the change reaches, additions that cost more
+than they buy, or a central claim or test that is false or that nothing has shown.
+Omit bounded edge cases, exhaustive same-pattern cleanup, minor simplification, and
+prose or test polish unless they expose one of those problems. Those findings ask a
+change to cover more or read better; a finding that it adds more than it buys is
+none of them.
+
+The verdict rests on that weighing. Weigh the change before searching it for
+defects, and revisit the weighing when a defect shows a cost it missed: on Tend's own
+pull request a defect found in an addition gets fixed and the addition lands, so for
+an addition the weighing rejects, the rejection is the finding, not its defect. State
+in the session what the change adds that later changes must hold, what that buys, who
+pays its cost and who gains beyond the claimed case, and the cheapest other change
+you can name that buys the same. Where that change keeps what this one must and costs
+materially less, it is the finding: withhold approval and name it.
 
 In shipped text (the references, `--help`, UI strings, `SKILL.md`, and the agent
 instructions in the `AGENTS.md` files and `/developing-leaf`), these prose defects
@@ -38,23 +51,50 @@ A diff that settles its symptom without reaching the underlying issue is an
 architectural seam: name the issue, and withhold approval unless the change meets the
 deferral condition in **Fix the underlying issue**. A fix for a red test that moves
 the interface beyond what the breaking change meant to, or gives up that change's
-intent without the issue **Reading a red suite** requires, is a regression on the
-claimed path.
+intent without the issue **Reading a red suite** requires, is a regression.
 
 ## Review test selection
 
-Before approving a product change, run the few tests that exercise the failures
-the diff most plausibly introduces, chosen from the product paths and contracts
-it touches rather than the test files it edits, within the local limit in
-`tests/AGENTS.md` ("Run what the change needs"). A docs-only or generated-workflow
-change may need none. A failing selected test or PR check withholds approval only
+Before approving a product change, select and run focused checks through
+`tests/AGENTS.md`, **Selecting checks**, covering the changed behavior and its
+consumers. A docs-only or generated-workflow change may need none.
+A failing selected test or PR check withholds approval only
 when the change causes it: confirm an inherited failure against current `main` per
 `/tend-ci-runner:monitor-ci`, record that evidence in the review, and approve when the
 change has no other findings; "Run what the change needs" governs landing despite that
 failure. Where a test itself is at issue, `tests/AGENTS.md` says
 which boundary it belongs at. For a change that can alter browser startup, apply
-`AGENTS.md`'s **Working on the repository** performance rule to the candidate and base
+`AGENTS.md`'s **Working on the repository** performance rule to the head and base
 profiles from CI.
+
+A CI repair that changes what a page draws, such as its CSS, layout or a widget's
+rendering, names in its description the states it changes on screen. Before the
+verdict, its review captures each of them on the base and the head with
+`uv run leaf-dev stills --state NAME`, choosing the scheme and window with
+`--scheme`, `--viewport` and `--touch`, and adds a state to `STATES`
+(`dev/leaf_dev/states.py`) for a surface none reaches, one per surface and never one
+per scheme or window (the `states.py` header says when a state keeps its own). It
+looks at the crops and weighs what changed against every state that pays for it.
+Without captures it can read, the review withholds approval.
+
+## Explaining UI changes and questions
+
+Include screenshots when explaining a UI change or asking the maintainer to judge
+an interface. Put the visual evidence in the PR description or reply where the
+change or question is presented, so the reader can inspect the affected state
+before answering. Show before and after for a change, and the relevant alternatives
+for a design question. Follow `/developing-leaf`, **Prove and hand off a visible
+change**, for capture and delivery.
+
+Upload screenshots to GitHub with the CLI’s native attachments:
+
+```bash
+gh pr edit NUMBER --body-file .tmp/pr-body.md --attach .tmp/before.png --attach .tmp/after.png
+```
+
+Reference those local paths in the body’s Markdown images; `gh` replaces them
+with uploaded asset URLs. For a reply, use `gh pr comment` with the same flags.
+Read back the published body and open its image URLs to verify the evidence.
 
 ## Reading a red suite
 
@@ -90,9 +130,10 @@ judgment.
 
 Before choosing a fix, read the failing test's record in main's earlier runs: each
 `ci` run uploads its junit results (`gh run download <run> -p 'pytest-results-*'`),
-and a `nightly` test runs only in the daily scheduled run
-(`gh run list -w ci -e schedule`). A test that failed with the same message, passed
-on code that didn't fix it, then failed again is non-deterministic, so fix the cause.
+with the failing pages' pictures (`tests/AGENTS.md`, **Failing tests**), and a
+`nightly` test runs only in the daily scheduled run (`gh run list -w ci -e schedule`).
+A test that failed with the same message, passed on code that didn't fix it, then
+failed again is non-deterministic, so fix the cause.
 A watch finding that fails on CI and passes locally needs a slower CPU rather than
 reruns to reproduce (`tests/AGENTS.md`, **Races**).
 Different messages across runs call for checking the intervening changes and the
@@ -113,16 +154,16 @@ Two test-owned failures recur:
 A cause issue (`tend-ci-cause`) records the first `ci` run on main its tests
 failed in, with its commit, since that brackets the change that broke it; a
 `journeys` test, like the whole `test-macos` job, runs only nightly, so the pull
-request that broke it usually passed its own CI. Its session works until the
-cause has a merged fix, or a pull request it is still driving when GitHub's
-six-hour job limit ends it. Before fixing, check current main: the complete
-suite takes hours, and later changes may have removed the cause. A passing rerun
+request that broke it usually passed its own CI. Before fixing, check current main:
+the complete suite takes hours, and later changes may have removed the cause. A passing rerun
 alone does not clear a failure that comes and goes.
 
-No cause waits on a maintainer's decision. Where no repair keeps both the
-change's intent and the interface, **Reading a red suite** says to revert and
-file the issue that asks for that decision; this replaces escalating the cause
-issue itself.
+Establish the conflict before applying **Reading a red suite**'s revert-and-decision
+route. An unresolved diagnosis or a missing verification environment remains
+engineering work, owned by the cause's session through `/tend-ci-runner:triage`'s
+**A cause issue** route.
+For a local website gate the sandbox cannot run, `worker/README.md`, **Local
+development**, gives its non-deploying CI route.
 
 For each durable failure, look for the pull request that introduced it, first
 among those merged since the last run where the failing check passed and then
@@ -135,7 +176,9 @@ changes the test or the behavior.
 
 Merge a pull request that fixes tests, without waiting for maintainer approval,
 once each test it claims to fix failed before the change and passes after it
-(a skipped or deleted test has not passed). Pull requests run only the later-tier
+(a skipped or deleted test has not passed). For a failure only `test-macos` shows, the
+checks your Linux runner can run suffice (**A red `ci` on main is live** says what
+settles the rest). Pull requests run only the later-tier
 tests they edit, so run the claimed ones yourself. The pull request's CI must
 reach a terminal result on the exact head (`monitor-ci`). A failure there outside
 the tests it claims, and not caused by its change, neither blocks the merge nor
@@ -155,9 +198,10 @@ which GitHub records as a cancelled run whose `test` job has no runner (`runner_
 hit its timeout, and that is a failure.
 
 The scheduled run's `test-macos` job runs every tier on macOS, which your Linux runner
-can't reproduce. For a failure only that job shows, the failing run is the evidence
-from before the fix. For the evidence from after it, dispatch `ci` on the fix's branch
-(`gh workflow run ci --ref <branch>`) and read that run's `test-macos` job.
+can't reproduce, and it takes four to five hours. For a failure only that job shows, the
+failing run is the evidence from before the fix, and the next scheduled run on main,
+after the fix merges, is the evidence from after it. If that run still fails, its
+report brings the failure back to triage.
 
 ## Cloudflare logs
 
@@ -187,10 +231,9 @@ and its lane's next passing run closes it.
 ## Leave backlog issues to the maintainer
 
 An issue labelled `backlog` is an item on the maintainer's prioritised backlog
-(`TODO.md` says how it is kept), not a report awaiting triage. `tend-triage`
-skips an issue opened with that label. When one reaches you another way, such as
-an unread notification, take no action, post nothing, and acknowledge the
-notification.
+(`TODO.md` says how it is kept), not a report awaiting triage. When one reaches
+you, whether through triage or an unread notification, take no action, post
+nothing, and acknowledge the notification.
 
 ## Nightly: model and harness releases
 
@@ -267,6 +310,20 @@ request with the moves, listing each test and the times behind it.
 Run `/ui-sweep` before dependency maintenance, following its **Reconcile** route:
 a reproduced defect becomes a tested repair, and a design judgment stays in the
 run report.
+
+## Weekly: duplicate implementations
+
+Sweep one area for capabilities implemented more than once, taking the area by ISO
+week number (`date +%V`) modulo 4: 0, the JavaScript under `browser/`; 1, `packages/`
+and the CSS under `browser/`; 2, `src/leaf/` and `hooks/`; 3, `dev/`, `build/`,
+`tests/` and `worker/`. Load `/developing-leaf`. Copies seldom share a name or a
+directory, so list the questions the area's helpers, constants, selectors, style
+rules and inline checks answer, and search the whole tree for other answers to each,
+as its **What it repeats** says. Consolidate each set into one home with every caller
+moved, in one pull request for the area; leave a set another open pull request is
+changing to a later sweep. In the description, name each copy's introducing pull
+request (`git log -S`), so the copies added since the area's last sweep show what
+review let through.
 
 ## Weekly: vendored browser dependencies
 

@@ -40,6 +40,8 @@ if TYPE_CHECKING:
 #               whose decision leaves nothing showing goes with its slots (settledAway
 #               there, `gone` here). Its values are also the vocabulary's decision
 #               verbs, which is where `obligations` reads them from.
+#   x-owners with x-content markup  direct prose members remain readable inside a
+#               data widget; its other body content is source notation, withheld.
 #   x-state, record kind "body"  the verb whose detail text becomes this element's
 #               body once the user sends one (lf-draft's `edit`): replay writes
 #               the newest surviving one into the DOM verbatim (a widget's render is
@@ -92,26 +94,37 @@ def _rendered_words(markup: str, *, image_alt=False) -> str:
 
 
 @lru_cache(maxsize=2)
-def _markdown_dialect(added: bool):
-    """The browser's safe Markdown dialect; `added` reads soft line breaks as hard
-    ones, as a user-created child and a block body render them."""
+def markdown_dialect(message: bool):
+    """The browser's safe Markdown dialect for one of its two readings, with its
+    linkify and task lists (markdown.js, `makeMarkdown`; `renderMarkdown` says how
+    the readings differ). A thread message and a user-created child's words read as
+    a message, and a Markdown body reads as a file."""
     from markdown_it import MarkdownIt
+    from markdown_it.renderer import RendererHTML
     from mdit_py_plugins.tasklists import tasklists_plugin
 
-    parser = MarkdownIt("gfm-like", {"html": False, "breaks": added}).use(
+    class PageMarkdown(MarkdownIt):
+        def validateLink(self, url: str) -> bool:
+            return True
+
+    parser = PageMarkdown("gfm-like", {"html": False, "breaks": message}).use(
         tasklists_plugin
     )
+    if message:
+        parser.disable(["lheading", "code"])
+    assert parser.linkify is not None
     parser.linkify.set({"fuzzy_link": False})
     # The browser accepts syntax first, then removes unsafe link destinations while
     # retaining their label. Parse those links here too, where only visible text is read.
-    parser.validateLink = lambda _url: True
+    renderer = parser.renderer
+    assert isinstance(renderer, RendererHTML)
     # Nested image labels may retain entity/escape tokens after text joining.
-    parser.renderer.rules["text_special"] = parser.renderer.rules["text"]
+    renderer.rules["text_special"] = renderer.rules["text"]
 
-    def safe_image(tokens, idx, options, env):
+    def safe_image(_renderer, tokens, idx, options, env):
         token = tokens[idx]
         alt = _rendered_words(
-            parser.renderer.renderInline(token.children, options, env), image_alt=True
+            renderer.renderInline(token.children, options, env), image_alt=True
         )
         token.attrSet("alt", alt)
         if urlsplit(token.attrGet("src") or "").scheme not in (
@@ -121,12 +134,12 @@ def _markdown_dialect(added: bool):
             "mailto",
         ):
             return escape(alt)
-        return parser.renderer.renderToken(tokens, idx, options, env)
+        return renderer.renderToken(tokens, idx, options, env)
 
-    parser.renderer.rules["image"] = safe_image
-    link = parser.renderer.rules.get("link_open")
+    parser.add_render_rule("image", safe_image)
+    link = renderer.rules.get("link_open")
 
-    def safe_link(tokens, idx, options, env):
+    def safe_link(_renderer, tokens, idx, options, env):
         token = tokens[idx]
         if urlsplit(token.attrGet("href") or "").scheme not in (
             "",
@@ -142,35 +155,31 @@ def _markdown_dialect(added: bool):
         return (
             link(tokens, idx, options, env)
             if link
-            else parser.renderer.renderToken(tokens, idx, options, env)
+            else renderer.renderToken(tokens, idx, options, env)
         )
 
-    parser.renderer.rules["link_open"] = safe_link
+    parser.add_render_rule("link_open", safe_link)
 
-    def safe_link_close(tokens, idx, options, env):
+    def safe_link_close(_renderer, tokens, idx, options, env):
         return (
             ""
             if tokens[idx].meta.get("unsafe")
-            else parser.renderer.renderToken(tokens, idx, options, env)
+            else renderer.renderToken(tokens, idx, options, env)
         )
 
-    parser.renderer.rules["link_close"] = safe_link_close
+    parser.add_render_rule("link_close", safe_link_close)
     return parser
 
 
 def inline_markdown_words(source: str, *, added: bool = False) -> str:
-    return _rendered_words(_markdown_dialect(added).renderInline(source))
-
-
-def block_markdown():
-    """The shared safe block Markdown dialect: the browser's `makeMarkdown`, with its
-    linkify and task lists, which messages and Markdown bodies render in."""
-    return _markdown_dialect(True)
+    return _rendered_words(markdown_dialect(added).renderInline(source))
 
 
 def markdown_markup(source: str) -> str:
-    """The shared safe block Markdown dialect, as inert markup for passage reading."""
-    return block_markdown().render(source)
+    """A Markdown body (`x-text-format: markdown`) as the browser paints it, read as
+    a file (markdown.js, `paintMarkdown`), as inert markup for passage reading and a
+    revision's prepaint."""
+    return markdown_dialect(False).render(source)
 
 
 def feed_markdown(parser, source: str) -> None:
@@ -282,7 +291,7 @@ class _PassageParser:
         decided=None,
         rewrites=None,
         additions=None,
-        source=("page", None),
+        source: tuple[str, str | None] = ("page", None),
     ):
         self.registry = registry or {}
         self.decided = decided or {}
@@ -292,7 +301,9 @@ class _PassageParser:
         # attribute copies the whole string and makes a large page's reading quadratic.
         self.chars = []
         self.owner = []  # per character: the tuple of enclosing ids
+        self.spans = {}  # id → [first, end): the characters it holds
         self.fences = set()  # indices a quote may not span
+        self.breaks = set()  # indices of the spaces that end one block's words
         self.retired = {}  # id under a retired slot → the suggestion whose decision did it
         self.gone = {}  # decided id whose decision left it empty → the outcome that did it
         # id → the ids enclosing it, outermost first, itself last. Structure, not
@@ -311,6 +322,7 @@ class _PassageParser:
         self._uid = 0
         self._block = None  # the block the last character came from
         self._space = False  # a separator waiting for a character to follow it
+        self._break = False  # whether that separator ends a block
 
     def _fresh(self) -> int:
         self._uid += 1
@@ -321,18 +333,24 @@ class _PassageParser:
         if data.strip():
             self.bearing.update(ids)
         if self.chars and block != self._block:
-            self._space = True
+            self._space = self._break = True
         self._block = block
+        start = len(self.chars)
         for ch in data:
             if ch in COLLAPSE_CHARS:
                 self._space = bool(self.chars)
                 continue
             if self._space:
+                if self._break:
+                    self.breaks.add(len(self.chars))
                 self.chars.append(" ")
                 self.owner.append(ids)
-                self._space = False
+                self._space = self._break = False
             self.chars.append(ch)
             self.owner.append(ids)
+        if (end := len(self.chars)) > start:
+            for wid in ids:
+                self.spans.setdefault(wid, [start, end])[1] = end
         for frame in reversed(self.stack):
             if frame["verbatim"]:
                 self.verbatim[frame["verbatim"]].write(data, block)
@@ -415,7 +433,7 @@ class _PassageParser:
                     break
                 if ancestor["upgrade"]:
                     break
-        provenance = None
+        provenance: tuple[str, str | None, int] | None = None
         if entry.get("x-verbatim"):
             provenance = (*self.verbatim_source, self.verbatim_owners)
             self.verbatim_owners += 1
@@ -452,7 +470,27 @@ class _PassageParser:
         # Silenced from above: the element shows nothing of its own, so a rewrite of
         # its body has nothing to stand in for — an edited draft inside a slot the
         # user accepted away left the page with the slot.
-        silenced = bool((parent and parent["skip"]) or own_wall)
+        silenced = bool(
+            (
+                parent
+                and (
+                    parent["silenced"] or (parent["skip"] and parent["sub"] is not None)
+                )
+            )
+            or own_wall
+        )
+        # Data notation is withheld, but a declared prose member is authored text
+        # the widget preserves independently of that notation. Only a direct member
+        # reopens that reading; nesting a member tag in source does not.
+        prose_member = bool(
+            parent
+            and parent["tag"] in entry.get("x-owners", [])
+            and entry.get("x-content") == "markup"
+        )
+        withheld = bool(
+            (parent and parent["withheld"] and not prose_member)
+            or (opaque and entry.get("x-content") == "data")
+        )
         # A surviving child keeps its parent on the page even where it holds no text —
         # a kept slot whose only content is an image. The text case marks every
         # enclosing id in _write.
@@ -467,9 +505,9 @@ class _PassageParser:
             "id": attrs_d.get("id"),
             "added": "data-lf-added" in attrs_d,
             "ids": ids,
-            "skip": silenced
-            or sub is not None
-            or (opaque and entry.get("x-content") == "data"),
+            "skip": silenced or sub is not None or withheld,
+            "withheld": withheld,
+            "silenced": silenced,
             "sub": sub,
             "retired_by": retired_by,
             "opaque": opaque,
@@ -540,6 +578,11 @@ class Passages(NamedTuple):
     gone: dict  # decided id whose decision left it empty → the outcome that did it
     enclosing: dict  # id → the ids enclosing it, outermost first, itself last
     verbatim: dict  # source provenance → compositional words with upgraded descendants as boundaries
+    breaks: set  # indices of the spaces that end one block's words and start the next's
+    # id → the half-open range of characters inside it, for each id with text in it.
+    # An element is contiguous in document order, so its characters are too, which
+    # is what lets a search be scoped by slicing.
+    spans: dict
 
 
 def _walk(parser: "_PassageParser", node) -> None:
@@ -558,7 +601,9 @@ def _walk(parser: "_PassageParser", node) -> None:
         ],
     )
     if parser.registry.get(node.tag, {}).get("x-text-format") == "markdown":
-        feed_markdown(parser, pre_body(node))
+        body = pre_body(node)
+        assert body is not None
+        feed_markdown(parser, body)
     else:
         for child in node.children:
             _walk(parser, child)
@@ -584,15 +629,9 @@ def page_passages(
         parser.gone,
         parser.enclosing,
         {wid: reading.reading() for wid, reading in parser.verbatim.items()},
+        parser.breaks,
+        {wid: (lo, hi) for wid, (lo, hi) in parser.spans.items()},
     )
-
-
-def section_span(owner: list, section: str):
-    """The half-open range of characters inside `section`, or None when the version has
-    no such element with text in it. An element is contiguous in document order, so its
-    characters are too — which is what lets a search be scoped by slicing."""
-    inside = [i for i, ids in enumerate(owner) if section in ids]
-    return (inside[0], inside[-1] + 1) if inside else None
 
 
 class Spoken(NamedTuple):
@@ -611,15 +650,10 @@ EMPTY = Spoken("", ())
 def _spoken(p: Passages) -> dict:
     """id → Spoken, for every element the reading `p` carries: the passage reading
     sliced by id rather than a second walk (see `SourceReading.spoken`)."""
-    first, last = {}, {}
-    for i, ids in enumerate(p.owner):
-        for wid in ids:
-            first.setdefault(wid, i)
-            last[wid] = i
     # Stripped: the separator `_write` puts between blocks lands inside whichever
     # element the next block opens, so a slice can start or end on one. It marks a
     # boundary rather than saying anything.
-    said = {wid: p.text[lo : last[wid] + 1].strip() for wid, lo in first.items()}
+    said = {wid: p.text[lo:hi].strip() for wid, (lo, hi) in p.spans.items()}
     return {wid: Spoken(said.get(wid, ""), chain) for wid, chain in p.enclosing.items()}
 
 
@@ -692,8 +726,8 @@ class SourceReading:
         to mean the same text a user could have selected, or the question is about
         something else.
 
-        `section_span` answers this for one id by scanning the page; every id at
-        once is that same scan, done once.
+        Each id's words are its `Passages.spans` slice of the text, the range a
+        quote scoped to that id searches.
 
         The two halves come from different readings because they are different
         facts, and taking both off the character scan cost the second one. Words

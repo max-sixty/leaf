@@ -1,5 +1,6 @@
-"""Filesystem path identity, containment, and overlap."""
+"""Filesystem path identity, containment, overlap, and the locks named by a path."""
 
+import contextlib
 import fcntl
 import hashlib
 import os
@@ -7,6 +8,8 @@ import stat
 import sys
 from pathlib import Path
 from typing import NamedTuple
+
+from .state import flocked
 
 
 class PathLocation(NamedTuple):
@@ -19,7 +22,7 @@ class PathLocation(NamedTuple):
     comparison alone.
 
     That is the whole point of the form. The callers are set intersections: every
-    package input against every other, every input against every vendored
+    package input against every other, every input against every page
     destination — 786 containment tests over the shipped layer's thirty-six
     distinct paths. Asked path-by-path, each test re-resolved both paths and
     stat'd its way up both ancestor chains, so `page init` spent two thirds of
@@ -259,3 +262,22 @@ def path_lock_key(path: Path) -> str:
     if not _filesystem_case_sensitive(ancestor):
         name = name.casefold()
     return hashlib.sha256(name.encode()).hexdigest()
+
+
+# Where `path_lock` keeps its lock files, one per key.
+PATH_LOCKS = Path("/tmp") / f"leaf-path-locks-{os.getuid()}"
+
+
+@contextlib.contextmanager
+def path_lock(*paths: Path):
+    """Hold an exclusive lock named by each of `paths` (`path_lock_key`) while the
+    block runs, taken in one order, so holders of overlapping sets never deadlock.
+
+    The lock home is machine-local, independent of XDG_STATE_HOME and TMPDIR: two
+    Leaves with different state homes writing one path still serialize, and nothing
+    is written beside the path, which may be authored code or not yet validated."""
+    PATH_LOCKS.mkdir(mode=0o700, exist_ok=True)
+    with contextlib.ExitStack() as held:
+        for key in sorted({path_lock_key(path) for path in paths}):
+            held.enter_context(flocked(PATH_LOCKS / f"{key}.lock"))
+        yield

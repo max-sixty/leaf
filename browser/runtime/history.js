@@ -11,18 +11,39 @@
  * Chrome's native restoration can lose the saved offset when Back interrupts a smooth
  * arrival; its pending compositor update can also overwrite an immediate restoration.
  * A traversal cancels the outgoing placement, waits for that cancellation's rendering
- * update, then restores the checkpoint. Nested reading regions stop with that placement
- * but keep their current offsets; these checkpoints restore the document viewport.
+ * update, then places the page. The browser applies the traversal some time after its
+ * navigate event, and Firefox and WebKit change the page as they do, even though the
+ * traversal is intercepted with `scroll: "manual"`. Both reveal the element the
+ * entry's fragment names, WebKit then scrolls to it, and Firefox restores the
+ * destination's saved offset (Firefox 157 and WebKit 27.2; Firefox's nsDocShell never
+ * reads the suppression the Navigation API sets). That overwrote the placement: Back
+ * to a since-hidden `#tabbed` left it 471px down in Firefox, where Chromium landed it
+ * at 59px. So once the browser has applied the traversal (`traversalApplied`), the
+ * page scrolls back by however far the first block on screen moved since the
+ * placement. Scroll anchoring holds that block still through a change above it, but a
+ * change inside it in that frame moves it as the browser does, and a pinned block
+ * stays put while the browser scrolls. The claimant and travel read the page before
+ * the browser applies the traversal, while it still hides what the user hid since.
+ * Rejected: placing only after the browser applies the traversal, which let Firefox
+ * and WebKit reveal a root view's target before travel read the page, and let a quick
+ * second Back save the entry between before it was placed; putting back the
+ * placement's own offset, which undid scroll anchoring; and
+ * `history.scrollRestoration = "manual"`, under which Firefox put a traversal Leaf had
+ * no checkpoint for at the top of the page.
+ * Nested reading regions stop with that placement but keep their current offsets;
+ * these checkpoints restore the document viewport.
  *
  * Without a captured checkpoint, the browser restores its saved offset, except that
  * Chrome answers a traversal to an entry whose fragment names an element by scrolling to that element
  * instead (measured: Back to `#s2` after reading 3000px down landed on `#s2` at 666).
  * So every same-document traversal comes through here, through the Navigation API. An
- * owner that claims the destination (`claimTraversals`) can place the page itself, as a
- * root tab set does for the entry of each of its views. Travel takes the traversal next
- * (`mountHistory`'s `returnToFragment`, anchor-travel.js) where the entry's fragment
- * names a place the page no longer shows: the offset was saved over a page that has
- * changed, so travel reveals the place and lands on it. Any other traversal is
+ * owner that claims the destination (`claimTraversals`) can reveal and place the page
+ * itself, as a root tab set does for the entry of each of its views. Travel takes the
+ * traversal after any claimant (`mountHistory`'s `returnToFragment`, anchor-travel.js)
+ * where the entry's fragment still names a place the page doesn't show, such as a
+ * widget's key whose part the widget no longer draws inside the view a tab set has
+ * just opened: the offset was saved over a page that has changed, so travel reveals
+ * the place and lands on it. Any other traversal is
  * intercepted to restore its working-place checkpoint, or the browser's saved offset
  * for an entry without one. Back and Forward restore that working place after its
  * owner has revealed the view, so the next command reads the returned place from the browser.
@@ -39,15 +60,30 @@
  * claimed. A browser without the Navigation API keeps its own traversals and fragment
  * landings. */
 
-import { deepFocus, drawn, focusDestination, readCaret } from "./focus.js";
-import { pageRange, selectEnds, selectionBackward } from "./passages.js";
+import { pageRange, selectEnds, selectionBackward } from "./native-selection.js";
+import { setScroll } from "./arrivals.js";
+import { deepFocus, drawn, focusDestination, readCaret, blurFocused } from "./focus.js";
+
 import { retainUserIntent } from "./user-intent.js";
 import { placeOf } from "./current-target.js";
 import { upFrom } from "./shadow.js";
+import { presented } from "./geometry.js";
 import { unconcealedReadingRegions } from "./reading-regions.js";
-import { pageScroller, stopScroll } from "./scrolling.js";
+import { readingBlock } from "./reading-place.js";
+import { pageScroller, scrollGoal, stopScroll } from "./scrolling.js";
+import { nextRender } from "./rendering.js";
+import { aborted } from "./abort.js";
 
+/** @typedef {[WeakRef<Node>, number]} HeldSelectionEnd
+ * @typedef {{focus: WeakRef<Element> | null, place: WeakRef<Element> | null,
+ * caret: import("./focus.js").Caret | null, ends: [HeldSelectionEnd, HeldSelectionEnd] | null,
+ * offset: [number, number]}} WorkingPlace
+ * @typedef {() => void | boolean | Promise<void | boolean>} TraversalHandler
+ * @typedef {(url: URL) => TraversalHandler | null | undefined} TraversalClaim
+ */
+/** @type {Set<TraversalClaim>} */
 const claims = new Set();
+/** @type {Map<string, WorkingPlace>} */
 const places = new Map();
 
 // The user's working place, read once before something borrows it: leaving an entry, or
@@ -55,22 +91,27 @@ const places = new Map();
 // the node they had focused, when the reading comes after focus has left it. Plain endpoints
 // keep a removed passage from being silently retargeted by a live Range. pageRange
 // shares the declared-shadow reading used for commenting; the selection's direction also
-// keeps its working end.
+// keeps its working end. The offset is where the page is headed (`scrollGoal`), as a
+// key pressed while Leaf still moves the page acts as if the motion had landed: a second
+// `m` pressed while the first still glides leaves the obligation the first landed on,
+// so Back returns there rather than to wherever the glide had reached.
+/** @param {Element | null} focus @returns {WorkingPlace} */
 export function readPlace(focus = deepFocus()) {
   const place = placeOf(focus);
   const selection = getSelection();
-  const range = selection.rangeCount ? pageRange(selection) : null;
+  const range = selection?.rangeCount ? pageRange(selection) : null;
+  /** @type {[HeldSelectionEnd, HeldSelectionEnd] | null} */
   const ends = range && [
     [new WeakRef(range.startContainer), range.startOffset],
     [new WeakRef(range.endContainer), range.endOffset],
   ];
-  if (ends && selectionBackward(selection, range)) ends.reverse();
+  if (ends && selection && range && selectionBackward(selection, range)) ends.reverse();
   return {
     focus: focus && new WeakRef(focus),
     place: place && new WeakRef(place),
     caret: readCaret(focus),
     ends,
-    offset: [scrollX, scrollY],
+    offset: [scrollX, scrollGoal(pageScroller)],
   };
 }
 
@@ -78,34 +119,41 @@ export function readPlace(focus = deepFocus()) {
 // shortened what it named since, so a node no longer drawn is not returned to, and a
 // selection end past its node's current length returns to what is left of that node,
 // its end.
+/** @param {WorkingPlace} checkpoint */
 export function returnPlace(checkpoint) {
   const focus = checkpoint.focus?.deref();
   const place = checkpoint.place?.deref();
   const { caret } = checkpoint;
-  const ends = checkpoint.ends?.map(([ref, offset]) => {
-    const node = ref.deref();
-    const length = node?.nodeType === 3 ? node.length : node?.childNodes.length;
-    return [node, Math.min(offset, length ?? offset)];
-  });
-  if (focus !== document.body && drawn(focus)) {
+  if (focus !== document.body && focus?.isConnected && presented(focus)) {
     focusDestination(focus, "return", { caret });
     // A field's caret is its whole selection, and clearing the document's would
     // collapse it.
     if (caret) return;
   }
-  // A thread card may have closed on departure. Its page target is the same working
-  // place from the other side, and remains a browser focus destination on return.
-  else if (drawn(place)) focusDestination(place, "return");
-  else /** @type {HTMLElement | null} */ (deepFocus())?.blur();
+  // A thread card may have closed on departure, still painted but inert during
+  // its closing fade. Its page target is the same working place from the other
+  // side, and remains a browser focus destination on return. Arriving there opens
+  // the card beside it again wherever a card stands, as the card accompanies any
+  // page target the user arrives at other than by a press (margin-projection.js,
+  // `followCurrentLocation`).
+  else if (place?.isConnected && presented(place)) focusDestination(place, "return");
+  else blurFocused();
   const selection = getSelection();
+  if (!selection) return;
   selection.removeAllRanges();
   // Editing the passage can remove its saved endpoint. That checkpoint then has no
   // selection to restore, and the returned viewport supplies the next walk's origin.
-  if (
-    ends?.every(([node]) => node && drawn(node.nodeType === 1 ? node : upFrom(node)))
-  ) {
-    selectEnds(...ends);
-  }
+  const anchor = checkpoint.ends && returnEnd(checkpoint.ends[0]);
+  const end = checkpoint.ends && returnEnd(checkpoint.ends[1]);
+  if (anchor && end) selectEnds(anchor, end);
+}
+
+/** @param {HeldSelectionEnd} end @returns {import("./native-selection.js").SelectionEnd | null} */
+function returnEnd([ref, offset]) {
+  const node = ref.deref();
+  if (!node || !drawn(node instanceof Element ? node : upFrom(node))) return null;
+  const length = node instanceof CharacterData ? node.length : node.childNodes.length;
+  return [node, Math.min(offset, length)];
 }
 
 // Whether this document is writing an entry itself. The Navigation API fires `navigate`
@@ -113,6 +161,8 @@ export function returnPlace(checkpoint) {
 // press on a link to the fragment the page already shows: both are a same-document
 // `replace` or `push` with no hash change. Only the writer can tell them apart.
 let writing = false;
+/** @param {"pushState" | "replaceState"} method @param {unknown} state
+ * @param {string | URL | null | undefined} url */
 function write(method, state, url) {
   writing = true;
   try {
@@ -122,10 +172,12 @@ function write(method, state, url) {
   }
 }
 
+/** @param {string | URL | null | undefined} url @param {unknown} state */
 export function pushEntry(url, state = null) {
   write("pushState", state, url);
 }
 
+/** @param {string | URL | null | undefined} url @param {unknown} state */
 export function replaceEntry(url, state = history.state) {
   write("replaceState", state, url);
 }
@@ -141,19 +193,15 @@ export function prepareEntry() {
   const offset = place.offset;
   const sourceUrl = window.location.href;
   const sourceState = history.state;
-  return (url, state, replace) => {
-    if (replace) {
-      replaceEntry(url, state);
-      return;
-    }
-    const arrival = [scrollX, scrollY];
+  return /** @param {string | URL} url */ (url) => {
+    const arrival = { left: scrollX, top: scrollY };
     // Exposing another view renames this entry. Its original URL and state belong to
     // the outgoing checkpoint; the exposed destination belongs to the new entry.
     if (window.location.href !== sourceUrl || history.state !== sourceState)
       replaceEntry(sourceUrl, sourceState);
-    window.scrollTo({ left: offset[0], top: offset[1], behavior: "instant" });
-    pushEntry(url, state);
-    window.scrollTo({ left: arrival[0], top: arrival[1], behavior: "instant" });
+    setScroll(pageScroller, { left: offset[0], top: offset[1], behavior: "instant" });
+    pushEntry(url);
+    setScroll(pageScroller, { ...arrival, behavior: "instant" });
     if (key) places.set(key, place);
   };
 }
@@ -162,29 +210,33 @@ export function prepareEntry() {
 // nothing when the entry is not the claimant's. The first claim to answer takes it.
 // A handler places the viewport itself unless it resolves to false, handing placement
 // back to the entry's checkpoint (or the browser when no checkpoint was captured).
-/** @param {(url: URL) => unknown} claim @param {{signal?: AbortSignal}} [options] */
+// Travel follows it where the entry's fragment names a place its view doesn't show.
+/** @param {TraversalClaim} claim @param {{signal?: AbortSignal}} [options] */
 export function claimTraversals(claim, { signal } = {}) {
   claims.add(claim);
   signal?.addEventListener("abort", () => claims.delete(claim), { once: true });
 }
 
 let mounted = false;
+/** @param {{followFragment: TraversalClaim, returnToFragment: TraversalClaim}} options */
 export function mountHistory({ followFragment, returnToFragment }) {
   if (mounted) return;
   mounted = true;
-  window.navigation?.addEventListener("navigate", (event) => {
+  const navigation = window.navigation;
+  navigation?.addEventListener("navigate", (event) => {
     if (!event.destination.sameDocument || !event.canIntercept) return;
     const url = new URL(event.destination.url);
     if (event.navigationType !== "replace") {
-      const live = new Set(window.navigation.entries().map((entry) => entry.key));
+      const live = new Set(navigation.entries().map((entry) => entry.key));
       for (const key of places.keys()) if (!live.has(key)) places.delete(key);
-      const key = window.navigation.currentEntry?.key;
+      const key = navigation.currentEntry?.key;
       if (key) places.set(key, readPlace());
     }
     if (event.navigationType === "traverse") {
-      const handler = claimed(url) ?? returnToFragment(url);
+      const claim = claimed(url);
       const place = places.get(event.destination.key);
       const mayReturn = retainUserIntent({ available: () => !event.signal.aborted });
+      const applied = traversalApplied(event.signal);
       event.intercept({
         scroll: "manual",
         focusReset: "manual",
@@ -199,22 +251,48 @@ export function mountHistory({ followFragment, returnToFragment }) {
           ]);
           await stopScroll(scrollers);
           if (!mayReturn()) return;
+          // The claimant reveals its view first, so travel reads the place the fragment
+          // names in the page that view leaves. Either one places the viewport unless it
+          // resolves to false.
+          /** @type {unknown} */
           let work;
           mayReturn.handoff(() => {
-            work = handler?.();
+            work = claim?.();
           });
-          const placed = await work;
+          let placed = Boolean(claim) && (await work) !== false;
           if (!mayReturn()) return;
-          if (!handler || placed === false) {
-            if (place)
-              window.scrollTo({
-                left: place.offset[0],
-                top: place.offset[1],
-                behavior: "instant",
-              });
-            else event.scroll();
+          work = undefined;
+          mayReturn.handoff(() => {
+            work = returnToFragment(url)?.();
+          });
+          if (work !== undefined) placed = (await work) !== false || placed;
+          if (!mayReturn()) return;
+          if (!placed && !place) {
+            event.scroll();
+            return;
           }
-          if (place) returnPlace(place);
+          if (!placed && place)
+            setScroll(pageScroller, {
+              left: place.offset[0],
+              top: place.offset[1],
+              behavior: "instant",
+            });
+          if (place) mayReturn.handoff(() => returnPlace(place));
+          // Firefox and WebKit may apply the traversal after this placement and move
+          // the page as they do (above). Once they have, the first block on screen goes
+          // back to where the placement stood it.
+          const mark = readingBlock() ?? document.documentElement;
+          const stood = mark.getBoundingClientRect().top;
+          await applied;
+          if (!mayReturn() || !mark.isConnected) return;
+          const moved = mark.getBoundingClientRect().top - stood;
+          if (moved)
+            mayReturn.handoff(() =>
+              setScroll(pageScroller, {
+                top: pageScroller.scrollTop + moved,
+                behavior: "instant",
+              }),
+            );
         },
       });
       return;
@@ -223,10 +301,35 @@ export function mountHistory({ followFragment, returnToFragment }) {
     // change, and still a navigation step: its target may have been shut since.
     if (writing || event.formData || !url.hash) return;
     const handler = followFragment(url);
-    if (handler) event.intercept({ scroll: "manual", focusReset: "manual", handler });
+    if (handler)
+      event.intercept({
+        scroll: "manual",
+        focusReset: "manual",
+        handler: async () => {
+          await handler();
+        },
+      });
   });
 }
 
+// Resolves in the first rendering update after the traversal's `popstate`, which every
+// engine fires as it applies a same-document traversal, or when the traversal is
+// aborted. Firefox restores the entry's saved offset just after that `popstate`, in
+// the same task, so the rendering update is the first point past it that comes
+// before the next paint.
+/** @param {AbortSignal} signal @returns {Promise<void>} */
+function traversalApplied(signal) {
+  /** @type {Promise<void>} */
+  const applied = new Promise((resolve) =>
+    addEventListener("popstate", () => nextRender(() => resolve()), {
+      once: true,
+      signal,
+    }),
+  );
+  return Promise.race([applied, aborted(signal)]);
+}
+
+/** @param {URL} url */
 function claimed(url) {
   for (const claim of claims) {
     const handler = claim(url);

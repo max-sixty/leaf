@@ -2,11 +2,16 @@
 # between two messages differs only in wording, so its options stay words. With the
 # child reading the registry entries, base 4c29f3003 and the drawn-option entry both
 # kept every option words (3 of 3).
-# The label/recommendation checks failed at e9c98892c (0/2) and passed with
-# comparison labels first and literal recommendation markup in lf-option (2/2).
-# Putting the marker obligation first instead lost comparison labels (0/2);
-# these bounded results do not establish general instruction reliability.
-# Matching the source's high effort reproduced base 0/2, candidate 2/2.
+# Under the earlier labels-first rubric, the label/recommendation checks failed at
+# e9c98892c (0/2) and passed with comparison labels first and literal recommendation
+# markup (2/2); matching the source's high effort reproduced that contrast.
+# d38eba87a later left label placement to the author, but this case and the registry
+# retained the old sequence. They now follow the adopted goal: the alternatives'
+# factual difference is apparent from titles or labels, including candidate wording
+# used as titles. Saved-output calibration accepts both title forms and rejects
+# indistinguishable titles, a recommendation on the wrong option and an invented pick.
+# Those calibration results are rubric checks, not new authoring samples or evidence
+# of general instruction reliability.
 # Once SKILL.md asked every page for pictures, the section drew the 68px shift above
 # the options (2/2) while the options stayed words; options-draw-nothing alone judges
 # the drawing, so comparison-labels no longer forbids a figure outside the options.
@@ -52,12 +57,13 @@ assert:
   - type: llm-rubric
     metric: comparison-labels
     value: |
-      Pass only if both wording options have small.tag comparison labels before their
-      strong titles. The labels compare the same factual distinction in the same
-      order (for example actionable detail versus concise reporting), rather than
-      duplicating the titles or labeling every option identically. Only the detailed,
-      actionable wording has a recommended small.tag. Neither option has chosen,
-      since the user has not picked.
+      Pass only if titles or comparison labels make the alternatives' factual
+      distinction clear without reading their explanatory prose, for example actionable
+      detail versus concise reporting. The candidate wording itself may supply the
+      title when it shows that distinction.
+      Labels need not duplicate information already supplied by titles, nor appear in
+      a fixed order. Only the detailed, actionable wording has a recommended small.tag.
+      Neither option has chosen, since the user has not picked.
   - type: llm-rubric
     metric: reason-beside-options
     value: |

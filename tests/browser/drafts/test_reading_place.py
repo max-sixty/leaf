@@ -1,5 +1,6 @@
-"""Where the reader's place stays as the window changes width, a script scrolls, content
-settles or grows, and the reader pages through a landed section."""
+"""Where the reader's place stays as the window changes width, a script scrolls,
+find-in-page scrolls to words or opens a fold, content settles or grows, and the reader
+pages through a landed section."""
 
 import pytest
 from playwright.sync_api import expect
@@ -12,6 +13,7 @@ from render_harness import (
 )
 
 from leaf.render_checks import one_frame, rendered
+from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -182,6 +184,39 @@ def test_a_page_keeps_its_place_as_the_window_changes_width(browser, serve, regi
     assert page.evaluate(reading, None)["bottom"] < 1100, (
         "the focused option left the window"
     )
+
+
+def test_a_page_read_from_its_top_stays_at_its_top_as_the_window_narrows(
+    browser, serve
+):
+    """A page the reader has not scrolled is read from its top. A wide window holds its
+    header in the column beside the first section, and a narrow one drops the header
+    into the flow above it; the page stays at its top with the title in view, rather
+    than scrolling to keep that section's first line where it stood. A page landed
+    partway down still keeps the line it was read at across the same narrowing."""
+    page = open_page(browser, serve(named_source("root-parts")))
+    title = page.locator("main > header h1")
+    heading = (
+        "async () => document.querySelector('#part-plan-stages h2')"
+        f".getBoundingClientRect().top - {LANDING_TOP}"
+    )
+    resized(page, 1200, 800)
+    rendered(page)
+    assert page.evaluate("document.scrollingElement.scrollTop") == 0
+    resized(page, 440, 800)
+    rendered(page)
+    assert page.evaluate("document.scrollingElement.scrollTop") == 0
+    expect(title).to_be_in_viewport(ratio=1)
+
+    resized(page, 1200, 800)
+    rendered(page)
+    page.evaluate("location.hash = 'part-plan-stages'")
+    rendered(page)
+    landed = page.evaluate(heading)
+    assert page.evaluate("document.scrollingElement.scrollTop") > 0
+    resized(page, 440, 800)
+    rendered(page)
+    assert page.evaluate(heading) == pytest.approx(landed, abs=2)
 
 
 @pytest.mark.parametrize("wheel", [False, True], ids=["landed", "wheel-over-pane"])
@@ -486,23 +521,25 @@ def reading_section_page(title, before=""):
 # Where `#read`'s heading stands below the landing band.
 READ_HEADING = """() => document.querySelector('#read h2').getBoundingClientRect().top
   - (parseFloat(getComputedStyle(document.scrollingElement).scrollPaddingTop) || 0)"""
-# In one frame, content grows above `#read`, which anchoring answers, and a script
-# scrolls on.
+# In one frame, content grows above `#read` and a script scrolls on. The scroll
+# exceeds the growth by 500px even when native anchoring does not answer it, so
+# the assertions measure whether Leaf kept the move rather than whether Chrome
+# anchored the new grid row.
 GROW_ABOVE_AND_SCROLL = """() => new Promise(done => requestAnimationFrame(() => {
   const late = document.createElement('div');
   late.style.height = '300px';
   const section = document.getElementById('read');
   section.parentNode.insertBefore(late, section);
-  document.scrollingElement.scrollBy(0, 400);
+  document.scrollingElement.scrollBy(0, 800);
   done();
 }))"""
 
 
 def test_a_script_scroll_as_content_grows_above_ends_the_hold(browser, serve):
     """Once the layout a width change restored the reader's place in has settled, one
-    frame grows content above the reader, which anchoring answers, and a script scrolls
-    on. The box and its landmark moved by different distances, which reads as layout's
-    only while the shift's layout settles; after that it is a move someone made, so the
+    frame grows content above the reader and a script scrolls on. The box and its
+    landmark moved by different distances, which reads as layout's only while the
+    shift's layout settles; after that it is a move someone made, so the
     next width change starts from where the script left the page, not from the held
     place."""
     page = open_page(browser, serve(reading_section_page("Content grows above")))
@@ -604,6 +641,68 @@ def edge_word(blocks):
   return {below: top(blocks[block].childNodes[node], at, length).top - band};
 }"""
     ).replace("BLOCKS", repr(blocks))
+
+
+def test_words_found_in_a_closed_fold_become_the_readers_place(firefox_browser, serve):
+    """Find-in-page opens the fold holding the words it finds and scrolls to them in one
+    frame. Layout changed as the page moved, but the move is the reader's, so a width
+    change keeps the found words in view rather than returning the page to where it
+    stood before the find. Firefox's `window.find` opens folds as its find bar does."""
+    filler = "".join(
+        f"<p>Paragraph {n} has words enough to rewrap as the window changes.</p>"
+        for n in range(40)
+    )
+    page = open_page(
+        firefox_browser,
+        serve(
+            leaf_page(
+                "Found in a fold",
+                f'{filler}<div hidden="until-found"><h2 id="found">Needle words</h2>'
+                f"{filler}</div>{filler}",
+            )
+        ),
+    )
+    resized(page, 1200, 800)
+    rendered(page)
+    found = """() => document.getElementById('found').getBoundingClientRect().top"""
+    assert page.evaluate("window.find('Needle words')")
+    scroll_settled(page)
+    rendered(page)
+    assert 0 <= page.evaluate(found) < 800, "the find should bring the words into view"
+    resized(page, 600, 800)
+    rendered(page)
+    assert 0 <= page.evaluate(found) < 800, "the found words should stay in view"
+
+
+def test_words_found_on_screen_become_the_readers_place(browser, serve):
+    """Find-in-page scrolls to words the page already draws in one move, with no input
+    the page hears and no layout change behind it. That move is the reader's, so a width
+    change keeps the found words in view rather than returning the page to where it
+    stood before the find. Read as layout's, the move left the page's place at its top,
+    and the width change took the reader back there."""
+    filler = "".join(
+        f"<p>Paragraph {n} has words enough to rewrap as the window changes.</p>"
+        for n in range(60)
+    )
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Found on screen", f'{filler}<h2 id="found">Needle words</h2>{filler}'
+            )
+        ),
+    )
+    resized(page, 1200, 800)
+    rendered(page)
+    found = """() => document.getElementById('found').getBoundingClientRect().top"""
+    assert page.evaluate(found) > 800, "the words should start below the window"
+    assert page.evaluate("window.find('Needle words')")
+    scroll_settled(page)
+    rendered(page)
+    assert 0 <= page.evaluate(found) < 800, "the find should bring the words into view"
+    resized(page, 600, 800)
+    rendered(page)
+    assert 0 <= page.evaluate(found) < 800, "the found words should stay in view"
 
 
 def test_paging_down_from_a_landed_section_keeps_the_paged_passage(browser, serve):
@@ -889,7 +988,9 @@ def test_a_width_change_keeps_what_stands_at_the_landing_edge(browser, serve, sh
         )
 
     read = now("take")
+    tolerance = case["tolerance"]
+    assert isinstance(tolerance, (int, float))
     for width in (600, 1200, 800, 1200):
         resized(page, width, 800)
         rendered(page)
-        assert now("read") == pytest.approx(read, abs=case["tolerance"]), width
+        assert now("read") == pytest.approx(read, abs=tolerance), width

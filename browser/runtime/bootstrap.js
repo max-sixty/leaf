@@ -15,7 +15,12 @@
     for (const mark of marks) arrived.searchParams.delete(mark);
     history.replaceState(history.state, "", arrived);
   }
-  const script = /** @type {HTMLScriptElement} */ (document.currentScript);
+  const script = (() => {
+    const entry = document.currentScript;
+    if (!(entry instanceof HTMLScriptElement))
+      throw new Error("The Leaf bootstrap needs its HTML script entry");
+    return entry;
+  })();
   const root = document.documentElement;
   // runtime/ids.js's randomId, which this classic script cannot import: a sample
   // child served by `leaf --host` over plain HTTP has no crypto.randomUUID, nor does a
@@ -24,6 +29,17 @@
     Array.from(crypto.getRandomValues(new Uint8Array(16)), (byte) =>
       byte.toString(16).padStart(2, "0"),
     ).join("");
+  // A framed document places focus only while it holds input (focus.js,
+  // `canPlaceFocus`). Aim cancels native mousedown focus and places its editor after
+  // layout, so a trusted input enters the browsing context before those handlers run.
+  if (window !== window.top) {
+    const nativeWindowFocus = window.focus;
+    const enterFrame = /** @param {Event} event */ (event) => {
+      if (event.isTrusted && !document.hasFocus()) nativeWindowFocus.call(window);
+    };
+    for (const type of ["pointerdown", "keydown"])
+      window.addEventListener(type, enterFrame, true);
+  }
   // The sample URL grants this document its own server operations. An opaque
   // origin keeps it out of its parent's DOM and storage; native network APIs keep
   // their ordinary browser behavior. Only presentation values use the private port.
@@ -32,24 +48,38 @@
       root.lfSample = window.lfSampleBridge;
       root.lfSample.install();
     } else {
-      let port;
-      let settings;
+      /** @type {{port: MessagePort, settings: import("./sample-protocol.js").SampleSettings} | null} */
+      let connection = null;
       /** @type {PromiseWithResolvers<void>} */
       const { promise: ready, resolve: readyResolve } = Promise.withResolvers();
+      /** @type {import("./sample-protocol.js").ChildMessage[]} */
       const queued = [];
+      /** @type {Set<(message: import("./sample-protocol.js").ParentMessage) => void>} */
       const listeners = new Set();
-      const send = (value) => (port ? port.postMessage(value) : queued.push(value));
+      /** @param {import("./sample-protocol.js").ChildMessage} value */
+      const send = (value) =>
+        connection ? connection.port.postMessage(value) : queued.push(value);
       /** @type {LeafSampleBridge} */
       const bridge = {
         ready,
         get settings() {
-          return settings;
+          if (!connection) throw new Error("The sample private port is not connected");
+          return connection.settings;
         },
         send,
+        install() {
+          const root = document.documentElement;
+          window.lfRootState.setRuntimeRootAttribute(
+            root,
+            "data-lf-sample-block",
+            bridge.settings.window ? null : "",
+          );
+          dress(worn);
+        },
         receive: (callback) => listeners.add(callback),
         present() {
-          document.documentElement.lfInitial.setRuntimeRootAttribute(
-            document.body,
+          window.lfRootState.setRuntimeRootAttribute(
+            document.documentElement,
             "inert",
             null,
           );
@@ -57,62 +87,60 @@
       };
       root.lfSample = bridge;
       window.lfSampleBridge = bridge;
+      /** @type {LeafDress} */
       let worn = { attributes: {}, properties: {} };
+      /** @param {LeafDress} [next] */
       const dress = (next = { attributes: {}, properties: {} }) => {
         const root = document.documentElement;
-        root.lfInitial.wear(root, next);
+        window.lfRootState.wear(root, next);
         worn = next;
-      };
-      // Aim cancels native mousedown focus and places its editor after layout. A
-      // trusted input enters the browsing context before those handlers run.
-      const nativeWindowFocus = window.focus;
-      const enterSample = (event) => {
-        if (event.isTrusted && !document.hasFocus()) nativeWindowFocus.call(window);
-      };
-      bridge.install = () => {
-        const root = document.documentElement;
-        root.lfInitial.setRuntimeRootAttribute(
-          root,
-          "data-lf-sample-block",
-          settings.window ? null : "",
-        );
-        dress(worn);
-        for (const type of ["pointerdown", "keydown"])
-          window.addEventListener(type, enterSample, true);
       };
       const sample = new URL(`${script.dataset.lfPageRoot}/`, location.origin).pathname;
       const nonce = randomId();
+      /** @param {MessageEvent<import("./sample-protocol.js").SampleOffer | undefined>} event */
       const connect = (event) => {
+        const port = event.ports[0];
         if (
           event.source !== window.parent ||
           event.data?.sample !== sample ||
           event.data.nonce !== nonce ||
-          !event.ports[0]
+          !port
         )
           return;
         window.removeEventListener("message", connect);
-        settings = event.data.settings;
-        port = event.ports[0];
+        const settings = event.data.settings;
+        connection = { port, settings };
         // The bootstrap element owns diagnostic readings before the entry starts.
         script.lfDocumentPort = port;
-        port.onmessage = ({ data }) => {
-          if (data.type === "dress") dress(data.detail);
-          else for (const callback of listeners) callback(data);
-        };
+        port.onmessage =
+          /** @param {MessageEvent<import("./sample-protocol.js").ParentMessage>} event */ ({
+            data,
+          }) => {
+            if (data.type === "dress") dress(data.detail);
+            else for (const callback of listeners) callback(data);
+          };
         port.postMessage({ type: "connected", nonce });
         bridge.install();
         dress(settings.dress);
-        root.lfInitial.setRuntimeRootAttribute(root, "data-lf-sample-connecting", null);
+        window.lfRootState.setRuntimeRootAttribute(
+          root,
+          "data-lf-sample-connecting",
+          null,
+        );
         readyResolve();
         for (const value of queued.splice(0)) port.postMessage(value);
       };
       // What the document wears, its dress and whether it stands as a block, comes in
       // the containing page's answer, which can land frames after the document could
-      // first paint. Until it does the document paints nothing (theme.css), so no frame
+      // first paint. Until it does the document paints nothing (base.css), so no frame
       // shows a playground's candidate undressed. Opened as a window of its own, it
       // has no containing page to answer and paints at once.
       if (window.parent !== window)
-        root.lfInitial.setRuntimeRootAttribute(root, "data-lf-sample-connecting", "");
+        window.lfRootState.setRuntimeRootAttribute(
+          root,
+          "data-lf-sample-connecting",
+          "",
+        );
       window.addEventListener("message", connect);
       window.parent.postMessage({ type: "leaf-sample-connect", sample, nonce }, "*");
       // A frame's own navigation never keeps its document in the page cache, so a
@@ -122,9 +150,10 @@
         if (!event.persisted) send({ type: "departed" });
       });
     }
+    const sampleBridge = root.lfSample;
     window.addEventListener("lf-startup-failed", () =>
-      root.lfDocumentLifetime.whenActive("sample error", () =>
-        root.lfSample.send({
+      window.lfDocumentLifetime.whenActive("sample error", () =>
+        sampleBridge.send({
           type: "error",
           detail: root.lfStartupException ?? {
             message:
@@ -159,7 +188,18 @@
   // keeps its own meaning. A chord never starts a run, and a modifier alone is half a
   // press, which neither starts nor ends one. After a beat the held keys are shown, so a
   // press visibly landed; a runtime that takes the run within the beat shows nothing.
-  const { takesLetters } = root.lfInputs;
+  //
+  // The hold ends when the runtime takes it, when the document reports it cannot start
+  // (`recover`, and the runtime's own `letHeldKeysGo` where it gives the document up),
+  // or when the user lets go as above, and never on a clock. The notice says the keys
+  // run when the page is ready, and a healthy page can take any time to get there on
+  // a loaded machine or a slow network. Rejected: ending the hold ten seconds in (#1213),
+  // on the reading that a page not upgraded by then had faulted, which dropped the keys
+  // of pages that upgraded fifteen seconds in on a loaded Mac. A page that hangs with no
+  // report keeps showing that it is still loading, which is then the truth.
+  const { takesLetters } = /** @type {DocumentInputs} */ (
+    Reflect.get(window, Symbol.for("leaf.inputs"))
+  );
   const HALF_PRESSES = new Set([
     "Shift",
     "Control",
@@ -169,9 +209,12 @@
     "CapsLock",
   ]);
   function holdEarlyKeys() {
+    /** @type {KeyboardEvent[]} */
     const held = [];
     let taken = false;
+    /** @type {((event: KeyboardEvent) => boolean) | null} */
     let ready = null;
+    /** @type {(() => boolean) | null} */
     let keep = null;
     let beat = 0;
     const echo = document.createElement("p");
@@ -190,7 +233,9 @@
         ...keys,
         keys.length === 1 ? "runs when it's ready" : "run when it's ready",
       );
-      if (!echo.isConnected) document.body?.append(echo);
+      // After the body and the chrome's root, which it ties with (base.css,
+      // `.lf-held-keys`); before the body is parsed it would stand ahead of both.
+      if (!echo.isConnected && document.body) document.documentElement.append(echo);
     };
     const letGo = () => {
       held.length = 0;
@@ -198,6 +243,7 @@
       beat = 0;
       echo.remove();
     };
+    /** @param {KeyboardEvent} event */
     const queue = (event) => {
       if (event.repeat) return;
       held.push(event);
@@ -205,8 +251,9 @@
       if (echo.isConnected) show();
       else beat ||= setTimeout(show, 150);
     };
+    /** @param {KeyboardEvent} event */
     const hold = (event) => {
-      if (!root.lfKeyboard.quick) return letGo();
+      if (!window.lfKeyboard.quick) return letGo();
       if (event.isComposing || HALF_PRESSES.has(event.key)) return;
       // Shift chooses which character prints; Ctrl, Alt and Meta make a chord instead.
       const printed =
@@ -244,10 +291,10 @@
     // The controller takes a run, so the notice comes down, but the hold stands until its
     // owner has pressed the last key in it: a printed key pressed meanwhile joins the
     // same run rather than running ahead of the keys pressed before it.
+    /** @param {DocumentEventMap["lf-held-keys"]} event */
     const take = (event) => {
       ready = event.detail.ready;
       keep = event.detail.keep;
-      clearTimeout(limit);
       if (!held.length) {
         if (!keep?.()) stopHoldingKeys();
         return;
@@ -266,15 +313,10 @@
         if (!keep?.()) stopHoldingKeys();
       };
     };
-    // A page that has not upgraded by now is not loading but faulted, and a key held
-    // this long is one the user has given up on: the hold ends, what it held is
-    // dropped, and keys reach the runtime as they come.
-    const limit = setTimeout(() => stopHoldingKeys(), 10_000);
     stopHoldingKeys = () => {
       window.removeEventListener("keydown", hold, true);
       window.removeEventListener("pointerdown", pointed, true);
       document.removeEventListener("lf-held-keys", take);
-      clearTimeout(limit);
       letGo();
     };
     window.addEventListener("keydown", hold, true);
@@ -289,16 +331,25 @@
   function observePublicStartup() {
     if (!release) return;
     let sent = false;
+    /** @type {number | null} */
     let upgradedMs = null;
+    /** @type {number | null} */
     let firstStateResponseMs = null;
+    /** @type {number | null} */
     let presentedMs = null;
+    /** @type {string | null} */
     let fault = null;
+    /** @param {number | undefined} value */
     const rounded = (value) =>
-      Number.isFinite(value) && value >= 0 ? Math.round(value) : null;
+      value !== undefined && Number.isFinite(value) && value >= 0
+        ? Math.round(value)
+        : null;
     const pageRoot = new URL(`${script.dataset.lfPageRoot}/`, location.origin);
     const stateUrl = new URL("api/state", pageRoot);
+    /** @param {readonly PerformanceEntry[]} entries */
     const readStateResponses = (entries) => {
       for (const entry of entries) {
+        if (!(entry instanceof PerformanceResourceTiming)) continue;
         const url = new URL(entry.name);
         if (
           url.origin !== stateUrl.origin ||
@@ -307,7 +358,7 @@
           entry.responseEnd <= 0
         )
           continue;
-        const ended = rounded(entry.responseEnd);
+        const ended = Math.round(entry.responseEnd);
         firstStateResponseMs =
           firstStateResponseMs === null ? ended : Math.min(firstStateResponseMs, ended);
       }
@@ -324,6 +375,7 @@
       if (presentedMs === null && document.body?.hasAttribute("data-lf-presented"))
         presentedMs = rounded(performance.now());
     };
+    /** @param {"presented" | "failed" | "abandoned" | "timeout"} outcome */
     const report = (outcome) => {
       if (sent) return;
       sent = true;
@@ -331,9 +383,9 @@
       observer.disconnect();
       readStateResponses(resources.takeRecords());
       resources.disconnect();
-      const navigation = /** @type {PerformanceNavigationTiming | undefined} */ (
-        performance.getEntriesByType("navigation")[0]
-      );
+      const navigation = performance
+        .getEntriesByType("navigation")
+        .find((entry) => entry instanceof PerformanceNavigationTiming);
       const paint = performance
         .getEntriesByName("first-contentful-paint", "paint")
         .at(0);
@@ -400,6 +452,7 @@
   // with everything it is going to get. A fault that is the page's own (`page`) is
   // answered by no server: the page holds what its author wrote, so the notice says
   // the page has a problem and waits for nothing.
+  /** @param {string} reason @param {boolean} awaits @param {boolean} page */
   function recover(reason, awaits, page) {
     recordStartupFault(reason);
     stopHoldingKeys();
@@ -412,7 +465,7 @@
     status.setAttribute("role", "status");
     status.textContent = page
       ? "Leaf couldn't start: this page has a problem its author needs to fix."
-      : "Leaf couldn't start. Waiting for the server to update.";
+      : "Leaf couldn't start. Waiting for Leaf to update.";
     const show = () => {
       if (!started) document.body.prepend(status);
     };
@@ -446,7 +499,10 @@
       if (started) return;
       let restart = null;
       try {
-        const response = await fetch(script.dataset.lfProbe, { cache: "no-store" });
+        const probe = script.getAttribute("data-lf-probe");
+        if (probe === null)
+          throw new Error("Startup recovery requires its delivery probe");
+        const response = await fetch(probe, { cache: "no-store" });
         if (response.status === 404) {
           // The release this document names is gone, so nothing this document can load
           // will come back and only a newer one can start the page. Ask for it once,
@@ -485,7 +541,10 @@
   window.addEventListener("lf-startup-fault", (event) =>
     recover(event.detail.reason, event.detail.incomplete, event.detail.page),
   );
-  holdEarlyKeys();
+  // A sample opened as a window of its own has no containing page to connect it, so its
+  // runtime never starts (leaf.js waits on `lfSample.ready`) and would take nothing held.
+  if (!(root.hasAttribute("data-lf-sample") && window.parent === window))
+    holdEarlyKeys();
   try {
     observePublicStartup();
   } catch {

@@ -11,7 +11,7 @@ images as evidence,
 except in the dark cases, whose colour scheme changes only pixels.
 A profile names the macOS version, architecture and locked Chromium version, and a
 missing profile fails: browser upgrades require deliberately reviewed captures.
-Existing fetch-assets warms the same cache as every other asset reader.
+`leaf-dev setup` warms that pin's cache with the media pin's.
 
     uv run pytest -n0 tests/*/test_render_thread_snapshots.py
     uv run leaf-dev thread-snapshots capture
@@ -54,7 +54,7 @@ from pathlib import Path
 
 import click
 from PIL import Image
-from playwright.sync_api import Page
+from playwright.sync_api import FloatRect, Page
 from pytest_image_snapshot import ImageMismatchError
 
 from leaf_dev import ROOT, leaf_assets
@@ -106,7 +106,7 @@ def render_profile(browser_version: str) -> str:
     )
 
 
-def visible_capture(image: Image.Image, clip: dict, window: dict) -> Image.Image:
+def visible_capture(image: Image.Image, clip: FloatRect, window: dict) -> Image.Image:
     """Keep captured pixels inside the response window, including frame halos.
 
     Both approved and actual images retain their full padded capture separately.
@@ -201,7 +201,8 @@ class SnapshotRun:
         region = reading["region"]
         viewport = page.viewport_size
         left, top = max(0, region["x"] - 16), max(0, region["y"] - 16)
-        clip = {
+        assert viewport is not None
+        clip: FloatRect = {
             "x": left,
             "y": top,
             "width": min(viewport["width"], region["x"] + region["width"] + 16) - left,

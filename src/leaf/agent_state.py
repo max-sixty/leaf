@@ -3,7 +3,7 @@ they select from.
 
 The reading uses one transaction and holds the two lists the active view serves
 (`served_state.queues`): On me (`on_user`) holds the open obligations on the user, the
-updates handed back to them among them, then the to-dos on the user; On <agent>
+updates handed back to them among them; On <agent>
 (`on_agent`) holds the updates the agent owes an answer and its to-dos. The obligation
 inventory (`obligations`) also retains finished records, whatever their `status`.
 `activity.obligations` names each answer the agent owes: its update's record `id` and,
@@ -13,9 +13,9 @@ is live and whether an invalid source save leaves the last valid version active.
 `digest` identifies the current index.html and complete page/ tree, even when invalid,
 for `page stamp --replace`. Before the first valid revision, an invalid candidate
 registry leaves no active document or readable vocabulary; its
-source error still remains readable. A page this Leaf cannot serve as
-vendored (`layer.incompatible_layer`) is still read, its `source.error` the refusal
-naming the re-vendor: the reading gives the agent the page's context, and the error
+source error still remains readable. A page at a protocol this Leaf cannot
+serve (`layer.incompatible_layer`) is still read, its `source.error` the refusal
+naming `page init`: the reading gives the agent the page's context, and the error
 says not to act on it before `page init`.
 """
 
@@ -26,6 +26,7 @@ from .data import data_errors
 from .data_contracts import measurement_lag_entries, page_data_binding_inventory
 from .delivery import current_responses
 from .document_reading import DocumentReading
+from .event_facts import EventFacts
 from .events import bare_reaction, is_reaction
 from .files import revision_path
 from .passages import page_passages
@@ -48,8 +49,9 @@ from .work import page_subject
 HISTORY_LIMIT = 50
 
 
-def state_entry(coordinate, e: dict, thread: str | None = None) -> dict:
-    """One action in force, in the shape `page state` reports every one of them.
+def state_entry(coordinate, e: dict, facts: dict, thread: str | None = None) -> dict:
+    """One action in force, in the shape `page state` reports every one of them,
+    with the facts its delivery carried about it (`event_facts`).
 
     `revision` is the exact document the action was taken on, which for a widget an agent
     sent is a fact about the gesture and none about the widget: thread markup is
@@ -64,6 +66,7 @@ def state_entry(coordinate, e: dict, thread: str | None = None) -> dict:
         "revision": e["revision"],
         "seq": e["seq"],
         "thread": thread,
+        **facts,
     }
 
 
@@ -81,7 +84,7 @@ def cmd_page_state(
         raise Refused("--after and --limit page a thread; name one as ID")
     with PageTransaction(page_dir) as page:
         activation = activate_source(page_dir, transaction=page)
-        return _page_state(
+        return page_state(
             page_dir,
             page.events,
             activation.error,
@@ -190,6 +193,7 @@ def _apply_document_state(
     document: DocumentReading,
     stored_data: dict,
     registry: dict,
+    facts: EventFacts,
 ) -> None:
     parser = document.document
     projection = document.projection
@@ -203,16 +207,20 @@ def _apply_document_state(
         }
         for record in parser.lf_elements
     ]
+    in_force = projection.actions.items()
+    read = facts([event for _, (event, _) in in_force])
     state["state"] = [
-        state_entry(coordinate, event)
-        for coordinate, (event, _) in projection.actions.items()
+        state_entry(coordinate, event, read[event["id"]])
+        for coordinate, (event, _) in in_force
     ]
     state["measurement_lag"] = measurement_lag_entries(
         parser.lf_elements, registry, stored_data
     )
 
 
-def _apply_thread_state(state: dict, thread: FrozenThreadReading) -> None:
+def _apply_thread_state(
+    state: dict, thread: FrozenThreadReading, facts: EventFacts
+) -> None:
     # The panel's own document, listed and projected the way the version's is, and
     # for the same reason: a widget an agent sent is a widget, and the user
     # answering one is answering the page. The projection above is of the published
@@ -240,9 +248,11 @@ def _apply_thread_state(state: dict, thread: FrozenThreadReading) -> None:
     state["elements"].sort(
         key=lambda element: (element["thread"] or "", element["line"])
     )
+    in_force = thread_actions.actions.items()
+    read = facts([event for _, (event, _) in in_force])
     state["state"] += [
-        state_entry(coordinate, event, thread_of[coordinate[0]])
-        for coordinate, (event, _) in thread_actions.actions.items()
+        state_entry(coordinate, event, read[event["id"]], thread_of[coordinate[0]])
+        for coordinate, (event, _) in in_force
     ]
     state["state"].sort(
         key=lambda reading: (reading["widget"], reading["unit"], reading["action"])
@@ -294,11 +304,17 @@ def _widget_state(state: dict, page_dir: Path, widget: str, enclosing: dict) -> 
             for item in state["obligations"]
             if item["thread"] is None
             and (
-                item["source"]["kind"] == "widget"
-                and (inside(item["source"]["id"]) or inside(item["prompt"]["target"]))
-                or item["source"]["kind"] in {"update", "todo"}
-                and item["source"]["subject"]["kind"] == "widget"
-                and inside(item["source"]["subject"]["id"])
+                (
+                    item["source"]["kind"] == "widget"
+                    and (
+                        inside(item["source"]["id"]) or inside(item["prompt"]["target"])
+                    )
+                )
+                or (
+                    item["source"]["kind"] == "update"
+                    and item["source"]["subject"]["kind"] == "widget"
+                    and inside(item["source"]["subject"]["id"])
+                )
             )
         ],
         "todos": [
@@ -310,13 +326,13 @@ def _widget_state(state: dict, page_dir: Path, widget: str, enclosing: dict) -> 
     }
 
 
-def _page_state(
+def page_state(
     page_dir: Path,
     events: list,
     source_error: str | None = None,
     *,
     target: str | None = None,
-    after: int = 0,
+    after: int | None = 0,
     limit: int | None = None,
 ) -> dict:
     """Where the page stands, as one JSON object — the agent-facing projection
@@ -365,7 +381,7 @@ def _page_state(
                 "claim_session",
                 "session_name",
                 "session_cwd",
-                "claim_turn",
+                "turn",
                 "turn_closed",
             )
         },
@@ -396,23 +412,29 @@ def _page_state(
     state["user_views"] = read_user_views(
         page_dir, active["revision"] if active is not None else None
     )
+    # The newest revision a tab showed the user, recorded as they left it
+    # (`read_state.seen_revision`).
+    seen = served["seen"]
+    state["seen"] = (
+        {"revision": seen["revision"], "label": seen["label"]} if seen else None
+    )
     # Before a first revision there is no document, so no thread, obligation, widget, or
     # claim subject either: every reading below keeps its empty default.
     if reading is not None:
+        assert active is not None and registry is not None
         browser = served["browser"]
         view = browser["views"][str(active["revision"])]
+        facts = EventFacts(page_dir, events, registry, browser["thread_memberships"])
         _apply_document_state(
-            state, reading.documents[active["revision"]], stored_data, registry
+            state, reading.documents[active["revision"]], stored_data, registry, facts
         )
         state["reports"] = view["reports"]
-        _apply_thread_state(state, reading.thread)
+        _apply_thread_state(state, reading.thread, facts)
         served_threads = {thread["id"]: thread for thread in view["thread"]["threads"]}
         # The user's side between their updates: which of your messages they have not
         # taken in yet, at their current content version.
         for thread in state["threads"]:
-            thread["unread"] = [
-                item["message"] for item in served_threads[thread["id"]]["unread"]
-            ]
+            thread["unread"] = list(served_threads[thread["id"]]["unread"])
             thread["attention"] = served_threads[thread["id"]]["attention"]
         state["obligations"] = view["obligations"]
         state["todos"] = [todo for todo in browser["todos"] if todo["state"] == "open"]
@@ -448,6 +470,7 @@ def _page_state(
             raise Refused(f"{target!r} names no thread or widget on this page")
         # A thread is listed only where the page has a document, so the readings
         # stand here.
+        assert reading is not None and registry is not None
         thread_reading = reading.thread
         selected["summaries"] = served_threads[thread_id]["summaries"]
         elements = [
@@ -485,6 +508,10 @@ def _page_state(
             "limit": limit,
             "next_after": shown[-1]["seq"] if len(matching) > limit else None,
         }
+        # Read once for every message shown, whose passages and construction use it.
+        outcomes = retirement_outcomes(thread_reading.projection.actions)
+        # Each message as it now reads, with the facts its delivery carried.
+        message_facts = facts(shown)
         for event in shown:
             fragment = thread_reading.structure.fragments.get(event["id"])
             message = {
@@ -510,6 +537,9 @@ def _page_state(
                 "ephemeral",
                 "revision",
                 "edited",
+                "withdrawn",
+                "suggestion",
+                "viewing",
             ):
                 if key in event:
                     message[key] = event[key]
@@ -517,14 +547,11 @@ def _page_state(
                 message["text"] = event["text"]
             if "drawing" in event:
                 message["drawing"] = event["drawing"]
+            message.update(message_facts[event["id"]])
             content.append(message)
             if fragment is None:
                 continue
-            passages = page_passages(
-                fragment,
-                registry,
-                retirement_outcomes(thread_reading.projection.actions),
-            )
+            passages = page_passages(fragment, registry, outcomes)
             message["content"] = constructed_content(
                 fragment,
                 thread_reading.projection,
@@ -532,6 +559,7 @@ def _page_state(
                 registry,
                 stored_data,
                 page_dir,
+                outcomes=outcomes,
                 retired=set(passages.retired) | set(passages.gone),
                 thread=thread_id,
             )

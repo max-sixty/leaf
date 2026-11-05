@@ -327,6 +327,22 @@
                 "callId",
                 "phase"
               ],
+              "oneOf": [
+                {
+                  "properties": {
+                    "kind": { "const": "frame" },
+                    "callId": { "type": "null" },
+                    "phase": { "const": null }
+                  }
+                },
+                {
+                  "properties": {
+                    "kind": { "const": "checkpoint" },
+                    "callId": { "type": "string" },
+                    "phase": { "enum": ["before", "action", "after"] }
+                  }
+                }
+              ],
               "additionalProperties": false
             },
             "page": {
@@ -387,14 +403,8 @@
     "x-instructions": "Bind `source` to an imported playwright-trace source. The viewer opens at the earliest authored moment it can resolve.",
     "type": "object",
     "properties": {
-      "id": {
-        "type": "string",
-        "pattern": "^[a-z0-9][a-z0-9-]*$"
-      },
-      "source": {
-        "type": "string",
-        "pattern": "^[a-z][a-z0-9-]*$"
-      },
+      "id": { "type": "string" },
+      "source": { "type": "string" },
       "label": {
         "type": "string",
         "minLength": 1
@@ -415,8 +425,7 @@
     "x-visual": {
       "prefixes": ["trace-"]
     },
-    "x-example": "<lf-trace id=\"recorded-checkout\" source=\"checkout-trace\"></lf-trace>",
-    "x-prepaint": "<p class=\"lf-trace-waiting\">Waiting for a Playwright recording.</p>"
+    "x-example": "<lf-trace id=\"recorded-checkout\" source=\"checkout-trace\"></lf-trace>"
   },
   "lf-trace-bookmark": {
     "description": "A labeled link to one captured image or action phase in its trace.",
@@ -446,19 +455,16 @@
   },
   "lf-trace-compare": {
     "description": "Several Playwright recordings inspected together, with their results paired by key.",
-    "x-instructions": "Put one `lf-trace` per recording inside it, each with a `label`.",
+    "x-instructions": "Each direct child is one recording view: a labeled `lf-trace`, or any wrapper holding one with its caption. Put shared introductory text outside the comparison.",
     "type": "object",
     "properties": {
-      "id": {
-        "type": "string",
-        "pattern": "^[a-z0-9][a-z0-9-]*$"
-      }
+      "id": { "type": "string" }
     },
     "required": ["id"],
     "additionalProperties": false,
     "x-content": "markup",
     "x-upgrade": true,
-    "x-views": true,
+    "x-views": { "members": ":not(script, style, template)" },
     "x-space": "available",
     "x-example": "<lf-trace-compare id=\"paired-recordings\"><lf-trace id=\"before\" label=\"Before\" source=\"before-recording\"></lf-trace><lf-trace id=\"after\" label=\"After\" source=\"after-recording\"></lf-trace></lf-trace-compare>"
   }

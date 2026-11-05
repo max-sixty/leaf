@@ -4,6 +4,8 @@
    An unallocated document has no view to report; normal observation resumes when
    its viewport has room. A document id is deliberately not stored: duplicated tabs
    must never share a lease. */
+import { describeFailure } from "./exception.js";
+import { pageIdentity } from "./page-identity.js";
 import { darkPreference, shownScheme } from "./color-scheme.js";
 import { offlineInteractive, pageUrl, runtime } from "./context.js";
 import { layoutWindow, seenRect, shownWindow, watchRoom } from "./geometry.js";
@@ -18,11 +20,16 @@ import { watchSemantic } from "./semantic-state.js";
 
 const REPORT_MS = 10_000;
 const QUIET_MS = 300;
+/** @param {{x: number, y: number, width: number, height: number}} rect */
 const rectangle = ({ x, y, width, height }) => ({ x, y, width, height });
 
 const session = randomId();
 let sequence = 0;
+/** @typedef {typeof import("/checks/view.js").readViewChecks} ViewReader */
+/** @typedef {NonNullable<ReturnType<typeof context>>} ViewContext */
+/** @type {ViewReader | null} */
 let reading = null;
+/** @type {Promise<ViewReader> | null} */
 let loading = null;
 
 // One lazy probe and one context producer serve periodic author observations and an
@@ -30,7 +37,7 @@ let loading = null;
 function loadReading() {
   return (loading ??= import("/checks/view.js")
     .then((module) => {
-      reading = module.readViewChecks;
+      return (reading = module.readViewChecks);
     })
     .catch((error) => {
       loading = null;
@@ -43,15 +50,19 @@ function context() {
   const { right: width, bottom: height } = layoutWindow();
   const viewport = { width, height };
   if (
+    !visual ||
     viewport.width <= 0 ||
     viewport.height <= 0 ||
     visual.width <= 0 ||
     visual.height <= 0
   )
     return null;
+  const shown = shownWindow();
+  if (!shown) return null;
   const clips = new Map();
   return {
     session,
+    identity: pageIdentity(),
     sequence: ++sequence,
     visible: document.visibilityState !== "hidden",
     revision: runtime.currentRevision,
@@ -64,7 +75,7 @@ function context() {
       offset_top: visual.offsetTop,
       scale: visual.scale,
     },
-    shown_window: rectangle(shownWindow()),
+    shown_window: rectangle(shown),
     color_scheme: shownScheme(),
     reduced_motion: reducedMotion(),
     pointer: coarsePointer.matches ? "coarse" : "fine",
@@ -75,19 +86,21 @@ function context() {
   };
 }
 
-function readChecks(view) {
-  const open = tagsDeclaring((entry) =>
-    ["markup", "members"].includes(entry["x-content"]),
+/** @param {ViewContext} view @param {ViewReader} reader */
+function readChecks(view, reader) {
+  const open = tagsDeclaring(
+    (entry) => entry["x-content"] === "markup" || entry["x-content"] === "members",
   );
   return {
     sequence: view.sequence,
+    identity: view.identity,
     revision: view.revision,
     through_seq: view.through_seq,
     viewport: view.viewport,
     visual_viewport: view.visual_viewport,
     shown_window: view.shown_window,
     color_scheme: view.color_scheme,
-    reading: reading(open),
+    reading: reader(open),
   };
 }
 
@@ -96,12 +109,14 @@ function readChecks(view) {
 // nor activates a website session. Exports can still report their browser context.
 export async function readCurrentUserView() {
   let unavailable = null;
+  /** @type {ViewReader | null} */
+  let reader = null;
   if (offlineInteractive) unavailable = "Layout probes are unavailable in an export.";
   else {
     try {
-      await loadReading();
+      reader = await loadReading();
     } catch (error) {
-      unavailable = `Layout probes unavailable: ${error.message}`;
+      unavailable = `Layout probes unavailable: ${describeFailure(error)}`;
     }
   }
   const view = context();
@@ -111,18 +126,23 @@ export async function readCurrentUserView() {
     ...view,
     observed_at: new Date().toISOString(),
     readiness: pageReadiness(),
-    checks: unavailable ? null : readChecks(view),
+    checks: reader ? readChecks(view, reader) : null,
     ...(unavailable ? { unavailable } : {}),
   };
 }
 
 export function observeUserView() {
   if (offlineInteractive) return;
-  let pending = null;
+  /** @type {ReturnType<typeof setTimeout> | undefined} */
+  let pending;
+  /** @type {ReturnType<typeof readChecks> | null} */
   let checks = null;
+  /** @type {string | null} */
   let checkedBasis = null;
+  /** @type {string | null} */
   let lastSent = null;
 
+  /** @param {ViewContext} view @param {boolean} [keepalive] */
   function send(view, keepalive = false) {
     // Optional context has no delivery obligation. A failed report expires at the
     // server; the next observation replaces it rather than queuing old geometry.
@@ -133,7 +153,7 @@ export function observeUserView() {
       headers: layerHeaders({ "Content-Type": "application/json" }),
       body: JSON.stringify({ ...view, checks }),
       keepalive,
-      signal: keepalive ? undefined : globalThis.AbortSignal.timeout(REPORT_MS),
+      ...(keepalive ? {} : { signal: globalThis.AbortSignal.timeout(REPORT_MS) }),
     }).catch(() => {});
   }
 
@@ -144,9 +164,13 @@ export function observeUserView() {
     if (!Number.isInteger(runtime.currentRevision)) return;
     const view = context();
     if (!view) return;
+    // The checks walk the whole page, so they are read again for a new revision,
+    // window or scheme, and otherwise only by the heartbeat. A change in state, such
+    // as an option the user picks, reaches them at the next heartbeat, as a disclosure
+    // the user opens does, rather than costing every gesture a walk of the page. They
+    // keep the log position they were read at, so `matches_view` says when they lag it.
     const basis = JSON.stringify([
       view.revision,
-      view.through_seq,
       view.viewport,
       view.visual_viewport,
       view.shown_window,
@@ -158,7 +182,7 @@ export function observeUserView() {
       (inspect || basis !== checkedBasis)
     ) {
       if (reading) {
-        checks = readChecks(view);
+        checks = readChecks(view, reading);
         checkedBasis = basis;
       } else if (!loading) {
         loadReading()
@@ -180,7 +204,7 @@ export function observeUserView() {
   function schedule() {
     clearTimeout(pending);
     pending = setTimeout(() => {
-      pending = null;
+      pending = undefined;
       report();
     }, QUIET_MS);
   }

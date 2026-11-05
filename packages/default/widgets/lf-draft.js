@@ -13,8 +13,9 @@
  * editor adds no row of buttons under it; a refused save's status joins the toolbar.
  * Copy keeps the last seat, and Discard opens where Edit stood, so a second press on
  * the pencil gives the box back unchanged. A pointer sees the toolbar while over the
- * box or a key stands in it, and the open editor and a finger always; clicking the
- * prose still opens the editor at that spot. Rejected: a resting row under the prose
+ * box or a key stands in it, and the open editor, a draft that asks for an edit and a
+ * finger always, since a pencil that shows only under the pointer left a needed draft
+ * with no sign of how to answer it; clicking the prose still opens the editor at that spot. Rejected: a resting row under the prose
  * holding only Edit, which doubled a one-line box, and marks set into the box's
  * corner, which either covered the first line's last words or took room from them
  * and changed the box's size as the editor opened. The same
@@ -34,10 +35,25 @@
  * drawing drafts in a sent message's face, which the editor already wore, since drafts
  * would lose their document type, chosen by the user on 2026-10-23.
  *
- * The editor reads as an ordinary text box: its words stand in the field until Save
- * or Discard, and the field's own undo walks them back. Save submits one absolute edit
- * through the shared send generation; Discard and Escape close the editor, throwing away
- * its changes, as a message rewrite's do. Pointer Discard returns the frame
+ * A draft reads as a Markdown file: a line break inside a paragraph is a space
+ * (`paintMarkdown`), so a draft wrapped for a wider editor, as an agent copies a
+ * passage of a hard-wrapped file, wraps to the box, and the editor joins those lines
+ * as the prose does. Return in a paragraph writes a hard break, which both show as a
+ * line (the user's decision, 2026-10-31). Rejected: keeping each source line break as
+ * a hard one, as a message does, which drew a passage wrapped at 88 columns in a
+ * narrower box with a short line after each long one.
+ *
+ * The editor reads as an ordinary text box: its words stand in the field until the user
+ * leaves it, and the field's own undo walks them back. Two ways out throw its changes
+ * away, Discard and Escape, as a message rewrite's do; every other way out saves them
+ * as Save does, which submits one absolute edit through the shared send generation. A
+ * press away from the draft saves (focus.js, `onPressAway`), so a tap elsewhere on a
+ * phone keeps what was typed without finding Save first, and Android's back
+ * gesture saves the same way (`keep`, close-requests.js). A stray edge swipe therefore
+ * sends the agent a turn, as a stray tap does (the user's decision, 2026-10-27). Rejected: back closing the editor with its
+ * words kept unsaved, a third way out whose state the closed box had to show beside
+ * Edit; and saving at each pause in the typing, as a form does, since every save is an
+ * edit delivered to the agent, which would read half-written words. Pointer Discard returns the frame
  * over a short native size interpolation; its words and Edit focus return at once.
  * Keyboard discarding and reduced motion are instant; reopening cancels the effect.
  * A saved edit is withdrawn with the page's undo (`z`), and the log keeps every version for the agent. Rejected: Escape setting
@@ -50,25 +66,25 @@
  * tab's open editor shows the same words. An active editor defers authoritative
  * projection until it closes. Another tab's settlement closes its matching editor
  * without taking focus from an unrelated place. A refused save reopens the retained
- * source with Retry. Print keeps the saved reading and omits controls.
+ * source with Retry, and takes the focus only from this draft or from nowhere. Print keeps the saved reading and omits controls.
  */
 import {
+  addressableLabel,
+  addressableWord,
   commandScope,
   motion,
   returnDuration,
-  iconTemplate,
   html,
   render,
   offered,
+  offeredAction,
   nothing,
   LeafElement,
   offer,
   TEXT_FIELD,
-  paintKeys,
   quoted,
   sendDraft,
   raiseError,
-  commands,
   copyBlock,
   saveDraft,
   loadDraft,
@@ -85,14 +101,17 @@ import {
   retainUserIntent,
   scrollIntoView,
   focused,
-  PRESSABLE,
+  onPressAway,
+  worksInside,
+  commandsChanged,
 } from "/runtime/widget-api.js";
 
-// Each control's key, name and mark.
-const ACTIONS = [
-  ["edit", "Edit", "edit"],
-  ["save", "Save", "check"],
-  ["cancel", "Discard", "cross"],
+// Each control's key and the action whose mark it shows.
+/** @type {[string, string][]} */
+const TOOLS = [
+  ["edit", "edit"],
+  ["save", "save"],
+  ["cancel", "discard"],
 ];
 
 // The store key for a draft's unsent edit. The page's port is its own origin, so
@@ -100,12 +119,17 @@ const ACTIONS = [
 // Presence and content are different for this widget, because deleting every character is
 // an unsent edit — and that is the shared store's own rule, so the text goes in bare and
 // the store's null is "nothing pending".
+/** @param {string} id */
 const ctx = (id) => "edit:" + id;
+/** @param {string} id @param {string} text */
 const saveEdit = (id, text) => saveDraft(ctx(id), text);
+/** @param {string} id */
 const clearEdit = (id) => clearDraft(ctx(id));
-const loadEdit = (id) => loadDraft(ctx(id));
+/** @param {string} id */
+const loadEdit = (id) => loadDraft(ctx(id))?.text ?? null;
 
 // Carry a rendered caret into source; a padding press has no caret to transfer.
+/** @param {HTMLElement} body @param {number} x @param {number} y @returns {[number, number] | null} */
 function caretAt(body, x, y) {
   const pos = document.caretPositionFromPoint(x, y);
   if (!pos) return null;
@@ -116,25 +140,53 @@ function caretAt(body, x, y) {
 customElements.define(
   "lf-draft",
   class extends LeafElement {
-    // What the obligation was answered with: the current words.
+    // What the obligation was answered with: the current words, read as the body
+    // draws them, as a Markdown file.
+    /** @param {unknown} value */
     static answerWords(value) {
-      return markdownWords(value).trim() || "Empty";
+      if (typeof value !== "string")
+        throw new Error("A draft answer must be Markdown text");
+      return markdownWords(value, false).trim() || "Empty";
     }
 
-    #body;
+    get #savedText() {
+      const value = this.controller.read().state.edit?.value;
+      if (typeof value !== "string")
+        throw new Error("A draft reading must contain its Markdown text");
+      return value;
+    }
+
+    /** @type {HTMLElement | undefined} */
+    #preparedBody;
+
+    get #body() {
+      if (this.#preparedBody) return this.#preparedBody;
+      /** @type {HTMLElement | null} */
+      const body = this.querySelector(":scope > .lf-markdown-body");
+      if (!body) throw new Error("draft needs its prepared Markdown body");
+      return (this.#preparedBody = body);
+    }
+    /** @type {HTMLElementTagNameMap[typeof TEXT_FIELD] | null} */
     #editor = null;
     #sending = false;
     #failed = false;
+    /** @type {HTMLDivElement | null} */
     #tools = null;
+    /** @type {ReturnType<typeof copyBlock> | null} */
     #copy = null;
+    /** @type {ReturnType<typeof commandScope> | null} */
     #commandScope = null;
+    /** @type {(() => void) | null} */
     #resumeProjection = null;
     #recovered = false;
+    /** @type {ReturnType<typeof motion> | null} */
     #returnMotion = null;
+    /** @type {number | null} */
     #cancelSize = null;
+    /** @type {ReturnType<typeof onPressAway> | null} */
+    #stopPressAway = null;
 
     setup() {
-      this.#body = this.querySelector(":scope > .lf-markdown-body");
       if (this.childNodes.length !== 1 || this.firstChild !== this.#body)
         this.replaceChildren(this.#body);
       this.#body.className = "lf-draft-body lf-markdown-body"; // NOT .lf-ui: anchoring and Δ must see this
@@ -155,9 +207,8 @@ customElements.define(
             event.button !== 0 ||
             pressIsKeyboardActivation(event) ||
             !(
-              /** @type {Element} */ (event.target).closest(
-                '[data-lf-draft-action="cancel"]',
-              )
+              event.target instanceof Element &&
+              event.target.closest('[data-lf-draft-action="cancel"]')
             ) ||
             !this.#editor ||
             !CSS.supports("block-size", "calc-size(auto, size)")
@@ -168,16 +219,16 @@ customElements.define(
         { capture: true },
       );
 
-      // A click opens the exact source at its rendered caret. Presses, links and
-      // completed word selections own their own gestures; Leaf's generated chrome that
-      // is no press, such as the thread message a reply's draft stands in, does not.
+      // A click opens the exact source at its rendered caret. A control or link inside
+      // the draft (`worksInside`) and a completed word selection own their own gestures;
+      // what the draft stands in, such as a reply's thread message, does not.
       this.addEventListener("click", (ev) => {
         // A keyboard activation carries no place, and the keyboard's door is the ✎. The
         // primary button only: a middle- or right-press is not the gesture this is for.
         if (
           pressIsKeyboardActivation(ev) ||
           ev.button !== 0 ||
-          /** @type {Element} */ (ev.target).closest(`${PRESSABLE}, a, button`)
+          (ev.target instanceof Element && worksInside(ev.target, this))
         )
           return;
         if (reachedForWords(this)) return;
@@ -197,11 +248,13 @@ customElements.define(
         if (
           this.#editor &&
           !this.#resumeProjection &&
-          this.controller.read().actions.edit.available
+          this.controller.read().actions.edit?.available
         )
           this.#resumeProjection = this.controller.defer();
         return () => {
           this.#returnMotion?.cancel();
+          this.#stopPressAway?.();
+          this.#stopPressAway = null;
           stopDraft?.();
           this.#resumeProjection?.();
           this.#resumeProjection = null;
@@ -263,9 +316,11 @@ customElements.define(
       // Copy is the toolbar's last mark, so Tab from the editor reaches Save first.
       this.#copy = copyBlock(
         this,
-        () => this.#editor?.value ?? this.controller.read().state.edit.value,
+        () => this.#editor?.value ?? this.#savedText,
         "Markdown",
       );
+      // Among the toolbar's marks, Copy is one of them rather than a toolbar of its own.
+      this.#copy.toggleAttribute("data-lf-bar", false);
       this.#paintTools();
       this.#ensureCommands();
     }
@@ -301,11 +356,14 @@ customElements.define(
           title: "Discard",
           when: () => Boolean(this.#editor),
           run: () => this.#close(true),
+          keep: () => this.#commit(),
         },
       ]);
-      commands(this, this.#commandScope);
+      this.lfCommands = this.#commandScope;
+      commandsChanged(this);
     }
 
+    /** @param {string} key @returns {HTMLButtonElement | null} */
     #control(key) {
       return this.#tools?.querySelector(`[data-lf-draft-action="${key}"]`) ?? null;
     }
@@ -321,46 +379,51 @@ customElements.define(
         html`<span ${offered("lf-draft-status")} role="status"
             >${this.#failed ? "Save failed. The edit is kept." : ""}</span
           >
-          ${ACTIONS.map(([key, title, icon]) => {
-            const retry = key === "save" && this.#failed;
-            const name = retry ? "Retry" : title;
-            return html`<button
-              ${offered("lf-mark")}
-              data-lf-draft-action=${key}
-              ?hidden=${key === "edit" ? editing : !editing}
-              aria-expanded=${key === "edit" ? String(editing) : nothing}
-              aria-label=${name}
-              title=${name}
-            >
-              ${iconTemplate(retry ? "retry" : icon, "lf-mark-icon")}
-            </button>`;
-          })}
+          ${TOOLS.map(
+            ([key, action]) =>
+              html`<button
+                ${offeredAction("mark", "", undefined, {
+                  action: key === "save" && this.#failed ? "retry" : action,
+                })}
+                data-lf-draft-action=${key}
+                ?hidden=${key === "edit" ? editing : !editing}
+                aria-expanded=${key === "edit" ? String(editing) : nothing}
+              ></button>`,
+          )}
           ${this.#copy}`,
         this.#tools,
       );
-      paintKeys();
+      commandsChanged(this);
     }
 
     #available() {
       return Boolean(this.controller.read().actions.edit?.available);
     }
 
+    // The draft as the rest of the chrome names it, never by its id.
+    #named() {
+      const label = addressableLabel(this);
+      return label ? `“${label}”` : `the ${addressableWord(this)}`;
+    }
+
+    /** @param {string} text @param {string | undefined} attempt */
     #dispatch(text, attempt) {
       return this.controller.dispatch({
         kind: "action",
         verb: "edit",
         detail: { value: text },
         ...(attempt && { attempt }),
-        says: `Edited “${this.id}”`,
+        says: `Edited ${this.#named()}`,
       });
     }
 
+    /** @param {string} [seed] @param {[number, number] | null} [at] @param {boolean} [arrive] */
     #open(seed, at, arrive = true) {
       this.#returnMotion?.cancel();
       this.#returnMotion = null;
       if (this.#editor) return;
       if (this.#sending) {
-        raiseError("Wait for the current edit to finish sending");
+        raiseError("Wait for the current edit to finish saving");
         return;
       }
       if (this.#available()) this.#resumeProjection ??= this.controller.defer();
@@ -370,9 +433,9 @@ customElements.define(
       editor.facesOf = this.#body;
       // Words another tab's open editor holds outrank the current text: they are the
       // same unsent edit.
-      const effective = this.controller.read().state.edit.value;
+      const effective = this.#savedText;
       editor.value = seed ?? loadEdit(this.id) ?? effective;
-      editor.setAttribute("aria-label", `Edit ${this.id}`);
+      editor.setAttribute("aria-label", `Edit ${this.#named()}`);
       editor.addEventListener("input", () => {
         saveEdit(this.id, editor.value);
         if (this.#failed) {
@@ -384,8 +447,14 @@ customElements.define(
       // being the innermost scope's is what keeps the runtime's own rung from running
       // behind it and closing a panel too.
       this.#editor = editor;
-      commands(editor, this.#commandScope);
+      editor.lfCommands = this.#commandScope;
+      commandsChanged(editor);
       this.#body.after(editor);
+      // Its toolbar stands inside the draft, so Discard and Copy are no press away.
+      this.#stopPressAway = onPressAway(
+        (/** @type {EventTarget[]} */ path) => !path.includes(this),
+        () => void this.#commit(),
+      );
       this.#paintTools();
       // A pointer is already on visible words. Opening their editor preserves that
       // place before handing the clicked caret across; the Edit control instead reveals
@@ -401,6 +470,7 @@ customElements.define(
       }
     }
 
+    /** @param {boolean} discard */
     #close(discard) {
       if (!this.#editor) return;
       const before = this.#cancelSize;
@@ -414,6 +484,8 @@ customElements.define(
           returnDuration(),
         );
       if (discard) clearEdit(this.id);
+      this.#stopPressAway?.();
+      this.#stopPressAway = null;
       // Only where the user was in it. A close this tab's own gesture made
       // has focus in the box that is going, and the draft's one persistent control is
       // where it lands so a keyboard user isn't dropped back at the page top; a close
@@ -431,8 +503,9 @@ customElements.define(
           nextRender(() => {
             // Command availability is painted before this callback. A new gesture
             // elsewhere wins over handing back the editor's vacated focus.
-            if (this.isConnected && !this.#editor && mayReturn())
-              focusDestination(this.#control("edit"), "return");
+            const edit = this.#control("edit");
+            if (this.isConnected && !this.#editor && mayReturn() && edit)
+              focusDestination(edit, "return");
           });
       }
       // Replay may have been held by this editor. Its close is the generic projection
@@ -445,7 +518,7 @@ customElements.define(
       if (!this.#editor || this.#sending) return;
       if (!this.#available()) return;
       const text = this.#editor.value;
-      if (text === this.controller.read().state.edit.value) {
+      if (text === this.#savedText) {
         this.#close(true);
         return;
       }
@@ -471,21 +544,28 @@ customElements.define(
         // with the stale pre-send snapshot.
         if (stored !== null) {
           this.#failed = true;
-          this.#open(stored);
+          // A press away may have taken the user on to another place, such as the
+          // next draft's editor, which keeps the focus.
+          const here = focused(document);
+          this.#open(
+            stored,
+            undefined,
+            !here || here === document.body || this.contains(here),
+          );
         }
       }
     }
 
     // A live editor owns its transient text; the complete state waits for it.
     render() {
-      const { state, actions } = this.reading;
-      paintMarkdown(this.#body, state.edit.value);
+      const { actions } = this.controller.read();
+      paintMarkdown(this.#body, this.#savedText);
       if (quoted(this)) return nothing;
       // Recovery chooses the first action face: an unsent editor opens with Save
       // and Discard, without briefly publishing the resting Edit control.
       this.#recoverEdit();
       this.#paintTools();
-      if (this.#editor && !this.#resumeProjection && actions.edit.available)
+      if (this.#editor && !this.#resumeProjection && actions.edit?.available)
         this.#resumeProjection = this.controller.defer();
       return nothing;
     }

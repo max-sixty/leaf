@@ -15,7 +15,7 @@ So a rewrite that leaves out an open to-do ends nothing: the to-do stays on its 
 outside the plan. A plain step is no promise: work that must stay owed past the turn
 is a to-do the plan names. This is the shape the user chose on 2026-10-16 over giving
 to-dos a parent, which would have needed rules wherever a to-do ends (a stamp's
-`--completes`, undoing the user's Done) and left obligations out of the tree, over grouping
+`--completes`, `leaf task end`) and left obligations out of the tree, over grouping
 to-dos by the element they stand on, which shows no steps ahead, and over writing the
 plan into the page's markup, which makes every reshape a revision.
 
@@ -26,8 +26,9 @@ the start `running` on a named to-do, `since`, when a working step began, its
 `steps`, and `done` of `total`, its children that are done of those not dropped.
 A step naming an obligation a later version removed reads as dropped.
 
-The floating panel draws the plan in a Plan tab of the On view, and an On me item the
-plan names says its goal and step there (`floating-panel.js`). `conversation-loop.md`,
+The floating panel's On <agent> discloses the plan from its progress at the view's
+foot, and On me can group its items under the goals whose steps name them
+(`floating-panel.js`, `queue-walk.js`). `conversation-loop.md`,
 "When to write", asks an agent for a plan when its work runs to several steps, some of
 which may wait on the user.
 
@@ -111,7 +112,7 @@ def plan_reading(
             return {
                 "title": todo["title"],
                 "state": "working" if running else todo["state"],
-                "owner": todo["owner"],
+                "owner": "agent",
                 "item": {"kind": "todo", "id": todo["id"]},
                 "running": running,
                 "since": running["ts"] if running else None,

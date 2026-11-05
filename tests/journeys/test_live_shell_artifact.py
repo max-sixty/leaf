@@ -13,7 +13,7 @@ from render_harness import leaf_page, open_page
 from leaf.files import revision_path
 from leaf.hosting import TemporaryPageServer
 from leaf.live_shell import write_live_shell
-from leaf.revision_artifact import RESOURCE_TYPES
+from leaf.revision_artifact import resource_type
 from leaf.revisioning import activate_source
 
 
@@ -71,6 +71,7 @@ def test_a_browser_executes_the_published_capture_with_live_api_routes(
             destination,
             server_id=server.httpd.server_id,
         )
+        assert activation.revision is not None
         root = "/revisions/" + revision_path(page_dir, activation.revision).stem
         if bundled:
             bundler = Path(__file__).parents[2] / "worker" / "bundle-runtime.mjs"
@@ -102,9 +103,7 @@ def test_a_browser_executes_the_published_capture_with_live_api_routes(
             loaded.append(path)
             file = destination / path.lstrip("/")
             assert file.is_file(), f"missing published resource: {path}"
-            route.fulfill(
-                body=file.read_bytes(), content_type=RESOURCE_TYPES[Path(path).suffix]
-            )
+            route.fulfill(body=file.read_bytes(), content_type=resource_type(path))
 
         context.route(server.origin + "/**", public_files)
         page = open_page(

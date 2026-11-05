@@ -120,52 +120,6 @@
         flex: 2 1 28rem;
       }
 
-      /* A workspace Layout is a class on main, and this page's main is a column, so the
-         gallery bounds its panes itself: a wide box a laptop screen tall whose header
-         takes its content's height and whose regions take the rest, two columns with the
-         second split in two rows, the follow-ups taking more for the decision in their
-         footer. Each pane's body scrolls on its own, as a workspace
-         Layout's do. Where the window could not hold the box, it flows: the regions
-         stack in the order they are written and the page scrolls. */
-      #bg-layout-workspace > header > h3 {
-        margin: 0 0 var(--sp-3);
-      }
-
-      #bg-layout-columns,
-      #bg-layout-rows {
-        display: grid;
-        gap: var(--sp-3);
-      }
-
-      @media screen and (min-width: 720px) and (min-height: 480px) {
-        #bg-layout-workspace {
-          display: grid;
-          grid-template-rows: auto minmax(0, 1fr);
-          block-size: min(40rem, var(--lf-view-height));
-        }
-
-        #bg-layout-columns {
-          grid-template-columns: repeat(2, minmax(0, 1fr));
-          min-block-size: 0;
-        }
-
-        #bg-layout-rows {
-          grid-template-rows: minmax(0, 2fr) minmax(0, 3fr);
-          min-block-size: 0;
-        }
-
-        #bg-layout-workspace lf-pane {
-          min-block-size: 0;
-        }
-
-        #bg-layout-workspace lf-pane > :not(header, footer) {
-          min-block-size: 0;
-          overflow: auto;
-          overscroll-behavior: contain;
-          scrollbar-gutter: stable;
-        }
-      }
-
       #bg-rollout-tabs {
         max-inline-size: 26rem;
       }
@@ -3185,40 +3139,65 @@ gallery/
               A page whose work is a set of regions puts
               <code>layout-workspace</code> on <code>main</code>: the page fills the
               window, and each pane's body scrolls on its own under the pane's header
-              and above its footer. This page is a column, so it bounds the same panes
-              in a box of its own. Open the command trace: the evidence scrolls inside
-              its pane, and the page and the decision under the follow-ups stay where
-              they are. In a window too small to hold the box, the panes stack and the
-              page scrolls.
+              and above its footer. The window below is such a page. Open its command
+              trace: the evidence scrolls inside its pane, and the page and the decision
+              under the follow-ups stay where they are. In a window too small to hold
+              the panes, such as a phone's, they stack and the page scrolls.
             </p>
-            <div id="bg-layout-workspace" data-width="wide">
-              <header><h3>Release candidate review</h3></header>
-              <div id="bg-layout-columns">
-                <lf-pane id="bg-layout-list" label="Changes">
-                  <header><h4>Changes</h4></header>
-                  <lf-tabs id="bg-layout-tabs">
-                    <lf-tab id="bg-layout-summary" label="Summary">
-                      <p>
-                        The candidate changes cache keys, receipts, and settlement jobs.
-                      </p>
-                      <ul>
-                        <li>Cache migration copies active entries before cutover.</li>
-                        <li>Receipts show refunds in the settlement currency.</li>
-                        <li>Invalid jobs leave the shared queue for review.</li>
-                      </ul>
-                    </lf-tab>
-                    <lf-tab id="bg-layout-risk" label="Risk">
-                      <p>
-                        The cache migration is the only change that rewrites stored
-                        data.
-                      </p>
-                    </lf-tab>
-                  </lf-tabs>
-                </lf-pane>
+            <lf-sample id="bg-layout-sample" label="workspace" window data-width="wide">
+              <template
+                id="bg-layout-page"
+                data-sample
+                class="layout-workspace density-working"
+              >
+                <style>
+                  #bg-layout-regions {
+                    display: grid;
+                  }
 
-                <div id="bg-layout-rows">
+                  /* While the Layout holds the workspace to the window
+                     (`--lf-full-height`), the changes take the left column and the
+                     evidence and follow-ups share the right, the follow-ups taking
+                     more for the decision in their footer. In a window too small to
+                     hold them, the panes stack in the order they are written. */
+                  @container style(--lf-full-height: 1) {
+                    #bg-layout-regions {
+                      grid-template-columns: repeat(2, minmax(0, 1fr));
+                      grid-template-rows: minmax(0, 2fr) minmax(0, 3fr);
+                    }
+
+                    #bg-layout-list {
+                      grid-row: span 2;
+                    }
+                  }
+                </style>
+                <header><h1>Release candidate review</h1></header>
+                <div id="bg-layout-regions">
+                  <lf-pane id="bg-layout-list" label="Changes">
+                    <header><h2>Changes</h2></header>
+                    <lf-tabs id="bg-layout-tabs">
+                      <lf-tab id="bg-layout-summary" label="Summary">
+                        <p>
+                          The candidate changes cache keys, receipts, and settlement
+                          jobs.
+                        </p>
+                        <ul>
+                          <li>Cache migration copies active entries before cutover.</li>
+                          <li>Receipts show refunds in the settlement currency.</li>
+                          <li>Invalid jobs leave the shared queue for review.</li>
+                        </ul>
+                      </lf-tab>
+                      <lf-tab id="bg-layout-risk" label="Risk">
+                        <p>
+                          The cache migration is the only change that rewrites stored
+                          data.
+                        </p>
+                      </lf-tab>
+                    </lf-tabs>
+                  </lf-pane>
+
                   <lf-pane id="bg-layout-evidence" label="Evidence">
-                    <header><h4>Evidence</h4></header>
+                    <header><h2>Evidence</h2></header>
                     <article id="bg-layout-article">
                       <header><strong>Migration rehearsal</strong></header>
                       <p>
@@ -3235,7 +3214,7 @@ switch --readers checkout-api,orders-api</code></pre>
                   </lf-pane>
 
                   <lf-pane id="bg-layout-tasks" label="Follow-ups">
-                    <header><h4>Follow-ups</h4></header>
+                    <header><h2>Follow-ups</h2></header>
                     <lf-board id="bg-layout-board">
                       <lf-column id="bg-layout-ready" label="Ready">
                         <lf-card id="bg-layout-cache-card"
@@ -3253,7 +3232,7 @@ switch --readers checkout-api,orders-api</code></pre>
                     </lf-board>
                     <footer>
                       <lf-ask id="bg-layout-ask">
-                        <h5>Is this candidate ready?</h5>
+                        <h3>Is this candidate ready?</h3>
                         <lf-options id="bg-layout-decision" choose>
                           <lf-option id="bg-layout-ship">Ship this candidate</lf-option>
                           <lf-option id="bg-layout-hold"
@@ -3264,8 +3243,8 @@ switch --readers checkout-api,orders-api</code></pre>
                     </footer>
                   </lf-pane>
                 </div>
-              </div>
-            </div>
+              </template>
+            </lf-sample>
           </section>
         </lf-tab>
 

@@ -549,6 +549,9 @@ def test_a_closed_group_answers_only_from_its_options(browser, serve):
           ...[...group.children].map((cell) => cell.getBoundingClientRect().bottom))"""
     )
     assert below_last_cell <= 2, below_last_cell
+    # Nor does it keep the field's number: Done takes the one after the last option.
+    page.keyboard.press("m")
+    expect(page.locator("#jobs > lf-options-done .lf-key-badge")).to_have_text("4")
 
 
 def test_another_option_becomes_a_real_option_without_starting_a_thread(browser, serve):

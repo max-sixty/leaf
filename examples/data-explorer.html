@@ -60,7 +60,6 @@
         display: table;
         table-layout: fixed;
         width: 100%;
-        min-width: 30rem;
       }
 
       .query-table-frame {
@@ -70,17 +69,39 @@
         --lf-block-frame: 1;
       }
 
+      /* On a phone the filters stay short enough that their result shows below them
+         on the first screen, so a change to a filter shows what it matched without a
+         scroll. A filter's three fields share one line down to a 360px window: each
+         select is as wide as its longest option, with the fields' side padding at the
+         smaller step. In a narrower window the value wraps to a line of its own. The
+         buttons take the next line. The table's columns size to their words, since
+         equal columns split words below a 355px window. */
       @media (max-width: 42rem) {
-        .query-row > label,
+        .query-row > label {
+          flex: 1 1 auto;
+          grid-template-columns: minmax(0, 1fr);
+          min-width: 0;
+          --wa-form-control-padding-inline: var(--sp-2);
+        }
+
+        .query-row > .query-value {
+          flex-basis: 5rem;
+        }
+
         .query-row-actions {
           flex: 1 1 100%;
           margin-inline-start: 0;
+        }
+
+        .query-results {
+          table-layout: auto;
         }
       }
     </style>
     <script type="module">
       import {
         generatedElement,
+        keeps,
         keepsText,
         layoutChanged,
         offer,
@@ -264,9 +285,12 @@
             const known = this.#rowEls.get(row.id);
             if (known) return known;
             const { id } = row;
+            // The row is a named group, so its buttons need not repeat which filter
+            // they act on: "Move up" in the group "Filter 2".
             const element = document.createElement("div");
             element.className = "query-row";
             element.dataset.filterId = id;
+            element.setAttribute("role", "group");
             const field = labelledSelect(
               `${id}-field`,
               "Field",
@@ -290,6 +314,7 @@
               (value) => this.#update(id, "operator", value),
             );
             const valueLabel = document.createElement("label");
+            valueLabel.className = "query-value";
             valueLabel.append(document.createTextNode("Value"));
             const input = offer("input", "", undefined, "text");
             input.name = `${id}-value`;
@@ -300,9 +325,9 @@
             valueLabel.append(input);
             const actions = document.createElement("div");
             actions.className = "query-row-actions";
-            const up = offerAction("word", "small");
-            const down = offerAction("word", "small");
-            const remove = offerAction("word", "small");
+            const up = offerAction("word", "small", "Move up");
+            const down = offerAction("word", "small", "Move down");
+            const remove = offerAction("word", "small", "Remove");
             up.addEventListener("click", () => this.#move(id, -1));
             down.addEventListener("click", () => this.#move(id, 1));
             remove.addEventListener("click", () => this.#remove(id));
@@ -332,9 +357,7 @@
               if (made.operator.value !== row.operator)
                 made.operator.value = row.operator;
               if (made.input.value !== row.value) made.input.value = row.value;
-              keepsText(made.up, `Move filter ${index + 1} up`);
-              keepsText(made.down, `Move filter ${index + 1} down`);
-              keepsText(made.remove, `Remove filter ${index + 1}`);
+              keeps(made.element, "aria-label", `Filter ${index + 1}`);
               made.up.toggleAttribute("disabled", index === 0);
               made.down.toggleAttribute("disabled", index === last);
               return made.element;
@@ -383,6 +406,7 @@
           submit-label="Build query"
         >
           <lf-playground-control
+            id="limit"
             name="limit"
             label="Maximum results"
             kind="range"
@@ -391,10 +415,10 @@
             max="6"
             step="1"
           ></lf-playground-control>
-          <lf-playground-preset label="Up to 4 results">
+          <lf-playground-preset id="preset-up-to-4-results" label="Up to 4 results">
             <lf-playground-setting for="limit" value="4"></lf-playground-setting>
           </lf-playground-preset>
-          <lf-playground-preset label="Up to 6 results">
+          <lf-playground-preset id="preset-up-to-6-results" label="Up to 6 results">
             <lf-playground-setting for="limit" value="6"></lf-playground-setting>
           </lf-playground-preset>
           <lf-playground-preview id="release-query-preview">

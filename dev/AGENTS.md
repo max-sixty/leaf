@@ -56,9 +56,15 @@ gets none of its own. A mechanism stays in the first experiment's folder until a
 one needs it. It then moves into a module in `leaf_dev`, with a command if it is run on
 its own.
 
-Code names a model only through `MODELS`, `JUDGE_MODELS` and `COMPARED_MODELS` in
-`arms.py`, so moving a pin moves every experiment. Node code reads them through
-`leaf_dev/arms.mjs`, and a model new to a comparison goes in `COMPARED_MODELS`.
+An experiment's folder and script stay while someone will run them again. Once it has
+answered its question, delete them, and have the pull request name the last commit that
+holds them, so they can be restored from git.
+
+Developer tooling picks the model it runs only through `MODELS`, `JUDGE_MODELS` and
+`COMPARED_MODELS` in `arms.py`, so moving a pin moves every run. Node code reads them
+through `leaf_dev/arms.mjs`, and a model new to a comparison goes in `COMPARED_MODELS`.
+A table keyed by model id, such as `fork_eval.PRICES`, looks up what a run already used
+and picks nothing.
 
 ## Tests
 

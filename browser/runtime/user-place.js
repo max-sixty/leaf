@@ -60,16 +60,26 @@
    anchoring off while it held a change spanning tasks, which three surfaces wrapped
    every render in, for a 400-line module and its corrections of the browser's own.
 
-   The module also owns when focus marks the user's place at all (`focusedInView`),
-   and whether the user has scrolled away from the control focus stands on
-   (`focusScrolledAway`), for the keys that act there. */
-import { seenRect, showsContents, shownWindow, stuckBox } from "./geometry.js";
-import { pageScroller, placeKept, scrollChoices } from "./scrolling.js";
-import { edgeAt, holderOf, returnTo, scrollersOf } from "./scroll-containers.js";
-import { inChrome } from "./shadow-tree.js";
+   The module also owns the one rule for where the user is: focus while they can see it
+   (`focusPlace`), else what is on screen (reading-place.js, `pageReadingBlock`). A key
+   pressed while focus is not where they are lets go of it first (keyboard/controller.js),
+   so every key acts from what they see, and a revision reading where they are asks the
+   same (reading-place.js, `capturePlace`; version.js). */
 import {
+  clippedPlace,
+  inFront,
+  layoutWindow,
+  seenRect,
+  showsContents,
+  shownWindow,
+  stuckBox,
+} from "./geometry.js";
+import { pageScroller, placeKept, scrollChoices, scrollGoal } from "./scrolling.js";
+import { edgeAt, holderOf, returnTo, scrollersOf } from "./scroll-containers.js";
+import { inChrome, renderedParent, under } from "./shadow-tree.js";
+import {
+  declareFocusPlace,
   focused,
-  onCurrentLocation,
   onUserInput,
   recentPlaceInput,
   typesText,
@@ -79,55 +89,82 @@ import { browserScrolls, watchScrollEnds } from "./arrivals.js";
 import { pointerAt } from "./pointer.js";
 import { repaint } from "./repaint.js";
 
-// The focused control while it marks where the user is: while any of it is in front of
-// them (geometry.js, `seenRect`), and it is not riding in a stuck sticky box
-// or fixed box (`stuckBox`), as the floating panel is. A user who scrolled away from
-// the control they stand on is reading something else, though the control keeps focus,
-// and a stuck tab strip, title or reply row, like the floating panel's row, stays in
-// view over whatever they scroll to, so it names no place in what it holds. A reflow
-// then holds, and a landing returns them to, what they see instead. A render holding
-// the box they type in (`holdUserPlace`), a reading place
-// (reading-place.js, `capturePlace`), and revision continuity (version.js), for the
-// region the user is working and whether a replaced reply box is scrolled back into
-// view, ask this. The Threads list's resize landing (thread/landing.js) asks a question
-// of its own instead: whether the focused title stands wholly where a landing puts it.
-export function focusedInView() {
-  const node = focused();
-  return node && seenRect(node, new Map()) && !stuckBox(node) ? node : null;
+// The box a control stands at, where a rule names one: a thread where its reply box
+// waits, or a hidden stand-in where what it stands for is (details-shelf.js).
+/** @type {[string, (node: Element) => Element | null][]} */
+const standing = [];
+/** @param {string} selector @param {(node: Element) => Element | null} at */
+export function standsAt(selector, at) {
+  standing.push([selector, at]);
 }
+/** @param {Element} node */
+const boxStoodAt = (node) =>
+  standing.find(([selector]) => node.matches(selector))?.[1](node) ?? null;
 
-// Whether the user has scrolled away from the control focus stands on: a scroll has
-// settled since focus arrived there, and none of the control is in front of them
-// (geometry.js, `seenRect`), as when they read something else. Leaf's keys don't act at
-// a control scrolled away (dispatch.js, `stack`). Only a settled scroll counts, since a
-// walk focuses its stop before gliding there and a key pressed on the way is meant for
-// the stop; the control is measured when asked, since what rides a scroll is placed
-// again as it settles. Unlike `focusedInView`, a control in the chrome or a stuck box is
-// not away: the user sees what a key there acts on, though it names no place in the page.
-// Nor is a row the user scrolled out of a list of Leaf's own, such as Threads: the list
-// still shows where they are, and its arrows move on from that row into view, so it is
-// the list that must leave the screen.
-let settledSinceArrival = false;
-// A scroll's end can take the control out of sight or bring it back, which changes which
-// keys answer and where they go, with no focus move to paint it.
+// The focused node while it is where the user is: while any of it, or the box it stands
+// at (`standsAt`), is in front of them (geometry.js, `seenRect`), or while a motion under
+// way is still carrying them to it (`carried`), since a walk focuses its stop before
+// gliding there and a key pressed on the way is meant for the stop, as a key a board's
+// card moves on is meant for the card while it slides from where it stood, clipped
+// meanwhile by a board that shrank. A user who scrolled away from the control they stand on is reading
+// something else, though the control keeps focus, so a key they press there lets go of
+// it first, and scrolling back to it doesn't make it theirs again until they click or
+// Tab there: the user chose this on 2026-11-04. A control in a stuck box, as the floating
+// panel's row is, is in front of them, so a key acts there, though it rides along with
+// every scroll and marks no place in what it stands over (geometry.js, `stuckBox`). Its
+// box is asked of what clips it out to that stuck box, then the window and the chrome,
+// since a sticky header reads as under the slot it stands in itself (`seenRect`,
+// `headerInset`). A row
+// scrolled out of a list of Leaf's own chrome, such as Threads, is still where they are
+// while the list shows: its arrows move on from that row into view, so it is the list
+// that must leave the screen. It reads the page as it stands, with no record of how
+// focus got there.
+export function focusPlace() {
+  const node = focused();
+  if (!node || node === document.body) return null;
+  const box = boxStoodAt(node);
+  if (box && seenRect(box, new Map())) return node;
+  const boxes = [...scrollersOf(node)];
+  const [list] = boxes;
+  const shown = list && list !== pageScroller && inChrome(list) ? list : node;
+  if (seenRect(shown, new Map()) || carried(node, boxes)) return node;
+  const stuck = stuckBox(node);
+  const left =
+    stuck &&
+    clippedPlace(node, new Map(), undefined, renderedParent(stuck) ?? undefined);
+  // The walk stops short of the window, and `inFront` cuts only its top and foot.
+  return left &&
+    left.left < layoutWindow().right &&
+    left.right > 0 &&
+    inFront(left, node)
+    ? node
+    : null;
+}
+declareFocusPlace(focusPlace);
+// A scroll's end can take the control out of sight or bring it back, which changes where
+// `c` goes (composing/surface.js, `focusedPlace`), with no focus move to paint it.
 watchScrollEnds(() => {
-  settledSinceArrival = true;
   const node = focused();
   if (node && node !== document.body) repaint();
 });
-// A node the runtime replaced handing focus to its successor is the same place, and
-// focus a change dropped to the body arrives nowhere until its owner hands it back.
-onCurrentLocation((node, cause) => {
-  if (cause !== "return" && cause !== "drop") settledSinceArrival = false;
-});
-export function focusScrolledAway() {
-  if (!settledSinceArrival) return false;
-  const node = focused();
-  if (!node || node === document.body) return false;
-  const [list] = scrollersOf(node);
-  const place = list && list !== pageScroller && inChrome(list) ? list : node;
-  return !seenRect(place, new Map());
-}
+// Whether a motion under way carries `node`: a glide in one of the `boxes` scrolling it
+// (scrolling.js, `scrollGoal`), or a finite animation moving a box holding it, as the
+// slide a moved card makes from where it stood. The sheen's endless one, a fade, one held
+// paused and one on a box's pseudo-element bring the user nowhere.
+/** @param {Element} node @param {Element[]} boxes */
+const carried = (node, boxes) =>
+  boxes.some((box) => scrollGoal(box) !== box.scrollTop) ||
+  document.getAnimations().some((animation) => {
+    const effect = /** @type {KeyframeEffect | null} */ (animation.effect);
+    return (
+      animation.playState === "running" &&
+      effect?.target != null &&
+      !effect.pseudoElement &&
+      effect.getComputedTiming().endTime !== Infinity &&
+      effect.getKeyframes().some((key) => "transform" in key || "translate" in key) &&
+      under(node, effect.target)
+    );
+  });
 
 // How far down the window the page shows (geometry.js, `shownWindow`) the reader is
 // taken to read where nothing they hold marks their place.
@@ -250,18 +287,12 @@ export function holdPlace(node, standIn = () => null) {
 // download does, lets the frames between show the move before the keep puts it back,
 // and a scroll the user's own act chooses in them, as typing keeps its caret in view,
 // ends the keep.
-/** @type {[string, (node: Element) => Element | null][]} */
-const standing = [];
-/** @param {string} selector @param {(node: Element) => Element | null} at */
-export function standsAt(selector, at) {
-  standing.push([selector, at]);
-}
 // The box a named control stands for, where it names a place: shown, riding in a
 // scroller and not stuck there. Null where it names none.
 /** @param {Element | null | undefined} node @returns {Element | null} */
 const placeOf = (node) => {
   if (!node || node === document.body) return null;
-  const box = standing.find(([selector]) => node.matches(selector))?.[1](node);
+  const box = boxStoodAt(node);
   const place = box && seenRect(box, new Map()) ? box : node;
   if (!seenRect(place, new Map())) return null;
   const [scroller] = scrollersOf(place);

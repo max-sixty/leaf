@@ -1725,7 +1725,7 @@ def test_an_untyped_has_leads_only_to_a_typed_subject():
     removing a node inside any of them restyled the page: with `@scope (div:has(>
     lf-toc))`, a heading's link moving into the chrome restyled 20,255 of the 28,335
     elements of the 512-section asks page of `leaf-dev scaling`, against 58 with
-    toc.css's `lf-toc + *`, which asks no `:has()` at all."""
+    toc.css's rule for the block after the map, which asks no `:has()` at all."""
     found = []
 
     def keyed(compound):
@@ -4697,8 +4697,9 @@ def test_the_register_is_the_only_way_a_key_enters_the_runtime():
     types in a loop counts as written.
 
     Each allowed one is named here. The dispatcher has a capture listener for
-    shortcut characters, before nested libraries' typeahead, and a bubble listener
-    for other keys, after controls' own handling; both use the same register.
+    shortcut characters, before nested libraries' typeahead, and for a key that lets go
+    of focus the user can't see, and a bubble listener for other keys, after controls'
+    own handling; both use the same register.
     The aim latch is not a binding at all: holding ⌥ arms nothing and answers no
     press, it paints what
     a click would take, and its keyup half has no place in a table of presses. The

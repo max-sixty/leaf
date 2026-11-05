@@ -2545,7 +2545,8 @@ def test_staged_widget_controls_name_the_presses_their_owners_make(browser, serv
 
     summary = page.locator("lf-diff summary").first
     details = page.locator("lf-diff details").first
-    summary.scroll_into_view_if_needed()
+    # Clear of the floating panel, where the user sees the control a key acts on.
+    summary.evaluate("el => el.scrollIntoView({block: 'center'})")
     summary.focus()
     assert details.evaluate("el => el.open"), "the fixture's disclosure starts open"
     page.keyboard.press("Enter")
@@ -3304,7 +3305,7 @@ def test_a_removed_subject_keeps_its_thread_open_and_detached(browser, serve):
     quote = thread_head(page, root["id"])
     expect(quote).to_contain_text("The version stamp never lands")
     expect(quote).to_have_attribute("data-lf-detached", "")
-    expect(quote).to_have_attribute("title", re.compile("no longer"))
+    expect(quote.locator(".lf-anchor-status")).to_have_text("Not in the latest version")
     # With nowhere on the page to go, the view offers no way there.
     expect(
         page.locator(".lf-fp-aux button:enabled[aria-label='Show on page']")

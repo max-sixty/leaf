@@ -26,7 +26,7 @@
     "test:worker": "vitest run --root worker",
     "test:evals": "node --test dev/tests/node/*.cjs",
     "eval:legibility": "uv run leaf-dev probe release-notes --journey evals/control-legibility/views.py && PROMPTFOO_DISABLE_TELEMETRY=1 PROMPTFOO_DISABLE_UPDATE_CHECK=1 promptfoo eval -c evals/control-legibility/promptfooconfig.yaml -o .tmp/control-legibility/results.json",
-    "eval:ui-review": "PROMPTFOO_DISABLE_TELEMETRY=1 PROMPTFOO_DISABLE_UPDATE_CHECK=1 promptfoo eval -c evals/ui-review-detection/promptfooconfig.mjs",
+    "eval:ui-review": "PROMPTFOO_DISABLE_TELEMETRY=1 PROMPTFOO_DISABLE_UPDATE_CHECK=1 promptfoo eval -c evals/ui-review-detection/promptfooconfig.mjs --filter-providers 'sol/(no-tools|browser)$'",
     "eval:view": "PROMPTFOO_DISABLE_TELEMETRY=1 PROMPTFOO_DISABLE_UPDATE_CHECK=1 promptfoo view -y",
     "site:dev": "uv run leaf-dev site && wrangler dev --config worker/wrangler.toml",
     "deploy:dev": "worker/deploy-dev.sh"
@@ -107,7 +107,8 @@
     "overrides": {
       "@anthropic-ai/claude-agent-sdk": "$@anthropic-ai/claude-agent-sdk",
       "lit-html": "$lit-html",
-      "get-uri>basic-ftp": "6.2.1"
+      "get-uri>basic-ftp": "6.2.1",
+      "minimatch@<11.0.1": "^11.0.4"
     },
     "patchedDependencies": {
       "@floating-ui/dom": "build/@floating-ui__dom.patch",

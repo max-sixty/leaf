@@ -120,12 +120,12 @@ import {
   upFrom,
 } from "./shadow.js";
 import {
+  alongClimb,
+  composedParentNode,
   isElement,
   isText,
   isHTML,
-  renderedOrder,
   renderedParent,
-  renderedUnder,
 } from "./shadow-tree.js";
 import { decisionFor, registry } from "./registry.js";
 import { PAGE_PAINT_ATTRIBUTE, pageUpgraded } from "./page-paint.js";
@@ -595,6 +595,9 @@ export const authored = (root) => {
 // walk passed keep the context they carried, and a node assigned from anywhere else (a
 // flattened fallback, a host above the root) is asked where it stands.
 // A visible <br> contributes a separator even though it has no text node of its own.
+//
+// `readingParent`, below, climbs the tree this walk comes down, so a root or a slot this
+// walk treats differently changes there too.
 /** @param {Node} root
  * @param {(node: Text, ctx: ReadingContext) => void} onText
  * @param {((element: Element) => boolean) | null} [skip]
@@ -659,6 +662,20 @@ function walk(root, onText, skip = null, onBreak = null, onElement = null) {
       : NO_CONTEXT;
   visit(root, start);
 }
+// The step up the tree `walk` comes down, from any node, read or not. A slot is that step
+// only in a declared root, the one kind of root `walk` crosses into. Another root's slots
+// can show its host's children out of their light order, and `walk` and a native Range
+// both still take them in light order, so the reading's segments are in `readingOrder`
+// where they need not be in `renderedOrder`. A boundary point inside such a root, where
+// Firefox puts a selection of words only that root shows, comes before all its host's
+// children (`alongClimb`), so a range with both ends in it covers none of them.
+/** @param {Node} node @returns {Node | null} */
+const readingParent = (node) => {
+  const slot = isElement(node) || isText(node) ? node.assignedSlot : null;
+  const host = slot && shadowHost(slot.getRootNode());
+  return host && declaredRoot(host) ? slot : composedParentNode(node);
+};
+const { order: readingOrder, under: readingUnder } = alongClimb(readingParent);
 // One named reading's segments under `root`, carrying their reading block (`blockAt`),
 // typographic text block and generated element (`gen`, the nearest `[data-lf-gen]`
 // in their tree).
@@ -769,28 +786,41 @@ export const elementById = (id, root = document) => {
 export const pageDocument = (doc = document) => doc.body;
 /** @param {Node | null | undefined} node */
 export const inPage = (node) => under(node, pageDocument()) && !leafSurface(node);
+// Whether focus, standing at `at`, names the page: only on something in it. The body is
+// in the page, yet it is where a click on words and a let-go leave focus, which leaves
+// the answer to the place the user last acted in.
+/** @param {Element | null} at */
+export const focusInPage = (at) => at !== document.body && inPage(at);
 // The box the page's Layout arranges: `main`, or the shown child of a `main` that carries
 // no Layout itself (layouts.css, `--lf-layout-box`). The margin, the rail and the
 // Layout's regions read this box; the authored content is still `pageDocument`.
 /** @param {Element} box */
 const isLayoutBox = (box) =>
   getComputedStyle(box).getPropertyValue("--lf-layout-box").trim() === "1";
-const PARTS = ':scope > [data-lf-views="parts"]';
+/** @param {Element} box */
+const isLayoutShell = (box) =>
+  getComputedStyle(box).getPropertyValue("--lf-layout-shell").trim() === "1";
+// Read off `main`'s children rather than by `:scope >`, which walks every element under
+// `main` to find one of its children, several times for each keystroke.
+/** @param {Element} main */
+const partsOf = (main) =>
+  [...main.children].find((child) => child.matches('[data-lf-views="parts"]')) ?? null;
 export const layoutBox = () => {
   const main = document.querySelector("body > main");
   if (!main || isLayoutBox(main)) return main;
-  const parts = main.querySelector(PARTS);
-  const boxes = [
-    ...main.children,
-    ...[...(parts?.children ?? [])].flatMap((part) => [...part.children]),
-  ];
+  const parts = partsOf(main);
+  // Only a shell holds a layout box, so a `main` of plain sections is read once, not once
+  // for each section (layouts.css, `--lf-layout-shell`).
+  const boxes = [main, ...(parts?.children ?? [])]
+    .filter(isLayoutShell)
+    .flatMap((shell) => [...shell.children]);
   return boxes.find((box) => box.checkVisibility() && isLayoutBox(box)) ?? main;
 };
 // A page of parts' views: the parts a `main` with no Layout of its own shows one at a
 // time (layouts.css, "A page of parts"), or null on any other page.
 export const layoutParts = () => {
   const main = document.querySelector("body > main");
-  return main && !isLayoutBox(main) ? main.querySelector(PARTS) : null;
+  return main && !isLayoutBox(main) ? partsOf(main) : null;
 };
 
 /** @param {Node} node */
@@ -831,42 +861,67 @@ export const pageQueryAll = (selector) =>
     return [...elements];
   });
 
-// A native Range compares one DOM tree. Its light-DOM endpoints can sit inside
-// slots, where retargeting every shadow word to its host also selects the host's
-// unrelated header. Compare boundary points in the rendered order instead, using
-// the same slot-aware ancestry as navigation and layout.
+// A native Range compares one DOM tree. Its light-DOM endpoints can sit inside a declared
+// root's slots, where retargeting every shadow word to its host also selects the host's
+// unrelated header. Compare boundary points in the reading's order instead, the order
+// `segmentsIn` searches.
 /** @param {Node} node @param {Node} container @param {number} offset */
 const beforePoint = (node, container, offset) => {
   if (node === container) return false;
   if (container.nodeType === Node.TEXT_NODE || offset === 0)
-    return renderedOrder(node, container) < 0;
+    return readingOrder(node, container) < 0;
   const next = container.childNodes[offset];
   return next
-    ? renderedOrder(node, next) < 0
-    : renderedUnder(node, container) || renderedOrder(node, container) < 0;
+    ? readingOrder(node, next) < 0
+    : readingUnder(node, container) || readingOrder(node, container) < 0;
 };
-/** @param {AbstractRange} range @param {Node} node */
-const coveredBy = (range, node) =>
-  !beforePoint(node, range.startContainer, range.startOffset) &&
-  (node === range.endContainer ||
-    beforePoint(node, range.endContainer, range.endOffset));
+// The first index from `from` whose segment passes `test`, where `test` fails for every
+// segment before that index and passes for every one after it. The reading holds its
+// segments in `readingOrder`, so a test of whether a segment falls after a point in that
+// order has this form, and a binary search answers it in about twenty comparisons on a
+// page of two million segments.
+/** @param {readonly IndexedSegment[]} segments
+ * @param {(segment: IndexedSegment) => boolean} test @param {number} [from] */
+function firstPassing(segments, test, from = 0) {
+  let lo = from;
+  let hi = segments.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if (test(/** @type {IndexedSegment} */ (segments[mid]))) hi = mid;
+    else lo = mid + 1;
+  }
+  return lo;
+}
 
-// The page reading's segments a range covers, clipped to where it starts and ends.
+// The page reading's segments a range covers, clipped to where it starts and ends. They
+// run from the first segment that is not before the range's start up to the first that
+// is not before its end, and include that one when it is the end's own text node.
 // Callers place a passage in that reading (`spanIn`), so the segments are the reading's
 // own. A walk from the range's own root reads whatever that root holds: select-all
 // beside an x-shadow widget composes a range over <html>, and the reading has no
 // position for its <title>.
 /** @param {AbstractRange} range */
 export function segmentsIn(range) {
-  const segments = [];
-  for (const segment of pageText().segments) {
+  const { segments } = pageText();
+  const { startContainer, startOffset, endContainer, endOffset } = range;
+  const first = firstPassing(
+    segments,
+    ({ node }) => !beforePoint(node, startContainer, startOffset),
+  );
+  let stop = firstPassing(
+    segments,
+    ({ node }) => !beforePoint(node, endContainer, endOffset),
+    first,
+  );
+  if (segments[stop]?.node === endContainer) stop += 1;
+  const covered = [];
+  for (const segment of segments.slice(first, stop)) {
     const { node } = segment;
-    if (!coveredBy(range, node)) continue;
-    const start = node === range.startContainer ? range.startOffset : 0;
-    const end = node === range.endContainer ? range.endOffset : segment.end;
-    if (end > start) segments.push({ ...segment, start, end });
+    const start = node === startContainer ? startOffset : 0;
+    const end = node === endContainer ? endOffset : segment.end;
+    if (end > start) covered.push({ ...segment, start, end });
   }
-  return segments;
+  return covered;
 }
 
 // Segments as prose — what a comment stores as its quote, and what a reading position
@@ -1065,15 +1120,7 @@ const EDGE = "\u0000"; // no document holds one, so it can't collide with page t
 // The last segment starting at or before `i`, or -1 before the first.
 /** @param {PageReading} reading @param {number} i */
 function segmentAt({ segments }, i) {
-  let lo = 0;
-  let hi = segments.length;
-  while (lo < hi) {
-    const mid = (lo + hi) >> 1;
-    const segment = segments[mid];
-    if (segment && segment.rawStart <= i) lo = mid + 1;
-    else hi = mid;
-  }
-  return lo - 1;
+  return firstPassing(segments, (segment) => segment.rawStart > i) - 1;
 }
 // Where raw[i] came from, as `{node, offset, segment}`, or null for an EDGE or a position
 // outside the reading.
@@ -1261,13 +1308,19 @@ const isPair = (raw, i) =>
   /[\uD800-\uDBFF]/.test(raw.charAt(i)) &&
   /[\uDC00-\uDFFF]/.test(raw.charAt(i + 1));
 // `reading` with fences at the edges of the words `element` holds, so a neighbourhood
-// read from inside it stops there.
+// read from inside it stops there. The words `element` renders are one run of the
+// reading. The words it holds are the ones under it, which can be fewer: a `<slot>`
+// inside it renders words its shadow host holds, and those come off the run's ends.
 /** @param {PageReading} reading @param {Element} element @returns {PageReading} */
 export function fencedAt(reading, element) {
-  const inside = reading.segments.filter(({ node }) => under(node, element));
-  const first = inside[0];
-  const last = inside.at(-1);
-  if (!first || !last) return reading;
+  const { segments } = reading;
+  let lo = firstPassing(segments, ({ node }) => readingOrder(node, element) > 0);
+  let hi = firstPassing(segments, ({ node }) => !readingUnder(node, element), lo);
+  while (lo < hi && !under(segments[lo]?.node, element)) lo += 1;
+  while (hi > lo && !under(segments[hi - 1]?.node, element)) hi -= 1;
+  const first = segments[lo];
+  const last = segments[hi - 1];
+  if (lo === hi || !first || !last) return reading;
   const edges = [first.rawStart, last.rawStart + last.end - last.start];
   return {
     ...reading,

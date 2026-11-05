@@ -697,9 +697,9 @@ def test_obligations_sharing_context_keep_their_source_identity(browser, serve):
 
 
 def test_digits_leave_an_obligation_the_user_scrolled_away_from(browser, serve):
-    """Focus stays in an ask the user has scrolled off screen, but its digits answer it
-    only while they can see it: scrolled away, `2` chooses nothing, and back in view the
-    digits show again and `2` chooses."""
+    """Focus stays in an ask the user has scrolled off screen, but a key pressed there
+    lets go of it first: scrolled away, `2` chooses nothing, and back in view the ask's
+    digits stay gone until the user goes to it again, when `2` chooses."""
     page = open_page(
         browser,
         serve(
@@ -737,7 +737,17 @@ def test_digits_leave_an_obligation_the_user_scrolled_away_from(browser, serve):
     page.keyboard.press("2")
     rendered(page)
     assert answer() is None
+    assert page.evaluate(
+        "() => !document.getElementById('route').matches(':focus-within')"
+    )
     scroll(down=False)
+    rendered(page)
+    expect(digit).to_be_hidden()
+    page.keyboard.press("2")
+    rendered(page)
+    assert answer() is None
+    page.keyboard.press("m")
+    page.keyboard.press("Tab")
     expect(digit).to_be_visible()
     with sending(page, "the answer"):
         page.keyboard.press("2")

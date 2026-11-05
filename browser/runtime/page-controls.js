@@ -101,7 +101,9 @@ export function registerPageControl(row) {
   pageControlsChanged();
 }
 
-/** The rows offered now, in rank order, each read as it reads now. */
+/** The rows offered now, in rank order, each read as it reads now. A row's group is
+ * read when asked, since the panel takes these rows on each paint to find its way out
+ * and only a menu asks for the group, which can force a layout. */
 export function pageControls() {
   revision.value;
   return [...rows.values()]
@@ -114,7 +116,9 @@ export function pageControls() {
         value: read(row.value) ?? "",
         title: read(row.title) ?? "",
         shortcut: read(row.shortcut) ?? EMPTY,
-        group: read(row.group),
+        get group() {
+          return read(row.group);
+        },
         copies: read(row.copies) ?? "",
         urgent: read(row.urgent) ?? null,
         exit: Boolean(row.exit),

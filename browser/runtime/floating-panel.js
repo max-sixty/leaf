@@ -397,7 +397,8 @@ const clock = (at) =>
  * controls?: (route: R) => {crumb?: unknown, aux?: unknown},
  * presses?: (route: R) => {facts?: unknown, presses?: unknown},
  * nominate?: (route: R, collection: import("./thread/primary-reader.js").PrimaryCollection, parts: import("./thread/primary-reader.js").NominationParts) => unknown,
- * over?: readonly ("threads" | "queue" | "menu")[], rows?: string, row?: PanelRoute,
+ * over?: readonly ("threads" | "queue" | "menu")[], rows?: string, at?: string,
+ * row?: PanelRoute,
  * keys?: readonly import("./keyboard/bindings.js").Command[],
  * claims?: (binding: string) => boolean}} PanelView */
 /** @typedef {{[K in PanelRoute["view"]]: PanelView<RouteFor<K>>}} PanelViews */
@@ -1037,7 +1038,8 @@ export function createFloatingPanel({
     // reached (`clearFor`), names that stop alone: the user is at it now, not at this
     // thread's turn.
     const away = Boolean(position) && !currentLocationIn(host);
-    const word = away ? null : drawn.resolved ? RESOLVED : drawn.attention?.word;
+    const settled = drawn.resolvedBy ? leafSays(drawn.resolvedBy) : RESOLVED;
+    const word = away ? null : drawn.resolved ? settled : drawn.attention?.word;
     if (!word) return position;
     return voiced([word, ...(position ? [` · ${position}`] : [])]);
   }
@@ -1345,7 +1347,8 @@ export function createFloatingPanel({
   // - `nominate`: the outlets in it Leaf's reader draws threads or messages into.
   // - `row`: the menu leads to it by a row of the page's controls, which the panel then
   //   opens itself, those rows leading the menu in this order.
-  // - `rows`: the rows of a list the arrows walk (`listRows`).
+  // - `rows`: the rows of a list the arrows walk (`listRows`), and `at`, the one it opens
+  //   at (`focusView`).
   // - `over`: the lists it opens over, which its way back returns to, the first where it
   //   was opened from anywhere else (`open`). A list the menu leads to, such as
   //   Versions, opens over the menu, so its way back returns there.
@@ -1419,6 +1422,7 @@ export function createFloatingPanel({
       title: () => "Versions",
       draw: () => versionsList(),
       rows: ".lf-fp-version > :is(.lf-fp-item, .lf-fp-compare)",
+      at: ".lf-fp-version[data-lf-current] > .lf-fp-item",
       row: { view: "versions" },
       over: ["menu"],
       // Versions is a list for choosing, so while it stands the page's character keys
@@ -2085,7 +2089,9 @@ export function createFloatingPanel({
     // holds neither, as an empty Threads does, so the key's landing wears a ring; opened
     // by a pointer, it holds focus itself. The user chose this on 31 October, after
     // `g T` from the page left focus on the list's view, where nothing showed it and
-    // Enter went nowhere seen.
+    // Enter went nowhere seen. A list that declares a row it opens at, such as the
+    // version the page shows in Versions, brings that row into view by either route, and
+    // a key lands on it, as the user reopening the list from there expects to see it.
     if (route.thread) {
       // A finger opening a thread reads it first, standing in the view, whose box
       // raises no keyboard; the keyboard rises when they tap in.
@@ -2102,10 +2108,15 @@ export function createFloatingPanel({
     const stoodRow =
       stoodIn &&
       rows.find((row) => threadByKey(row.getAttribute("data-lf-key"))?.id === stoodIn);
+    const declared = viewOf(route).at;
+    const at = declared ? view?.querySelector(declared) : null;
     const target =
       stoodRow ||
-      (pressLed() ? view : (rows[0] ?? view?.querySelector("button, input") ?? view));
+      (pressLed()
+        ? view
+        : (at ?? rows[0] ?? view?.querySelector("button, input") ?? view));
     if (target) focusDestination(target, "move");
+    if (at) scrollIntoView(at, { block: "nearest", within: view });
   }
 
   // ---------- the leaf's menu ----------
@@ -2423,7 +2434,8 @@ export function createFloatingPanel({
   // Where the agent's latest save failed its check, first what the check found, which
   // its error points here to read (version.js, `holdFailedSave`); then the versions
   // the picker lists, each a press that travels there and says the note its stamp gave
-  // it after its name, cut to the row and whole on hover. A column at the rows' end
+  // it after its name, cut to the row and whole on hover, or whole under the name for a
+  // pointer that can't hover (floating-panel.css). A column at the rows' end
   // holds Compare where the picker offers it and Showing for the version shown, so
   // the two words line up. Showing stands outside the press, as Compare does, over
   // the row's end; the press carries it as `aria-current`.
@@ -3514,7 +3526,8 @@ export function createFloatingPanel({
       // A choice that says more than its name, what choosing it gives and whether the
       // page advises it, stands on a line of its own with those words under its name,
       // two lines at most, so the user can answer here without Show, and whole on
-      // hover, as a version's note is. The words carry the tooltip rather than the
+      // hover, as a version's note is, and for a finger on the option's own card, where
+      // Show goes. The words carry the tooltip rather than the
       // press, whose name already holds them: a title there is read again as its
       // description. Rejected: the option's whole card, whose tags and picture let one
       // choice fill a phone's screen, and its name alone, which left the user picking
@@ -3959,7 +3972,8 @@ export function createFloatingPanel({
   // ---------- All pages: the pages live on this machine ----------
   // Each page served on this machine now, this one first (live-leaves.js, `leavesRows`):
   // its leaf in its agent's tone, its title, and what its agent is doing, its whole
-  // account on hover. A row is a link that opens its page in a tab of its own; this
+  // account on hover, or at rest for a pointer that can't hover (floating-panel.css).
+  // A row is a link that opens its page in a tab of its own; this
   // page's row says it is this page and goes nowhere, so the walk passes it by.
   function pagesView() {
     const rows = leavesRows(runtime.state);
@@ -3977,7 +3991,11 @@ export function createFloatingPanel({
             ><span class="lf-fp-label">${row.title}</span
             ><span class="lf-fp-value"
               >${row.self ? "This page" : voiced(row.parts)}</span
-            >`;
+            >${
+              row.rest
+                ? html`<span class="lf-fp-page-rest">${row.rest}</span>`
+                : nothing
+            }`;
           return row.self
             ? html`<div class="lf-fp-page" title=${row.account}>${face}</div>`
             : html`<a

@@ -608,11 +608,15 @@ class PageEndpoint:
     def _news(self) -> Response:
         """A finite reading of the files and presence a visible page is watching.
 
-        The browser compares this cheap token with the state it has applied, then
+        The browser compares this cheap token with the reading it has in hand, then
         asks for state only when they differ. Each request releases its HTTP slot,
         so live child pages cannot hold the origin's connections away from modules,
         gestures or revisions. Presence caches its process and lease observations;
         page files are read anew, including external data and authored dependencies.
+        A look that finds a saved source activates it first, holding the page's
+        transaction through the source check, so its token names the revision the
+        state read it prompts will answer with (`LivePage._activated`), in the order
+        `page_state` explains.
         """
         self.housekeeping = True
         return self._content(

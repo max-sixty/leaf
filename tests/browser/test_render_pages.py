@@ -1809,6 +1809,22 @@ def test_a_scrolling_table_keeps_its_row_names_in_view(browser, serve, direction
         assert cell["offset"] <= 0.5, at
         assert cell["on_top"], at
 
+    # The fade past the names goes while focus is in the table, as the table's mask does,
+    # for a control holding focus in its own shadow tree too. `:has()` can't see into
+    # one, so the mask lifted and this fade stayed over the columns.
+    fade = "name => getComputedStyle(name, '::after').content"
+    assert page.locator("#name-0").evaluate(fade) != "none"
+    table.evaluate("""t => {
+      const cell = t.querySelector('tbody td:last-child');
+      const host = cell.appendChild(document.createElement('div'));
+      host.attachShadow({mode: 'open'}).innerHTML = '<button>Open</button>';
+      host.shadowRoot.firstChild.focus({preventScroll: true});
+    }""")
+    rendered(page)
+    expect(table).to_have_attribute("data-lf-more-before", "")
+    assert page.locator("#name-0").evaluate(fade) == "none"
+    assert table.evaluate("t => getComputedStyle(t).maskImage") == "none"
+
 
 @pytest.mark.parametrize("direction", ["ltr", "rtl"])
 def test_what_an_outer_column_draws_outside_itself_stays_whole(

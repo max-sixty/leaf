@@ -6,10 +6,11 @@ movement during stepping) and three from a thread's per-message Copy (a later
 message's controls mid-card, covered by its head row, or left lit after a press).
 Each defective candidate has a corrected control.
 
-We generally do not keep model evals of maintainer development work. Diagnosing
-recurring CI issues has become such a drag on productivity that we are retaining
-this small internal diagnostic set. Its tasks measure whether models identify
-specific viewer defects and distinguish repaired controls. The ordinary
+An experiment stays only while someone will run it again (`dev/AGENTS.md`,
+"Experiments"). This set stays because diagnosing recurring CI issues has become a drag
+on productivity, and because each new reviewer model or browser tool can be compared on
+the same frozen pairs. Its tasks measure whether models identify specific viewer defects
+and distinguish repaired controls. The ordinary
 `leaf-dev eval` catalog continues to score shipped instructions and agent loops.
 
 `promptfooconfig.mjs` is the whole experiment's Promptfoo config. A column is one model
@@ -41,7 +42,7 @@ The columns are each harness's author and judge pins and the compared models in
 models on the same frozen cases:
 
 ```sh
-pnpm run eval:ui-review --filter-providers 'sol/(no-tools|browser)$'
+pnpm run eval:ui-review
 pnpm run eval:ui-review --filter-providers '/(no-tools|browser)$'
 pnpm run eval:ui-review --filter-providers '/discovery$'
 pnpm run eval:ui-review --filter-providers 'sol/code-only$'
@@ -49,8 +50,10 @@ pnpm run eval:ui-review --filter-providers '/code-only$'
 pnpm run eval:view
 ```
 
-A run with no filter takes every column. `--filter-pattern cover` runs one pair, since a
-row's description is its variant, and `--repeat 2` runs independent conversations. Each
+The script's default filter keeps a bare run to Sol on `no-tools` and `browser`. A
+`--filter-providers` you pass replaces it, and `--filter-providers .` takes every column,
+each model on each arm. `--filter-pattern cover` runs one pair, since a row's description
+is its variant, and `--repeat 2` runs independent conversations. Each
 run keeps its evidence in a fresh directory under `.tmp/ui-review-detection/`. Models
 use the host's signed-in subscriptions. No dollar-cost estimate is reported.
 Grading also uses the host's Codex login, with the Codex judge pinned in

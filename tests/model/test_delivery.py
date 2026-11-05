@@ -1348,7 +1348,7 @@ def test_a_message_on_a_playground_carries_the_settings_it_showed(
     def playground(ident, card):
         return (
             f'<lf-playground id="{ident}">'
-            '<lf-playground-control name="radius" label="Radius" kind="range" '
+            f'<lf-playground-control id="{ident}-radius" name="radius" label="Radius" kind="range" '
             'value="8" max="20"></lf-playground-control>'
             f'<lf-playground-preview><p id="{card}">Deployed.</p>'
             "</lf-playground-preview>"

@@ -157,9 +157,13 @@ import { Transcript } from "./transcript.js";
  * messages: readonly MessageReading[], working: WorkingMessage | null,
  * source: ThreadRecord, reread: (held: ThreadRecord) => ThreadReading}} ThreadReading */
 
-// What a thread says of the words it is about: where they stand, the words, how they
-// stand now, and, where the page no longer shows them, why. A thread draws it where its
-// container asks (`ThreadOutlets`, `quote`), as the floating panel's view does.
+// What a thread says of the words it is about: where they stand, the words, whether they
+// still stand on the page, and a status word, in Leaf's voice, where the page no longer
+// reads as the quote does: a revision took the words out of the latest version, which
+// may not be the version shown, where they can still stand; they can't be found on the
+// page; they come from earlier data; or they have changed. A thread draws it where its
+// container asks (`ThreadOutlets`, `quote`), as the floating panel's view does. The
+// status is a word over the quote because a finger never reads a title.
 /** @param {ThreadRecord} thread
  * @param {Pick<ReturnType<typeof import("../anchor-placement.js").createAnchorPlacement>, "placedAt">} anchors */
 function quoteReading(thread, anchors) {
@@ -169,26 +173,23 @@ function quoteReading(thread, anchors) {
   const words = quoted?.quote ?? "";
   if (!place && !words) return null;
   const anchored = Boolean(thread.anchor) || Boolean(thread.detached_from);
-  const found = !thread.detached_from && placement != null;
+  const detached = anchored && (Boolean(thread.detached_from) || placement == null);
+  // A version that rewrote the quoted words left the thread on their section
+  // (`rewritten_from`, events.md); the head still names those words, marked as changed.
+  const changed =
+    Boolean(thread.rewritten_from) ||
+    Boolean(words && placement?.datumElement && !placement.exact);
   return Object.freeze({
     place,
     words,
-    // A version that rewrote the quoted words left the thread on their section
-    // (`rewritten_from`, events.md); the head still names those words, marked as
-    // changed. The mark is Leaf's word about them, so it is said in Leaf's voice.
-    status:
-      anchored && placement?.status === "outdated"
+    detached,
+    status: detached
+      ? leafSays(thread.detached_from ? "Not in the latest version" : "Not found")
+      : anchored && placement?.status === "outdated"
         ? leafSays("Earlier data")
-        : thread.rewritten_from ||
-            (words && placement?.datumElement && !placement.exact)
+        : changed
           ? leafSays("Changed")
           : null,
-    lost:
-      !anchored || found
-        ? ""
-        : thread.detached_from
-          ? "This passage is no longer in the version shown"
-          : "This passage can't be identified in the version shown",
     // A surviving element can still be a destination after its quoted words
     // have gone (rewritten text, replaced data or a virtual datum). Only a
     // resolved passage can supply the original quote's complete reading.
@@ -386,11 +387,11 @@ export function threadReading(thread, surface, commands) {
     resolved,
     attention,
     // Where a resolved thread stands already says it is resolved: in a seat's Resolved
-    // disclosure (inline.js). Who resolved it is said only where it was the agent.
+    // disclosure (inline.js). Who resolved it is said only where it was the agent, in
+    // Reopen's name and the words the panel's field says for the thread, which a finger
+    // reads where it never reads that name.
     resolvedBy:
-      thread.resolved?.author === "agent"
-        ? `✓ Resolved by ${thread.resolved.agent}`
-        : "",
+      thread.resolved?.author === "agent" ? `Resolved by ${thread.resolved.agent}` : "",
     settlement: Object.freeze({
       kind,
       word,
@@ -467,8 +468,9 @@ function wordsWidth(node) {
    (`DrawnThread`), held news included, so they agree with its settlement and notice, as
    a card's own words do (`#createReply`). */
 /** The thread as a thread draws it, held news included, which its reply box's words
- * read: whether it is resolved, and whose turn it is (workflow.js, `threadAttention`).
- * @typedef {{resolved: boolean, attention: ThreadReading["attention"]}} DrawnThread */
+ * read: whether it is resolved and by which agent, and whose turn it is (workflow.js,
+ * `threadAttention`).
+ * @typedef {Pick<ThreadReading, "resolved" | "resolvedBy" | "attention">} DrawnThread */
 /** @typedef {Omit<import("./replies.js").ReplyOptions, "hint" | "hintParts" | "hintLead"> & {
  * hint?: (drawn: DrawnThread) => string,
  * hintParts?: (drawn: DrawnThread) => unknown,
@@ -1261,7 +1263,8 @@ export class ThreadView {
   // them; where they no longer do, as for a thread a revision detached from its
   // passage, the quotation the thread kept is all that is left of them, so Full quote
   // shows the whole of it, its press standing above the words it grows so the press
-  // never moves itself. It shows only where three lines cut them, and the quote stays
+  // never moves itself. The quote's status word leads its words, so the three lines
+  // never cut it. Full quote shows only where three lines cut them, and the quote stays
   // whole while the view stands. Where the words stand is read from the page, which the
   // thread's pass reads again after drawing (presentation.js, `readTargets`) and a data
   // refresh changes without changing the thread, so the quote draws by an effect of its
@@ -1274,8 +1277,7 @@ export class ThreadView {
       const expanded = this.#quoteExpanded.value;
       untracked(() => {
         keepsHidden(this.#quoteHead, !quote);
-        keeps(this.#quoteHead, "data-lf-detached", quote?.lost ? "" : null);
-        keeps(this.#quoteHead, "title", quote?.lost || null);
+        keeps(this.#quoteHead, "data-lf-detached", quote?.detached ? "" : null);
         render(this.#quoteTemplate(quote, expanded), this.#quoteHead);
       });
     });
@@ -1291,7 +1293,7 @@ export class ThreadView {
     const label =
       quote.place || quote.status
         ? html`<p class="lf-quote-label">
-            ${quote.place}${quote.place && quote.status ? " · " : ""}${status}
+            ${status}${quote.place && quote.status ? " · " : ""}${quote.place}
           </p>`
         : nothing;
     if (!quote.words) return label;
@@ -1358,7 +1360,9 @@ export class ThreadView {
     const reopen = state.kind === "unresolve";
     const word = reopen ? "Reopen" : "Resolve";
     const label =
-      reopen && model.resolvedBy ? `${model.resolvedBy} · ${state.label}` : state.label;
+      reopen && model.resolvedBy
+        ? `✓ ${model.resolvedBy} · ${state.label}`
+        : state.label;
     return html`<button
       ${offeredAction("symbol", reopen ? "lf-reopen" : "lf-resolve", label, {
         action: reopen ? "reopen" : "resolve",
@@ -1454,8 +1458,8 @@ export class ThreadView {
     // with each reading the thread draws.
     /** @returns {DrawnThread} */
     const drawn = () => {
-      const { resolved, attention } = this.#shown.value;
-      return { resolved, attention };
+      const { resolved, resolvedBy, attention } = this.#shown.value;
+      return { resolved, resolvedBy, attention };
     };
     return createReplyView(
       model.key,

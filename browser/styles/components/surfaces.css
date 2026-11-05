@@ -485,8 +485,12 @@ a[data-lf-external]::after,
    with it, the top of its ring cut off under the pane's header rule. On every side,
    since the ring is: a link Tab brought in from a wide table's end stood flush with it.
    `:focus` makes that room available to the landing before the focus mark paints
-   after the script. At no weight, like the ring. */
-:where(:focus, [data-lf-focus]) {
+   after the script. At no weight, like the ring. A vendor control holds focus on a node
+   in its own tree, which those selectors don't reach, so the mark's part (focus.js,
+   `markFocus`) brings it there, at a pseudo-element's weight: a diff's file filter
+   stood past its pane's foot, and a code block's Copy past its top. */
+:where(:focus, [data-lf-focus]),
+::part(lf-focus) {
   scroll-margin: var(--focus-ring-landing);
 }
 /* A control in a stuck sticky header stands where the header sticks, which its
@@ -504,7 +508,8 @@ a[data-lf-external]::after,
    counts as shown; anywhere else the margin keeps the focus ring's landing room. A page tab
    strip, which the band covers whole, comes out negative by its height, so its names
    count as shown too. */
-:where(:focus, [data-lf-focus]) {
+:where(:focus, [data-lf-focus]),
+::part(lf-focus) {
   scroll-margin-top: calc(
     var(--lf-top) - var(--lf-top-covered, var(--lf-top)) +
       var(
@@ -1298,15 +1303,16 @@ button.lf-thread-news {
    chrome and a thread drawn by a package's reader stands in the page, so the face is
    stated here, where every surface reads it. Only the quoted words stand behind the
    rule, which with the quiet ink says they are quoted, so they take no marks. Leaf's
-   words about them, where they stand (`anchorPlace`, thread/messages.js) and how they
-   stand now, form a label over the rule in the status face, the mark of how they stand,
-   as Changed, in Leaf's italic (voice.js); a thread on a place with no quoted words
-   draws the label alone. The words stand over the
-   thread's messages in three lines, the whole on Full quote, its press above the words
-   it grows. The head only says what the thread is about, since the container's way to
-   the words, as the panel's Show on page, goes there: it takes no press, no aim's room
-   and no title naming a jump, though a detached head's title still says where its words
-   went. The rule stands on the thread's edge and the words and label on its text. */
+   words about them form a label over the rule in the status face: first a status word
+   in Leaf's italic (voice.js) where the page no longer reads as the quote does, such as
+   a passage a revision took out of the latest version, which a finger reads as a
+   pointer does (`quoteReading`), then where they stand (`anchorPlace`,
+   thread/messages.js). A thread on a place with no quoted words draws the label alone.
+   The words stand over the thread's messages in three lines, the whole on Full quote,
+   its press above the words it grows. The head only says what the thread is about,
+   since the container's way to the words, as the panel's Show on page, goes there: it
+   takes no press, no aim's room and no title. The rule stands on the thread's edge, and
+   the words and the label start on its text. */
 .lf-quote-label {
   margin: 0;
   padding-inline: var(--lf-thread-text-inset) 8px;

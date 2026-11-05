@@ -389,28 +389,31 @@ dl.lf-facts dd {
        gradient can name only as a physical side, so the table states that side once
        from its scroll direction; an override of the fade's own rule had weighed less
        than the rule and left a right-to-left table's fade facing the names.
-       The table is the rules' scope, so the browser asks once of each table whether its
-       rows open with names. Asked of each row's first cell instead, as
-       `table:has(…) > * > tr > :first-child`, Chromium read every row again for each
-       one, and a table's style grew with the square of its rows. The table of captures
-       below is a scope for the same reason. */
-    @scope (table:has(> * > tr > th[scope="row"]:first-child)) {
-      :scope {
-        --lf-more-fade-start: 0px;
-        --lf-names-clear-to: right;
-      }
-      :scope[data-lf-scroll-direction="rtl"] {
+       Every row's first cell asks the table whether its rows open with names, and
+       Chromium reads a `:has(> …)` afresh for each one that asks, so asked alone, the
+       exact question made a table's style grow with the square of its rows. It keeps
+       a `:has()` whose argument starts with a descendant combinator for the restyle,
+       so each rule asks that first, whether any row anywhere in the table opens with a
+       name, which a table without one fails once, and only then the exact question,
+       which keeps a table nested in a cell read for itself. The table of captures
+       below asks the same way. An `@scope` rooted on the table also answers once, but a
+       scope's root names a class, id or attribute, never a type alone
+       (test_an_untyped_has_leads_only_to_a_typed_subject). */
+    table:has(th[scope="row"]:first-child):has(> * > tr > th[scope="row"]:first-child) {
+      --lf-more-fade-start: 0px;
+      --lf-names-clear-to: right;
+      &[data-lf-scroll-direction="rtl"] {
         --lf-names-clear-to: left;
       }
-      :scope > * > tr > :first-child {
+      & > * > tr > :first-child {
         position: sticky;
         inset-inline-start: 0;
       }
-      :scope[data-lf-more-before] > * > tr > :first-child {
+      &[data-lf-more-before] > * > tr > :first-child {
         background: var(--lf-ground);
       }
       @media screen {
-        :scope[data-lf-more-before]:not([data-lf-focus-within])
+        &[data-lf-more-before]:not([data-lf-focus-within])
           > *
           > tr
           > :first-child::after {
@@ -448,11 +451,14 @@ dl.lf-facts dd {
        wider at 1440px); breaking heads anywhere evened the scale but split "Documentation"
        mid-word on a phone. A table is one of captures where a cell of its own rows holds
        nothing but an image, linked or not, so a table nested in a cell is read for itself. */
-    @scope (table:has(> * > tr > td > img:only-child, > * > tr > td > a:only-child > img:only-child)) {
-      :scope > * > tr > :is(th, td) {
+    table:has(td > img:only-child, td > a:only-child > img:only-child):has(
+        > * > tr > td > img:only-child,
+        > * > tr > td > a:only-child > img:only-child
+      ) {
+      & > * > tr > :is(th, td) {
         vertical-align: middle;
       }
-      :scope > * > tr > th:not([scope="row"]) {
+      & > * > tr > th:not([scope="row"]) {
         text-align: center;
         color: var(--ink);
       }

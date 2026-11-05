@@ -318,7 +318,10 @@ a[data-lf-external]::after,
    box says (`--lf-ring-at`), or where a region's or a control's marks stand when it
    says nothing. The outline is important, so a rule of the page's or a widget's that
    sets the box's outline, as one turning off a focus ring does, leaves the mark
-   standing while it shows. */
+   standing while it shows. Focus alone (`data-lf-mark="focus"`) is the box's focus
+   ring rather than a mark, so it stands at no weight, as the focus floor above does:
+   the box's own focus treatment wins, an author's outline or a carrier's such as a
+   ring overlay. */
 :where(
   [data-lf-aimed],
   [data-lf-traced],
@@ -327,6 +330,16 @@ a[data-lf-external]::after,
   [data-lf-projected-location]
 ) {
   --lf-band-gap: var(--lf-ring-at, var(--focus-region-gap));
+  outline: var(--lf-band-w, var(--focus-ring-w)) solid var(--lf-band-ink, var(--accent));
+  outline-offset: var(--lf-band-gap);
+}
+:where(
+  [data-lf-aimed],
+  [data-lf-traced],
+  [data-lf-proxied],
+  [data-lf-mark]:not([data-lf-mark="focus"]),
+  [data-lf-projected-location]
+) {
   outline: var(--lf-band-w, var(--focus-ring-w)) solid var(--lf-band-ink, var(--accent)) !important;
   outline-offset: var(--lf-band-gap) !important;
 }

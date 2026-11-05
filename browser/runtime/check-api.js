@@ -77,7 +77,13 @@ export {
 } from "./keyboard/bindings.js";
 export { availableCommandRoutes, stack, executeCommand } from "./keyboard/dispatch.js";
 export { whereDraft, storedDraft, captureDraftEditing } from "./drafts.js";
-export { onCurrentLocation, releaseFocus, ringBox, takesLetters, tabStops } from "./focus.js";
+export {
+  onCurrentLocation,
+  releaseFocus,
+  ringBox,
+  takesLetters,
+  tabStops,
+} from "./focus.js";
 export { selectionAnchor } from "./composing/capture.js";
 export { TEXT_BLOCK } from "./kernel-facts.js";
 export { renderingState } from "./rendering.js";

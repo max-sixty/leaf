@@ -78,10 +78,6 @@
         {
           "id": "place-carried",
           "says": "Carried by its grip: where it was dropped, relative to its text, until the side is chosen again."
-        },
-        {
-          "id": "place-stepped",
-          "says": "Stepped to another thread at the same text, by Resolve, Previous or Next: where it stood, at the width it stood at, so the controls on its head line stand under the same aim. Over its text it keeps its foot, so a taller thread doesn't cover the words."
         }
       ]
     },

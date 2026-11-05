@@ -192,13 +192,6 @@ export class CardAnchor {
     return this.#writing() || this.#side === "top" || this.#keepsSend(joined);
   }
 
-  // The card stepped to another thread at its passage (thread-preview.js, `select`). A
-  // press goes on holding through the step, whose result takes the pressed control's
-  // place. A send's hold is its own thread's.
-  stepped() {
-    this.#sent = null;
-  }
-
   forget() {
     this.#sent = null;
     this.#press = null;

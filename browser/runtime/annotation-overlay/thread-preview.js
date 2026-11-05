@@ -56,14 +56,12 @@
    the next open thread on the page, as the panel does, which scrolls the page under the
    user after each Resolve.
 
-   A step to another thread at the passage, by Resolve, Previous or Next, keeps the card
-   where it stood, its top, its left edge and its width, so the controls on its head line
-   stand where the pressed ones stood and the next press lands on the next thread's
-   (`place-stepped`; browser/AGENTS.md, "Controls stay where the user aims"). The press's
-   hold goes with it (`select`), or the thread taking over would stand where a fresh card
-   does: below where a tall thread had risen. Resolving several in a row is the flow the
-   card's Resolve leans on. Above its subject the card keeps its foot instead, since a
-   taller thread held by its top would grow over the words it is about. */
+   A step to another thread at the passage, by Resolve, Previous or Next, places the card
+   afresh, so a shorter thread brings it back beside its passage, with the controls on
+   its head line. The user chose this on 4 November 2026 over keeping the frame it stood
+   in, which held ✓ under a pointer resolving several threads in a row but took a
+   placement rule and a press hold of its own, and still moved ✓ on a card above its
+   subject. */
 import {
   followsEnd,
   keepFoot,
@@ -858,21 +856,6 @@ export function createThreadPreview({
     if (carry && button) focusDestination(button, "return");
   }
 
-  // A session is one thread's selection, so a step to another thread at the passage is
-  // a new one. It adopts the frame the card stands in, as a card the user dropped does,
-  // and takes over the anchor, whose press it goes on keeping (the header).
-  /** @param {Entry} entry */
-  function stepFrame(entry) {
-    const from = previewSession;
-    return from?.entry.key === entry.key && from.followed && !from.away
-      ? {
-          from,
-          box: preview.getBoundingClientRect(),
-          placement: { ...from.side.capture(), moved: true },
-        }
-      : null;
-  }
-
   /** @param {Omit<Selection, "threadItem"> & {item: Item, origin?: Origin | null}} chosen @returns {Session} */
   function select({
     entry,
@@ -884,7 +867,6 @@ export function createThreadPreview({
     forced = false,
     disclosed = false,
   }) {
-    const step = origin ? null : stepFrame(entry);
     retirePreviewSession();
     /** @type {Session} */
     const session = {
@@ -914,13 +896,13 @@ export function createThreadPreview({
       stopRegion: null,
       stopFoot: null,
       side: commentPlacement(),
-      anchor: step?.from.anchor ?? new CardAnchor(preview),
+      anchor: new CardAnchor(preview),
       // The width the card stands at for this selection, in client pixels: the box's
-      // Send replaced, so the two are one rectangle, or the thread it stepped from, else
-      // the one it first stood at, or was carried at (`placeThreadPreview`). Sized by
-      // itself, Firefox stood a one-line comment's card 13px wider than its box.
+      // Send replaced, so the two are one rectangle, else the one it first stood at, or
+      // was carried at (`placeThreadPreview`). Sized by itself, Firefox stood a one-line
+      // comment's card 13px wider than its box.
       itemView: null,
-      width: (origin ?? step)?.box.width ?? null,
+      width: origin?.box.width ?? null,
       scroller: pageScroller,
       // Whether the card's placement has landed for this selection, whose first spot its
       // motion follows from (`placeThreadPreview`).
@@ -929,10 +911,6 @@ export function createThreadPreview({
     previewSession = session;
     tick(cardRevision);
     if (origin) session.side.adopt(origin);
-    if (step) {
-      session.side.adopt(step);
-      session.anchor.stepped();
-    }
     // A card Send opened stands at once where its box stood and grows out of the box's
     // field, rather than fade in (annotation-chrome.css).
     keeps(preview, "data-lf-grows", origin ? "" : null);

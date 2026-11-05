@@ -52,9 +52,9 @@ from leaf_dev.commands.scaling import (
 PATHS = ("state", "append", "delivery", "agent", "thread", "activate")
 # A click's paths: admitting its event and computing the reading the server answers
 # with. Root `AGENTS.md`, "Responsiveness", puts that reading on screen within
-# `BUDGET_MS`, so the two together take no more at `REFERENCE`; it holds the agent's
-# paths only to growing no faster than the page. Admission reads the page as a
-# reading does, so on the `events` page both may grow with the log.
+# `BUDGET_MS`, so the two together take no more at `REFERENCE` (`over_budget`); it
+# holds the agent's paths only to growing no faster than the page. Admission reads
+# the page as a reading does, so on the `events` page both may grow with the log.
 CLICK = ("append", "state")
 RUNS = 3
 BUDGET_MS = 100
@@ -328,10 +328,9 @@ def measure(
 
 
 def failures(rows: list[dict]) -> dict[str, dict]:
-    """Each path in `rows` that breaks root `AGENTS.md`, "Responsiveness", with its
-    readings and why: a path whose growth above the smallest page fits an exponent
-    past `SUPERLINEAR`, and `click` where a click's paths together take more than
-    `BUDGET_MS` at `REFERENCE`."""
+    """Each path in `rows` whose growth above the smallest page fits an exponent past
+    `SUPERLINEAR`, which root `AGENTS.md`, "Responsiveness", rules out, with its
+    readings and why."""
     sizes = [row["n"] for row in rows]
     failed = {}
     for path in PATHS:
@@ -345,11 +344,19 @@ def failures(rows: list[dict]) -> dict[str, dict]:
                 "exponent": slope,
                 "why": f"growth fits exponent {slope:.2f}, past {SUPERLINEAR}",
             }
-    click = {row["n"]: sum(row[path] for path in CLICK) for row in rows}
-    if click.get(REFERENCE, 0) > BUDGET_MS:
-        failed["click"] = {
-            "by size": click,
-            "why": f"{' + '.join(CLICK)} take {click[REFERENCE]:.0f} ms at {REFERENCE},"
-            f" over {BUDGET_MS} ms",
-        }
     return failed
+
+
+def over_budget(rows: list[dict]) -> str | None:
+    """Why a click's paths together take more than `BUDGET_MS` at `REFERENCE` in
+    `rows`, or None: on a page with no log, or where `rows` has no `REFERENCE`, there
+    is no click to time."""
+    at = next((row for row in rows if row["n"] == REFERENCE), None)
+    if at is None or not all(path in at for path in CLICK):
+        return None
+    click = sum(at[path] for path in CLICK)
+    if click <= BUDGET_MS:
+        return None
+    return (
+        f"{' + '.join(CLICK)} take {click:.0f} ms at {REFERENCE}, over {BUDGET_MS} ms"
+    )

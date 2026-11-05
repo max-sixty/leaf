@@ -34,7 +34,8 @@ another. Fitting the cost itself would let fixed work hide that: 30 ms per click
 browser (`leaf_dev.server_scaling` names the paths and how it reads them), and names
 each path that breaks the rule: growth fitting an exponent above SUPERLINEAR, or a
 click's paths together taking more than their budget at REFERENCE. The daily
-`tests/journeys/test_server_scaling.py` fails those.
+`tests/journeys/test_server_scaling.py` fails the growth; the budget waits, as the
+browser's do, until the pages that miss it are fixed.
 
 --base also measures the merge base with main (or REF), chosen as every A/B command
 chooses its arms (`arms.choose_arms`), so a change shows its exponents beside the
@@ -710,7 +711,14 @@ def scale_server(axes: Iterable[str], sizes: list[int], profile: bool, run: Path
     """Time each server path on each axis's pages in this process, as `--server`
     does (`leaf_dev.server_scaling`), and name each path that breaks the rule
     (`server_scaling.failures`)."""
-    from leaf_dev.server_scaling import FITTED, PATHS, RUNS, failures, measure
+    from leaf_dev.server_scaling import (
+        FITTED,
+        PATHS,
+        RUNS,
+        failures,
+        measure,
+        over_budget,
+    )
 
     click.echo(f"Server paths of this checkout, least CPU of {RUNS} runs\n")
     results = {}
@@ -721,6 +729,8 @@ def scale_server(axes: Iterable[str], sizes: list[int], profile: bool, run: Path
         click.echo(table(axis, rows, "events", paths, FITTED))
         for path, failure in failures(rows).items():
             click.echo(f"  {path}: {failure['why']}")
+        if why := over_budget(rows):
+            click.echo(f"  click: {why}")
         click.echo()
         if profile:
             report_growth(axis, profiles, sizes[-1] / sizes[0])

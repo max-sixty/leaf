@@ -77,9 +77,9 @@ generates, a keystroke and a wheel step each fit in 8 ms of main-thread time, an
 click shows the server's reading within 100 ms. A step that walks one of those
 collections for each member of another, as finding each obligation's heading by
 reading every heading did, grows with the square of the page. So does a style or
-layout pass forced once per element, since each pass can
-cover the whole page (`browser/AGENTS.md`, "Runtime ownership"). `leaf-dev
-scaling` measures how each cost grows with the page.
+layout pass forced once per element, since each pass can cover the whole page
+(`browser/AGENTS.md`, "Runtime ownership"). `leaf-dev scaling` measures how each
+cost grows with the page.
 
 ## Pages across Leaf updates
 

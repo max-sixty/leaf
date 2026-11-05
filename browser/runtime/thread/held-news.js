@@ -39,14 +39,14 @@
 
    An open panel card shows appended messages immediately when no composition is
    active: its idle reply row and later cards may move, while existing messages keep
-   their place. The margin's floating card is a seat whose growth moves one of its own
-   edges (thread-preview.js). News at the thread's end shows at once where the card
-   holds its top, beside or below what it is about with the user not writing in it, its
-   reply row moving; everything else waits, but a settlement, which keeps the editor it
-   interrupts (thread-card.js, `newsMoves`). A reply the agent is still streaming at the thread's end is such an
-   appended message, its words joining it as they come and its answer completing it
-   in place, so it streams into an idle open card and a held one counts it once as a
-   new reply. So is an answer hiding the progress before it
+   their place. The margin's floating card is a seat whose growth moves the edge it
+   does not hold, so news at the thread's end shows at once where that edge keeps still
+   what the user is on, and waits otherwise (thread-preview.js, `endNewsMoves`);
+   everything else waits, but a settlement, which keeps the editor it interrupts
+   (thread-card.js, `newsMoves`). A reply the agent is still streaming at the thread's
+   end is such an appended message, its words joining it as they come and its answer
+   completing it in place, so it streams into an idle open card and a held one counts
+   it once as a new reply. So is an answer hiding the progress before it
    where that progress is the run at the thread's end, as the agent's acknowledgement
    is, unless the user is on a message the fold puts away, by focus or by a
    selection reaching into it (`currentLocationTouches`, focus.js). Hiding progress above a user's
@@ -113,8 +113,8 @@
    checking such lists. Arrival is read from where the user is (the user's decision,
    2026-10-06, reversing #1780's record). Rejected: a `showHeld` call in each route that
    takes the user to a thread, which every new route had to remember and a route putting
-   them back had to opt out of. The margin's floating card holds news while the user
-   writes in it and keeps the width it first stood at (the user's decision,
+   them back had to opt out of. The margin's floating card holds news that would move
+   the reply the user writes and keeps the width it first stood at (the user's decision,
    2026-10-13): before, it took every change at once, widening up to 232px and carrying
    Resolve, Close and Send sideways, and rising under a draft. Rejected: keeping only
    its width, which doubled the rise; keeping its box and scrolling the transcript,
@@ -154,6 +154,7 @@ import { onCurrentLocation, focused } from "../focus.js";
 import { onReadingInterrupted, readingIsContinuous } from "../reading-continuity.js";
 import { pagePresented } from "../page-paint.js";
 import { watchOwner } from "../arrivals.js";
+import { holdUserPlace } from "../user-place.js";
 
 /** @typedef {import("./thread-card.js").ThreadReading} ThreadReading */
 /** @typedef {import("./thread-card.js").ThreadRecord} ThreadRecord */
@@ -231,9 +232,7 @@ function messageChange(prior, message) {
 // has arrived), when the user had the last turn as drawn: all of
 // it, the reply, the work under way on it and that work's fold, lies after that turn,
 // which a presentation may show at once (primary-reader.js, `answersAtOnce`). A message the log
-// took back is no news: it goes. `joined` names new messages and existing streamed
-// messages whose words grew, including progress. Card placement uses those same
-// arrivals when predicting motion and when they actually show. Null where nothing differs.
+// took back is no news: it goes. Null where nothing differs.
 /** @typedef {Pick<ThreadReading, "messages" | "resolved" | "working" | "summaries" | "source">} ChangeReading */
 /** @param {ChangeReading} was @param {ChangeReading} now @param {{progressOpen?: boolean}} [options] */
 export function threadChange(was, now, { progressOpen = false } = {}) {
@@ -257,13 +256,10 @@ export function threadChange(was, now, { progressOpen = false } = {}) {
   /** @type {Set<string>} */
   const changed = new Set();
   /** @type {Set<string>} */
-  const joined = new Set();
-  /** @type {Set<string>} */
   const arrived = new Set();
   for (const message of now.messages) {
     const prior = drawn.get(message.key);
     const change = messageChange(prior, message);
-    if (change === "joined") joined.add(message.key);
     if (!prior || prior.provisional) arrived.add(message.id);
     // A progress message joins the thread's working message, not its replies, so it is
     // the working message's news (`news.working`), which the notice doesn't say. Where
@@ -370,7 +366,7 @@ export function threadChange(was, now, { progressOpen = false } = {}) {
             ?.key ?? null,
       })
     : null;
-  return { news, changed, joined, folds, appendedAtEnd, footFold, answers };
+  return { news, changed, folds, appendedAtEnd, footFold, answers };
 }
 
 // The thread `now` with what `was`, the thread as the seat drew it, did not show held
@@ -528,7 +524,13 @@ export function showHeld(id) {
 
 // The thread the user is in, and their arrivals at another. A move or a step there shows
 // what it holds. A press there puts the user in it, so each seat holding it draws again
-// and the seat's rule for a user in it decides (inline.js).
+// and the seat's rule for a user in it decides (inline.js). No reading brings either
+// draw, so an arrival on a control in the thread, as a press into its reply box or a Tab
+// into its reply row, takes the hold a reading takes, which keeps that control where it
+// stood (user-place.js, `holdUserPlace`). An arrival on the thread itself, by a walk or
+// a press on one of its messages, takes none: the hold would keep its reply box still,
+// as it does for a user standing on the thread when news comes, and so move what they
+// arrived on up by the news, where the growth below the thread's head leaves it put.
 /** @type {string | null} */
 let currentLocation = null;
 onCurrentLocation(
@@ -539,9 +541,11 @@ onCurrentLocation(
     const id = drawnThreadId(thread);
     const arrived = id !== null && id !== currentLocation;
     currentLocation = id;
-    if (!arrived) return;
-    if (cause === "move" || cause === "step") showHeld(id);
-    else if (cause === "press") for (const held of holders) held.redraw(id);
+    if (!arrived || cause === "return") return;
+    const keep = node === thread ? () => {} : holdUserPlace();
+    if (cause === "press") for (const held of holders) held.redraw(id);
+    else showHeld(id);
+    keep();
   },
 );
 

@@ -25,6 +25,7 @@ const EMITS = {
   linkify: ["link_open"],
   text_join: [],
   blank_lines: [],
+  fence_words: ["fence"],
   safe_links: [],
   // block
   code: ["code_block"],

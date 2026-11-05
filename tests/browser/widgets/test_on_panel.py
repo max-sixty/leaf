@@ -222,9 +222,12 @@ def test_obligation_cards_keep_identity_and_walk_order_when_the_live_dom_moves(
 ):
     """A keyed card keeps its node and focus however the page's DOM moves, and stands
     where the `m` walk reaches its item: an item whose element leaves the page goes
-    after those still on it, as the walk takes it last."""
+    after those still on it, as the walk takes it last. That item leaves its place's
+    group for the whole page's, so its card is drawn afresh in that group's box and
+    keeps focus; every other card keeps its node."""
     page = open_page(browser, serve(OBLIGATIONS_PAGE))
     open_on_me(page)
+    show_done(page)
     cards = page.locator(f"{ON_ME} .lf-fp-on-item")
     expect(cards).to_have_count(len(ALL_OBLIGATIONS_IN_ORDER))
     order = [
@@ -260,7 +263,7 @@ def test_obligation_cards_keep_identity_and_walk_order_when_the_live_dom_moves(
 
     # Removing a presentation node does not rewrite the application inventory: the
     # keyed card stays, focus with it, and takes the walk's place for an item with no
-    # place on the page, after the rest of the list.
+    # place on the page, after the rest of the list, under the whole page's band.
     page.evaluate(
         """async () => {
           document.querySelector('#sug-refill').remove();
@@ -276,8 +279,14 @@ def test_obligation_cards_keep_identity_and_walk_order_when_the_live_dom_moves(
         order[4],
     ]
     expect(sug_refill).to_be_focused()
+    expect(
+        sug_refill.locator(
+            "xpath=ancestor::section[contains(@class, 'lf-rows-group')]"
+        ).locator(":scope > .lf-rows-head .lf-row-main")
+    ).to_have_text("The whole page")
     assert cards.evaluate_all(
-        "items => items.every(item => window.__lfObligationCards.get(item.dataset.lfKey) === item)"
+        """items => items.every(item => item.dataset.lfKey === '["widget","widget:sug-refill"]'
+          || window.__lfObligationCards.get(item.dataset.lfKey) === item)"""
     )
 
 
@@ -620,14 +629,15 @@ TABBED_PAGE = leaf_page(
 
 
 def test_on_me_places_an_item_by_its_tab_s_title_or_label(browser, serve):
-    """By place names the part of the page an item stands in from where it stands on:
-    in a tab whose page keeps its title in a header, that title heads its untitled
-    last section too, rather than the title of the page holding the tabs; and in a tab
-    with no heading over the item, selected or not, the tab's own label names it."""
+    """By place, each group's band names the part of the page its items stand in from
+    where they stand: in a tab whose page keeps its title in a header, that title heads
+    its untitled last section too, rather than the title of the page holding the tabs;
+    and in a tab with no heading over the item, selected or not, the tab's own label
+    names it."""
     page = open_page(browser, serve(TABBED_PAGE))
     resized(page, 1440, 900)
     view = open_on_me(page)
-    expect(view.locator(".lf-fp-on-place")).to_have_text(
+    expect(view.locator(".lf-rows-group > .lf-rows-head .lf-row-main")).to_have_text(
         ["Move the runs into one sandbox", "Second plan"]
     )
 

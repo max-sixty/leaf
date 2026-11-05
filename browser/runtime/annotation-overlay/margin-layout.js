@@ -426,6 +426,12 @@ export const flowOf = (scroller) => {
 // rows pin wherever it stands.
 /** @param {Element} scroller */
 const railBeside = (scroller) => flowOf(scroller).flow === pageScroller;
+// Whether the rail stands beside `target`, so its rows stand in the rail rather than
+// as pins: the margin layer is mounted, the rail stands, and `target` flows in the
+// column it lies beside.
+/** @param {Element} target */
+export const railStandsBeside = (target) =>
+  Boolean(layer) && railStands(marginColumn()) && railBeside(scrollerFor(target));
 // Prospective placement measures the same primitive a first contribution will draw.
 // The native cascade resolves the entry's aim floor and the row's focus clearance,
 // including package or author overrides. No existing entry, cached size, or parsed
@@ -499,8 +505,8 @@ export function marginSpot(target, point = null, passage = null) {
       const { left, right } = row.getBoundingClientRect();
       return { left, right };
     }
+  if (!layer || !railStandsBeside(target)) return null;
   const main = marginColumn();
-  if (!layer || !railStands(main) || !railBeside(scrollerFor(target))) return null;
   const hang =
     parseFloat(
       getComputedStyle(document.documentElement).getPropertyValue("--rail-hang"),

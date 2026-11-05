@@ -1,6 +1,7 @@
 """Measure how a page's costs grow with the page, in a browser or on the server.
 
-    uv run leaf-dev scaling [AXIS ...] [--sizes 32,64,128,256] [--base [REF]] [--profile]
+    uv run leaf-dev scaling [AXIS ...] [--sizes 32,64,128,256] [--browser firefox]
+        [--base [REF]] [--profile]
     uv run leaf-dev scaling --server [AXIS ...] [--sizes 128,...,1600] [--profile]
 
 Root `AGENTS.md`, "Responsiveness", sets the rule this checks: no cost grows faster
@@ -11,8 +12,8 @@ it. The browser measures `AXES` by default, and the server `SERVER_AXES`; either
 measures any of them.
 
 For each AXIS it generates a page at each size, serves it from this tree, and reads
-the renderer's main-thread CPU, in thread ticks from `Performance.getMetrics`, for
-each transition: the load until the page settles and its main thread goes quiet, a
+the page's main-thread CPU, in Chromium in thread ticks from `Performance.getMetrics`,
+for each transition: the load until the page settles and its main thread goes quiet, a
 click on an option, a keystroke in the page's comment field, a Tab from one stop to
 the next, and a wheel step. Each input is one a user makes, the same at every size.
 A click is the mouse's own press and release at the option's centre. A wheel step is
@@ -44,6 +45,23 @@ records a V8 CPU profile of each transition at the smallest and largest size and
 lists the functions whose time grew superlinearly between them, which names the
 nested walk.
 
+--browser firefox measures Playwright's Firefox, on macOS. Firefox offers no count of
+its tasks, so there a transition's CPU is the page's main thread's as the OS counts it
+(`content_clock`), which is the clock Chromium's thread ticks read. Over the same
+windows in Chromium on 2026-11-05, the OS's count was at most 0.7 ms per input above
+the ticks. Driven alike through geckodriver that day, the Firefox 159 on this Mac read
+about 10% below Playwright's build, Firefox 157, with the same functions on top.
+
+--profile is V8's, so to name what took Firefox's time, run the command under the Gecko
+profiler's variables. The browser then writes a profile of the whole run as it closes,
+which <https://profiler.firefox.com> reads, and its samples' `threadCPUDelta` sum to
+the OS's count. Profiling slows the page, so read proportions from it and durations
+from a run without it.
+
+    MOZ_PROFILER_STARTUP=1 MOZ_PROFILER_SHUTDOWN=$PWD/.tmp/gecko.json \\
+    MOZ_PROFILER_STARTUP_FEATURES=js MOZ_PROFILER_STARTUP_FILTERS=GeckoMain,StyleThread \\
+    MOZ_PROFILER_STARTUP_ENTRIES=134217728 uv run leaf-dev scaling asks --browser firefox
+
 CPU time rather than wall time, so a loaded host spreads the readings less than it
 spreads elapsed time; each exponent still compares sizes within one run. Pages, the
 profiles and `results.json` land in a run directory under `.tmp/scaling/`. The daily
@@ -51,17 +69,20 @@ suite fails growth well past linear on every axis with the same measurement, of
 every cost but Tab's (`tests/journeys/test_scaling.py`).
 """
 
+import ctypes
 import json
 import math
 import statistics
 import time
 from collections.abc import Callable, Iterable
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
 from itertools import cycle
 from pathlib import Path
 from typing import NamedTuple
 
 import click
+import psutil
+from playwright.sync_api import Page
 
 from leaf_dev import ROOT
 from leaf_dev.arms import (
@@ -71,7 +92,7 @@ from leaf_dev.arms import (
     run_directory,
     serving_source,
 )
-from leaf_dev.browser import headless_shell, settle, tab
+from leaf_dev.browser import engine_option, headless_shell, launch, settle, tab
 from leaf_dev.commands.bench_latency import Profile
 
 OUT = ROOT / ".tmp" / "scaling"
@@ -111,7 +132,7 @@ KEYS = 20
 CLICKS = 4
 TABS = 16
 WHEEL_STEPS = 32
-# A notch of a mouse wheel, which Chromium scrolls 100 px.
+# A notch of a mouse wheel, which Chromium and Firefox here both scroll 100 px.
 NOTCH = 100
 # A wheel or Tab takes RUN steps one way and then as many back, so it stays among the
 # same few rows or stops at every size, the smallest page's included.
@@ -125,6 +146,10 @@ QUIET_TRIES = 20
 # A function must take this long at the largest size to be listed as growing.
 GROWTH_FLOOR_MS = 20
 DEADLINE_MS = 300_000
+# `proc_pidinfo`'s flavors for a process's threads and one thread's times, in
+# `sys/proc_info.h`.
+PROC_PIDLISTTHREADS = 6
+PROC_PIDTHREADINFO = 5
 TRANSITIONS = ("load", "click", "key", "tab", "scroll")
 # The server's side of a click: how long it took to start answering each event the
 # clicks posted, whose answer carries its reading of the page, and how large that was.
@@ -395,18 +420,70 @@ COLLECTIONS: dict[str, Collection] = {
 AXES = {name: COLLECTIONS[name] for name in ("asks", "document", "prose", "threads")}
 
 
-def cpu_ms(cdp) -> float:
-    metrics = cdp.send("Performance.getMetrics")["metrics"]
-    return next(m["value"] for m in metrics if m["name"] == "TaskDuration") * 1000
+def renderer_clock(page: Page) -> Callable[[], float]:
+    """What reads the page's main-thread CPU so far, in ms, in Chromium: the renderer's
+    own count of its tasks, in thread ticks."""
+    cdp = page.context.new_cdp_session(page)
+    cdp.send("Performance.enable", {"timeDomain": "threadTicks"})
+
+    def clock() -> float:
+        metrics = cdp.send("Performance.getMetrics")["metrics"]
+        return next(m["value"] for m in metrics if m["name"] == "TaskDuration") * 1000
+
+    return clock
 
 
-def profiler(cdp, directory: Path | None):
+class ThreadTimes(ctypes.Structure):
+    """libproc's `proc_threadinfo`, whose first two fields are a thread's CPU in ns."""
+
+    _fields_ = [
+        ("user", ctypes.c_uint64),
+        ("system", ctypes.c_uint64),
+        ("rest", ctypes.c_char * 96),
+    ]
+
+
+def main_thread_ms(pid: int) -> float:
+    """The main thread's CPU so far in process `pid`, in ms, as macOS counts it, or 0
+    where the process has gone. A process lists its main thread first."""
+    info = ctypes.CDLL("/usr/lib/libproc.dylib").proc_pidinfo
+    thread, times = ctypes.c_uint64(), ThreadTimes()
+    listed = info(pid, PROC_PIDLISTTHREADS, ctypes.c_uint64(0), ctypes.byref(thread), 8)
+    read = listed > 0 and info(
+        pid, PROC_PIDTHREADINFO, thread, ctypes.byref(times), ctypes.sizeof(times)
+    )
+    return (times.user + times.system) / 1e6 if read else 0
+
+
+def content_clock() -> Callable[[], float]:
+    """What reads the page's main-thread CPU so far, in ms, in Firefox, which offers no
+    count of its own: the thread's CPU as the OS counts it (this module's header).
+    Nothing says which content process holds the page, so this takes whichever one's
+    main thread has spent most since the clock began."""
+
+    def spent() -> dict[int, float]:
+        times = {}
+        for child in psutil.Process().children(recursive=True):
+            # A process a closed page leaves behind may have gone by now.
+            with suppress(psutil.Error):
+                if child.cmdline()[-1:] == ["tab"]:
+                    times[child.pid] = main_thread_ms(child.pid)
+        return times
+
+    before = spent()
+    return lambda: max(
+        (ms - before.get(pid, 0) for pid, ms in spent().items()), default=0
+    )
+
+
+def profiler(page: Page, directory: Path | None):
     """Start a V8 CPU profile of the transition `name` into `directory`, or nothing,
     and return what stops it."""
+    if directory is None:
+        return lambda _: lambda: None
+    cdp = page.context.new_cdp_session(page)
 
     def start(name: str):
-        if directory is None:
-            return lambda: None
         target = directory / f"{name}.cpuprofile"
         cdp.send("Profiler.enable")
         cdp.send("Profiler.setSamplingInterval", {"interval": 200})
@@ -424,9 +501,9 @@ def measure(browser, address: str, profiles: Path | None) -> dict:
         # A superlinear path can hold the main thread for seconds per input on a
         # large page, which is what this measures rather than a failure.
         tab_page.set_default_timeout(DEADLINE_MS)
-        cdp = tab_page.context.new_cdp_session(tab_page)
-        cdp.send("Performance.enable", {"timeDomain": "threadTicks"})
-        profiled = profiler(cdp, profiles)
+        chromium = browser.browser_type.name == "chromium"
+        clock = renderer_clock(tab_page) if chromium else content_clock()
+        profiled = profiler(tab_page, profiles)
         quiet = tab_page.wait_for_timeout
 
         def idle_rate() -> float:
@@ -438,32 +515,32 @@ def measure(browser, address: str, profiles: Path | None) -> dict:
             while len(spent) < 2 or (
                 max(spent[-2:]) >= QUIET_MS and len(spent) < QUIET_TRIES
             ):
-                start = cpu_ms(cdp)
+                start = clock()
                 quiet(500)
-                spent.append(cpu_ms(cdp) - start)
+                spent.append(clock() - start)
             return sum(spent[-2:]) / 1000
 
         # The event answers are read off resource timing, whose buffer holds 250
         # entries by default, and the runtime's own modules fill it before any click.
         tab_page.add_init_script("performance.setResourceTimingBufferSize(100_000)")
-        start = cpu_ms(cdp)
+        start = clock()
         stop = profiled("load")
         tab_page.goto(address)
         settle(tab_page)
         idle = idle_rate()
         stop()
-        costs = {"load": cpu_ms(cdp) - start}
+        costs = {"load": clock() - start}
         elements = tab_page.evaluate("document.querySelectorAll('*').length")
 
         def per_input(name: str, count: int, act) -> float:
-            start, began = cpu_ms(cdp), time.monotonic()
+            start, began = clock(), time.monotonic()
             stop = profiled(name)
             for _ in range(count):
                 act()
             quiet(600)
             stop()
             elapsed = (time.monotonic() - began) * 1000
-            return (cpu_ms(cdp) - start - idle * elapsed) / count
+            return (clock() - start - idle * elapsed) / count
 
         # The mouse's own press and release, over the option's centre before the
         # clicks begin, since a locator's click first runs its actionability checks
@@ -653,12 +730,14 @@ def report_growth(title: str, profiles: dict, ratio: float) -> None:
     f"[default: {','.join(map(str, SIZES))}, or with --server "
     f"{','.join(map(str, SERVER_SIZES))}].",
 )
+@engine_option
 @base_option()
 @click.option("--profile", is_flag=True, help="Profile the smallest and largest size.")
 def scaling(
     axes: tuple[str, ...],
     server: bool,
     sizes: str | None,
+    engine: str,
     base: str | None,
     profile: bool,
 ) -> None:
@@ -670,10 +749,16 @@ def scaling(
             raise click.UsageError("--server measures this checkout only")
         scale_server(axes or SERVER_AXES, sized, profile, run)
         return
+    if engine not in ("chromium", "firefox"):
+        raise click.UsageError(
+            "--browser: this reads Chromium's and Firefox's CPU only"
+        )
+    if profile and engine != "chromium":
+        raise click.UsageError("--profile is V8's; this module's header says Firefox's")
     arms = choose_arms(base, run)
     click.echo(describe(arms) + "\n")
     results: dict[str, dict[str, list[dict]]] = {}
-    with headless_shell() as browser:
+    with headless_shell() if engine == "chromium" else launch(engine) as browser:
         for axis in axes or tuple(AXES):
             for arm, chosen in arms.items():
                 rows = []
@@ -685,9 +770,11 @@ def scaling(
                     with serving_collection(
                         chosen.directory, COLLECTIONS[axis], n, scratch
                     ) as address:
-                        rows.append({"n": n, **measure(browser, address, profiles)})
+                        costs = measure(browser, address, profiles)
+                        rows.append({"n": n, "engine": engine, **costs})
                 results.setdefault(axis, {})[arm] = rows
-                click.echo(table(f"{axis} ({arm})", rows, "elements", COLUMNS) + "\n")
+                title = f"{axis} ({arm}, {engine})"
+                click.echo(table(title, rows, "elements", COLUMNS) + "\n")
                 if profile:
                     first, last = (
                         run / f"{axis}-{arm}-{n}" for n in (sized[0], sized[-1])

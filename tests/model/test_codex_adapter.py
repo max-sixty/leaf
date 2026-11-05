@@ -1979,7 +1979,8 @@ STARTED = {
 @pytest.fixture
 def idle_desktop_chat(page_dir, codex_loop, monkeypatch, tmp_path):
     """A desktop chat holding one offered update, its turn over, and its transcript.
-    Its `transcript(kind, **payload)` appends a record there. It also gathers what the
+    Its `transcript(kind, at=None, **payload)` appends a record there, written now
+    or at the time `at` names. It also gathers what the
     two older routes would have done: messages `queued` and deep links `opened`."""
     codex_loop(page_dir)
     cleanup_model.prompt_turn("codex-thread", "user-turn")
@@ -1992,9 +1993,9 @@ def idle_desktop_chat(page_dir, codex_loop, monkeypatch, tmp_path):
     cleanup_model.close_session_turn("codex-thread", "user-turn")
     source = tmp_path / "rollout.jsonl"
 
-    def transcript(kind, **payload):
+    def transcript(kind, at=None, **payload):
         record = {
-            "timestamp": cleanup_model.now_iso(),
+            "timestamp": at or cleanup_model.now_iso(),
             "type": kind,
             "payload": payload,
         }
@@ -2178,8 +2179,27 @@ def test_a_desktop_start_the_app_may_have_run_is_settled_from_the_transcript(
     [(_, record)] = codex_records("codex-thread")
     assert record["state"] == "starting"
 
-    # Until the transcript settles it, nothing else is offered or sent.
+    # The chat's next adapter may start outside the app, as a terminal resume does.
+    monkeypatch.delenv("CODEX_INTERNAL_ORIGINATOR_OVERRIDE")
+    # Until the transcript settles it, nothing else is offered or sent, and another
+    # delivery's tool output doesn't settle it.
     assert not codex_adapter_model._offer_queued_delivery("codex", "codex-thread", None)
+    chat.transcript("event_msg", type="task_started", turn_id="other-turn")
+    chat.transcript(
+        "event_msg",
+        type="item_completed",
+        turn_id="other-turn",
+        item={
+            "type": "FunctionCallOutput",
+            "name": "leaf_delivery",
+            "output": json.dumps({**json.loads(output), "id": "0badc0de"}),
+        },
+    )
+    chat.transcript("event_msg", type="task_complete", turn_id="other-turn")
+    assert not codex_adapter_model._offer_queued_delivery("codex", "codex-thread", None)
+    assert [record["state"] for _, record in codex_records("codex-thread")] == [
+        "starting"
+    ]
     chat.transcript("event_msg", type="task_started", turn_id="desktop-turn")
     chat.transcript(
         "event_msg",
@@ -2192,8 +2212,17 @@ def test_a_desktop_start_the_app_may_have_run_is_settled_from_the_transcript(
     assert desktop_pickups(page_dir) == [("opened", "desktop-turn", None)]
 
 
-def test_a_desktop_start_the_transcript_never_shows_is_abandoned_unsent(
-    page_dir, idle_desktop_chat, monkeypatch
+@pytest.mark.parametrize(
+    ("last_turn", "abandoned"),
+    [
+        pytest.param(None, True, id="no turn since"),
+        # A start may still steer into a running turn at its next boundary.
+        pytest.param(0, False, id="a turn running now"),
+        pytest.param(3600, True, id="a turn a crash left open an hour ago"),
+    ],
+)
+def test_a_desktop_start_the_transcript_never_shows_is_abandoned_once_idle(
+    page_dir, idle_desktop_chat, monkeypatch, last_turn, abandoned
 ):
     chat = idle_desktop_chat
     monkeypatch.setattr(codex_desktop_model, "START_TIMEOUT", 0.2)
@@ -2206,13 +2235,14 @@ def test_a_desktop_start_the_transcript_never_shows_is_abandoned_unsent(
 
     reserved = path.stat().st_mtime - codex_desktop_model.SETTLE_WINDOW - 1
     os.utime(path, (reserved, reserved))
-    # A start may still steer into a running turn at its next boundary.
-    chat.transcript("event_msg", type="task_started", turn_id="later-turn")
-    assert not codex_adapter_model._offer_queued_delivery("codex", "codex-thread", None)
-    assert [record["state"] for _, record in codex_records("codex-thread")] == [
-        "starting"
-    ]
-    chat.transcript("event_msg", type="task_complete", turn_id="later-turn")
+    if last_turn is not None:
+        started = datetime.now().astimezone() - timedelta(seconds=last_turn)
+        chat.transcript(
+            "event_msg",
+            at=started.isoformat(timespec="milliseconds"),
+            type="task_started",
+            turn_id="later-turn",
+        )
     assert not codex_adapter_model._offer_queued_delivery("codex", "codex-thread", None)
     assert chat.queued == [] and chat.opened == []
     assert desktop_pickups(page_dir) == []
@@ -2220,8 +2250,34 @@ def test_a_desktop_start_the_transcript_never_shows_is_abandoned_unsent(
         event.get("failure")
         for event in events_model.read_events(page_dir)
         if event["kind"] == "reply"
-    ] == [codex_model.UNCONFIRMED_DELIVERY]
-    assert not codex_records("codex-thread")
+    ] == ([codex_model.UNCONFIRMED_DELIVERY] if abandoned else [])
+    assert [record["state"] for _, record in codex_records("codex-thread")] == (
+        [] if abandoned else ["starting"]
+    )
+
+
+def test_a_refused_desktop_start_stays_for_the_queue_when_the_queue_fails(
+    page_dir, idle_desktop_chat, monkeypatch
+):
+    chat = idle_desktop_chat
+    refused = {
+        "thread-owner-discovery": OWNED,
+        "thread-follower-start-turn": {
+            "resultType": "error",
+            "error": "no-handler-for-request",
+        },
+    }
+
+    def time_out(*args):
+        raise Refused("Codex queue command timed out")
+
+    with monkeypatch.context() as failing, desktop_router(monkeypatch, refused):
+        failing.setattr(codex_adapter_model, "queue_delivery", time_out)
+        with pytest.raises(Refused):
+            codex_adapter_model._offer_queued_delivery("codex", "codex-thread", None)
+    assert codex_adapter_model._offer_queued_delivery("codex", "codex-thread", None)
+    assert len(chat.queued) == 1
+    assert desktop_pickups(page_dir) == [("queued", None, None)]
 
 
 def test_an_adapter_stopped_after_the_apps_answer_sends_no_second_start(

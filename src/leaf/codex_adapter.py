@@ -864,8 +864,9 @@ def _offer_queued_delivery(
         # the resumed turn is still executing its first tool.
         sync_transcript_turn(session_id)
         # A start the desktop app may have run holds later input back until the
-        # chat's transcript settles it.
-        if _in_desktop_chat() and settle_desktop_start(session_id):
+        # chat's transcript settles it, even in an adapter the chat started outside
+        # the app, as a terminal resume does.
+        if settle_desktop_start(session_id):
             return False
     observed_hook_turn = hook_turn(session_id)
     if (

@@ -31,10 +31,13 @@ included, may follow a started turn, even the owner's own five-second
 `thread-follower-start-turn-timeout`, after which its start runs on. The chat's
 transcript settles such a start (`settle_desktop_start`), since the app records each
 turn's `leaf_delivery` tool output there (`codex.transcript_delivery_turn`). Leaf
-accepts the delivery in the turn that took it, or, once no turn of the chat is running
-and `SETTLE_WINDOW` has passed with none, abandons it as unconfirmed
-(`codex.abandon_uncertain_delivery`) and doesn't send it again. A reservation's record
-is written once, as the start is reserved, so its file's modification time dates it.
+accepts the delivery in the turn that took it, or, once the page reads no turn of the
+chat as running (`codex_state.delivery_turn`, whose dated reading ages out a turn a
+crash left open) and `SETTLE_WINDOW` has passed with none, abandons it as unconfirmed
+(`codex.abandon_uncertain_delivery`) and doesn't send it again. Any adapter of the chat
+settles it, one a terminal resume started outside the app included. A reservation's
+record is written once, as the start is reserved, so its file's modification time
+dates it.
 
 This is the app's private protocol, and each request names the version the app's table
 gives its method. A message is a little-endian 32-bit length and then that much JSON.
@@ -70,10 +73,10 @@ from .codex import (
     start_app_server_delivery,
     transcript_delivery_turn,
 )
-from .codex_state import delivery_lock_path
+from .codex_state import delivery_lock_path, delivery_turn
 from .delivery import read_delivery
 from .harness import codex_home
-from .state import flocked, session_record, turn_open
+from .state import flocked, session_record
 
 OWNER_TIMEOUT = 1
 # Longer than the router waits on a start (`START_TIMEOUT`), with room for the app to
@@ -245,7 +248,7 @@ def settle_desktop_start(session_id: str) -> bool:
         )
         if turn is not None:
             accept_codex_delivery(session_id, path.stem, turn)
-        elif not turn_open(session) and (
+        elif delivery_turn(session_id) is None and (
             time.time() - path.stat().st_mtime > SETTLE_WINDOW
         ):
             abandon_uncertain_delivery(session_id, read_delivery(path.stem))

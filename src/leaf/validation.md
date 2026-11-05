@@ -125,8 +125,7 @@ The suite uses Chromium's headless shell; the end-to-end render-check tests cove
 launches the command uses.
 
 The page's server runs the same check on a version the agent hands over, and tells the
-agent what is new in a `render` event; `page stamp` refuses a version its latest reading
-failed (`render_gate/handover_pass.py`).
+agent what is new in a `render` event (`render_gate/handover_pass.py`).
 
 Every widget output published during the check, including one subsequently withdrawn
 or published by a disposed sample, is validated against its data contract. A failure

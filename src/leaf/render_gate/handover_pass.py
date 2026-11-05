@@ -19,11 +19,12 @@ the agent left running. A page nobody holds, or its agent has closed, has nobody
 tell. The reading outlives the server, so a page served again reads only a version no
 reading has read: an older page, its first time served by this Leaf, is read once. A
 reading runs in a process of its own at low priority, away from the server that answers
-the user's gestures, under a lease the whole state home shares, so the machine runs one
-at a time and a page handed over meanwhile looks again until the lease is free. A
-reading that runs past `DEADLINE_S` tells nobody anything and ends this server's pass,
-so a page too heavy to read costs that once. Findings reach the agent about half a
-minute after it hands over.
+the user's gestures. That process holds a lease the whole state home shares, so the
+machine runs one reading at a time, a page handed over meanwhile looks again until the
+lease is free, and a server stopped or started again mid-reading starts no second one.
+A reading that runs past `DEADLINE_S` is ended by its own alarm, tells nobody anything
+and ends its server's pass, so a page too heavy to read costs that once. Findings reach
+the agent about half a minute after it hands over.
 
 **What it costs**, measured 2026-11-05 on the shared 18-core Mac at load 19-28, on 13
 real pages: a median 14 s and 16 CPU-seconds, and 30 s and 36 CPU-seconds on the largest
@@ -48,20 +49,18 @@ with the agent's next delivery (`delivery.deliverable`), since 11 of those 20 he
 advice, and a wake for it would mostly spend a turn deciding to leave the page alone. A
 finding keeps its place by the element it names, so an edit that moves a measurement
 doesn't tell it again and a fault fixed and reintroduced is told again. A failure told
-once and left stands until its fix or the stamp's refusal, which also keeps an agent
-that can't fix it from being woken for each attempt. An agent's own `page check
+once isn't told again while it stands, so an agent that can't fix it isn't woken for
+each attempt. An agent's own `page check
 --render` leaves the reading too, so a version it checked itself is neither read twice
 nor told back to it.
 
-**What a reading refuses.** `page stamp` refuses a version the latest reading failed
-(`stamp_refusal`), which a fresh `page check --render` replaces. A version no reading
-has read yet stamps as before, since making every stamp wait on a browser costs a stamp
-its 14 s, and three of four stamps come within 30 s of their revision. A reading a
-browser couldn't finish (`UNFINISHED`) says nothing of the page, so it leaves no
-reading.
+A reading a browser couldn't finish (`UNFINISHED`) says nothing of the page, so it
+leaves no reading. A reading refuses nothing: recording a layout fault breaks no
+guarantee a stamp keeps, so `page stamp` takes a version whatever its reading found.
 """
 
 import os
+import signal
 import subprocess
 import sys
 import time
@@ -88,12 +87,16 @@ LOOK_S = 5
 QUIET_S = 10
 # The whole reading, far past the 33 s of the slowest real page sampled. The heaviest
 # page the suite renders, the corpus, takes 384 s, so a server spends this on it once.
+# The reading's own alarm ends it, so a reading outlives its server by no more.
 DEADLINE_S = 180
 # Lower than the user's and other sessions' work, without the throttling of a background
 # QoS, which holds headless Chrome to about 10 fps and breaks a timed reading.
 NICENESS = 10
-# The one reading the machine runs at a time, under its state home.
+# The one reading the machine runs at a time, under its state home. The reading holds
+# it, not its server, since a reading outlives a server that stops while it runs.
 LEASE = "render-pass.lock"
+# The exit status of a reading that found another holding the lease.
+BUSY = 75
 # The findings of a browser that failed rather than of the page it was reading.
 UNFINISHED = frozenset({"gate-failed", "probe-failed"})
 
@@ -153,23 +156,6 @@ def _write(page_dir: Path, digest: str, findings: list[dict], known: list) -> No
     )
 
 
-def stamp_refusal(page_dir: Path, digest: str) -> str | None:
-    """Why a stamp of the version `digest` is refused, or None: the latest reading
-    read that version and failed it. What it names is the reading's own words, so a
-    finding only a later Leaf knows still reads."""
-    reading = read_reading(page_dir)
-    if reading is None or reading["digest"] != digest:
-        return None
-    failed = [f["text"] for f in reading["findings"] if f["severity"] == "error"]
-    if not failed:
-        return None
-    lines = "".join(f"\n  - {text}" for text in failed)
-    return (
-        "refusing to stamp index.html: the render check failed this version; fix "
-        f"these and save, or run `leaf page check --render` to read it again:{lines}"
-    )
-
-
 def _place(finding: dict) -> tuple[str, str]:
     """What makes two readings' findings one fault: its code and the element it names,
     whose measurements an edit may move, or its words where it names none, as two
@@ -189,19 +175,42 @@ def untold(before: dict | None, after: dict) -> list[dict]:
     ]
 
 
-def read_and_tell(page_dir: Path) -> None:
+def read_and_tell(page_dir: Path) -> bool:
     """Read the page's live version and tell its agent what it hasn't heard, in a
     `render` event on that version, unless a save has since moved the page past it: the
-    next reading tells them. A diagnostic records what it cost."""
+    next reading tells them. False where another reading holds the lease, and nothing
+    is read. A diagnostic records what a reading cost.
+
+    The lease is this process's, so it ends with the process, whether its server
+    stops or its alarm ends it at `DEADLINE_S`. Under the lease it reads only a version
+    no reading has read, since a reading that held the lease meanwhile may have read
+    it: a server started again in its place asks for the same version."""
+    lease = take_lease(state_home() / LEASE)
+    if lease is None:
+        return False
+    try:
+        signal.alarm(DEADLINE_S)
+        os.nice(NICENESS)
+        activate_source(page_dir)
+        revision = latest_revision(page_dir)
+        before = read_reading(page_dir)
+        if revision is None or (
+            before and before["digest"] == read_artifact(page_dir, revision).digest
+        ):
+            return True
+        _read_and_tell(page_dir, before)
+    finally:
+        release_lease(lease)
+    return True
+
+
+def _read_and_tell(page_dir: Path, before: dict | None) -> None:
     from leaf.event_contracts import append_admitted
     from leaf.interaction_log import append_interactions
     from leaf.presence import nudge_unwatched
     from leaf.validation.command import cmd_check
 
-    os.nice(NICENESS)
     started = time.monotonic()
-    before = read_reading(page_dir)
-    activate_source(page_dir)
     cmd_check(page_dir, render=True, screens=False)
     after = read_reading(page_dir)
     told = untold(before, after) if after is not None else []
@@ -311,23 +320,21 @@ class HandoverPass:
             )
             if not handed_over or time.time() - unread_since < QUIET_S:
                 return
-            lease = take_lease(state_home() / LEASE)
-            if lease is None:
+            if not self._read():
                 return
-            try:
-                self._read()
-            finally:
-                release_lease(lease)
         self.settled = source
 
-    def _read(self) -> None:
+    def _read(self) -> bool:
         """Read in a child that speaks for no harness session, so the claimant's command
-        diagnostics don't count its seconds as the agent's."""
-        subprocess.run(
+        diagnostics don't count its seconds as the agent's, and say whether it read:
+        False where another reading held the lease, so the next look asks again."""
+        ended = subprocess.run(
             [sys.executable, "-m", "leaf", "page", "_read", str(self.page_dir)],
             stdin=subprocess.DEVNULL,
             stdout=subprocess.DEVNULL,
             env=detached_environment(None),
             check=False,
-            timeout=DEADLINE_S,
-        )
+        ).returncode
+        if ended == -signal.SIGALRM:
+            raise RuntimeError(f"a reading ran past {DEADLINE_S} s")
+        return ended != BUSY

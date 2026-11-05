@@ -1,9 +1,10 @@
 """What the render pass reads and what it tells. A version the agent hands over is read
-once, a failure wakes the agent, advice goes with what next reaches it, and a stamp
-refuses a version the latest reading failed."""
+once, one reading at a time on the machine, a failure wakes the agent, and advice goes
+with what next reaches it."""
 
 import json
 import os
+import signal
 import subprocess
 from pathlib import Path
 from types import SimpleNamespace
@@ -17,7 +18,6 @@ from interact_support import (
     continued,
     delivered,
     last_deliverable_seq,
-    publish,
     working,
 )
 
@@ -29,7 +29,6 @@ from leaf import state as state_model
 from leaf.files import latest_revision
 from leaf.findings import Finding
 from leaf.leases import release_lease, take_lease
-from leaf.refusals import Refused
 from leaf.render_gate import handover_pass as handover_pass_model
 from leaf.revision_artifact import read_artifact
 from leaf.revisioning import activate_source
@@ -59,7 +58,9 @@ def pass_page(claimed, monkeypatch):
     monkeypatch.setattr(handover_pass_model, "QUIET_S", 0)
     reads = []
     monkeypatch.setattr(
-        handover_pass_model.HandoverPass, "_read", lambda self: reads.append(self)
+        handover_pass_model.HandoverPass,
+        "_read",
+        lambda self: reads.append(self) or True,
     )
     return SimpleNamespace(
         dir=claimed, passes=handover_pass_model.HandoverPass(claimed), reads=reads
@@ -184,25 +185,47 @@ def test_a_version_the_agent_checked_itself_is_not_read_again(pass_page):
     assert pass_page.reads == []
 
 
-def test_the_machine_runs_one_reading_at_a_time(pass_page):
-    """A page whose turn ends during another's reading reads once that one ends."""
+def test_the_machine_runs_one_reading_at_a_time(pass_page, monkeypatch):
+    """A reading finding another under way reads nothing, and its server asks again."""
     save(pass_page.dir, "queued")
     state_model.close_session_turn("s1")
     lease = take_lease(state_home() / handover_pass_model.LEASE)
     try:
-        pass_page.passes.look()
-        assert pass_page.reads == []
+        assert handover_pass_model.read_and_tell(pass_page.dir) is False
     finally:
         release_lease(lease)
+    asked = []
+    monkeypatch.setattr(
+        handover_pass_model.HandoverPass,
+        "_read",
+        lambda self: asked.append(self) and len(asked) > 1,
+    )
     pass_page.passes.look()
-    assert len(pass_page.reads) == 1
+    pass_page.passes.look()
+    assert len(asked) == 2
+
+
+def test_a_server_started_again_mid_reading_reads_nothing_twice(claimed, monkeypatch):
+    """The second reading waits on the first for the lease, then finds it read."""
+    activate_source(claimed)
+    leave_reading(claimed, [FAILURE])
+
+    def read_again(*_args, **_kwargs):
+        raise AssertionError("read a version a reading had read")
+
+    monkeypatch.setattr("leaf.validation.command.cmd_check", read_again)
+    monkeypatch.setattr(os, "nice", lambda _increment: 0)
+    assert handover_pass_model.read_and_tell(claimed) is True
+    assert [e for e in events_of(claimed) if e["kind"] == "render"] == []
 
 
 def test_a_page_too_heavy_to_read_costs_its_deadline_once(claimed, monkeypatch):
-    """The pass stops for this server's lifetime and frees the machine's one reading."""
+    """A reading its alarm ended stops its server's pass."""
+    ran = []
 
-    def overran(*_args, **_kwargs):
-        raise subprocess.TimeoutExpired("leaf", handover_pass_model.DEADLINE_S)
+    def overran(*args, **_kwargs):
+        ran.append(args)
+        return subprocess.CompletedProcess(args, -signal.SIGALRM)
 
     monkeypatch.delenv(handover_pass_model.VARIABLE)
     monkeypatch.setattr(handover_pass_model, "LOOK_S", 0)
@@ -212,9 +235,7 @@ def test_a_page_too_heavy_to_read_costs_its_deadline_once(claimed, monkeypatch):
     save(claimed, "heavy")
     state_model.close_session_turn("s1")
     handover_pass_model.HandoverPass(claimed).run()
-    lease = take_lease(state_home() / handover_pass_model.LEASE)
-    assert lease is not None
-    release_lease(lease)
+    assert len(ran) == 1
 
 
 def test_a_reading_a_browser_could_not_finish_leaves_none(page_dir):
@@ -233,9 +254,12 @@ def test_a_reading_a_browser_could_not_finish_leaves_none(page_dir):
 
 @pytest.fixture
 def told(claimed, monkeypatch):
-    """Read and tell `findings` of the page's live version, as a server's child does."""
+    """Save a version and read and tell `findings` of it, as a server's child does
+    with each version handed over."""
+    versions = iter(range(1, 100))
 
     def read(findings: list[dict]) -> list[dict]:
+        save(claimed, f"version {next(versions)}")
         monkeypatch.setattr(
             "leaf.validation.command.cmd_check",
             lambda page_dir, **_options: leave_reading(page_dir, findings),
@@ -244,7 +268,6 @@ def told(claimed, monkeypatch):
         handover_pass_model.read_and_tell(claimed)
         return [e for e in events_of(claimed) if e["kind"] == "render"]
 
-    activate_source(claimed)
     return read
 
 
@@ -342,6 +365,7 @@ def test_a_save_past_the_version_read_leaves_its_findings_to_the_next_reading(
     claimed, told, monkeypatch
 ):
     """Nothing is told of a version nobody sees any more, and none of it is lost."""
+    activate_source(claimed)
     stale = read_digest(claimed)
 
     def moved_on(page_dir, **_options):
@@ -355,23 +379,3 @@ def test_a_save_past_the_version_read_leaves_its_findings_to_the_next_reading(
 
     [event] = told([FAILURE])
     assert event["revision"] == latest_revision(claimed)
-
-
-def test_a_stamp_refuses_a_version_the_latest_reading_failed(claimed):
-    activate_source(claimed)
-    leave_reading(claimed, [FAILURE, ADVICE])
-    with pytest.raises(Refused) as refused:
-        publish(claimed)
-    assert FAILURE["text"] in str(refused.value)
-    assert ADVICE["text"] not in str(refused.value)
-
-    # The fix is another version, which no reading has failed.
-    save(claimed, "fixed")
-    assert publish(claimed)["kind"] == "note"
-
-
-@pytest.mark.parametrize("findings", [[], [ADVICE]])
-def test_a_stamp_passes_a_version_the_latest_reading_passed(claimed, findings):
-    activate_source(claimed)
-    leave_reading(claimed, findings)
-    assert publish(claimed)["kind"] == "note"

@@ -26,7 +26,6 @@ from leaf.files import stamped_version
 from leaf.leases import contract_writer
 from leaf.projection import attribute_marks, folded_value, markup_value, page_reading
 from leaf.refusals import Refused
-from leaf.render_gate.handover_pass import stamp_refusal
 from leaf.revisioning import (
     hold_published,
     planned_activation,
@@ -229,9 +228,6 @@ def _stamp_locked(
     revision = activation.revision
     assert revision is not None
     registry, projection, parser, spk = _stamp_reading(events, checked, revision)
-    assert checked.artifact is not None
-    if refusal := stamp_refusal(page_dir, checked.artifact.digest):
-        raise Refused(refusal)
     completed = _completed_tasks(events, revision, completes)
     settled_reports = _settled_reports(projection, parser, spk, registry)
     notes = [event for event in events if event["kind"] == "note"]

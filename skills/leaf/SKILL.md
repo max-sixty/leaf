@@ -77,8 +77,7 @@ checks can't, such as unreadable tables and broken phone layouts, but take minut
 Give that time to pages the user relies on longer, pages with more content, and
 pages with more custom layout. Weigh that against how urgently the user is waiting.
 A quick page the user reacts to once and then revises or drops needs no browser
-review of your own. Once your turn ends, Leaf runs that check on the version you
-handed over and delivers what you haven't already seen.
+review.
 
 A record is a page used beyond this conversation, so it is always important.
 After each review of a record, run

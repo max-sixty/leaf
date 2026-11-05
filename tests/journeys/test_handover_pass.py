@@ -1,18 +1,17 @@
 """The render pass on a real server and in a real browser. What a turn hands over is
-read once it ends, and a failure reaches the agent and refuses a stamp."""
+read once it ends, a failure reaches the agent, and the agent's own check of its fix
+leaves the reading the server would have taken."""
 
 import json
 
-import pytest
 from click.testing import CliRunner
-from interact_support import STATED_TIMEOUT, publish, wait_for
+from interact_support import STATED_TIMEOUT, wait_for
 from render_harness import LONG_PAGE
 
 from leaf import cli as cli_model
 from leaf import event_log as log_model
 from leaf import state as state_model
 from leaf.files import latest_revision
-from leaf.refusals import Refused
 from leaf.render_gate import handover_pass as handover_pass_model
 
 
@@ -46,10 +45,6 @@ def test_a_turn_hands_a_failing_version_over_and_hears_about_it(
         failed = [f for f in told["findings"] if f["severity"] == "error"]
         assert failed, json.dumps(told)
 
-        with pytest.raises(Refused) as refused:
-            publish(claimed)
-        assert failed[0]["text"] in str(refused.value)
-
         # The agent's own check of its fix leaves the reading the server would have
         # taken, so the turn that hands the fix over reads nothing again.
         (claimed / "index.html").write_text(LONG_PAGE)
@@ -59,6 +54,5 @@ def test_a_turn_hands_a_failing_version_over_and_hears_about_it(
         assert checked.exit_code == 0, checked.output
         reading = handover_pass_model.read_reading(claimed)
         assert reading is not None and reading["findings"] == []
-        assert publish(claimed)["kind"] == "note"
     finally:
         runner.invoke(cli_model.cli, ["server", "stop", str(claimed)])

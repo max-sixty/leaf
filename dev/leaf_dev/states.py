@@ -1324,10 +1324,6 @@ def image_preview(page: Page) -> None:
     open_thread(page, "2be2443f0bb6cc49fc86b52f340e6073")
     page.locator(f"{panel_view('thread')} .lf-media-open").first.click()
     page.get_by_role("dialog", name="Image preview").wait_for(state="visible")
-    page.wait_for_function("""() => {
-      const zoom = document.querySelector('.lf-media-viewer-zoom');
-      return !zoom || zoom.getAttribute('aria-disabled') !== 'true';
-    }""")
 
 
 def panel_by_keyboard(page: Page) -> None:

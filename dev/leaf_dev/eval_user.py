@@ -15,6 +15,12 @@ here knows the page's structure. Two moves cover what the user does there:
   page offered to copy. The tab records every clipboard write and copy, so what a
   copy button put on the clipboard is read exactly rather than from the agent.
 
+Both moves use the pointer the window declares (`browser.Window.touch`): in a touch
+window the comment's presses are taps, and the decision's `click` reaches the page as
+a touch (`decide`). A tap is Playwright's touch emulation, so it shows neither a
+selection handle dragged to the passage, which the script replaces by selecting the
+range directly, nor the soft keyboard's effect on the layout.
+
 The simulated user's prompt lives in `evals/workflows/eval_user.yaml`.
 """
 
@@ -210,6 +216,10 @@ def comment_on_passage(
         headless_shell() as browser,
         tab(browser, window) as view,
     ):
+
+        def press(each):
+            each.tap() if window.touch else each.click()
+
         load(view, url)
         quote = view.evaluate(SELECT, list(quotes))
         opened = None
@@ -217,12 +227,15 @@ def comment_on_passage(
             opened = reveal(view, target, "|".join(map(re.escape, quotes)))
             quote = view.evaluate(SELECT, list(quotes))
         if quote is not None:
-            view.dispatch_event("body", "mouseup")
-            view.locator('.lf-fp-field leaf-text[data-lf-says="selection"]').click()
+            # A finger's selection is offered in the panel's field, which the next
+            # press takes; a mouse's selection ends in a release first.
+            if not window.touch:
+                view.dispatch_event("body", "mouseup")
+            press(view.locator('.lf-fp-field leaf-text[data-lf-says="selection"]'))
             box = view.locator(".lf-composer leaf-text")
         else:
             box = view.locator(".lf-fp-field leaf-text")
-            box.click()
+            press(box)
         box.focus()
         view.keyboard.insert_text(text if quote is not None else fallback)
         with view.expect_response(
@@ -231,7 +244,10 @@ def comment_on_passage(
                 and response.request.method == "POST"
             )
         ) as answer:
-            box.press("ControlOrMeta+Enter")
+            if window.touch:
+                press(view.locator(".lf-compose-submit:visible").first)
+            else:
+                box.press("ControlOrMeta+Enter")
         posted = answer.value
         if not posted.ok:
             raise click.ClickException(f"{url} refused the comment: {posted.status}")
@@ -281,6 +297,14 @@ def decide(url: str, task: str, evidence: Path, *, window: Window) -> dict:
         tempfile.TemporaryDirectory(prefix="leaf-pw-", dir="/tmp") as sockets,
     ):
         view.context.grant_permissions(CLIPBOARD_PERMISSIONS)
+        if window.touch:
+            # The CLI's `click` is a mouse click; while this session lives the
+            # browser turns it into the touch a finger makes.
+            touch_from_mouse = view.context.new_cdp_session(view)
+            touch_from_mouse.send(
+                "Emulation.setEmitTouchEventsForMouse",
+                {"enabled": True, "configuration": "mobile"},
+            )
         view.context.add_init_script(COPY_SPY)
         view.goto(url, wait_until="load")
         session = f"leaf-user-{cwd.parent.name}"

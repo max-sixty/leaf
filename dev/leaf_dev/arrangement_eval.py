@@ -170,10 +170,9 @@ class Run:
     @property
     def journey_window(self) -> Window:
         """The one window the user opens the page in, comments from and decides in,
-        as one person would: the first selected window's size, under a mouse. The
-        scripted comment selects with mouse events, and a coarse pointer changes how
-        the composer keeps a selection (`composing/surface.js`)."""
-        return Window(self.windows[self.viewports[0]].size)
+        as one person would: the first selected window, with the pointer it declares, so
+        a phone is driven by touch end to end (`eval_user`)."""
+        return self.windows[self.viewports[0]]
 
     @property
     def leaf_condition(self) -> bool:
@@ -710,7 +709,7 @@ def judge_pages(
             instructions = f"""Judge the live pages below against the task and criterion.
 Use this browser CLI: {shlex.join(command)}
 Open your own headless Chromium with -s=<session> open <URL> --config {browser_config}.
-Use --mobile for {mobile} and resize W H for each required viewport. Choose your own
+Use --mobile for {mobile}, and tap rather than click there. Resize W H for each required viewport. Choose your own
 tabs, navigation, actions and screenshots. Use one browser session
 at a time and close it before opening another. Evaluate the page without editing
 its source; do not consult expected verdicts or control answers.

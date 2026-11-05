@@ -10,6 +10,7 @@
 import { readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { query } from "@anthropic-ai/claude-agent-sdk";
+import { MODELS } from "../../dev/leaf_dev/arms.mjs";
 
 export async function ask({ model, system, content }) {
   const env = { ...process.env };
@@ -63,16 +64,13 @@ const TASK =
   'For each numbered control, say in a few words what you expect pressing it does, judging only from how it looks, as you would before hovering it. Where you can\'t tell, say so. Answer with only a JSON array: [{"n": 1, "does": "..."}].';
 
 export default class ControlLegibilityReader {
-  constructor(options = {}) {
-    this.config = options.config ?? {};
-  }
   id() {
-    return `control-legibility:${this.config.model}`;
+    return `control-legibility:${MODELS["claude-code"]}`;
   }
   async callApi(prompt, context) {
     const image = await readFile(context.vars.image);
     const { text, usage } = await ask({
-      model: this.config.model,
+      model: MODELS["claude-code"],
       system: SYSTEM,
       content: [
         {

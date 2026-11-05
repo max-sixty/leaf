@@ -14,9 +14,13 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import { Window } from "happy-dom";
 
-// Focus the page took before the runtime loaded, as `autofocus` gives it: a choice's
-// ring is drawn from these marks alone (controls.css).
-const before = document.createElement("input");
+// Focus the page took before the runtime loaded: a frame the user pressed into while
+// the modules loaded. A choice's ring is drawn from these marks alone (controls.css),
+// and a frame's ring from the input that put the user there.
+const before = document.createElement("iframe");
+// A browser never matches `:focus-visible` on a frame's host; happy-dom does.
+before.matches = (selector) =>
+  selector !== ":focus-visible" && Element.prototype.matches.call(before, selector);
 document.body.append(before);
 before.focus();
 const {
@@ -75,11 +79,11 @@ const click = (target) =>
   );
 const settled = () => new Promise((resolve) => setTimeout(resolve));
 
-test("focus held before the runtime loaded wears its marks", async () => {
+test("focus held before the runtime loaded wears its marks, and a pressed frame no ring", async () => {
   await settled();
   assert.equal(document.activeElement, before);
   assert.equal(before.hasAttribute("data-lf-focus"), true);
-  assert.equal(before.hasAttribute("data-lf-focus-visible"), true);
+  assert.equal(before.hasAttribute("data-lf-focus-visible"), false);
   assert.equal(document.body.hasAttribute("data-lf-focus-within"), false);
 });
 

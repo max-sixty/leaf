@@ -835,10 +835,15 @@ export function watchCurrentLocationIn(root) {
 watchCurrentLocationIn(document);
 watchCurrentLocationAround(deepFocus());
 // Focus the document took before this module loaded, as `autofocus` gives it, fired no
-// event it heard, so its paint starts from it.
+// event it heard, so its paint starts from it. The platform's `:focus-visible` says
+// whether an element wears its ring, but never a frame, whose ring follows the input
+// that put the user there (`visibleFocus`), which this module did not hear. A frame
+// starts as a press into it leaves it (`inputInFrame`), without a ring the user may
+// not have asked for, and its next reported input decides.
 {
   const at = deepFocus();
   if (at && at !== document.body) {
+    if (isHTML(at, "iframe")) pressedPath = [new WeakRef(at)];
     paintDestination = new WeakRef(at);
     queueFocusPaint();
   }

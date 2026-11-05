@@ -41,15 +41,30 @@ wa-comparison::part(lf-focus-visible) {
 
 /* A choice among a few views, such as a recording's scope, an image pair's view or a
    dial's depth, is a radio group of buttons (`appearance="button"`) that a widget
-   offers in the word role (controls.css), so they look as a row of toggles does: words
-   with no frame, the chosen one wearing a toggle's selected face, rather than
-   upstream's framed and joined segments. Their words take the choice type, whose width
-   that face leaves alone; the row wraps where it runs out of room, and a long name
-   wraps inside its radio. A widget sets only the radios' height. */
+   offers in the word role (controls.css): words in a faint pill, the chosen one
+   wearing a toggle's selected face. The pill stands on the ground beneath it, so a
+   group the page scrolls under stays opaque. The user chose it on 5 November 2026,
+   comparing it in a dial, an image pair and a recording with bare words, upstream's
+   framed and joined segments, and an underline, when only the dial wore it. Their
+   words take the choice type and the word role's height, which that face leaves
+   alone; the row wraps where it runs out of room, and a long name wraps inside its
+   radio. */
 wa-radio-group::part(form-control-input) {
   display: flex;
   flex-wrap: wrap;
   gap: var(--sp-1);
+}
+wa-radio-group:has(> wa-radio[appearance="button"]) {
+  min-block-size: var(--lf-chooser);
+}
+wa-radio-group:has(> wa-radio[appearance="button"])::part(form-control-input) {
+  box-sizing: border-box;
+  inline-size: fit-content;
+  max-inline-size: 100%;
+  padding: 2px;
+  border: 1px solid var(--rule);
+  border-radius: calc(var(--r) * 2);
+  background: var(--lf-ground);
 }
 wa-radio[appearance="button"] {
   display: inline-flex;
@@ -59,6 +74,9 @@ wa-radio[appearance="button"] {
   min-inline-size: 0;
   max-inline-size: 100%;
   box-sizing: border-box;
+  /* Padded inside the pill by less than a control's gap, so its marks stand one band
+     inside its edge, where outside they ran over the pill's rule. */
+  --lf-ring-at: var(--focus-ring-inset);
 }
 wa-radio[appearance="button"]::part(label) {
   white-space: normal;

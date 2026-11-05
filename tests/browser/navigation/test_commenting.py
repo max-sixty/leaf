@@ -424,7 +424,7 @@ def test_where_c_goes_shows_before_the_press(browser, serve):
     expect(panel_key).to_be_visible()
     # Its word stands with it, after the status, as Reply does in a thread.
     expect(page.locator(".lf-fp-field .lf-compose-placeholder-enters")).to_have_text(
-        "Comment"
+        "Comment…"
     )
     expect(rest).to_be_hidden()
 
@@ -999,7 +999,7 @@ def test_c_enters_a_seated_reply_without_revealing_the_thread_heading(
     browser, serve, subtests
 ):
     """A visible reply keeps its place; a reply below the window, in a thread the user
-    can still see, is revealed on entry. Each case leaves the reply it entered, so they
+    still sees, is revealed on entry. Each case leaves the reply it entered, so they
     share one page. A thread scrolled wholly away is no longer where `c` goes
     (`test_c_writes_where_the_user_reads_once_they_scroll_away_from_focus`)."""
     url = serve(
@@ -1017,7 +1017,8 @@ def test_c_enters_a_seated_reply_without_revealing_the_thread_heading(
             "kind": "comment",
             "author": "user",
             "revision": 1,
-            "text": "A short thread beside the task.",
+            "text": "A thread beside the task, whose head stands well above its reply. "
+            * 12,
             "anchor": {"section": "fitting"},
         },
     )

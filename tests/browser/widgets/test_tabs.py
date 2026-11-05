@@ -1064,7 +1064,8 @@ def test_a_queue_row_names_an_answer_whose_widget_module_arrives_last(browser, s
         "Undid: Chose “Escalate to engineering” · just now"
     )
     assert row.bounding_box() == before
-    page.locator("#o-a-long").get_by_role("checkbox").click()
+    # The group wears its digits over each card's mark, so the card takes the press.
+    page.locator("#o-a-long").click()
     expect(words).to_have_text(
         "Escalate to the international engineering incident response team"
     )
@@ -1363,11 +1364,16 @@ def test_a_tab_strip_keeps_its_open_tab_in_its_one_row(browser, serve):
     page.keyboard.press("Home")
     expect(framed.first).to_have_attribute("aria-selected", "true")
     page.wait_for_function(shown, arg=["framed", 1])
-    # Walking to the tab already open brings it back after a scroll took it away.
+    # Walking to the tab already open brings it back after a scroll took most of it
+    # away. A sliver stays in the strip: with none, the tab is out of sight, so the key
+    # lets go of it and acts from what the user reads (keyboard/controller.js).
     page.evaluate("""() => {
       const strip = document.querySelector('#framed > .lf-tabstrip');
-      strip.scrollLeft = strip.scrollWidth;
+      const tab = strip.querySelector('[aria-selected="true"]');
+      strip.scrollLeft += tab.getBoundingClientRect().right
+        - strip.getBoundingClientRect().left - 8;
     }""")
+    assert not page.evaluate(shown, ["framed", 1])
     page.keyboard.press("Home")
     page.wait_for_function(shown, arg=["framed", 1])
     page.keyboard.press("ArrowLeft")

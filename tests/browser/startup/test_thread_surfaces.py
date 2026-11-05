@@ -880,8 +880,8 @@ customElements.define('lf-test-seat',class extends LeafElement{
       document.querySelector('#foreign').moveBefore(document.querySelector('[data-seat=a]'),null);
       releasePage();
     }""")
-    news = page.locator("#rail").get_by_role("button", name="1 new", exact=True)
-    expect(news).to_have_accessible_description("1 new thread")
+    # The widget's thread, its seat gone, joins the page's rail and draws at once.
+    expect(page.locator("#rail .lf-page-thread")).to_have_count(2)
     page.wait_for_function(
         "document.querySelector('#rail').contains(document.querySelector('.lf-fab-bar'))"
     )
@@ -893,12 +893,11 @@ customElements.define('lf-test-seat',class extends LeafElement{
         )
         == current
     )
-    # The widget stops offering its seat, so the page presents both threads.
+    # The widget stops offering its seat, so the page keeps presenting both threads.
     page.evaluate("""async()=>{
       const {threadSurface}=await window.__lfWidgetApi();
       const seat=document.querySelector('#seat');seat.side=null;threadSurface(seat).update();
     }""")
-    news.click()
     expect(page.locator("#rail .lf-page-thread")).to_have_count(2)
     assert len(state_readings) == 1
 

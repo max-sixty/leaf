@@ -333,6 +333,32 @@ def diff_separator(page: Page) -> None:
     settle(page)
 
 
+def diff_file_comment(page: Page) -> None:
+    """A diff file's comment box, opened from the file's Comment once the walkthrough's
+    longest file is open beneath its row at the window's top, which leaves the file's
+    end, where its thread stands, below the window until the box's focus."""
+    files = page.locator("#pr-exact-patch .lf-diff-file")
+    longest = files.evaluate_all(
+        """files => {
+            const size = (file) => [...file.querySelector('.lf-diff-head').textContent
+                .matchAll(/[+\u2212-](\\d+)/g)].reduce((sum, [, n]) => sum + +n, 0);
+            return files.indexOf(files.reduce((a, b) => (size(b) > size(a) ? b : a)));
+        }"""
+    )
+    file = files.nth(longest)
+    file.locator(".lf-diff-head").click()
+    file.locator(".lf-diff-line").first.wait_for()
+    file.evaluate(
+        "file => scrollTo(0, scrollY + file.getBoundingClientRect().top - 80)"
+    )
+    scroll_settled(page)
+    file.locator(".lf-diff-file-comment").click()
+    expect(
+        page.locator(".lf-fab-bar .lf-composer[data-lf-open] leaf-text")
+    ).to_be_focused()
+    settle(page)
+
+
 def playground_text(page: Page) -> None:
     """A playground's native text control with the shared field face and focus."""
     field = page.get_by_role("textbox", name="Notification title", exact=True)
@@ -376,6 +402,14 @@ def floating_thread(page: Page) -> None:
     go_to_threads(page)
     page.locator(".lf-fp-thread", has_text="One reconnect in forty").click()
     expect(page.locator(panel_view("thread"))).to_be_visible()
+
+
+def detached_thread(page: Page) -> None:
+    """A thread whose passage a revision took out, opened from Threads: its quote,
+    saying it is not in the latest version, over its messages, and no way to the page."""
+    go_to_threads(page)
+    page.locator(".lf-fp-thread", has_text="Old release plan").click()
+    expect(page.locator(f"{panel_view('thread')} .lf-thread-quote")).to_be_visible()
 
 
 def thread_code_copy(page: Page) -> None:
@@ -1293,7 +1327,9 @@ def screenshot_slider_before(page: Page) -> None:
     divider = shot.get_by_role("scrollbar")
     divider.focus()
     page.keyboard.press("End")
-    shot.get_by_role("button", name="Outline changes", exact=True).click()
+    shot.get_by_role("button", name="Image options").click()
+    shot.get_by_role("checkbox", name="Outline changes", exact=True).check()
+    page.keyboard.press("Escape")
     shot.scroll_into_view_if_needed()
 
 
@@ -1319,6 +1355,18 @@ def dial_keyboard(page: Page) -> None:
         "node => node.focus({focusVisible: true})"
     )
     page.keyboard.press("Shift")  # keyboard modality, which Chromium's focus reads
+
+
+def screenshot_view_hover(page: Page) -> None:
+    """An unchosen view under the pointer, beside the chosen one."""
+    screenshot_comparison(page)
+    page.locator("#bg-shot .lf-shot-views").get_by_text("Pair", exact=True).hover()
+
+
+def dial_press(page: Page) -> None:
+    """An unchosen depth held down under the pointer, before it is chosen."""
+    page.locator("lf-dial").get_by_text("Skim", exact=True).hover()
+    page.mouse.down()
 
 
 def screenshot_options(page: Page) -> None:
@@ -2054,10 +2102,61 @@ def capture_small_drag(page: Page) -> None:
 
 
 def versions_menu(page: Page) -> None:
-    """Versions, opened from the leaf's menu: a row for each version, with its note."""
+    """Versions, opened from the leaf's menu: a row for each version, with its note,
+    the agent's latest as long as a stamp's note runs on real pages (about 90
+    characters), where the fixture's own say only Earlier draft."""
+    source = served_page.get().directory / "index.html"
+    source.write_text(
+        source.read_text(encoding="utf-8").replace(
+            "remaining decision", "one decision left", 1
+        ),
+        encoding="utf-8",
+    )
+    as_agent(
+        "page",
+        "stamp",
+        "--text",
+        "Moved the self-hosted runner decision into its own section and reordered "
+        "shutdown so cleanup runs after the supervisor collects output",
+    )
+    wait_until_ready(page, PageClient(served_page.get().address).state())
     more_menu(page)
     page.locator('.lf-fp-item[data-lf-row="versions"]').click()
     page.locator(".lf-fp-version").first.wait_for()
+
+
+def all_pages(page: Page) -> None:
+    """All pages with two neighbours of one title, told apart only by where their
+    sessions work. A stills server has no neighbour of its own, so a rewritten state
+    supplies them."""
+
+    def with_neighbours(route):
+        response = route.fetch()
+        state = response.json()
+        state["others"] = [
+            {
+                "page_key": place,
+                "url": f"http://127.0.0.1:9/{place}",
+                "title": "Move Tend's agent runs into one sandbox and retire its setup",
+                "session_cwd": f"/workspace/tend.{place}",
+                "activity": {
+                    **state["activity"],
+                    "kind": "working",
+                    "dropped": None,
+                    "awaiting": None,
+                    "detail": "Running the sandbox suite against both harnesses",
+                },
+            }
+            for place in ("sandbox-runner", "release-notes")
+        ]
+        route.fulfill(response=response, json=state)
+
+    page.route("**/api/state*", with_neighbours)
+    page.reload()
+    wait_until_ready(page)
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+l")
+    page.locator(panel_view("leaves")).wait_for()
 
 
 def obligation_marker_by_keyboard(page: Page) -> None:
@@ -2432,6 +2531,9 @@ STATES = (
     ),
     State("panel-status-hover", "review-a-plan", panel_status_hover),
     State("floating-thread", "ship-review", floating_thread, region=".lf-fp-opened"),
+    State(
+        "detached-thread", "feature-gallery", detached_thread, region=".lf-fp-opened"
+    ),
     State("thread-code-copy", "ship-review", thread_code_copy, region=".lf-fp-opened"),
     State(
         "floating-thread-unread",
@@ -2535,6 +2637,7 @@ STATES = (
         diff_separator,
         region="#pr-key-hunk .lf-diff-rows",
     ),
+    State("diff-file-comment", "pr-walkthrough", diff_file_comment),
     State(
         "playground-text",
         "notification-playground",
@@ -2585,7 +2688,14 @@ STATES = (
         screenshot_views_keyboard,
         region="#bg-shot .lf-shot-toolbar",
     ),
+    State(
+        "screenshot-view-hover",
+        "feature-gallery",
+        screenshot_view_hover,
+        region="#bg-shot .lf-shot-toolbar",
+    ),
     State("dial-keyboard", "detail", dial_keyboard, region="lf-dial"),
+    State("dial-press", "detail", dial_press, region="lf-dial"),
     State(
         "image-in-page",
         "feature-gallery",
@@ -2848,16 +2958,21 @@ STATES = (
         region=".lf-margin-preview",
     ),
     State("plan-card-aging", "review-a-plan", card_aging, region=".lf-margin-preview"),
+    # A window with no room beside the stop's words, so its card stands under them and
+    # holds what would move the reply the user drafts (thread-preview.js,
+    # `endNewsMoves`); beside them, it shows the news at once.
     State(
         "plan-card-held-news",
         "review-a-plan",
         card_held_news,
+        window=Window((1200, 900)),
         region=".lf-margin-preview",
     ),
     State(
         "plan-card-held-step",
         "review-a-plan",
         card_held_step,
+        window=Window((1200, 900)),
         region=".lf-margin-preview",
     ),
     State(
@@ -2895,6 +3010,7 @@ STATES = (
         versions_menu,
         window=WINDOWS["phone"],
     ),
+    State("all-pages", "review-a-plan", all_pages, region=".lf-fp-opened"),
     State("plan-card-reply-long", "review-a-plan", card_reply_long),
     State("plan-panel-reply-long", "review-a-plan", panel_reply_long),
     State("plan-page-comment-long", "review-a-plan", page_comment_long),

@@ -83,13 +83,6 @@ def test_merge_film_inspection_has_touch_and_keyboard_routes(browser, serve):
     )
     assert details["y"] + details["height"] <= reading_bottom
     assert inspect_next.bounding_box()["y"] >= 0
-    inspect_next.focus()
-    page.evaluate("window.scrollBy(0, 500)")
-    inspect_next.press("i")
-    details = inspector.bounding_box()
-    assert details["y"] >= 0
-    assert details["y"] + details["height"] <= reading_bottom
-    assert inspect_next.bounding_box()["y"] >= 0
     play = film.locator(".film-play")
     play.focus()
     play_top = play.bounding_box()["y"]

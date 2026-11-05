@@ -296,9 +296,10 @@ def test_an_aimed_comment_keeps_its_place_with_on_me_open(browser, serve, width)
     aligned = page.evaluate(
         """() => {
           const chrome = document.querySelector('.lf-chrome');
+          const origin = chrome.getBoundingClientRect();
           return { rootPosition: getComputedStyle(document.documentElement).position,
                    bodyPosition: getComputedStyle(document.body).position,
-                   chromePosition: getComputedStyle(chrome).position };
+                   chromeOrigin: [origin.left + scrollX, origin.top + scrollY] };
         }"""
     )
     assert aligned["rootPosition"] == "static", (
@@ -307,7 +308,7 @@ def test_an_aimed_comment_keeps_its_place_with_on_me_open(browser, serve, width)
     assert aligned["bodyPosition"] == "static", (
         "body became a moving containing block for document-attached chrome"
     )
-    assert aligned["chromePosition"] == "static", (
+    assert aligned["chromeOrigin"] == [0, 0], (
         "authored div positioning captured the chrome's document coordinate plane"
     )
 
@@ -2206,7 +2207,7 @@ def test_design_mode_comments_on_what_a_press_lands_on_and_nothing_else(browser,
     # on the thread in the panel's thread view.
     panel = page.locator(PANEL_THREAD)
     expect(panel).to_be_visible()
-    expect(page.locator(".lf-thread-quote")).to_contain_text(
+    expect(page.locator(".lf-quote-label")).to_contain_text(
         "design · lf-option · opt-shim"
     )
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
@@ -3416,7 +3417,11 @@ def test_a_visual_surface_narrows_paint_without_narrowing_semantic_interaction(
 
     point = midpoint(decoration)
     page.mouse.move(point["x"], point["y"])
-    expect(page.locator("body")).to_have_class(re.compile(r"\blf-over-mark\b"))
+    page.wait_for_function(
+        "({x, y}) => getComputedStyle(document.elementFromPoint(x, y)).cursor"
+        " === 'pointer'",
+        arg=point,
+    )
     page.mouse.click(point["x"], point["y"])
     expect(
         page.locator(
@@ -3561,7 +3566,7 @@ def test_a_declared_flowchart_node_keeps_its_comment_across_renderings(browser, 
         {"section": "flow", "visual": "node:S"}
     ]
     open_panel_thread(page, posted[0]["id"])
-    expect(page.locator(".lf-thread-quote")).to_have_text("§ diagram · Start request")
+    expect(page.locator(".lf-quote-label")).to_have_text("§ diagram · Start request")
     page.locator(".lf-fp-close").click()
     panel_settled(page, open=False)
     expect_comment_notes(page, "#flow", 1)

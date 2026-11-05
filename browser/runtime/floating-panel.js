@@ -214,7 +214,7 @@ import { actionTemplate, iconTemplate } from "./icons.js";
 import { actionName } from "./icon-paths.js";
 import { commandSteps } from "./keyboard/control-keys.js";
 import { canCopy, copyControl } from "./copy-control.js";
-import { keeps, keepsHidden, layoutPx } from "./keeps.js";
+import { atLayoutPrecision, keeps, keepsHidden } from "./keeps.js";
 import { keepFieldKeys } from "./field-keys.js";
 import { setRuntimeRootStyle } from "./root-state.js";
 import { statusReading } from "./page-status.js";
@@ -310,7 +310,14 @@ import {
   currentLocationIn,
 } from "./focus.js";
 import { rowWalk } from "./walk-position.js";
-import { capitalized, counted, excerptWords } from "./words.js";
+import {
+  capitalized,
+  COMMENT_HINT,
+  counted,
+  excerptWords,
+  REOPEN_HINT,
+  REPLY_HINT,
+} from "./words.js";
 import { coarsePointer } from "./pointer.js";
 import { holdRendering, nextRender, sizeObserver } from "./rendering.js";
 import { boxMotion } from "./box-motion.js";
@@ -324,6 +331,7 @@ import {
   declareCover,
   placeBox,
   placeHolder,
+  stateFootBand,
 } from "./geometry.js";
 import { overlaps } from "./rect.js";
 import { registerReadingRegion } from "./reading-regions.js";
@@ -336,10 +344,11 @@ import { closestAcross } from "./passages.js";
 
 const prefs = () => window.lfChrome;
 
-// What the field's own search box asks for, in each list it searches.
+// What the field's own search box asks for, in each list it searches, in Leaf's words
+// as every search's prompt is (control-labels.js, `searchField`).
 const SEARCH_PROMPTS = Object.freeze({
-  menu: "Rows, threads, versions",
-  threads: "Find a thread or message",
+  menu: "Find a row, thread or version…",
+  threads: "Find a thread or message…",
 });
 // The menu's groups, each a list of the page's controls declaring it, in the menu's place.
 const GROUPS = Object.freeze([
@@ -397,7 +406,8 @@ const clock = (at) =>
  * controls?: (route: R) => {crumb?: unknown, aux?: unknown},
  * presses?: (route: R) => {facts?: unknown, presses?: unknown},
  * nominate?: (route: R, collection: import("./thread/primary-reader.js").PrimaryCollection, parts: import("./thread/primary-reader.js").NominationParts) => unknown,
- * over?: readonly ("threads" | "queue" | "menu")[], rows?: string, row?: PanelRoute,
+ * over?: readonly ("threads" | "queue" | "menu")[], rows?: string, at?: string,
+ * row?: PanelRoute,
  * keys?: readonly import("./keyboard/bindings.js").Command[],
  * claims?: (binding: string) => boolean}} PanelView */
 /** @typedef {{[K in PanelRoute["view"]]: PanelView<RouteFor<K>>}} PanelViews */
@@ -647,7 +657,8 @@ export function createFloatingPanel({
                   class="lf-fp-search"
                   name="thread-search"
                   placeholder=${prompt}
-                  aria-label=${prompt}
+                  data-lf-voice="leaf"
+                  aria-label=${searchLabel}
                   .value=${live(initial ? "" : query)}
                   ?hidden=${searchMode !== "threads" && searchMode !== "menu"}
                   @input=${(
@@ -958,10 +969,9 @@ export function createFloatingPanel({
   // reading.
   //
   // A reading that offers a press (`offers`), the reply or the selected words, stands
-  // with the key that makes it, in the interface's own words; every other reading, and
-  // the words standing before the reply, are said by the agent or by Leaf, each in its
-  // face (voice.js). All of them read dim (floating-panel.css). A stance's name is the
-  // interface's.
+  // with the key that makes it; every reading, and the words standing before the reply,
+  // are said by the agent or by Leaf, each in its face (voice.js), and read dim
+  // (floating-panel.css). A stance's name and the words quoted are nobody's.
   const HIDDEN = "Annotations hidden";
   // The page field's readings that say something other than a press there.
   const SAYS_ELSE = new Set(["status", "stance", "notice"]);
@@ -980,7 +990,7 @@ export function createFloatingPanel({
     if (input === focused())
       return { says: "destination", words: whereTo(drawn ?? thread) };
     if (thread && !noticeReading().visible && !statusContextReading().goTo)
-      return { says: "turn", words: "Reply", offers: true };
+      return { says: "turn", words: leafSays(REPLY_HINT), offers: true };
     const stance = key ? null : statusContextReading().stance;
     // Keep the current navigation context alongside the selection's comment offer.
     // The field's own name says what a press does (`pageEditor`); on a narrow phone
@@ -1013,7 +1023,7 @@ export function createFloatingPanel({
       };
     if (!key)
       return { says: "status", words: [...hiddenLead(), ...status().summaryParts] };
-    return { says: "turn", words: "Reply", offers: true };
+    return { says: "turn", words: leafSays(REPLY_HINT), offers: true };
   }
   // What stands before an open thread's reply while the field says it, beside the leaf
   // (composing/input.js, `hintLead`): the thread's word, as Threads says it, then a
@@ -1037,7 +1047,8 @@ export function createFloatingPanel({
     // reached (`clearFor`), names that stop alone: the user is at it now, not at this
     // thread's turn.
     const away = Boolean(position) && !currentLocationIn(host);
-    const word = away ? null : drawn.resolved ? RESOLVED : drawn.attention?.word;
+    const settled = drawn.resolvedBy ? leafSays(drawn.resolvedBy) : RESOLVED;
+    const word = away ? null : drawn.resolved ? settled : drawn.attention?.word;
     if (!word) return position;
     return voiced([word, ...(position ? [` · ${position}`] : [])]);
   }
@@ -1048,7 +1059,7 @@ export function createFloatingPanel({
   // Resolved that says so at rest goes with the caret.
   /** @param {{resolved: unknown} | null} thread */
   const whereTo = (thread) =>
-    !thread ? "Comment" : thread.resolved ? "Reply to reopen" : "Reply";
+    leafSays(!thread ? COMMENT_HINT : thread.resolved ? REOPEN_HINT : REPLY_HINT);
   // An editor's empty words, as its own paint draws them (composing/input.js, `hint`),
   // which marks the editor with whose reading they are, so the face the theme gives that
   // reading changes in the same paint as the words (floating-panel.css). Words all one
@@ -1102,7 +1113,7 @@ export function createFloatingPanel({
       // press is the one the row offers while it passes.
       enters: () => {
         const { says, words } = fieldReading(null, input);
-        return SAYS_ELSE.has(says) && wordsText(words) ? "Comment" : "";
+        return SAYS_ELSE.has(says) && wordsText(words) ? COMMENT_HINT : "";
       },
       // Named for what a press there does, as the field's reading says it, once the
       // editor this builds is the one the reading reads.
@@ -1345,7 +1356,8 @@ export function createFloatingPanel({
   // - `nominate`: the outlets in it Leaf's reader draws threads or messages into.
   // - `row`: the menu leads to it by a row of the page's controls, which the panel then
   //   opens itself, those rows leading the menu in this order.
-  // - `rows`: the rows of a list the arrows walk (`listRows`).
+  // - `rows`: the rows of a list the arrows walk (`listRows`), and `at`, the one it opens
+  //   at (`focusView`).
   // - `over`: the lists it opens over, which its way back returns to, the first where it
   //   was opened from anywhere else (`open`). A list the menu leads to, such as
   //   Versions, opens over the menu, so its way back returns there.
@@ -1419,6 +1431,7 @@ export function createFloatingPanel({
       title: () => "Versions",
       draw: () => versionsList(),
       rows: ".lf-fp-version > :is(.lf-fp-item, .lf-fp-compare)",
+      at: ".lf-fp-version[data-lf-current] > .lf-fp-item",
       row: { view: "versions" },
       over: ["menu"],
       // Versions is a list for choosing, so while it stands the page's character keys
@@ -1711,7 +1724,7 @@ export function createFloatingPanel({
   ground.setAttribute("part", "panel");
   // The box stands over the window's foot, the row and any view open above it: what it
   // covers reads as unseen (geometry.js, `declareCover`), and a landing stands clear of
-  // its reach (`--lf-panel-reach`, `followBox`). It covers where its surface is drawn
+  // its reach (`followBox`). It covers where its surface is drawn
   // (box-motion.js, `outline`): while the box moves, the card stands transparent at its
   // rest and the surface carries the panel from where it stood. The card's own box is
   // where that motion ends, which a landing about to show a place asks (`standsOver`).
@@ -1729,16 +1742,24 @@ export function createFloatingPanel({
   }
   function followBox() {
     // How far the box reaches up from the window's foot, which the root's
-    // `scroll-padding-bottom` keeps every landing clear of (base.css), so `m`, `t`, a
-    // Go-to or an On me row's Show lands what it reaches above an open view rather than
-    // under it. The browser's own reveals read the same padding. CSS can't size the
-    // root's padding from a fixed box in the chrome's shadow tree, so the box states it.
+    // `scroll-padding-bottom` keeps every landing clear of, with the gap above the box
+    // and at least the foot's room (`--lf-foot-band`, base.css), so `m`, `t`, a Go-to
+    // or an On me row's Show lands what it reaches above an open view rather than
+    // under it. The browser's own reveals read the same padding, and Leaf's landings
+    // the band stated beside it (geometry.js, `stateFootBand`). CSS can't size the
+    // root's padding from a fixed box in the chrome's shadow tree, so the box states
+    // it, in pixels and never as a custom property (root-state.js).
     const box = card.getBoundingClientRect();
-    const reach = layoutPx(
-      box.height > 0 ? ground.getBoundingClientRect().bottom - box.top : 0,
-    );
-    if (document.documentElement.style.getPropertyValue("--lf-panel-reach") !== reach) {
-      setRuntimeRootStyle(document.documentElement, "--lf-panel-reach", reach);
+    const reach = box.height > 0 ? ground.getBoundingClientRect().bottom - box.top : 0;
+    const root = document.documentElement;
+    const [rest = 0, clear = 0] = getComputedStyle(root)
+      .getPropertyValue("--lf-foot-band")
+      .trim()
+      .split(/\s+/)
+      .map(Number.parseFloat);
+    const band = atLayoutPrecision(Math.max(rest, reach + clear));
+    if (stateFootBand(band)) {
+      setRuntimeRootStyle(root, "scroll-padding-bottom", `${band}px`);
       announceRoom();
     }
     const compact = host.dataset.lfRest === "mark";
@@ -1749,8 +1770,6 @@ export function createFloatingPanel({
         : resizeMs();
     following.follow({ duration, easing: compact ? foldEase() : ease() }, compact);
   }
-  // The window changed size, which the box's motion takes as it stands (box-motion.js).
-  addEventListener("resize", followBox);
 
   // A view is as tall as what it holds, up to its cap (floating-panel.css,
   // `--lf-fp-view-height`); what does not fit scrolls inside it. A thread's view follows
@@ -1945,9 +1964,6 @@ export function createFloatingPanel({
     }
     paint();
   });
-  // A list takes its room as it stands before the paint that would change it, once
-  // this opening has drawn it (`drawn`): what it holds then is what it fits, so taking
-  // it writes only the height the list already stands at.
   // The menu grows upward from the row, so news that adds a row to it, or takes one
   // away, would carry every row above up or down the window under the reader: a row a
   // revision offers, such as the newer version, or a status re-wrapping the head. So
@@ -1976,6 +1992,14 @@ export function createFloatingPanel({
     opening.menuLines = { summary: lines("summary"), explain: lines("explain") };
     return true;
   }
+  // A list takes its room as soon as it stands at what it fits: in the paint that
+  // first draws it (`paintPanel`), the frame after a refit settles (`refit`), or once
+  // Leaf's reader has drawn the messages its cards ask (`present`). Taking it then
+  // writes only the height the list already stands at, and before news can arrive:
+  // Chromium suspends the view's scroll anchoring for a layout in which the view's
+  // `height` changes, even to the height it stands at, so the room written in the paint
+  // that adds a row above the rows in sight would move every row in sight by the row's
+  // height.
   function holdRoom() {
     const top = trail.value.at(-1);
     if (!top || top.thread || opening.room !== null || refitting) return false;
@@ -1987,7 +2011,7 @@ export function createFloatingPanel({
   }
   // A tab, filter or search the user presses changes what the list shows, which it
   // then fits, moving as one opening does; each such press repaints. The list takes
-  // its room again from the next frame, once it stands at what it now fits.
+  // its room again in the next frame, once it stands at what it now fits.
   let refitting = false;
   // Each row standing Threads draws, by its thread's key, with its section
   // (`drawnSections`); null while no list stands, so the next paint draws every row
@@ -2007,6 +2031,7 @@ export function createFloatingPanel({
     refitting = true;
     nextRender(() => {
       refitting = false;
+      if (holdRoom()) paint();
     });
   }
   /** @param {PanelRoute | null | undefined} before @param {{focus?: boolean, handedOn?: boolean}} [options] */
@@ -2085,7 +2110,9 @@ export function createFloatingPanel({
     // holds neither, as an empty Threads does, so the key's landing wears a ring; opened
     // by a pointer, it holds focus itself. The user chose this on 31 October, after
     // `g T` from the page left focus on the list's view, where nothing showed it and
-    // Enter went nowhere seen.
+    // Enter went nowhere seen. A list that declares a row it opens at, such as the
+    // version the page shows in Versions, brings that row into view by either route, and
+    // a key lands on it, as the user reopening the list from there expects to see it.
     if (route.thread) {
       // A finger opening a thread reads it first, standing in the view, whose box
       // raises no keyboard; the keyboard rises when they tap in.
@@ -2102,10 +2129,15 @@ export function createFloatingPanel({
     const stoodRow =
       stoodIn &&
       rows.find((row) => threadByKey(row.getAttribute("data-lf-key"))?.id === stoodIn);
+    const declared = viewOf(route).at;
+    const at = declared ? view?.querySelector(declared) : null;
     const target =
       stoodRow ||
-      (pressLed() ? view : (rows[0] ?? view?.querySelector("button, input") ?? view));
+      (pressLed()
+        ? view
+        : (at ?? rows[0] ?? view?.querySelector("button, input") ?? view));
     if (target) focusDestination(target, "move");
+    if (at) scrollIntoView(at, { block: "nearest", within: view });
   }
 
   // ---------- the leaf's menu ----------
@@ -2423,7 +2455,8 @@ export function createFloatingPanel({
   // Where the agent's latest save failed its check, first what the check found, which
   // its error points here to read (version.js, `holdFailedSave`); then the versions
   // the picker lists, each a press that travels there and says the note its stamp gave
-  // it after its name, cut to the row and whole on hover. A column at the rows' end
+  // it after its name, cut to the row and whole on hover, or whole under the name for a
+  // pointer that can't hover (floating-panel.css). A column at the rows' end
   // holds Compare where the picker offers it and Showing for the version shown, so
   // the two words line up. Showing stands outside the press, as Compare does, over
   // the row's end; the press carries it as `aria-current`.
@@ -3514,7 +3547,8 @@ export function createFloatingPanel({
       // A choice that says more than its name, what choosing it gives and whether the
       // page advises it, stands on a line of its own with those words under its name,
       // two lines at most, so the user can answer here without Show, and whole on
-      // hover, as a version's note is. The words carry the tooltip rather than the
+      // hover, as a version's note is, and for a finger on the option's own card, where
+      // Show goes. The words carry the tooltip rather than the
       // press, whose name already holds them: a title there is read again as its
       // description. Rejected: the option's whole card, whose tags and picture let one
       // choice fill a phone's screen, and its name alone, which left the user picking
@@ -3959,7 +3993,8 @@ export function createFloatingPanel({
   // ---------- All pages: the pages live on this machine ----------
   // Each page served on this machine now, this one first (live-leaves.js, `leavesRows`):
   // its leaf in its agent's tone, its title, and what its agent is doing, its whole
-  // account on hover. A row is a link that opens its page in a tab of its own; this
+  // account on hover, or at rest for a pointer that can't hover (floating-panel.css).
+  // A row is a link that opens its page in a tab of its own; this
   // page's row says it is this page and goes nowhere, so the walk passes it by.
   function pagesView() {
     const rows = leavesRows(runtime.state);
@@ -3977,7 +4012,11 @@ export function createFloatingPanel({
             ><span class="lf-fp-label">${row.title}</span
             ><span class="lf-fp-value"
               >${row.self ? "This page" : voiced(row.parts)}</span
-            >`;
+            >${
+              row.rest
+                ? html`<span class="lf-fp-page-rest">${row.rest}</span>`
+                : nothing
+            }`;
           return row.self
             ? html`<div class="lf-fp-page" title=${row.account}>${face}</div>`
             : html`<a
@@ -4263,8 +4302,8 @@ export function createFloatingPanel({
       // with its thread, as a card does (margin-projection.js), whoever opened it.
       const top = trail.value.at(-1);
       if (top?.thread && !threadOf(top)) close();
-      holdRoom();
       paintNow();
+      if (holdRoom()) paintNow();
       if (holdMenu()) paintNow();
     } finally {
       painting = false;
@@ -4940,6 +4979,9 @@ export function createFloatingPanel({
     host.draw = paintPanel;
     parent.append(ground, host);
     follow.observe(card);
+    // The window changed size, which the box's motion takes as it stands
+    // (box-motion.js). An export mounts no panel, so its root states no band.
+    addEventListener("resize", followBox);
     presentation = registerChromeThreadPresentation(host, {
       render: nominate,
       // The view makes room for the agent's answer to the user's last turn itself

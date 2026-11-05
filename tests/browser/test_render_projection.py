@@ -8,7 +8,7 @@ from interact_support import (
     append_carried_log_record,
     working,
 )
-from journeys import first_thread_quote
+from journeys import first_thread_head
 from playwright.sync_api import expect
 from render_cases_interaction import (
     COMMAND_HUB_EXAMPLE,
@@ -337,7 +337,7 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
     write(page.locator(".lf-composer leaf-text"), "Review this added call.")
     page.keyboard.press("ControlOrMeta+Enter")
     round_trip(page)
-    expect(first_thread_quote(page, serve.page_dir)).to_have_text(
+    expect(first_thread_head(page, serve.page_dir)).to_have_text(
         "§ added call-tree item └─ if request.token at gateway/limits.py:40"
     )
 

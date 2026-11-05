@@ -30,24 +30,30 @@ later change, so the guarantee is owed to the paths users take often: a rare pat
 user takes in at a glance may move what is on screen rather than carry a mechanism of its
 own (`../SOUL.md`, "Keep the foundation small and extensible").
 
-- **Controls stay where the user aims.** A state change may repaint any box, but a control
-  the user pressed stays where it was while it still stands. When the press removes it,
-  the press's result takes its place, and that may be the next item's same control, as
-  when Resolve in the floating panel moves the user on to the next thread
-  (`floating-panel.js`); a change the user asked for may reflow what it replaces, with
-  motion the eye can follow. A scroll the gesture makes carries the pressed control only
-  to bring it whole into a scroller that showed part of it, or where the gesture says it
-  takes the user somewhere. Without a gesture, as when news arrives or a widget finishes
-  loading, a box may grow or shrink into free room, but reading content and controls stay
-  put. No hard-to-undo action arrives under a pointer that hasn't moved. A reveal on
-  hover, focus or a key never moves its ancestors or siblings, and typing may grow a
-  field but never moves it. Check: `tests/shift_watch.js`, whose header lists what it
-  credits.
+- **Controls stay where the user aims.** A state change may repaint any box. What a
+  press changes grows or shrinks its box away from the edge the box holds (next spec),
+  whatever was pressed, so a pressed control between that edge and the change stays
+  where it was, and one past the change moves with it, as a disclosure opening above its
+  button moves the button down. A box that holds its size while the press acts keeps the
+  control still. That is the platform's rule: CSS scroll anchoring prefers a focused text
+  field or the find match as the node it keeps still, never a pressed control. When the
+  press removes the control, the press's result takes its place, and that may be the
+  next item's same control, as when Resolve in the floating panel moves the user on to
+  the next thread (`floating-panel.js`); a change the user asked for may reflow what it
+  replaces, with motion the eye can follow. A scroll the gesture makes carries the
+  pressed control only to bring it whole into a scroller that showed part of it, or
+  where the gesture says it takes the user somewhere. Without a gesture, as when news
+  arrives or a widget finishes loading, a box may grow or shrink into free room, but
+  reading content and controls stay put. No hard-to-undo action arrives under a pointer
+  that hasn't moved. A reveal on hover, focus or a key never moves its ancestors or
+  siblings, and typing may grow a field but never moves it. Check: `tests/shift_watch.js`,
+  whose header lists what it credits.
 - **A box's controls stand on an edge the box holds as its content changes**, or the
-  box holds its size while they act. A thread card holds its head's edge; the floating
-  panel, standing on the window's foot, holds a list's foot, and a thread's height while
-  a press on its head line acts. Each box's header says how (`floating-panel.js`,
-  **Opened**; `thread/card-anchor.js`).
+  box holds its size while they act. A thread card holds the edge it is attached by,
+  and beside its subject its foot while the user types in it; the floating panel,
+  standing on the window's foot, holds a list's foot, and a thread's height while a
+  press on its head line acts. Each box's header says how (`floating-panel.js`,
+  **Opened**; `annotation-overlay/thread-preview.js`).
 - **News moves what the reader reads only in the thread they are in.** News from the
   server grows above the screen, where scroll anchoring absorbs it, or below it. In the
   thread the user is in, what it adds draws at once, as in a chat: the page scrolls
@@ -93,9 +99,9 @@ own (`../SOUL.md`, "Keep the foundation small and extensible").
 - **A box floating over the page grows inside the window**, toward the edge that has
   room, and sending and later growth never scroll the page to make room. Owners:
   `annotation-overlay/comment-placement.js` for attachment and bounds, and
-  `thread/card-anchor.js` for what each interaction preserves. A freshly opened card may
-  scroll to open clear of its target, and otherwise only a field in flow scrolls to keep
-  its controls in view (`thread/reply-landing.js`).
+  `annotation-overlay/thread-preview.js` for the edge a card holds. A freshly opened card
+  may scroll to open clear of its target, and otherwise only a field in flow scrolls to
+  keep its controls in view (`thread/reply-landing.js`).
 - **Readable content comes before activation.** Authored HTML paints while browser
   modules load. Each widget owns one Lit view across its lifetime; native slots retain
   authored children and CSS owns their initial layout. Each control waits only for the
@@ -359,6 +365,19 @@ root, `body` or `html` is re-evaluated on writes below it. Prefer a class that n
 targets, or a condition its owner sets on the styled element, and measure with
 `leaf-dev bench-latency --profile`.
 
+A `:has()` naming `:focus` or `:focus-visible` makes every focus move, on every page,
+restyle most of the page twice: once for the blur and once for the focus. Name
+`data-lf-focus` or `data-lf-focus-visible` instead, which `focus.js` writes once for a
+move.
+
+A `::highlight()` rule with no originating element adds to the restyle of every
+element, on every page, whether or not the highlight has a range there. Name the
+elements whose text the ranges paint. The comment marks can land on any text and
+Firefox inherits no highlight style (`notes/browser-support.md`, "Highlight style
+inheritance"), so theirs stay universal, and in Chromium a custom property changing
+on `html` or `body` then restyles every element (`root-state.js` says what the root's
+writers set instead).
+
 ### Layouts, styles and controls
 
 - **The page owns its arrangement.** A page arranges itself with a shipped Layout
@@ -496,14 +515,15 @@ adds its row. Rows marked _lint_ are enforced in `eslint.config.mjs`.
 | Which of two nodes the reader reaches first, across shadow trees                                      | `shadow-tree.js` `renderedOrder`, `byRenderedOrder`                                |
 | What stands for a node in one tree: the node, or the host of the shadow tree holding it               | `shadow-tree.js` `hostIn`                                                          |
 | Whether a node is inside another across shadow trees                                                  | `shadow-tree.js` `under`, `renderedUnder`, `composedParentNode`                    |
+| Order and containment along another climb of the tree, as the page reading's own order is             | `shadow-tree.js` `alongClimb`                                                      |
 | Put the user on an element, saying what moved them                                                    | `focus.js` `focusDestination(node, cause)` (_lint_)                                |
 | Move a node, keeping the user's place in it                                                           | `dom-move.js` `move(parent, node, before)` (_lint_)                                |
 | Make a list of nodes, some already placed, a parent's children                                        | `dom-children.js` `setChildren`                                                    |
 | Whether a control takes typed letters                                                                 | `focus.js` `typesText`, `takesLetters`                                             |
 | Which keys move a caret, and whether a key is Select All                                              | `control-selectors.js` `CARET_KEYS`, `selectsAll`                                  |
 | A hint map's walk and choose rows                                                                     | `keyboard/hints.js` `createHintSession`                                            |
-| Which focused control counts as the user's place: shown, and not under a stuck box                    | `user-place.js` `focusedInView`                                                    |
-| Whether the user scrolled away from the control focus stands on, which keys then leave alone          | `user-place.js` `focusScrolledAway`                                                |
+| Whether focus is where the user is: seen, or a motion carrying them to it                             | `user-place.js` `focusPlace`                                                       |
+| What the user reads where focus isn't where they are, in their column                                 | `reading-place.js` `pageReadingBlock`                                              |
 | What stands at the reading line, and holding a place across a change anchoring can't keep still       | `user-place.js` `readingAt`, `holdPlace`                                           |
 | Whether a click came from the keyboard                                                                | `pointer.js` `pressIsKeyboardActivation`                                           |
 | Whether a press is a plain primary-button press with no modifier                                      | `pointer.js` `plainPress`                                                          |
@@ -525,6 +545,7 @@ adds its row. Rows marked _lint_ are enforced in `eslint.config.mjs`.
 | When a box's scroll ends, a glide's counted once, and whether the browser or a script moves it        | `arrivals.js` `watchScrollEnds`, `holdScroll`, `browserScrolls` (_lint_)           |
 | Whether the reader or layout chose a box's scroll position                                            | `scrolling.js` `chosenSince`, `placeKept`                                          |
 | The authored body, excluding Leaf's runtime surfaces                                                  | `passages.js` `pageDocument`, `inPage`                                             |
+| Whether focus stands on something in the page, which focus on the body doesn't                        | `passages.js` `focusInPage`                                                        |
 | The document a node stands in: the view member or `main` holding it                                   | `storage.js` `viewDocument`                                                        |
 | The box the page's Layout arranges, the shell it stands in (its parent), and a page of parts' views   | `passages.js` `layoutBox`, `layoutParts`                                           |
 | Whether a place is already shown, which every nearest landing asks first, and the room a landing has  | `landing-scroll.js` `alreadyShown`, `landingRoom`                                  |
@@ -533,6 +554,7 @@ adds its row. Rows marked _lint_ are enforced in `eslint.config.mjs`.
 | Open or close a native modal or popover                                                               | `keyboard/layer-stack.js` `showNativeLayer`, `closeNativeLayer` (_lint_)           |
 | Focus on a popover's control as it opens, and the control's `aria-expanded`                           | `keyboard/layer-stack.js`, as each popover opens or closes                         |
 | Whether a node is, or is inside, an open native layer, and of which kind                              | `shadow-tree.js` `nativeLayerKind`, `isNativeLayer`, `nativeLayerHolding` (_lint_) |
+| Whether a node stands in content the browser skips, and the box that skips it                         | `shadow-tree.js` `skipped`, `skipper`                                              |
 | Which native layers are open, in opening order, and whether a modal admits a node                     | `keyboard/layer-stack.js` `nativeLayers`, `nativeModalAdmits`                      |
 | The element a URL fragment names, or the part of a widget its key names                               | `anchor-resolution.js` `fragmentTarget`, `fragmentAddress`                         |
 | This page's URL with a fragment naming an element, or a widget's key                                  | `anchor-coordinate.js` `fragmentUrl`                                               |
@@ -547,6 +569,7 @@ adds its row. Rows marked _lint_ are enforced in `eslint.config.mjs`.
 | A workflow's word, and its progress face on a control; an open to-do's word                           | `thread/workflow.js` `workflowWord`, `progressFace`, `todoWord`                    |
 | A thread's word, which Threads states as its status                                                   | `thread/workflow.js` `threadAttention`                                             |
 | What a thread's margin entry and Page Map row say of it: its line, turn and receipt                   | `margin-model.js` `threadMarks`                                                    |
+| Whether a margin entry changed since the inventory last collected: it is no longer the same object    | `annotation-inventory.js` `createAnnotationInventory`                              |
 | A thread's name, on every surface that names it                                                       | `thread/messages.js` `threadName` (`threadSummary(thread).topic` for packages)     |
 | The thread a name names: its key, its id, a message's, or this tab's attempt                          | `thread/state.js` `threadNamed`, `threadIdNamed`                                   |
 | The thread id a drawn thread carries, and the page threads drawn with an id                           | `thread/selectors.js` `drawnThreadId`, `drawnThreadsWithId`                        |

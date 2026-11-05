@@ -411,18 +411,17 @@ def test_a_box_that_starts_scrolling_after_it_arrives_takes_a_stop(browser, serv
     expect(page.locator("#side")).to_have_attribute("tabindex", "0")
 
 
-def test_c_travels_to_an_item_its_own_scroller_has_taken_away(browser, serve):
+def test_c_leaves_an_item_its_own_scroller_has_taken_away(browser, serve):
     """What the press asks is whether the item is in front of the user, and only the
     page shows that. An item's own box is the box it would have — unclipped — so a card
     carried out of a board's sideways scroller still reports one inside the window, and a
-    gate reading that called it visible and opened the box on something entirely off
-    screen. `shownRect` is the reading the ⌥ aim's own paint takes, and this press is its
-    keyboard twin: the two decide "in front of the user" alike or they are not twins.
+    gate reading that called it visible opened the box on something entirely off screen.
+    A key pressed there lets go of the card first, so `c` opens the page's own field and
+    leaves the board where the user scrolled it.
 
     The control is the same board with the scroller left alone, where the card is really
-    in front of the user and nothing moves — the pointer's answer on the same card. A
-    test with only the scrolled case would pass just as well on a press that always
-    travelled, which is the behaviour this replaced."""
+    in front of the user and `c` comments on it where it stands. A test with only the
+    scrolled case would pass just as well on a press that never reached the card."""
     url = serve(
         leaf_page(
             "carried",
@@ -466,10 +465,11 @@ def test_c_travels_to_an_item_its_own_scroller_has_taken_away(browser, serve):
     )
     page.close()
 
-    # The same current location with only the board's next-item cue left in view. The
-    # sliver still supplies an attachment, so opening Comment preserves the board.
+    # The card itself with only the board's next-item cue left in view. The sliver is
+    # still where the user is and supplies an attachment, so opening Comment preserves
+    # the board.
     page = open_page(browser, url)
-    page.locator("#card0 a").focus()
+    page.locator("#card0").evaluate("card => { card.tabIndex = -1; card.focus(); }")
     page.evaluate(
         """() => {
           const card = document.querySelector('#card0');
@@ -495,9 +495,10 @@ def test_c_travels_to_an_item_its_own_scroller_has_taken_away(browser, serve):
         "the board did not carry the card off screen, so this proves nothing"
     )
     page.keyboard.press("c")
-    expect(page.locator(".lf-composer")).to_be_visible()
-    assert page.evaluate(seen)["onScreen"], (
-        "the box opened on a card the board had carried out of sight"
+    expect(page.locator('.lf-fp-field leaf-text[name="comment"]')).to_be_focused()
+    expect(page.locator(".lf-composer")).to_be_hidden()
+    assert not page.evaluate(seen)["onScreen"], (
+        "the press took the board from where the user scrolled it"
     )
 
 
@@ -1671,7 +1672,7 @@ def test_the_g_chord_reaches_named_surfaces_and_visible_targets(browser, serve):
     expect(sheet).to_be_visible()
     expect(
         sheet.get_by_role(
-            "searchbox", name="Find an action, status, or location in Page Map"
+            "searchbox", name="Find an action, status or location in Page Map"
         )
     ).to_be_focused()
     # Its accessible name does not add a second visible caption above the placeholder.
@@ -1706,7 +1707,7 @@ def test_the_g_chord_reaches_named_surfaces_and_visible_targets(browser, serve):
     expect(sheet.locator(".lf-page-map-group")).not_to_have_count(0)
     expect(
         sheet.get_by_role(
-            "searchbox", name="Find an action, status, or location in Page Map"
+            "searchbox", name="Find an action, status or location in Page Map"
         )
     ).to_be_focused()
     page.keyboard.press("Escape")

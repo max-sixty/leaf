@@ -1,8 +1,0 @@
-{
-  "name": "leaf-pi",
-  "private": true,
-  "dependencies": {
-    "@earendil-works/pi-coding-agent": "1.5.0"
-  },
-  "packageManager": "pnpm@10.34.6"
-}

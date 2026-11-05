@@ -596,9 +596,9 @@ def test_a_scrolling_box_takes_a_stop_unless_tab_reaches_a_control_in_it(
 EDGE_CONTROLS = {
     "radio": '<p><label><input id="at" type="radio" name="r" checked> Pick</label></p>',
     "playground": (
-        '<lf-playground id="pg"><lf-playground-control name="tone" label="Tone" kind="choice"'
-        ' value="quiet"><lf-playground-choice value="quiet" label="Quiet">'
-        '</lf-playground-choice><lf-playground-choice value="bold" label="Bold">'
+        '<lf-playground id="pg"><lf-playground-control id="tone" name="tone" label="Tone" kind="choice"'
+        ' value="quiet"><lf-playground-choice id="tone-quiet" value="quiet" label="Quiet">'
+        '</lf-playground-choice><lf-playground-choice id="tone-bold" value="bold" label="Bold">'
         "</lf-playground-choice></lf-playground-control><lf-playground-preview>"
         "<p>Preview</p></lf-playground-preview><lf-playground-output>Use"
         ' <lf-playground-value for="tone"></lf-playground-value></lf-playground-output>'
@@ -682,12 +682,14 @@ def test_a_key_onto_a_control_at_a_scrollers_edge_shows_its_ring(
     how far beyond the edge the box wearing the ring stood before the key; each now
     shows its ring, unfaded."""
     page = open_page(request.getfixturevalue(engine), serve(edges_page(control)))
-    resized(page, 1280, 560)
+    # Tall enough that the log's foot stands clear of the floating panel, so the stop the
+    # key leaves is where the user is, rather than a stop the key would let go of.
+    resized(page, 1280, 720)
     side = "right" if control == "table" else "bottom"
     target = page.locator(EDGE_TARGETS[control])
     # Which box wears the ring is the paint's answer: the nearest box out from the
     # control whose outline is the ring.
-    target.evaluate("el => el.focus({preventScroll: true})")
+    target.focus()
     rendered(page)
     target.evaluate(
         """(el) => {
@@ -702,7 +704,7 @@ def test_a_key_onto_a_control_at_a_scrollers_edge_shows_its_ring(
     if key == "Tab":
         page.keyboard.press("Shift+Tab")
     else:
-        page.locator("#op-a .lf-pick").evaluate("el => el.focus({preventScroll: true})")
+        page.locator("#op-a .lf-pick").focus()
     page.evaluate(
         """([side, past]) => {
           const box = document.querySelector(side === 'bottom' ? '#log' : '#wide');

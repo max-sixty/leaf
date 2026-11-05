@@ -1937,6 +1937,103 @@ def test_shift_enter_and_tab_keep_a_draft_in_the_containers_the_message_will_hol
             expect(field).to_have_js_property("value", typed)
 
 
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_pasted_fence_is_left_by_the_keys_a_user_tried(engine, request, serve):
+    """The keys a user pressed to get out of a fence they had pasted into, which left
+    it open: Up and Down, then their marks typed at the end of the code. The paste lost
+    its first line to the opening marks, Down reached no line below the code, and the
+    marks closed nothing. Each key now does what it says, and the closing marks stand
+    in the code's box with the words after them outside it. field-editor.test.mjs holds
+    the rest of the ways in and out."""
+    page = open_page(
+        request.getfixturevalue(engine), serve(LONG_PAGE), init_script=KEEP_ROOTS
+    )
+    field = page_comment(page)
+    page.keyboard.type("it says:")
+    page.keyboard.press("Shift+Enter")
+    page.keyboard.press("Shift+Enter")
+    page.keyboard.type("```")
+    # A key puts the text on the clipboard, as a copy elsewhere would, without taking
+    # focus from the field: a page may copy only during a user's gesture.
+    page.evaluate(
+        """text => {
+          addEventListener('copy', event => {
+            event.clipboardData.setData('text/plain', text);
+            event.preventDefault();
+            event.stopImmediatePropagation();
+          }, {capture: true, once: true});
+          addEventListener('keydown', event => {
+            event.preventDefault();
+            document.execCommand('copy');
+          }, {capture: true, once: true});
+        }""",
+        "Read access\nRead and write",
+    )
+    page.keyboard.press("F9")
+    page.keyboard.press("ControlOrMeta+v")
+    code = "it says:\n\n```\nRead access\nRead and write"
+    expect(field).to_have_js_property("value", code)
+    for key in ["ArrowUp", "ArrowUp", "ArrowDown", "ArrowDown", "ArrowDown"]:
+        page.keyboard.press(key)
+    page.keyboard.type("is it admin?")
+    expect(field).to_have_js_property("value", f"{code}\n```\nis it admin?")
+    page.keyboard.press("ControlOrMeta+a")
+    page.keyboard.press("Backspace")
+    write(field, "```\ncode")
+    page.keyboard.type("```after")
+    expect(field).to_have_js_property("value", "```\ncode\n```\nafter")
+    rendered(page)
+    assert field.evaluate(
+        """box => [...window.__lfRoots.get(box).querySelectorAll('.cm-line')].map(line =>
+          [line.textContent, line.classList.contains('lf-md-code-block')])"""
+    ) == [["```", True], ["code", True], ["```", True], ["after", False]]
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_words_on_a_fences_opening_line_show_in_the_draft_and_the_message(
+    engine, request, serve
+):
+    """Words on a message fence's opening line are the code's first line, unless one word
+    names the language of the code below. They were the fence's info string, which the
+    draft hid once the caret left the line and the message dropped."""
+    page = open_page(
+        request.getfixturevalue(engine), serve(LONG_PAGE), init_script=KEEP_ROOTS
+    )
+    field = page_comment(page)
+    typed = "```Read access to code\n    Read and write"
+    write(field, typed)
+    field.evaluate("box => box.setSelectionRange(box.value.length, box.value.length)")
+    rendered(page)
+    # What the preview draws in view on each line, read with the marks it hides left out.
+    shown = """box => [...window.__lfRoots.get(box).querySelectorAll('.cm-line')].map(line => {
+      const copy = line.cloneNode(true);
+      copy.querySelectorAll('.lf-md-unseen').forEach(node => node.remove());
+      return copy.textContent;
+    })"""
+    assert field.evaluate(shown) == ["Read access to code", "    Read and write"]
+    # The two lines of code stand in one box, aligned, the first holding the box's
+    # padding as the code's first line does in a message.
+    aligned = """box => {
+      const [one, two] = window.__lfRoots.get(box).querySelectorAll('.cm-line');
+      const left = line => {
+        const range = document.createRange();
+        const walker = document.createTreeWalker(line, NodeFilter.SHOW_TEXT);
+        const node = walker.nextNode();
+        range.setStart(node, 0);
+        range.setEnd(node, 1);
+        return range.getBoundingClientRect().left;
+      };
+      return [left(one), left(two), parseFloat(getComputedStyle(one).paddingBlockStart)];
+    }"""
+    one, two, padding = field.evaluate(aligned)
+    assert one == pytest.approx(two, abs=0.5)
+    assert padding > 0
+    with sending(page, "Read access to code"):
+        page.keyboard.press("Enter")
+    code = page.locator(".lf-msg-body pre code").last
+    expect(code).to_have_text("Read access to code\n    Read and write\n")
+
+
 # The last draft stays in the field for its preview to be read.
 NESTING = {
     "taking it out again": ("- one⏎⇥two⇤", "- one\n- two"),

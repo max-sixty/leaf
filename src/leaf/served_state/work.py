@@ -39,10 +39,6 @@ _STAGE_RANK = {
 }
 
 
-def at_work(workflow: dict) -> bool:
-    return workflow["stage"] in {"working", "replying"}
-
-
 def _strength(workflow: dict, records: dict[str, dict]) -> tuple:
     """How strongly a workflow speaks for any surface that shows one of several: an
     update handed back to the user first (its record's next actor), then work under
@@ -50,7 +46,7 @@ def _strength(workflow: dict, records: dict[str, dict]) -> tuple:
     stage, then the newer input."""
     if workflow["condition"] is not None:
         category = 2
-    elif at_work(workflow):
+    elif workflow["at_work"]:
         category = 3
     elif workflow["stage"] == "answered":
         category = 0
@@ -66,13 +62,19 @@ def _strength(workflow: dict, records: dict[str, dict]) -> tuple:
 
 
 def served_workflows(
-    workflows: list[dict], thread_reading: FrozenThreadReading, records: dict
+    workflows: list[dict],
+    thread_reading: FrozenThreadReading,
+    records: dict,
+    forked: frozenset[str],
 ) -> list[dict]:
     """The page's workflows as the browser and `page state` read them, strongest
     first, each stamped with what its thread and its activity say.
 
-    `at_work` is whether the agent is at work on it, at `working` or `replying`
-    whatever its condition, the stage set every surface reads rather than restates.
+    `at_work` is whether the agent is at work on it whatever its condition, which
+    every surface reads rather than restating stages: at `working` or `replying`, or
+    `forked`, its input taken on by a fork of the agent's conversation
+    (`forks.forked`), which the page words On it while its delivery stands. Every
+    reader that ages, nudges or holds a turn reads the stage alone.
     `thread` is the thread the workflow stands in: a thread input's own, a widget
     frozen into a message's thread, or null for a page widget. Whose turn the thread
     is reads the records in it, which `records` (`workflows.handed_over`) holds.
@@ -83,7 +85,9 @@ def served_workflows(
     places its own unresolved sends against it."""
     by_id = {record["id"]: record for record in records["all"]}
     for workflow in workflows:
-        workflow["at_work"] = at_work(workflow)
+        workflow["at_work"] = (
+            workflow["stage"] in {"working", "replying"} or workflow["input"] in forked
+        )
         workflow["thread"] = thread_reading.subject_thread(workflow["subject"])
     return sorted(
         workflows, key=lambda workflow: _strength(workflow, by_id), reverse=True
@@ -133,7 +137,12 @@ def work_state(
         updates=durable.updates,
     )
     workflows = (
-        served_workflows(activity["workflows"], durable.thread, durable.updates)
+        served_workflows(
+            activity["workflows"],
+            durable.thread,
+            durable.updates,
+            frozenset(present["forked"]),
+        )
         if source
         else activity["workflows"]
     )

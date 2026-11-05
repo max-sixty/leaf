@@ -1000,7 +1000,7 @@ def test_margin_entry_order_and_page_map_actions_are_stable_at_both_widths(
         expect(dialog).to_be_visible()
         expect(
             dialog.get_by_role(
-                "searchbox", name="Find an action, status, or location in Page Map"
+                "searchbox", name="Find an action, status or location in Page Map"
             )
         ).to_be_focused()
         assert (

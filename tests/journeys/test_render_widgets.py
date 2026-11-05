@@ -39,7 +39,7 @@ from render_harness import (
 )
 
 from browser.widgets import PLAYGROUND_PAGE
-from journeys import first_thread_quote
+from journeys import first_thread_head
 from leaf import data as data_model
 from leaf import delivery as delivery_model
 from leaf import event_log as events_model
@@ -265,13 +265,17 @@ def test_a_side_list_is_a_queue_beside_the_item_it_opens(browser, serve):
     )
     page = open_page(browser, serve(column))
     resized(page, 1200, 900)
-    # The list is off screen above, so the walk is the gesture: a click would first
-    # scroll the tab into view.
-    page.get_by_role("tab", name="Ticket b", exact=True).evaluate(
-        "tab => tab.focus({preventScroll: true})"
-    )
-    page.evaluate("document.scrollingElement.scrollTop = 900")
+    # Scrolled past the header with the list still in sight, since a key at a tab
+    # scrolled out of sight lets go of it (keyboard/controller.js). Short of the
+    # panel's top, so a switch that scrolled to the panel or the page's top would show.
+    page.get_by_role("tab", name="Ticket b", exact=True).focus()
+    page.evaluate("""() => {
+      const top = document.querySelector('#queue > lf-tab:not([hidden])')
+        .getBoundingClientRect().top;
+      document.scrollingElement.scrollTop = Math.floor(top) - 12;
+    }""")
     before = page.evaluate("document.scrollingElement.scrollTop")
+    assert before > 0, before
     page.keyboard.press("ArrowDown")
     expect(page.get_by_role("tab", name="Ticket c", exact=True)).to_have_attribute(
         "aria-selected", "true"
@@ -387,7 +391,7 @@ def test_pr_walkthrough_moves_from_semantic_call_to_exact_patch_comment(
     )
     page.keyboard.press("ControlOrMeta+Enter")
     round_trip(page)
-    expect(first_thread_quote(page, serve.page_dir)).to_contain_text("src/summary.rs")
+    expect(first_thread_head(page, serve.page_dir)).to_contain_text("src/summary.rs")
     comments = [
         event
         for event in events_model.read_events(serve.page_dir)
@@ -1687,9 +1691,15 @@ def test_structured_data_explorer_keeps_one_aggregate_query_configuration(
     editor.press("End")
     editor.press_sequentially("x")
     editor.press("ArrowLeft")
-    rows.nth(1).get_by_role("button", name="Move filter 2 up").evaluate(
+
+    # Each row is a group named by its place, so its buttons say only what they do.
+    def filter_row(place):
+        return page.get_by_role("group", name=f"Filter {place}", exact=True)
+
+    filter_row(2).get_by_role("button", name="Move up", exact=True).evaluate(
         "button => button.click()"
     )
+    expect(filter_row(1)).to_have_attribute("data-filter-id", "filter-2")
     expect(editor).to_be_focused()
     assert editor.evaluate("input => input.selectionStart") == len("europe")
     editor.press("ControlOrMeta+z")
@@ -1703,7 +1713,7 @@ def test_structured_data_explorer_keeps_one_aggregate_query_configuration(
     expect(rows.nth(2).get_by_label("Value")).to_be_focused()
     rows.nth(2).get_by_label("Value").fill("risk")
     expect(page.locator(".query-result-count")).to_have_text("1 release shown")
-    rows.nth(2).get_by_role("button", name="Remove filter 3").click()
+    filter_row(3).get_by_role("button", name="Remove", exact=True).click()
     expect(rows).to_have_count(2)
 
     playground.get_by_role("button", name="Up to 6 results").click()
@@ -1735,8 +1745,8 @@ def test_structured_data_explorer_keeps_one_aggregate_query_configuration(
         "filter-2",
     ]
     expect(instruction).to_contain_text("region is europe and risk above 40")
-    rows.nth(1).get_by_role("button", name="Remove filter 2").click()
-    rows.first.get_by_role("button", name="Remove filter 1").click()
+    filter_row(2).get_by_role("button", name="Remove", exact=True).click()
+    filter_row(1).get_by_role("button", name="Remove", exact=True).click()
     expect(rows).to_have_count(0)
     expect(instruction).to_contain_text("Apply no filters")
     expect(page.locator(".query-result-count")).to_have_text("4 releases shown")

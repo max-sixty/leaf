@@ -487,7 +487,8 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge {
     gap: var(--lf-cell-gap);
     /* The authored options paint before the generated Add and Done cells, so their rows
      * are held until upgrade and the next block stays put. Add is one option line inside
-     * the same inset and edge as the option it becomes. */
+     * the same inset and edge as the option it becomes. A `closed` group never draws
+     * Add, so it holds no row for it. */
     --lf-add-cell-height: calc(
       var(--lf-option-line) + 2 * (var(--lf-option-pad-block) + var(--lf-cell-edge))
     );
@@ -498,7 +499,7 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge {
           (var(--lf-option-pad-block) + var(--lf-cell-edge))
       );
     }
-    &:not(:where(.lf-chrome *)):not(:has(> .lf-another)) {
+    &:not(:where(.lf-chrome *)):not([closed]):not(:has(> .lf-another)) {
       --lf-missing-cells: var(--lf-add-cell-height);
       --lf-missing-add: calc(var(--lf-add-cell-height) + var(--lf-cell-gap));
     }
@@ -507,7 +508,9 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge {
     }
     /* The reserve is a cell standing in for the missing ones, and the gap above it for
      * the gap above them; it exists only while a cell is missing. */
-    &:where([data-lf-interactive] *):not(:where(.lf-chrome *)):not(:has(> .lf-another)),
+    &:where([data-lf-interactive] *):not(:where(.lf-chrome *)):not([closed]):not(
+        :has(> .lf-another)
+      ),
     &:where([data-lf-interactive] *)[multiple]:not(:has(> lf-options-done)) {
       &::after {
         content: "";
@@ -780,10 +783,8 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge {
     > lf-option:has(> .lf-pick[data-lf-focus-visible]) {
     outline: var(--focus-ring);
   }
-  /* The landing reads the row's ring carrier in the focus task, before the
-   * visible-focus marker is painted. */
   lf-options[choose]:not([settled]):not(:where([data-lf-exhibit]) *)
-    > lf-option:has(> .lf-pick:focus) {
+    > lf-option:has(> .lf-pick[data-lf-focus]) {
     --lf-wears-ring: 1;
   }
   /* The add field's own outline is off, so its row answers the keyboard for it, in a

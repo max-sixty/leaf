@@ -787,9 +787,10 @@ def claim_page(page_dir: Path) -> bool:
 def cmd_claim(page_dir: Path, *, manual_delivery: bool = False) -> dict:
     """Connect delivery before publishing ownership, without starting a server.
 
-    An explicit watcher claims with manual_delivery before its first wait. Hooks do
-    not prepare adapters, so this interval leaves delivery to that watcher; once its
-    wait is live, ordinary serving and reclaiming preserve the selected watch.
+    An explicit watcher claims with manual_delivery before its first wait, in the
+    same turn, and only a prompt hook serving a page again prepares an adapter
+    (`reconnect`), so this interval leaves delivery to that watcher; once its wait is
+    live, ordinary serving and reclaiming preserve the selected watch.
     """
     from leaf.harness import session_harness
     from leaf.session_runtime import select_checkout

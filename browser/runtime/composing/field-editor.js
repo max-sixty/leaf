@@ -864,13 +864,17 @@ function fieldEditor(
         const markers = placement.markers ?? [];
         const body = token.content.split("\n");
         if (body.at(-1) === "") body.pop();
-        const opened = state.doc.lineAt(from).number + (markers.length ? 1 : 0);
+        // Words on the opening line are the code's first line (markdown.js,
+        // `fence_words`), which then takes the padding its fence line stood for.
+        const opening = state.doc.lineAt(from);
+        const inline = markers.length > 0 && (markers[0]?.[1] ?? 0) < opening.to;
+        const opened = opening.number + (markers.length && !inline ? 1 : 0);
         lines(from, to, (each) => {
           const first = each.from <= from;
           const last = each.to + 1 >= to;
           const ends = [
             first ? " lf-md-code-first" : "",
-            first && !markers.length ? " lf-md-code-pad-start" : "",
+            first && (!markers.length || inline) ? " lf-md-code-pad-start" : "",
             last ? " lf-md-code-last" : "",
             last && markers.length < 2 ? " lf-md-code-pad-end" : "",
           ].join("");
@@ -882,10 +886,12 @@ function fieldEditor(
           add(start, start + lead - indentation(kept), hide);
         });
         // A fence's lines stand for the message's code padding, and each shows its
-        // marks while the caret is on it.
+        // marks while the caret is on it. Marks with code beside them hide as a code
+        // span's do, standing the code under the line below.
         for (const [a, b] of markers) {
           const fence = state.doc.lineAt(a);
-          add(a, b, touches(state, fence.from, fence.to) ? dim : unseen);
+          const away = inline && fence.from === opening.from ? hide : unseen;
+          add(a, b, touches(state, fence.from, fence.to) ? dim : away);
         }
       } else if (isBlockPlacement(placement, "blockquote_open")) {
         boxes.push(box(from, to, token.level, { class: "lf-md-quote lf-face-quote" }));
@@ -1044,7 +1050,17 @@ function fieldEditor(
       }),
       selection.mainIndex,
     );
-    if (moved.eq(selection)) return false;
+    // A step that moves no caret leaves the press to the keys after this one, as Down
+    // on the last line leaves a code block (`leaveCode`), though it would drop the goal
+    // column a vertical step carries.
+    if (
+      moved.ranges.every(
+        (range, at) =>
+          range.anchor === selection.ranges[at]?.anchor &&
+          range.head === selection.ranges[at]?.head,
+      )
+    )
+      return false;
     view.dispatch({ selection: moved, scrollIntoView: true, userEvent: "select" });
     return true;
   };
@@ -1359,6 +1375,105 @@ function fieldEditor(
     return true;
   }
 
+  // What begins a line below the one holding `at` in the quotes and list items that
+  // line stands in, as the preview reads the draft, or null where `at` stands before
+  // their markers end.
+  /** @param {EditorState} state @param {number} at */
+  function beginBelow(state, at) {
+    const { placed } = state.field(reading);
+    const line = state.doc.lineAt(at);
+    const containers = placed.filter(container).filter(holding(placed, line));
+    if (at < opened(line, containers)) return null;
+    return `\n${containers.map(carried).join("")}`;
+  }
+
+  // The code block, fenced or indented, that the line holding `at` stands in, as the
+  // preview reads the draft, and which of its fence's lines that line is, or null where
+  // no code holds it.
+  /** @param {EditorState} state @param {number} at */
+  function codeAt(state, at) {
+    const { placed } = state.field(reading);
+    const line = state.doc.lineAt(at);
+    const holds = holding(placed, line);
+    const fence = placed.find((c) => isCode(c.token) && holds(c));
+    if (!fence) return null;
+    const markers = fence.markers ?? [];
+    const [opening, closing] = markers.map(([a]) => a >= line.from && a <= line.to);
+    const containers = placed.filter(container).filter(holds);
+    return {
+      line,
+      fence,
+      opening,
+      closing,
+      // No marks close it, and this line is the last it holds.
+      open: markers.length < 2 && line.to + 1 >= fence.to,
+      begin: beginBelow(state, line.to) ?? "\n",
+      // The words on a line up to `to`, past its containers' markers.
+      /** @param {import("@codemirror/state").Line} l @param {number} [to] */
+      words: (l, to = l.to) => state.sliceDoc(opened(l, containers), to).trim(),
+    };
+  }
+
+  // Down from the draft's last line begins a line below the code block that holds it, in
+  // place of the blank lines ending its code: after the closing marks an open fence
+  // lacks, or after a blank line that ends an indented block's code, whose indent the
+  // preview hides and Return carries outside a quote or list item. Nothing else reaches
+  // a line below code the draft ends with. Rich editors leave a code block the same way.
+  /** @param {EditorView} view */
+  function leaveCode(view) {
+    const { state } = view;
+    const { main } = state.selection;
+    const at = main.empty ? codeAt(state, main.head) : null;
+    if (!at || state.readOnly) return false;
+    const { line, fence, closing, begin, words } = at;
+    let last = line;
+    while (!closing && !words(last) && last.number > 1)
+      last = state.doc.line(last.number - 1);
+    const change = closing
+      ? { from: line.to, insert: begin }
+      : { from: last.to, to: line.to, insert: begin + fence.token.markup + begin };
+    view.dispatch(
+      state.update({
+        changes: change,
+        selection: { anchor: change.from + change.insert.length },
+        scrollIntoView: true,
+        userEvent: "input",
+        annotations: isolateHistory.of("full"),
+      }),
+    );
+    return true;
+  }
+
+  // Where a line break goes so that text put at the caret leaves a fence's marks as
+  // marks, or null where it needs none. Words after closing marks start the line below,
+  // as words after a code span's closing backtick stand outside it. A paste after
+  // opening marks, or after a language, starts the code. A run of marks completed at the
+  // end of an open fence's code takes a line of its own, where it closes the fence, and
+  // the caret stays after it for the words that go below. The source stays a fence every
+  // Markdown reader takes alike, and marks meant as code stay code in a longer fence or
+  // a paste. Rejected: a closing fence the message's reading finds at a line's end, which
+  // leaves the next words in the code and misreads an agent's code whose line ends in
+  // marks; and closing only as the caret leaves the line, which shows nothing at the
+  // closing backtick.
+  /** @param {EditorState} state @param {string} put @param {boolean} pasted */
+  function fenceBreak(state, put, pasted) {
+    const { head: caret, empty } = state.selection.main;
+    const at = empty ? codeAt(state, caret) : null;
+    if (!at || caret !== at.line.to) return null;
+    const { fence, line, opening, closing, open, words } = at;
+    const { markup } = fence.token;
+    const mark = markup.charAt(0);
+    if (closing) return put.startsWith(mark) ? null : caret;
+    if (opening) {
+      const marks = (fence.markers?.[0]?.[0] ?? line.from) + markup.length;
+      const language = !/\s/.test(state.sliceDoc(marks, caret).trim());
+      return pasted && language ? caret : null;
+    }
+    const run = caret - markup.length + 1;
+    const closes = put === mark && line.text.endsWith(markup.slice(1));
+    return open && !pasted && closes && words(line, run) ? run : null;
+  }
+
   /** @param {boolean} deeper @returns {(view: EditorView) => boolean} */
   const nest = (deeper) => (view) => {
     const { state } = view;
@@ -1473,6 +1588,55 @@ function fieldEditor(
           });
           return breaks.length ? [tr, { changes: breaks, sequential: true }] : tr;
         }),
+        EditorState.transactionFilter.of((tr) => {
+          const pasted = tr.isUserEvent("input.paste");
+          if (
+            field.oneLine() ||
+            !(pasted || tr.isUserEvent("input.type")) ||
+            tr.isUserEvent("input.type.compose")
+          )
+            return tr;
+          // The one change that puts text in place of the selection.
+          const { startState: state } = tr;
+          const { from: start, to: end } = state.selection.main;
+          let put = "";
+          let at = start;
+          tr.changes.iterChanges((from, to, fromB, _toB, inserted) => {
+            if (from === start && to === end) {
+              put = inserted.toString();
+              at = fromB;
+            }
+          });
+          if (!put) return tr;
+          // Pasted code stays in the quotes and list items the caret stands in, as a
+          // line begun with Shift+Enter does, since code's lines don't continue them
+          // lazily as a paragraph's do. Pasted prose keeps its own markers, so a pasted
+          // item stays the item it was.
+          const begin = beginBelow(state, start);
+          const code =
+            codeAt(state, start) !== null || /^ {0,3}(`{3,}|~{3,})/m.test(put);
+          const lines =
+            pasted && code && begin && begin !== "\n"
+              ? [...put.matchAll(/\n/g)].map(({ index }) => ({
+                  from: at + index,
+                  to: at + index + 1,
+                  insert: begin,
+                }))
+              : [];
+          const from = fenceBreak(state, put, pasted);
+          const changes =
+            from === null ? lines : [{ from, insert: begin ?? "\n" }, ...lines];
+          return changes.length
+            ? [
+                tr,
+                {
+                  changes,
+                  sequential: true,
+                  annotations: isolateHistory.of("full"),
+                },
+              ]
+            : tr;
+        }),
         invertedEffects.of((tr) =>
           tr.effects
             .filter((effect) => effect.is(ownerStep))
@@ -1511,6 +1675,8 @@ function fieldEditor(
               true
             ),
           },
+          // Down reaches here only where the caret has no line below (`lineStep`).
+          { key: "ArrowDown", run: (view) => !field.oneLine() && leaveCode(view) },
           ...standardKeymap.filter(
             ({ key }) => key !== "Escape" && key !== "Enter" && key !== "Mod-Enter",
           ),

@@ -9,6 +9,7 @@ from interact_support import append_carried_log_record
 from playwright.sync_api import expect
 from render_cases_interaction import OBLIGATION_PAGE, PANEL_PAGE, panel_comment
 from render_harness import (
+    LONG_PAGE,
     PANEL,
     holding,
     leaf_page,
@@ -325,14 +326,16 @@ NEWS_BESIDE_HEAD = """([notice, head]) => {
 
 @pytest.mark.parametrize("finger", [False, True])
 def test_a_card_s_head_stands_whole_beside_news(browser, serve, finger):
-    """A card holding news while the user writes: the notice takes only the room the
-    head of the user's message leaves beside its name and time, and stands clear of
-    it. On a desktop card, with Previous and Next for its target's two threads, the
-    head keeps "Me" and its time whole. On a card at its least width under a finger,
-    whose three controls, the notice and the head's Edit each take a finger's width,
-    the head keeps "Me" whole and gives up its time, as any narrow head does before its
-    name; a touch screen as wide as 1400 stands that card beside its words. The notice
-    says one count, "2 new", on either. Drawn whole, the notice stood over the head."""
+    """A card holding news while the user writes, an agent's edit above the thread's
+    end with a new reply, which waits wherever the card stands: the notice takes only
+    the room the head of the user's message leaves beside its name and time, and
+    stands clear of it. On a desktop card, with Previous and Next for its target's two
+    threads, the head keeps "Me" and its time whole. On a card at its least width
+    under a finger, whose three controls, the notice and the head's Edit each take a
+    finger's width, the head keeps "Me" whole and gives up its time, as any narrow
+    head does before its name; a touch screen as wide as 1400 stands that card beside
+    its words. The notice says one count, "2 new", on either. Drawn whole, the notice
+    stood over the head."""
     url = serve(PANEL_PAGE)
     # Written 51 days ago, so the time reads "51d ago" however slowly the test runs:
     # "just now" turned "1m ago", narrow enough to stand whole on the phone.
@@ -347,6 +350,7 @@ def test_a_card_s_head_stands_whole_beside_news(browser, serve, finger):
             "ts": (datetime.now().astimezone() - timedelta(days=51)).isoformat(),
         },
     )["id"]
+    first = append_agent_reply(serve.page_dir, root, "The status line can drop one.")
     if finger:
         context = browser.new_context(
             viewport={"width": 1400, "height": 844}, has_touch=True, is_mobile=True
@@ -362,15 +366,21 @@ def test_a_card_s_head_stands_whole_beside_news(browser, serve, finger):
     preview.get_by_role("textbox", name="Reply", exact=True).click()
     page.keyboard.type("Also check the dark scheme")
     rendered(page)
-    thread_model.post_reply(
+    append_carried_log_record(
         serve.page_dir,
-        {"parent": root, "responds": root},
-        "The status line can drop one weight.",
+        {
+            "kind": "edit",
+            "author": "agent",
+            "agent": "Codex",
+            "session": "pytest-summary",
+            "message": first["id"],
+            "text": "The status line can drop one weight.",
+        },
     )
-    append_user_reply(serve.page_dir, root, "Sent from my other tab.")
+    append_agent_reply(serve.page_dir, root, "And the banner can keep its own.")
     told(page)
     notice = preview.locator(".lf-margin-thread-controls .lf-thread-news")
-    expect(notice).to_have_attribute("title", "1 new reply · 1 new message")
+    expect(notice).to_have_attribute("title", re.compile("1 new reply"))
     expect(notice).to_have_text("2 new")
     rendered(page)
     card = preview.locator(f'.lf-page-thread[data-lf-thread="{root}"]')
@@ -381,7 +391,8 @@ def test_a_card_s_head_stands_whole_beside_news(browser, serve, finger):
     assert stands["notice"] >= stands["head"] - 0.5, stands
     assert stands["time"] <= stands["edit"] + 0.5, stands
     times = card.evaluate(TIMES_WHOLE)
-    assert times and all(time["whole"] != finger for time in times), times
+    # The user's message, the head beside the notice.
+    assert times and times[0]["whole"] != finger, times
     name = head.locator("b")
     expect(name).to_have_text("Me")
     assert name.evaluate("node => node.scrollWidth <= node.clientWidth")
@@ -389,9 +400,13 @@ def test_a_card_s_head_stands_whole_beside_news(browser, serve, finger):
 
 @pytest.mark.watch_shifts
 def test_a_card_above_its_target_holds_news_it_would_grow_up_for(browser, serve):
-    """A card standing above what it is about holds its foot, so a step would carry
-    its head row and messages up: the step waits even with no draft, with no notice,
-    since progress is no unread news, and shows when the user opens the card again."""
+    """A card standing above what it is about holds its foot, so a step grows it up
+    past its head row and messages. With the user in its reply box, where a click's
+    opening leaves the caret, the step shows at once: the card rises from the box,
+    which stays where it stands, and the watch credits the rise the card declares.
+    With the user on the thread instead, the next step waits, with no notice, since
+    progress is no unread news, and shows when the user opens the card again
+    (thread-preview.js, `endNewsMoves`)."""
     url = serve(PANEL_PAGE)
     root = panel_comment(serve.page_dir, "Make the banner quieter", {"section": "m19"})
     address = {"parent": root, "responds": root}
@@ -404,8 +419,13 @@ def test_a_card_above_its_target_holds_news_it_would_grow_up_for(browser, serve)
     page.locator(".lf-margin-marker").first.click()
     preview = page.locator(".lf-margin-preview")
     expect(preview).to_have_attribute("data-lf-thread-placement", "above")
+    box = preview.locator(".lf-thread-reply leaf-text")
+    expect(box).to_be_focused()
     rendered(page)
+    # Keep Chrome's native clock and deliver news after its 500 ms input grace period.
+    page.wait_for_timeout(600)
     opened = preview.bounding_box()
+    writing = box.bounding_box()
     thread_model.post_reply(
         serve.page_dir,
         address,
@@ -415,14 +435,29 @@ def test_a_card_above_its_target_holds_news_it_would_grow_up_for(browser, serve)
     )
     told(page)
     working = preview.locator(".lf-thread-working-words")
-    expect(working).to_have_text("Reading the banner's styles")
+    expect(working).to_contain_text("the change")
+    rendered(page)
+    risen = preview.bounding_box()
+    assert risen["y"] < opened["y"] - 10, (opened, risen)
+    assert box.bounding_box() == pytest.approx(writing, abs=0.5)
+
+    page.keyboard.press("Escape")
+    expect(preview.locator(".lf-page-thread")).to_be_focused()
+    rendered(page)
+    page.wait_for_timeout(600)
+    reading = preview.bounding_box()
+    thread_model.post_reply(
+        serve.page_dir, address, "Checking the banner in both schemes.", ephemeral=True
+    )
+    told(page)
+    expect(working).to_contain_text("the change")
     expect(preview.locator(".lf-thread-news")).to_have_count(0)
     rendered(page)
-    assert preview.bounding_box() == pytest.approx(opened, abs=0.5)
+    assert preview.bounding_box() == pytest.approx(reading, abs=0.5)
     preview.get_by_role("button", name="Dismiss thread view", exact=True).click()
     expect(preview).to_be_hidden()
     page.locator(".lf-margin-marker").first.click()
-    expect(working).to_contain_text("the change")
+    expect(working).to_contain_text("both schemes")
 
 
 def test_the_shipped_long_thread_keeps_the_margin_and_its_height(browser, serve):
@@ -919,6 +954,61 @@ def test_news_while_a_card_s_row_is_scrolled_away_leaves_the_card_open(browser, 
     rendered(page)
     expect(card).to_be_visible()
     expect(card).to_contain_text("missed rows taken late")
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_tab_reaching_a_card_the_page_carried_away_brings_it_back(
+    request, serve, engine
+):
+    """Past the page's last stop, Tab reaches the chrome, whose first stop can stand in a
+    card the user scrolled away from. Firefox can't reveal a control in a box fixed over
+    the page, so the card comes back with the control. Left away, the next Tab would let
+    go of a control the user can't see and land where Tab reaches the same one again."""
+    url = serve(
+        LONG_PAGE,
+        events=[
+            {
+                "kind": "comment",
+                "author": "user",
+                "revision": 1,
+                "text": "Does this paragraph need a source?",
+                "anchor": {"section": "p2"},
+            }
+        ],
+    )
+    page = open_page(request.getfixturevalue(engine), url)
+    resized(page, 1440, 900)
+    page.locator('.lf-margin-marker[data-lf-kinds="comment"]').click()
+    card = page.locator(".lf-margin-preview")
+    expect(card.locator("leaf-text")).to_be_focused()
+    page.keyboard.press("Escape")
+    expect(card.locator(".lf-page-thread")).to_be_focused()
+    page.mouse.move(700, 450)
+    for _ in range(4):
+        page.mouse.wheel(0, 800)
+    page.wait_for_function("() => scrollY > 2000")
+    scroll_settled(page)
+    rendered(page)
+    expect(card).not_to_be_in_viewport()
+
+    def control_in_card():
+        return page.evaluate(
+            """() => {
+              let at = document.activeElement;
+              while (at?.shadowRoot?.activeElement) at = at.shadowRoot.activeElement;
+              return at?.closest('.lf-margin-preview') ? at.outerHTML : null;
+            }"""
+        )
+
+    page.keyboard.press("Tab")
+    expect(card).to_be_in_viewport()
+    scroll_settled(page)
+    rendered(page)
+    reached = control_in_card()
+    assert reached
+    page.keyboard.press("Tab")
+    rendered(page)
+    assert control_in_card() not in (None, reached)
 
 
 def test_the_rail_tab_stop_follows_a_carried_row_back_into_view(browser, serve):

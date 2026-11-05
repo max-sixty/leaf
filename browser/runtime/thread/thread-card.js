@@ -49,9 +49,10 @@
    hiding it, as `g u` goes to the page's (read.js). Whether this opening of the thread
    offers it is decided once the container has landed the opening and a pass of read
    tracking has read what it shows whole (`settled`): it does where a reply still stands
-   unread, and its seat then stands while the view does, the press unoffered once none
-   is left, so reading moves nothing beside it. Until then, and where every reply showed
-   whole, nothing stands there. Replies arriving later need none: New reply leads to one
+   unread. Once none is left the press is unoffered and its seat stands, so reading
+   moves nothing beside it; a margin card draws nothing instead, since nothing on its
+   line moves for the press (annotation-chrome.css). Until then, and where every reply
+   showed whole, nothing stands there. Replies arriving later need none: New reply leads to one
    the user waits for, and the thread's notice to news it holds. Rejected: deciding as
    the view first drew, which offered Next unread for the moment before the opening read
    a short reply.
@@ -61,17 +62,16 @@
    the box and the edge it holds still, and says when the box stands at its size
    (`settled`). The agent's answer to the user's own last turn, work under way and a
    reply streaming included, may then have arrived past the box's foot. Where the user
-   stood at the box's end and it still stands at its end, as a card's transcript follows
-   its end by itself (thread-preview.js), the answer is in sight; where it stands short
-   of its end and their turn and the answer together fit in the box, its end follows the
-   answer into sight. Otherwise New reply stands at the box's foot until a press on it, or
-   the user scrolling there, shows the answer, or they send another turn, and a user who
-   stood at the end keeps their turn wholly in sight above the press, its head included.
-   So a card that follows its end says New reply only to a reader who has scrolled back,
-   who would otherwise miss the answer; at its cap its end scrolls their turn away, as it
-   did before the card had New reply. The user chose New reply for the panel on 14 October
-   2026, and the rest of the floating panel's growth with it (floating-panel.js, which
-   records it); the margin card gained it on 4 November, so one mechanism serves both. */
+   stood at the box's end and their turn and the answer together fit in the box, its end
+   follows the answer into sight. Otherwise New reply stands at the box's foot until a
+   press on it, or the user scrolling there, shows the answer, or they send another turn,
+   and a user who stood at the end keeps their turn wholly in sight above the press, its
+   head included. Until then the answer is this thread's to place (`answering`), and a
+   box that follows its end, as a card's transcript does (thread-preview.js), leaves it
+   be. The user chose New reply for the panel on 14 October 2026, and the rest of the
+   floating panel's growth with it (floating-panel.js, which records it); the margin
+   card gained it on 4 November, so one mechanism serves both, and that mechanism's rule
+   at its end, under the user's request for one thread view (card-anchor.js). */
 import { nextRender, sizeObserver } from "../rendering.js";
 import {
   holdFocus,
@@ -110,7 +110,6 @@ import {
   threadHoldsDraft,
 } from "./replies.js";
 import {
-  atScrollEnd,
   followsEnd,
   moveScrollerBy,
   SCROLL_SLACK,
@@ -905,6 +904,12 @@ export class ThreadView {
     return this.node;
   }
 
+  // Whether an answer to the user's turn is the thread's to place: one not yet fitted,
+  // or one New reply stands for (the header).
+  get answering() {
+    return Boolean(this.#unfitted || this.#waiting);
+  }
+
   // The container has stood the thread where it draws it: its scroller at its size, and
   // a new opening landed where it shows first. What the thread reads of them waits for
   // this (the header).
@@ -927,6 +932,7 @@ export class ThreadView {
     return html`<button
       type="button"
       ${offeredAction("inline", "lf-next-unread")}
+      title="Next unread"
       ?disabled=${!left}
       ?data-lf-unoffered=${!left}
       @click=${() => void this.#commands.read.firstUnread(key)}
@@ -979,7 +985,6 @@ export class ThreadView {
     // it takes over a New message the work left waiting.
     if (!waiting && scroller.scrollHeight <= before.extent + 0.5) return;
     const atEnd = before.limit - scroller.scrollTop <= SCROLL_SLACK;
-    if (!waiting && atEnd && atScrollEnd(scroller)) return;
     const pad = Number.parseFloat(getComputedStyle(scroller).paddingTop);
     const from = () =>
       turn.getBoundingClientRect().top - scroller.getBoundingClientRect().top - pad;

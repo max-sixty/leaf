@@ -435,8 +435,25 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item ~ .lf-chrome .lf-mark-el
     padding-inline: 4px;
     font: var(--font-fine);
   }
-  /* An open rewrite's Discard and Save take the room beside the actions (below), which
-     a narrow card under a finger can't also give Next unread. */
+  /* Beside Previous and Next, on the line whose room a head's name and time share, the
+     press stands on its symbol, its words its tooltip and its name. Drawn whole it left
+     a two-thread card's heads "Me ju". Under a finger, where each press is a finger wide,
+     even its symbol left a head no name or time, so a card draws none there, and a finger
+     scrolls to the unread reply. */
+  .lf-margin-thread-controls:has(.lf-margin-preview-nav) .lf-next-unread {
+    justify-content: center;
+    gap: 0;
+    inline-size: var(--aim-floor);
+    padding-inline: 0;
+    font-size: 0;
+    @media (pointer: coarse) {
+      display: none;
+    }
+  }
+  /* Nothing on the line moves for the press, so a card keeps no seat for it. Nor do an
+     open rewrite's Discard and Save (below), which take the room beside the actions, and
+     which a narrow card under a finger can't also give it. */
+  .lf-margin-thread-controls .lf-next-unread[data-lf-unoffered],
   .lf-margin-thread
     .lf-page-thread:has(.lf-msg-edit-actions)
     > .lf-margin-thread-controls

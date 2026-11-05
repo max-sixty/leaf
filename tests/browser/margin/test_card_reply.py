@@ -2127,7 +2127,8 @@ def test_a_card_offers_next_unread_for_a_reply_its_opening_left_unread(browser, 
     """A card that opens on a reply too long to show whole leaves it unread, so Next
     unread stands on its head line, drawn by the thread as in the floating panel's view
     (thread-card.js, `settled`). A press on it, or a key, lands on that reply; once
-    every reply reads it is no longer offered, though its seat stays."""
+    every reply reads a card draws nothing for it, since nothing on its line moves for
+    the press."""
     short_reply = {
         **LONG_THREAD[1],
         "text": "Landed: the first two now close to the page.",
@@ -2166,6 +2167,7 @@ def test_a_card_offers_next_unread_for_a_reply_its_opening_left_unread(browser, 
     expect(transcript.locator(".lf-msg-new")).to_have_count(0)
     expect(press).to_be_hidden()
     expect(press).to_be_disabled()
+    assert press.evaluate("press => getComputedStyle(press).display") == "none"
 
 
 def test_next_unread_never_shows_in_a_card_whose_opening_reads_its_reply(
@@ -2196,12 +2198,13 @@ def test_next_unread_never_shows_in_a_card_whose_opening_reads_its_reply(
 
 
 def test_a_card_says_new_reply_for_an_answer_past_its_transcript_s_foot(browser, serve):
-    """The answer the user waits for, arriving while they read back up the card's capped
-    transcript, says New reply at the transcript's foot, and their place holds, where
-    they would otherwise miss it (thread-card.js, `#fitAnswer`). A press, a key on the
-    press, or scrolling to the answer's start takes it away, and so does their next
-    turn; the press and the key show the answer's start, on the thread. A reader at the
-    transcript's end needs none, since it follows its end as words join it."""
+    """The answer the user waits for, arriving past the card's capped transcript's foot,
+    says New reply there, by the floating panel's rule (thread-card.js, `#fitAnswer`). A
+    reader who read back keeps their place. One at the transcript's end keeps their turn
+    in sight above the answer, unless the two fit together, when the end shows both. A
+    press, a key on the press, or scrolling to the answer's start takes it away, and so
+    does their next turn; the press and the key show the answer's start, on the
+    thread."""
     page, preview, transcript = open_long_thread(browser, serve)
     thread = preview.locator(".lf-page-thread")
     press = preview.locator(".lf-new-reply")
@@ -2243,10 +2246,31 @@ def test_a_card_says_new_reply_for_an_answer_past_its_transcript_s_foot(browser,
         rendered(page)
         return message
 
-    turn("And the mobile cohort?")
-    answer("At the end: " + long_answer)
+    turn("And the short version?")
+    answer("At the end, in a line.")
     expect(press).to_have_count(0)
     assert transcript.evaluate(limit) - transcript.evaluate("l => l.scrollTop") <= 2
+
+    turn("And the mobile cohort?")
+    stood = transcript.evaluate(
+        """list => {
+          window.lfScrolled = [];
+          list.addEventListener('scroll', () => lfScrolled.push(list.scrollTop));
+          return list.scrollTop;
+        }"""
+    )
+    answer("At the end: " + long_answer)
+    expect(press).to_have_text("New reply")
+    # It never goes to its end on the way, which a frame could show.
+    scrolled = transcript.evaluate("() => window.lfScrolled")
+    assert max([stood, *scrolled]) - stood < 100, (stood, scrolled)
+    asked = transcript.locator(".lf-msg", has_text="And the mobile cohort?")
+    head = asked.locator(".lf-msg-head").bounding_box()
+    words = asked.bounding_box()
+    list_box = transcript.bounding_box()
+    assert list_box["y"] <= head["y"], (list_box, head)
+    assert words["y"] + words["height"] <= press.bounding_box()["y"], (words, press)
+    assert transcript.evaluate(limit) - transcript.evaluate("l => l.scrollTop") > 100
 
     turn("And the weekend?")
     read_back()
@@ -2257,6 +2281,8 @@ def test_a_card_says_new_reply_for_an_answer_past_its_transcript_s_foot(browser,
     foot = transcript.bounding_box()
     at = press.bounding_box()
     assert foot["y"] < at["y"] and at["y"] + at["height"] <= foot["y"] + foot["height"]
+    # A message head's height, as the thread's other actions are.
+    assert at["height"] == 28
     press.click()
     expect(press).to_have_count(0)
     expect(thread).to_be_focused()

@@ -123,8 +123,8 @@
  *   The user chose that (2026-10-14), reversing a blank line's room kept under every
  *   open view, which read in Threads as a missing row. Rejected there: the line pushing
  *   the view up as it comes. The view's last words scroll clear of New reply
- *   (thread/thread-card.js), the one thing that stands over the row. It is as tall as what it
- *   holds, so a one-message thread opens one message tall, up to most of the window's
+ *   (thread/thread-card.js), the one thing that stands over the row. It is as tall as
+ *   what it holds, so a one-message thread opens one message tall, up to most of the window's
  *   height, the larger size a long thread or a long Threads list is read at; past that
  *   it scrolls. The user chose views that fit their content with a larger size for long
  *   reading (2026-10-13); content alone reaches that size. Rejected: an Expand
@@ -1317,8 +1317,8 @@ export function createFloatingPanel({
   // rather than a route's name, and a new view is one entry here. A route names its
   // view and what that view shows. One that names a `thread` is that thread's view,
   // which Leaf's reader draws and whose height follows its messages, as the
-  // header's "Opened" says (`fitAnswer`, `holdThread`); every other view fits what the
-  // user chose it to show and holds that (`refit`, `holdRoom`).
+  // header's "Opened" says (`answersAtOnce`, `holdThread`); every other view fits what
+  // the user chose it to show and holds that (`refit`, `holdRoom`).
   // - `key`: what tells two routes of the view apart, where its name alone does not.
   // - `title`: its name, over it, on the way back to it and in the Escape that closes it;
   //   `head` in its heading where that says more, and `quiet` where something in view

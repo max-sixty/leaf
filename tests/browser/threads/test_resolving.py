@@ -556,6 +556,64 @@ def test_resolve_in_a_card_moves_on_to_the_next_thread_at_its_passage(browser, s
     assert page.evaluate("scrollY") == scrolled
 
 
+@pytest.mark.parametrize("step", ["resolve", "next"])
+def test_a_step_in_a_card_keeps_its_head_line_under_the_aim(browser, serve, step):
+    """A card risen for a tall thread stands where it stood when a shorter one takes over
+    its passage, so the controls on its head line stay where the user aims: a second
+    press at the same spot resolves the next thread rather than closing the card from
+    the blank margin (thread-preview.js, `place-stepped`). A tall thread taking over keeps
+    the place too, its transcript scrolling in the card."""
+    comment = {
+        "kind": "comment",
+        "author": "user",
+        "revision": 1,
+        "anchor": {"section": "bracket"},
+    }
+    said = ("A tall one. " * 300, "A short one.", "Another short one.")
+    page = open_page(
+        browser,
+        serve(OBLIGATION_PAGE, events=[{**comment, "text": text} for text in said]),
+    )
+    resized(page, 1440, 700)
+    page.locator('.lf-margin-marker[data-lf-kinds="comment"]').click()
+    card = page.locator(".lf-margin-preview")
+    position = card.locator(".lf-margin-preview-position")
+    resolve = card.get_by_role("button", name="Resolve thread", exact=True)
+    expect(position).to_have_text("1/3")
+    rendered(page)
+    stood = resolve.bounding_box()
+    width = card.bounding_box()["width"]
+    x, y = stood["x"] + stood["width"] / 2, stood["y"] + stood["height"] / 2
+
+    def stands_where_it_stood():
+        rendered(page)
+        now = resolve.bounding_box()
+        assert (now["x"], now["y"]) == pytest.approx((stood["x"], stood["y"]), abs=1)
+        assert card.bounding_box()["width"] == pytest.approx(width, abs=1)
+
+    if step == "next":
+        card.get_by_role("button", name="Next thread").click()
+        expect(position).to_have_text("2/3")
+        expect(card).to_contain_text(said[1])
+        stands_where_it_stood()
+        card.get_by_role("button", name="Previous thread").click()
+        expect(position).to_have_text("1/3")
+        expect(card).to_contain_text("A tall one.")
+        stands_where_it_stood()
+        return
+
+    page.mouse.move(x, y)
+    with sending(page, "the first resolve"):
+        page.mouse.click(x, y)
+    expect(position).to_have_text("1/2")
+    expect(card).to_contain_text(said[1])
+    stands_where_it_stood()
+    with sending(page, "the second resolve"):
+        page.mouse.click(x, y)
+    expect(card).to_contain_text(said[2])
+    stands_where_it_stood()
+
+
 def test_a_card_repaint_keeps_the_user_on_the_control_they_reached(browser, serve):
     """A repaint of an open card leaves the user's press where they aimed it.
 

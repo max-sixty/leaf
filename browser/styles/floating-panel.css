@@ -1249,9 +1249,6 @@
     margin-block-end: calc(-1 * var(--lf-fp-view-pad-end) - var(--sp-1));
     padding-block: 10px 6px;
   }
-  .lf-fp-view .lf-new-reply {
-    min-height: var(--lf-fp-press);
-  }
 
   /* A list's rows lay out as every list's do (controls.css, `.lf-rows`). */
   .lf-fp-label {

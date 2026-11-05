@@ -28,8 +28,12 @@
    holding the foot once a landing met the window's foot, which kept a shrinking
    draft's card lifted, detached from where it stood; and keeping a read card's top as
    an answer arrived, which scrolled its transcript once it met the window's foot and
-   hid the question above the answer. Below the subject it grows down to keep that
-   subject clear.
+   hid the question above the answer. Rising ends at the room's height, and an answer
+   past that used to take the transcript to its end, which hid the question all the
+   same. Since 4 November 2026 the thread keeps the user's turn in sight there and says
+   New reply at the foot (thread-card.js), as the floating panel does. That was done to
+   unify the two under the user's request for one thread view; they did not pick it.
+   Below the subject it grows down to keep that subject clear.
    Adoption keeps the editor's attachment ahead of any conversation hold.
    A preparation advances the press only when its placement lands and cannot
    overwrite a newer press captured during fitting. */
@@ -186,6 +190,13 @@ export class CardAnchor {
   /** @param {Set<string> | undefined} joined */
   newsMoves(joined) {
     return this.#writing() || this.#side === "top" || this.#keepsSend(joined);
+  }
+
+  // The card stepped to another thread at its passage (thread-preview.js, `select`). A
+  // press goes on holding through the step, whose result takes the pressed control's
+  // place. A send's hold is its own thread's.
+  stepped() {
+    this.#sent = null;
   }
 
   forget() {

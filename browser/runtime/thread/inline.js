@@ -436,6 +436,7 @@ export function renderMarginThread(host, thread, commands, outlets) {
       thread: view.node,
       transcript: view.transcript,
       settled: () => view.settled(),
+      answering: () => view.answering,
     }));
 }
 

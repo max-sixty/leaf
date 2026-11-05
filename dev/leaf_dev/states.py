@@ -660,6 +660,80 @@ def card_cluster_resolved(page: Page) -> None:
     settle(page)
 
 
+def card_next_unread_cluster(page: Page) -> None:
+    """The same card with a second thread at its passage, so Next unread shares the head
+    line with Previous and Next."""
+    client = PageClient(served_page.get().address)
+    client.post(
+        {
+            "kind": "comment",
+            "attempt": "stills-resync-second",
+            "text": "And does the resend keep their order?",
+            "anchor": {
+                "section": "off-t-resync",
+                "quote": "One reconnect in about 40",
+                "suffix": ". Nothing is lost — the ",
+            },
+        }
+    )
+    wait_until_ready(page, client.state(), through="state")
+    card_next_unread(page)
+
+
+def card_answer_at_cap(page: Page) -> None:
+    """A margin card at its cap, the user at its end after their own turn, with an answer
+    too long to show arrived: their turn stays in sight above New reply."""
+    long_reply("7b3e0a41")
+    open_card(page, page.locator(RESYNC_MARKER))
+    card = page.locator(".lf-margin-preview")
+    messages = card.locator(".lf-msg")
+    sent = messages.count() + 1
+    card.get_by_role("textbox", name="Reply", exact=True).click()
+    page.keyboard.insert_text("And over the weekend?")
+    page.keyboard.press("ControlOrMeta+Enter")
+    expect(messages).to_have_count(sent)
+    settle(page)
+    answer_the_turn()
+    expect(messages).to_have_count(sent + 1)
+    settle(page)
+
+
+def card_tall_cluster(page: Page) -> None:
+    """A margin card risen for a tall thread, the first of three at one passage, whose
+    other two are short."""
+    client = PageClient(served_page.get().address)
+    for word, text in (
+        ("Tall", "A question with a long preamble. " * 120),
+        ("Short", "A short question."),
+        ("Shorter", "Another."),
+    ):
+        client.post(
+            {
+                "kind": "comment",
+                "attempt": f"stills-tall-{word}",
+                "text": text,
+                "anchor": {"section": "plan-current"},
+            }
+        )
+    wait_until_ready(page, client.state(), through="state")
+    open_card(
+        page, page.locator('[data-lf-margin-for="plan-current"] .lf-margin-marker')
+    )
+    settle(page)
+
+
+def card_tall_cluster_resolved(page: Page) -> None:
+    """That card once Resolve has moved it on to a short thread: Resolve stands where the
+    pressed one stood."""
+    card_tall_cluster(page)
+    card = page.locator(".lf-margin-preview")
+    card.get_by_role("button", name="Resolve thread", exact=True).click()
+    expect(card.locator(".lf-margin-preview-position")).to_have_text(
+        re.compile(r"^\d/2$")
+    )
+    settle(page)
+
+
 def card_by_keyboard(page: Page) -> None:
     """The first margin card, opened by `t`, the keyboard's way to the next thread, so
     its thread holds a visible focus."""
@@ -2687,10 +2761,25 @@ STATES = (
         card_cluster_resolved,
         region=".lf-margin-preview",
     ),
+    # The whole window, so where Resolve stands reads across the two.
+    State("plan-card-tall-cluster", "review-a-plan", card_tall_cluster),
+    State("plan-card-tall-cluster-resolved", "review-a-plan", card_tall_cluster_resolved),
     State(
         "ship-card-next-unread",
         "ship-review",
         card_next_unread,
+        region=".lf-margin-preview",
+    ),
+    State(
+        "ship-card-next-unread-cluster",
+        "ship-review",
+        card_next_unread_cluster,
+        region=".lf-margin-preview",
+    ),
+    State(
+        "ship-card-answer-at-cap",
+        "ship-review",
+        card_answer_at_cap,
         region=".lf-margin-preview",
     ),
     State(

@@ -34,15 +34,16 @@
    reader's message and scroll position; another thread opens at its first unread
    message, else its latest, and the thread a comment's Send opened where the box's
    words stood (`showArrival`).
-   A new/growing agent turn follows only at the tail. An answer the user waits for that
-   arrives while they read back says New reply at the transcript's foot, and an opening
-   that leaves a reply unread offers Next unread on the head line. The thread draws both
-   (thread-card.js): the card names its transcript as the box scrolling the thread, and
-   tells the thread it stands each time a placement lands (`settled`). Landing, Send and
-   stepping may
-   move the reading; keepThreadLanding retains their destination through fitting until
-   a newer reading gesture ends that authority. Size is fitted before paint, so a sent
-   reply does not grow twice. Margin location and its keyboard ladder own dismissal
+   A new/growing agent turn follows only at the tail. An answer to the user's own turn
+   instead stays the thread's to place (`answering`), by the floating panel's rule: their
+   turn stays in sight above it, and New reply stands at the transcript's foot where it
+   runs past, or where they had read back. An opening that leaves a reply unread offers
+   Next unread on the head line. The thread draws both (thread-card.js): the card names
+   its transcript as the box scrolling the thread, and tells the thread it stands each
+   time a placement lands (`settled`). Landing, Send and stepping may move the reading;
+   keepThreadLanding retains their destination through fitting until a newer reading
+   gesture or an answer ends that authority. Size is fitted before paint, so a sent reply
+   does not grow twice. Margin location and its keyboard ladder own dismissal
    and target landing; the card keeps Send's focus on the thread that received it.
 
    Resolve moves the card on to the next open thread at its passage, the one after the
@@ -53,7 +54,16 @@
    November 2026 over closing the card onto its passage whatever else stood there, which
    left the card and the floating panel doing different things, and over moving on to
    the next open thread on the page, as the panel does, which scrolls the page under the
-   user after each Resolve. */
+   user after each Resolve.
+
+   A step to another thread at the passage, by Resolve, Previous or Next, keeps the card
+   where it stood, its top, its left edge and its width, so the controls on its head line
+   stand where the pressed ones stood and the next press lands on the next thread's
+   (`place-stepped`; browser/AGENTS.md, "Controls stay where the user aims"). The press's
+   hold goes with it (`select`), or the thread taking over would stand where a fresh card
+   does: below where a tall thread had risen. Resolving several in a row is the flow the
+   card's Resolve leans on. Above its subject the card keeps its foot instead, since a
+   taller thread held by its top would grow over the words it is about. */
 import {
   followsEnd,
   keepFoot,
@@ -127,7 +137,7 @@ import { CardAnchor } from "../thread/card-anchor.js";
  * arriving: boolean, sent: Pick<Origin, "fromEnd" | "field"> | null, away: boolean,
  * positionFrame: number, positionResult: PromiseWithResolvers<boolean> | null,
  * focusPending: {holding: Element | null} | null, withheldFocus: ReturnType<typeof holdFocus>,
- * transcript: HTMLElement | null, settled: (() => void) | null, place: ReturnType<typeof placeKeeper> | null,
+ * transcript: HTMLElement | null, settled: (() => void) | null, answering: (() => boolean) | null, place: ReturnType<typeof placeKeeper> | null,
  * stopRegion: (() => void) | null, stopFoot: (() => void) | null, side: ReturnType<typeof commentPlacement>, anchor: CardAnchor,
  * reading: {input: number, scroll: number, end: boolean} | null, itemView: {node: HTMLElement, body: HTMLElement} | null, width: number | null, scroller: Element, followed: boolean}} Session
  * @typedef {{latest: boolean, end: boolean, scroll: number, keepTop: boolean, transcript: HTMLElement}} Reading
@@ -378,8 +388,12 @@ export function createThreadPreview({
   // The card's transcript is re-rendered on every reading of its thread; a message holds
   // the user's place in it under the event id it is rendered with (user-place.js).
   /** @param {Session} session @param {ReturnType<typeof import("../thread/inline.js").renderMarginThread>[number]} reading */
-  function syncPreviewTranscript(session, { thread: card, transcript, settled }) {
+  function syncPreviewTranscript(
+    session,
+    { thread: card, transcript, settled, answering },
+  ) {
     session.settled = settled;
+    session.answering = answering;
     if (transcript === session.transcript) return;
     session.stopRegion?.();
     session.stopRegion = null;
@@ -561,7 +575,7 @@ export function createThreadPreview({
     if (!(worn >= 0) || cap < height - 0.5 || (overflow && cap > height + 0.5))
       preview.style.setProperty("--lf-thread-max-height", layoutPx(cap));
     if (reading?.latest) showArrival(session, reading.transcript);
-    else if (reading?.end) scrollToEnd(reading.transcript);
+    else if (reading?.end && !session.answering?.()) scrollToEnd(reading.transcript);
     return preview.getBoundingClientRect().height;
   }
   // A card opens on its first unread turn, else its latest, at that turn's start
@@ -816,7 +830,8 @@ export function createThreadPreview({
               layoutPx(Math.max(cut, -following.shadowReach())),
             );
         } else for (const edge of CUT_EDGES) preview.style.removeProperty(edge);
-        keepThreadLanding(previewList.querySelector(".lf-page-thread"));
+        if (!session.answering?.())
+          keepThreadLanding(previewList.querySelector(".lf-page-thread"));
         session.settled?.();
         session.positionResult?.resolve(true);
         session.positionResult = null;
@@ -851,6 +866,21 @@ export function createThreadPreview({
     if (carry && button) focusDestination(button, "return");
   }
 
+  // A session is one thread's selection, so a step to another thread at the passage is
+  // a new one. It adopts the frame the card stands in, as a card the user dropped does,
+  // and takes over the anchor, whose press it goes on keeping (the header).
+  /** @param {Entry} entry */
+  function stepFrame(entry) {
+    const from = previewSession;
+    return from?.entry.key === entry.key && from.followed && !from.away
+      ? {
+          from,
+          box: preview.getBoundingClientRect(),
+          placement: { ...from.side.capture(), moved: true },
+        }
+      : null;
+  }
+
   /** @param {Omit<Selection, "threadItem"> & {item: Item, origin?: Origin | null}} chosen @returns {Session} */
   function select({
     entry,
@@ -862,6 +892,7 @@ export function createThreadPreview({
     forced = false,
     disclosed = false,
   }) {
+    const step = origin ? null : stepFrame(entry);
     retirePreviewSession();
     /** @type {Session} */
     const session = {
@@ -886,18 +917,19 @@ export function createThreadPreview({
       withheldFocus: null,
       transcript: null,
       settled: null,
+      answering: null,
       place: null,
       reading: null,
       stopRegion: null,
       stopFoot: null,
       side: commentPlacement(),
-      anchor: new CardAnchor(preview),
+      anchor: step?.from.anchor ?? new CardAnchor(preview),
       // The width the card stands at for this selection, in client pixels: the box's
-      // Send replaced, so the two are one rectangle, else the one it first stood at, or
-      // was carried at (`placeThreadPreview`). Sized by itself, Firefox stood a one-line
-      // comment's card 13px wider than its box.
+      // Send replaced, so the two are one rectangle, or the thread it stepped from, else
+      // the one it first stood at, or was carried at (`placeThreadPreview`). Sized by
+      // itself, Firefox stood a one-line comment's card 13px wider than its box.
       itemView: null,
-      width: origin?.box.width ?? null,
+      width: (origin ?? step)?.box.width ?? null,
       scroller: pageScroller,
       // Whether the card's placement has landed for this selection, whose first spot its
       // motion follows from (`placeThreadPreview`).
@@ -906,6 +938,10 @@ export function createThreadPreview({
     previewSession = session;
     tick(cardRevision);
     if (origin) session.side.adopt(origin);
+    if (step) {
+      session.side.adopt(step);
+      session.anchor.stepped();
+    }
     // A card Send opened stands at once where its box stood and grows out of the box's
     // field, rather than fade in (annotation-chrome.css).
     keeps(preview, "data-lf-grows", origin ? "" : null);

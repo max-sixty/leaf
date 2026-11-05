@@ -117,7 +117,10 @@
    A surface the user carries by its grip (surface-grip.js) adopts its own dropped frame
    the same way, marked `moved` (`place-carried`). A moved surface carries its inline offset on every
    side, the left included, and its attachment limit stretches to take in the spot it
-   was dropped at, so it stands there and still leaves with what it is about.
+   was dropped at, so it stands there and still leaves with what it is about. A card
+   stepping to another thread at its text adopts the frame it stands in the same way
+   (`place-stepped`, thread-preview.js): a shorter thread keeps a top the last one rose
+   to, which the attachment limit would otherwise pull down to its row.
 
    The card's interaction owner (`thread/card-anchor.js`) chooses the edge to preserve.
    This solver knows only its physical attachment and landed rectangle. Focus and

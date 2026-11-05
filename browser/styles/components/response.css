@@ -79,6 +79,15 @@ leaf-composition-field {
 .lf-compose-placeholder-lead:not(:empty) ~ span {
   flex: none;
 }
+/* The word naming what entering the box does (composing/input.js, `enters`) stands
+   whole after the box's own words, which shorten first. */
+.lf-compose-placeholder > .lf-compose-placeholder-enters {
+  flex: none;
+  margin-inline-start: auto;
+}
+.lf-compose-placeholder > .lf-compose-placeholder-enters:empty {
+  display: none;
+}
 .lf-compose-placeholder-lead:empty {
   display: none;
 }

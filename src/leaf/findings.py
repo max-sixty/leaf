@@ -1894,12 +1894,13 @@ _TEXT = {
         " later"
     ),
     # A `leaf wait` (`session.Watch`, `session.read_watch_pass`): a server it brought
-    # back or could not, and why it ended.
+    # back or could not, and why it ended. A prompt hook that could not serve a
+    # session's page again says so too (`reconnect.serve_again`).
     "server-restarted": lambda at, v: (
         f"{v['page']}: server had died; restarted at {v['url']}"
     ),
     "revive-refused": lambda at, v: (
-        f"{v['page']}: server had died and did not start again: {v['error']}"
+        f"{v['page']}: server was down and did not start again: {v['error']}"
     ),
     "server-down": lambda at, v: (
         f"{v['page']}: server is not running; restart it with"

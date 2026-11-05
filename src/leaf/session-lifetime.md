@@ -34,7 +34,7 @@ The table lists each fact the fold reads, and when it stops being believed.
 | the harness runs Leaf's hooks for this session                         | `sessions/<session>.hooks`                                                                      | every Leaf hook                                                                                                                                                                                                                  | SessionEnd                                                                                                                                                                                                                            |
 | acknowledgement cursor                                                 | the greatest `through` among `receipt` events (`service.acknowledged`)                          | `delivery.receive_batch`, called by whatever confirms a delivery reached its consumer                                                                                                                                            | never; it only advances within its log                                                                                                                                                                                                |
 | pickup transition                                                      | a `pickup` event                                                                                | `queued`: Codex's adapter, when Codex accepts a batch it can't observe; `opened`, with session and turn: whatever puts the batch into a turn                                                                                     | never; each transition is idempotent                                                                                                                                                                                                  |
-| page claim: acquisition, session generation, display name, harness     | `<state-home>/claims/<page-key>.json`, located from the session's partition (`page-storage.md`) | `server start` from an agent harness                                                                                                                                                                                             | its generation ended or was replaced, or the harness lifetime is gone: the pid, the background job's record, the Claude desktop app's record of the session, or a desktop Codex chat's native transcript (`service.lifetime_is_live`) |
+| page claim: acquisition, session generation, display name, harness     | `<state-home>/claims/<page-key>.json`, located from the session's partition (`page-storage.md`) | `server start` from an agent harness, or its prompt hook serving the page again                                                                                                                                                  | its generation ended or was replaced, or the harness lifetime is gone: the pid, the background job's record, the Claude desktop app's record of the session, or a desktop Codex chat's native transcript (`service.lifetime_is_live`) |
 | service lifetime                                                       | `service.json`                                                                                  | `server start`: session or persistent                                                                                                                                                                                            | `leaf server stop`; a session server also retires when no live claim holds it                                                                                                                                                         |
 | Codex delivery record                                                  | `sessions/<session>.deliveries/`                                                                | the adapter, or an embedded App Server harness                                                                                                                                                                                   | moves under `history/` once every batch is receipted, and goes at the next scan that finds all its pages gone (`codex.py`)                                                                                                            |
 | Codex adapter log                                                      | `sessions/<session>.codex.log`                                                                  | the adapter, begun afresh at each adapter start                                                                                                                                                                                  | removed when the adapter retires owning no page                                                                                                                                                                                       |
@@ -201,11 +201,12 @@ handover the turn never confirmed becomes input again. Session death is neither
 completion nor an explicit stop, so work status and the desired service stay as they
 were.
 
-### Reconnect notices
+### Serving again at the next prompt
 
-Session-start and prompt hooks repeat `leaf server start <page>` for a page whose session
-service is enabled but whose ownership or server is down (`reconnect.py`, which lists
-the exclusions). The Stop hook never continues a turn to deliver one.
+Before it opens its turn or reads a page, the prompt hook serves again, as
+`leaf server start` would, each page the session still means to serve whose ownership
+or server is down, such as a resumed session's (`reconnect.py`, which lists the
+exclusions). The turn hears only of a page that did not start.
 
 ### Nudging a session with no watcher
 
@@ -246,9 +247,10 @@ Leaf cannot serve (`layer.incompatible_layer`). A page nothing will serve is los
 never served, or one whose revival was refused or died again. A refused revival leaves
 the service enabled until `server stop`. A lost
 page ends a wait that names it, and a session's wait once no other live page is left,
-with the `leaf server start` command that serves it. A stopped service is not lost
-(`session.Watch`): the wait watches it without reviving it until the page goes idle or
-changes hands.
+with the `leaf server start` command that serves it. A watch between turns ends then
+without waking the session, leaving the page to the next prompt. A stopped service is
+not lost (`session.Watch`): the wait watches it without reviving it until the page goes
+idle or changes hands.
 
 ### A session's files
 
@@ -267,7 +269,8 @@ whose harness died without a SessionEnd keeps its files.
 adapter can't retire for lack of pages during the handoff; `leaf page claim` prepares
 the harness's delivery and then publishes the claim without serving. Persistent and
 temporary serves prepare no delivery. An explicit watcher passes `--manual-delivery`
-before its first `leaf wait`, and hooks start no adapter in that interval.
+before its first `leaf wait` in the same turn, and only a prompt hook, serving a page
+again, starts an adapter.
 
 A serving producer holds the page's transition lock from bind through acceptance, so a
 second start or a stop waits for it and never adopts an uncommitted listener. A

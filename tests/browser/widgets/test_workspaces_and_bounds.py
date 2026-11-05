@@ -706,9 +706,10 @@ def test_the_page_end_clears_the_bottom_chrome_around_a_workspace(browser, serve
     """A document keeps its end room with a pane inside it; a workspace that flows gives
     its last block that room, and a full-height one does not scroll.
 
-    A grid of panes stacked on a phone ends the page with its last pane alone, so the
-    panes above it keep only their inset rather than the panel's row each. From 720px
-    wide the panes may stand side by side, held or flowing, and each keeps the room."""
+    Where the workspace flows, a grid of panes ends the page with the room below all its
+    panes, so the page's end clears the panel whichever pane ends it, and no pane keeps
+    the panel's row as an empty band of its own. Held, each pane's body scrolls to the
+    window's foot, and each keeps the room."""
     document = leaf_page(
         "a pane mid-document",
         f"""
@@ -755,27 +756,28 @@ def test_the_page_end_clears_the_bottom_chrome_around_a_workspace(browser, serve
     fills_the_window(page, page.locator("main"), True)
     page.close()
 
+    # Two columns at every width, the long pane first, so it ends the page on a phone.
     grid = leaf_page(
         "a workspace grid of panes",
         f"""<div id="cells">
-  <lf-pane id="first-pane" label="First"><div><p>First</p></div></lf-pane>
   {LONG_PANE}
+  <lf-pane id="second-pane" label="Second"><div><p>Second</p></div></lf-pane>
 </div>""",
-        head=regions_side_by_side("cells"),
+        head="<style>#cells { display: grid; grid-template-columns: 1fr 1fr; }</style>",
         layout="workspace",
     )
     page = open_page(browser, serve(grid))
-    resized(page, 390, 844)
-    pane_scroll_behavior(page, page.locator("#workspace-pane"), "flow")
-    assert foot_reserve(page, "#first-pane") == 0
-    assert foot_reserve(page) > 0
-    end = clear_of_the_bottom_chrome(page, "#pane-end")
-    assert end["clear"], end
-    for width, height, behavior in [(844, 390, "flow"), (1280, 720, "bounded")]:
+    for width, height in [(390, 844), (844, 390)]:
         resized(page, width, height)
-        pane_scroll_behavior(page, page.locator("#workspace-pane"), behavior)
-        assert foot_reserve(page, "#first-pane") > 0, (width, height)
-        assert foot_reserve(page) > 0, (width, height)
+        pane_scroll_behavior(page, page.locator("#workspace-pane"), "flow")
+        assert foot_reserve(page) == 0, (width, height)
+        assert foot_reserve(page, "#second-pane") == 0, (width, height)
+        end = clear_of_the_bottom_chrome(page, "#pane-end")
+        assert end["clear"], (width, height, end)
+    resized(page, 1280, 720)
+    pane_scroll_behavior(page, page.locator("#workspace-pane"), "bounded")
+    assert foot_reserve(page) > 0
+    assert foot_reserve(page, "#second-pane") > 0
 
 
 @pytest.mark.parametrize(

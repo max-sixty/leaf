@@ -841,16 +841,6 @@
       > footer {
       padding-block-end: var(--lf-foot-room);
     }
-    /* In a window under 720px wide a grid of panes stacks (page-layout.md, "A
-     * workspace") and the page scrolls, so the grid's last pane ends the page and
-     * alone keeps the room. */
-    html[data-lf-live][data-lf-layout~="workspace"]
-      body
-      > main.layout-workspace
-      > :not(header, footer)
-      > :nth-last-child(1 of [data-lf-reading-role="pane"]) {
-      --lf-end-room: inherit;
-    }
     html[data-lf-live][data-lf-layout~="workspace"]
       body
       > main.layout-workspace
@@ -860,15 +850,24 @@
       padding-block-end: var(--lf-end-room);
     }
   }
+  /* Where the workspace flows no pane body scrolls, so a box of panes ends the page
+   * with the room below its panes rather than passing it to each. */
+  @media screen and ((width < 720px) or (height < 480px)) {
+    html[data-lf-live][data-lf-layout~="workspace"]
+      body
+      > main.layout-workspace
+      > :not(header, footer, [data-lf-reading-role="pane"], [data-lf-views]):has(
+        > [data-lf-reading-role="pane"]
+      ) {
+      padding-block-end: var(--lf-end-room);
+    }
+  }
   @media screen and (min-width: 720px) and (min-height: 480px) {
     html[data-lf-live][data-lf-layout~="workspace"] body > main.layout-workspace {
       block-size: calc(var(--lf-view-height) + var(--lf-foot-room));
     }
-  }
-  /* From 720px wide the panes may stand side by side, whether the workspace holds them
-   * to the window or flows in a short one, and any of them may reach the foot. CSS
-   * can't tell the grid's last row from the others, so each pane keeps the room. */
-  @media screen and (min-width: 720px) {
+    /* Held, each pane's own body scrolls up to the window's foot, so each pane keeps
+     * the room. */
     html[data-lf-live][data-lf-layout~="workspace"]
       body
       > main.layout-workspace

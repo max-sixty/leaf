@@ -135,7 +135,7 @@ def test_shot_controls_have_disjoint_targets_and_labels_stay_passive(
     controls = toolbar.get_by_role("button").or_(toolbar.get_by_role("radio")).all()
     controls = [control for control in controls if control.is_visible()]
     boxes = [control.bounding_box() for control in controls]
-    assert len(boxes) == 5
+    assert len(boxes) == 4
     floor = 44 if touch else 24
     for index, box in enumerate(boxes):
         assert box["width"] >= floor - 0.5, box

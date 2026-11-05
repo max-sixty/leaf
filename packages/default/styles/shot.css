@@ -109,6 +109,9 @@ lf-shot {
   align-items: center;
   gap: var(--sp-1);
 }
+.lf-shot-pixel-key > * {
+  font: inherit;
+}
 /* The swatch stands centred under a checkbox's mark, so the two rows' words line up. */
 .lf-shot-key-swatch {
   inline-size: 0.75em;

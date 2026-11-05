@@ -103,7 +103,7 @@
    It also catches a module that replaces declared words after the shared render
    passes. */
 
-import { isNode, closestAcross, inChrome } from "./shadow-tree.js";
+import { isNode, closestAcross } from "./shadow-tree.js";
 export { closestAcross, inChrome } from "./shadow-tree.js";
 import {
   SAID,
@@ -788,12 +788,18 @@ export const pageDocument = (doc = document) => doc.body;
 export const inPage = (node) => under(node, pageDocument()) && !leafSurface(node);
 // Whether focus, standing at `at`, names the page: only on something in it. The body is
 // in the page, yet it is where a click on words and a let-go leave focus, which leaves
-// the answer to the place the user last acted in. A runtime control seated in the page's
-// flow, as a comment editor in a widget's outlet, stands in the page where its seat does,
-// so only the chrome's root is outside it; `inPage` asks about authored content instead.
+// the answer to the place the user last acted in. A Leaf surface stands where its owner
+// seated it: a comment editor in a widget's outlet stands in the widget, so it is in the
+// page; the field Copy appends to the body stands on the body, and the chrome after it on
+// `html`, so neither is.
 /** @param {Element | null} at */
-export const focusInPage = (at) =>
-  at !== document.body && under(at, pageDocument()) && !inChrome(at);
+export const focusInPage = (at) => {
+  /** @type {Node | null} */
+  let seat = at;
+  for (let surface = leafSurface(seat); surface; surface = leafSurface(seat))
+    seat = composedParentNode(surface);
+  return seat !== document.body && inPage(seat);
+};
 // The box the page's Layout arranges: `main`, or the shown child of a `main` that carries
 // no Layout itself (layouts.css, `--lf-layout-box`). The margin, the rail and the
 // Layout's regions read this box; the authored content is still `pageDocument`.

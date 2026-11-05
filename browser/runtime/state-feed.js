@@ -395,23 +395,20 @@ export function createStateFeed({
       // One shared clock serves temporal paint, deferred work, and failed reads.
       setInterval(() => {
         if (!pageIsVisible()) return;
-        // Ask again when the state in hand says its activity has come due, or when
-        // the last look heard the news name a reading other than the one the page
-        // still has in hand: a state read crossed a short-lived process lease the
-        // news never named, or the page dropped an answer it could not adopt.
-        // Repair either on the same clock as failed reads, rather than repeating
-        // state at every look. A read in flight, or an answer handed in since that
-        // look, settles it instead.
-        if (
-          readAnswered &&
-          sessionIsActive() &&
-          !reading &&
-          (activityTransitionDue(stateInHand()) ||
-            (crossed !== null && crossed.held === readingInHand()))
-        )
-          void item();
+        // Ask again after a read that failed, when the state in hand says its
+        // activity has come due, or when the last look heard the news name a
+        // reading other than the one the page still has in hand: a state read
+        // crossed a short-lived process lease the news never named, or the page
+        // dropped an answer it could not adopt. Repair each on this clock rather
+        // than repeating state at every look. A read in flight, or an answer handed
+        // in since that look, settles it instead, and if it fails the next tick asks.
+        const asks =
+          !readAnswered ||
+          (sessionIsActive() &&
+            (activityTransitionDue(stateInHand()) ||
+              (crossed !== null && crossed.held === readingInHand())));
+        if (asks && !reading) void item();
         else if (readAnswered) void heartbeat();
-        else void item();
         // A presentation that failed is retried here as the poll retried it, since
         // a quiet page may see no read to chain it onto.
         void present();

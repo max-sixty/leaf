@@ -212,6 +212,8 @@ def test_a_key_the_runtime_binds_is_a_key_some_surface_names(browser, serve):
           const { commandsChanged } = await window.__lfWidgetApi();
           const owner = document.createElement('div');
           owner.tabIndex = -1;
+          // In view, where a key acts at the control it is pressed on.
+          owner.style.cssText = 'position:fixed;top:0;left:0;width:20px;height:20px';
           document.body.append(owner);
           owner.focus();
           let ran = 0;
@@ -461,7 +463,7 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
     wait_for_revision(page, 2)
     register, reference = surfaces_name_what_runs()
     assert "version.open" in register["runs"]
-    assert not {"version.later", "version.earlier"} & reference
+    assert "panel.floating.versions.pick" not in reference
 
     # With every thread resolved and a resolved one open, the reference still names
     # only what runs.

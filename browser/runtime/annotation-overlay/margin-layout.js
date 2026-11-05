@@ -71,6 +71,7 @@ import {
   shownExtent,
   shownParts,
   shownWindow,
+  stuckShift,
 } from "../geometry.js";
 import { skipped } from "../shown-box.js";
 import {
@@ -95,7 +96,7 @@ import {
   seatRow,
   seatsBy,
 } from "./margin-placement.js";
-import { clamp, clippingAxes, overlaps, union } from "../rect.js";
+import { clamp, clippingAxes, overlaps, shifted, union } from "../rect.js";
 import { passageBoxes, targetRange, targetSegments } from "../resolved-target.js";
 import { proseMeasure, proseRect, railStands } from "../content-layout.js";
 import { keeps, layoutPx, inlineStyle } from "../keeps.js";
@@ -746,8 +747,8 @@ function placeCarriedRows(box) {
   if (carries && scrollMisplacesAnchors(box)) scheduleMarginLayout();
 }
 
-// A row's face redrawn. The projection draws every row each time it renders, and a seat
-// reads a face only through its size and the controls it holds, so controls put in or
+// A row's face redrawn. The projection draws a row whenever what it shows changes, and a
+// seat reads a face only through its size and the controls it holds, so controls put in or
 // taken out bring a pass, and a changed attribute or text brings one only where the face
 // no longer measures the size the last pass seated it at (`seatedFaces`). A control's
 // label stands over the row, placed by its own pass (`placeMarginEntryLabel`), so what is
@@ -1003,8 +1004,11 @@ function controlsIn(host) {
 // over each run of them skips every run that ends above the band's top, however the page
 // lays them out: a tall early sibling, such as a sidebar beside the rest, costs one more
 // child per band rather than every child before the band. A child with no box, such as
-// a `display: contents` wrapper, meets every band.
-/** @typedef {{node: Text, order: number, box: Box, lines: DOMRect[]} | {node: Element, order: number, box: DOMRect, lines: null}} Child */
+// a `display: contents` wrapper, meets every band. A sticky box is read where it is
+// drawn and where it stands in its own place (`stuckShift`), and meets a band either
+// reaches: the walk reads it at its own place unless it holds the target.
+/** @typedef {{x: number, y: number}} Shift
+ * @typedef {{node: Text, order: number, box: Box, lines: DOMRect[], span: Box} | {node: Element, order: number, box: DOMRect, lines: null, span: Box, shift: Shift | null}} Child */
 function childIndex() {
   /** @type {Map<Element, {sized: Child[], tops: number[], lowest: Float64Array, leaves: number, boxless: Child[]}>} */
   const read = new Map();
@@ -1023,33 +1027,37 @@ function childIndex() {
         words.selectNodeContents(node);
         const lines = [...words.getClientRects()];
         const box = union(lines);
-        if (box) sized.push({ node, order, box, lines });
+        if (box) sized.push({ node, order, box, lines, span: box });
         continue;
       }
       // The walk reaches what a surface holds only through the surface.
       if (!(node instanceof Element) || node.matches(SURFACES)) continue;
       if (skipped(node)) continue;
       const box = node.getBoundingClientRect();
+      const moved = stuckShift(node);
+      const shift = moved.x || moved.y ? moved : null;
       (box.width || box.height ? sized : boxless).push({
         node,
         order,
         box,
         lines: null,
+        span: shift ? union([box, shifted(box, shift.x, shift.y)]) : box,
+        shift,
       });
     }
-    sized.sort((a, b) => a.box.top - b.box.top);
+    sized.sort((a, b) => a.span.top - b.span.top);
     // A binary tree over the sorted children: leaf `leaves + i` holds child i's bottom,
     // and every other node the lowest bottom beneath it.
     let leaves = 1;
     while (leaves < sized.length) leaves *= 2;
     const lowest = new Float64Array(2 * leaves).fill(-Infinity);
-    sized.forEach(({ box }, i) => (lowest[leaves + i] = box.bottom));
+    sized.forEach(({ span }, i) => (lowest[leaves + i] = span.bottom));
     for (let node = leaves - 1; node > 0; node -= 1)
       lowest[node] = Math.max(
         /** @type {number} */ (lowest[2 * node]),
         /** @type {number} */ (lowest[2 * node + 1]),
       );
-    return { sized, tops: sized.map(({ box }) => box.top), lowest, leaves, boxless };
+    return { sized, tops: sized.map(({ span }) => span.top), lowest, leaves, boxless };
   };
   // The first index of an ascending list whose value is `past` a bound.
   /** @param {readonly number[]} values @param {(value: number) => boolean} past */
@@ -1110,17 +1118,25 @@ function coverIn(root, band, target, bands, stop, standing, children, heads) {
   const cover = [];
   /** @type {Box[]} */
   const controls = [];
-  /** @type {{node: Element, box: Box}[]} */
+  /** @type {{node: Element, box: Box, by: Shift}[]} */
   const boxes = [];
   /** @param {Box} box */
   const meets = (box) => box.bottom > band.top && box.top < band.bottom;
-  /** @param {Element} parent @param {() => Iterable<Node>} held */
-  const visit = (parent, held) => {
-    for (const child of children(parent, held, band)) {
+  // What a sticky box holds is read where it is drawn and moved to the box's own place
+  // by `by`, the sum of the shifts of the sticky boxes around it (`stuckShift`), so its
+  // room is the same at every scroll. A sticky box holding the target moves with it, and
+  // is read where it is drawn.
+  /** @param {Box} box @param {Shift} by */
+  const moved = (box, by) => (by.x || by.y ? shifted(box, by.x, by.y) : box);
+  /** @param {Element} parent @param {() => Iterable<Node>} held @param {Shift} by */
+  const visit = (parent, held, by) => {
+    const drawn = { top: band.top - by.y, bottom: band.bottom - by.y };
+    for (const child of children(parent, held, drawn)) {
       if (child.lines) {
         for (const line of child.lines) {
-          if (!meets(line)) continue;
-          const shown = clippedContents(line, parent, bands, stop);
+          if (line.bottom <= drawn.top || line.top >= drawn.bottom) continue;
+          const clipped = clippedContents(line, parent, bands, stop);
+          const shown = clipped && moved(clipped, by);
           if (shown && shown.right - shown.left > 1 && shown.bottom - shown.top > 1)
             cover.push(shown);
         }
@@ -1131,7 +1147,11 @@ function coverIn(root, band, target, bands, stop, standing, children, heads) {
       if (standsStill(node, heads)) continue;
       const boxless = !box.width && !box.height;
       const holds = node !== target && renderedUnder(target, node);
-      if (!boxless && !holds && node !== target) boxes.push({ node, box });
+      const at =
+        child.shift && !holds
+          ? { x: by.x + child.shift.x, y: by.y + child.shift.y }
+          : by;
+      if (!boxless && !holds && node !== target) boxes.push({ node, box, by: at });
       const control = node.matches(CONTROL);
       if (
         !boxless &&
@@ -1139,7 +1159,8 @@ function coverIn(root, band, target, bands, stop, standing, children, heads) {
         (node.shadowRoot || node.matches(OPAQUE) || control) &&
         node.checkVisibility()
       ) {
-        const shown = clippedRect(box, node, bands, stop);
+        const clipped = clippedRect(box, node, bands, stop);
+        const shown = clipped && moved(clipped, at);
         if (shown) cover.push(shown);
         if (shown && control) controls.push(shown);
         // A widget's own buttons stand in its shadow tree, or are slotted into it, out
@@ -1147,7 +1168,7 @@ function coverIn(root, band, target, bands, stop, standing, children, heads) {
         for (const inner of node.shadowRoot ? controlsIn(node) : []) {
           if (!inner.checkVisibility()) continue;
           const part = clippedRect(inner.getBoundingClientRect(), inner, bands, stop);
-          if (part) controls.push(part);
+          if (part) controls.push(moved(part, at));
         }
         continue;
       }
@@ -1159,13 +1180,13 @@ function coverIn(root, band, target, bands, stop, standing, children, heads) {
       // skipped content's layout (`skipped`).
       if (node instanceof HTMLDetailsElement && !node.open) {
         const summary = node.querySelector(":scope > summary");
-        if (summary) visit(node, () => [summary]);
+        if (summary) visit(node, () => [summary], at);
         continue;
       }
-      visit(node, () => renderedChildren(node));
+      visit(node, () => renderedChildren(node), at);
     }
   };
-  visit(root, () => renderedChildren(root));
+  visit(root, () => renderedChildren(root), { x: 0, y: 0 });
   for (const box of standing)
     if (box.width && meets(box)) {
       cover.push(box);
@@ -1173,12 +1194,15 @@ function coverIn(root, band, target, bands, stop, standing, children, heads) {
     }
   /** @param {Box} seat */
   const beside = (seat) =>
-    boxes.some(({ node, box }) => {
-      if (!overlaps(box, seat) || getComputedStyle(node).display === "inline")
+    boxes.some(({ node, box, by }) => {
+      if (
+        !overlaps(moved(box, by), seat) ||
+        getComputedStyle(node).display === "inline"
+      )
         return false;
       if (renderedUnder(node, target) || !node.checkVisibility()) return false;
       const shown = clippedRect(box, node, bands, stop);
-      return shown !== null && overlaps(shown, seat);
+      return shown !== null && overlaps(moved(shown, by), seat);
     });
   return { cover, controls, beside };
 }
@@ -1452,7 +1476,10 @@ function scheduleMarginLayout() {
 }
 
 // The column is read where the pass reads it rather than as each row registers: a
-// column read restyles the page, and a first paint registers every row.
+// column read restyles the page, and a first paint registers every row. The first row
+// still starts the watch, so its first deliveries come with the page's first paint:
+// started by a later pass, they land while the page settles, and the pass they run
+// resizes boxes the loop has already delivered (a ResizeObserver loop error).
 /** @param {Element} column */
 function observeLayout(column) {
   if (!observer) {
@@ -1467,7 +1494,7 @@ function observeLayout(column) {
 
 // Each row states its target (`anchor`), the row inside it it stands level with, if any
 // (`point`, pointed-place.js), and its place among the others in the layer (`order`).
-// The projection registers every row each time it draws, so a pass is asked for only
+// The projection registers every row each time it renders, so a pass is asked for only
 // where a row is new or names another target, point, passage or place in the order.
 /** @param {HTMLElement} row @param {RowOptions} options */
 export function registerMarginRow(row, options) {
@@ -1479,6 +1506,7 @@ export function registerMarginRow(row, options) {
   };
   const was = registered.get(row);
   rows.set(row, options);
+  if (!observer) observeLayout(marginColumn());
   registered.set(row, named);
   if (
     was &&

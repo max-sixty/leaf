@@ -134,6 +134,13 @@ def answered[Response: HttpAnswer](response: Response, url: str) -> Response:
     return response
 
 
+# Playwright retries a connection reset after 250 ms, doubling each time, so five
+# retries keep one read going through about eight seconds of resets. The resets seen
+# on the hosted site came before the Worker recorded the request, and the GET is
+# idempotent besides.
+STATE_RESET_RETRIES = 5
+
+
 def read_state(
     request: APIRequestContext,
     url: str,
@@ -141,13 +148,16 @@ def read_state(
     headers: dict[str, str] | None = None,
     timeout: float | None = None,
 ) -> APIResponse:
-    """Read state with one native connection-reset retry, safe for this idempotent GET.
+    """Read state, retrying through connection resets (`STATE_RESET_RETRIES`).
 
     HTTP failures still surface through ``answered``. Publish-site's transport
     capture records failed attempts even when the retry succeeds.
     """
     return answered(
-        request.get(url, headers=headers, timeout=timeout, max_retries=1), url
+        request.get(
+            url, headers=headers, timeout=timeout, max_retries=STATE_RESET_RETRIES
+        ),
+        url,
     )
 
 

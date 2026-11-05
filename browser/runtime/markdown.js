@@ -821,8 +821,11 @@ export function makeMarkdown(module, message) {
     const image = renderedElement(markup, "img");
     const source = scopedMediaUrl(href);
     image.setAttribute("src", source);
+    // Only this button's markup is kept. `image` belongs to the parser's inert template
+    // document, and a button from the live `document` would adopt it there, where the
+    // browser fetches its source for an element nobody sees.
     const button = offerContentElement(
-      document.createElement("button"),
+      image.ownerDocument.createElement("button"),
       "picture",
       "lf-media-open lf-message-media",
     );

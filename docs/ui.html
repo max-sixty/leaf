@@ -945,8 +945,8 @@ flowchart TD
               <code>layout-sidebar</code> on <code>main</code> places the header across
               the top, with a body and a narrower side column below it. The page fills
               the window up to 1600px, with an outer margin that grows from 24px to
-              64px, and uses a larger title than a column page. Its blocks and title
-              share a left edge, while paragraphs still wrap at 720px.
+              64px. Its blocks and title share a left edge, while paragraphs still wrap
+              at 720px.
             </p>
             <p id="sidebar-page-tracks">
               The side column is an <code>aside</code>; placing it before or after the
@@ -1322,7 +1322,7 @@ flowchart TD
             <p id="chrome-lists">
               The On view shows one list at a time, under a tab named for its actor,
               with completed items under Done, and a Threads tab listing the open
-              threads, then the resolved ones under Resolved.
+              threads under Open, then the resolved ones under Resolved.
               <a href="/how-it-works/#progress-on-lists">On me and the agent’s list</a>
               defines their membership. Opening a view preserves the page’s text
               wrapping and reading position.
@@ -1961,8 +1961,9 @@ flowchart TD
             <p id="navigation-resolve-rule">
               <kbd>r</kbd> resolves the focused open thread. A thread opened from
               Threads advances to the next open thread in page order, or the previous at
-              the end; with none left, it returns to the list. A margin card returns to
-              its passage. An embedded thread folds in place.
+              the end; with none left, it returns to the list. A margin card moves on to
+              the next thread at its passage, or the one before, and closes onto its
+              passage with none left. An embedded thread folds in place.
             </p>
             <details id="navigation-resolution-cases">
               <summary>Search, replies, and undo</summary>

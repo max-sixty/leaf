@@ -780,10 +780,8 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge {
     > lf-option:has(> .lf-pick[data-lf-focus-visible]) {
     outline: var(--focus-ring);
   }
-  /* The landing reads the row's ring carrier in the focus task, before the
-   * visible-focus marker is painted. */
   lf-options[choose]:not([settled]):not(:where([data-lf-exhibit]) *)
-    > lf-option:has(> .lf-pick:focus) {
+    > lf-option:has(> .lf-pick[data-lf-focus]) {
     --lf-wears-ring: 1;
   }
   /* The add field's own outline is off, so its row answers the keyboard for it, in a

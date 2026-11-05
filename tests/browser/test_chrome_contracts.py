@@ -2090,3 +2090,87 @@ NESTING = {
     "undoing a nest": ("- one⏎⇥↶", "- one\n- "),
     "nesting a new item": ("- one⏎⇥two", "- one\n  - two"),
 }
+
+
+BANDED_PAGE = leaf_page(
+    "Bands",
+    "".join(
+        f'<section id="band-{n}" style="min-height: 420px">'
+        f"<h2>Location {n}</h2><p>Body {n}</p></section>"
+        for n in range(1, 13)
+    ),
+)
+BANDED_EVENTS = [
+    {
+        "kind": "comment",
+        "author": "user",
+        "revision": 1,
+        "text": f"Band note {n}",
+        "anchor": {"section": f"band-{n}"},
+    }
+    for n in range(1, 13)
+]
+
+
+def open_page_map(page):
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+p")
+    return page.locator(".lf-page-map-list"), ".lf-page-map-action"
+
+
+def open_threads_list(page):
+    open_threads(page)
+    return page.locator(panel_view("threads")), ".lf-fp-thread"
+
+
+def open_reference(page):
+    page.keyboard.press("?")
+    return page.locator(".lf-command-reference-results"), ".lf-command-reference-row"
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+@pytest.mark.parametrize("opens", [open_threads_list, open_page_map, open_reference])
+def test_a_band_names_the_group_passing_under_it(request, serve, engine, opens):
+    """A list that groups its rows keeps the group being read named: scrolled into a
+    group, its band stands at the top of the list, across the list's whole surface, and
+    a row the user walks up to stands clear below the band rather than under it."""
+    page = open_page(
+        request.getfixturevalue(engine), serve(BANDED_PAGE, events=BANDED_EVENTS)
+    )
+    resized(page, 1000, 480)
+    scroller, rows = opens(page)
+    expect(scroller).to_be_visible()
+    scroller.evaluate("list => { list.scrollTop = 160; }")
+    rendered(page)
+    stuck = """list => {
+      const box = list.getBoundingClientRect();
+      const at = list.getRootNode().elementFromPoint(
+        box.left + box.width / 2, box.top + 2);
+      const band = at?.closest('.lf-rows-head');
+      if (!band) return null;
+      const {top, bottom, left, right} = band.getBoundingClientRect();
+      return {name: band.textContent.trim(), top, bottom, left, right,
+              list: {top: box.top, left: box.left,
+                     right: box.left + list.clientWidth}};
+    }"""
+    band = scroller.evaluate(stuck)
+    assert band, "no band stands at the top of the scrolled list"
+    assert band["top"] == pytest.approx(band["list"]["top"], abs=1), band
+    assert band["left"] == pytest.approx(band["list"]["left"], abs=1), band
+    assert band["right"] == pytest.approx(band["list"]["right"], abs=1), band
+
+    # Up the list by the keys, each row stands clear of the band over it.
+    scroller.locator(rows).nth(11).focus()
+    for _ in range(11):
+        page.keyboard.press("ArrowUp")
+        rendered(page)
+        at = scroller.evaluate(
+            """list => {
+              const root = list.getRootNode();
+              const row = root.activeElement;
+              const {left, top, width} = row.getBoundingClientRect();
+              const over = root.elementFromPoint(left + width / 2, top + 1);
+              return [row.textContent, over?.closest('.lf-rows-head')?.textContent];
+            }"""
+        )
+        assert at[1] is None, f"{at[0]} stands under the band {at[1]}"

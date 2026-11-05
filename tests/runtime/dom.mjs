@@ -63,12 +63,8 @@ window.visualViewport ??= viewport;
 // `elementsFromPoint`, which root-headers.js asks of the window's top: nothing stands
 // there either.
 document.elementsFromPoint ??= () => [];
-// States that each of `elements` stands in the window, for a test that focuses one and
-// presses a key: Leaf's keys act at a control only while the user sees it (dispatch.js).
-export function inView(...elements) {
-  for (const element of elements)
-    element.getBoundingClientRect = () => new DOMRect(0, 0, 100, 20);
-}
+// Nor does it run animations, so none is under way.
+document.getAnimations ??= () => [];
 // happy-dom's computed style is the declared style: no initial values, and no
 // shorthand expanded. The runtime names the values it acts on, so a property left
 // unset reads as its initial value, but it reads overflow per axis, which a test may

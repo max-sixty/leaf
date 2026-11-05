@@ -107,11 +107,15 @@ MODELS = {
     ClaudeCodeHarness.name: "claude-opus-5-5",
     CodexHarness.name: "gpt-6.1-sol",
     "user": "gpt-6.1-sol",
+    # It answers only setup and the developer's turns, so a fast one does.
+    "claude-code-session": "claude-sonnet-5-5",
 }
 JUDGE_MODELS = {
     ClaudeCodeHarness.name: "claude-opus-5-5",
     CodexHarness.name: "gpt-6-astra",
 }
+# Models an experiment compares beside the pinned authors and judges.
+COMPARED_MODELS = ("claude-fable-5-1",)
 
 
 def run_directory(parent: Path) -> Path:
@@ -1421,3 +1425,16 @@ def resumed(summaries: list[dict]) -> list[dict]:
         )
         before = cost if cost is not None else before
     return phases
+
+
+if __name__ == "__main__":
+    # The pins as JSON, for an experiment's Node code (`arms.mjs`).
+    print(
+        json.dumps(
+            {
+                "MODELS": MODELS,
+                "JUDGE_MODELS": JUDGE_MODELS,
+                "COMPARED_MODELS": COMPARED_MODELS,
+            }
+        )
+    )

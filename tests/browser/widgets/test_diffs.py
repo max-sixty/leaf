@@ -474,6 +474,37 @@ def test_a_diff_pins_to_its_page_tab_panel_or_past_an_option_card(browser, serve
     assert read["option"] == pytest.approx(read["top"], abs=1), read
 
 
+def test_a_file_s_comment_opens_inline_where_the_file_ends_below_the_window(
+    browser, serve
+):
+    """A file's Comment opens its box in the file's thread, at the file's end, even when
+    a long hunk leaves that end below the window: the box's focus brings it in. Only a
+    seat the chrome covers sends the box to its floating home."""
+    body = "".join(f"+line {n}\n" for n in range(80))
+    patch = (
+        "diff --git a/app.py b/app.py\n--- /dev/null\n+++ b/app.py\n"
+        f"@@ -0,0 +1,80 @@\n{body}"
+    )
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Long file",
+                '<h1>Review</h1><lf-diff id="patch"><pre>' + patch + "</pre></lf-diff>",
+            )
+        ),
+    )
+    resized(page, 1200, 700)
+    page.locator("lf-diff .lf-diff-file-comment").click()
+    composer = page.locator(
+        'lf-diff .lf-fab-bar[data-lf-presentation="inline"] .lf-composer[data-lf-open]'
+    )
+    expect(composer).to_have_count(1)
+    field = composer.locator("leaf-text")
+    expect(field).to_be_focused()
+    expect(field).to_be_in_viewport()
+
+
 def test_inline_diff_lines_and_files_can_start_comments(browser, serve):
     patch = (
         "diff --git a/app.py b/app.py\n--- a/app.py\n+++ b/app.py\n"

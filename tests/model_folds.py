@@ -176,9 +176,8 @@ class _FoldedPage(LivePage):
         return []
 
     @contextmanager
-    def state_read(self, *, with_token: bool = False):
-        token = f"fold-{len(self.context.events)}" if with_token else None
-        yield self.context, token, None
+    def state_read(self):
+        yield self.context, f"fold-{len(self.context.events)}", None
 
 
 def _fold(

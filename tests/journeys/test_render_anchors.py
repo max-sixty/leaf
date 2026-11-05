@@ -935,6 +935,8 @@ diff --git a/README.md b/README.md
             "source": "review-patch",
             "source_revision": revision,
             "quote": "request.token.id",
+            "prefix": 'return f"tok:{',
+            "suffix": '}"',
         },
     ]
     second = open_panel_thread(page, comments[1]["id"])

@@ -545,7 +545,7 @@ def test_quotes_cross_preserving_containers_and_remain_attached(browser, serve):
     assert actual == expected
     page.reload()
     held = thread_quote(page, comment_ids(serve.page_dir)[-1])
-    expect(held).to_have_text(f"“{quote}”")
+    expect(held).to_have_text(quote)
     expect(held).not_to_have_attribute("data-lf-detached", "")
 
 

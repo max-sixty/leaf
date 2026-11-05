@@ -1295,7 +1295,7 @@ def test_widget_errors_keep_exception_evidence(browser, serve):
     expect(page.locator("lf-feed .lf-error")).to_have_count(0)
 
 
-def test_data_written_during_fresh_revision_startup_waits_for_activation(
+def test_data_written_while_a_fresh_revision_starts_shows_once_it_has_started(
     browser, serve
 ):
     """Data written while a fresh revision document starts shows once it has started.

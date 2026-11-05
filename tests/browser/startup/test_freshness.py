@@ -233,6 +233,8 @@ def test_status_changes_coalesce_behind_one_state_read(browser, serve):
     def reads():
         return page.evaluate("window.__lfAsked.state")
 
+    # The state reads the page has asked so far, the startup read among them.
+    before = reads()
     # Every ask is held; the test answers each admitted read by hand.
     held = []
     page.route("**/api/state*", lambda route: held.append(route))
@@ -241,14 +243,12 @@ def test_status_changes_coalesce_behind_one_state_read(browser, serve):
     while not held:
         page.wait_for_timeout(20)
     first = held[0]
-    # The reads asked before the route held them, the startup read among them.
-    unheld = reads() - len(held)
     # An answer taken before the writes the looks hear next.
     older = first.fetch().json()
     declare("second")
     declare("third")
     looked_since(page)
-    assert reads() == unheld + 1
+    assert reads() == before + 1
 
     # The news the answer doesn't name earns exactly one follow-up read, not one read
     # per status write.
@@ -262,7 +262,7 @@ def test_status_changes_coalesce_behind_one_state_read(browser, serve):
     trailing.fulfill(json=trailing.fetch().json())
     expect(status).to_have_attribute("placeholder", re.compile(r"third"))
     looked_since(page)
-    assert reads() == unheld + 2
+    assert reads() == before + 2
 
 
 def test_a_state_read_timing_out_during_its_body_is_offline(browser, serve):

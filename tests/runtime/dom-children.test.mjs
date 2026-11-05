@@ -389,20 +389,27 @@ test("rendered markup redrawn keeps the nodes an edit leaves and its rewritten w
   assert.deepEqual([...words.children], [first, third]);
 });
 
+// Long lists edited past the diff's budget on work, so the unchanged siblings are
+// pinned by signatures each side holds once, and the gaps between them pair by kind.
+/** @param {Element} words @param {string} markup */
+const drawWords = (words, markup) => {
+  const parsed = document.createElement("template");
+  parsed.innerHTML = markup;
+  setRenderedChildren(words, parsed.content.childNodes);
+};
+/** @param {number} length */
+const numbered = (length) => Array.from({ length }, (_, at) => at);
+
 test("a rewrite of every paragraph in a long list keeps each paragraph's node", () => {
   // Completing a Markdown reference definition turns a reference in every paragraph
-  // into a link. The diff stops past its bound on edits, so its cost stays linear in
-  // the list's length, and the whole list pairs by kind: each paragraph keeps its node.
+  // into a link: no signature survives, and the whole list pairs by kind.
   const words = document.createElement("div");
   document.body.replaceChildren(words);
-  /** @param {string} markup */
-  const draw = (markup) => {
-    const parsed = document.createElement("template");
-    parsed.innerHTML = markup;
-    setRenderedChildren(words, parsed.content.childNodes);
-  };
-  const said = Array.from({ length: 300 }, (_, at) => at);
-  draw(said.map((at) => `<p>Paragraph ${at} says [reference].</p>`).join("\n"));
+  const said = numbered(2000);
+  drawWords(
+    words,
+    said.map((at) => `<p>Paragraph ${at} says [reference].</p>`).join("\n"),
+  );
   const before = [...words.children];
   const linked = said
     .map(
@@ -410,7 +417,47 @@ test("a rewrite of every paragraph in a long list keeps each paragraph's node", 
         `<p>Paragraph ${at} says <a href="https://example.com">reference</a>.</p>`,
     )
     .join("\n");
-  draw(linked);
+  drawWords(words, linked);
   assert.equal(words.innerHTML, linked);
   assert.deepEqual([...words.children], before);
+});
+
+test("a long revision around the paragraph read keeps it and its neighbours' nodes", () => {
+  // Every other paragraph rewritten, and one inserted just above the paragraph read:
+  // the paragraph read keeps its node and words, and its rewritten neighbour keeps
+  // its node, so a reader's focus, selection and scroll anchor stay with their words.
+  const words = document.createElement("div");
+  document.body.replaceChildren(words);
+  const said = numbered(600);
+  drawWords(words, said.map((at) => `<p>Paragraph ${at}.</p>`).join("\n"));
+  const read = words.children[451];
+  const neighbour = words.children[450];
+  const revised = said
+    .map((at) => {
+      const paragraph =
+        at % 2 ? `<p>Paragraph ${at}.</p>` : `<p>Paragraph ${at}, revised.</p>`;
+      return at === 451 ? `<p>Inserted.</p>\n${paragraph}` : paragraph;
+    })
+    .join("\n");
+  drawWords(words, revised);
+  assert.equal(words.innerHTML, revised);
+  assert.equal(words.children[452], read);
+  assert.equal(read?.textContent, "Paragraph 451.");
+  assert.equal(words.children[450], neighbour);
+  assert.equal(neighbour?.textContent, "Paragraph 450, revised.");
+});
+
+test("appending many paragraphs to a long list keeps every node it held", () => {
+  const words = document.createElement("div");
+  document.body.replaceChildren(words);
+  const said = numbered(2000);
+  const first = said.map((at) => `<p>Paragraph ${at}.</p>`).join("\n");
+  drawWords(words, first);
+  const before = [...words.children];
+  const appended = `${first}\n${numbered(65)
+    .map((at) => `<p>Appended ${at}.</p>`)
+    .join("\n")}`;
+  drawWords(words, appended);
+  assert.equal(words.innerHTML, appended);
+  assert.deepEqual([...words.children].slice(0, 2000), before);
 });

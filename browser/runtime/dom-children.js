@@ -579,44 +579,96 @@ const signature = (node) => {
 };
 
 // A diff costs the lists' length times the edits between them, so one that rewrote
-// every paragraph of a long section or message cost the square of its length. Past this
-// many edits a diff stops: no signature pins anything and the whole list is one gap,
-// paired by kind, and a gap past it pairs nothing and is replaced.
-const EDITS = 64;
+// every paragraph of a long section or message cost the square of its length. Each diff
+// stops past this much work, so a list of any length costs a bounded diff.
+const DIFF_WORK = 2 ** 18;
+/** @param {readonly unknown[]} held @param {readonly unknown[]} wanted */
+const editBudget = (held, wanted) =>
+  Math.max(1, Math.floor(DIFF_WORK / (held.length + wanted.length + 1)));
 
+// Pin the unchanged siblings, then pair the gaps between pins by kind. The diff pins
+// every sibling whose signature it can keep in order. Past its budget the pins are the
+// signatures each side holds once, in the longest run both orders keep (patience
+// diff), found with a sort per sibling whatever the edits: the paragraph a reader is
+// in keeps its node when a long revision rewrites around it.
 /** @param {readonly Node[]} held @param {readonly Node[]} wanted @param {SourcePairs} matches */
 function alignRest(held, wanted, matches) {
-  const runs = diffArrays(held.map(signature), wanted.map(signature), {
-    maxEditLength: EDITS,
+  const heldSigns = held.map(signature);
+  const wantedSigns = wanted.map(signature);
+  const runs = diffArrays(heldSigns, wantedSigns, {
+    maxEditLength: editBudget(held, wanted),
   });
-  if (!runs) {
-    pairInGap(held, wanted, matches);
-    return;
-  }
+  const pins = runs ? diffPins(runs) : uniquePins(heldSigns, wantedSigns);
+  pins.push([wanted.length, held.length]);
   let heldAt = 0;
   let wantedAt = 0;
-  /** @type {Node[]} */
-  let gapHeld = [];
-  /** @type {Node[]} */
-  let gapWanted = [];
-  const closeGap = () => {
-    pairInGap(gapHeld, gapWanted, matches);
-    gapHeld = [];
-    gapWanted = [];
-  };
+  for (const [wantedPin, heldPin] of pins) {
+    pairInGap(held.slice(heldAt, heldPin), wanted.slice(wantedAt, wantedPin), matches);
+    if (wantedPin < wanted.length)
+      matches.pair(diffNode(wanted, wantedPin), diffNode(held, heldPin));
+    heldAt = heldPin + 1;
+    wantedAt = wantedPin + 1;
+  }
+}
+
+/** @param {readonly {added?: boolean, removed?: boolean, value: readonly string[]}[]} runs @returns {[number, number][]} */
+function diffPins(runs) {
+  /** @type {[number, number][]} */
+  const pins = [];
+  let heldAt = 0;
+  let wantedAt = 0;
   for (const run of runs) {
     const count = run.value.length;
-    if (run.added) gapWanted.push(...wanted.slice(wantedAt, (wantedAt += count)));
-    else if (run.removed) gapHeld.push(...held.slice(heldAt, (heldAt += count)));
-    else {
-      closeGap();
-      for (let at = 0; at < count; at++)
-        matches.pair(diffNode(wanted, wantedAt + at), diffNode(held, heldAt + at));
-      heldAt += count;
-      wantedAt += count;
-    }
+    if (run.added) wantedAt += count;
+    else if (run.removed) heldAt += count;
+    else for (let at = 0; at < count; at++) pins.push([wantedAt++, heldAt++]);
   }
-  closeGap();
+  return pins;
+}
+
+/** @param {readonly string[]} held @param {readonly string[]} wanted @returns {[number, number][]} */
+function uniquePins(held, wanted) {
+  /** @type {Map<string, {held: number, at: number, wanted: number}>} */
+  const counts = new Map();
+  held.forEach((sign, at) => {
+    const count = counts.get(sign);
+    if (count) count.held++;
+    else counts.set(sign, { held: 1, at, wanted: 0 });
+  });
+  for (const sign of wanted) {
+    const count = counts.get(sign);
+    if (count) count.wanted++;
+  }
+  // In the wanted order, each sibling held once on each side, then the longest run of
+  // them whose held positions rise: `tails[n]` ends the best run of length n + 1.
+  /** @type {[number, number][]} */
+  const once = [];
+  wanted.forEach((sign, at) => {
+    const count = counts.get(sign);
+    if (count?.held === 1 && count.wanted === 1) once.push([at, count.at]);
+  });
+  /** @type {number[]} */
+  const tails = [];
+  /** @type {number[]} */
+  const before = [];
+  once.forEach(([, heldAt], index) => {
+    let low = 0;
+    let high = tails.length;
+    while (low < high) {
+      const middle = (low + high) >> 1;
+      if ((once[tails[middle] ?? 0]?.[1] ?? 0) < heldAt) low = middle + 1;
+      else high = middle;
+    }
+    before[index] = low ? (tails[low - 1] ?? -1) : -1;
+    tails[low] = index;
+  });
+  /** @type {[number, number][]} */
+  const pins = [];
+  for (let index = tails.at(-1) ?? -1; index >= 0; index = before[index] ?? -1) {
+    const pin = once[index];
+    if (pin) pins.push(pin);
+  }
+  return pins.reverse();
 }
 
 // Inside one edited stretch: these are the siblings the revision rewrote, and a rewrite
@@ -634,11 +686,13 @@ function alignRest(held, wanted, matches) {
 // differs from `p#b` — so the rule travels as the comparator it is.
 /** @param {readonly Node[]} held @param {readonly Node[]} wanted @param {SourcePairs} matches */
 function pairInGap(held, wanted, matches) {
+  if (!held.length || !wanted.length) return;
   let heldAt = 0;
   let wantedAt = 0;
+  // A long gap whose kinds disagree past the budget pairs nothing, and is replaced.
   const runs = diffArrays([...held], [...wanted], {
     comparator: interchangeable,
-    maxEditLength: EDITS,
+    maxEditLength: editBudget(held, wanted),
   });
   for (const run of runs ?? []) {
     const count = run.value.length;

@@ -190,6 +190,10 @@ function describe(event) {
           node: nodeIdentity(document.fullscreenElement),
         }
       : null;
+  // A password field's characters stay out, whatever else the trace keeps.
+  if (target instanceof window.HTMLInputElement && target.type === "password")
+    for (const field of ["key", "code", "data", "clipboard", "value"])
+      delete entry[field];
   return entry;
 }
 
@@ -315,8 +319,8 @@ export function recordInteraction(type, detail = {}) {
 }
 
 if (url !== null) {
-  // TODO(privacy): Add retention and redaction controls before pages are shared with
-  // other users. Input values, selected text, and keyboard input are recorded now.
+  // Input values, selected text and keyboard input go in the page's trace, for
+  // debugging (`interaction_log.py` records the choice).
   for (const type of [
     "pointerdown",
     "pointerup",

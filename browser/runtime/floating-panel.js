@@ -151,11 +151,13 @@
  * the `about` group). A
  * keyboard's convenience for where the reader stands, such as Resume writing, stands
  * under Navigate only where no keyboard is there to reach it (page-controls.js, the
- * `keys` group). The panel shows one key hint of its own, the key that enters an open
- * thread's reply, which the user asked for on 22 October as a margin card's reply box
- * shows it; otherwise the menu's rows carry their keys and `?` opens the full
- * reference, which the user chose on 13 October over a hint or two in the line over
- * the field, to keep the panel quietest. The field the
+ * `keys` group). The panel shows one key hint of its own, `c` at the field's end while
+ * it enters the field, which says where `c` goes: beside Reply in an open thread, which
+ * the user asked for on 22 October as a margin card's reply box shows it, and alone at
+ * rest, which they chose on 4 November 2026 with the box that rests beside a target
+ * (composing/surface.js, `restFab`). The menu's rows carry every other key and `?` opens
+ * the full reference, which the user chose on 13 October over a hint or two in the line
+ * over the field, to keep the panel quietest. The field the
  * user clicks in is the field they write in: a page
  * comment where no thread is open, a reply where one is: the reply box every view of a
  * thread draws (thread/replies.js), with its ↑ to the user's last message, which Leaf's

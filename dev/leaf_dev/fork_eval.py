@@ -1,6 +1,6 @@
 """Replay Leaf's two conversation forks on short constructed conversations, and score
-each answer: the turn-end check (`leaf.clerk`) and the fork that answers a thread
-message or hands it to the session (`leaf.forks`). Claude Code makes both forks, so
+each answer: the turn-end check (`leaf.clerk`) and the fork that writes the agent's
+working line on a thread message before Leaf hands it to the session (`leaf.forks`). Claude Code makes both forks, so
 every case runs on that harness alone.
 
 A case in `workflows/fork_eval.yaml` is a conversation written for one decision a
@@ -39,10 +39,9 @@ error. Plugins and MCP servers are off.
 What the arm's Leaf took is what gets scored. A turn-end answer it refuses fails
 `answered`. Its asks are the records it wrote (`wrote`), as the user reads them; its
 findings are those its `turn_end_check` note lists for the page, which leaves out
-anything named for a page the session doesn't hold. A reply is what its `fork_reply`
-note says came of the answer: posted, or handed over by the fork's choice. An answer
-or reply Leaf refused fails `answered` where the note says so (`refused`); a base arm
-from before that field counts a refused reply as handed over.
+anything named for a page the session doesn't hold. A reply fork's line is what
+its `fork_reply` note says Leaf posted. An answer or line Leaf refused fails
+`answered` where the note says so (`refused`).
 
 An item is matched to a label by the words it rests on: one of the label's `words`
 stands in its quote, passage, title, text or edit words. An `expect` label needs an
@@ -52,8 +51,7 @@ it no longer shows them. An item of any kind in the same part of the answer (ask
 findings) matching an `absent` label fails the case, since it names what the case's
 guardrail leaves out. Every item and change goes to the text judge
 (`metadata.texts.judge`), which reads whether each says the right thing and whether
-an unlabelled one is real. A reply is scored on its decision, and a posted reply's
-words, or a hand-over's working line, on the judge.
+an unlabelled one is real. A reply fork's line is scored on the judge.
 
 Cost is priced from the result's `usage` at the fork model's list prices (`PRICES`).
 Its `total_cost_usd` prices the same call, since the rendered records carry no
@@ -166,7 +164,7 @@ else:
 def expected_checks(case: str, *, condition: str = "leaf") -> list[str]:
     scenario = CASES[case]
     if scenario["fork"] == "reply":
-        return ["answered", "decision"]
+        return ["answered", "lined"]
     expect = scenario.get("labels", {}).get("expect", [])
     return [
         "answered",
@@ -737,26 +735,20 @@ def judge_text(
 
 
 def score_reply(leaf: Leaf, page: Path, scenario: dict, turns: list) -> dict:
-    """Score what the arm's Leaf did with a reply fork's answer, as its `fork_reply`
-    note records it."""
+    """Score the working line the arm's Leaf posted from a reply fork's answer, as its
+    `fork_reply` note records it."""
     note = leaf.python(NOTE, str(page), "fork_reply") or {}
     if note.get("refused") or not note:
         return {"checks": {"answered": False}, "refused": note.get("refused")}
     thread = json.dumps(scenario["waiting"], indent=1, ensure_ascii=False)
     conversation = f"<conversation>\n{conversation_text(turns)}\n</conversation>\n\n"
     running = json.dumps(scenario.get("running", []), indent=1, ensure_ascii=False)
-    # A hand-over's working line, which Leaf posts as it hands the thread over.
     line = note.get("text") if "line" in note else None
     return {
-        "checks": {
-            "answered": True,
-            "decision": note["outcome"] == scenario["decision"],
-        },
+        "checks": {"answered": True, "lined": line is not None},
         "outcome": note["outcome"],
         "note": note,
         "texts": {
-            "reply": f"{conversation}<thread>\n{thread}\n</thread>\n\n"
-            f"<reply>\n{note.get('text', '(handed over)')}\n</reply>",
             "line": f"{conversation}<running>\n{running}\n</running>\n\n"
             f"<thread>\n{thread}\n</thread>\n\n<line>\n{line or '(no line)'}\n</line>",
         },

@@ -235,10 +235,7 @@ function workingMessage(thread, messages) {
   );
   const lastProgress = pending.at(-1);
   const workflows = thread.workflows;
-  const running = workflows.find(
-    (workflow) =>
-      !workflow.condition && ["working", "replying"].includes(workflow.stage),
-  );
+  const running = workflows.find((workflow) => !workflow.condition && workflow.at_work);
   const runningLine = running && hasWorkflowLine(running) ? running : null;
   const stopped = workflows.find(
     /** @returns {workflow is Extract<import("../framework/application.js").Workflow, {detail: string}>} */

@@ -12,6 +12,12 @@ the fork. This note holds the research behind it: what Claude Code lets a hooks 
 fork, measured, and how well the fork judges what to answer. The main thread is the
 session's own conversation, as against the forks and subagents made from it.
 
+On 2026-11-05 the user took answering out of this fork. A `$.model.fork` fork can't
+call tools, so it now posts only the agent's working line and hands every message to
+the session, and the message reads On it from the moment the hold starts. Answering
+moves to a fork that can act ("A fork that takes the work"). The measurements below
+are of the fork that answered.
+
 ## What a hooks module can fork
 
 A probe module, loaded with `claude -p --plugin-dir`, forked the conversation from its

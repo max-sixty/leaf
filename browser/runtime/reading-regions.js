@@ -60,7 +60,7 @@ import { skipped } from "./shown-box.js";
 import { pageScroller } from "./scrolling.js";
 import { reachReadingScroller } from "./reach.js";
 import { under, renderedUnder, renderedParent } from "./shadow.js";
-import { inPage, layoutBox } from "./passages.js";
+import { focusInPage, inPage, layoutBox } from "./passages.js";
 import { deepFocus, onCurrentLocation, pressing } from "./focus.js";
 
 /** @typedef {{id: string, host: Element & Partial<Pick<HTMLElement, "offsetWidth">>, body: Element, subject: string | null | undefined}} ReadingRegion
@@ -312,10 +312,6 @@ export const recentReadingRegion = () => readingRegion(recentRegionId);
 // where the user reads. One scrolled out of the window still is.
 /** @param {ReadingRegion | undefined} region */
 const shown = (region) => (region?.host.checkVisibility() ? region : undefined);
-// Focus names the page only on something in it: the body is where a click on words and
-// a let-go leave it, which leaves the answer to the place the user last acted in.
-/** @param {Element | null} at */
-const focusInPage = (at) => at !== document.body && inPage(at);
 export const pageReadingRegion = () => {
   const at = deepFocus();
   if (focusInPage(at)) return readingRegionFor(at);

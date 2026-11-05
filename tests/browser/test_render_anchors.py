@@ -3296,7 +3296,7 @@ def test_a_removed_subject_keeps_its_thread_open_and_detached(browser, serve):
     quote = thread_quote(page, root["id"])
     expect(quote).to_contain_text("The version stamp never lands")
     expect(quote).to_have_attribute("data-lf-detached", "")
-    expect(quote).to_have_attribute("title", re.compile("no longer"))
+    expect(quote.locator(".lf-anchor-status")).to_have_text("Not in the latest version")
     # With nowhere on the page to go, the view offers no way there.
     expect(
         page.locator(".lf-fp-aux button:enabled[aria-label='Show on page']")

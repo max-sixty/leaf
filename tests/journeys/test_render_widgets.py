@@ -1687,9 +1687,15 @@ def test_structured_data_explorer_keeps_one_aggregate_query_configuration(
     editor.press("End")
     editor.press_sequentially("x")
     editor.press("ArrowLeft")
-    rows.nth(1).get_by_role("button", name="Move filter 2 up").evaluate(
+
+    # Each row is a group named by its place, so its buttons say only what they do.
+    def filter_row(place):
+        return page.get_by_role("group", name=f"Filter {place}", exact=True)
+
+    filter_row(2).get_by_role("button", name="Move up", exact=True).evaluate(
         "button => button.click()"
     )
+    expect(filter_row(1)).to_have_attribute("data-filter-id", "filter-2")
     expect(editor).to_be_focused()
     assert editor.evaluate("input => input.selectionStart") == len("europe")
     editor.press("ControlOrMeta+z")
@@ -1703,7 +1709,7 @@ def test_structured_data_explorer_keeps_one_aggregate_query_configuration(
     expect(rows.nth(2).get_by_label("Value")).to_be_focused()
     rows.nth(2).get_by_label("Value").fill("risk")
     expect(page.locator(".query-result-count")).to_have_text("1 release shown")
-    rows.nth(2).get_by_role("button", name="Remove filter 3").click()
+    filter_row(3).get_by_role("button", name="Remove", exact=True).click()
     expect(rows).to_have_count(2)
 
     playground.get_by_role("button", name="Up to 6 results").click()
@@ -1735,8 +1741,8 @@ def test_structured_data_explorer_keeps_one_aggregate_query_configuration(
         "filter-2",
     ]
     expect(instruction).to_contain_text("region is europe and risk above 40")
-    rows.nth(1).get_by_role("button", name="Remove filter 2").click()
-    rows.first.get_by_role("button", name="Remove filter 1").click()
+    filter_row(2).get_by_role("button", name="Remove", exact=True).click()
+    filter_row(1).get_by_role("button", name="Remove", exact=True).click()
     expect(rows).to_have_count(0)
     expect(instruction).to_contain_text("Apply no filters")
     expect(page.locator(".query-result-count")).to_have_text("4 releases shown")

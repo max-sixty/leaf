@@ -83,7 +83,6 @@ import { raiseError } from "./errors.js";
  * state: Pick<Parameters<typeof createStateApplication>[0], "prepareActivation" | "acceptData" | "notifyDataSubscribers">,
  * annotationCommands: Pick<ReturnType<typeof import("./page-map-dialog.js").createPageMapDialog>, "leavePageMap" | "openPageMap" | "pageMapDialogContains" | "renderPageMapDialog"> & Pick<ReturnType<typeof import("./obligations/view.js").createObligationView>, "goToObligation"> & Pick<Parameters<typeof import("./annotation-overlay/margin-projection.js").createMarginProjection>[0], "designModeActive" | "pointerModeActive" | "scrollThreadIntoView" | "openInPanel" | "currentLocationObligation">,
  * createMarginProjection?: typeof import("./annotation-overlay/margin-projection.js").createMarginProjection | undefined,
- * threadAvailable?: boolean,
  * }} ApplicationDependencies */
 
 const commandDispatch = createCommandDispatch();
@@ -393,7 +392,6 @@ function createApplication(dependencies) {
   });
 
   threadPresenter = createThreadPresentation({
-    available: dependencies.threadAvailable ?? true,
     inlineView,
     surfaceView,
     anchorPlacement: dependencies.anchorPlacement,

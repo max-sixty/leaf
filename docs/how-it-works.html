@@ -3043,10 +3043,13 @@ flowchart LR
             <h2>Offline exports</h2>
             <p id="runtime-export-record">
               <code>leaf page export PAGE -o FILE</code> captures a stamped version, its
-              resources and recorded state in one HTML file. Reading controls and
-              page-owned code work offline; new Leaf choices, comments, Undo and thread
-              interactions need the served page. An agent need not be running to record
-              a choice on a live server. Pages containing live samples cannot export.
+              resources and the decisions recorded on its widgets in one HTML file. The
+              file holds none of the conversation with the agent, on screen or in its
+              source: no threads or their attachments, to-dos, plan or changelogs.
+              Reading controls and page-owned code work offline; new Leaf choices,
+              comments and Undo need the served page. An agent need not be running to
+              record a choice on a live server. Pages containing live samples cannot
+              export.
             </p>
           </section>
         </lf-tab></lf-tabs

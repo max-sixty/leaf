@@ -1911,6 +1911,7 @@ export function createVersionController({
       reaches: (before, after) => reachesMembers(before, after, arrivingRoot),
       same: (before, after) => sameAuthoredMarkup(before, after, arrivingRoot),
       sameValue: (held, value) => sameValue(held, value, arrivingRoot),
+      diffWork: Infinity,
     };
   }
 

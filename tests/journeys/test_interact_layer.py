@@ -290,7 +290,7 @@ def test_a_wait_takes_the_suites_deadline():
 
     A literal deadline is sized to how long the work took where it was written, and
     a busy runner takes many times that, so a correct product fails the test there
-    (tests/AGENTS.md, "Functional results do not depend on execution speed").
+    (tests/AGENTS.md, "Results do not depend on execution speed").
     A Python-side wait takes `STATED_TIMEOUT`, or a constant derived from it. A
     browser wait takes `SERVED_TIMEOUT_MS`, which `render_harness` makes the default
     of every Playwright wait and `expect` that names none, or `HANDOVER_DEADLINE_MS`
@@ -302,7 +302,8 @@ def test_a_wait_takes_the_suites_deadline():
     the deadline a thread, future, event or socket takes first, and a page's
     default deadline; and a deadline a local loop computes from `monotonic()`. A
     zero timeout asks without waiting and is left alone. A sleep
-    (`wait_for_timeout`) is a pause or an absence window, not a deadline.
+    (`wait_for_timeout`) bounds nothing, so this leaves it alone, and a test waits for
+    an absence on an ordered event instead (tests/AGENTS.md, "Absences").
     """
     deadline_names = {"timeout", "timeout_ms"}
     deadline_first = {

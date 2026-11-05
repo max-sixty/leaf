@@ -488,7 +488,7 @@ def test_original_quoted_words_remain_readable_after_the_page_rewrites_them(
         stamp_page(d, replacement, "Rewrote the plan")
     wait_for_revision(page, 2)
     card = open_from_threads(page, root["id"])
-    quote = card.locator(".lf-quote")
+    quote = card.locator(".lf-thread-quote")
     expect(quote).to_contain_text("FINAL IMPORTANT WORDS")
     if not removed:
         expect(quote.locator(".lf-anchor-status")).to_have_text("Changed")
@@ -575,7 +575,7 @@ def test_a_long_quote_of_replaced_data_has_a_local_reading(browser, serve):
         e for e in events_model.read_events(serve.page_dir) if e["kind"] == "comment"
     )
     card = open_from_threads(page, root["id"])
-    quote = card.locator(".lf-quote")
+    quote = card.locator(".lf-thread-quote")
     expect(quote).to_have_attribute("data-lf-detached", "")
     assert quote.evaluate("el => el.scrollHeight > el.clientHeight")
     disclosure = card.get_by_role("button", name="Full quote", exact=True)
@@ -619,7 +619,7 @@ def test_a_retained_reference_with_nothing_hidden_offers_no_disclosure(
     )
     wait_for_revision(page, 2)
     card = open_from_threads(page, root)
-    expect(card.locator(".lf-quote")).to_be_visible()
+    expect(card.locator(".lf-thread-quote")).to_be_visible()
     expect(
         card.get_by_role("button", name="Full quote", exact=True)
     ).not_to_be_visible()
@@ -705,7 +705,7 @@ customElements.define('lf-quote-subject', class extends LeafElement {
     )
     assert reading == {"kind": "element", "exact": False, "status": "fallback"}
     card = open_from_threads(page, comment["id"])
-    quote = card.locator(".lf-quote")
+    quote = card.locator(".lf-thread-quote")
     expect(quote).not_to_have_attribute("title", "Jump to this passage")
     expect(quote.locator(".lf-anchor-status")).to_have_text("Changed")
     disclosure = card.get_by_role("button", name="Full quote", exact=True)

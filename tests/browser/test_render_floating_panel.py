@@ -962,7 +962,8 @@ def test_news_in_an_open_thread_moves_none_of_its_controls(browser, serve):
     assert page.evaluate(SEATS) == seats
     notice.click()
     expect(page.locator(".lf-fp-head .lf-reopen")).to_be_visible()
-    expect(lead(page)).to_contain_text("Resolved")
+    # Who resolved it, which Reopen's name says only to a pointer resting on it.
+    expect(lead(page)).to_contain_text(re.compile(r"Resolved by \w+"))
     box.focus()
     expect(words).to_have_text("Reply to reopen")
     settled(page)
@@ -4114,6 +4115,34 @@ def test_versions_travel_opens_in_the_panel(browser, serve):
     expect(page).to_have_url(re.compile(rf"/versions/{number}\b"))
 
 
+def test_a_finger_reads_a_version_s_note_whole(browser, serve):
+    """A row cuts a version's note to its end, whole on hover, which a finger never
+    has, so under one each note stands whole on the lines under its version's name."""
+    url = serve(LONG_PAGE)
+    note = (
+        "Moved the rollout decision into its own section and reordered shutdown so "
+        "cleanup runs after the supervisor collects output"
+    )
+    stamp_page(
+        serve.page_dir, LONG_PAGE.replace("Paragraph 0.", "Paragraph zero."), note
+    )
+    context = browser.new_context(
+        viewport={"width": 390, "height": 844}, has_touch=True, is_mobile=True
+    )
+    page = open_page(browser, url, context=context)
+    words = panel_menu(page, "versions", touch=True).locator(
+        ".lf-fp-note", has_text="supervisor"
+    )
+    expect(words).to_have_text(note)
+    assert words.evaluate("""note => {
+      const row = note.closest('.lf-fp-label').getBoundingClientRect();
+      const range = document.createRange();
+      range.selectNodeContents(note);
+      return [...range.getClientRects()].every(
+        (line) => line.right <= row.right + 0.5 && line.bottom <= row.bottom + 0.5);
+    }""")
+
+
 def test_versions_rests_the_page_s_keys_and_takes_a_version_s_number(browser, serve):
     """While Versions holds focus the page's keys rest, where d and j scrolled the page
     under it and c left it for the field. A version's number shows that version, not
@@ -5107,8 +5136,9 @@ def test_a_refused_page_comment_hands_its_words_back_to_the_field(browser, serve
 
 def test_a_thread_whose_words_are_gone_keeps_its_quotation_in_the_panel(browser, serve):
     """A thread about words the page no longer holds opens in the panel, where the
-    quotation it kept stands over its messages, marked as no longer on the page, in
-    three lines; Full quote shows the rest, as a card's head does."""
+    quotation it kept stands over its messages in three lines, led by the word that
+    says the page has no place for it, which a finger reads as a pointer does; Full
+    quote shows the rest, as a card's head does."""
     url = serve(LONG_PAGE)
     words = "The earlier plan required a manual review before every rollout. " * 6
     panel_comment(
@@ -5125,6 +5155,12 @@ def test_a_thread_whose_words_are_gone_keeps_its_quotation_in_the_panel(browser,
     expect(quote).to_contain_text("FINAL WORDS")
     expect(quote).to_have_attribute("data-lf-detached", "")
     assert quote.evaluate("el => el.scrollHeight > el.clientHeight")
+    status = quote.locator(".lf-anchor-status")
+    expect(status).to_have_text("Not found")
+    assert status.evaluate(
+        "s => s.getBoundingClientRect().bottom"
+        " <= s.closest('.lf-thread-quote').getBoundingClientRect().bottom"
+    )
     disclosure = view.get_by_role("button", name="Full quote", exact=True)
     expect(disclosure).to_be_visible()
     disclosure.click()
@@ -5259,6 +5295,37 @@ def test_all_pages_is_a_view_of_the_panel(browser, serve, other_leaf):
     page.keyboard.press("g")
     page.keyboard.press("Shift+l")
     expect(pages).to_have_count(0)
+
+
+def test_a_finger_reads_a_neighbouring_page_s_whole_account(
+    browser, serve, live_leaf, tmp_path
+):
+    """All pages cuts a row's words to the panel's width and says the whole account on
+    hover, where a finger never is. Under one, each row's title and what its agent is
+    doing stand whole, with where its session works under them, which is what tells two
+    pages of one title apart."""
+    title = (
+        "The other leaf, whose title runs well past what one line of the panel holds"
+    )
+    live_leaf("other", title)
+    context = browser.new_context(
+        viewport={"width": 390, "height": 844}, has_touch=True, is_mobile=True
+    )
+    page = open_page(browser, serve(LONG_PAGE), context=context)
+    told(page, until=lambda state: bool(state["others"]))
+    panel_menu(page, "navigate", touch=True).locator(
+        '.lf-fp-item[data-lf-row="leaves"]'
+    ).tap()
+    panel_settled(page, view="leaves")
+    row = page.locator(f"{panel_view('leaves')} a.lf-fp-page")
+    expect(row.locator(".lf-fp-label")).to_have_text(title)
+    expect(row.locator(".lf-fp-page-rest")).to_have_text(str(tmp_path / "other-work"))
+    expect(row.locator(".lf-fp-page-rest")).to_be_visible()
+    for words in (".lf-fp-label", ".lf-fp-value", ".lf-fp-page-rest"):
+        assert row.locator(words).evaluate(
+            "el => el.scrollWidth <= el.clientWidth + 1"
+            " && el.scrollHeight <= el.clientHeight + 1"
+        ), words
 
 
 def test_a_comment_on_words_where_the_page_draws_no_margin_is_written_in_the_row(

@@ -378,6 +378,14 @@ def floating_thread(page: Page) -> None:
     expect(page.locator(panel_view("thread"))).to_be_visible()
 
 
+def detached_thread(page: Page) -> None:
+    """A thread whose passage a revision took out, opened from Threads: its quote,
+    saying it is not in this version, over its messages, and no way to the page."""
+    go_to_threads(page)
+    page.locator(".lf-fp-thread", has_text="Old release plan").click()
+    expect(page.locator(f"{panel_view('thread')} .lf-thread-quote")).to_be_visible()
+
+
 def thread_code_copy(page: Page) -> None:
     """A command in an agent's reply, with its source copy control revealed."""
     as_agent(
@@ -2026,10 +2034,61 @@ def capture_small_drag(page: Page) -> None:
 
 
 def versions_menu(page: Page) -> None:
-    """Versions, opened from the leaf's menu: a row for each version, with its note."""
+    """Versions, opened from the leaf's menu: a row for each version, with its note,
+    the agent's latest as long as a stamp's note runs on real pages (about 90
+    characters), where the fixture's own say only Earlier draft."""
+    source = served_page.get().directory / "index.html"
+    source.write_text(
+        source.read_text(encoding="utf-8").replace(
+            "remaining decision", "one decision left", 1
+        ),
+        encoding="utf-8",
+    )
+    as_agent(
+        "page",
+        "stamp",
+        "--text",
+        "Moved the self-hosted runner decision into its own section and reordered "
+        "shutdown so cleanup runs after the supervisor collects output",
+    )
+    wait_until_ready(page, PageClient(served_page.get().address).state())
     more_menu(page)
     page.locator('.lf-fp-item[data-lf-row="versions"]').click()
     page.locator(".lf-fp-version").first.wait_for()
+
+
+def all_pages(page: Page) -> None:
+    """All pages with two neighbours of one title, told apart only by where their
+    sessions work. A stills server has no neighbour of its own, so a rewritten state
+    supplies them."""
+
+    def with_neighbours(route):
+        response = route.fetch()
+        state = response.json()
+        state["others"] = [
+            {
+                "page_key": place,
+                "url": f"http://127.0.0.1:9/{place}",
+                "title": "Move Tend's agent runs into one sandbox and retire its setup",
+                "session_cwd": f"/workspace/tend.{place}",
+                "activity": {
+                    **state["activity"],
+                    "kind": "working",
+                    "dropped": None,
+                    "awaiting": None,
+                    "detail": "Running the sandbox suite against both harnesses",
+                },
+            }
+            for place in ("sandbox-runner", "release-notes")
+        ]
+        route.fulfill(response=response, json=state)
+
+    page.route("**/api/state*", with_neighbours)
+    page.reload()
+    wait_until_ready(page)
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+l")
+    page.locator(panel_view("leaves")).wait_for()
 
 
 def obligation_marker_by_keyboard(page: Page) -> None:
@@ -2404,6 +2463,9 @@ STATES = (
     ),
     State("panel-status-hover", "review-a-plan", panel_status_hover),
     State("floating-thread", "ship-review", floating_thread, region=".lf-fp-opened"),
+    State(
+        "detached-thread", "feature-gallery", detached_thread, region=".lf-fp-opened"
+    ),
     State("thread-code-copy", "ship-review", thread_code_copy, region=".lf-fp-opened"),
     State(
         "floating-thread-unread",
@@ -2851,6 +2913,7 @@ STATES = (
         versions_menu,
         window=WINDOWS["phone"],
     ),
+    State("all-pages", "review-a-plan", all_pages, region=".lf-fp-opened"),
     State("plan-card-reply-long", "review-a-plan", card_reply_long),
     State("plan-panel-reply-long", "review-a-plan", panel_reply_long),
     State("plan-page-comment-long", "review-a-plan", page_comment_long),

@@ -158,47 +158,41 @@ import { Transcript } from "./transcript.js";
  * source: ThreadRecord, reread: (held: ThreadRecord) => ThreadReading}} ThreadReading */
 
 // What a thread says of the words it is about: the quote, whether it still stands on the
-// page, and its hover. A thread draws it where its container asks (`ThreadOutlets`,
-// `quote`), as the floating panel's view does, and Threads finds a thread by its label.
+// page, and a status word where the page no longer reads as the quote does: the words
+// are gone from this version, can't be found on the page, come from earlier data, or
+// have changed. A thread draws it where its container asks (`ThreadOutlets`, `quote`),
+// as the floating panel's view does, and Threads finds a thread by its label. The status
+// is a word on the quote because a finger never reads a title.
 /** @param {ThreadRecord} thread
  * @param {Pick<ReturnType<typeof import("../anchor-placement.js").createAnchorPlacement>, "placedAt">} anchors */
 export function quoteReading(thread, anchors) {
   const placement = anchors.placedAt(thread.id);
-  // A version that rewrote the quoted words left the thread on their section
-  // (`rewritten_from`, events.md); the head still names those words, marked as changed.
-  const rewritten = thread.rewritten_from;
   const quoted = threadPassage(thread);
   const label = anchorQuote(quoted, thread.root.about);
   if (!label) return null;
   const anchored = Boolean(thread.anchor) || Boolean(thread.detached_from);
-  const found = !thread.detached_from && placement != null;
-  const outdated = anchored && placement?.status === "outdated";
+  const detached = anchored && (Boolean(thread.detached_from) || placement == null);
+  // A version that rewrote the quoted words left the thread on their section
+  // (`rewritten_from`, events.md); the head still names those words, marked as changed.
   const changed =
-    Boolean(rewritten) ||
+    Boolean(thread.rewritten_from) ||
     Boolean(quoted?.quote && placement?.datumElement && !placement.exact);
   return Object.freeze({
     label,
-    anchored,
-    found,
-    outdated,
-    changed,
+    detached,
+    status: detached
+      ? thread.detached_from
+        ? "Not in this version"
+        : "Not found"
+      : anchored && placement?.status === "outdated"
+        ? "Earlier data"
+        : changed
+          ? "Changed"
+          : null,
     // A surviving element can still be a destination after its quoted words
     // have gone (rewritten text, replaced data or a virtual datum). Only a
     // resolved passage can supply the original quote's complete reading.
     localReading: Boolean(quoted?.quote) && placement?.kind !== "passage",
-    title: !anchored
-      ? null
-      : found
-        ? outdated
-          ? "This comment refers to an earlier data revision"
-          : changed
-            ? "These words have changed since; jump to their current item"
-            : quoted?.quote && placement.kind !== "passage"
-              ? "Jump to the quoted item's current location"
-              : "Jump to this passage"
-        : thread.detached_from
-          ? "This passage is no longer in the version shown"
-          : "This passage can't be identified in the version shown",
   });
 }
 
@@ -392,11 +386,11 @@ export function threadReading(thread, surface, commands) {
     resolved,
     attention,
     // Where a resolved thread stands already says it is resolved: in a seat's Resolved
-    // disclosure (inline.js). Who resolved it is said only where it was the agent.
+    // disclosure (inline.js). Who resolved it is said only where it was the agent, in
+    // Reopen's name and the words the panel's field says for the thread, which a finger
+    // reads where it never reads that name.
     resolvedBy:
-      thread.resolved?.author === "agent"
-        ? `✓ Resolved by ${thread.resolved.agent}`
-        : "",
+      thread.resolved?.author === "agent" ? `Resolved by ${thread.resolved.agent}` : "",
     settlement: Object.freeze({
       kind,
       word,
@@ -473,8 +467,9 @@ function wordsWidth(node) {
    (`DrawnThread`), held news included, so they agree with its settlement and notice, as
    a card's own words do (`#createReply`). */
 /** The thread as a thread draws it, held news included, which its reply box's words
- * read: whether it is resolved, and whose turn it is (workflow.js, `threadAttention`).
- * @typedef {{resolved: boolean, attention: ThreadReading["attention"]}} DrawnThread */
+ * read: whether it is resolved and by which agent, and whose turn it is (workflow.js,
+ * `threadAttention`).
+ * @typedef {Pick<ThreadReading, "resolved" | "resolvedBy" | "attention">} DrawnThread */
 /** @typedef {Omit<import("./replies.js").ReplyOptions, "hint" | "hintParts" | "hintLead"> & {
  * hint?: (drawn: DrawnThread) => string,
  * hintParts?: (drawn: DrawnThread) => unknown,
@@ -1267,7 +1262,8 @@ export class ThreadView {
   // them; where they no longer do, as for a thread a revision detached from its
   // passage, the quotation the thread kept is all that is left of them, so Full quote
   // shows the whole of it, its press standing above the words it grows so the press
-  // never moves itself. It shows only where three lines cut them, and the quote stays
+  // never moves itself. The quote's status word leads its words, so the three lines
+  // never cut it. Full quote shows only where three lines cut them, and the quote stays
   // whole while the view stands. Where the words stand is read from the page, which the
   // thread's pass reads again after drawing (presentation.js, `readTargets`) and a data
   // refresh changes without changing the thread, so the quote draws by an effect of its
@@ -1313,17 +1309,14 @@ export class ThreadView {
         ${ref(this.#watchQuote)}
         id=${this.#quoteId}
         class="lf-thread-quote"
-        ?data-lf-detached=${quote.anchored && !quote.found}
+        ?data-lf-detached=${quote.detached}
         data-lf-expanded=${String(quote.localReading && expanded)}
-        title=${(quote.anchored && !quote.found && quote.title) || nothing}
       >
-        <span class="lf-quote-label">${quote.label}</span>${
-          quote.outdated
-            ? html`<span class="lf-anchor-status">Earlier data</span>`
-            : quote.changed
-              ? html`<span class="lf-anchor-status">Changed</span>`
-              : nothing
-        }
+        ${
+          quote.status
+            ? html`<span class="lf-anchor-status">${quote.status}</span> `
+            : nothing
+        }<span class="lf-quote-label">${quote.label}</span>
       </blockquote>`;
   }
 
@@ -1361,7 +1354,9 @@ export class ThreadView {
     const reopen = state.kind === "unresolve";
     const word = reopen ? "Reopen" : "Resolve";
     const label =
-      reopen && model.resolvedBy ? `${model.resolvedBy} · ${state.label}` : state.label;
+      reopen && model.resolvedBy
+        ? `✓ ${model.resolvedBy} · ${state.label}`
+        : state.label;
     return html`<button
       ${offeredAction("symbol", reopen ? "lf-reopen" : "lf-resolve", label, {
         action: reopen ? "reopen" : "resolve",
@@ -1457,8 +1452,8 @@ export class ThreadView {
     // with each reading the thread draws.
     /** @returns {DrawnThread} */
     const drawn = () => {
-      const { resolved, attention } = this.#shown.value;
-      return { resolved, attention };
+      const { resolved, resolvedBy, attention } = this.#shown.value;
+      return { resolved, resolvedBy, attention };
     };
     return createReplyView(
       model.key,

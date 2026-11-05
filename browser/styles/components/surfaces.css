@@ -1301,13 +1301,15 @@ button.lf-thread-news {
    thread/messages.js). It stands over the thread's messages in three lines, the whole
    on Full quote, its press above the words it grows. It only says what the thread is about, since the container's way to
    the words, as the panel's Show on page, goes there: it takes no press, no aim's room
-   and no title naming a jump, though a detached quote's title still says where its
-   words went. Its words start on the thread's edge, the 1px rule before them included. */
+   and no title. A status word before its words says where they went, if not where
+   the quote says, such as a passage a revision took out, so the three lines never cut
+   it and a finger reads it as a pointer does (`quoteReading`). Its words start on the
+   thread's edge, the 1px rule before them included. */
 .lf-quote-label {
   min-width: 0;
 }
 .lf-anchor-status {
-  margin-inline-start: 7px;
+  margin-inline-end: 3px;
   color: var(--muted);
   font: var(--font-status);
 }

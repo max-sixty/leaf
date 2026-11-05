@@ -1032,7 +1032,8 @@ export function createFloatingPanel({
     // reached (`clearFor`), names that stop alone: the user is at it now, not at this
     // thread's turn.
     const away = Boolean(position) && !currentLocationIn(host);
-    const word = away ? null : drawn.resolved ? RESOLVED : drawn.attention?.word;
+    const settled = drawn.resolvedBy ? leafSays(drawn.resolvedBy) : RESOLVED;
+    const word = away ? null : drawn.resolved ? settled : drawn.attention?.word;
     if (!word) return position;
     return voiced([word, ...(position ? [` · ${position}`] : [])]);
   }
@@ -2411,7 +2412,8 @@ export function createFloatingPanel({
   // Where the agent's latest save failed its check, first what the check found, which
   // its error points here to read (version.js, `holdFailedSave`); then the versions
   // the picker lists, each a press that travels there and says the note its stamp gave
-  // it after its name, cut to the row and whole on hover. A column at the rows' end
+  // it after its name, cut to the row and whole on hover, or whole under the name for a
+  // pointer that can't hover (floating-panel.css). A column at the rows' end
   // holds Compare where the picker offers it and Showing for the version shown, so
   // the two words line up. Showing stands outside the press, as Compare does, over
   // the row's end; the press carries it as `aria-current`.
@@ -3496,7 +3498,8 @@ export function createFloatingPanel({
       // A choice that says more than its name, what choosing it gives and whether the
       // page advises it, stands on a line of its own with those words under its name,
       // two lines at most, so the user can answer here without Show, and whole on
-      // hover, as a version's note is. The words carry the tooltip rather than the
+      // hover, as a version's note is, and for a finger on the option's own card, where
+      // Show goes. The words carry the tooltip rather than the
       // press, whose name already holds them: a title there is read again as its
       // description. Rejected: the option's whole card, whose tags and picture let one
       // choice fill a phone's screen, and its name alone, which left the user picking
@@ -3949,7 +3952,8 @@ export function createFloatingPanel({
   // ---------- All pages: the pages live on this machine ----------
   // Each page served on this machine now, this one first (live-leaves.js, `leavesRows`):
   // its leaf in its agent's tone, its title, and what its agent is doing, its whole
-  // account on hover. A row is a link that opens its page in a tab of its own; this
+  // account on hover, or at rest for a pointer that can't hover (floating-panel.css).
+  // A row is a link that opens its page in a tab of its own; this
   // page's row says it is this page and goes nowhere, so the walk passes it by.
   function pagesView() {
     const rows = leavesRows(runtime.state);
@@ -3967,7 +3971,11 @@ export function createFloatingPanel({
             ><span class="lf-fp-label">${row.title}</span
             ><span class="lf-fp-value"
               >${row.self ? "This page" : voiced(row.parts)}</span
-            >`;
+            >${
+              row.rest
+                ? html`<span class="lf-fp-page-rest">${row.rest}</span>`
+                : nothing
+            }`;
           return row.self
             ? html`<div class="lf-fp-page" title=${row.account}>${face}</div>`
             : html`<a

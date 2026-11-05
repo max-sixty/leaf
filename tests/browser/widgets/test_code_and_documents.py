@@ -691,7 +691,7 @@ def test_a_comment_on_a_closed_tab_s_document_never_reads_as_earlier_data(
     })()"""
     page = open_page(browser, url, init_script=HOLD_QUEUE + ";" + seen, upgraded=False)
     page.wait_for_function("() => document.body.hasAttribute('data-lf-presented')")
-    quote = open_panel_thread(page, comment["id"]).locator(".lf-fp-quote")
+    quote = open_panel_thread(page, comment["id"]).locator(".lf-thread-quote")
     expect(quote).to_be_visible()
     expect(page.locator("#doc-2")).not_to_have_class("lf-rendered")
     expect(quote).not_to_contain_text("Earlier data")

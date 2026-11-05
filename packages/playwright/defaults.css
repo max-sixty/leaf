@@ -89,17 +89,12 @@ lf-trace[hidden="until-found"] {
   justify-content: space-between;
   gap: var(--sp-2);
 }
-/* The scope's radio group (webawesome.css) at the recording's control size. */
+/* The scope's radio group (webawesome.css), at the height every view chooser takes. */
 .lf-trace-sources {
-  --wa-form-control-height: var(--lf-trace-control-size);
   display: block;
   flex: 0 1 auto;
-  min-block-size: var(--lf-trace-control-size);
   min-inline-size: 0;
   max-inline-size: 100%;
-}
-.lf-trace-source {
-  min-block-size: var(--lf-trace-control-size);
 }
 .lf-trace-viewer {
   white-space: nowrap;
@@ -886,7 +881,6 @@ lf-trace-compare {
   display: flex;
   flex-direction: column;
   min-inline-size: 0;
-  --lf-trace-control-size: 44px;
   --lf-trace-chooser-padding: var(--sp-2);
   font: var(--font-ui);
 }
@@ -922,9 +916,7 @@ lf-trace-compare lf-trace {
   lf-trace-compare:not(:defined)::before {
     content: "";
     display: block;
-    block-size: calc(
-      var(--lf-trace-control-size) + 2 * var(--lf-trace-chooser-padding) + 1px
-    );
+    block-size: calc(var(--lf-chooser) + 2 * var(--lf-trace-chooser-padding) + 1px);
   }
 }
 

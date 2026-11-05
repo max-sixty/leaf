@@ -648,10 +648,9 @@ def test_the_margin_groups_meanings_at_one_destination_without_moving_the_page(
     expect(reply).to_be_focused()
     page.locator("h1").click()
     expect(preview).to_be_hidden()
+    # A click opens the thread in its reply (thread/focus.js).
     marker.click()
     expect(reply).to_be_visible()
-    expect(reply).not_to_be_focused()
-    reply.click()
     expect(reply).to_be_focused()
     write(reply, "Keep this draft visible.")
     page.locator(".lf-margin-preview-close").click()

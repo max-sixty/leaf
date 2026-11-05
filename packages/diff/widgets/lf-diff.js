@@ -637,7 +637,7 @@ function diffTools(host) {
   const search = searchField("lf-diff-tools lf-diff-search", {
     name: "diff-search",
     label: "Filter diff files",
-    placeholder: "Filter files",
+    placeholder: "Filter files…",
   });
   search.addEventListener("input", () => host.filterFiles(search.value));
   const progress = document.createElement("span");

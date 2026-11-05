@@ -1909,6 +1909,11 @@ export function createVersionController({
         owner === pageDocument() ? inPage(node) : under(node, owner),
       declared: upgraded,
       body: authoredBody,
+      // `main` holds nearly all of a page's content, so a page module that moves or
+      // replaces one of its children is patched around, as it was when `main` was the
+      // patch root, rather than rebuilding the page beneath the user.
+      traversed: (element) =>
+        element.localName === "main" && element.parentElement === pageDocument(),
       reaches: (before, after) => reachesMembers(before, after, arrivingRoot),
       same: (before, after) => sameAuthoredMarkup(before, after, arrivingRoot),
       sameValue: (held, value) => sameValue(held, value, arrivingRoot),

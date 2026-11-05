@@ -18,7 +18,7 @@ import {
   segmentBlock,
 } from "../passages.js";
 import { shownBox } from "../geometry.js";
-import { skipped } from "../shown-box.js";
+import { skipped } from "../shadow-tree.js";
 import { visibleTargetParts } from "../visible-target-parts.js";
 import { repaint } from "../repaint.js";
 import { intersect, union } from "../rect.js";
@@ -65,7 +65,7 @@ targetPickerHintLayer.append(hintRoot, markRoot);
 const pageSearchInput = searchField("lf-page-search-box", {
   name: "page-search",
   label: "Search page text",
-  placeholder: "Find text",
+  placeholder: "Find text…",
 });
 pageSearchInput.maxlength = 160;
 pageSearchInput.withClear = false;

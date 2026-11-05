@@ -304,7 +304,7 @@ customElements.define(
       // removed option's number so undo never changes another action's binding.
       if (this.#choosable) {
         for (const option of this.#options()) this.#contextKeys(`choose:${option.id}`);
-        if (!inChrome(this)) this.#contextKeys("write");
+        if (this.#addition.offered) this.#contextKeys("write");
         if (this.hasAttribute("multiple")) this.#contextKeys("done");
       }
       const named = new Set(

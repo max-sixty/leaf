@@ -153,9 +153,11 @@ comparing the name. A watcher is one of:
   next wait, which names the page again where no harness session holds it.
 - **The adapter**: one detached process per Codex task, holding the task's wait
   lease and a lease of its own (`codex_adapter.py`). In the desktop app, an IDE
-  extension and a plain terminal, Leaf can't reach Codex's App Server, so the adapter
-  queues each delivery as the task's next message with `codex queue`. There Leaf
-  reaches the task only through its hooks, its transcript and that queued message, and
+  extension and a plain terminal, Leaf can't reach Codex's App Server. A desktop chat
+  a window of the app has opened takes each delivery as a turn the app starts, with no
+  message in the user's name (`codex_desktop.py`). Anywhere else the adapter queues it
+  as the task's next message with `codex queue`. There Leaf
+  reaches the task only through its hooks, its transcript and those two offers, and
   has no more control over a turn than under Claude Code. A task that inherits
   `LEAF_CODEX_APP_SERVER`, as a terminal started by `leaf codex launch` does, connects
   the adapter to its App Server instead, where Leaf starts turns without a message and

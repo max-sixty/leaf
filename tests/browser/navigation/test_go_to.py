@@ -490,7 +490,7 @@ def test_the_g_chord_opens_an_empty_page_map(browser, serve):
     expect(sheet).to_be_visible()
     expect(
         sheet.get_by_role(
-            "searchbox", name="Find an action, status, or location in Page Map"
+            "searchbox", name="Find an action, status or location in Page Map"
         )
     ).to_be_focused()
     # The one close control every surface wears: the cross, named for what it closes,
@@ -504,7 +504,7 @@ def test_the_g_chord_opens_an_empty_page_map(browser, serve):
         header_box["x"] + header_box["width"], abs=0.5
     ), (header_box, close_box)
     expect(sheet).to_contain_text(
-        "No margin controls, status indicators, or locations yet"
+        "No margin controls, status indicators or locations yet"
     )
     expect(sheet.locator(".lf-page-map-action")).to_have_count(0)
 

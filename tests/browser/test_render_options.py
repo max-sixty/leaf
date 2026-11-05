@@ -1224,9 +1224,12 @@ def test_a_quoted_widget_exhibits_without_taking_input(browser, serve):
     # stays unwired. The live pair is the control — without it a theme that had stopped
     # drawing the offer at all would read exactly like one that withholds it.
     offer = """el => { const cs = getComputedStyle(el);
-        const stateRoom = getComputedStyle(el, '::before');
+        const pick = el.querySelector(':scope > .lf-pick');
+        const ps = pick && getComputedStyle(pick);
         return { cursor: cs.cursor, box: cs.borderTopWidth,
-                 stateRoom: stateRoom.content === 'none' ? 0 : parseFloat(stateRoom.width) }; }"""
+                 stateRoom: !ps || ps.float === 'none' ? 0
+                   : pick.getBoundingClientRect().width
+                     + parseFloat(ps.marginInlineStart) + parseFloat(ps.marginInlineEnd) }; }"""
     quoted_card, live_card = (
         page.locator(sel).evaluate(offer) for sel in ("#q-shim", "#l-shim")
     )
@@ -1244,8 +1247,9 @@ def test_a_quoted_widget_exhibits_without_taking_input(browser, serve):
     assert quoted_box == "0px", (
         f"the exhibit is drawn as a control to answer: {quoted_box} border"
     )
-    # The live card reserves one header slot for either its chosen state or keyboard
-    # binding badge. An exhibit can grow neither, so its title keeps that room.
+    # The live card's mark is the float that reserves one header slot for either its
+    # chosen state or keyboard binding badge. An exhibit can grow neither, so its title
+    # keeps that room.
     assert quoted_card["stateRoom"] == 0 and live_card["stateRoom"] > 0, (
         "the exhibit reserves the live card's header state slot: "
         f"{quoted_card['stateRoom']} vs {live_card['stateRoom']}"

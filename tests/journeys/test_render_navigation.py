@@ -1672,7 +1672,7 @@ def test_the_g_chord_reaches_named_surfaces_and_visible_targets(browser, serve):
     expect(sheet).to_be_visible()
     expect(
         sheet.get_by_role(
-            "searchbox", name="Find an action, status, or location in Page Map"
+            "searchbox", name="Find an action, status or location in Page Map"
         )
     ).to_be_focused()
     # Its accessible name does not add a second visible caption above the placeholder.
@@ -1707,7 +1707,7 @@ def test_the_g_chord_reaches_named_surfaces_and_visible_targets(browser, serve):
     expect(sheet.locator(".lf-page-map-group")).not_to_have_count(0)
     expect(
         sheet.get_by_role(
-            "searchbox", name="Find an action, status, or location in Page Map"
+            "searchbox", name="Find an action, status or location in Page Map"
         )
     ).to_be_focused()
     page.keyboard.press("Escape")

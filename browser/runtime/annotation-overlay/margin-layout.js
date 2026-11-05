@@ -73,7 +73,6 @@ import {
   shownWindow,
   stuckShift,
 } from "../geometry.js";
-import { skipped } from "../shown-box.js";
 import {
   composedParentNode,
   renderedChildren,
@@ -81,7 +80,7 @@ import {
   renderedUnder,
   upFrom,
 } from "../shadow.js";
-import { isText } from "../shadow-tree.js";
+import { isText, skipped } from "../shadow-tree.js";
 import { scrollerFor } from "../reading-regions.js";
 import { boundedBlockOf } from "../bounds.js";
 import { pageScroller } from "../scrolling.js";
@@ -167,11 +166,27 @@ function withhold(row, on) {
 }
 /** @param {Element} target */
 const targetBox = (target) => shownParts(target)[0] ?? target;
+// The boxes whose size can move a row, which the layer's one observer (`layer.sizes`)
+// watches: each target's ancestors and their siblings, each lane's scroller, and,
+// while the margin holds a row, the body and the column. A resize several of them see
+// arrives in one callback and runs one pass; with an observer of their own, the body
+// and the column ran a second pass over the same layout. Only `subscribe` observes and
+// unobserves, from the one set each pass states, so a box that leaves one use while
+// another still needs it stays watched.
 /** @type {Set<Element>} */
 let observedGeometry = new Set();
 let geometryObservation = 0;
 /** @type {Set<Element>} */
 let wantedGeometry = new Set();
+
+/** @param {Layer} layer */
+function subscribe(layer) {
+  for (const node of observedGeometry)
+    if (!wantedGeometry.has(node)) layer.sizes.unobserve(node);
+  for (const node of wantedGeometry)
+    if (!observedGeometry.has(node)) layer.sizes.observe(node);
+  observedGeometry = wantedGeometry;
+}
 
 /** @param {Set<Element>} geometry @param {Layer} layer */
 function watchGeometry(geometry, layer) {
@@ -187,11 +202,7 @@ function watchGeometry(geometry, layer) {
   // Register before the next resize cycle; this pass already placed its new rows.
   geometryObservation = nextRender(() => {
     geometryObservation = 0;
-    for (const node of observedGeometry)
-      if (!wantedGeometry.has(node)) layer.sizes.unobserve(node);
-    for (const node of wantedGeometry)
-      if (!observedGeometry.has(node)) layer.sizes.observe(node);
-    observedGeometry = wantedGeometry;
+    subscribe(layer);
   });
 }
 const GAP = 4;
@@ -214,10 +225,6 @@ export const THREAD_CARD = "lf-margin-preview";
 // `optionsOpen` includes ordinary inline peers; only a requested expansion holds a seat.
 const HELD = `:hover, :focus-within, :has([data-lf-held-word]), [data-lf-options-expanded], :has([aria-controls="${THREAD_CARD}"][aria-expanded="true"])`;
 let pending = 0;
-/** @type {ResizeObserver | null} */
-let observer = null;
-/** @type {Element | null} */
-let observedColumn = null;
 /** @type {Layer | null} */
 let layer = null;
 
@@ -426,6 +433,12 @@ export const flowOf = (scroller) => {
 // rows pin wherever it stands.
 /** @param {Element} scroller */
 const railBeside = (scroller) => flowOf(scroller).flow === pageScroller;
+// Whether the rail stands beside `target`, so its rows stand in the rail rather than
+// as pins: the margin layer is mounted, the rail stands, and `target` flows in the
+// column it lies beside.
+/** @param {Element} target */
+export const railStandsBeside = (target) =>
+  Boolean(layer) && railStands(marginColumn()) && railBeside(scrollerFor(target));
 // Prospective placement measures the same primitive a first contribution will draw.
 // The native cascade resolves the entry's aim floor and the row's focus clearance,
 // including package or author overrides. No existing entry, cached size, or parsed
@@ -499,8 +512,8 @@ export function marginSpot(target, point = null, passage = null) {
       const { left, right } = row.getBoundingClientRect();
       return { left, right };
     }
+  if (!layer || !railStandsBeside(target)) return null;
   const main = marginColumn();
-  if (!layer || !railStands(main) || !railBeside(scrollerFor(target))) return null;
   const hang =
     parseFloat(
       getComputedStyle(document.documentElement).getPropertyValue("--rail-hang"),
@@ -893,7 +906,6 @@ function laneFor(scroller, layer) {
     // foreground whose key chips may anchor to these rows.
     layer.root.after(lane);
     layer.lanes.set(scroller, lane);
-    layer.sizes.observe(scroller);
   }
   return lane;
 }
@@ -1475,23 +1487,6 @@ function scheduleMarginLayout() {
   pending = nextRender(layoutMarginRows);
 }
 
-// The column is read where the pass reads it rather than as each row registers: a
-// column read restyles the page, and a first paint registers every row. The first row
-// still starts the watch, so its first deliveries come with the page's first paint:
-// started by a later pass, they land while the page settles, and the pass they run
-// resizes boxes the loop has already delivered (a ResizeObserver loop error).
-/** @param {Element} column */
-function observeLayout(column) {
-  if (!observer) {
-    observer = sizeObserver(layoutMarginRows);
-    observer.observe(document.body);
-  }
-  if (observedColumn === column) return;
-  if (observedColumn) observer.unobserve(observedColumn);
-  observedColumn = column;
-  observer.observe(observedColumn);
-}
-
 // Each row states its target (`anchor`), the row inside it it stands level with, if any
 // (`point`, pointed-place.js), and its place among the others in the layer (`order`).
 // The projection registers every row each time it renders, so a pass is asked for only
@@ -1506,7 +1501,16 @@ export function registerMarginRow(row, options) {
   };
   const was = registered.get(row);
   rows.set(row, options);
-  if (!observer) observeLayout(marginColumn());
+  // The first row starts the body's and the column's watch, so their first deliveries
+  // come with the page's first paint: started by a later pass, they land while the page
+  // settles, and the pass they run resizes boxes the loop has already delivered (a
+  // ResizeObserver loop error). The pass keeps the column watched as it changes, so the
+  // rows after the first read no column: a column read restyles the page, and a first
+  // paint registers every row.
+  if (layer && !observedGeometry.size && !geometryObservation) {
+    wantedGeometry = new Set([document.body, marginColumn()]);
+    subscribe(layer);
+  }
   registered.set(row, named);
   if (
     was &&
@@ -1545,11 +1549,6 @@ export function unregisterMarginRow(row) {
   withheldRows.delete(row);
   pushes.delete(row);
   folded.delete(row);
-  if (!rows.size) {
-    observer?.disconnect();
-    observer = null;
-    observedColumn = null;
-  }
   scheduleMarginLayout();
 }
 
@@ -1699,7 +1698,6 @@ function layoutMountedRows(layer) {
   laidOutScrollX = scrollX;
   const present = [];
   const main = marginColumn();
-  if (rows.size) observeLayout(main);
   const columnRect = proseRect(main);
   const columnHeight = main.scrollHeight;
   const shell = shellRight();
@@ -2015,7 +2013,6 @@ function layoutMountedRows(layer) {
       if (rail) for (const level of levels.slice(-1)) level.axes = { x: true, y: true };
       regions.set(read.scroller, levels);
     }
-  watchGeometry(geometry, layer);
 
   // Lanes, in the order the rows are given, moving only what is out of place; each lane
   // after the last, so the tab order runs the lanes as the rows run.
@@ -2209,11 +2206,11 @@ function layoutMountedRows(layer) {
       root.remove();
       laneFrames.delete(lane);
       for (const [scroller, owned] of layer.lanes)
-        if (owned === lane) {
-          layer.lanes.delete(scroller);
-          layer.sizes.unobserve(scroller);
-        }
+        if (owned === lane) layer.lanes.delete(scroller);
     }
+  if (rows.size) geometry.add(document.body).add(main);
+  for (const scroller of layer.lanes.keys()) geometry.add(scroller);
+  watchGeometry(geometry, layer);
 
   // A push says where a seated row stands, so a row that no longer stands has none.
   for (const row of pushes.keys()) if (!packed.has(row)) pushes.delete(row);

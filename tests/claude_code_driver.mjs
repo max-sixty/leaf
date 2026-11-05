@@ -135,8 +135,9 @@ const $ = {
     invalidate: () => setImmediate(drawBand),
   },
   // A fork answers with `options.forkReply`, printing the prompt and effort it was
-  // asked for as `{"forked": <prompt>, "effort": <effort>}`; with none it has
-  // nothing to fork, as before a turn's end.
+  // asked for as `{"forked": <prompt>, "effort": <effort>}`, and reports that effort
+  // as the one it sent, as Claude Code does; with none it has nothing to fork, as
+  // before a turn's end.
   model: {
     fork: async ({ prompt, effort }) => {
       print({ forked: prompt, effort });
@@ -149,7 +150,12 @@ const $ = {
       };
       return options.forkReply === undefined
         ? { isAnswered: false, reason: "nothing-to-fork" }
-        : { isAnswered: true, text: options.forkReply, usage };
+        : {
+            isAnswered: true,
+            text: options.forkReply,
+            usage,
+            ...(effort === undefined ? {} : { effort }),
+          };
     },
   },
   process: {

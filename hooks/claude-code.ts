@@ -332,6 +332,8 @@ async function clerk($: EngineInterface, session: string) {
           basis: asked.basis,
           elapsed_ms: (await $.clock.now()) - started,
           ...("usage" in reply ? { usage: reply.usage } : {}),
+          // Claude Code reports the effort it sent since 2.1.318.
+          ...("effort" in reply ? { effort: reply.effort } : {}),
           ...(resent ? { request: resent } : {}),
         };
         if (!reply.isAnswered) {
@@ -361,8 +363,9 @@ async function clerk($: EngineInterface, session: string) {
   }
 }
 
-// The main thread's last request, which `$.model.fork` resends: the model and effort
-// it named, how many messages it carried and the newest row stored as it went out
+// The main thread's last request, which `$.model.fork` resends, at the effort the
+// fork names where it names one: the model and effort it named, how many messages it
+// carried and the newest row stored as it went out
 // (`turn.step`, `sent`), with the newest row stored by the time of the fork (`row`),
 // each the transcript's id from `session.append`. The fork reads the conversation as
 // it would next go out: with a tool call running, to `sent`, since the call's
@@ -370,6 +373,8 @@ async function clerk($: EngineInterface, session: string) {
 // included (`notes/fork-replies.md`, under the fork probes, and a turn-end ask in the
 // claude-code journey on 2026-11-01 that quoted only that reply). Each fork hands
 // this to Leaf, so a fork's diagnostics say where a replay cuts the conversation.
+// The clerk's fork names its own effort, so it also hands Leaf the effort Claude Code
+// reports it sent (`effort`), which its diagnostics give as the fork's.
 let lastStep:
   | { model: string; effort?: string | number; messages: number; sent?: string }
   | undefined;

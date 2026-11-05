@@ -412,6 +412,8 @@ def test_a_turn_end_forks_the_conversation_for_the_clerk(
     )
     [note] = read_interactions(page_dir, types=("turn_end_check",))
     assert note["request"] == RESENT, note
+    # The note gives the effort the fork was sent at, not the session's in `request`.
+    assert note["effort"] == clerk_model.EFFORT != RESENT["effort"], note
     driven.quit()
 
 

@@ -33,8 +33,10 @@
    The optional preview supplies physical
    opening, placement proof, current focus node and target accompaniment; it owns
    no destination policy. A command retains its original intent through placement
-   and returns its actual focus destination. Surface defaults enter the reply and
-   compact previews default to the thread.
+   and returns its actual focus destination. A route that names no part lands where
+   opening a thread does (focus.js, `openingPart`), on a seat, a card or the primary
+   alike: a Page Map row and Show on page, by a press in the reply and by a key on the
+   thread.
    `travel: false` keeps the page under the gesture while revealing its destination;
    `history: false` arrives at an address the browser already navigated to, revealing
    its passage without adding another return stop.
@@ -45,7 +47,7 @@
    original intent alone permits scrolling or another reveal gesture.
    Addressed part and focus are independent. Materializing a thread obligation asks
    for its message part without focus; a native editing continuation asks for the
-   reply part without focus. Omitting part follows each surface's ordinary route.
+   reply part without focus.
    A focused primary arrival uses page travel's ordinary arrival, which clears a
    surface covering the native reader before disclosure, focus and placement. A
    travelling arrival captures its return place before releasing held content or
@@ -64,7 +66,7 @@ import { presented } from "../geometry.js";
 import { restrictUserIntent, retainUserIntent } from "../user-intent.js";
 import { replyThreadKey } from "./replies.js";
 import { threadNamed } from "./state.js";
-import { heldThread, threadIn } from "./focus.js";
+import { heldThread, openingPart, threadIn } from "./focus.js";
 import { showHeld } from "./held-news.js";
 import { surfaceFocusTarget } from "./surfaces.js";
 import { reveal } from "../widget-elements.js";
@@ -223,6 +225,7 @@ export function createThreadDestinations({
     } = {},
   ) {
     if (!intent()) return null;
+    part ??= openingPart();
     const page = reader === "page";
     // A navigation step moves the page, so a destination that may move no scroller takes none.
     const navigationStep = travel && scroll;
@@ -323,26 +326,24 @@ export function createThreadDestinations({
     // The page's own drawings of the thread: its outlet, a held seat, a preview.
     async function onPage() {
       const mayPresent = () => (focus === false ? intent.available() : intent());
-      const localPart = part ?? "reply";
       // A route to a message is an arrival at it, so a seat holding it back shows it.
       if (part === "message") showHeld(id);
       const openSurface = async () => {
         // A passive continuation keeps the reader's chosen file, tab or disclosure.
         // Its hidden outlet cannot be the route without revealing that subject again.
-        const surface = surfaceFocusTarget(id, { part: localPart });
+        const surface = surfaceFocusTarget(id, { part });
         if (!scroll && (!surface || !presented(surface))) return DECLINED;
         if (preview) intent.handoff(preview.close);
         if (navigationStep) {
-          if (!(await scrollToThread(id, { part: localPart, focus, intent, history })))
+          if (!(await scrollToThread(id, { part, focus, intent, history })))
             return null;
         } else if (focus === false) {
-          if (scroll)
-            await reveal(surfaceFocusTarget(id, { part: localPart }), intent).ready;
+          if (scroll) await reveal(surfaceFocusTarget(id, { part }), intent).ready;
           if (!mayPresent()) return null;
         } else if (
           !(await arrive(
             () => {
-              const current = surfaceFocusTarget(id, { part: localPart });
+              const current = surfaceFocusTarget(id, { part });
               return (
                 current && {
                   where: current,
@@ -357,9 +358,9 @@ export function createThreadDestinations({
           ))
         )
           return null;
-        return surfaceFocusTarget(id, { part: localPart });
+        return surfaceFocusTarget(id, { part });
       };
-      if (surfaceFocusTarget(id, { part: localPart })) return openSurface();
+      if (surfaceFocusTarget(id, { part })) return openSurface();
       // A card stands beside its passage while the passage is drawn
       // (`commentAttachment`), and a card with nowhere to stand never places. A navigation step
       // reveals the passage as it arrives. A thread opened where the user is reveals
@@ -382,7 +383,7 @@ export function createThreadDestinations({
         if (navigationStep) {
           if (
             !(await scrollToThread(id, {
-              part: part ?? "thread",
+              part,
               focus,
               presented: opened.presented,
               intent,

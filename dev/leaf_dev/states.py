@@ -403,7 +403,9 @@ def floating_thread_unread(page: Page) -> None:
         + "The queue holds each edit until the server confirms it. " * 40,
     )
     floating_thread(page)
-    expect(page.locator(".lf-fp-head .lf-fp-next-unread")).to_be_visible()
+    expect(
+        page.locator(".lf-fp-head").get_by_role("button", name="Next unread")
+    ).to_be_visible()
 
 
 def panel_new_reply(page: Page) -> None:
@@ -418,7 +420,13 @@ def panel_new_reply(page: Page) -> None:
     page.keyboard.press("ControlOrMeta+Enter")
     expect(messages).to_have_count(sent)
     settle(page)
-    # The agent answers the turn through the delivery that hands it over.
+    answer_the_turn()
+    expect(view.get_by_role("button", name="New reply")).to_be_visible()
+
+
+def answer_the_turn() -> None:
+    """The agent answers the user's turn, too long for any box, through the delivery
+    that hands it over."""
     served = served_page.get()
     delivery = json.loads(served.leaf("wait", str(served.directory)).stdout)
 
@@ -440,7 +448,6 @@ def panel_new_reply(page: Page) -> None:
         "--text",
         "It would. " + "Someone stays on call through Sunday, and Monday too. " * 80,
     )
-    expect(view.locator(".lf-fp-new-reply")).to_be_visible()
 
 
 def plan_head(page: Page) -> None:
@@ -571,9 +578,124 @@ def thread_by_marker(page: Page) -> None:
     settle(page)
     marker.click()
     page.wait_for_function(
-        "() => document.activeElement?.closest('.lf-margin-preview, .lf-fp-view')"
+        "() => document.activeElement?.closest('.lf-margin-preview, .lf-fp-opened')"
     )
     page.mouse.move(0, 0)
+
+
+RESYNC_MARKER = '[data-lf-margin-for="off-t-resync"] .lf-margin-marker'
+
+
+def long_reply(root: str) -> None:
+    """An agent's reply in `root`'s thread, too long to read whole in a card, so it
+    stands unread."""
+    as_agent(
+        "thread",
+        "reply",
+        root,
+        "--text",
+        "The resend recovers every one of them. "
+        + "The queue holds each edit until the server confirms it. " * 40,
+    )
+
+
+def card_next_unread(page: Page) -> None:
+    """A margin card opened on a reply too long for it to show whole, which stays
+    unread, so Next unread stands on its head line."""
+    long_reply("7b3e0a41")
+    open_card(page, page.locator(RESYNC_MARKER))
+    settle(page)
+
+
+def card_new_reply(page: Page) -> None:
+    """A margin card after the user's own turn, read back up its transcript, with the
+    agent's answer arrived past the transcript's foot behind New reply."""
+    long_reply("7b3e0a41")
+    open_card(page, page.locator(RESYNC_MARKER))
+    card = page.locator(".lf-margin-preview")
+    messages = card.locator(".lf-msg")
+    sent = messages.count() + 1
+    card.get_by_role("textbox", name="Reply", exact=True).click()
+    page.keyboard.insert_text("And over the weekend?")
+    page.keyboard.press("ControlOrMeta+Enter")
+    expect(messages).to_have_count(sent)
+    settle(page)
+    card.locator(".lf-thread-transcript").hover()
+    page.mouse.wheel(0, -3000)
+    page.wait_for_function(
+        "() => document.querySelector('.lf-margin-preview .lf-thread-transcript')"
+        ".scrollTop < 1000"
+    )
+    scroll_settled(page, ".lf-margin-preview .lf-thread-transcript")
+    answer_the_turn()
+    expect(messages).to_have_count(sent + 1)
+    settle(page)
+
+
+def card_cluster_resolved(page: Page) -> None:
+    """The second of three threads at one passage resolved in its card, which moves on
+    to the thread after it."""
+    client = PageClient(served_page.get().address)
+    for word in ("First", "Second", "Third"):
+        client.post(
+            {
+                "kind": "comment",
+                "attempt": f"stills-cluster-{word}",
+                "text": f"{word}: worth a second look.",
+                "anchor": {"section": "plan-current"},
+            }
+        )
+    wait_until_ready(page, client.state(), through="state")
+    open_card(
+        page, page.locator('[data-lf-margin-for="plan-current"] .lf-margin-marker')
+    )
+    card = page.locator(".lf-margin-preview")
+    card.get_by_role("button", name="Next thread").click()
+    expect(card.locator(".lf-margin-preview-position")).to_have_text("2/3")
+    # Whichever thread takes its place, the card stands on two.
+    card.get_by_role("button", name="Resolve thread", exact=True).click()
+    expect(card.locator(".lf-margin-preview-position")).to_have_text(
+        re.compile(r"^\d/2$")
+    )
+    settle(page)
+
+
+def card_next_unread_cluster(page: Page) -> None:
+    """The same card with a second thread at its passage, so Next unread shares the head
+    line with Previous and Next."""
+    client = PageClient(served_page.get().address)
+    client.post(
+        {
+            "kind": "comment",
+            "attempt": "stills-resync-second",
+            "text": "And does the resend keep their order?",
+            "anchor": {
+                "section": "off-t-resync",
+                "quote": "One reconnect in about 40",
+                "suffix": ". Nothing is lost — the ",
+            },
+        }
+    )
+    wait_until_ready(page, client.state(), through="state")
+    card_next_unread(page)
+
+
+def card_answer_at_cap(page: Page) -> None:
+    """A margin card at its cap, the user at its end after their own turn, with an answer
+    too long to show arrived: their turn stays in sight above New reply."""
+    long_reply("7b3e0a41")
+    open_card(page, page.locator(RESYNC_MARKER))
+    card = page.locator(".lf-margin-preview")
+    messages = card.locator(".lf-msg")
+    sent = messages.count() + 1
+    card.get_by_role("textbox", name="Reply", exact=True).click()
+    page.keyboard.insert_text("And over the weekend?")
+    page.keyboard.press("ControlOrMeta+Enter")
+    expect(messages).to_have_count(sent)
+    settle(page)
+    answer_the_turn()
+    expect(messages).to_have_count(sent + 1)
+    settle(page)
 
 
 def card_by_keyboard(page: Page) -> None:
@@ -2621,6 +2743,36 @@ STATES = (
         region=MARGIN_SUGGESTION,
     ),
     State("plan-card-keyboard", "review-a-plan", card_by_keyboard),
+    State(
+        "plan-card-cluster-resolved",
+        "review-a-plan",
+        card_cluster_resolved,
+        region=".lf-margin-preview",
+    ),
+    State(
+        "ship-card-next-unread",
+        "ship-review",
+        card_next_unread,
+        region=".lf-margin-preview",
+    ),
+    State(
+        "ship-card-next-unread-cluster",
+        "ship-review",
+        card_next_unread_cluster,
+        region=".lf-margin-preview",
+    ),
+    State(
+        "ship-card-answer-at-cap",
+        "ship-review",
+        card_answer_at_cap,
+        region=".lf-margin-preview",
+    ),
+    State(
+        "ship-card-new-reply",
+        "ship-review",
+        card_new_reply,
+        region=".lf-margin-preview",
+    ),
     # A window with room for the rail but none beside the ask, so the card stands over
     # its options and covers a choice's hint.
     State(

@@ -779,15 +779,17 @@ def test_the_on_view_is_titled_by_its_tab_with_that_list_s_done_under_it(
     expect(page.locator(".lf-fp-filters button")).to_have_text(
         ["Menu", "On me 0", "On Claude 0", "Threads 1"]
     )
-    expect(page.locator(".lf-fp-on-group > .lf-rows-head")).to_have_count(0)
+    expect(
+        page.locator(".lf-fp-on-list > .lf-rows-group > .lf-rows-head")
+    ).to_have_count(0)
     page.locator(".lf-fp-filters button", has_text="On Claude").click()
     expect(title).to_have_text("On Claude")
     expect(page.locator(".lf-floating-panel .lf-rows-empty")).to_have_text(
         "Nothing waiting on Claude."
     )
-    expect(page.locator(".lf-fp-on-group > .lf-rows-head")).to_have_text(
-        re.compile(r"^\s*Done\s*1\s*$")
-    )
+    expect(
+        page.locator(".lf-fp-on-list > .lf-rows-group > .lf-rows-head")
+    ).to_have_text(re.compile(r"^\s*Done\s*1\s*$"))
     expect(page.locator(".lf-fp-on-item")).to_have_count(0)
     sent = show_done(page)
     expect(sent).to_have_count(1)
@@ -1223,7 +1225,7 @@ def test_threads_is_as_tall_as_the_threads_it_shows(browser, serve):
     settled(page)
     below, row = inventory.evaluate(
         """view => {
-          const last = view.querySelector('.lf-fp-thread:last-child').getBoundingClientRect();
+          const last = [...view.querySelectorAll('.lf-fp-thread')].at(-1).getBoundingClientRect();
           return [view.getBoundingClientRect().bottom - last.bottom, last.height];
         }"""
     )
@@ -1622,8 +1624,9 @@ def test_threads_holds_a_row_that_joins_or_moves_behind_a_notice(browser, serve)
 
 def test_resolved_news_unfolds_resolved_to_land_on_its_row(browser, serve):
     """A thread resolved elsewhere while Threads stands with Resolved folded keeps its
-    row in place behind the notice, and Enter on the notice unfolds Resolved, where the
-    row now stands, and lands on it."""
+    row in place behind the notice, with Open's band counting it out as the tab does,
+    and Enter on the notice unfolds Resolved, where the row now stands, and lands on
+    it."""
     url = serve(LONG_PAGE, comments=2)
     settling = panel_comment(serve.page_dir, "Is the opening right?", {"section": "p0"})
     page = floating(browser, url)
@@ -1640,11 +1643,15 @@ def test_resolved_news_unfolds_resolved_to_land_on_its_row(browser, serve):
     told(page)
     expect(notice).to_have_attribute("title", "1 thread resolved")
     expect(row).to_be_visible()
+    expect(view.locator(".lf-rows-group > .lf-rows-head")).to_have_text(
+        [re.compile(r"^\s*Open\s*2\s*$")]
+    )
 
     notice.focus()
     page.keyboard.press("Enter")
     expect(notice).to_have_count(0)
     expect(heading).to_have_attribute("aria-expanded", "true")
+    expect(heading).to_have_text(re.compile(r"^\s*Resolved\s*1\s*$"))
     expect(row).to_have_attribute("data-lf-resolved", "")
     expect(row).to_be_focused()
 
@@ -3914,7 +3921,9 @@ def test_on_me_groups_by_the_plan_and_on_claude_heads_with_its_progress(browser,
     expect(page.get_by_role("combobox", name="Group On me")).to_have_value("plan")
     # Each goal holds one item under its band, and each card says its place, and no
     # kind.
-    expect(view.locator(".lf-fp-on-group > .lf-rows-head")).to_have_text(
+    expect(
+        view.locator(".lf-fp-on-list > .lf-rows-group > .lf-rows-head")
+    ).to_have_text(
         [
             re.compile(r"^\s*Ship the migration\s*1\s*$"),
             re.compile(r"^\s*Not in the plan\s*1\s*$"),
@@ -3994,7 +4003,9 @@ def test_on_claude_lists_its_work_in_hand_queued_and_done_or_says_it(browser, se
     page.locator(".lf-fp-filters button", has_text="On Claude").click()
     view = page.locator(panel_view("queue"))
     show_done(page)
-    expect(view.locator(".lf-fp-on-group > .lf-rows-head")).to_have_text(
+    expect(
+        view.locator(".lf-fp-on-list > .lf-rows-group > .lf-rows-head")
+    ).to_have_text(
         [
             re.compile(r"^\s*In hand\s*1\s*$"),
             re.compile(r"^\s*Up next\s*1\s*$"),

@@ -65,11 +65,11 @@ FITTED = 4
 
 def floors(rows: list[dict]) -> dict[str, float]:
     """Each path's noise floor (`scaling.exponent`) in `rows`, one run's readings by
-    size from BASE: the BASE page's paths together, a reading of the same run, as the
-    browser's floors are shares of its load (`scaling.floors`), 7 to 15 ms on an
-    unloaded M5 Max."""
-    paths = [path for path in PATHS if path in rows[0]]
-    return dict.fromkeys(paths, sum(rows[0][path] for path in paths))
+    size from BASE: the path's own reading on the BASE page, a reading of the same run,
+    as the browser's floors are shares of its load (`scaling.floors`). A path's own
+    fixed cost sets the floor, so a cheap path's growth isn't judged against a dearer
+    one's fixed work."""
+    return {path: rows[0][path] for path in PATHS if path in rows[0]}
 
 
 @contextmanager

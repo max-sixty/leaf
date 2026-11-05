@@ -213,11 +213,14 @@ export function shownBand(el) {
 //
 // `landingBand` is where a landing may put something: the shown band less the
 // `scroll-padding` the scroller declares, which is also what `scrollIntoView` honours.
+// The root states its band apart, in `--lf-landing-top` and `--lf-landing-bottom`
+// (base.css), which its padding copies but for while a floating editor holds focus,
+// when the browser's own caret reveal is given none.
 // It clears what stands over the whole scroller (a page tab strip); a header
 // over part of it, a diff's file header, is cleared by the `scroll-margin` of the rows
-// it stands over. It is also where scroll anchoring looks for the box it keeps still:
-// the spec's optimal viewing region, which Chrome reads from `scroll-padding` too
-// (`motionBand`).
+// it stands over. Scroll anchoring looks for the box it keeps still in the band the
+// padding leaves: the spec's optimal viewing region, which Chrome reads from
+// `scroll-padding` too (`motionBand`).
 //
 // A box scrolls, for these readings, when its computed overflow makes it a scroll
 // container: `auto` and `scroll`, and `hidden` too, which a script or a landing can
@@ -442,10 +445,11 @@ function sticks(sticky) {
   return box.bottom > footLine && holder.bottom > box.bottom + 1;
 }
 /** @param {Element} scroller */
-export function landingBand(scroller) {
+export const landingBand = (scroller) => insetBand(scroller, landingInsets(scroller));
+/** @param {Element} scroller @param {ReturnType<typeof scrollPadding>} inset */
+function insetBand(scroller, inset) {
   const band = shownBand(scroller);
   if (!band) return null;
-  const inset = landingInsets(scroller);
   return {
     left: band.left + inset.left,
     top: band.top + inset.top,
@@ -454,11 +458,22 @@ export function landingBand(scroller) {
   };
 }
 // How far each edge of `landingBand` stands in from the scroller's shown band: the
-// `scroll-padding` it declares. Callers that measure from the scroller's own box take
-// the clearance here rather than reading the style themselves.
+// band the scroller states, else the `scroll-padding` it declares. Callers that
+// measure from the scroller's own box take the clearance here rather than reading the
+// style themselves.
 /** @param {Element} scroller */
 export function landingInsets(scroller) {
   const style = getComputedStyle(scroller);
+  const padding = scrollPadding(style);
+  /** @param {"top" | "bottom"} edge */
+  const stated = (edge) => {
+    const value = Number.parseFloat(style.getPropertyValue(`--lf-landing-${edge}`));
+    return Number.isNaN(value) ? padding[edge] : value;
+  };
+  return { ...padding, top: stated("top"), bottom: stated("bottom") };
+}
+/** @param {CSSStyleDeclaration} style */
+function scrollPadding(style) {
   /** @param {"Top" | "Right" | "Bottom" | "Left"} side */
   const inset = (side) => Number.parseFloat(style[`scrollPadding${side}`]) || 0;
   return {
@@ -685,8 +700,9 @@ export function watchRoom(callback) {
 // moves everything after it in the boxes that scroll it, in every column, so the band
 // spans what the clips over `item` and the chrome leave of the window's height, read as
 // `seenRect` reads it but across the whole width. Scroll anchoring keeps still the first
-// box in the scroller's landing band (`landingBand`: the spec's optimal viewing region,
-// which Chrome and WebKit take from `scroll-padding`), so a change above that band moves
+// box in the band the scroller's `scroll-padding` leaves (the spec's optimal viewing
+// region, which Chrome and WebKit take from it, and the root's landing band but while a
+// floating editor holds focus: `landingBand`), so a change above that band moves
 // only what stands above the change. Chrome forfeits that for a layout in which a
 // `details` both opens or shuts and changes what it holds, so a writer doing both lays
 // out the disclosure first (thread-card.js, an outlet thread settling). The band
@@ -719,7 +735,7 @@ function motionBand(item, clips) {
   const anchorBand = !scroller
     ? cut
     : scroller.scrollTop > 0
-      ? landingBand(scroller)
+      ? insetBand(scroller, scrollPadding(getComputedStyle(scroller)))
       : shownBand(scroller);
   return anchorBand && anchorBand.top < room.bottom
     ? { top: anchorBand.top, bottom: room.bottom }

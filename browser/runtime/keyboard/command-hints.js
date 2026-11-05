@@ -31,7 +31,6 @@ import { html, render } from "/runtime/framework.js";
 import { inlineStyle, keepsText } from "../keeps.js";
 import { repaint } from "../repaint.js";
 import { scrolling, watchScrollEnds } from "../arrivals.js";
-import { focusScrolledAway } from "../user-place.js";
 
 export const commandHintLayer = Object.assign(document.createElement("div"), {
   className: "lf-ui lf-key-chips lf-command-binding-badges",
@@ -131,7 +130,6 @@ export function createCommandHints({ presentedControl }) {
   let mounted = false;
   let hasRoutes = false;
   // Whether the last paint found focus scrolled away, which takes the keys at it away.
-  let paintedAway = false;
   /** @type {Map<BindingBadge, LentFace>} */
   const wornBindingBadges = new Map();
   const CONTROL_ROUTES = Symbol("Control binding routes");
@@ -241,7 +239,6 @@ export function createCommandHints({ presentedControl }) {
   // changed (keeps.js): a badge already worn keeps its face, and a chip
   // stands in the document plane, where the scroll carries it.
   function paint() {
-    paintedAway = focusScrolledAway();
     const available = availableCommandRoutes();
     const routes = hintRoutes(available);
     /** @type {Map<Element, Set<string>>} */
@@ -410,9 +407,8 @@ export function createCommandHints({ presentedControl }) {
     else placement.paint(seats, chips);
   }
 
-  // A scroll's end seats the chips again, and repaints from focus scrolled away, since a
-  // scroll back to it returns its keys (dispatch.js, `stack`) without moving focus.
-  const scrollEnded = () => (hasRoutes || paintedAway) && repaint();
+  // A scroll's end seats the chips again.
+  const scrollEnded = () => hasRoutes && repaint();
   let stopScrollEnds = () => {};
   function mount() {
     if (mounted) return;

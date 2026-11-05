@@ -387,36 +387,23 @@ def test_catalog_builds_native_and_workflow_promptfoo_tests(tmp_path, monkeypatc
         assert execution["requested_viewports"] == ["desktop"]
 
 
-def test_widget_format_matrix_uses_one_model_and_separate_checks(tmp_path):
+def test_model_option_sets_the_author_of_every_condition(tmp_path):
     config = module.prepare(
-        ["widget-formats/choice"],
+        ["configuration"],
         {"head": tmp_path / "arm"},
         tmp_path / "scratch",
         ("codex",),
-        ("leaf", "json", "adaptive"),
+        ("leaf", "html"),
         tmp_path / "samples",
-        model="gpt-6-luna",
+        model="named-for-this-run",
     )
     assert [test["metadata"]["condition"] for test in config["tests"]] == [
         "leaf",
-        "json",
-        "adaptive",
+        "html",
     ]
     assert {provider["config"]["model"] for provider in config["providers"]} == {
-        "gpt-6-luna"
+        "named-for-this-run"
     }
-    assert all(
-        "Use the Leaf skill" in test["vars"]["prompt"] for test in config["tests"][:2]
-    )
-    assert "Use the Leaf skill" not in config["tests"][2]["vars"]["prompt"]
-    assert [
-        [assertion["metric"] for assertion in test["assert"]]
-        for test in config["tests"]
-    ] == [
-        ["completed", "page-valid", "interaction-proven", "task-fit"],
-        ["completed", "format-valid", "page-valid", "interaction-proven", "task-fit"],
-        ["completed", "format-valid", "page-valid", "interaction-proven", "task-fit"],
-    ]
 
 
 def test_eval_command_delegates_configuration_and_status_to_promptfoo(
@@ -556,9 +543,7 @@ def test_from_replays_saved_outputs_under_current_grading(tmp_path, monkeypatch)
         "codex:app-server/head/workflow",
     ]
     assert {p["id"] for p in config["providers"]} == {regrade.REPLAY}
-    current = module.grading(
-        module.catalog()["configuration"], "configuration", "leaf", lambda: {}
-    )
+    current = module.grading(module.catalog()["configuration"], "leaf", lambda: {})
     for test in config["tests"]:
         assert test["assert"] == current["assert"]
         assert test["vars"] == {"prompt": "configuration"}

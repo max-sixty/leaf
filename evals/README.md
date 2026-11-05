@@ -4,13 +4,8 @@ Each `evals/<task>/case.yaml` is a Promptfoo test that runs on Claude Code and C
 `leaf-dev eval` builds the Leaf arms, turns the selected cases into a Promptfoo
 config, and runs `promptfoo eval`; Promptfoo does the rest.
 
-Internal viewer-review diagnostics run with `leaf-dev eval-ui-review`.
-They use Promptfoo's assertions and viewer with automatic evidence-aware grading.
-Their exception to the usual suite scope, retained cases and grading workflow are
-in [UI review detection](ui-review-detection/README.md).
-
-[Control legibility](control-legibility/README.md) asks a model what each control in
-a view does from its picture alone, and runs with `pnpm run eval:legibility`.
+A folder here with a `promptfooconfig` of its own is an experiment, which its README
+says how to run (`dev/AGENTS.md`, "Experiments"). The commands below run the cases.
 
 ```sh
 pnpm install --frozen-lockfile
@@ -35,15 +30,11 @@ pnpm run eval:view
   them is refused before a native turn starts.
 - **Harnesses.** `--harness claude-code`, `codex` or `both`, with no default. Author
   models use `MODELS` in `dev/leaf_dev/arms.py`; judging uses the separate
-  `JUDGE_MODELS` pins. The hill-climbing playbook owns judge selection.
+  `JUDGE_MODELS` pins. The hill-climbing playbook owns judge selection. `--model MODEL`
+  selects one Codex author model for every selected condition in that run.
 - **Conditions.** `--condition html` runs the plain HTML control on the tasks whose
   `metadata.conditions` declare one; `both` runs it beside Leaf. The control gets
   the same request, revisions and judge with no Leaf skill, runtime or widgets.
-- **Widget formats.** `--condition formats` runs direct Leaf HTML, a JSON tree
-  compiled to Leaf HTML, and the Adaptive Cards SDK for the retained
-  [widget format cases](widget-formats/README.md). `--condition json` and
-  `--condition adaptive` select either JSON arm alone. `--model MODEL` selects
-  one Codex author model for every selected condition in that run.
 - **Promptfoo options.** Anything after the cases goes to `promptfoo eval`, such as
   `--repeat 3`, `-j 4` or `--filter-pattern`.
 

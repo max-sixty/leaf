@@ -1,7 +1,7 @@
 /**
- * Promptfoo transport for blinded UI defect detection. A candidate manifest names
- * only its prompt, screenshots or source files, and optional fixture URL. Gold
- * answers never enter this module. Both model families receive the same evidence
+ * Promptfoo transport for blinded UI defect detection. A candidate's manifest names
+ * its screenshots, source files and site, and this column's arm selects among them.
+ * Gold answers never enter this module. Both model families receive the same evidence
  * and browser operation; native transports are recorded as experimental factors.
  *
  * Codex subscription requests use pi-ai's OAuth Responses transport with an explicit
@@ -79,39 +79,53 @@ function sanitized(value, secrets = []) {
   );
 }
 
+/** An https origin is a secure context, as a page served on loopback is. */
+export const ORIGIN = "https://candidate.test";
+
+/**
+ * A browser context that answers the candidate's requests from its site's files, so a
+ * run needs no server and a reviewer can reach nothing else.
+ */
+export async function candidateContext(browser, { site, url }) {
+  const candidate = new URL(url);
+  const context = await browser.newContext({
+    viewport: { width: 1200, height: 900 },
+    reducedMotion: "reduce",
+  });
+  await context.route("**/*", async (route) => {
+    const request = route.request();
+    const target = new URL(request.url());
+    if (
+      target.origin !== candidate.origin ||
+      (request.isNavigationRequest() && target.pathname !== candidate.pathname)
+    )
+      await route.abort("blockedbyclient");
+    else
+      await route
+        .fulfill({ path: path.join(site, target.pathname) })
+        .catch(() => route.fulfill({ status: 404 }));
+  });
+  return context;
+}
+
 /** A single controlled browser capability shared by both model transports. */
 export async function openBrowser(manifest, evidenceDir, limit = 12) {
-  const fixture = new URL(manifest.url);
-  if (
-    !["http:", "https:"].includes(fixture.protocol) ||
-    !["localhost", "127.0.0.1", "[::1]"].includes(fixture.hostname)
-  )
-    throw new Error("Browser fixture must use a loopback HTTP(S) URL");
   const browser = await chromium.launch({ channel: "chromium", headless: true });
   try {
-    const context = await browser.newContext({
-      viewport: manifest.viewport ?? { width: 1200, height: 900 },
-      reducedMotion: "reduce",
-    });
-    await context.route("**/*", async (route) => {
-      const request = route.request(),
-        url = new URL(request.url());
-      const sameOrigin = url.origin === fixture.origin;
-      const candidateNavigation =
-        !request.isNavigationRequest() ||
-        (url.pathname === fixture.pathname && url.search === fixture.search);
-      if (sameOrigin && candidateNavigation) await route.continue();
-      else await route.abort("blockedbyclient");
-    });
+    const context = await candidateContext(browser, manifest);
     const page = await context.newPage();
     page.setDefaultTimeout(5000);
-    await page.goto(fixture.href, { waitUntil: "networkidle" });
+    await page.goto(manifest.url, { waitUntil: "networkidle" });
     await page.evaluate(() => document.fonts.ready);
     let calls = 0;
     const captures = [];
     async function snapshot() {
       const controls = await page.evaluate(() => {
-        const candidates = [...document.querySelectorAll("*")].filter((el) => {
+        // Read as inputs, the one element type whose fields cover every line below.
+        const elements = /** @type {NodeListOf<HTMLInputElement>} */ (
+          document.querySelectorAll("*")
+        );
+        const candidates = [...elements].filter((el) => {
           const style = getComputedStyle(el);
           return (
             el.matches(
@@ -256,6 +270,7 @@ async function codexModel(config, content, browser, record) {
   const observed = catalog.models.find((item) => item.slug === config.model);
   if (!observed)
     throw new Error("Requested model is absent from current Codex metadata");
+  /** @type {import("@earendil-works/pi-ai").Model<"openai-codex-responses">} */
   const model = {
     id: config.model,
     name: config.model,
@@ -277,6 +292,7 @@ async function codexModel(config, content, browser, record) {
         },
       ]
     : [];
+  /** @type {import("@earendil-works/pi-ai").Message[]} */
   const messages = [{ role: "user", content, timestamp: Date.now() }];
   const usage = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0 };
   const maxTurns = (config.toolBudget ?? 12) + 1;
@@ -289,7 +305,7 @@ async function codexModel(config, content, browser, record) {
         reasoningEffort: config.effort ?? "high",
         toolChoice: browser ? "auto" : "none",
         transport: "sse",
-        onPayload(payload) {
+        onPayload(/** @type {any} */ payload) {
           if (
             !browser &&
             ((payload.tools?.length ?? 0) !== 0 || payload.tool_choice !== "none")
@@ -442,6 +458,7 @@ async function claudeModel(config, content, browser, record, evidenceDir) {
     // Keep the input stream open while SDK MCP operations run; close it with query.
     let release;
     async function* input() {
+      /** @type {import("@anthropic-ai/claude-agent-sdk").SDKUserMessage} */
       const message = {
         type: "user",
         session_id: "",
@@ -468,6 +485,7 @@ async function claudeModel(config, content, browser, record, evidenceDir) {
         release = resolve;
       });
     }
+    /** @type {import("@anthropic-ai/claude-agent-sdk").Options} */
     const options = {
       model: config.model,
       cwd,
@@ -558,25 +576,27 @@ export default class UiReviewDetectionProvider {
     this.config = options.config ?? {};
   }
   id() {
-    return `ui-review-detection:${this.config.model}:${this.config.condition}`;
+    const { model, condition, mode = "recognition" } = this.config;
+    return `ui-review-detection:${model}:${condition}:${mode}`;
   }
   async callApi(prompt, context = {}) {
     const config = { ...this.config, ...context.prompt?.config };
-    const manifestPath = path.resolve(
-      context.vars?.manifest ?? config.manifest ?? prompt,
+    const candidateDir = path.join(config.run, "candidates", context.vars.candidate);
+    const packet = JSON.parse(
+      await readFile(path.join(candidateDir, "input.json"), "utf8"),
     );
-    const candidateDir = path.dirname(manifestPath);
-    const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
-    if (!["no-tools", "browser", "code-only"].includes(config.condition))
-      throw new Error("condition must be no-tools, browser or code-only");
-    if (
-      config.condition === "code-only" &&
-      ((manifest.images ?? []).length || !manifest.sources?.length)
-    )
-      throw new Error("Code-only requires source files and zero images");
-    const root = path.resolve(config.evidenceDir ?? ".tmp/ui-review-detection/samples");
-    await mkdir(root, { recursive: true });
-    const evidenceDir = await mkdtemp(path.join(root, "sample-"));
+    const manifest = {
+      ...packet,
+      images:
+        config.condition === "code-only"
+          ? []
+          : config.mode === "discovery"
+            ? packet.images.slice(0, 1)
+            : packet.images,
+    };
+    const samples = path.join(config.run, "samples");
+    await mkdir(samples, { recursive: true });
+    const evidenceDir = await mkdtemp(path.join(samples, "sample-"));
     const startedAt = new Date().toISOString();
     const started = performance.now();
     let lastActivity = started;
@@ -617,10 +637,7 @@ export default class UiReviewDetectionProvider {
     progress.unref();
     let browser;
     try {
-      let request =
-        prompt && path.resolve(prompt) !== manifestPath
-          ? prompt
-          : await readFile(contained(candidateDir, manifest.prompt), "utf8");
+      let request = prompt;
       const sources = [];
       if (config.condition === "code-only") {
         request +=
@@ -632,8 +649,9 @@ export default class UiReviewDetectionProvider {
         }
       }
       await writeFile(path.join(evidenceDir, "request.md"), request);
+      /** @type {Array<{type: string, text?: string, data?: string, mimeType?: string}>} */
       const content = [{ type: "text", text: request }];
-      for (let index = 0; index < (manifest.images ?? []).length; index++) {
+      for (let index = 0; index < manifest.images.length; index++) {
         const file = contained(candidateDir, manifest.images[index]),
           bytes = await readFile(file);
         const mimeType =
@@ -654,6 +672,7 @@ export default class UiReviewDetectionProvider {
         json({
           model: config.model,
           condition: config.condition,
+          mode: config.mode ?? "recognition",
           effort: config.effort ?? "high",
           manifest: sanitized(manifest),
           systemPrompt: SYSTEM,

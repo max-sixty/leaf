@@ -792,6 +792,39 @@ def test_an_inline_thread_rings_its_card_for_keyboard_focus(browser, serve):
     assert not ring_faults(pointer_reply, "the reply box focused by pointer")
 
 
+def test_a_walk_lands_on_a_thread_in_its_seat_in_view(browser, serve):
+    """A walk to a thread an element seats lands on it there, not in a card beside the
+    element showing the same thread, and in view: the element its seat makes taller
+    than the window is no reason to take the thread back out of view."""
+    url = serve(
+        SEATED_OBLIGATION_PAGE.replace(
+            "</main>",
+            "".join(f"<p id='f{i}'>{'Words. ' * 120}</p>" for i in range(8))
+            + "</main>",
+        )
+    )
+    roots = [
+        panel_comment(
+            serve.page_dir,
+            f"Thread {n}. " + "These jobs can share one visit. " * 4,
+            {"section": "jobs"},
+        )
+        for n in range(6)
+    ]
+    page = open_page(browser, url)
+    resized(page, 1280, 600)
+    page.locator("#f6").click()
+    page.keyboard.press("End")
+    page.wait_for_function("() => scrollY > 1500")
+    scroll_settled(page)
+    page.keyboard.press("Shift+t")
+    last = page.locator(f'#jobs .lf-page-thread[data-lf-thread="{roots[-1]}"]')
+    expect(last).to_be_focused()
+    scroll_settled(page)
+    expect(last).to_be_in_viewport()
+    expect(page.locator(".lf-margin-preview")).to_be_hidden()
+
+
 def test_forced_colors_keep_inline_thread_focus_visible(browser, serve):
     """The system focus outline replaces the surface paint high contrast removes."""
     url = serve(SEATED_OBLIGATION_PAGE)

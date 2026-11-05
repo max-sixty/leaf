@@ -772,7 +772,9 @@ def test_a_refused_save_from_a_press_away_leaves_the_focus_where_it_went(
     holding(page, held, 1, "the first draft's save on a press away")
     expect(second.locator("leaf-text")).to_be_focused()
     held[0].fulfill(status=400, json={"ok": False, "final": True, "error": "refused"})
-    expect(draft_control(page, "retry", "rn-cli")).to_be_visible()
+    expect(draft_control(page, "retry", "rn-cli")).to_have_accessible_name(
+        re.compile(r"\bRetry\b")
+    )
     expect(second.locator("leaf-text")).to_be_focused()
     consume_browser_errors(page, http_error_console(400))
 
@@ -804,7 +806,9 @@ def test_first_draft_save_and_refusal_keep_the_local_editor_controls(browser, se
     )
     expect(draft.locator("leaf-text")).to_have_js_property("value", "Changed words.")
     expect(draft.locator(".lf-draft-body")).to_have_text("Original words.")
-    expect(draft_control(page, "retry", "first-draft")).to_be_visible()
+    expect(draft_control(page, "retry", "first-draft")).to_have_accessible_name(
+        re.compile(r"\bRetry\b")
+    )
     expect(draft_control(page, "cancel", "first-draft")).to_be_visible()
     assert page.locator("#following").bounding_box() == before
     consume_browser_errors(page, http_error_console(400))

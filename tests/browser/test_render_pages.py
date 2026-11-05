@@ -353,8 +353,8 @@ def test_a_written_comment_keeps_its_originating_agent(browser, serve, monkeypat
     expect(
         thread.locator(".lf-msg[data-lf-author=agent] > .lf-msg-head b")
     ).to_have_text("Codex")
-    expect(thread.locator(".lf-thread-quote")).to_contain_text(
-        "“Retries are capped at three”"
+    expect(thread.locator(".lf-thread-quote")).to_have_text(
+        "Retries are capped at three"
     )
 
     write(panel_field(page), "three is the retry budget, not a guess")

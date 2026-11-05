@@ -343,20 +343,18 @@ widget by name. To measure a page before its runtime starts, call `displayed` fi
 Every test, fixtures and watches included, gives the same result and still exercises
 its situation on a machine ten times slower than the one it was written on, since CI's
 runner and a host running other sessions' suites are both slower than an idle
-development machine. So no test asserts a duration. A check of cost compares readings
-taken in the same run, such as a cost on a large page over the same cost on a small
-one, or the exponent of a cost's growth across page sizes (`leaf-dev scaling`), so the
-machine's speed divides out of it. Check a test against the rule with
+development machine. So no test asserts a duration, and no test passes or fails on a
+benchmark's reading: a benchmark reports its readings (`leaf-dev scaling`, charted
+daily), and a reader judges them. Check a test against the rule with
 `--cpu-throttle 10` ("Races"). It slows only Chromium's renderer, not the server, Python
 or the driver, and doesn't reach a page from `browser.unwatched`.
 
 Control or advance the clock that decides an age, lease, grace period or timer; a fixed
-`Date.now()` doesn't stop timers, animation frames, paint or observer delivery. Bound a
-hang with a real deadline at least ten times the longest the bounded work takes on CI's
-runner, where a `test` job's junit results record each test's time
-(`leaf-dev suite-profile`), and on expiry report which completion is still missing.
-The per-test hang limit, `faulthandler_timeout` in `pyproject.toml`, is one such
-deadline. A time limit must never turn unfinished work into a pass. To test a race,
+`Date.now()` doesn't stop timers, animation frames, paint or observer delivery. Bound
+each operation that could hang with a real deadline at least ten times the longest that
+operation takes on CI's runner, where a `test` job's junit results record each test's
+time (`leaf-dev suite-profile`), and on expiry report which completion is still missing.
+A time limit must never turn unfinished work into a pass. To test a race,
 hold and release the request, callback, frame or lock explicitly, check that the
 outcome holds with completion delayed tenfold, and keep a control that still fails.
 

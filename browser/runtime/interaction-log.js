@@ -190,12 +190,19 @@ function describe(event) {
           node: nodeIdentity(document.fullscreenElement),
         }
       : null;
-  // A password field's characters stay out, whatever else the trace keeps.
+  // A password field's characters stay out, whatever else the trace keeps, and stay
+  // out after a show-password toggle makes it a text field. Capture at the document
+  // sees a field in a closed shadow root only as its host, so its keys are recorded.
   if (target instanceof window.HTMLInputElement && target.type === "password")
+    secretFields.add(target);
+  if (target instanceof window.HTMLInputElement && secretFields.has(target))
     for (const field of ["key", "code", "data", "clipboard", "value"])
       delete entry[field];
   return entry;
 }
+
+/** Fields seen as password fields, whatever their type now. */
+const secretFields = new WeakSet();
 
 /** @param {number} delay */
 function schedule(delay = 250) {

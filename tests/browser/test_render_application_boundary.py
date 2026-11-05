@@ -298,6 +298,9 @@ def test_browser_trace_leaves_out_a_password_fields_characters(browser, serve):
             )
         )
 
+    # A show-password toggle makes the field a text field; it stays a secret.
+    page.evaluate("document.querySelector('#trace-secret').type = 'text'")
+    page.locator("#trace-secret").press_sequentially("x")
     with page.expect_response(holds_entry):
         page.locator("#trace-entry").press_sequentially("visible")
 

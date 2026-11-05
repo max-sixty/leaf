@@ -14,11 +14,12 @@ For each AXIS it generates a page at each size, serves it from this tree, and re
 the renderer's main-thread CPU, in thread ticks from `Performance.getMetrics`, for
 each transition: the load until the page settles and its main thread goes quiet, a
 click on an option, a keystroke in the page's comment field, a Tab from one stop to
-the next, and a wheel step. Each input is one a user makes, the same at every size.
-A click is the mouse's own press and release at the option's centre. A wheel step is
-one NOTCH, with the pointer over the page's content and the scroller beneath it
-halfway down. Tab starts from the first option's control. The wheel and Tab take RUN
-steps one way and RUN back, so they cross the same rows or stops at every size. An
+the next, a wheel step, and a triple click that selects the page's title. Each input
+is one a user makes, the same at every size. A click is the mouse's own press and
+release at the option's centre. A wheel step is one NOTCH, with the pointer over the
+page's content and the scroller beneath it halfway down. Tab starts from the first
+option's control. The wheel and Tab take RUN steps one way and RUN back, so they cross
+the same rows or stops at every size. An
 input's cost is the mean over several, less the page's idle CPU over the same time,
 which is read once the work the load leaves behind has run (`idle_rate`). Beside
 them stand the server's time to start answering each event the clicks posted, whose
@@ -28,14 +29,17 @@ prints each cost by size with the exponent of its growth above the BASE page, fi
 over the largest sizes (least squares of log growth on log size), and marks an
 exponent above SUPERLINEAR, which is a step nesting one walk of the page inside
 another. Fitting the cost itself would let fixed work hide that: 30 ms per click plus
-20/80/320 ms of quadratic work fits 1.4 over 64-256, and its growth fits 2.0.
+20/80/320 ms of quadratic work fits 1.4 over 64-256, and its growth fits 2.0. A walk
+of the page for each input grows only linearly, and the exponent passes it, so a run
+whose sizes include REFERENCE also names a selection over its budget there
+(`over_budget`).
 
 --server times the server's paths on each page instead, in this process with no
 browser (`leaf_dev.server_scaling` names the paths and how it reads them), and names
 each path that breaks the rule: growth fitting an exponent above SUPERLINEAR, or a
 click's paths together taking more than their budget at REFERENCE. The daily
 `tests/journeys/test_server_scaling.py` fails the growth; the budget waits, as the
-browser's do, until the pages that miss it are fixed.
+browser's do for every input but a selection, until the pages that miss it are fixed.
 
 --base also measures the merge base with main (or REF), chosen as every A/B command
 chooses its arms (`arms.choose_arms`), so a change shows its exponents beside the
@@ -48,7 +52,8 @@ CPU time rather than wall time, so a loaded host spreads the readings less than 
 spreads elapsed time; each exponent still compares sizes within one run. Pages, the
 profiles and `results.json` land in a run directory under `.tmp/scaling/`. The daily
 suite fails growth well past linear on every axis with the same measurement, of
-every cost but Tab's (`tests/journeys/test_scaling.py`).
+every cost but Tab's, and a selection over its budget at REFERENCE
+(`tests/journeys/test_scaling.py`).
 """
 
 import json
@@ -93,6 +98,13 @@ SERVER_AXES = (
 # The page size a server path is held to its budget at: the size the browser's
 # inputs are held to theirs at, where a click shows the server's reading.
 REFERENCE = 512
+# A selection's main-thread work at REFERENCE (`over_budget`). The response field it
+# raises is what the gesture decides by itself, which root `AGENTS.md`,
+# "Responsiveness", draws before the next frame, but a selection's fixed work takes
+# longer than a frame even on the BASE page. So it is held to the 100 ms in which that
+# rule puts the server's reading of a gesture on screen, which a walk of the page for
+# each selection passes.
+SELECT_BUDGET_MS = 100
 # The page size whose costs stand for the runtime's fixed work. Each exponent fits a
 # cost's growth above it, so it is a small fraction of the sizes fitted.
 BASE = 8
@@ -111,6 +123,7 @@ KEYS = 20
 CLICKS = 4
 TABS = 16
 WHEEL_STEPS = 32
+SELECTS = 4
 # A notch of a mouse wheel, which Chromium scrolls 100 px.
 NOTCH = 100
 # A wheel or Tab takes RUN steps one way and then as many back, so it stays among the
@@ -125,7 +138,7 @@ QUIET_TRIES = 20
 # A function must take this long at the largest size to be listed as growing.
 GROWTH_FLOOR_MS = 20
 DEADLINE_MS = 300_000
-TRANSITIONS = ("load", "click", "key", "tab", "scroll")
+TRANSITIONS = ("load", "click", "key", "tab", "scroll", "select")
 # The server's side of a click: how long it took to start answering each event the
 # clicks posted, whose answer carries its reading of the page, and how large that was.
 SERVER = ("event", "event_kb")
@@ -520,7 +533,36 @@ def measure(browser, address: str, profiles: Path | None) -> dict:
             quiet(50)
 
         costs["scroll"] = per_input("scroll", WHEEL_STEPS, wheel)
+
+        # A triple click on the page's title selects its one line, as a user does to
+        # comment on it. Last, so a selection standing on the page changes no other
+        # input's work.
+        title = tab_page.locator("article h1")
+        title.scroll_into_view_if_needed()
+        box = title.bounding_box()
+        assert box is not None
+        spot = (box["x"] + 8, box["y"] + box["height"] / 2)
+        tab_page.mouse.move(*spot)
+        quiet(600)
+
+        def select():
+            tab_page.mouse.click(*spot, click_count=3)
+            quiet(400)
+
+        costs["select"] = per_input("select", SELECTS, select)
         return {"elements": elements, **costs}
+
+
+def over_budget(rows: list[dict]) -> str | None:
+    """Why a selection takes more than `SELECT_BUDGET_MS` at `REFERENCE` in `rows`, or
+    None, as where `rows` has no `REFERENCE`."""
+    at = next((row for row in rows if row["n"] == REFERENCE), None)
+    if at is None or at["select"] <= SELECT_BUDGET_MS:
+        return None
+    return (
+        f"a selection takes {at['select']:.0f} ms at {REFERENCE}, "
+        f"over {SELECT_BUDGET_MS} ms"
+    )
 
 
 def exponent(
@@ -687,7 +729,10 @@ def scaling(
                     ) as address:
                         rows.append({"n": n, **measure(browser, address, profiles)})
                 results.setdefault(axis, {})[arm] = rows
-                click.echo(table(f"{axis} ({arm})", rows, "elements", COLUMNS) + "\n")
+                click.echo(table(f"{axis} ({arm})", rows, "elements", COLUMNS))
+                if why := over_budget(rows):
+                    click.echo(f"  select: {why}")
+                click.echo()
                 if profile:
                     first, last = (
                         run / f"{axis}-{arm}-{n}" for n in (sized[0], sized[-1])

@@ -77,6 +77,10 @@ reported the row and treated its question as answered.
   would keep a transcript the main thread could be pointed at.
 - Claude Code only. The Leaf side is harness-neutral: Codex App Server has
   `thread/fork`, and Pi's extension could resend its session (`clerk.py`).
+- `$.model.fork` has nothing to fork until the main thread sends a request: in a new
+  process, after `/clear` (its doc comment), and, as observed below, after a
+  compaction or Claude Code's away summary. A forked subagent starts from the
+  transcript instead, so it would cover those.
 
 ## How well the fork judges
 
@@ -157,3 +161,53 @@ reply `conversation-loop.md` asks for first, so the wait is the thinking before 
 waits for the next tool boundary, a median 16 s and 99 s at p90; the longest were
 foreground commands (a `sleep 280`, benchmark scripts). The hold made 6 of 26 busy
 hand-overs miss a boundary, adding 42 s across all of them.
+
+## A fork that takes the work
+
+A design not yet built: a fork that does a self-contained request itself rather than
+handing it over. What the session did next with the 27 hand-overs above:
+
+| What the message needed                                                         | Messages | Could a fork take it?                                     |
+| ------------------------------------------------------------------------------- | -------: | --------------------------------------------------------- |
+| a `/dispatch` to a session of its own                                           |        4 | yes: the work runs elsewhere by construction              |
+| a quick look: a config's history, a GitHub doc, why a rule was never added      |        3 | yes, with read-only tools                                 |
+| research or a measurement taking the session minutes                            |        6 | read-only, but long enough to need its own progress lines |
+| recording a decision the user made on the session's question, then acting on it |        7 | no: it changes the session's plan                         |
+| work on the session's own tree, page or PRs                                     |        7 | no: it races the session's edits                          |
+
+So a fork with read-only tools, `leaf thread reply` and `/dispatch` could have taken 7 to
+13 of the 27. A forked subagent (`$.agent.spawn({ subagentType: "fork" })`) is the
+mechanism: it starts from the current transcript, so it also covers the sessions
+`$.model.fork` has nothing to fork in, and the module gates its tool calls at
+`tool.call`. Before building on it, a probe should check whether Claude Code tells
+the main thread when a subagent the module spawned finishes, since that would wake an
+idle session.
+
+Coherence decides the design more than capability does:
+
+- One reader for related messages. Today each held thread gets its own fork, so
+  twelve messages across twelve threads would get twelve independent workers. A
+  fork that takes work should see every held thread of the session at once and
+  decide them together, and a message arriving while it works goes to it
+  (`$.session.send` to its agent id) rather than to a new fork.
+- The session hears what the fork did. A reply already queues a clerk line; taken
+  work needs the same line saying what was done or dispatched and where, so the
+  session neither redoes nor contradicts it.
+- The fork writes nothing the session is changing: no edits to its tree, page source,
+  git state or PRs. Anything that would is handed over, as now.
+
+Evals are viable at three levels, each on the harness `fork_eval.py` already has:
+
+- Decision (reply, take or hand over): constructed cases with a `take` label, plus a
+  replay set of the 33 recorded forks above, labelled by what the session did next.
+- Outcome: for taken cases, a judge compares the fork's answer with the answer the
+  session actually gave. Replays need read-only tools on the repository at the
+  session's commit; lookups that read GitHub or the web drift between runs.
+- Coherence: two-message cases (related messages in two threads, a message during
+  a decision) scored on how many workers ran and whether their answers agree; and
+  the main session resumed after the fork's clerk line, judged on whether it redoes
+  or contradicts the fork's work. This needs a second resumed agent for each case.
+
+The replays in "How well the fork judges" cost about $2.30 a run without tools; with
+tools and a second agent, expect a comparison over 40 cases and two arms to cost a few
+hundred dollars.

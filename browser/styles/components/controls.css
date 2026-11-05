@@ -739,10 +739,10 @@ summary,
     appearance: auto;
   }
 }
-:is(.lf-choice, .choice) > input:is(:focus-visible, [data-lf-focus-visible]) {
+:is(.lf-choice, .choice) > input[data-lf-focus-visible] {
   outline: none;
 }
-:is(.lf-choice, .choice):has(> input:is(:focus-visible, [data-lf-focus-visible])) {
+:is(.lf-choice, .choice):has(> input[data-lf-focus-visible]) {
   outline: var(--focus-ring);
   --lf-wears-ring: 1;
 }

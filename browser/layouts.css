@@ -57,8 +57,14 @@
    * `layoutBox`) rather than by reading a Layout class. It is the style container a
    * margin content asks for the Layout's readings (`lf-content-frame`, base.css), and a
    * shell other than `body` is the size its `cqi` measure. Its padding draws nothing, so
-   * it trims what it holds at its edges (`--lf-block-frame: trim`, base.css). */
+   * it trims what it holds at its edges (`--lf-block-frame: trim`, base.css). A shell
+   * other than `body` says it holds one (`--lf-layout-shell`), so the runtime reads the
+   * children of a shell alone, not those of every `main`. */
   @property --lf-layout-box {
+    syntax: "*";
+    inherits: false;
+  }
+  @property --lf-layout-shell {
     syntax: "*";
     inherits: false;
   }
@@ -76,6 +82,7 @@
     main > [data-lf-views="parts"] > *
   ):has(> :is(.layout-column, .layout-sidebar, .layout-workspace)) {
     container-type: inline-size;
+    --lf-layout-shell: 1;
   }
   /* A page of parts: a `main` that carries no Layout and holds the page's parts
    * (`data-lf-views="parts"`, lf-parts.js), each a member whose child is the box its own

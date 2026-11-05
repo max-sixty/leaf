@@ -727,7 +727,7 @@ def test_review_citations_become_leaf_elements_the_page_check_accepts(tmp_path):
     hrefs = {str(link.attrs["href"])[1:] for link in document.select('a[href^="#"]')}
     assert hrefs and hrefs <= ids
     assert "Base and After · " in written
-    # A revision with no captures still offers its links.
+    # A phase with no captures still offers its links.
     uncaptured = written.split('id="uncaptured"')[1].split("No screens.")[0]
     assert "and details</a>" in uncaptured
     eval_report.leaf("page", "check", str(page))

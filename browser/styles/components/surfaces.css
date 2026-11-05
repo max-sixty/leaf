@@ -1302,14 +1302,16 @@ button.lf-thread-news {
    floating panel's view does (thread-card.js, `#drawQuote`). The panel stands in the
    chrome and a thread drawn by a package's reader stands in the page, so the face is
    stated here, where every surface reads it. The rule and the quiet ink say its words
-   are quoted, so they take no marks. Where they stand (`anchorPlace`,
-   thread/messages.js) comes first, in the face of the quote's status, Changed, since
-   both are Leaf's words about the quotation. The quote stands over the thread's
-   messages in three lines, the whole on Full quote, its press above the words it
-   grows. It only says what the thread is about, since the container's way to the
-   words, as the panel's Show on page, goes there: it takes no press, no aim's room and
-   no title naming a jump, though a detached quote's title still says where its words
-   went. Its words start on the thread's edge, the 1px rule before them included. */
+   are quoted, so they take no marks. A status word leads them where the page no longer
+   reads as the quote does, such as a passage a revision took out of the latest
+   version, so the three lines never cut it and a finger reads it as a pointer does
+   (`quoteReading`). Where they stand (`anchorPlace`, thread/messages.js) comes next, in
+   the status's face, since both are Leaf's words about the quotation. The quote stands
+   over the thread's messages in three lines, the whole on Full quote, its press above
+   the words it grows. It only says what the thread is about, since the container's way
+   to the words, as the panel's Show on page, goes there: it takes no press, no aim's
+   room and no title. Its words start on the thread's edge, the 1px rule before them
+   included. */
 .lf-quote-label {
   min-width: 0;
 }
@@ -1318,7 +1320,7 @@ button.lf-thread-news {
   font: var(--font-status);
 }
 .lf-anchor-status {
-  margin-inline-start: 7px;
+  margin-inline-end: 3px;
   color: var(--muted);
 }
 .lf-thread-quote-head:not([hidden]) {

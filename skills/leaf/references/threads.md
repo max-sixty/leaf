@@ -129,7 +129,7 @@ nearby content:
 leaf thread reply <answer.ref> --done --detach --text "Removed this; the thread no longer has a page target."
 ```
 
-A detached thread stays open in Threads, its quote marked as gone from this
+A detached thread stays open in Threads, its quote marked as not in the latest
 version. A later reply may move it to a real replacement;
 open a new thread for a different subject. Don't resolve a thread to get rid of an
 anchor you removed: Leaf leaves a resolved thread's anchor as it was, so if the user

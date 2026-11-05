@@ -6,12 +6,17 @@
    stay in this directory; contributed actions resolve through their registration.
    No renderer folds events or owns a second target inventory. The Thread coordinator
    refreshes after current widget claims and required conversation commits. Mechanical
-   paints and immediate contribution updates refresh this same directory. */
+   paints and immediate contribution updates refresh this same directory.
+
+   Each collection reads the whole page, and an entry stays the same object from one
+   collection to the next for as long as what it is made from holds still (`keptEntry`),
+   so a reader learns whether an entry changed by comparing the two. */
+import { share } from "/runtime/framework.js";
 import { replyIsEditing } from "./thread/replies.js";
 import { KINDS } from "./contribution-model.js";
 import { excerptWords, labelWords } from "./words.js";
 import { contributionEntries } from "./contributions.js";
-import { marginInventory, threadMarks } from "./margin-model.js";
+import { marginEntry, threadMarks } from "./margin-model.js";
 import { agentName, readPart } from "./semantic-state.js";
 import { livePoint } from "./pointed-place.js";
 import { ago } from "./presence.js";
@@ -70,6 +75,7 @@ const inProgress = readPart(
  * @typedef {import("./contributions.js").ContributionSource} ContributionSource
  * @typedef {import("./contributions.js").ContributionOffer} ContributionOffer
  * @typedef {import("./margin-model.js").MarginEntry<ContributionOffer>} InventoryEntry
+ * @typedef {import("./margin-model.js").MarginGroup<ContributionOffer>} EntryGroup
  * @typedef {import("./framework/application.js").Workflow} Workflow
  * @typedef {import("./thread/workflow.js").ThreadRecord} ThreadRecord
  * @typedef {import("./anchor-placement.js").Placement} Placement
@@ -195,13 +201,17 @@ export function createAnnotationInventory({
   };
   /** @param {AnnotationItem} item */
   const sourceItem = (item) => itemSources.get(item);
-  /** @param {LiveItem} item */
-  function captureItem(item) {
+  // An item equal to the one last at its place comes back as that object (`share`), and
+  // takes this reading's capabilities, which close over the live target.
+  /** @param {LiveItem} item @param {AnnotationItem | undefined} last */
+  function captureItem(item, last) {
     const { activate, discloses, change, ...data } = item;
-    const snapshot = Object.freeze({
-      ...data,
-      carriesWorkflow: Boolean(workflowReceipt([item])),
-    });
+    const snapshot = Object.freeze(
+      share(last, {
+        ...data,
+        carriesWorkflow: Boolean(workflowReceipt([item])),
+      }),
+    );
     itemSources.set(snapshot, {
       activate,
       ...(discloses ? { discloses } : {}),
@@ -335,6 +345,28 @@ export function createAnnotationInventory({
 
   /** @type {readonly InventoryEntry[]} */
   let entries = Object.freeze([]);
+  // Each entry by its key, with the group it was made from.
+  /** @type {Map<string, {group: EntryGroup, entry: InventoryEntry}>} */
+  let lastEntries = new Map();
+  // An entry is a function of its group (`marginEntry`), and each thing a group holds is
+  // the same object while it holds still: a published record is shared across
+  // publications, an item through `captureItem`, and a contribution's model is new only
+  // when its producer publishes. So a group holding what the last under its key held
+  // keeps that entry.
+  /** @param {EntryGroup} group @returns {InventoryEntry} */
+  function keptEntry(group) {
+    const last = lastEntries.get(group.key);
+    if (!last) return marginEntry(group);
+    const held = (/** @type {keyof EntryGroup} */ field) => {
+      const [was, now] = [last.group[field], group[field]];
+      return Array.isArray(now) && Array.isArray(was)
+        ? was.length === now.length && now.every((thing, at) => thing === was[at])
+        : was === now;
+    };
+    return /** @type {(keyof EntryGroup)[]} */ (Object.keys(group)).every(held)
+      ? last.entry
+      : marginEntry(group);
+  }
   /** @type {Set<(entries: readonly InventoryEntry[]) => void>} */
   const watchers = new Set();
 
@@ -542,7 +574,11 @@ export function createAnnotationInventory({
         // and the Page Map row the versions its card compares; a change the comparison
         // holds nothing for has neither, so no margin entry offers a press it has not
         // got.
-        ...(card ? { context: account, mapContext: card.offer } : {}),
+        // The entry's relation says whether the card stands open, so opening it changes
+        // the entry (`keptEntry`).
+        ...(card
+          ? { context: account, mapContext: card.offer, cardOpen: card.open }
+          : {}),
         // What a Change reading holds, where the comparison kept the words the change
         // replaced or edited: pressing it opens the change's card over the change, so
         // the user learns what changed without travelling to the other version and back
@@ -642,7 +678,9 @@ export function createAnnotationInventory({
     targets.clear();
     points.clear();
     passages.clear();
-    entries = marginInventory(
+    /** @type {typeof lastEntries} */
+    const nextEntries = new Map();
+    entries = Object.freeze(
       collected
         .sort(
           (left, right) =>
@@ -654,7 +692,9 @@ export function createAnnotationInventory({
           targets.set(group.key, group.target);
           if (group.point) points.set(group.key, group.point);
           if (group.passage) passages.set(group.key, group.passage);
-          return Object.freeze({
+          const lastItems = lastEntries.get(group.key)?.group.items;
+          /** @type {EntryGroup} */
+          const made = Object.freeze({
             key: group.key,
             targetId: group.target.id,
             title: labelWords(
@@ -670,7 +710,9 @@ export function createAnnotationInventory({
                 .join(" · "),
             ),
             offers: Object.freeze(group.offers.map((offered) => offered.model)),
-            items: Object.freeze(group.items.map(captureItem)),
+            items: Object.freeze(
+              group.items.map((item, at) => captureItem(item, lastItems?.[at])),
+            ),
             workflowReceipt: workflowReceipt(group.items),
             // Whether the agent is at work on this target, and not stalled: an update
             // here it is working on or replying to, or a to-do with a start running.
@@ -678,8 +720,12 @@ export function createAnnotationInventory({
               progressFace(workflowReceipt(group.items)) === "working" ||
               group.items.some((item) => item.atWork),
           });
+          const entry = keptEntry(made);
+          nextEntries.set(group.key, { group: made, entry });
+          return entry;
         }),
     );
+    lastEntries = nextEntries;
     for (const watcher of watchers) watcher(entries);
     return entries;
   }

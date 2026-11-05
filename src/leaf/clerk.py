@@ -94,9 +94,9 @@ The user asked for the routes a question asked well takes, a widget that asks or
 thread, and for a while let the fork put a step On me as a to-do on the user, which
 the user ended with Done. On 2026-11-03 the user removed to-dos on the user
 altogether (`todos`): what is asked of the user is answered through the widget or
-thread it stands on, never a Done Leaf adds, so a step is asked in a thread too. That
-keeps a cost the to-do avoided: a clarifying reply such as "where do I run it?"
-answers it, and the agent has to ask again.
+thread it stands on, never a Done Leaf adds, so a step is asked in a thread too. A
+clarifying reply such as "where do I run it?" answers it, as any reply does, until the
+agent's answer reopens it (`obligations`).
 
 The fork reads each page's words as the user reads them, a block to a line
 (`page_text`, from the passage reading `leaf thread create` quotes against), so it

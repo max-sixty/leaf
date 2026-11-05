@@ -1289,6 +1289,11 @@ def claude_code_registry() -> list[dict]:
     return records
 
 
+def codex_home() -> Path:
+    """The directory Codex keeps this user's configuration, history and sockets in."""
+    return Path(os.environ.get("CODEX_HOME") or Path.home() / ".codex")
+
+
 def codex_thread_names() -> dict[str, str]:
     """Each thread's latest name in Codex's session index,
     `$CODEX_HOME/session_index.jsonl`, by thread id.
@@ -1297,8 +1302,7 @@ def codex_thread_names() -> dict[str, str]:
     or renames a thread, so the last line for an id holds its current name. The
     index is the machine's and every state read of a Codex page asks it, so the
     process keeps the last reading until the file's stamp moves."""
-    home = Path(os.environ.get("CODEX_HOME") or Path.home() / ".codex")
-    index = home / "session_index.jsonl"
+    index = codex_home() / "session_index.jsonl"
     try:
         stat = index.stat()
     except OSError:

@@ -597,15 +597,10 @@ def test_a_thread_waiting_on_the_user_colors_its_margin_entry(
     whose authored obligation has been handed to the agent by its comment.
     """
     comment = {**COMMENT_ON_OBLIGATION, "anchor": {"section": target}}
-    source = OBLIGATION_PAGE.replace(
-        "</head>",
-        """<style>:root {
-      --pin-on-user: light-dark(#d8f1b0, #e4e8aa);
-      --pin-on-user-ink: light-dark(#244714, #334017);
-    }</style></head>""",
-    )
     page = open_page(
-        browser, live_url(serve(source, events=[comment])), color_scheme=scheme
+        browser,
+        live_url(serve(OBLIGATION_PAGE, events=[comment])),
+        color_scheme=scheme,
     )
     resized(page, 1440, 900)
     cluster = page.locator(f'[data-lf-margin-for="{target}"]')
@@ -727,10 +722,7 @@ def test_a_thread_waiting_on_the_user_colors_its_margin_entry(
 
     resized(page, 390, 760)
     expect(cluster).to_have_attribute("data-lf-place", "pin")
-    expect(marker).to_have_css("background-color", token_colour(page, "--pin-on-user"))
-    expect(marker.locator(".lf-margin-entry-icon")).to_have_css(
-        "color", token_colour(page, "--pin-on-user-ink")
-    )
+    assert _margin_entry_paint(marker) == on_user, "the pin hid the user's turn"
     pin_contrast = marker.evaluate("""node => {
       const canvas = document.createElement('canvas');
       canvas.width = canvas.height = 1;
@@ -766,12 +758,13 @@ def test_a_thread_waiting_on_the_user_colors_its_margin_entry(
     told(page)
     expect(marker).not_to_have_attribute("data-lf-turn", re.compile(".+"))
     expect(marker.locator(".lf-margin-entry-context")).to_have_count(0)
-    expect(marker).to_have_css("background-color", token_colour(page, "--pin-fill"))
-    resized(page, 1440, 900)
-    assert _margin_entry_paint(marker) == {
+    answered = {
         "background": with_agent["background"],
         "icon": token_colour(page, "--accent"),
     }
+    assert _margin_entry_paint(marker) == answered, "the pin kept the user's turn"
+    resized(page, 1440, 900)
+    assert _margin_entry_paint(marker) == answered
 
 
 def test_a_thread_an_open_to_do_holds_says_so_beside_the_page(browser, serve):

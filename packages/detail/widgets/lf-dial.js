@@ -124,7 +124,8 @@ customElements.define(
           true,
         );
         depth.value = name;
-        depth.appearance = "button";
+        // An attribute, so the theme seats it as a chooser from its first paint.
+        depth.setAttribute("appearance", "button");
         depth.title = title;
         group.append(depth);
       }

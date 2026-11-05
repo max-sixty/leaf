@@ -252,11 +252,11 @@ def test_work_status_is_a_generated_browser_passage(browser, serve, owner):
     # Each thread's view quotes what it was about, the one whose words the revision
     # took away detached.
     for comment, said, detached in (
-        (blocked, "“blocked”", True),
-        (active, "“active”", False),
+        (blocked, "blocked", True),
+        (active, "active", False),
     ):
-        quote = open_panel_thread(page, comment["id"]).locator(".lf-quote")
-        expect(quote).to_have_text(said)
+        quote = open_panel_thread(page, comment["id"]).locator(".lf-thread-quote")
+        expect(quote.locator(".lf-quote-label")).to_have_text(said)
         assert (quote.get_attribute("data-lf-detached") is not None) is detached
     assert [
         event for event in read_events(serve.page_dir) if event["kind"] == "comment"

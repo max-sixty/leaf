@@ -213,11 +213,14 @@ export function shownBand(el) {
 //
 // `landingBand` is where a landing may put something: the shown band less the
 // `scroll-padding` the scroller declares, which is also what `scrollIntoView` honours.
+// The root states its band apart, in `--lf-landing-top` and `--lf-landing-bottom`
+// (base.css), which its padding copies but for while a floating editor holds focus,
+// when the browser's own caret reveal is given none.
 // It clears what stands over the whole scroller (a page tab strip); a header
 // over part of it, a diff's file header, is cleared by the `scroll-margin` of the rows
-// it stands over. It is also where scroll anchoring looks for the box it keeps still:
-// the spec's optimal viewing region, which Chrome reads from `scroll-padding` too
-// (`motionBand`).
+// it stands over. Scroll anchoring looks for the box it keeps still in the band the
+// padding leaves: the spec's optimal viewing region, which Chrome reads from
+// `scroll-padding` too (`motionBand`).
 //
 // A box scrolls, for these readings, when its computed overflow makes it a scroll
 // container: `auto` and `scroll`, and `hidden` too, which a script or a landing can
@@ -441,11 +444,100 @@ function sticks(sticky) {
   if (Math.abs(box.bottom - footLine) <= 1) return true;
   return box.bottom > footLine && holder.bottom > box.bottom + 1;
 }
+// How far sticking moves `sticky` from its own place in its holder, `{x, y}` in client
+// pixels, zero for a box that is not sticky or stands in its own place. Its own place
+// is the one reading of a sticky box that holds at every scroll. Layout answers
+// nothing else from where the box is drawn: its client rect and `offsetTop` both
+// include the offset, and a box that stuck has lost the place it stuck from. A view
+// timeline on the box knows that place, since the timeline's range runs from it. With
+// the scrollport's end inset by all of its length, a box that sticks at its top starts
+// its range at its own top, and one that sticks at its foot ends it at its own foot,
+// counted in its scroller's scrolled content, at any scroll. Chromium and WebKit agree
+// on that reading. Where a view timeline can't say where its range starts, the shift
+// reads zero, which leaves a sticky box read where it is drawn (notes/browser-support.md,
+// "Sticky boxes' own place").
+//
+// That place leaves out the offset of every sticky box in the scroller, so for a sticky
+// box inside another in the same scroller the outer box's offset is taken off and the
+// answer is the inner box's own: a walk down the boxes adds each one's shift to those
+// around it.
+/** @type {boolean | null} */
+let timelineOffsets = null;
+// Firefox 157 lacks `ViewTimeline`; Firefox 159 builds one and throws NotSupportedError
+// on reading its `startOffset` and `endOffset`.
+function readsTimelineOffsets() {
+  if (timelineOffsets !== null) return timelineOffsets;
+  if (!("ViewTimeline" in globalThis)) return (timelineOffsets = false);
+  try {
+    void new globalThis.ViewTimeline({ subject: document.documentElement }).startOffset;
+    timelineOffsets = true;
+  } catch (error) {
+    if (!(error instanceof DOMException && error.name === "NotSupportedError"))
+      throw error;
+    timelineOffsets = false;
+  }
+  return timelineOffsets;
+}
+/** @param {Element} sticky @param {CSSStyleDeclaration} [style] */
+export function stuckShift(sticky, style = getComputedStyle(sticky)) {
+  const shift = { x: 0, y: 0 };
+  if (style.position !== "sticky" || !readsTimelineOffsets()) return shift;
+  for (const axis of /** @type {const} */ (["y", "x"])) {
+    const own = displaced(sticky, style, axis);
+    if (!own) continue;
+    let outer = renderedParent(sticky);
+    for (
+      ;
+      outer?.nodeType === 1 && outer !== own.scroller;
+      outer = renderedParent(outer)
+    ) {
+      const around = getComputedStyle(outer);
+      if (around.position !== "sticky") continue;
+      own.by -= displaced(outer, around, axis)?.by ?? 0;
+      break;
+    }
+    if (Math.abs(own.by) >= 0.5) shift[axis] = own.by;
+  }
+  return shift;
+}
+const SIDES = /** @type {const} */ ({
+  y: { start: "top", end: "bottom", size: "height" },
+  x: { start: "left", end: "right", size: "width" },
+});
+// How far a sticky box is drawn from its own place on one axis, and the scroller that
+// place is counted in, or null where the box sticks on neither of that axis's sides.
+/** @param {Element} sticky @param {CSSStyleDeclaration} style @param {"x" | "y"} axis */
+function displaced(sticky, style, axis) {
+  const { start, end, size } = SIDES[axis];
+  const fromStart = style[start] !== "auto";
+  if (!fromStart && style[end] === "auto") return null;
+  const timeline = new globalThis.ViewTimeline({
+    subject: sticky,
+    axis,
+    inset: "0px 100%",
+  });
+  const scroller = timeline.source;
+  const range = fromStart ? timeline.startOffset : timeline.endOffset;
+  if (!scroller || !range) return null;
+  const box = sticky.getBoundingClientRect();
+  // Where the scrolled content's origin stands in the window.
+  const frame =
+    scroller === scroller.ownerDocument.scrollingElement
+      ? { top: 0, left: 0 }
+      : scroller.getBoundingClientRect();
+  const origin =
+    axis === "y"
+      ? frame.top + scroller.clientTop - scroller.scrollTop
+      : frame.left + scroller.clientLeft - scroller.scrollLeft;
+  const own = origin + range.to("px").value - (fromStart ? 0 : box[size]);
+  return { by: own - box[start], scroller };
+}
 /** @param {Element} scroller */
-export function landingBand(scroller) {
+export const landingBand = (scroller) => insetBand(scroller, landingInsets(scroller));
+/** @param {Element} scroller @param {ReturnType<typeof scrollPadding>} inset */
+function insetBand(scroller, inset) {
   const band = shownBand(scroller);
   if (!band) return null;
-  const inset = landingInsets(scroller);
   return {
     left: band.left + inset.left,
     top: band.top + inset.top,
@@ -454,11 +546,22 @@ export function landingBand(scroller) {
   };
 }
 // How far each edge of `landingBand` stands in from the scroller's shown band: the
-// `scroll-padding` it declares. Callers that measure from the scroller's own box take
-// the clearance here rather than reading the style themselves.
+// band the scroller states, else the `scroll-padding` it declares. Callers that
+// measure from the scroller's own box take the clearance here rather than reading the
+// style themselves.
 /** @param {Element} scroller */
 export function landingInsets(scroller) {
   const style = getComputedStyle(scroller);
+  const padding = scrollPadding(style);
+  /** @param {"top" | "bottom"} edge */
+  const stated = (edge) => {
+    const value = Number.parseFloat(style.getPropertyValue(`--lf-landing-${edge}`));
+    return Number.isNaN(value) ? padding[edge] : value;
+  };
+  return { ...padding, top: stated("top"), bottom: stated("bottom") };
+}
+/** @param {CSSStyleDeclaration} style */
+function scrollPadding(style) {
   /** @param {"Top" | "Right" | "Bottom" | "Left"} side */
   const inset = (side) => Number.parseFloat(style[`scrollPadding${side}`]) || 0;
   return {
@@ -685,8 +788,9 @@ export function watchRoom(callback) {
 // moves everything after it in the boxes that scroll it, in every column, so the band
 // spans what the clips over `item` and the chrome leave of the window's height, read as
 // `seenRect` reads it but across the whole width. Scroll anchoring keeps still the first
-// box in the scroller's landing band (`landingBand`: the spec's optimal viewing region,
-// which Chrome and WebKit take from `scroll-padding`), so a change above that band moves
+// box in the band the scroller's `scroll-padding` leaves (the spec's optimal viewing
+// region, which Chrome and WebKit take from it, and the root's landing band but while a
+// floating editor holds focus: `landingBand`), so a change above that band moves
 // only what stands above the change. Chrome forfeits that for a layout in which a
 // `details` both opens or shuts and changes what it holds, so a writer doing both lays
 // out the disclosure first (thread-card.js, an outlet thread settling). The band
@@ -719,7 +823,7 @@ function motionBand(item, clips) {
   const anchorBand = !scroller
     ? cut
     : scroller.scrollTop > 0
-      ? landingBand(scroller)
+      ? insetBand(scroller, scrollPadding(getComputedStyle(scroller)))
       : shownBand(scroller);
   return anchorBand && anchorBand.top < room.bottom
     ? { top: anchorBand.top, bottom: room.bottom }

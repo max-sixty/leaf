@@ -1131,15 +1131,17 @@ def refuse(route):
 
 # A tab names the reading it holds in `Leaf-Held-Basis`, and the server answers it
 # with a `Tail`, a patch against that reading (`served_state/tail.py`). A test that
-# rewrites the reading itself drops the header, so the server answers whole.
-def fetch_whole_state(route):
-    """Fetch this state read as a whole reading; return the response and its body."""
+# reads or rewrites the reading itself drops the header, so the server answers whole.
+def fetch_whole_state(route, **fetch):
+    """Fetch this state read, or this event with the state its answer carries, as a
+    whole reading; return the response and its body. `fetch` overrides the request
+    as `Route.fetch` takes it."""
     headers = {
         name: value
         for name, value in route.request.headers.items()
         if name != "leaf-held-basis"
     }
-    response = route.fetch(headers=headers)
+    response = route.fetch(headers=headers, **fetch)
     return response, response.json()
 
 
@@ -3128,7 +3130,7 @@ def reader_state(page):
     focused = page.locator(":focus")
     native = page.evaluate(_BROWSER_STATE)
     return [
-        *page.locator("body").aria_snapshot(boxes=True).splitlines(),
+        *page.locator(":root").aria_snapshot(boxes=True).splitlines(),
         "focus: "
         + (focused.last.aria_snapshot(boxes=True) if focused.count() else "none"),
         *("field: " + json.dumps(field) for field in native["fields"]),

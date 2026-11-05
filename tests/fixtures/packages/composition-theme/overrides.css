@@ -21,11 +21,9 @@
   --danger-ink: light-dark(#8e2440, #ffb0c3);
   --danger-tint: light-dark(#ffe2e9, #4a2433);
 
-  /* Pale pin faces deliberately need dark glyphs in both schemes. */
-  --pin-fill: light-dark(#e7cbff, #e1b5f6);
-  --pin-ink: light-dark(#241343, #341a48);
-  --pin-on-user: light-dark(#d8f1b0, #e4e8aa);
-  --pin-on-user-ink: light-dark(#244714, #334017);
+  /* A pale count deliberately needs dark digits in both schemes. */
+  --badge-fill: light-dark(#e7cbff, #e1b5f6);
+  --badge-ink: light-dark(#241343, #341a48);
 
   --code-bg: light-dark(#e3edf5, #1b2a3c);
   --pre-bg: light-dark(#edf4fa, #111e2d);

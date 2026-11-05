@@ -3441,6 +3441,42 @@ def test_full_paginated_history_hydrates_an_accepted_delivery_omitted_from_resum
     ] == ["Hydrated answer"]
 
 
+def test_a_backlog_of_notifications_leaves_keepalive_pongs_readable(app_server):
+    # The follower folds each notification before receiving the next, so a burst of
+    # them waits in the connection's queue. A bounded queue pauses socket reads when
+    # it fills, and the pongs behind the burst then go unread until the keepalive
+    # closes a connection whose server answered (#3895).
+    notifications = 64
+    sent = threading.Event()
+
+    def handle(socket):
+        for raw in socket:
+            request = json.loads(raw)
+            if request.get("method") != "initialize":
+                continue
+            socket.send(json.dumps({"id": request["id"], "result": {}}))
+            for _ in range(notifications):
+                socket.send(
+                    json.dumps(
+                        {
+                            "method": "thread/status/changed",
+                            "params": {
+                                "threadId": "codex-thread",
+                                "status": {"type": "idle"},
+                            },
+                        }
+                    )
+                )
+            sent.set()
+
+    with codex_model.app_server_connect(app_server(handle)) as socket:
+        codex_model.app_server_handshake(socket, 0, "test", "test", lambda _m: None)
+        assert sent.wait(STATED_TIMEOUT)
+        assert socket.ping().wait(STATED_TIMEOUT / 4)
+        received = [json.loads(socket.recv()) for _ in range(notifications)]
+    assert {message["method"] for message in received} == {"thread/status/changed"}
+
+
 def test_unloaded_provider_history_cannot_abandon_an_uncertain_start(
     page_dir, app_server
 ):

@@ -129,7 +129,7 @@ nearby content:
 leaf thread reply <answer.ref> --done --detach --text "Removed this; the thread no longer has a page target."
 ```
 
-A detached thread stays open in Threads, its quote marked as gone from this
+A detached thread stays open in Threads, its quote marked as not in the latest
 version. A later reply may move it to a real replacement;
 open a new thread for a different subject. Don't resolve a thread to get rid of an
 anchor you removed: Leaf leaves a resolved thread's anchor as it was, so if the user
@@ -143,6 +143,14 @@ Every answer declares whose move it leaves:
   it, or they resolve the thread, so the answer stays on their list even where the
   decision it informs is already there. Where you can list the answers, a choice in
   `--markup` asks instead ("Ask for a pick").
+
+  Where their reply left a question standing, as when they asked something back or
+  the step is still to do, give `--obligation` its id, repeating the flag for each
+  such question. Their reply took the question off On me whatever it said;
+  `--obligation <id>` returns the same item there, standing on this message, until
+  their next reply, so a plan step naming it reads open again. Anything more you need
+  from them, even on the same subject, is a new question and takes no id.
+
 - `--todo "<what you owe>"`: yours. It promises work it does not deliver, and opens
   that to-do on the thread under the reply's id until `leaf task end <page> <reply-id>`
   ([Long-running work](conversation-loop.md#long-running-work)).

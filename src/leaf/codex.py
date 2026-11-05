@@ -43,10 +43,11 @@ queue adapter, whose turn would open on a pointer Codex shows as the user's own
 message, or a task that waits with `leaf wait`, Stop offers the input into the turn it
 continues, even a resumed turn that ran no tool. Once Stop or Interrupt closes the turn, or the turn no longer reads
 as running, the adapter's `_offer_queued_delivery` offers the pending input, or the
-unread pointer, itself. Without an App Server connection it hands the pointer to
-`codex queue`, retrying the same pointer while the session owns a page, and never
-calls `turn/start`. With a connection it waits until the task is idle and starts the
-turn. A delivery offered by a hook or the queue asks the agent for a plain reply; one
+unread pointer, itself. Without an App Server connection it asks the desktop app to
+start the turn (`codex_desktop.py`), or else hands the pointer to `codex queue`,
+retrying the same pointer while the session owns a page, and never calls `turn/start`.
+With a connection it waits until the task is idle and starts the turn. A delivery
+offered by a hook, the desktop app or the queue asks the agent for a plain reply; one
 started over App Server takes the turn's final message as its reply.
 
 When a session loses its last page, its `Collecting` or `Offering` record waits until
@@ -107,6 +108,7 @@ from .codex_state import (
     delivery_dir,
     delivery_lock_path,
     hook_turn,
+    reverse_transcript_lines,
 )
 from .delivery import (
     DELIVERY,
@@ -130,6 +132,7 @@ from .delivery import (
 )
 from .harness import CodexHarness, Harness
 from .refusals import Refused
+from .registry.schema import aware_instant
 from .service import (
     PageTransaction,
     delivery_reply_attempt,
@@ -211,6 +214,7 @@ _ConnectionOptions = TypedDict(  # noqa: UP013
         "close_timeout": float,
         "compression": None,
         "max_size": None,
+        "max_queue": None,
     },
 )
 
@@ -228,6 +232,12 @@ def app_server_connect(endpoint: str):
         # therefore exceed websockets' 1 MiB message default even though the local
         # protocol and the command both completed normally.
         "max_size": None,
+        # A follower folds each notification before receiving the next, so a burst
+        # of them can wait here. A bounded queue pauses socket reads once it fills,
+        # and the keepalive pongs behind the burst then go unread until the ping
+        # timeout closes a connection whose server answered. The App Server is
+        # local and trusted, so its backlog is buffered without bound instead.
+        "max_queue": None,
     }
     connection = (
         unix_connect(str(socket_path), uri="ws://localhost/rpc", **options)
@@ -488,6 +498,49 @@ def app_server_delivery_id(message: dict) -> str | None:
         return None
     found = {identity for item in items if (identity := _item_delivery_id(item))}
     return next(iter(found)) if len(found) == 1 else None
+
+
+def transcript_delivery_turn(path: Path, delivery_id: str, since: float) -> str | None:
+    """The turn whose input carried delivery `delivery_id` as a `leaf_delivery` tool
+    output in the native Codex transcript at `path`, or None where none did.
+
+    The transcript records each item as it completes, `{"type": "event_msg",
+    "payload": {"type": "item_completed", "turn_id", "item"}}`. A tool output's item
+    holds App Server's `functionCallOutput` fields (`id`, `name`, `output`) under the
+    type `FunctionCallOutput`, with `output` the string the start sent. This reads
+    back from the end and stops at the first record stamped before `since`, the time
+    the delivery was captured. Codex writes records in timestamp order, so no record
+    before that one can hold the delivery. `notes/codex-integration.md`, "Delivery
+    without user messages", holds a record the app's bundled Codex wrote and how to
+    capture another.
+    """
+    try:
+        stream = path.open("rb")
+    except FileNotFoundError:
+        return None
+    with stream:
+        size = os.fstat(stream.fileno()).st_size
+        for _, line in reverse_transcript_lines(stream, size):
+            record = json.loads(line)
+            if not isinstance(record, dict):
+                continue
+            written = record.get("timestamp")
+            instant = aware_instant(written) if isinstance(written, str) else None
+            if instant is not None and instant.timestamp() < since:
+                return None
+            payload = record.get("payload")
+            if (
+                record.get("type") == "event_msg"
+                and isinstance(payload, dict)
+                and payload.get("type") == "item_completed"
+                and isinstance(item := payload.get("item"), dict)
+                and item.get("type") == "FunctionCallOutput"
+                and _item_delivery_id({**item, "type": "functionCallOutput"})
+                == delivery_id
+                and isinstance(turn := payload.get("turn_id"), str)
+            ):
+                return turn
+    return None
 
 
 def _item_delivery_id(item: dict) -> str | None:

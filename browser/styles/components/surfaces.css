@@ -318,7 +318,10 @@ a[data-lf-external]::after,
    box says (`--lf-ring-at`), or where a region's or a control's marks stand when it
    says nothing. The outline is important, so a rule of the page's or a widget's that
    sets the box's outline, as one turning off a focus ring does, leaves the mark
-   standing while it shows. */
+   standing while it shows. Focus alone (`data-lf-mark="focus"`) is the box's focus
+   ring rather than a mark, so it stands at no weight, as the focus floor above does:
+   the box's own focus treatment wins, an author's outline or a carrier's such as a
+   ring overlay. */
 :where(
   [data-lf-aimed],
   [data-lf-traced],
@@ -327,6 +330,16 @@ a[data-lf-external]::after,
   [data-lf-projected-location]
 ) {
   --lf-band-gap: var(--lf-ring-at, var(--focus-region-gap));
+  outline: var(--lf-band-w, var(--focus-ring-w)) solid var(--lf-band-ink, var(--accent));
+  outline-offset: var(--lf-band-gap);
+}
+:where(
+  [data-lf-aimed],
+  [data-lf-traced],
+  [data-lf-proxied],
+  [data-lf-mark]:not([data-lf-mark="focus"]),
+  [data-lf-projected-location]
+) {
   outline: var(--lf-band-w, var(--focus-ring-w)) solid var(--lf-band-ink, var(--accent)) !important;
   outline-offset: var(--lf-band-gap) !important;
 }
@@ -485,8 +498,12 @@ a[data-lf-external]::after,
    with it, the top of its ring cut off under the pane's header rule. On every side,
    since the ring is: a link Tab brought in from a wide table's end stood flush with it.
    `:focus` makes that room available to the landing before the focus mark paints
-   after the script. At no weight, like the ring. */
-:where(:focus, [data-lf-focus]) {
+   after the script. At no weight, like the ring. A vendor control holds focus on a node
+   in its own tree, which those selectors don't reach, so the mark's part (focus.js,
+   `markFocus`) brings it there, at a pseudo-element's weight: a diff's file filter
+   stood past its pane's foot, and a code block's Copy past its top. */
+:where(:focus, [data-lf-focus]),
+::part(lf-focus) {
   scroll-margin: var(--focus-ring-landing);
 }
 /* A control in a stuck sticky header stands where the header sticks, which its
@@ -504,7 +521,8 @@ a[data-lf-external]::after,
    counts as shown; anywhere else the margin keeps the focus ring's landing room. A page tab
    strip, which the band covers whole, comes out negative by its height, so its names
    count as shown too. */
-:where(:focus, [data-lf-focus]) {
+:where(:focus, [data-lf-focus]),
+::part(lf-focus) {
   scroll-margin-top: calc(
     var(--lf-top) - var(--lf-top-covered, var(--lf-top)) +
       var(
@@ -583,8 +601,7 @@ a[data-lf-external]::after,
 .button,
 button.lf-inline-action,
 .lf-react,
-.lf-margin-entry,
-.lf-quote {
+.lf-margin-entry {
   min-width: var(--aim-floor);
   min-height: var(--lf-face-floor, var(--aim-floor));
 }
@@ -1155,6 +1172,44 @@ summary {
   margin-inline-end: calc(var(--lf-thread-action-room) + var(--sp-2));
   padding-inline-end: calc(var(--lf-thread-notice-room) + var(--sp-2));
 }
+/* Next unread is an inline press (controls.css) after its symbol, on the line its
+   container gives the thread (thread-card.js). It keeps its seat once none is left,
+   unless nothing on its container's line moves for it (annotation-chrome.css). */
+.lf-next-unread {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+.lf-next-unread .lf-action-icon {
+  flex: none;
+  width: 14px;
+  height: 14px;
+}
+.lf-next-unread[data-lf-unoffered] {
+  visibility: hidden;
+}
+/* An answer waiting past the foot of the box that scrolls the thread (thread-card.js,
+   `#fitAnswer`): a press at that foot, where the answer begins, standing on the box's
+   ground, paper unless its surface names another, which fades in above it so what
+   passes under reads as under a layer. New reply announces news waiting, an inline
+   press in the accent the unread dot wears (controls.css, `data-lf-news`), centred on
+   it, as tall as a thread's other actions. */
+.lf-awaited {
+  position: sticky;
+  --lf-head-inset: 0px;
+  bottom: 0;
+  padding-block-start: 10px;
+  background: linear-gradient(transparent, var(--lf-awaited-ground, var(--paper)) 10px);
+}
+.lf-awaited > .lf-new-reply {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0 auto;
+  min-height: max(var(--lf-msg-head-height), var(--aim-floor));
+  font: var(--font-small);
+}
 .lf-thread-meta-actions {
   display: inline-flex;
   flex: none;
@@ -1256,42 +1311,31 @@ button.lf-thread-news {
 .lf-msg-head .lf-msg-leaves {
   color: var(--ink-2);
 }
-/* A quote of the words a comment is about: the comment box's (composing/selection.js),
-   and a thread's where its container asks for one, as the floating panel's view does
-   (thread-card.js, `#drawQuote`). Both stand in the chrome and a thread drawn by a
-   package's reader stands in the page, so the face is stated here, where every surface
-   reads it. */
+/* A quote of the words a thread is about, where its container asks for one, as the
+   floating panel's view does (thread-card.js, `#drawQuote`). The panel stands in the
+   chrome and a thread drawn by a package's reader stands in the page, so the face is
+   stated here, where every surface reads it. The rule and the quiet ink say its words
+   are quoted, so they take no marks. A status word leads them where the page no longer
+   reads as the quote does, such as a passage a revision took out of the latest
+   version, so the three lines never cut it and a finger reads it as a pointer does
+   (`quoteReading`). Where they stand (`anchorPlace`, thread/messages.js) comes next, in
+   the status's face, since both are Leaf's words about the quotation. The quote stands
+   over the thread's messages in three lines, the whole on Full quote, its press above
+   the words it grows. It only says what the thread is about, since the container's way
+   to the words, as the panel's Show on page, goes there: it takes no press, no aim's
+   room and no title. Its words start on the thread's edge, the 1px rule before them
+   included. */
 .lf-quote-label {
   min-width: 0;
 }
+.lf-quote-place,
 .lf-anchor-status {
-  margin-inline-start: 7px;
-  color: var(--muted);
   font: var(--font-status);
 }
-.lf-quote {
-  margin: 0 0 12px;
-  padding: 2px 8px 2px 10px;
-  border-inline-start: 1px solid var(--border-2);
+.lf-anchor-status {
+  margin-inline-end: 3px;
   color: var(--muted);
-  font: var(--font-compact);
-  cursor: pointer;
-  overflow-wrap: anywhere;
 }
-.lf-quote:is(:hover, [data-lf-focus]) {
-  color: var(--ink-2);
-}
-.lf-quote[data-lf-detached] {
-  border-inline-start-color: var(--border-2);
-  color: var(--muted);
-  cursor: default;
-}
-/* A thread's quote stands over its messages in the quote's face: three lines, the whole
-   on Full quote, its press above the words it grows. It only says what the thread is
-   about, since the container's way to the words, as the panel's Show on page, goes
-   there: it takes no press, no aim's room and no title naming a jump, though a
-   detached quote's title still says where its words went. Its words start on the
-   thread's edge, the 1px rule before them included. */
 .lf-thread-quote-head:not([hidden]) {
   display: grid;
   justify-items: start;
@@ -1299,12 +1343,15 @@ button.lf-thread-news {
   margin: 0 0 12px;
   font: var(--font-compact);
 }
-.lf-thread-quote-head > .lf-thread-quote {
+.lf-thread-quote {
   margin: 0;
-  padding-inline-start: calc(var(--lf-thread-text-inset) - 1px);
+  padding-block: 2px;
+  padding-inline: calc(var(--lf-thread-text-inset) - 1px) 8px;
+  border-inline-start: 1px solid var(--border-2);
   min-width: 0;
-  min-height: 0;
-  cursor: default;
+  color: var(--muted);
+  font: var(--font-compact);
+  overflow-wrap: anywhere;
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 3;

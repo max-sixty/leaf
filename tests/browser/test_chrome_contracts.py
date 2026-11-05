@@ -1937,6 +1937,103 @@ def test_shift_enter_and_tab_keep_a_draft_in_the_containers_the_message_will_hol
             expect(field).to_have_js_property("value", typed)
 
 
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_pasted_fence_is_left_by_the_keys_a_user_tried(engine, request, serve):
+    """The keys a user pressed to get out of a fence they had pasted into, which left
+    it open: Up and Down, then their marks typed at the end of the code. The paste lost
+    its first line to the opening marks, Down reached no line below the code, and the
+    marks closed nothing. Each key now does what it says, and the closing marks stand
+    in the code's box with the words after them outside it. field-editor.test.mjs holds
+    the rest of the ways in and out."""
+    page = open_page(
+        request.getfixturevalue(engine), serve(LONG_PAGE), init_script=KEEP_ROOTS
+    )
+    field = page_comment(page)
+    page.keyboard.type("it says:")
+    page.keyboard.press("Shift+Enter")
+    page.keyboard.press("Shift+Enter")
+    page.keyboard.type("```")
+    # A key puts the text on the clipboard, as a copy elsewhere would, without taking
+    # focus from the field: a page may copy only during a user's gesture.
+    page.evaluate(
+        """text => {
+          addEventListener('copy', event => {
+            event.clipboardData.setData('text/plain', text);
+            event.preventDefault();
+            event.stopImmediatePropagation();
+          }, {capture: true, once: true});
+          addEventListener('keydown', event => {
+            event.preventDefault();
+            document.execCommand('copy');
+          }, {capture: true, once: true});
+        }""",
+        "Read access\nRead and write",
+    )
+    page.keyboard.press("F9")
+    page.keyboard.press("ControlOrMeta+v")
+    code = "it says:\n\n```\nRead access\nRead and write"
+    expect(field).to_have_js_property("value", code)
+    for key in ["ArrowUp", "ArrowUp", "ArrowDown", "ArrowDown", "ArrowDown"]:
+        page.keyboard.press(key)
+    page.keyboard.type("is it admin?")
+    expect(field).to_have_js_property("value", f"{code}\n```\nis it admin?")
+    page.keyboard.press("ControlOrMeta+a")
+    page.keyboard.press("Backspace")
+    write(field, "```\ncode")
+    page.keyboard.type("```after")
+    expect(field).to_have_js_property("value", "```\ncode\n```\nafter")
+    rendered(page)
+    assert field.evaluate(
+        """box => [...window.__lfRoots.get(box).querySelectorAll('.cm-line')].map(line =>
+          [line.textContent, line.classList.contains('lf-md-code-block')])"""
+    ) == [["```", True], ["code", True], ["```", True], ["after", False]]
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_words_on_a_fences_opening_line_show_in_the_draft_and_the_message(
+    engine, request, serve
+):
+    """Words on a message fence's opening line are the code's first line, unless one word
+    names the language of the code below. They were the fence's info string, which the
+    draft hid once the caret left the line and the message dropped."""
+    page = open_page(
+        request.getfixturevalue(engine), serve(LONG_PAGE), init_script=KEEP_ROOTS
+    )
+    field = page_comment(page)
+    typed = "```Read access to code\n    Read and write"
+    write(field, typed)
+    field.evaluate("box => box.setSelectionRange(box.value.length, box.value.length)")
+    rendered(page)
+    # What the preview draws in view on each line, read with the marks it hides left out.
+    shown = """box => [...window.__lfRoots.get(box).querySelectorAll('.cm-line')].map(line => {
+      const copy = line.cloneNode(true);
+      copy.querySelectorAll('.lf-md-unseen').forEach(node => node.remove());
+      return copy.textContent;
+    })"""
+    assert field.evaluate(shown) == ["Read access to code", "    Read and write"]
+    # The two lines of code stand in one box, aligned, the first holding the box's
+    # padding as the code's first line does in a message.
+    aligned = """box => {
+      const [one, two] = window.__lfRoots.get(box).querySelectorAll('.cm-line');
+      const left = line => {
+        const range = document.createRange();
+        const walker = document.createTreeWalker(line, NodeFilter.SHOW_TEXT);
+        const node = walker.nextNode();
+        range.setStart(node, 0);
+        range.setEnd(node, 1);
+        return range.getBoundingClientRect().left;
+      };
+      return [left(one), left(two), parseFloat(getComputedStyle(one).paddingBlockStart)];
+    }"""
+    one, two, padding = field.evaluate(aligned)
+    assert one == pytest.approx(two, abs=0.5)
+    assert padding > 0
+    with sending(page, "Read access to code"):
+        page.keyboard.press("Enter")
+    code = page.locator(".lf-msg-body pre code").last
+    expect(code).to_have_text("Read access to code\n    Read and write\n")
+
+
 # The last draft stays in the field for its preview to be read.
 NESTING = {
     "taking it out again": ("- one⏎⇥two⇤", "- one\n- two"),
@@ -1946,3 +2043,87 @@ NESTING = {
     "undoing a nest": ("- one⏎⇥↶", "- one\n- "),
     "nesting a new item": ("- one⏎⇥two", "- one\n  - two"),
 }
+
+
+BANDED_PAGE = leaf_page(
+    "Bands",
+    "".join(
+        f'<section id="band-{n}" style="min-height: 420px">'
+        f"<h2>Location {n}</h2><p>Body {n}</p></section>"
+        for n in range(1, 13)
+    ),
+)
+BANDED_EVENTS = [
+    {
+        "kind": "comment",
+        "author": "user",
+        "revision": 1,
+        "text": f"Band note {n}",
+        "anchor": {"section": f"band-{n}"},
+    }
+    for n in range(1, 13)
+]
+
+
+def open_page_map(page):
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+p")
+    return page.locator(".lf-page-map-list"), ".lf-page-map-action"
+
+
+def open_threads_list(page):
+    open_threads(page)
+    return page.locator(panel_view("threads")), ".lf-fp-thread"
+
+
+def open_reference(page):
+    page.keyboard.press("?")
+    return page.locator(".lf-command-reference-results"), ".lf-command-reference-row"
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+@pytest.mark.parametrize("opens", [open_threads_list, open_page_map, open_reference])
+def test_a_band_names_the_group_passing_under_it(request, serve, engine, opens):
+    """A list that groups its rows keeps the group being read named: scrolled into a
+    group, its band stands at the top of the list, across the list's whole surface, and
+    a row the user walks up to stands clear below the band rather than under it."""
+    page = open_page(
+        request.getfixturevalue(engine), serve(BANDED_PAGE, events=BANDED_EVENTS)
+    )
+    resized(page, 1000, 480)
+    scroller, rows = opens(page)
+    expect(scroller).to_be_visible()
+    scroller.evaluate("list => { list.scrollTop = 160; }")
+    rendered(page)
+    stuck = """list => {
+      const box = list.getBoundingClientRect();
+      const at = list.getRootNode().elementFromPoint(
+        box.left + box.width / 2, box.top + 2);
+      const band = at?.closest('.lf-rows-head');
+      if (!band) return null;
+      const {top, bottom, left, right} = band.getBoundingClientRect();
+      return {name: band.textContent.trim(), top, bottom, left, right,
+              list: {top: box.top, left: box.left,
+                     right: box.left + list.clientWidth}};
+    }"""
+    band = scroller.evaluate(stuck)
+    assert band, "no band stands at the top of the scrolled list"
+    assert band["top"] == pytest.approx(band["list"]["top"], abs=1), band
+    assert band["left"] == pytest.approx(band["list"]["left"], abs=1), band
+    assert band["right"] == pytest.approx(band["list"]["right"], abs=1), band
+
+    # Up the list by the keys, each row stands clear of the band over it.
+    scroller.locator(rows).nth(11).focus()
+    for _ in range(11):
+        page.keyboard.press("ArrowUp")
+        rendered(page)
+        at = scroller.evaluate(
+            """list => {
+              const root = list.getRootNode();
+              const row = root.activeElement;
+              const {left, top, width} = row.getBoundingClientRect();
+              const over = root.elementFromPoint(left + width / 2, top + 1);
+              return [row.textContent, over?.closest('.lf-rows-head')?.textContent];
+            }"""
+        )
+        assert at[1] is None, f"{at[0]} stands under the band {at[1]}"

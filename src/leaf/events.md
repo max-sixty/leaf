@@ -93,12 +93,12 @@ and the anchor moves that depend on it land together.
 
 The user may withdraw a comment or reply, a reaction included, a resolve, unresolve,
 action or edit (the kinds `$events.kinds` marks `undoable`), however far the agent has
-got with it. A withdrawn message leaves every reading, except where a message or to-do
-still in force stands on it: there it keeps its place with no words and no mark,
-`withdrawn` naming the undo and the words or mark it was sent with, and the browser
-draws it as Deleted, so what answered it keeps its context (`events.build_threads`). It
-is no turn: nothing is owed it, it reopens no thread and its rewrites ask for nothing,
-while an answer to it still settles the messages before it. The undo key reaches a
+got with it. A withdrawn message leaves every reading, except where a message still in
+force, or any to-do on the thread it opened, stands on it: there it keeps its place with
+no words and no mark, `withdrawn` naming the undo and the words or mark it was sent with,
+and the browser draws it as Deleted, so what answered it keeps its context
+(`events.build_threads`). It is no turn: nothing is owed it, it reopens no thread and its
+rewrites ask for nothing, while an answer to it still settles the messages before it. The undo key reaches a
 message only while it is the user's newest gesture; the user deletes an older one by
 rewriting it to no words, which leaves it in place ("Messages"), and withdrawing that
 edit gives the message its words back. An undo cannot itself be undone. The door refuses
@@ -315,6 +315,10 @@ to-do keeps that obligation the agent's even after the thread is resolved
 is answered by that message instead, along with every open question before it, or by a reaction whose token
 declares `settles` on the message holding it. Neither answer resolves the thread, and
 the agent's `todo_end` can retire a question unanswered (`obligations.settle_by_words`).
+An agent reply whose `obligation` lists such questions, each by the id the message that
+first asked it set, opens each again whatever ended it: each keeps its id and words and
+stands on the reply until the user's next message or a settling reaction answers it
+(`obligations.question_ids`).
 The agent's `todo_end` also retires a frozen widget's question the user answered in
 words, since no revision can write that widget's state; the delivery of the user's
 reply lists such questions up its thread in `waiting` (`obligations.waiting_in_thread`).

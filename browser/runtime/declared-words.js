@@ -54,6 +54,7 @@ import { watchArrivals } from "./arrivals.js";
 import { highlightBlocks } from "./syntax.js";
 import { keeps } from "./keeps.js";
 import { move } from "./dom-move.js";
+import { chromeRoot } from "./chrome.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
 import { marks } from "./kernel-facts.js";
 import { generatedElement } from "./widget-elements.js";
@@ -158,7 +159,9 @@ function externalDescription(link) {
     description.textContent = "opens in a new tab";
     externalDescriptions.set(root, description);
   }
-  const holder = root instanceof Document ? root.body : root;
+  // In the document it waits in the chrome, since `body`'s children are the page's
+  // own (passages.js, pageDocument).
+  const holder = root instanceof Document ? chromeRoot : root;
   if (description.parentNode !== holder) move(holder, description);
   return description.id;
 }

@@ -637,13 +637,16 @@ export function contextScopes(title, resolve) {
   const read = (origin) => {
     const projection = resolve(origin);
     if (!projection) return null;
+    // The reading stands for one walk of the scopes, which reads its rows many times.
+    /** @type {Command[] | undefined} */
+    let rows;
     return {
       identity,
       title,
       contextual: true,
       el: projection.root,
       get rows() {
-        return contextRows(word(projection.declarations));
+        return (rows ??= contextRows(word(projection.declarations)));
       },
     };
   };
@@ -1345,5 +1348,5 @@ export function scopesFor(node) {
 /** @param {Element | null} node */
 export const claimsEsc = (node) =>
   scopesFor(node).some((scope) =>
-    scope.rows.some((row) => live(row) && bindings(row).includes("Escape")),
+    scope.rows.some((row) => bindings(row).includes("Escape") && live(row)),
   );

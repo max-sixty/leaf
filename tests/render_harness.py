@@ -150,11 +150,12 @@ def document_port_binding_source():
 
 @cache
 def shift_watch_source():
-    """Bind the sensor to the runtime's control, clipping, and scroll-space readings."""
+    """Bind the sensor to the runtime's control, clipping, scroll-space and
+    skipped-content readings."""
     source = (
         'import { clippingAxes } from "./browser/runtime/rect.js";\n'
         'import { elementAxes, scrollAxes } from "./browser/runtime/element-axes.js";\n'
-        'import { renderedParent } from "./browser/runtime/shadow-tree.js";\n'
+        'import { renderedParent, skipped } from "./browser/runtime/shadow-tree.js";\n'
         + WATCH_PLATFORM_SOURCE.read_text()
         + "\nconst nativePerformance = window.lfWatchPlatform.performance;\n"
         + "const nativeFrame = callback => window.lfWatchPlatform.frame(callback);\n"

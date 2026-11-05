@@ -37,6 +37,46 @@ nodes or fewer frames rather than doing one read faster. `read` also enumerates
 the composed tree's animations twice per frame, once through `readMotion`, and
 `tick` again for each open rendering.
 
+## The gallery's load, split
+
+On November 5, 2026, on an M-series Mac under other sessions' load (one-minute
+load 6–25), the feature gallery opened in a 1200×900 context with reduced motion
+and waited for `wait_until_ready`, three interleaved rounds per arm:
+
+| Arm                                  | To ready    | Complete readings                   |
+| ------------------------------------ | ----------- | ----------------------------------- |
+| `browser.unwatched`                  | 7.0–8.4 s   | none                                |
+| Watched, reading every node          | 13.6–16.1 s | 85–99 of 5,913 nodes, 6.8–8.5 s     |
+| Watched, leaving skipped content out | 9.5–10.9 s  | 92–94 of at most 2,923 nodes, 3.1 s |
+
+The page presents at about 1.6 s. Its 16 live samples then report ready one
+after another, the first at about 2.6 s and the last at 6.7–7.6 s, and the page
+is ready within 0.1 s of the last. Its JavaScript profile spreads over many
+runtime modules with none above 300 ms.
+
+A complete reading costs about 14 µs a node. Of the gallery's 4,049 elements and
+1,782 text nodes, about 3,700 stood in shut tabs and other skipped content, so
+the watch now leaves skipped content out ("Skipped content" in its header). Of
+the 2,160 nodes still drawn once the page settles, 223 elements lie within one
+window-height of the 900-pixel window.
+
+Of the gallery tests CI's daily run takes longest on, only
+`test_the_feature_gallery_exercises_its_core_journeys` runs the shift watch:
+`test_render_gate.py`, `test_render_pages.py` and `test_render_anchors.py` are
+marked `shifts_unsurveyed`. Call seconds on the same Mac, `-n0`:
+
+| Test                                                        | Every node | Skipped left out | No shift watch | No sensors |
+| ----------------------------------------------------------- | ---------- | ---------------- | -------------- | ---------- |
+| `test_page_fixture_renders[feature-gallery]`                | 110, 115   | 116, 110         | 109            | 113        |
+| `test_the_feature_gallery_exercises_its_core_journeys`      | 63, 63     | 43, 44           | 19             | 20         |
+| `test_an_anchor_written_from_the_mapped_revision_lands_...` | 25, 24     | 25, 24           | 23             | 24         |
+| `test_real_page_passages_can_be_quoted[feature-gallery]`    | 24, 22     | 25, 22           | 22             | 23         |
+
+`test_page_fixture_renders[feature-gallery]` spends about 55 s of its 110 s in
+seven `wait_until_ready` calls, about 8 s per gallery load, and the rest in its
+journeys' own probes. On CI's daily runs of November 4 and 5 the same seven calls
+took 292 s and 327 s.
+
 ## Gesture scroll judgement
 
 Judging the scrolls a gesture makes ("Scrolls a gesture makes") adds one fresh
@@ -74,6 +114,19 @@ cost about 11 ms per second either way. Tests rarely leave a page still for long
 above is the larger share of what the watch costs the suite.
 
 ## Open findings
+
+- **A complete reading still grows with the drawn page.** Readings that skip
+  unchanged frames (#1951), unpresented frames (#3281) and skipped content each
+  cut the same cost, a full record of every node per changed frame. A page that
+  skips nothing, such as `leaf-dev scaling`'s 512-section prose page, still pays
+  it in full: there the sensors added about 290 ms to a click (#5523). The
+  runtime's input work follows what the window shows (root `AGENTS.md`,
+  "Responsiveness"), and the watch could too: read each drawn node's rect and
+  scroll offsets, about 1 µs a node on a clean layout, and the full record only
+  for nodes within a band around the window in this reading or the last, with
+  their rendered ancestors and scrollers. A box that jumps into the window from
+  beyond the band without input would then have a rect but no record from before,
+  so the user would decide what the watch owes that case.
 
 - **Coverage exemptions need review.** Whether each `shifts_unsurveyed` module
   still needs its exemption hasn't been reviewed. Measure the cost of watching

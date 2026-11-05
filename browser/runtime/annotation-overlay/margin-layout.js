@@ -73,7 +73,6 @@ import {
   shownWindow,
   stuckShift,
 } from "../geometry.js";
-import { skipped } from "../shown-box.js";
 import {
   composedParentNode,
   renderedChildren,
@@ -81,7 +80,7 @@ import {
   renderedUnder,
   upFrom,
 } from "../shadow.js";
-import { isText } from "../shadow-tree.js";
+import { isText, skipped } from "../shadow-tree.js";
 import { scrollerFor } from "../reading-regions.js";
 import { boundedBlockOf } from "../bounds.js";
 import { pageScroller } from "../scrolling.js";

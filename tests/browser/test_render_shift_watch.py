@@ -2555,6 +2555,43 @@ def test_fold_reparenting_keeps_only_its_original_flow_credit(
         ), motions
 
 
+@pytest.mark.parametrize("holder", ["disclosure", "tab", "auto"])
+def test_a_control_drawn_out_of_skipped_content_is_watched(browser, holder):
+    """The watch leaves out what the browser skips: a closed disclosure's content, a shut
+    tab's panel, an off-screen `content-visibility: auto` box's contents. Once the page
+    draws such a control, a script moving it is reported as anywhere else."""
+    inside = '<button id="inside" style="position:relative">Inside</button>'
+    markup, reveal = {
+        "disclosure": (
+            f'<details id="holder"><summary>Fold</summary>{inside}</details>',
+            "holder.open = true",
+        ),
+        "tab": (
+            f'<div id="holder" hidden="until-found">{inside}</div>',
+            "holder.hidden = false",
+        ),
+        "auto": (
+            '<div style="height:3000px"></div>'
+            f'<div id="holder" style="content-visibility:auto">{inside}</div>',
+            "holder.scrollIntoView()",
+        ),
+    }[holder]
+    page = browser.new_page()
+    page.goto(
+        "data:text/html," + quote(f'<!doctype html><body style="margin:0">{markup}')
+    )
+    page.evaluate("document.body.setAttribute('data-lf-presented', '')")
+    paint(page)
+    drawn = "() => inside.checkVisibility({contentVisibilityAuto: true})"
+    assert not page.evaluate(drawn)
+    page.evaluate(reveal)
+    page.wait_for_function(drawn)
+    paint(page)
+    page.evaluate("inside.style.top = '40px'")
+    judge_watches()
+    consume_browser_errors(page, moved_within("button#inside"))
+
+
 @pytest.mark.parametrize("barrier", ["absolute", "bounded-ancestor", "movement"])
 def test_size_animation_rejection_retains_its_geometry(browser, barrier):
     """Rejected reflow keeps the source, receiver and first failing geometry check."""

@@ -211,27 +211,29 @@ def test_status_changes_coalesce_behind_one_state_read(browser, serve):
     page.route("**/api/state*", lambda route: held.append(route))
     with page.expect_request("**/api/state*"):
         declare("first")
+    while not held:
+        page.wait_for_timeout(20)
+    first = held[0]
+    # An answer taken before the writes the looks hear next.
+    older = first.fetch().json()
     declare("second")
+    declare("third")
     page.wait_for_timeout(500)
     assert len(held) == 1
 
-    # The admitted read sees the latest file state. The queued news then earns exactly
-    # one follow-up read, not one read per status write.
-    first = held[0]
-    second = first.fetch().json()
+    # The news the answer doesn't name earns exactly one follow-up read, not one read
+    # per status write.
     with page.expect_request("**/api/state*"):
-        first.fulfill(json=second)
-    expect(status).to_have_attribute("placeholder", re.compile(r"second"))
-    assert len(held) == 2
+        first.fulfill(json=older)
+    while len(held) < 2:
+        page.wait_for_timeout(20)
 
+    # That read takes the latest file state, so the page has nothing left to ask for.
     trailing = held[1]
-    declare("third")
+    trailing.fulfill(json=trailing.fetch().json())
+    expect(status).to_have_attribute("placeholder", re.compile(r"third"))
     page.wait_for_timeout(500)
     assert len(held) == 2
-    third = trailing.fetch().json()
-    trailing.fulfill(json=third)
-    told(page)
-    expect(status).to_have_attribute("placeholder", re.compile(r"third"))
 
 
 def test_a_state_read_timing_out_during_its_body_is_offline(browser, serve):

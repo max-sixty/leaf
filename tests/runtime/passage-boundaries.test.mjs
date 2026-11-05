@@ -290,6 +290,33 @@ test("startup refuses bare text staged inside another widget's root", () => {
   assert.equal(declaredRoot(inner), null, "the inner stage is refused for good");
 });
 
+// The sweep runs before every page upgrades, so it asks each stage once rather than
+// filtering every stage for each root it admits, which grew with the square of a page of
+// sibling widgets.
+test("startup's refusal sweep asks each of many sibling stages once", () => {
+  Object.assign(registry, {
+    "lf-staged": { "x-shadow": true },
+    $layer: { generation: "passage-flat-sweep" },
+  });
+  const count = 200;
+  document.body.innerHTML = `<main>${"<lf-staged></lf-staged>".repeat(count)}</main>`;
+  for (const host of document.querySelectorAll("lf-staged"))
+    shadowStage(host, [document.createElement("p")]);
+  const { contains } = Node.prototype;
+  let checks = 0;
+  /** @param {Node | null} other */
+  Node.prototype.contains = function (other) {
+    checks += 1;
+    return contains.call(this, other);
+  };
+  try {
+    refuseBareText();
+  } finally {
+    Node.prototype.contains = contains;
+  }
+  assert.ok(checks <= count, `${checks} containment checks for ${count} stages`);
+});
+
 // A page script's own custom element attaches a root no declaration vouches for. The
 // file reading can't know a script will, so the page reading leaves the root's words out
 // and reads the host by its light children, slotted or not, exactly as the file does.

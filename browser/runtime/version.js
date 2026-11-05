@@ -108,6 +108,7 @@ import { backgroundFlash, flashDuration } from "./motion.js";
 import {
   authored,
   elementById,
+  focusInPage,
   inChrome,
   inPage,
   LEAF_SURFACE,
@@ -2963,7 +2964,7 @@ export function createVersionController({
     const settling = new Map();
     const recordCurrentLocation = () => {
       const at = focused();
-      if (!at || !inPage(at)) return;
+      if (!at || !focusInPage(at)) return;
       const box = boxOf(at);
       recordPlaces([box], { currentLocation: true });
       cancelRender(settling.get(box));

@@ -769,6 +769,11 @@ export const elementById = (id, root = document) => {
 export const pageDocument = (doc = document) => doc.body;
 /** @param {Node | null | undefined} node */
 export const inPage = (node) => under(node, pageDocument()) && !leafSurface(node);
+// Whether focus, standing at `at`, is on something in the page. The body is in the page,
+// yet the browser gives it focus only where focus stands on nothing, as after a click on
+// words, and that names no place.
+/** @param {Element | null} at */
+export const focusInPage = (at) => at !== document.body && inPage(at);
 // The box the page's Layout arranges: `main`, or the shown child of a `main` that carries
 // no Layout itself (layouts.css, `--lf-layout-box`). The margin, the rail and the
 // Layout's regions read this box; the authored content is still `pageDocument`.

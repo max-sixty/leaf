@@ -57,10 +57,10 @@ export { scrollersOf } from "./scroll-containers.js";
 import { nextRender, sizeObserver } from "./rendering.js";
 import { landingBand, shownRect, userScrollport } from "./geometry.js";
 import { skipped } from "./shown-box.js";
-import { pageScroller } from "./scrolling.js";
+import { atScrollEnd, pageScroller } from "./scrolling.js";
 import { reachReadingScroller } from "./reach.js";
-import { under, renderedUnder, renderedParent } from "./shadow.js";
-import { inPage, layoutBox } from "./passages.js";
+import { under, renderedOrder, renderedUnder, renderedParent } from "./shadow.js";
+import { focusInPage, inPage, layoutBox } from "./passages.js";
 import { deepFocus, onCurrentLocation, pressing } from "./focus.js";
 
 /** @typedef {{id: string, host: Element & Partial<Pick<HTMLElement, "offsetWidth">>, body: Element, subject: string | null | undefined}} ReadingRegion
@@ -259,6 +259,16 @@ export const readingRegionFor = (node) => {
 // arrived as a change where the user is (focus.js, `onCurrentLocation`), or the body,
 // which is where a click on words leaves it.
 //
+// The page answers only while it has something to scroll. A full-height workspace keeps
+// it still, so on a fresh load, with nothing named, every reading key moved nothing until
+// the user pressed in a pane. There the answer is the page's largest region with more to
+// show (`mainReadingRegion`), and of two the same size the first in reading order, so the
+// answer depends on the page rather than on which registered first. Vimium picks the
+// same box on a page whose scrolling element doesn't scroll. The first region would move
+// a rail, then nothing, while the detail beside it stood still. A step the keys take in a
+// region names it (`actedIn`, navigation.js), as a wheel turned there does. A region the
+// user did name keeps the keys even with nothing to scroll.
+//
 // The page's own answer is kept apart from a surface's. A region in the chrome, such as
 // the Threads list, answers while it shows; once it has closed, the user is back in the
 // page region they acted in last (`pageReadingRegion`), which a surface opened on top of
@@ -308,20 +318,42 @@ onCurrentLocation((node) => {
   if (node) actedAt(node, true);
 });
 export const recentReadingRegion = () => readingRegion(recentRegionId);
+/** @param {ReadingRegion} region */
+export const actedIn = (region) => actedAt(region.host, false);
 // A region hidden from layout — a closed panel's list, a pane in a tab not shown — is not
 // where the user reads. One scrolled out of the window still is.
 /** @param {ReadingRegion | undefined} region */
 const shown = (region) => (region?.host.checkVisibility() ? region : undefined);
 export const pageReadingRegion = () => {
   const at = deepFocus();
-  if (inPage(at)) return readingRegionFor(at);
+  if (focusInPage(at)) return readingRegionFor(at);
   return shown(readingRegion(pageRegionId));
+};
+const mainReadingRegion = () => {
+  if (!atScrollEnd(pageScroller, 0)) return undefined;
+  /** @type {{region: ReadingRegion, area: number}[]} */
+  const sized = [];
+  for (const region of unconcealedReadingRegions()) {
+    const holdsMore =
+      inPage(region.host) && scrolls(region.body) && !atScrollEnd(region.body, 0);
+    const bounds = holdsMore && shownRegionBounds(region);
+    if (bounds)
+      sized.push({
+        region,
+        area: (bounds.right - bounds.left) * (bounds.bottom - bounds.top),
+      });
+  }
+  sized.sort((a, b) => b.area - a.area || renderedOrder(a.region.host, b.region.host));
+  return sized[0]?.region;
 };
 export const userReadingRegion = () => {
   const at = deepFocus();
-  const region = readingRegionFor(at);
-  if (region || inPage(at)) return region;
-  return shown(recentReadingRegion()) ?? pageReadingRegion();
+  const named =
+    readingRegionFor(at) ??
+    (focusInPage(at)
+      ? undefined
+      : (shown(recentReadingRegion()) ?? pageReadingRegion()));
+  return named ?? mainReadingRegion();
 };
 
 // The deepest region whose body actually contains this node. A region's host includes

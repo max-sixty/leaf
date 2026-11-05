@@ -553,7 +553,7 @@ def test_visual_review_refresh_retains_inspection_and_hands_focus_off_removed_ca
     expect(shot.locator(".lf-error")).to_have_count(0)
     expect(pixels).to_be_focused()
     expect(pixels).to_have_attribute("aria-checked", "true")
-    expect(shot.locator(".lf-shot-outline")).to_have_attribute(
+    expect(shot.locator(".lf-shotstage")).to_have_attribute(
         "aria-description", "identical"
     )
     corrected_pixels = shot.evaluate(painted_pixels)

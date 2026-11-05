@@ -10,6 +10,7 @@ from click.testing import CliRunner
 from interact_support import (
     append_carried_log_record,
     declare_on_page,
+    element_declaration,
     record_claim,
 )
 from PIL import Image, ImageChops, ImageStat
@@ -3475,6 +3476,61 @@ def test_a_control_the_page_writes_takes_leaf_type_and_yields_to_page_css(
     assert page.locator("#bare").evaluate(face) == leaf
     assert page.locator("#bare-field").evaluate(face) == leaf
     assert page.locator("#dressed").evaluate(face) == ["Georgia", "20px"]
+
+
+def test_a_control_a_widget_draws_in_its_shadow_tree_yields_to_the_widget_s_rules(
+    browser, serve
+):
+    """In a declared shadow tree the default face reaches a bare control, and yields to
+    the rules the widget adopts, those of a library it layers inside `lf-base`
+    included. It outranked them there, which set lf-file-tree's rows, buttons Trees
+    dresses in mono, in the sans."""
+    declaration = element_declaration("lf-own-controls", upgrade=True)
+    declaration["x-shadow"] = True
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Widget controls",
+                """<h1>Widget controls</h1>
+<p><button id="classed" class="button" type="button">Classed</button></p>
+<lf-own-controls id="own"></lf-own-controls>""",
+            ),
+            layer_registry={"lf-own-controls": declaration},
+            layer_widgets={
+                "lf-own-controls.js": """
+import {inBaseLayer, once, shadowStage} from '/runtime/widget-api.js';
+const sheet = new CSSStyleSheet();
+sheet.replaceSync(inBaseLayer(`
+  @layer library { .library { font: 18px Georgia; } }
+  .own { font: 20px Georgia; }
+`));
+customElements.define('lf-own-controls', class extends HTMLElement {
+  connectedCallback() {
+    if (!once(this)) return;
+    const root = this.attachShadow({mode: 'open'});
+    root.adoptedStyleSheets = [sheet];
+    shadowStage(this, ['bare', 'own', 'library'].map((name) => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = name;
+      button.textContent = name;
+      return button;
+    }));
+  }
+});
+"""
+            },
+        ),
+    )
+    face = (
+        "el => { const s = getComputedStyle(el); return [s.fontFamily, s.fontSize]; }"
+    )
+    leaf = page.locator("#classed").evaluate(face)
+    own = page.locator("#own")
+    assert own.locator("button.bare").evaluate(face) == leaf
+    assert own.locator("button.own").evaluate(face) == ["Georgia", "20px"]
+    assert own.locator("button.library").evaluate(face) == ["Georgia", "18px"]
 
 
 def test_a_reply_notice_survives_a_failed_state_and_keeps_its_agent(browser, serve):

@@ -71,7 +71,7 @@
    be. The user chose New reply for the panel on 14 October 2026, and the rest of the
    floating panel's growth with it (floating-panel.js, which records it); the margin
    card gained it on 4 November, so one mechanism serves both, and that mechanism's rule
-   at its end, under the user's request for one thread view (card-anchor.js). */
+   at its end, under the user's request for one thread view (thread-preview.js). */
 import { REOPEN_HINT, REPLY_HINT } from "../words.js";
 import { nextRender, sizeObserver } from "../rendering.js";
 import {
@@ -460,10 +460,10 @@ function wordsWidth(node) {
      around the boxes the thread draws its notice and settlement in, and which the thread
      stands after its messages, where it shares their heads' track
      (annotation-chrome.css) and the notice takes only the room the heads leave
-     (`#fitLineNews`); and `anchor`, the edge the floating card holds while its contents
-     change (card-anchor.js), which decides when news may grow the card and keeps a
-     send's foot, and since the card stands itself, a landing in it scrolls nothing into
-     view.
+     (`#fitLineNews`); and `endNewsMoves()`, whether news at the thread's end, which
+     grows the floating card at the edge it does not hold, would move what the user is
+     on (thread-preview.js, `heldEdge`), and since the card stands itself, a landing in
+     it scrolls nothing into view.
    The thread draws each part apart in a box of its own (`apart`), which the container
    places in the place it names before the thread draws it, as it places the thread's
    box in its outlet. The reply's options are read as the box is made, once for the
@@ -487,7 +487,7 @@ function wordsWidth(node) {
  * }} ThreadOutlets */
 /** @typedef {{
  * line?: (apart: ThreadView["apart"]) => HTMLElement,
- * anchor?: import("./card-anchor.js").CardAnchor,
+ * endNewsMoves?: () => boolean,
  * }} CardOutlets */
 /** @typedef {ThreadOutlets & CardOutlets & {reader?: "page" | "primary"}} ViewOutlets */
 
@@ -679,7 +679,7 @@ export class ThreadView {
   // can absorb growth at the thread's end, but cannot absorb changes above it or
   // settlement replacing the reply itself.
   /** @param {import("./held-news.js").ThreadChange} change */
-  newsMoves({ news, changed, joined, folds, appendedAtEnd, footFold }) {
+  newsMoves({ news, changed, folds, appendedAtEnd, footFold }) {
     // Folded in its seat's closed Resolved disclosure, the card moves nothing as it
     // changes, and draws at once whatever its settlement does to the seat.
     if (this.#fold) return false;
@@ -690,19 +690,18 @@ export class ThreadView {
     const foot =
       footFold &&
       !folds.messages.some((key) => currentLocationTouches(this.#messageNode(key)));
-    // A floating card grows at one of its own edges: the one its anchor does not hold
-    // (`CardOutlets`, `anchor`; card-anchor.js, whose send hold arriving words end).
-    // That edge is the card's alone, since it stands itself rather than in a flow its
-    // growth moves, so no place its parts stand in says it.
-    // News shows at once only where it changes the thread's end and the card holds its
-    // top for it with the user not writing in it: the card grows down, moving its reply
-    // row and nothing above. A change to the last message is such news where it is a
-    // reply still streaming, or where the transcript, at its cap and scrolled to its
-    // end, follows it there (thread-preview.js). Anything else would move the head row
-    // or the messages being read, so it waits. A settlement keeps the editor it
+    // A floating card grows at one of its own edges: the one it does not hold
+    // (`CardOutlets`, `endNewsMoves`; thread-preview.js, `heldEdge`). That edge is the
+    // card's alone, since it stands itself rather than in a flow its growth moves, so
+    // no place its parts stand in says it.
+    // News shows at once only where it changes the thread's end and the card says growth
+    // there moves nothing the user is on (`endNewsMoves`). A change to the last message
+    // is such news where it is a reply still streaming, or where the transcript, at its
+    // cap and scrolled to its end, follows it there (thread-preview.js). Anything else
+    // would move the messages being read, so it waits. A settlement keeps the editor it
     // interrupts, as every thread keeps its reply box.
-    const { anchor } = this.#outlets;
-    if (anchor) {
+    const { endNewsMoves } = this.#outlets;
+    if (endNewsMoves) {
       if (news.settled) return false;
       const last = this.#model?.messages.at(-1);
       const list = this.#transcript.node;
@@ -714,7 +713,7 @@ export class ThreadView {
           (key) => key === last?.key && (last.provisional || follows),
         ) &&
         (foot || (!folds.messages.length && !folds.summaries.length));
-      return growthIsSeen(this.node) && (!atEnd || anchor.newsMoves(joined));
+      return growthIsSeen(this.node) && (!atEnd || endNewsMoves());
     }
     const followed = pinned && !news.settled ? this.#foot : null;
     return (
@@ -772,8 +771,8 @@ export class ThreadView {
     const prior = this.#received ? this.#model : null;
     this.#received = model;
     this.#drawnWith = this.#outside(model);
-    // Where the container stands the thread's parts, and its own edge (`ViewOutlets`).
-    const { head, line, reply, quote, anchor, scroller } = this.#outlets;
+    // Where the container stands the thread's parts (`ViewOutlets`).
+    const { head, line, reply, quote, scroller } = this.#outlets;
     // A margin card's head line, arranged around the boxes the notice and the
     // settlement stand in before they are drawn (`CardOutlets`, `line`).
     const inLine = line?.(this.#apart) ?? null;
@@ -795,8 +794,7 @@ export class ThreadView {
       : null;
     const restoreFocus = holdFocus(this.node);
     this.#model = model;
-    const change = prior && (anchor || scroller) ? threadChange(prior, model) : null;
-    if (anchor && prior) anchor.presented(change?.joined);
+    const change = prior && scroller ? threadChange(prior, model) : null;
     const box = scroller?.(this.#transcript.node) ?? null;
     if (change?.answers && box)
       this.#unfitted = {
@@ -1439,10 +1437,10 @@ export class ThreadView {
       const places = [place, ...Object.values(this.#apart)];
       if (!mayLand() || !places.some((at) => currentLocationIn(at))) return false;
       if (reopening) this.#commands.landInThread(this.#reply?.input ?? this.node);
-      // A floating card stands itself (`CardOutlets`, `anchor`), so landing in it
-      // scrolls nothing into view.
+      // A floating card stands itself (`CardOutlets`, `endNewsMoves`), so landing in
+      // it scrolls nothing into view.
       const control = focused();
-      if (!this.#outlets.anchor && control) scrollThreadIntoView(place, control);
+      if (!this.#outlets.endNewsMoves && control) scrollThreadIntoView(place, control);
       return true;
     };
   };
@@ -1470,16 +1468,10 @@ export class ThreadView {
         actions: {
           ...commands.actions,
           reply: (key, text, options) => {
-            // The operation owns this promise before it publishes the local turn. A
-            // floating card keeps its foot through the send (card-anchor.js), which is
-            // its own edge rather than a place its parts stand in.
-            const { anchor } = this.#outlets;
-            anchor?.sending(options.attempt);
             // The user's turn takes New reply away, with the paint it brings.
             const stood = this.#waiting;
             this.#stopWaiting();
             const flight = commands.actions.reply(key, text, options);
-            if (!flight) anchor?.writing();
             if (!flight && stood) this.repaint();
             return flight;
           },

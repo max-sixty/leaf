@@ -498,8 +498,10 @@ def test_a_thread_walk_starts_one_page_trip_and_reveals_its_nested_passage(
 ):
     """The range travel has two jobs: reveal a passage inside its nested scrollports,
     then centre it vertically in the document. `scrollIntoView` also moved the document,
-    jumping it to the nearest edge synchronously before the intended smooth centred navigation step
-    began. Both local axes must remain immediate, while the page makes only one move."""
+    jumping it to the nearest edge in the press's own task before the smooth centred
+    navigation step began. Both local axes must move in that task, while the page waits
+    for its glide (scrolling.js, `glideTo`), whose frames carry it to the centre in one
+    trip: each one further down, never turning back."""
     lead = "".join(
         f"<p>Reading context before the passage, line {i}.</p>" for i in range(32)
     )
@@ -530,26 +532,30 @@ def test_a_thread_walk_starts_one_page_trip_and_reveals_its_nested_passage(
         """() => {
           document.scrollingElement.scrollTo({top: 0, behavior: 'instant'});
           document.querySelector('#rail').scrollLeft = 0;
-          window.lfFirstPageScroll = null;
+          window.lfPageTrip = [];
+          window.lfAfterPress = null;
           document.addEventListener('scroll', (event) => {
-            if (event.target === document && window.lfFirstPageScroll === null)
-              window.lfFirstPageScroll = document.scrollingElement.scrollTop;
+            if (event.target === document)
+              window.lfPageTrip.push(document.scrollingElement.scrollTop);
+          }, {capture: true});
+          // Registered after the runtime's own listener, which answers a shortcut as
+          // the document captures it, so this reads the press's task once the walk has.
+          document.addEventListener('keydown', () => {
+            window.lfAfterPress = {
+              page: document.scrollingElement.scrollTop,
+              rail: document.querySelector('#rail').scrollLeft,
+              local: document.querySelector('#local').scrollTop,
+              localXFits: document.querySelector('#local').scrollWidth
+                <= document.querySelector('#local').clientWidth,
+            };
           }, {capture: true});
         }"""
     )
 
     page.keyboard.press("t")
-    page.wait_for_function("() => window.lfFirstPageScroll !== null")
-    immediate = page.evaluate(
-        """() => ({
-          firstPage: window.lfFirstPageScroll,
-          rail: document.querySelector('#rail').scrollLeft,
-          local: document.querySelector('#local').scrollTop,
-          localXFits: document.querySelector('#local').scrollWidth
-            <= document.querySelector('#local').clientWidth,
-        })"""
-    )
-    assert immediate["firstPage"] < 100, (
+    page.wait_for_function("() => window.lfAfterPress !== null")
+    immediate = page.evaluate("() => window.lfAfterPress")
+    assert immediate["page"] == 0, (
         f"the thread walk jumped the page before its smooth navigation step began: {immediate}"
     )
     assert immediate["rail"] > 0, (
@@ -573,6 +579,10 @@ def test_a_thread_walk_starts_one_page_trip_and_reveals_its_nested_passage(
           const bottom = innerHeight - parseFloat(style.scrollPaddingBottom);
           return Math.abs((rect.top + rect.bottom) / 2 - (top + bottom) / 2) < 2;
         }"""
+    )
+    trip = page.evaluate("() => window.lfPageTrip")
+    assert trip and trip == sorted(trip), (
+        f"the page made more than one trip to the passage: {trip}"
     )
     expect(page.locator(".lf-margin-preview .lf-page-thread")).to_be_focused()
 

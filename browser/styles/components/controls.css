@@ -1486,34 +1486,33 @@ wa-copy-button.lf-icon-action {
 .lf-margin-face[data-lf-agent-workflow="working"][data-lf-behavior="action"] {
   --lf-agent-stage-shadow: var(--lf-entry-lift);
 }
-/* Every annotation has the same filled pin face when it stands on the block it is
-   about, over the block's own words, so it is a solid face with the rail marker's
-   corners save one, left square to point into the block, and a paper edge that parts
-   it from whatever it covers. It is smaller than a rail
-   marker with a mouse, because it covers what it stands on, and keeps the full aim floor
-   under a finger, so what the user sees is what they press.
+/* Every annotation has the same pin face when it stands on the block it is about, over
+   the block's own words: the rail marker's paper face, with its corners save one, left
+   square to point into the block. It is smaller than a rail marker with a mouse,
+   because it covers what it stands on, and keeps the full aim floor under a finger, so
+   what the user sees is what they press.
 
-   The fill is the pin, so the states a rail marker paints on its paper take the pin's
-   attention color: an annotation on the user has a green fill; other pins stay blue.
+   On paper the pin keeps what a rail marker says: an annotation on the user stands on
+   the user's turn's wash with a green glyph, a suggestion's Accept and Reject keep
+   their green check and red cross, and an interactive pin takes the chip on hover.
+   The user chose paper on 5 November 2026 over the filled blue face every pin wore
+   since #2111, comparing both with smaller faces on a phone, where the fill's white
+   glyphs told Accept from Reject only by their shape.
    The pin is where the row stands, which margin-layout.js writes on it
    (`data-lf-place`), rather than a look an entry chooses.
-   Shape and fill identify placement, not whether a press acts, opens context, or does
-   nothing. Glyphs and labels retain each entry's meaning; only interactive entries
-   respond to a press or darken on hover. Overflow and revealed actions use this same
-   face. The pin supplies its ink through --lf-entry-ink, so the shared entry states
-   retain it. */
+   Shape and face identify placement, not whether a press acts, opens context, or does
+   nothing, so one edge and one ink serve every behavior. Glyphs and labels retain each
+   entry's meaning. Overflow and revealed actions use this same face. The pin supplies
+   its ink through --lf-entry-ink, so the shared entry states retain it. */
 [data-lf-place="pin"] .lf-margin-face {
   border-radius: var(--r) var(--r) var(--r) 0;
-  --lf-pin-edge: var(--paper);
-  border: 2px solid var(--lf-pin-edge);
-  background: var(--lf-pin-face, var(--pin-fill));
-  --lf-entry-ink: var(--pin-ink);
+  border: 1px solid var(--border-2);
+  --lf-entry-ink: var(--ink-2);
   box-shadow: var(--raise-1);
 }
 [data-lf-place="pin"]
   .lf-margin-face
   > :is(.lf-margin-entry-icon, .lf-margin-entry-glyph) {
-  color: var(--lf-entry-ink);
   inline-size: 14px;
   block-size: 14px;
 }
@@ -1524,18 +1523,7 @@ wa-copy-button.lf-icon-action {
     [aria-expanded="true"],
     [data-lf-target-selected]
   ) {
-  border-color: var(--lf-pin-edge);
-}
-[data-lf-place="pin"]
-  .lf-margin-face:not([data-lf-behavior="status"]):is(button, [role="button"]):is(
-    :hover,
-    [aria-expanded="true"]
-  ):not([aria-disabled="true"]):not(:disabled) {
-  background: color-mix(in srgb, var(--lf-pin-face, var(--pin-fill)) 82%, #000);
-}
-[data-lf-place="pin"] .lf-margin-face[data-lf-turn="user"] {
-  --lf-pin-face: var(--pin-on-user);
-  --lf-entry-ink: var(--pin-on-user-ink);
+  border-color: var(--border-2);
 }
 /* An entry in force, such as a reaction the user left, stands on the chip, a pin's
    included, so it follows the pin. */
@@ -2019,8 +2007,12 @@ textarea.field {
 .lf-rows-group > :not(.lf-rows-head) {
   --lf-top: calc(var(--lf-rows-slot) + var(--lf-rows-band));
 }
-.lf-rows-group:not(:first-child) {
-  margin-block-start: 10px;
+/* The space between groups hangs below each group but the last, so a group joining
+   above the one being read leaves that group's style as it was: a margin changed on
+   the box holding the browser's scroll anchor suppresses the anchoring that holds the
+   row being read in place. */
+.lf-rows-group:not(:last-child) {
+  margin-block-end: 10px;
 }
 .lf-rows > .lf-rows-group {
   display: grid;

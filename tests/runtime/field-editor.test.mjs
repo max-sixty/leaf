@@ -103,3 +103,152 @@ test("read-only fields keep paragraph and list words when Return is pressed", as
     }
   }
 });
+
+/** A draft's field, its keys pressed as the editor's bindings take them and its typing
+ * and pastes as CodeMirror dispatches them, in a view that knows no layout: a vertical
+ * step keeps the column on the line beside, carrying it as CodeMirror carries its goal,
+ * and stays put at the draft's ends. */
+async function draftField(source, caret = source.length) {
+  const { fieldState } = await loadFieldEditor();
+  const { EditorSelection } = await import("/vendor/codemirror.esm.js");
+  const view = {
+    state: fieldState(
+      { base: source, text: source, anchor: caret, head: caret, steps: [] },
+      {
+        typed: (_native, insert) => insert(),
+        returned: () => true,
+        oneLine: () => false,
+        message: () => true,
+        revealed: () => {},
+        focused: () => {},
+        readOnly: false,
+        attributes: {},
+      },
+    ),
+    dispatch(...specs) {
+      for (const spec of specs)
+        view.state = spec.state ?? view.state.update(spec).state;
+    },
+    lineBlockAt(at) {
+      const line = view.state.doc.lineAt(at);
+      return { from: line.from, to: line.to, top: line.number, height: 1 };
+    },
+    moveVertically(range, forward) {
+      const { doc } = view.state;
+      const line = doc.lineAt(range.head);
+      if (line.number === (forward ? doc.lines : 1))
+        return EditorSelection.cursor(forward ? line.to : line.from);
+      const goal = range.goalColumn ?? range.head - line.from;
+      const next = doc.line(line.number + (forward ? 1 : -1));
+      return EditorSelection.cursor(
+        Math.min(next.from + goal, next.to),
+        0,
+        undefined,
+        goal,
+      );
+    },
+  };
+  /** @param {string} key */
+  const press = (key) =>
+    view.state
+      .facet(keymap)
+      .flat()
+      .filter((binding) => binding.key === key)
+      .some((binding) => binding.run?.(view));
+  /** @param {string} text @param {string} userEvent */
+  const put = (text, userEvent) => {
+    const { from, to } = view.state.selection.main;
+    view.dispatch({
+      changes: { from, to, insert: text },
+      selection: { anchor: from + text.length },
+      userEvent,
+    });
+  };
+  return {
+    view,
+    // Keys as the browser tests write them: Shift+Enter as `⏎`, Backspace as `⌫`, the
+    // vertical arrows as `↑` and `↓`, and undo as `↶`.
+    /** @param {string} keys */
+    type(keys) {
+      const named = {
+        "⏎": "Shift-Enter",
+        "⌫": "Backspace",
+        "↑": "ArrowUp",
+        "↓": "ArrowDown",
+        "↶": "Mod-z",
+      };
+      for (const key of keys)
+        if (named[key]) press(named[key]);
+        else put(key, "input.type");
+      return view.state.doc.toString();
+    },
+    /** @param {string} text */
+    paste(text) {
+      put(text, "input.paste");
+      return view.state.doc.toString();
+    },
+  };
+}
+
+const LEFT = "```\ncode\n```\nafter";
+test("a fence is left by typing its marks, or by Down from the draft's last line", async () => {
+  assert.equal(await loadMarkdown(), true);
+  for (const [name, keys, expected] of [
+    ["marks ending the code's last line", "```⏎code```after", LEFT],
+    ["marks, then Shift+Enter", "```⏎code```⏎after", LEFT],
+    ["marks on their own line", "```⏎code⏎```after", LEFT],
+    ["Down from the code", "```⏎code↓after", LEFT],
+    ["Down from a blank line", "```⏎code⏎↓after", LEFT],
+    // A vertical step carries a goal column, and CodeMirror's selections compare it, so
+    // the step that only dropped it at the draft's end took Down's press.
+    ["Down after moving up", "```⏎x⏎code↑↓↓after", "```\nx\ncode\n```\nafter"],
+    ["Down from the closing marks", "```⏎code⏎```↓after", LEFT],
+    ["marks in a quote", "> ```⏎x```after", "> ```\n> x\n> ```\n> after"],
+    ["Down in a quote", "> ```⏎x↓after", "> ```\n> x\n> ```\n> after"],
+    ["marks in an item", "- ```⏎x```b", "- ```\n  x\n  ```\n  b"],
+    ["Down in an item", "- ```⏎x↓b", "- ```\n  x\n  ```\n  b"],
+    ["a shorter run stays code", "````⏎x```", "````\nx```"],
+    ["blank lines stay in the code", "```⏎a⏎⏎⏎b", "```\na\n\n\nb"],
+    ["marks amid a closed fence stay code", "```⏎a⏎b⏎```↑↑```", "```\na```\nb\n```"],
+    ["going back through the closing marks", "```⏎a```⌫", "```\na\n``"],
+    ["one undo takes Down back", "```⏎a↓↶", "```\na"],
+    ["one undo takes the closing marks back", "```⏎a```↶", "```\na``"],
+  ]) {
+    const field = await draftField("");
+    assert.equal(field.type(keys), expected, name);
+  }
+});
+
+test("a paste keeps a fence's marks and its containers", async () => {
+  assert.equal(await loadMarkdown(), true);
+  for (const [name, source, pasted, expected] of [
+    ["after the opening marks", "```", "one\ntwo", "```\none\ntwo"],
+    ["after the opening marks, one word", "```", "one", "```\none"],
+    ["after a language", "```python", "x = 1", "```python\nx = 1"],
+    ["after the closing marks", "```\ncode\n```", "after", "```\ncode\n```\nafter"],
+    ["among the words on the opening line", "```a b ", "c", "```a b c"],
+    ["in the code", "```\ncode", " more", "```\ncode more"],
+    ["in a quote", "> ```", "one\ntwo", "> ```\n> one\n> two"],
+    ["in an item", "- ```", "one\ntwo", "- ```\n  one\n  two"],
+    ["from a line break, in a quote", "> ```\n> a", "\nb", "> ```\n> a\n> b"],
+    ["a whole fence, in a quote", "> ", "```\na\n```", "> ```\n> a\n> ```"],
+    ["a whole fence, in an item", "- ", "```\na\n```", "- ```\n  a\n  ```"],
+    // Prose keeps its own markers, so a pasted item stays the item it was.
+    ["prose, in an item", "1. x", "\n2. y", "1. x\n2. y"],
+  ]) {
+    const field = await draftField(source);
+    assert.equal(field.paste(pasted), expected, name);
+  }
+  for (const [name, source, from, expected] of [
+    ["over a selection, in a quote", "> ```\n> xxx", 8, "> ```\n> a\n> b"],
+    // A paste that starts before a line's markers carries none of them.
+    ["over a whole draft", "> ```\n> x", 0, "a\nb"],
+    ["before a quote's marker", "> ```\n> x", 6, "> ```\na\nb> x"],
+  ]) {
+    const field = await draftField(source);
+    field.view.dispatch({
+      selection: { anchor: from, head: name.startsWith("over") ? source.length : from },
+    });
+    assert.equal(field.paste("a\nb"), expected, name);
+  }
+});

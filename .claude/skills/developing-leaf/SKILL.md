@@ -84,8 +84,8 @@ available skills before invoking one.
 ## Leave taste to the authoring agent
 
 Code enforces only what Leaf needs to work: a contract between modules, or a guarantee
-the user relies on, such as a gesture being recorded or a pressed control staying where
-it was (`browser/AGENTS.md`, "The page holds still under the user's aim"). Taste goes
+the user relies on, such as a gesture being recorded or a field staying still as the
+user types in it (`browser/AGENTS.md`, "The page holds still under the user's aim"). Taste goes
 in the shipped instructions as a
 goal with its reason, so the authoring agent weighs it against its own page. A CSS
 rule, validator or Layout that fixes how many tiles share a row overrides every page

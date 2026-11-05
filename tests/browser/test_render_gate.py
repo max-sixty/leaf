@@ -713,7 +713,7 @@ def test_a_reload_mid_flight_never_wedges_round_trip(browser, serve, monkeypatch
     release_answer = threading.Event()
     reload_committed = threading.Event()
     document_path = urlsplit(url).path
-    native_json = http_model.PageEndpoint._json
+    native_json = http_model.PageEndpoint._json_body
 
     def hold_first_event_answer(endpoint, *args, **kwargs):
         if (
@@ -734,7 +734,7 @@ def test_a_reload_mid_flight_never_wedges_round_trip(browser, serve, monkeypatch
             reload_committed.set()
             release_answer.set()
 
-    monkeypatch.setattr(http_model.PageEndpoint, "_json", hold_first_event_answer)
+    monkeypatch.setattr(http_model.PageEndpoint, "_json_body", hold_first_event_answer)
     page.on("framenavigated", release_after_reload)
     try:
         panel_control(page, "blanket:accept").click()

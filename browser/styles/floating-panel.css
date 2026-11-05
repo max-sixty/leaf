@@ -875,8 +875,8 @@
     padding: 0 5px;
     box-sizing: border-box;
     border-radius: 999px;
-    background: var(--pin-fill);
-    color: var(--pin-ink);
+    background: var(--badge-fill);
+    color: var(--badge-ink);
     place-items: center;
     font: var(--font-count);
   }

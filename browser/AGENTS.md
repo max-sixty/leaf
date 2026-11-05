@@ -56,10 +56,11 @@ own (`../SOUL.md`, "Keep the foundation small and extensible").
   settlement (resolving or reopening) in their own thread, a thread keeps what it drew
   behind a fixed-size control until the reader goes to it. A thread not drawn yet, one
   the agent starts or one a reply reopens out of a closed Resolved disclosure, draws at
-  once, the rare path the user chose to let move what follows it (2026-11-04). An exception the user chose stays with its owner, as `fitAnswer` in
-  `floating-panel.js` does. Check: `test_news_just_after_a_press_moves_nothing`.
-  Owners: `thread/held-news.js`, and `threadsListing` in `floating-panel.js` for the rows
-  of Threads.
+  once, the rare path the user chose to let move what follows it (2026-11-04). An
+  exception the user chose stays with its owner, as the floating panel's growth for an
+  answer the user waits for (`floating-panel.js`) does. Check:
+  `test_news_just_after_a_press_moves_nothing`. Owners: `thread/held-news.js`, and
+  `threadsListing` in `floating-panel.js` for the rows of Threads.
 - **What the reader reads stays put through re-renders and revisions.** The browser's
   scroll anchoring holds it while content above changes height, so a render keeps the
   nodes it doesn't change, as a revision's patch, a widget declaring `x-patch: members`
@@ -549,6 +550,8 @@ adds its row. Rows marked _lint_ are enforced in `eslint.config.mjs`.
 | A thread's name, on every surface that names it                                                       | `thread/messages.js` `threadName` (`threadSummary(thread).topic` for packages)     |
 | The thread a name names: its key, its id, a message's, or this tab's attempt                          | `thread/state.js` `threadNamed`, `threadIdNamed`                                   |
 | The thread id a drawn thread carries, and the page threads drawn with an id                           | `thread/selectors.js` `drawnThreadId`, `drawnThreadsWithId`                        |
+| Where opening a thread puts the user: its reply, or the thread                                        | `thread/focus.js` `openingPart`                                                    |
+| Whether the user is writing a reply                                                                   | `thread/replies.js` `replyIsEditing`                                               |
 | The draft a thread holds: its reply box or a rewrite                                                  | `drafts.js` `replyContext`, `rewriteContext`, `threadDraft`                        |
 | Which obligations a region of the page holds                                                          | `obligations/place.js` `obligationsIn`                                             |
 | What names the part of the page a node stands in: its heading, or a named region                      | `thread/placement.js` `partOver`                                                   |

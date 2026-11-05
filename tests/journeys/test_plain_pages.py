@@ -75,9 +75,8 @@ OBSTACLES = {
     ),
     "class-vocabulary": (
         "Leaf's own classes reach a page's classes of the same name on any page:"
-        " `dl.facts` takes the facts list's grid and shows its `div`s as contents"
-        " (reading.css), and `.choice` takes a choice target's aim floor and start"
-        " alignment (controls.css)"
+        " `.choice` takes a choice target's aim floor and start alignment"
+        " (controls.css)"
     ),
 }
 KNOWN = {
@@ -87,7 +86,6 @@ KNOWN = {
             "past-column <table> in <section id=shards>",
         },
     },
-    "editorial": {"class-vocabulary": {"size of main and 4 more #4bebaf86"}},
     "form": {"class-vocabulary": {"size of main and 6 more #33a7a88b"}},
 }
 

@@ -731,7 +731,7 @@ def test_the_thread_walk_stands_on_each_thread_it_opens(browser, serve):
             "text": "The window covers it. " * 300,
         },
     )
-    news = view.locator(".lf-fp-new-reply")
+    news = view.locator(".lf-new-reply")
     expect(news).to_be_visible()
     page.keyboard.press("Tab")
     page.keyboard.press("Tab")
@@ -779,15 +779,17 @@ def test_the_on_view_is_titled_by_its_tab_with_that_list_s_done_under_it(
     expect(page.locator(".lf-fp-filters button")).to_have_text(
         ["Menu", "On me 0", "On Claude 0", "Threads 1"]
     )
-    expect(page.locator(".lf-fp-on-group > .lf-rows-head")).to_have_count(0)
+    expect(
+        page.locator(".lf-fp-on-list > .lf-rows-group > .lf-rows-head")
+    ).to_have_count(0)
     page.locator(".lf-fp-filters button", has_text="On Claude").click()
     expect(title).to_have_text("On Claude")
     expect(page.locator(".lf-floating-panel .lf-rows-empty")).to_have_text(
         "Nothing waiting on Claude."
     )
-    expect(page.locator(".lf-fp-on-group > .lf-rows-head")).to_have_text(
-        re.compile(r"^\s*Done\s*1\s*$")
-    )
+    expect(
+        page.locator(".lf-fp-on-list > .lf-rows-group > .lf-rows-head")
+    ).to_have_text(re.compile(r"^\s*Done\s*1\s*$"))
     expect(page.locator(".lf-fp-on-item")).to_have_count(0)
     sent = show_done(page)
     expect(sent).to_have_count(1)
@@ -1046,7 +1048,7 @@ def test_on_a_phone_a_thread_s_presses_take_a_line_beside_next_unread(browser, s
     page = open_page(browser, url, context=context)
     open_threads(page)
     page.locator(".lf-fp-thread", has_text="Which jobs should start first").click()
-    expect(page.locator(".lf-fp-head .lf-fp-next-unread")).to_be_visible()
+    expect(page.locator(".lf-fp-head .lf-next-unread")).to_be_visible()
     expect(page.locator(".lf-fp-head .lf-fp-on-page")).to_be_visible()
     settled(page)
     head = page.locator(".lf-fp-head")
@@ -1058,7 +1060,7 @@ def test_on_a_phone_a_thread_s_presses_take_a_line_beside_next_unread(browser, s
         page.locator(f".lf-fp-head {press}").bounding_box()
         for press in (
             ".lf-fp-back",
-            ".lf-fp-next-unread",
+            ".lf-next-unread",
             ".lf-fp-on-page",
             ".lf-fp-thread-controls :is(.lf-resolve, .lf-reopen)",
             ".lf-fp-close",
@@ -1223,7 +1225,7 @@ def test_threads_is_as_tall_as_the_threads_it_shows(browser, serve):
     settled(page)
     below, row = inventory.evaluate(
         """view => {
-          const last = view.querySelector('.lf-fp-thread:last-child').getBoundingClientRect();
+          const last = [...view.querySelectorAll('.lf-fp-thread')].at(-1).getBoundingClientRect();
           return [view.getBoundingClientRect().bottom - last.bottom, last.height];
         }"""
     )
@@ -1622,8 +1624,9 @@ def test_threads_holds_a_row_that_joins_or_moves_behind_a_notice(browser, serve)
 
 def test_resolved_news_unfolds_resolved_to_land_on_its_row(browser, serve):
     """A thread resolved elsewhere while Threads stands with Resolved folded keeps its
-    row in place behind the notice, and Enter on the notice unfolds Resolved, where the
-    row now stands, and lands on it."""
+    row in place behind the notice, with Open's band counting it out as the tab does,
+    and Enter on the notice unfolds Resolved, where the row now stands, and lands on
+    it."""
     url = serve(LONG_PAGE, comments=2)
     settling = panel_comment(serve.page_dir, "Is the opening right?", {"section": "p0"})
     page = floating(browser, url)
@@ -1640,11 +1643,15 @@ def test_resolved_news_unfolds_resolved_to_land_on_its_row(browser, serve):
     told(page)
     expect(notice).to_have_attribute("title", "1 thread resolved")
     expect(row).to_be_visible()
+    expect(view.locator(".lf-rows-group > .lf-rows-head")).to_have_text(
+        [re.compile(r"^\s*Open\s*2\s*$")]
+    )
 
     notice.focus()
     page.keyboard.press("Enter")
     expect(notice).to_have_count(0)
     expect(heading).to_have_attribute("aria-expanded", "true")
+    expect(heading).to_have_text(re.compile(r"^\s*Resolved\s*1\s*$"))
     expect(row).to_have_attribute("data-lf-resolved", "")
     expect(row).to_be_focused()
 
@@ -1909,7 +1916,7 @@ GROWTH = """() => {
   const box = (node) => node.getBoundingClientRect();
   const msgs = [...view.querySelectorAll('.lf-msg')];
   const turn = msgs.findLast((msg) => msg.querySelector('.lf-msg-head')?.textContent.includes('Me'));
-  const foot = view.querySelector('.lf-fp-foot');
+  const foot = view.querySelector('.lf-awaited');
   return {
     view: box(view).top,
     height: box(view).height,
@@ -1998,7 +2005,7 @@ def test_an_answer_the_user_waits_for_grows_the_view_up_to_its_cap(browser, serv
     assert grown["bottom"] == stood["bottom"]
     assert risen(seats, page.evaluate(SEATS), by), (seats, by)
     assert grown["turn"][0] >= 0 and grown["turn"][1] >= 0, grown
-    expect(view.locator(".lf-fp-new-reply")).to_have_count(0)
+    expect(view.locator(".lf-new-reply")).to_have_count(0)
     expect(page.locator(".lf-fp-head .lf-thread-news:visible")).to_have_count(0)
 
     write(field(page), "And the weekend?")
@@ -2008,7 +2015,7 @@ def test_an_answer_the_user_waits_for_grows_the_view_up_to_its_cap(browser, serv
     settled(page)
 
     answer("It would. " + "Someone stays on call through Sunday, and Monday too. " * 80)
-    press = view.locator(".lf-fp-new-reply")
+    press = view.locator(".lf-new-reply")
     expect(press).to_have_text("New reply")
     expect(messages).to_have_count(4)
     settled(page)
@@ -2053,7 +2060,7 @@ def test_new_reply_leads_to_the_reply_once_one_follows_the_work(browser, serve):
         thread_model.post_reply(serve.page_dir, {"responds": root}, text, **kwargs)
         told(page)
 
-    press = view.locator(".lf-fp-new-reply")
+    press = view.locator(".lf-new-reply")
     say("Reading the jobs, the mounts and the frost dates. " * 80, ephemeral=True)
     expect(press).to_have_text("New message")
     say("The mounts come first. " + "They need the frost to lift. " * 120)
@@ -2109,7 +2116,7 @@ def test_a_streaming_answer_grows_the_view_until_it_outgrows_its_cap(
 
     assert streamed("I'll")["view"] < stood["view"]
     streamed("I'll record it on the board now. " + "Then the totals. " * 12)
-    expect(view.locator(".lf-fp-new-reply")).to_have_count(0)
+    expect(view.locator(".lf-new-reply")).to_have_count(0)
 
     # The durable answer completes the streamed message with longer words.
     thread_model.post_reply(
@@ -2125,7 +2132,7 @@ def test_a_streaming_answer_grows_the_view_until_it_outgrows_its_cap(
     expect(messages.last.locator(".lf-msg-text")).to_contain_text(
         "Recorded the release"
     )
-    expect(view.locator(".lf-fp-new-reply")).to_have_text("New reply")
+    expect(view.locator(".lf-new-reply")).to_have_text("New reply")
     settled(page)
     capped = page.evaluate(GROWTH)
     assert abs(capped["height"] - capped["cap"]) < 1, capped
@@ -2230,7 +2237,7 @@ def test_a_thread_s_view_opens_on_its_first_unread_reply(browser, serve):
         }"""
     )
     expect(long_reply).to_have_class(unread)
-    press = page.locator(".lf-fp-head .lf-fp-next-unread")
+    press = page.locator(".lf-fp-head .lf-next-unread")
     expect(press).to_have_text("Next unread")
 
     # Read tracking needs a reply's whole extent shown (thread/read.js), so the wheel
@@ -2400,7 +2407,7 @@ def test_a_thread_s_view_opens_on_the_summary_holding_its_first_unread_reply(
     page.keyboard.press("t")
     summary = page.locator(".lf-fp-view .lf-summary-checkpoint .lf-summary-header")
     expect(summary).to_be_in_viewport(ratio=1)
-    expect(page.locator(".lf-fp-head .lf-fp-next-unread")).to_have_text("Next unread")
+    expect(page.locator(".lf-fp-head .lf-next-unread")).to_have_text("Next unread")
 
 
 def test_next_unread_into_a_closed_summary_stays_under_the_press(browser, serve):
@@ -2419,7 +2426,7 @@ def test_next_unread_into_a_closed_summary_stays_under_the_press(browser, serve)
     page = floating(browser, url)
     page.locator("body").focus()
     page.keyboard.press("t")
-    unread = ".lf-fp-head .lf-fp-next-unread"
+    unread = ".lf-fp-head .lf-next-unread"
     press = page.locator(unread)
     expect(press).to_be_visible()
     settled(page)
@@ -2445,7 +2452,7 @@ def test_next_unread_never_shows_for_a_reply_the_opening_reads(browser, serve):
       window.nextUnreadShown = false;
       new MutationObserver(() => {
         window.nextUnreadShown ||= Boolean(
-          document.querySelector('.lf-fp-next-unread:not([data-lf-unoffered])'));
+          document.querySelector('.lf-next-unread:not([data-lf-unoffered])'));
       }).observe(document, {subtree: true, childList: true, attributes: true});
     }""")
     reply = page.locator(".lf-fp-view .lf-msg", has_text="The mounts come first.")
@@ -2456,14 +2463,14 @@ def test_next_unread_never_shows_for_a_reply_the_opening_reads(browser, serve):
     expect(reply).not_to_have_class(re.compile(r"(^|\s)lf-unread(\s|$)"))
     round_trip(page)
     assert not page.evaluate("() => window.nextUnreadShown")
-    expect(page.locator(".lf-fp-next-unread")).to_have_count(0)
+    expect(page.locator(".lf-next-unread")).to_have_count(0)
 
 
 FOOT = """([parts, fromEnd]) => {
   const view = document.querySelector('.lf-fp-view:not([data-lf-leaving])');
   const part = [...view.querySelectorAll(parts)].at(-1 - fromEnd).getBoundingClientRect();
   const box = view.getBoundingClientRect();
-  const press = view.querySelector('.lf-fp-new-reply')?.getBoundingClientRect();
+  const press = view.querySelector('.lf-new-reply')?.getBoundingClientRect();
   return {
     below: box.bottom - part.bottom - parseFloat(getComputedStyle(view).paddingBottom),
     press: press && {over: press.top - part.bottom, under: box.bottom - press.bottom},
@@ -3914,7 +3921,9 @@ def test_on_me_groups_by_the_plan_and_on_claude_heads_with_its_progress(browser,
     expect(page.get_by_role("combobox", name="Group On me")).to_have_value("plan")
     # Each goal holds one item under its band, and each card says its place, and no
     # kind.
-    expect(view.locator(".lf-fp-on-group > .lf-rows-head")).to_have_text(
+    expect(
+        view.locator(".lf-fp-on-list > .lf-rows-group > .lf-rows-head")
+    ).to_have_text(
         [
             re.compile(r"^\s*Ship the migration\s*1\s*$"),
             re.compile(r"^\s*Not in the plan\s*1\s*$"),
@@ -3994,7 +4003,9 @@ def test_on_claude_lists_its_work_in_hand_queued_and_done_or_says_it(browser, se
     page.locator(".lf-fp-filters button", has_text="On Claude").click()
     view = page.locator(panel_view("queue"))
     show_done(page)
-    expect(view.locator(".lf-fp-on-group > .lf-rows-head")).to_have_text(
+    expect(
+        view.locator(".lf-fp-on-list > .lf-rows-group > .lf-rows-head")
+    ).to_have_text(
         [
             re.compile(r"^\s*In hand\s*1\s*$"),
             re.compile(r"^\s*Up next\s*1\s*$"),
@@ -5121,7 +5132,7 @@ def test_a_thread_whose_words_are_gone_keeps_its_quotation_in_the_panel(browser,
     page.keyboard.press("t")
     view = page.locator(panel_view("thread"))
     expect(view.locator(".lf-msg")).to_contain_text("Does this still apply?")
-    quote = view.locator(".lf-quote")
+    quote = view.locator(".lf-thread-quote")
     expect(quote).to_contain_text("FINAL WORDS")
     expect(quote).to_have_attribute("data-lf-detached", "")
     assert quote.evaluate("el => el.scrollHeight > el.clientHeight")
@@ -5990,7 +6001,7 @@ def test_an_answer_superseded_during_widget_preparation_keeps_its_arrival(
         pending.includes('thread') && pending.includes('widget:thread-local:preparation');
     }""")
     # The answer is already drawn: its geometry must not wait on widget preparation.
-    expect(view.locator(".lf-fp-new-reply")).to_have_text("New reply")
+    expect(view.locator(".lf-new-reply")).to_have_text("New reply")
     # The feed waits for presentation before reading again, but a local gesture
     # publishes immediately while this answer's widget is still preparing.
     page.evaluate("""async () => {
@@ -5999,7 +6010,7 @@ def test_an_answer_superseded_during_widget_preparation_keeps_its_arrival(
     }""")
     page.evaluate("releaseAnswer()")
     told(page)
-    press = view.locator(".lf-fp-new-reply")
+    press = view.locator(".lf-new-reply")
     expect(press).to_have_text("New reply")
     settled(page)
     press.click()

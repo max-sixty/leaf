@@ -249,7 +249,7 @@ def test_a_widgets_attribute_takes_a_comment_like_any_other_passage(browser, ser
     page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
 
     quote = thread_quote(page, comment_ids(serve.page_dir)[-1])
-    assert quote.text_content().strip().strip("“”") == "In flight"
+    assert quote.text_content().strip() == "In flight"
 
     # A second version reworking one card's prose and nothing else. The page follows it,
     # and the anchor is on a word only the runtime puts there, so it has to be found
@@ -401,9 +401,7 @@ def test_a_revision_preserves_every_open_quoted_thread(browser, serve):
         roots.append(json.loads(result.output))
     page = open_page(browser, url)
     for root in roots:
-        expect(thread_quote(page, root["id"])).to_have_text(
-            f"“{root['anchor']['quote']}”"
-        )
+        expect(thread_quote(page, root["id"])).to_have_text(root["anchor"]["quote"])
     source = (serve.page_dir / "index.html").read_text()
     updated = source.replace(
         "The first draft uses an early estimate",
@@ -416,7 +414,7 @@ def test_a_revision_preserves_every_open_quoted_thread(browser, serve):
     )
     for root in roots:
         quote = thread_quote(page, root["id"])
-        expect(quote).to_contain_text(f"“{root['anchor']['quote']}”")
+        expect(quote).to_contain_text(root["anchor"]["quote"])
         expect(quote.locator(".lf-anchor-status")).to_have_text("Changed")
         expect(quote).not_to_have_attribute("data-lf-detached", "")
         expect(page.locator(f"{PANEL_THREAD} .lf-msg")).to_have_count(1)
@@ -620,7 +618,7 @@ def test_a_widgets_label_takes_a_comment_inside_the_control_it_labels(browser, s
     page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
 
     quote = thread_quote(page, comment_ids(d := serve.page_dir)[-1])
-    assert quote.text_content().strip().strip("“”") == "Heated bird bath"
+    assert quote.text_content().strip() == "Heated bird bath"
 
     # A second version reworking the other panel's prose and nothing else: the name the
     # comment is on is still there, so the comment is still on it.
@@ -3849,7 +3847,7 @@ def test_a_press_on_a_passage_opens_its_thread_where_it_stands(browser, serve):
     # 10px into the band keeps the line's middle, where the press lands, off the panel.
     covered = place_bottom(10)
     page.mouse.click(*mark_point(page, "lf-mark"))
-    expect(page.locator(".lf-page-thread")).to_be_focused()
+    expect(page.locator(".lf-page-thread leaf-text")).to_be_focused()
     # A trip waits on the thread refresh before it decides to move, and that same
     # refresh is what writes this card's placement (`scrollToThread`, anchor-travel.js).
     # So the card standing where the pass put it is the edge a travel would have been
@@ -3874,7 +3872,7 @@ def test_a_pinned_row_opens_its_card_clear_of_the_passage(browser, serve):
     )
     place_bottom(-560)
     page.mouse.click(*mark_point(page, "lf-mark"))
-    expect(page.locator(".lf-margin-preview .lf-page-thread")).to_be_focused()
+    expect(page.locator(".lf-margin-preview .lf-page-thread leaf-text")).to_be_focused()
     boxes = page.evaluate(
         """() => {
           const card = document.querySelector('.lf-margin-preview').getBoundingClientRect();

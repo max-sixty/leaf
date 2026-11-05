@@ -15,8 +15,8 @@
    else would settle, choose or toggle what they can't see. While it is away, `stack`
    leaves out the focused control's element scopes and every page scope rooted at it (a
    page scope about the focused control declares `root: focused`), so only the page's
-   own keys answer; a page command still reads where it starts from focus
-   (current-target.js). A text field keeps its keys, since typing brings its box back
+   own keys answer; a walk still reads where it starts from focus (current-target.js),
+   and `c` writes where the user is reading (composing/surface.js, `focusedPlace`). A text field keeps its keys, since typing brings its box back
    (off-flow.js), and Escape keeps every scope, so letting go lands the user where they
    are reading. The control's native claims stay: the browser still activates a native
    control on its own press, and no outer row may add to that press.

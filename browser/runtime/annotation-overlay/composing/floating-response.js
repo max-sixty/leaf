@@ -22,7 +22,15 @@
    room withholds it (`data-lf-withheld`); annotation-chrome.css hides it otherwise. This
    presenter writes those attributes and never the bar's visibility, and composition
    writes only whether the bar stands inline (`data-lf-presentation`), so neither leaves
-   a visibility behind for the other to undo. */
+   a visibility behind for the other to undo.
+
+   The box at rest beside a target (`response.rests`; composing/surface.js, `restFab`)
+   stands where its editor will and is carried as its editor is, so opening it moves
+   nothing. It has no editor yet, so it has no height to fit and no motion to follow.
+   It stands only in the room beside what it is about. Under or over its target, or slid
+   across a target with no room beside it, it would lie on the page's own controls, the
+   one just pressed among them, and the next press there would open it (browser/
+   AGENTS.md, "Controls stay where the user aims"), so there it waits for `c`. */
 import { pageRange } from "../../native-selection.js";
 import { cancelRender, nextRender } from "../../rendering.js";
 import { boxMotion } from "../../box-motion.js";
@@ -331,7 +339,7 @@ export function createFloatingResponsePlacement({
     fabPosition.watch(
       target,
       reference,
-      response.open ? observes.editing : observes.compact,
+      response.open || response.rests ? observes.editing : observes.compact,
     );
   }
   // A retained native Range and a resolved passage are two routes to geometry. Only
@@ -490,6 +498,10 @@ export function createFloatingResponsePlacement({
       scroller: boundary.scroller,
       coarse: coarsePointer.matches,
     });
+    if (response.rests && (seat.side === "top" || seat.side === "bottom")) {
+      withholdFab();
+      return false;
+    }
 
     const epoch = fabPosition.begin();
     const stillCurrent = () =>
@@ -529,7 +541,7 @@ export function createFloatingResponsePlacement({
           ui.computePosition,
           commentReference(place, reference),
           { placement, middleware },
-          response.open && seatedOwner ? "page" : plane,
+          (response.open || response.rests) && seatedOwner ? "page" : plane,
           seatedOwner ?? document.documentElement,
         );
       })
@@ -548,7 +560,7 @@ export function createFloatingResponsePlacement({
           return moved;
         };
         if (response.open) following ??= fabMotion();
-        if (following) following.placed(stand);
+        if (following && response.open) following.placed(stand);
         else stand();
         nativeAttachment = response.open && fabPosition.follows();
         positioned(true);

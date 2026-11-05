@@ -80,7 +80,6 @@ def test_a_sent_margin_reply_shows_its_words_while_delivery_is_pending(
     rendered(page)
     # The card opens on its first unread message, the first of the agent's turns.
     expect(card.locator(".lf-msg", has_text="Turn 0.")).to_be_in_viewport()
-    page.keyboard.press("c")
     reply = card.locator("leaf-text")
     expect(reply).to_be_focused()
     words = "The sent reply must be readable above the composer."
@@ -151,7 +150,6 @@ def test_a_pending_reply_keeps_the_transcript_end_when_card_fitting_reduces_room
     resized(page, 1000, 536)
     page.locator('[data-lf-margin-for="candidate"] .lf-margin-marker').click()
     card = page.locator(f'.lf-margin-preview .lf-page-thread[data-lf-thread="{root}"]')
-    page.keyboard.press("c")
     expect(card.locator("leaf-text")).to_be_focused()
     words = "Please scroll down to show this reply."
     page.keyboard.type(words)

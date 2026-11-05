@@ -41,6 +41,21 @@
    durable draft without moving focus. Submitted words still in flight remain owned by
    their original anchor, while a later target starts clean and keeps focus.
 
+   Where `c` would open the box beside a target the user can see, the box already stands
+   there, empty, with the key that opens it (`restFab`), so where `c` goes shows before
+   the press, as it does for a selection. The user chose this on 4 November 2026, with
+   the key in the panel's row and `c` leaving focus scrolled out of sight
+   (`focusedPlace`), from independent choices drawn side by side, accepting a box in the
+   margin at every stop of a walk, every Tab and every press that leaves focus on a
+   control. With no room in the margin, the box waits for the press (floating-response.js).
+   They passed over `c` following only a ringed control, which turned their
+   presses inside a question into page comments, and writing about a target in the
+   panel's field, which moved every box beside a target. The box at rest is the bar in
+   its placement, in the frame the field will have, so the press moves nothing; only its
+   face stands (`.lf-fab-rest`), with no anchor or composer behind it. So it holds no
+   revision back, takes no Escape step, closes no thread card and builds no editor, and
+   it goes with the focus that raised it.
+
    Boot may supply an actual physical placement. The default floating presentation
    owns collision geometry and off-flow reveals in floating-response.js. This owner
    does not import or instantiate it; a page renderer can seat the native editor
@@ -56,7 +71,7 @@ import {
   selectEnds,
   selectionBackward,
 } from "../native-selection.js";
-import { signal } from "/runtime/framework.js";
+import { html, render, signal } from "/runtime/framework.js";
 import { addressableWord } from "../addressable-names.js";
 import {
   anchoringIsReady,
@@ -77,17 +92,20 @@ import {
   targetRange,
 } from "../resolved-target.js";
 import {
+  COMMENT_HINT,
   composerOpen,
   createSelectionComposer,
   fabBar,
   fabInput,
   fabOptionsTrigger,
+  fabRest,
   pendingAbout,
 } from "./selection.js";
 
 import { paintBarReactions, reactionAvailable } from "../reactions.js";
 import { threadInput, currentLocationThread } from "../thread/landing.js";
 import { replyDraftContext } from "../thread/replies.js";
+import { advertisesKeys } from "../keyboard/bindings.js";
 import { activeCommandLabel } from "../keyboard/dispatch.js";
 import { pageCommand, pageRung, pageScope } from "../keyboard/register.js";
 
@@ -117,6 +135,7 @@ import { commandScope, projectCommandScope } from "../keyboard/scopes.js";
 import { under, upFrom } from "../shadow.js";
 import { nativeLayers } from "../keyboard/layer-stack.js";
 import { heldObligation } from "../current-target.js";
+import { focusScrolledAway } from "../user-place.js";
 
 import {
   coarsePointer,
@@ -137,6 +156,7 @@ import { retainUserIntent, restrictUserIntent } from "../user-intent.js";
  * @typedef {Object} ResponseState
  * @property {NonNullable<import("../../types/contract.js").EventMap["comment"]["anchor"]> | null} anchor
  * @property {boolean} open
+ * @property {boolean} rests
  * @property {boolean} floating
  * @property {Element | null} target
  * @property {ReturnType<typeof resolveAnchor>} resolved
@@ -207,6 +227,10 @@ export function createResponseSurface({
   // (keyboard/scopes.js).
   /** @type {import("@preact/signals-core").Signal<Anchor | null>} */
   const fabAnchor = signal(null);
+  // The target `c` would open the box beside, while the box rests there (`restFab`).
+  /** @type {ReturnType<ResponseOptions["currentTarget"]>} */
+  let resting = null;
+  const standingAnchor = () => fabAnchor.value ?? resting?.anchor ?? null;
   // The row inside the target the gesture that opened this bar pointed at, which the bar
   // stands level with (pointed-place.js).
   /** @type {Element | null} */
@@ -376,19 +400,22 @@ export function createResponseSurface({
       input: fabInput,
       response: {
         get anchor() {
-          return fabAnchor.value;
+          return standingAnchor();
         },
         get open() {
           return composerOpen;
+        },
+        get rests() {
+          return Boolean(resting);
         },
         get floating() {
           return Boolean(activePlacement);
         },
         get target() {
-          return fabTargetAt();
+          return anchorTargetAt(standingAnchor());
         },
         get resolved() {
-          return responseTarget(fabAnchor.value);
+          return responseTarget(standingAnchor());
         },
         get captured() {
           return fabHoldsCapturedPassage();
@@ -467,6 +494,7 @@ export function createResponseSurface({
   }
   /** @param {Anchor | null} anchor @param {{place?: boolean, point?: Element | null | undefined, reveal?: boolean}} [options] */
   function showFab(anchor, { place = true, point = undefined, reveal = false } = {}) {
+    letGoOfRest();
     const previous = fabAnchor.value;
     if (!anchor) {
       restoreFab({ place: false });
@@ -517,6 +545,7 @@ export function createResponseSurface({
     putAwayFab();
   }
   function refreshFab() {
+    if (resting) placement?.place();
     if (!fabAnchor.value || !activePlacement) return;
     // A bare selection's bar is the selection's, and goes with it.
     if (fabAnchor.value.quote && !composerOpen && !fabHoldsCapturedPassage())
@@ -876,6 +905,12 @@ export function createResponseSurface({
     });
     fabInput.addEventListener("blur", () => {
       fabInputTakingFocus = false;
+    });
+    // A press on the box at rest leaves focus on its target, which is what raised it,
+    // until the press opens the field.
+    fabRest.addEventListener("mousedown", (ev) => ev.preventDefault());
+    fabRest.addEventListener("click", () => {
+      if (resting) commentOnTarget(resting);
     });
   }
   // Whether the page's own words stood selected when the keys were last painted.
@@ -1273,6 +1308,24 @@ export function createResponseSurface({
   const commenting = (word) => ({
     title: `comment on the ${word}`,
   });
+  // The element and threads where focus puts the user. Focus they have scrolled out of
+  // sight puts them nowhere in the page, so `c` writes where they are reading rather than
+  // taking them back to it: a walk's stop scrolled away from took the page back 1949 px
+  // at the median, and they backed out of 4 presses in 7 (dispatch.js says the same of
+  // that control's own keys).
+  function focusedPlace() {
+    if (focusScrolledAway()) return { here: null, threadId: null, said: null };
+    const inline = threadHere();
+    const inlineBox = inline && threadInput(inline);
+    return {
+      here: currentTarget(),
+      threadId: threadAtCurrentLocation(),
+      said:
+        currentLocationThread() ??
+        (inlineBox ? { held: inline, box: inlineBox } : null),
+    };
+  }
+  /** @returns {{title: string, box: Element | null, go: () => unknown, rest?: NonNullable<ReturnType<ResponseOptions["currentTarget"]>>}} */
   function commentDestination() {
     // The panel's field quotes the selected words, and a press there does what c does,
     // so the field carries c's badge.
@@ -1282,7 +1335,7 @@ export function createResponseSurface({
         box: pageComment.box,
         go: commentOnOfferedSelection,
       };
-    const here = currentTarget();
+    const { here, threadId, said } = focusedPlace();
     const anchor = fabAnchorAt();
     // The thread drawn with the user's place (`threadHere`), such as the card beside it,
     // is one place with it, so its reply box is where c writes, even where the thread is
@@ -1295,12 +1348,7 @@ export function createResponseSurface({
     // holds one of its marks. So with no card shown, an element inside a commented block
     // takes a thread of its own, and a selection still starts one on its words.
 
-    const inline = threadHere();
-    const threadId = threadAtCurrentLocation();
     const target = threadId && threadTarget(threadId);
-    const inlineBox = inline && threadInput(inline);
-    const said =
-      currentLocationThread() ?? (inlineBox ? { held: inline, box: inlineBox } : null);
     const subject =
       threadId &&
       (!here || (target && under(target, heldObligation() ?? here.element)));
@@ -1351,6 +1399,7 @@ export function createResponseSurface({
       return {
         ...commenting(here.anchor.datum ? "item" : addressableWord(here.element)),
         box: fabInput,
+        rest: here,
         go: () => commentOnTarget(here),
       };
     // The page's own box is the floating panel's field.
@@ -1364,6 +1413,56 @@ export function createResponseSurface({
     box: commentDestination().box,
     label: activeCommandLabel(["comment.create"]),
   });
+
+  // The target the box rests beside: the one `c` would open it on, while the user can see
+  // it. A finger is shown no keys, so it is shown no box waiting for one, and a frame
+  // holding focus, as a live sample does, has the keys itself.
+  const restingTarget = () => {
+    if (
+      fabAnchor.value ||
+      !placement ||
+      !advertisesKeys() ||
+      focused()?.localName === "iframe" ||
+      pageSelection()
+    )
+      return null;
+    const { rest } = commentDestination();
+    return rest && seenRect(rest.element, new Map()) ? rest : null;
+  };
+  function retireRest() {
+    resting = null;
+    placement?.stop({ reset: true });
+    placement?.release();
+  }
+  function letGoOfRest() {
+    if (!resting) return;
+    retireRest();
+    keeps(fabBar, "data-lf-rest", null);
+  }
+  // Read in each repaint, since where `c` goes follows focus, a scroll's end and the state.
+  function restFab() {
+    const next = restingTarget();
+    const key = next && activeCommandLabel(["comment.create"]);
+    const target = key ? next : null;
+    if (resting && !sameAnchor(target?.anchor ?? null, resting.anchor)) retireRest();
+    keeps(fabBar, "data-lf-rest", target ? "" : null);
+    if (!target) return;
+    render(
+      html`<span class="lf-compose-placeholder"
+        ><span class="lf-compose-placeholder-words">${COMMENT_HINT}</span
+        ><kbd class="lf-key-badge">${key}</kbd></span
+      >`,
+      fabRest,
+    );
+    const arrived = !resting;
+    resting = target;
+    if (!arrived) return;
+    activePlacement = placement;
+    const label = anchorLabel(target.anchor, null).replace(/^§\s*/, "");
+    keeps(fabRest, "aria-label", label ? `Comment on ${label}` : "Comment");
+    keeps(fabBar, "data-lf-paint-plane", "page");
+    placement?.place();
+  }
 
   // c goes where commenting happens: a live selection gets the composer (what the floating
   // button does), an element click's pending 💬 gets that, an open thread the user is
@@ -1463,6 +1562,7 @@ export function createResponseSurface({
     watchHeldDrawings: composer.watchHeldDrawings,
     setDraftDrawing: composer.setDraftDrawing,
     commentHint,
+    restFab,
     fabPositioned,
     showFab,
     refreshFab,

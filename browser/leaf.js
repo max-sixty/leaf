@@ -696,6 +696,7 @@ async function boot() {
     paintCommandHints: commandHints.paint,
     paintCoreControls,
     publishInputHint: inputs.publishInputHint,
+    restFab: responseSurface.restFab,
   };
 
   if (!offlineInteractive) {

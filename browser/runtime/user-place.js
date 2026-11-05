@@ -67,6 +67,7 @@ import {
 import { PRESSES } from "./control-selectors.js";
 import { browserScrolls, watchScrollEnds } from "./arrivals.js";
 import { pointerAt } from "./pointer.js";
+import { repaint } from "./repaint.js";
 
 // The focused control while it marks where the user is: while any of it is in front of
 // them (geometry.js, `seenRect`), and it is not riding in a stuck sticky box
@@ -97,8 +98,12 @@ export function focusedInView() {
 // still shows where they are, and its arrows move on from that row into view, so it is
 // the list that must leave the screen.
 let settledSinceArrival = false;
+// A scroll's end can take the control out of sight or bring it back, which changes which
+// keys answer and where they go, with no focus move to paint it.
 watchScrollEnds(() => {
   settledSinceArrival = true;
+  const node = focused();
+  if (node && node !== document.body) repaint();
 });
 // A node the runtime replaced handing focus to its successor is the same place, and
 // focus a change dropped to the body arrives nowhere until its owner hands it back.

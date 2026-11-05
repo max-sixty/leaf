@@ -54,13 +54,12 @@
         font: 650 var(--t-5) / 1.3 var(--sans);
       }
 
-      /* A table on the stage takes the stage's width; its frame scrolls it when the
-         stage is narrower than its columns. */
+      /* A table on the stage takes the stage's width in four equal columns, which fit
+         their longest words down to a 320px window. */
       .query-results {
         display: table;
         table-layout: fixed;
         width: 100%;
-        min-width: 30rem;
       }
 
       .query-table-frame {
@@ -70,11 +69,38 @@
         --lf-block-frame: 1;
       }
 
+      /* On a phone the filters stay short enough that their result shows below them
+         on the first screen, so a change to a filter shows what it matched without a
+         scroll. A filter's three fields share one line down to a 360px window: each
+         select is as wide as its longest option, with the fields' side padding at the
+         smaller step. In a narrower window the value wraps to a line of its own. The
+         buttons take the next line. The row a button stands in says which filter it
+         acts on, so the filter's number leaves the button's face and stays in its
+         accessible name. */
       @media (max-width: 42rem) {
-        .query-row > label,
+        .query-row > label {
+          flex: 1 1 auto;
+          grid-template-columns: minmax(0, 1fr);
+          min-width: 0;
+          --wa-form-control-padding-inline: var(--sp-2);
+        }
+
+        .query-row > .query-value {
+          flex-basis: 5rem;
+        }
+
         .query-row-actions {
           flex: 1 1 100%;
           margin-inline-start: 0;
+        }
+
+        .query-row-actions button > span {
+          position: absolute;
+          width: 1px;
+          height: 1px;
+          overflow: hidden;
+          clip-path: inset(50%);
+          white-space: nowrap;
         }
       }
     </style>
@@ -112,6 +138,15 @@
         if (row.operator === "contains")
           return String(actual).toLowerCase().includes(row.value.toLowerCase());
         return String(actual).toLowerCase() === row.value.toLowerCase();
+      }
+
+      // A filter row's button. The render writes the filter's number into its span,
+      // which a phone's row hides from the face and keeps in the button's name.
+      function rowAction(before, after, pressed) {
+        const button = offerAction("word", "small");
+        button.append(before, document.createElement("span"), after);
+        button.addEventListener("click", pressed);
+        return button;
       }
 
       function labelledSelect(name, label, values, selected, changed) {
@@ -290,6 +325,7 @@
               (value) => this.#update(id, "operator", value),
             );
             const valueLabel = document.createElement("label");
+            valueLabel.className = "query-value";
             valueLabel.append(document.createTextNode("Value"));
             const input = offer("input", "", undefined, "text");
             input.name = `${id}-value`;
@@ -300,12 +336,9 @@
             valueLabel.append(input);
             const actions = document.createElement("div");
             actions.className = "query-row-actions";
-            const up = offerAction("word", "small");
-            const down = offerAction("word", "small");
-            const remove = offerAction("word", "small");
-            up.addEventListener("click", () => this.#move(id, -1));
-            down.addEventListener("click", () => this.#move(id, 1));
-            remove.addEventListener("click", () => this.#remove(id));
+            const up = rowAction("Move", " up", () => this.#move(id, -1));
+            const down = rowAction("Move", " down", () => this.#move(id, 1));
+            const remove = rowAction("Remove", "", () => this.#remove(id));
             actions.append(up, down, remove);
             element.append(field, operator, valueLabel, actions);
             const made = {
@@ -332,9 +365,8 @@
               if (made.operator.value !== row.operator)
                 made.operator.value = row.operator;
               if (made.input.value !== row.value) made.input.value = row.value;
-              keepsText(made.up, `Move filter ${index + 1} up`);
-              keepsText(made.down, `Move filter ${index + 1} down`);
-              keepsText(made.remove, `Remove filter ${index + 1}`);
+              for (const action of [made.up, made.down, made.remove])
+                keepsText(action.querySelector("span"), ` filter ${index + 1}`);
               made.up.toggleAttribute("disabled", index === 0);
               made.down.toggleAttribute("disabled", index === last);
               return made.element;

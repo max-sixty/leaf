@@ -265,6 +265,7 @@ import { textField } from "./composing/text-field.js";
 import { draftOf, standsAtItsBox, syncInput } from "./composing/input.js";
 import { TEXT_FIELD } from "./control-selectors.js";
 import { retainUserIntent } from "./user-intent.js";
+import { holdPlace } from "./user-place.js";
 import { queueItemKey, readPlan, readQueues } from "./queue-api.js";
 import { queueTitle } from "./queue-title.js";
 import { groupingLabel, ON_ME_GROUPINGS, queueStop } from "./queue-walk.js";
@@ -1488,7 +1489,7 @@ export function createFloatingPanel({
    *   room: number | null,
    *   rewriting: boolean,
    *   pressed: {
-   *     node: Element, at: number, height: number, holds: number, scroll: number,
+   *     node: Element, at: number, height: number, holds: number, keep: () => void,
    *   } | null,
    *   drawnSections: Map<string, string> | null,
    *   onPageSeat: boolean,
@@ -1852,9 +1853,10 @@ export function createFloatingPanel({
   host.addEventListener("mousedown", runOfClicks, { capture: true });
   host.addEventListener("click", runOfClicks, { capture: true });
   // The press being judged: the control pressed, where it stood in the view's content,
-  // and how tall the view, what it holds and its scroll stood. Once what the press
-  // changed has drawn, after the press's own handlers, and before the frame shows it,
-  // the press is put back where it stood. A change below it would carry it as the view
+  // how tall the view and what it holds stood, and its hold on screen (user-place.js,
+  // `holdPlace`). Once what the press changed has drawn, after the press's own
+  // handlers, and before the frame shows it, the press is put back where it stood on
+  // screen. A change below it would carry it as the view
   // grows or shrinks from its top edge, so the view holds the height it stood at. A
   // change above it, as progress opening over the answer whose head holds its
   // disclosure, leaves it in place as far as the view's height takes the change up, so
@@ -1886,7 +1888,7 @@ export function createFloatingPanel({
       at: contentTop(node, view),
       height: view.offsetHeight,
       holds: holding(view),
-      scroll: view.scrollTop,
+      keep: holdPlace(node),
     };
   }
   function judgePress() {
@@ -1900,8 +1902,7 @@ export function createFloatingPanel({
       if (holdThread(press.height)) paint();
       return;
     }
-    const grown = view.offsetHeight - press.height;
-    moveScrollerBy(view, press.scroll + above - grown - view.scrollTop);
+    press.keep();
   }
   stage.addEventListener("click", (event) => pressAt(event.target), { capture: true });
   stage.addEventListener("click", judgePress);

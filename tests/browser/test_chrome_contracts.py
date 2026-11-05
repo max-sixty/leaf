@@ -999,6 +999,65 @@ def test_a_page_map_update_keeps_the_row_the_user_was_on(browser, serve):
     )
 
 
+@pytest.mark.parametrize("aim", ["focus", "pointer"])
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_thread_joining_page_map_above_the_row_the_user_is_on_leaves_it_still(
+    request, serve, engine, aim
+):
+    """A thread the agent starts joins Page Map between the first row in view and the
+    row the user is on, and pushed that row down by the row it added, 63px: the
+    browser's scroll anchoring holds the first row in view, and nothing held the focused
+    one. The reading that brings the thread keeps the control the user is on where it
+    stood once the page shows it, as it does for every surface: the focused row, or,
+    with focus in the search field, which names no place, the row under the resting
+    pointer, which moved 32px when only focus named one."""
+    fixture = leaf_page(
+        "Page Map focus",
+        "".join(
+            f'<p id="place-{index}">Target {index} of the plan.</p>'
+            for index in range(30)
+        ),
+    )
+    url = serve(fixture)
+    for index in range(30):
+        if index != 14:
+            panel_comment(
+                serve.page_dir,
+                f"Question {index:02d}?",
+                {"section": f"place-{index}"},
+                author="agent",
+            )
+    page = open_page(request.getfixturevalue(engine), url)
+    resized(page, 1280, 600)
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+p")
+    dialog = page.get_by_role("dialog", name="Page Map", exact=True)
+    expect(dialog).to_be_visible()
+    rows = dialog.locator(".lf-page-map-action")
+    row = rows.filter(has_text="Question 15?")
+    row.evaluate("node => node.scrollIntoView({block: 'center'})")
+    held = row if aim == "focus" else dialog.get_by_role("searchbox")
+    held.focus()
+    if aim == "pointer":
+        row.hover()
+    assert rows.filter(has_text="Question 13?").evaluate(
+        "node => node.getBoundingClientRect().top"
+        " > node.closest('.lf-page-map-list').getBoundingClientRect().top"
+    ), "the row joins inside the list's view, below its first row there"
+    top = row.evaluate("node => node.getBoundingClientRect().top")
+
+    panel_comment(
+        serve.page_dir, "Question 14?", {"section": "place-14"}, author="agent"
+    )
+    told(page)
+    expect(rows.filter(has_text="Question 14?")).to_have_count(1)
+    rendered(page)
+    expect(held).to_be_focused()
+    assert row.evaluate("node => node.getBoundingClientRect().top") == pytest.approx(
+        top, abs=1
+    )
+
+
 def test_a_repaint_unsettles_the_rendering_until_it_lands(browser, serve):
     """The settled reading turns false in the same turn as a gesture that queues a
     repaint, and true once that repaint has landed, so a reader after the gesture waits

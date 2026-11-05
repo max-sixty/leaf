@@ -580,6 +580,7 @@ def test_a_reply_in_a_diff_thread_draws_where_the_user_is_and_waits_elsewhere(
         ("opened", "browser"),
         ("walked", "browser"),
         ("onto", "browser"),
+        ("pressed", "browser"),
         ("replied", "browser"),
         ("tabbed", "browser"),
         ("opened", "firefox_browser"),
@@ -591,9 +592,11 @@ def test_replies_held_in_a_page_seat_show_when_the_user_turns_to_them(
 ):
     """Replies landing while a seated thread's foot is on screen wait behind one
     notice that counts them, and show together, in the order they came: when the user
-    presses the notice, when a t press walks them to the thread, and when a press or
-    Shift+Tab takes them into its reply row, which stays where it stood; a turn they
-    then send follows the replies it answers. A user who stands on the thread ("onto")
+    presses the notice, when a t press walks them to the thread, when they press one of
+    its messages, and when a press or Shift+Tab takes them into its reply row. What the
+    walk, the press or the Tab reached stays where it stood, and the replies push what
+    follows down or what precedes up; a turn the user then sends follows the replies it
+    answers. A user who stands on the thread ("onto")
     sees them as they come, as in a chat. Nothing before the ending is input, so the
     browser fixture's shift watch also checks that holding the replies moved nothing,
     in Firefox as in Chromium."""
@@ -654,7 +657,18 @@ def test_replies_held_in_a_page_seat_show_when_the_user_turns_to_them(
     if end == "opened":
         news.click()
     elif end == "walked":
+        # The thread is already shown, so the walk lands on it where it stands.
+        stood = thread.bounding_box()["y"]
         page.keyboard.press("t")
+        expect(thread).to_be_focused()
+        expect(thread.locator(".lf-msg")).to_have_count(3)
+        assert thread.bounding_box()["y"] == pytest.approx(stood, abs=1)
+    elif end == "pressed":
+        words = thread.locator(".lf-msg .lf-msg-body").first
+        stood = words.bounding_box()["y"]
+        words.click()
+        expect(thread.locator(".lf-msg")).to_have_count(3)
+        assert words.bounding_box()["y"] == pytest.approx(stood, abs=1)
     elif end == "replied":
         box = thread.locator(":scope > .lf-thread-reply leaf-text")
         stood = box.bounding_box()["y"]

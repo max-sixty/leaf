@@ -530,8 +530,12 @@ export function showHeld(id) {
 // The thread the user is in, and their arrivals at another. A move or a step there shows
 // what it holds. A press there puts the user in it, so each seat holding it draws again
 // and the seat's rule for a user in it decides (inline.js). No reading brings either
-// draw, so it takes the hold a reading takes, which keeps the control they arrived on
-// where it stood (user-place.js, `holdUserPlace`).
+// draw, so an arrival on a control in the thread, as a press into its reply box or a Tab
+// into its reply row, takes the hold a reading takes, which keeps that control where it
+// stood (user-place.js, `holdUserPlace`). An arrival on the thread itself, by a walk or
+// a press on one of its messages, takes none: the hold would keep its reply box still,
+// as it does for a user standing on the thread when news comes, and so move what they
+// arrived on up by the news, where the growth below the thread's head leaves it put.
 /** @type {string | null} */
 let currentLocation = null;
 onCurrentLocation(
@@ -543,7 +547,7 @@ onCurrentLocation(
     const arrived = id !== null && id !== currentLocation;
     currentLocation = id;
     if (!arrived || cause === "return") return;
-    const keep = holdUserPlace();
+    const keep = node === thread ? () => {} : holdUserPlace();
     if (cause === "press") for (const held of holders) held.redraw(id);
     else showHeld(id);
     keep();

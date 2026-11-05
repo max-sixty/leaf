@@ -359,6 +359,12 @@ root, `body` or `html` is re-evaluated on writes below it. Prefer a class that n
 targets, or a condition its owner sets on the styled element, and measure with
 `leaf-dev bench-latency --profile`.
 
+A `::highlight()` rule with no originating element makes the browser resolve one more
+style for every element it restyles, on every page, whether or not the highlight has
+a range there. Name the elements whose text the ranges paint. The comment marks can
+land on any text and Firefox inherits no highlight style (`notes/browser-support.md`,
+"Highlight style inheritance"), so theirs stay universal.
+
 ### Layouts, styles and controls
 
 - **The page owns its arrangement.** A page arranges itself with a shipped Layout

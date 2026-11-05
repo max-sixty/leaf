@@ -93,29 +93,31 @@ lf-text-document .lf-text-document-run > *::before {
 }
 /* Syntax colour on a listing's text (lf-text-document.js, `tokenHighlight`): one
    highlight for each colour of the token theme (build/entries/syntax/entry.mjs,
-   `leafTheme`), named by its variable. A test holds this list to the theme's. */
-::highlight(lf-token-syn-comment) {
+   `leafTheme`), named by its variable. A test holds this list to the theme's. Each
+   rule names the rows, whose text is all these ranges paint (browser/AGENTS.md,
+   "Runtime ownership"). */
+lf-text-document .lf-text-document-run > *::highlight(lf-token-syn-comment) {
   color: var(--syn-comment);
 }
-::highlight(lf-token-syn-keyword) {
+lf-text-document .lf-text-document-run > *::highlight(lf-token-syn-keyword) {
   color: var(--syn-keyword);
 }
-::highlight(lf-token-syn-string) {
+lf-text-document .lf-text-document-run > *::highlight(lf-token-syn-string) {
   color: var(--syn-string);
 }
-::highlight(lf-token-syn-number) {
+lf-text-document .lf-text-document-run > *::highlight(lf-token-syn-number) {
   color: var(--syn-number);
 }
-::highlight(lf-token-syn-name) {
+lf-text-document .lf-text-document-run > *::highlight(lf-token-syn-name) {
   color: var(--syn-name);
 }
-::highlight(lf-token-syn-type) {
+lf-text-document .lf-text-document-run > *::highlight(lf-token-syn-type) {
   color: var(--syn-type);
 }
-::highlight(lf-token-ok-ink) {
+lf-text-document .lf-text-document-run > *::highlight(lf-token-ok-ink) {
   color: var(--ok-ink);
 }
-::highlight(lf-token-danger-ink) {
+lf-text-document .lf-text-document-run > *::highlight(lf-token-danger-ink) {
   color: var(--danger-ink);
 }
 /* A folded panel's rows (`hidden="until-found"`, as a closed tab's) count no numbers

@@ -464,8 +464,16 @@ def seat_surface(browser, serve, gesture):
             if not page.evaluate(FOCUS_IN, seated.element_handle()):
                 page.keyboard.press("Shift+t")
             expect(seated).to_be_focused()
-        elif not reopen.is_visible():
-            seat.locator(".lf-resolved-summary").click()
+        else:
+            # Reopen still shows while the way back before folds the thread into the
+            # closed disclosure, so it is read once the seat's motion has ended.
+            page.wait_for_function(
+                "seat => document.getAnimations()"
+                ".every((motion) => !seat.contains(motion.effect?.target ?? null))",
+                arg=seat.element_handle(),
+            )
+            if not reopen.is_visible():
+                seat.locator(".lf-resolved-summary").click()
 
     def settle():
         if gesture == "resolve":
@@ -475,7 +483,10 @@ def seat_surface(browser, serve, gesture):
 
     def away():
         page.locator("#f20").click()
-        page.mouse.wheel(0, 6000)
+        # End rather than a wheel: a wheel's glide aimed past the page's end runs on
+        # while the page stands at its end, which reads as settled, and takes back the
+        # scroll the next landing makes.
+        page.keyboard.press("End")
         page.wait_for_function("() => scrollY > 1500")
         scroll_settled(page)
         expect(seat).not_to_be_in_viewport()
@@ -486,7 +497,8 @@ def seat_surface(browser, serve, gesture):
         expect(page.locator(".lf-margin-preview")).to_be_hidden()
 
     def shown():
-        expect(seated).to_be_in_viewport()
+        # The element the seat stands in fits the window, so it lands whole.
+        expect(page.locator("#jobs")).to_be_in_viewport(ratio=1)
         returned()
 
     return Surface(

@@ -814,7 +814,7 @@ def test_a_walk_lands_on_a_thread_in_its_seat_in_view(browser, serve):
     page = open_page(browser, url)
     resized(page, 1280, 600)
     page.locator("#f6").click()
-    page.mouse.wheel(0, 9000)
+    page.keyboard.press("End")
     page.wait_for_function("() => scrollY > 1500")
     scroll_settled(page)
     page.keyboard.press("Shift+t")

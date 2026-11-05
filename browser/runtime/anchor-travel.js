@@ -58,7 +58,12 @@ import { nextFrame } from "./rendering.js";
 import { unconcealedReadingRegions } from "./reading-regions.js";
 import { prepareEntry, replaceEntry } from "./history.js";
 import { pageScroller, stopScroll } from "./scrolling.js";
-import { alreadyShown, landedBox, scrollIntoView } from "./landing-scroll.js";
+import {
+  alreadyShown,
+  fitsWhole,
+  landedBox,
+  scrollIntoView,
+} from "./landing-scroll.js";
 import { reveal } from "./widget-elements.js";
 import { threadNamed } from "./thread/state.js";
 import { restrictUserIntent, retainUserIntent } from "./user-intent.js";
@@ -581,12 +586,15 @@ export function createAnchorTravel({
         /** @type {ScrollPlacement[]} */
         const scroll = [];
         if (target) scroll.push({ at: target, block: "nearest" });
-        // Then the place lands unless it already shows. A part inside the place, as a
-        // seat's thread is inside its element, skips that landing, since landing a
-        // place taller than the window scrolls the part back out of view.
+        // Then the place lands unless it already shows. A part inside a place taller
+        // than its room, as a seat's thread can be inside its element, skips that
+        // landing, since landing the place would scroll the part back out of view.
         const inside =
           target !== where && where instanceof Element && under(target, where);
-        if (!inside) scroll.push({ at: where, when: () => !alreadyShown(where) });
+        scroll.push({
+          at: where,
+          when: () => !alreadyShown(where) && !(inside && !fitsWhole(where)),
+        });
         return { where, focus: target, scroll };
       },
       {

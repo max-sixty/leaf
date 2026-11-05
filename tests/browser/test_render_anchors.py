@@ -4747,6 +4747,8 @@ def test_a_failed_deferred_hydration_waits_for_a_user_retry(browser, serve):
         route.fulfill(status=500, json={"error": "the patch is unavailable"})
 
     context = browser.new_context()
+    # A retry would wait on the page's clock, which the test runs forward.
+    context.clock.install()
     context.route("**/api/deferred*", refuse)
     # The page counts its own loads: the route handler's count follows the request by
     # a hop the driver doesn't order against the page.
@@ -4766,7 +4768,9 @@ def test_a_failed_deferred_hydration_waits_for_a_user_retry(browser, serve):
     expect(page.locator("lf-diff .lf-error")).to_contain_text(
         "the patch is unavailable"
     )
-    # Every update the failure queued has run, and with it any reload it asked for.
+    # A minute of the page's clock, past any backoff a retry would wait out, then every
+    # update the failure queued, and with it any reload it asked for.
+    context.clock.run_for(60_000)
     rendered(page)
     assert page.evaluate("window.__lfDeferredLoads") == 1, (
         "thread hydration retried without another user gesture"

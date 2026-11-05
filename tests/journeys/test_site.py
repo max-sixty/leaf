@@ -833,19 +833,21 @@ def test_a_document_on_a_dead_release_asks_for_one_replacement(served_example, b
 
 # Counts the supervisor's probe rounds in the page: each one asked, and each one
 # handled, which a microtask queued from its answer marks once the round's own
-# continuation, which acts on the answer, has run.
+# continuation, which acts on the answer, has run. The probe asks for `registry.json`
+# past the cache, and the runtime's own read of the same address doesn't. Each probe
+# also carries a header naming it, since a route sees the two requests alike.
 COUNT_PROBES = """
 window.__lfProbes = {asked: 0, handled: 0};
 const nativeFetch = window.fetch.bind(window);
-window.fetch = (...args) => {
-  const answer = nativeFetch(...args);
-  if (String(args[0]).includes("registry.json")) {
-    window.__lfProbes.asked += 1;
-    answer.then(
-      () => queueMicrotask(() => { window.__lfProbes.handled += 1; }),
-      () => {},
-    );
-  }
+window.fetch = (input, init = {}) => {
+  if (!String(input).includes("registry.json") || init.cache !== "no-store")
+    return nativeFetch(input, init);
+  window.__lfProbes.asked += 1;
+  const headers = new Headers(init.headers);
+  headers.set("Leaf-Test-Probe", "1");
+  const answer = nativeFetch(input, {...init, headers});
+  const handled = () => queueMicrotask(() => { window.__lfProbes.handled += 1; });
+  answer.then(handled, handled);
   return answer;
 };
 """
@@ -885,10 +887,16 @@ def test_a_page_that_starts_after_a_fault_takes_its_notice_back(
     expect(notice).to_have_count(0)
     expect(page.locator(".lf-fp-on-user")).to_be_visible()
 
-    # The probe stops with it: a page that started has nothing left to ask the source,
-    # through several rounds of its clock.
+    # The probe stops with it: a page that started has nothing left to ask the source.
+    # The supervisor sets the timer for its next round only once the last round's
+    # answer lands, so the clock runs a second at a time, each step taken with no round
+    # in flight.
+    idle = "() => window.__lfProbes.asked === window.__lfProbes.handled"
+    page.wait_for_function(idle)
     before = page.evaluate("window.__lfProbes.asked")
-    page.clock.run_for(3000)
+    for _ in range(3):
+        page.clock.run_for(1000)
+        page.wait_for_function(idle)
     assert page.evaluate("window.__lfProbes.asked") == before
     consume_browser_errors(page, "planted fault")
 
@@ -901,20 +909,14 @@ def test_a_probe_in_flight_leaves_a_page_that_started_alone(served_example, brow
     round learned is no longer worth a navigation: it would take a working page out
     from under them.
 
-    Both halves are planted, because the two the page would produce cannot be ordered
-    against each other here: the supervisor's probe and the runtime's own widget read
-    are the same address, so holding one holds the other and nothing presents. The
-    fault and `data-lf-upgraded` are the supervisor's two inputs, and the test lands
-    the second one while its first round is still asking.
+    The fault is planted, and the route holds the supervisor's first round until the
+    page has upgraded. The runtime's own read of the registry is the same address, but
+    only the probe carries `COUNT_PROBES`'s header, so that read goes through and the
+    page comes up on its own while the round is still asking.
     """
     _, url = served_example("triage-board")
     page = browser.new_page()
-    page.add_init_script(
-        """
-        setTimeout(() => { throw new Error('planted fault'); }, 10);
-        setTimeout(() => document.body?.setAttribute('data-lf-upgraded', '1'), 600);
-        """
-    )
+    page.add_init_script("setTimeout(() => { throw new Error('planted fault'); }, 10);")
     page.add_init_script(COUNT_PROBES)
     documents = []
     page.on(
@@ -928,7 +930,7 @@ def test_a_probe_in_flight_leaves_a_page_that_started_alone(served_example, brow
     held = []
 
     def hold_the_first_round(route):
-        if held:
+        if held or "leaf-test-probe" not in route.request.headers:
             route.continue_()
         else:
             held.append(route)
@@ -943,7 +945,7 @@ def test_a_probe_in_flight_leaves_a_page_that_started_alone(served_example, brow
     answered = held[0].request.response()
     assert answered and answered.status == 404, "the held round's answer never landed"
     # The round acts on its answer as it lands, so a replacement would be a navigation
-    # already starting once the page has handled the round.
+    # already starting once the page has handled the round, the first it asked.
     page.wait_for_function("() => window.__lfProbes.handled >= 1")
     assert len(documents) == 1, documents
     expect(

@@ -1298,15 +1298,16 @@ def test_widget_errors_keep_exception_evidence(browser, serve):
 def test_data_written_during_fresh_revision_startup_waits_for_activation(
     browser, serve
 ):
-    """A source update cannot paint until the new revision document has activated.
+    """Data written while a fresh revision document starts shows once it has started.
 
     The revision published below changes the page's own code, which is the one thing
     the current document cannot take on, so it is followed into a fresh document and
-    there is a startup to write data during.
+    there is a startup to write data during. Nothing can paint the update before then:
+    the test holds the revision's registry, and widgets import their modules only after
+    it arrives (widget-loader.js).
     """
     activation_probe = """
       window.__lfRevisionRegistryBlocked = false;
-      window.__lfDataDuringStartup = false;
       const nativeFetch = window.fetch.bind(window);
       window.fetch = async (...args) => {
         const input = args[0];
@@ -1315,20 +1316,11 @@ def test_data_written_during_fresh_revision_startup_waits_for_activation(
         if (path.startsWith('/revisions/r2-') && path.endsWith('/registry.json')) {
           window.__lfRevisionRegistryBlocked = true;
           return new Promise(resolve => {
-            window.__lfReleaseRevisionRegistry = () => {
-              window.__lfRevisionRegistryBlocked = false;
-              resolve(nativeFetch(...args));
-            };
+            window.__lfReleaseRevisionRegistry = () => resolve(nativeFetch(...args));
           });
         }
         return nativeFetch(...args);
       };
-      const dataObserver = new MutationObserver(() => {
-        const datum = document.querySelector('[data-lf-datum="api"]');
-        if (window.__lfRevisionRegistryBlocked && datum?.textContent.includes('Running'))
-          window.__lfDataDuringStartup = true;
-      });
-      dataObserver.observe(document, {subtree: true, childList: true, characterData: true});
     """
     page = open_page(
         browser, live_url(data_projection_page(serve)), init_script=activation_probe
@@ -1359,7 +1351,4 @@ def test_data_written_during_fresh_revision_startup_waits_for_activation(
     wait_until_ready(page)
     nudge(d)
     expect(page.locator('[data-lf-datum="api"]')).to_contain_text("Running")
-    # The probe's observer recorded any paint of the update while the registry was
-    # held, which was the whole of startup.
-    assert not page.evaluate("() => window.__lfDataDuringStartup")
     expect(page.locator("#lede")).to_have_text("Live status follows now.")

@@ -5,7 +5,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-const { declareCover, shownWindow } = await import("/runtime/geometry.js");
+const { covered, declareCover, shownWindow } = await import("/runtime/geometry.js");
 
 test("a layout reading takes a cover's side from the layout viewport", (t) => {
   const surface = document.createElement("div");
@@ -42,4 +42,18 @@ test("a layout reading takes a cover's side from the layout viewport", (t) => {
   assert.deepEqual([layout.top, layout.bottom], [0, 500]);
   const visual = shownWindow();
   assert.deepEqual([visual.top, visual.bottom], [886, 900]);
+});
+
+test("a cover at the window's foot covers no seat scrolled below the window", (t) => {
+  const surface = document.createElement("div");
+  const { height } = window.visualViewport;
+  const foot = { left: 0, top: height - 58, right: 1000, bottom: height - 14 };
+  t.after(declareCover(surface, () => foot));
+  const seat = document.createElement("div");
+  document.body.append(seat);
+  t.after(() => seat.remove());
+  const at = (top, bottom) => covered({ left: 100, top, right: 500, bottom }, seat);
+  assert.equal(at(height + 1000, height + 1040), false);
+  assert.equal(at(height - 10, height), true);
+  assert.equal(at(100, 100), false);
 });

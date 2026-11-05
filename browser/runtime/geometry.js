@@ -678,12 +678,18 @@ export function inFront(box, item) {
 // caller reads another, as the floating panel at the window's foot leaves no room under
 // it. The page the gap between it and that edge shows is no room to read in, and
 // counting a box seen there would leave a landing short of a message the panel hides.
-// `shownWindow` cuts by it in the viewport it reads, `uncovered` in the visible one.
+// A span wholly past that edge keeps all of itself, as a seat scrolled below the window
+// is under no cover there. `shownWindow` cuts by it in the viewport it reads, `uncovered`
+// in the visible one.
 /** @param {Box} over @param {number} top @param {number} bottom
  * @param {{offsetTop: number, height: number}} [viewport] */
 function coverCut(over, top, bottom, { offsetTop, height } = visualViewport) {
-  return over.top + over.bottom < 2 * offsetTop + height
-    ? { top: Math.max(top, over.bottom), bottom }
+  if (over.top + over.bottom < 2 * offsetTop + height)
+    return bottom <= offsetTop
+      ? { top, bottom }
+      : { top: Math.max(top, over.bottom), bottom };
+  return top >= offsetTop + height
+    ? { top, bottom }
     : { top, bottom: Math.min(bottom, over.top) };
 }
 // What of `box` the boxes the chrome covers leave (`coverBoxes`), but for one holding

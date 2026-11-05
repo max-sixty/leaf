@@ -491,7 +491,7 @@ def test_original_quoted_words_remain_readable_after_the_page_rewrites_them(
     quote = card.locator(".lf-thread-quote")
     expect(quote).to_contain_text("FINAL IMPORTANT WORDS")
     if not removed:
-        expect(quote.locator(".lf-anchor-status")).to_have_text("Changed")
+        expect(card.locator(".lf-anchor-status")).to_have_text("Changed")
     # A margin card's quote returns to the passage where it still stands; the panel's
     # names no jump.
     in_panel = card.evaluate("node => node.matches('.lf-fp-view')")
@@ -576,7 +576,9 @@ def test_a_long_quote_of_replaced_data_has_a_local_reading(browser, serve):
     )
     card = open_from_threads(page, root["id"])
     quote = card.locator(".lf-thread-quote")
-    expect(quote).to_have_attribute("data-lf-detached", "")
+    expect(card.locator(".lf-thread-quote-head")).to_have_attribute(
+        "data-lf-detached", ""
+    )
     assert quote.evaluate("el => el.scrollHeight > el.clientHeight")
     disclosure = card.get_by_role("button", name="Full quote", exact=True)
     expect(disclosure).to_be_visible()
@@ -592,6 +594,43 @@ def test_a_long_quote_of_replaced_data_has_a_local_reading(browser, serve):
     rendered(page)
     assert card.bounding_box()["height"] == pytest.approx(compact, abs=0.5)
     assert quote.evaluate("el => el.scrollHeight > el.clientHeight")
+
+
+def test_a_thread_s_head_names_the_headings_over_its_words(browser, serve):
+    """A thread's head names the headings the reader passes to reach its words,
+    outermost first: a flow of h2s stands under the h1 before them, not under the h2
+    before it. Quoted words with no place of their own carry them as their label, and
+    words no heading stands over carry the page's title, so the label is there before
+    a revision gives the words a status. A thread on a place carries its place as its
+    label and the headings as its title, and a heading's own names only those over it."""
+    url = serve(
+        leaf_page(
+            "Release notes",
+            '<p id="lede">Read this first.</p>'
+            '<h1 id="title">Release plan</h1><h2 id="first">Staging</h2>'
+            '<p id="staging">Staging takes a day.</p>'
+            '<h2 id="rollout">Rollout</h2><h3 id="canary">Canary hosts</h3>'
+            '<p id="hosts">Two hosts take the first build.</p>',
+        )
+    )
+    on_words = panel_comment(
+        serve.page_dir, "Which hosts?", {"section": "hosts", "quote": "Two hosts"}
+    )
+    on_lede = panel_comment(
+        serve.page_dir, "Is this needed?", {"section": "lede", "quote": "Read this"}
+    )
+    on_heading = panel_comment(serve.page_dir, "Rename this?", {"section": "rollout"})
+    page = open_page(browser, url)
+    for thread, label in (
+        (on_words, "Release plan › Rollout › Canary hosts"),
+        (on_lede, "Release notes"),
+    ):
+        head = open_from_threads(page, thread).locator(".lf-thread-quote-head")
+        expect(head.locator(".lf-quote-label")).to_have_text(label)
+        expect(head).not_to_have_attribute("title", re.compile(".*"))
+    head = open_from_threads(page, on_heading).locator(".lf-thread-quote-head")
+    expect(head.locator(".lf-quote-label")).to_have_text("§ heading · Rollout")
+    expect(head).to_have_attribute("title", "Release plan")
 
 
 @pytest.mark.parametrize("quoted", [True, False], ids=["short-quote", "whole-section"])
@@ -619,7 +658,7 @@ def test_a_retained_reference_with_nothing_hidden_offers_no_disclosure(
     )
     wait_for_revision(page, 2)
     card = open_from_threads(page, root)
-    expect(card.locator(".lf-thread-quote")).to_be_visible()
+    expect(card.locator(".lf-thread-quote-head")).to_be_visible()
     expect(
         card.get_by_role("button", name="Full quote", exact=True)
     ).not_to_be_visible()
@@ -706,8 +745,7 @@ customElements.define('lf-quote-subject', class extends LeafElement {
     assert reading == {"kind": "element", "exact": False, "status": "fallback"}
     card = open_from_threads(page, comment["id"])
     quote = card.locator(".lf-thread-quote")
-    expect(quote).not_to_have_attribute("title", "Jump to this passage")
-    expect(quote.locator(".lf-anchor-status")).to_have_text("Changed")
+    expect(card.locator(".lf-anchor-status")).to_have_text("Changed")
     disclosure = card.get_by_role("button", name="Full quote", exact=True)
     disclosure.click()
     expect(disclosure).to_have_attribute("aria-expanded", "true")
@@ -718,6 +756,6 @@ customElements.define('lf-quote-subject', class extends LeafElement {
         "window.quoteSubject.show('Current plan', 'The revised requirement uses automatic review.')"
     )
     rendered(page)
-    assert "Current plan" in quote.inner_text()
+    assert "Current plan" in card.locator(".lf-quote-label").inner_text()
     expect(disclosure).to_have_attribute("aria-expanded", "true")
     assert quote.evaluate("el => el.scrollHeight <= el.clientHeight + 1")

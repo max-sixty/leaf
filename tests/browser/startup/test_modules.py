@@ -120,7 +120,9 @@ Two classic models.</pre></lf-code>
     rows.filter(has_text="Still anchored?").click()
     quote = page.locator(f"{PANEL_THREAD} .lf-thread-quote")
     expect(quote).to_be_visible()
-    expect(quote).not_to_have_attribute("data-lf-detached", "")
+    expect(page.locator(f"{PANEL_THREAD} .lf-thread-quote-head")).not_to_have_attribute(
+        "data-lf-detached", ""
+    )
 
 
 def _asked(context):

@@ -106,9 +106,9 @@ def test_one_field_starts_a_thread_takes_its_reply_and_settles_it(browser, serve
     """The field clicked at rest is the field written in. Sending a page comment opens
     its new thread above the row, the same field now replying there, and resolving the
     thread from its controls moves the user on to Threads, and `z` takes them back to
-    the thread, open again. The focused field names where the words go, and once they hide that, nothing
-    does: with no view open they go to the page, and over the thread its name says
-    which. Escape, once the caret has left the field, puts the thread away."""
+    the thread, open again. The focused field says its word, Reply over the thread,
+    whose name says which. Escape, once the caret has left the field, puts the thread
+    away."""
     page = floating(browser, serve(LONG_PAGE))
     write(field(page), "Could the rollback cover the weekend?")
     with sending(page, "the page comment"):

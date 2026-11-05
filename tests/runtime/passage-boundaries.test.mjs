@@ -25,6 +25,7 @@ import {
   closestAcross,
   contextAround,
   elementReading,
+  fencedAt,
   fencePassageParts,
   findQuote,
   inChrome,
@@ -371,6 +372,53 @@ test("a selection in nested slots keeps exactly the rendered words it covers", (
   );
   range.selectNodeContents(innerRoot.querySelector("p"));
   assert.equal(quoteFrom(segmentsIn(range)), "Inner");
+  // Ends at the far edge of one text node and the near edge of another cover neither.
+  range.setStart(document.querySelector("#before").firstChild, "Before".length);
+  range.setEnd(document.querySelector("#after").firstChild, 0);
+  assert.equal(
+    quoteFrom(segmentsIn(range)),
+    "Outer Inner Selected words Inner tail Outer tail",
+  );
+  // Select-all beside a declared tree composes a range over <html>.
+  range.selectNodeContents(document.documentElement);
+  assert.equal(
+    quoteFrom(segmentsIn(range)),
+    "Before Outer Inner Selected words Inner tail Outer tail After",
+  );
+});
+
+// A selection covers one run of the page reading's segments, as do the words one element
+// holds, so each is found by searching for where its two ends fall rather than by testing
+// every segment. Testing all two million segments on a page of large text documents kept
+// a triple click busy for minutes. Every rendered-order comparison starts by asking a
+// text node for its slot, so counting those asks counts the comparisons.
+test("a selection's words are found from its ends, not by asking every word", () => {
+  document.body.innerHTML = `<main>${Array.from(
+    { length: 4096 },
+    (_, i) => `<p id="row${i}">Row ${i}</p>`,
+  ).join("")}</main>`;
+  const reading = pageText();
+  const row = document.querySelector("#row2000");
+  const range = document.createRange();
+  range.selectNodeContents(row);
+  const slot = Object.getOwnPropertyDescriptor(Text.prototype, "assignedSlot");
+  let asked = 0;
+  Object.defineProperty(Text.prototype, "assignedSlot", {
+    configurable: true,
+    get() {
+      asked += 1;
+      return slot.get.call(this);
+    },
+  });
+  try {
+    assert.equal(quoteFrom(segmentsIn(range)), "Row 2000");
+    const at = reading.raw.indexOf("Row 2000");
+    const fences = fencedAt(reading, row).fences;
+    assert.ok(fences.includes(at) && fences.includes(at + "Row 2000".length));
+  } finally {
+    Object.defineProperty(Text.prototype, "assignedSlot", slot);
+  }
+  assert.ok(asked < 200, `${asked} text nodes asked where they render`);
 });
 
 test("a declared label inside chrome is read down to its last word", () => {

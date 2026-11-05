@@ -845,28 +845,54 @@ const beforePoint = (node, container, offset) => {
     ? renderedOrder(node, next) < 0
     : renderedUnder(node, container) || renderedOrder(node, container) < 0;
 };
-/** @param {AbstractRange} range @param {Node} node */
-const coveredBy = (range, node) =>
-  !beforePoint(node, range.startContainer, range.startOffset) &&
-  (node === range.endContainer ||
-    beforePoint(node, range.endContainer, range.endOffset));
+// The first index from `from` whose segment passes `test`, where `test` fails for every
+// segment before that index and passes for every one after it. The reading holds its
+// segments in rendered order, so a test of whether a segment falls after a point in the
+// page has that form, and a binary search answers it in about twenty comparisons on a
+// page of two million segments. Asking each segment instead kept a triple click on such
+// a page busy for minutes.
+/** @param {readonly IndexedSegment[]} segments
+ * @param {(segment: IndexedSegment) => boolean} test @param {number} [from] */
+function firstPassing(segments, test, from = 0) {
+  let lo = from;
+  let hi = segments.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if (test(/** @type {IndexedSegment} */ (segments[mid]))) hi = mid;
+    else lo = mid + 1;
+  }
+  return lo;
+}
 
-// The page reading's segments a range covers, clipped to where it starts and ends.
+// The page reading's segments a range covers, clipped to where it starts and ends. They
+// run from the first segment that is not before the range's start up to the first that
+// is not before its end, and include that one when it is the end's own text node.
 // Callers place a passage in that reading (`spanIn`), so the segments are the reading's
 // own. A walk from the range's own root reads whatever that root holds: select-all
 // beside an x-shadow widget composes a range over <html>, and the reading has no
 // position for its <title>.
 /** @param {AbstractRange} range */
 export function segmentsIn(range) {
-  const segments = [];
-  for (const segment of pageText().segments) {
+  const { segments } = pageText();
+  const { startContainer, startOffset, endContainer, endOffset } = range;
+  const first = firstPassing(
+    segments,
+    ({ node }) => !beforePoint(node, startContainer, startOffset),
+  );
+  let stop = firstPassing(
+    segments,
+    ({ node }) => !beforePoint(node, endContainer, endOffset),
+    first,
+  );
+  if (segments[stop]?.node === endContainer) stop += 1;
+  const covered = [];
+  for (const segment of segments.slice(first, stop)) {
     const { node } = segment;
-    if (!coveredBy(range, node)) continue;
-    const start = node === range.startContainer ? range.startOffset : 0;
-    const end = node === range.endContainer ? range.endOffset : segment.end;
-    if (end > start) segments.push({ ...segment, start, end });
+    const start = node === startContainer ? startOffset : 0;
+    const end = node === endContainer ? endOffset : segment.end;
+    if (end > start) covered.push({ ...segment, start, end });
   }
-  return segments;
+  return covered;
 }
 
 // Segments as prose — what a comment stores as its quote, and what a reading position
@@ -1065,15 +1091,7 @@ const EDGE = "\u0000"; // no document holds one, so it can't collide with page t
 // The last segment starting at or before `i`, or -1 before the first.
 /** @param {PageReading} reading @param {number} i */
 function segmentAt({ segments }, i) {
-  let lo = 0;
-  let hi = segments.length;
-  while (lo < hi) {
-    const mid = (lo + hi) >> 1;
-    const segment = segments[mid];
-    if (segment && segment.rawStart <= i) lo = mid + 1;
-    else hi = mid;
-  }
-  return lo - 1;
+  return firstPassing(segments, (segment) => segment.rawStart > i) - 1;
 }
 // Where raw[i] came from, as `{node, offset, segment}`, or null for an EDGE or a position
 // outside the reading.
@@ -1261,13 +1279,19 @@ const isPair = (raw, i) =>
   /[\uD800-\uDBFF]/.test(raw.charAt(i)) &&
   /[\uDC00-\uDFFF]/.test(raw.charAt(i + 1));
 // `reading` with fences at the edges of the words `element` holds, so a neighbourhood
-// read from inside it stops there.
+// read from inside it stops there. The words `element` renders are one run of the
+// reading. The words it holds are the ones under it, which can be fewer: a `<slot>`
+// inside it renders words its shadow host holds, and those come off the run's ends.
 /** @param {PageReading} reading @param {Element} element @returns {PageReading} */
 export function fencedAt(reading, element) {
-  const inside = reading.segments.filter(({ node }) => under(node, element));
-  const first = inside[0];
-  const last = inside.at(-1);
-  if (!first || !last) return reading;
+  const { segments } = reading;
+  let lo = firstPassing(segments, ({ node }) => renderedOrder(node, element) > 0);
+  let hi = firstPassing(segments, ({ node }) => !renderedUnder(node, element), lo);
+  while (lo < hi && !under(segments[lo]?.node, element)) lo += 1;
+  while (hi > lo && !under(segments[hi - 1]?.node, element)) hi -= 1;
+  const first = segments[lo];
+  const last = segments[hi - 1];
+  if (lo === hi || !first || !last) return reading;
   const edges = [first.rawStart, last.rawStart + last.end - last.start];
   return {
     ...reading,

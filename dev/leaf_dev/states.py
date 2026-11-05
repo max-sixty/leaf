@@ -1327,7 +1327,9 @@ def screenshot_slider_before(page: Page) -> None:
     divider = shot.get_by_role("scrollbar")
     divider.focus()
     page.keyboard.press("End")
-    shot.get_by_role("button", name="Outline changes", exact=True).click()
+    shot.get_by_role("button", name="Image options").click()
+    shot.get_by_role("checkbox", name="Outline changes", exact=True).check()
+    page.keyboard.press("Escape")
     shot.scroll_into_view_if_needed()
 
 

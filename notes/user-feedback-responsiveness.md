@@ -316,6 +316,35 @@ process: an earlier batch at a load average near 27 read 1.0–3.7 s.
   into the update's working line needs a page-server route the module posts to,
   keyed as the browser's requests are; Codex's provisional reply
   (`PageTransaction.set_stream_reply`) is the nearest existing path.
+- **Streaming the reply itself, on Claude Code:** the agent's reply reaches Leaf
+  inside a tool call, `leaf thread reply <ref> --text "…"` in a Bash command, which
+  Claude Code runs only once the model has written all of it. The same `turn.step`
+  hook sees that call as it is written: a `tool` chunk names it, then `input` chunks
+  carry its arguments' JSON. In a probe a Bash call's 749 characters arrived as 35
+  pieces of about 22 characters, one every 50 ms, after 16 s of thinking. So the
+  source is the module reading the reply's text out of the half-written command, the
+  sink a page-server route the module posts the growing text to, which sets the
+  page's provisional reply as Codex's adapter does; the browser already draws that as
+  Replying, and the reply the command posts replaces it. No setting is needed, since
+  this is the reply rather than the thinking. Reading a half-written shell command is
+  fragile (quoting, heredocs), so a reply tool of Leaf's own, whose arguments are JSON
+  (`$.tool.register`), is the sturdier source. A `$.model.fork` fork streams nothing
+  a hook can see: its text comes back whole. A subagent's steps reach every hook but
+  the one that spawned it, with its `agentId`, so a fork made with `$.agent.spawn`
+  could stream its reply the same way.
+- **A message that waited behind a long command, on Claude Code:** page input
+  reaches a busy session only between its tool calls. Of 58 thread messages from 1
+  to 5 November, 37 reached a busy session, after a median 16 s (p90 99 s), and 6
+  waited over a minute. Four of those six waited on one session's foreground
+  commands: a `sleep 280` it ran seven times to wait for CI and for the user's
+  picks, and a 104 s benchmark. That session followed a standing instruction in the
+  user's agent memory to wait inside its turn, which now waits in steps of about a
+  minute. Fresh sessions background long commands with or without SKILL.md's
+  sentence on it (`parent-keeps-leaf-responsive`), so the misses come late in a
+  session, where rewording rarely helps. The delivery at the next tool boundary
+  could say how long its input waited for the call that just ended, while that
+  call is in view. It needs its precision and recall measured on real sessions
+  first (`leaf-dev response-times`).
 - **Cheap claims:** test a typed harness operation against the CLI path before adding
   another interface. The [Codex brief](codex-integration.md#typed-operations) owns
   that experiment.

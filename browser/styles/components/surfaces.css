@@ -1155,6 +1155,44 @@ summary {
   margin-inline-end: calc(var(--lf-thread-action-room) + var(--sp-2));
   padding-inline-end: calc(var(--lf-thread-notice-room) + var(--sp-2));
 }
+/* Next unread is an inline press (controls.css) after its symbol, on the line its
+   container gives the thread (thread-card.js). It keeps its seat once none is left,
+   unless nothing on its container's line moves for it (annotation-chrome.css). */
+.lf-next-unread {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+.lf-next-unread .lf-action-icon {
+  flex: none;
+  width: 14px;
+  height: 14px;
+}
+.lf-next-unread[data-lf-unoffered] {
+  visibility: hidden;
+}
+/* An answer waiting past the foot of the box that scrolls the thread (thread-card.js,
+   `#fitAnswer`): a press at that foot, where the answer begins, standing on the box's
+   ground, paper unless its surface names another, which fades in above it so what
+   passes under reads as under a layer. New reply announces news waiting, an inline
+   press in the accent the unread dot wears (controls.css, `data-lf-news`), centred on
+   it, as tall as a thread's other actions. */
+.lf-awaited {
+  position: sticky;
+  --lf-head-inset: 0px;
+  bottom: 0;
+  padding-block-start: 10px;
+  background: linear-gradient(transparent, var(--lf-awaited-ground, var(--paper)) 10px);
+}
+.lf-awaited > .lf-new-reply {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0 auto;
+  min-height: max(var(--lf-msg-head-height), var(--aim-floor));
+  font: var(--font-small);
+}
 .lf-thread-meta-actions {
   display: inline-flex;
   flex: none;
@@ -1236,11 +1274,6 @@ button.lf-thread-news {
   display: block;
   overflow: hidden;
   text-overflow: ellipsis;
-}
-.lf-seat-news {
-  display: flex;
-  align-items: center;
-  box-sizing: border-box;
 }
 .lf-msg-head time {
   color: var(--muted);

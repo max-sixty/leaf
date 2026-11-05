@@ -4,11 +4,12 @@
    Reading follows the attachment; writing uses the room beside that attachment.
    Send keeps the reply's foot through its own result and receipt. The next arriving
    words restore ordinary reading, including more words in the same stream; writing
-   also ends that hold. The empty box a send leaves the caret in (replies.js) is no
-   writing until the user types there or comes back to it, so the answer they wait for
-   shows as it did when Send left them on the thread; once they have, it is writing
-   until the next send, empty or not. A press instead keeps the control it
-   acted on through that change's fitting, until another input or unrelated change.
+   also ends that hold. Whether the user is writing is the reply session's to say
+   (replies.js, `replyIsEditing`), so the empty box a send or an opening leaves the
+   caret in is no writing until they begin there, and the answer they wait for shows as
+   it does to a reader; once they have, it is writing until the next send, empty or
+   not. A press instead keeps the control it acted on through that change's fitting,
+   until another input or unrelated change.
    These lifetimes belong to the conversation, not the physical placement solver.
    Above its subject, a card keeps its foot, read or written in, so a growing draft
    rises over the transcript, as the comment box grows over its subject, and leaves the
@@ -27,13 +28,18 @@
    holding the foot once a landing met the window's foot, which kept a shrinking
    draft's card lifted, detached from where it stood; and keeping a read card's top as
    an answer arrived, which scrolled its transcript once it met the window's foot and
-   hid the question above the answer. Below the subject it grows down to keep that
-   subject clear.
+   hid the question above the answer. Rising ends at the room's height, and an answer
+   past that used to take the transcript to its end, which hid the question all the
+   same. Since 4 November 2026 the thread keeps the user's turn in sight there and says
+   New reply at the foot (thread-card.js), as the floating panel does. That was done to
+   unify the two under the user's request for one thread view; they did not pick it.
+   Below the subject it grows down to keep that subject clear.
    Adoption keeps the editor's attachment ahead of any conversation hold.
    A preparation advances the press only when its placement lands and cannot
    overwrite a newer press captured during fitting. */
 import { TEXT_FIELD } from "../control-selectors.js";
 import { currentLocationIn, inputCount } from "../focus.js";
+import { replyIsEditing, replyThreadKey } from "./replies.js";
 
 /** @typedef {"top" | "foot"} Edge */
 /** @typedef {{side: "top" | "bottom" | "left" | "right",
@@ -50,13 +56,6 @@ export class CardAnchor {
   #press = null;
   /** @type {Seat["side"] | null} */
   #side = null;
-  // The box keeps the caret through a send (replies.js), until the user leaves it.
-  // The empty box the user sent from is no draft being written until they type in it
-  // ("untyped"), so news, the answer they wait for first, shows as it does to a
-  // reader. Typing ends that for good ("typed"): words erased again leave a box still
-  // being written in.
-  /** @type {"untyped" | "typed" | null} */
-  #sentFrom = null;
 
   /** @param {HTMLElement} surface */
   constructor(surface) {
@@ -67,20 +66,12 @@ export class CardAnchor {
   /** @param {string} attempt */
   sending(attempt) {
     this.#sent = attempt;
-    this.#sentFrom = "untyped";
   }
 
   // Entering or editing the native reply starts a new writing place, even while
-  // an earlier send remains in flight. Its later receipt cannot borrow it again, and
-  // the box is no longer the empty one the send left.
+  // an earlier send remains in flight. Its later receipt cannot borrow it again.
   writing() {
     this.#sent = null;
-    if (this.#sentFrom) this.#sentFrom = "typed";
-  }
-
-  // The user left the reply, so coming back into it is writing again.
-  leftReply() {
-    this.#sentFrom = null;
   }
 
   // Own words may reveal held news with them: that whole presentation is the send's
@@ -126,12 +117,16 @@ export class CardAnchor {
     );
   }
 
+  // A send's session still stands while it owes a refusal, over a box already empty.
   #writing() {
     const field = this.#field();
+    const key = replyThreadKey(field);
     return Boolean(
       field?.checkVisibility() &&
       (field.value !== "" ||
-        (this.#sentFrom !== "untyped" &&
+        (this.#sent === null &&
+          key !== null &&
+          replyIsEditing(key) &&
           currentLocationIn(field.closest(".lf-thread-reply")))),
     );
   }
@@ -201,6 +196,5 @@ export class CardAnchor {
     this.#sent = null;
     this.#press = null;
     this.#side = null;
-    this.#sentFrom = null;
   }
 }

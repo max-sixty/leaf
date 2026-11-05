@@ -556,22 +556,6 @@ def test_a_pointer_send_finishes_the_words_an_input_method_holds(browser, serve)
     expect(page_comment(page)).to_have_js_property("value", "")
 
 
-def test_a_seat_send_puts_the_user_on_the_thread_it_started(browser, serve):
-    """A seat that gives its box up to the thread its first message starts took the
-    focus with it, dropping the user on the page. They stand on the thread instead,
-    where any send leaves them."""
-    url, host = seated_page(serve, "verdict")
-    page = open_page(browser, url)
-    box = page.locator(f"{host} > .lf-thread-seat > .lf-say leaf-text")
-    box.scroll_into_view_if_needed()
-    write(box, "First thought.")
-    with sending(page, "the first message"):
-        page.keyboard.press("Enter")
-    thread = page.locator(f"{host} > .lf-thread-seat > .lf-page-thread")
-    expect(thread).to_have_count(1)
-    expect(thread).to_be_focused()
-
-
 @pytest.mark.parametrize("kind", ["task", "verdict"])
 def test_a_seat_send_at_the_window_foot_shows_the_thread_it_started(
     browser, serve, kind

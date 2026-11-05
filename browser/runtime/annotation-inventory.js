@@ -31,7 +31,7 @@ import { projectionOrigins } from "./projection/model.js";
 import { authoredStates } from "./projection/authored.js";
 import { currentProjection } from "./projection/state.js";
 import { notice } from "./notifications.js";
-import { claimed, heldOut } from "./thread/surfaces.js";
+import { claimed } from "./thread/surfaces.js";
 import { threadName } from "./thread/messages.js";
 import { outlineSubjectFor, pageOutline } from "./thread/placement.js";
 import {
@@ -87,9 +87,8 @@ const inProgress = readPart(
 // entries report, the shown revision and the agent's to-dos, and the projection whose
 // reported and overridden marks it lists once the projection's chrome has painted them.
 // What the thread pass decides about a thread reaches it as readings its paint follows:
-// where the thread is placed (`placedAt`) and whether a widget seats or holds it
-// (`claimed`, `heldOut`), so a pass that moves one repaints the margin, and one that
-// moves none leaves it.
+// where the thread is placed (`placedAt`) and whether a widget seats it (`claimed`), so
+// a pass that moves one repaints the margin, and one that moves none leaves it.
 /** @param {import("./framework/application.js").SemanticRoot} root */
 export const annotationSelection = (root) => ({
   projection: root.effective.projection,
@@ -340,11 +339,10 @@ export function createAnnotationInventory({
   const watchers = new Set();
 
   // A resolved thread leaves the margin, unless a reply is being written in it: saved
-  // words and an editing session are distinct, and only an active session keeps it. A
-  // widget-held conversation retains its existing notice.
+  // words and an editing session are distinct, and only an active session keeps it.
   /** @param {ThreadRecord} thread */
   const threadHasDiscussion = (thread) =>
-    !thread.resolved || replyIsEditing(threadKey(thread)) || heldOut(thread.id);
+    !thread.resolved || replyIsEditing(threadKey(thread));
 
   // A command's subject does not depend on whether an overlay or exact widget seat
   // has realized its discussion. Attachment place and pointed row share the same

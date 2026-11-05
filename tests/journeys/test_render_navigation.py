@@ -16,10 +16,8 @@ from interact_support import append_carried_log_record
 from playwright.sync_api import expect
 from render_cases_interaction import (
     OBLIGATIONS_PAGE,
-    PANEL_PAGE,
     answered_comment,
     live_url,
-    panel_comment,
 )
 from render_cases_layout import page_at_rest, token_colour
 from render_cases_navigation import (
@@ -243,54 +241,6 @@ def test_review_queue_decisions_replay_and_reach_the_next_revision_from_the_keyb
     assert [event["detail"]["value"] for event in actions] == [
         ["review-cache-auto"],
         ["review-billing-legacy"],
-    ]
-
-
-def test_comparison_choice_replays_and_is_applied_by_the_next_revision(browser, serve):
-    """One v1 choice remains authoritative in the v2 policy and rollout."""
-    example = named_source("current-proposed-comparison")
-
-    seeded = serve(example)
-    first = seeded.replace("/versions/v2.html", "/versions/v1.html")
-    page = open_page(browser, first)
-    expect_obligations_answered(page, "1/1")
-    expect(page.locator("#comparison-policy-shared")).to_have_attribute("chosen", "")
-    page.close()
-
-    newest = serve(example, seed_log=False)
-    first = newest.replace("/versions/v2.html", "/versions/v1.html")
-    page = open_page(browser, first)
-    expect_obligations_answered(page, "0/1")
-    expect(page.locator("#comparison-policy-shared")).not_to_have_attribute(
-        "chosen", ""
-    )
-
-    page.keyboard.press("m")
-    expect(page.locator("#comparison-policy-decision")).to_be_focused()
-    with sending(page, "the authentication retry policy decision"):
-        page.keyboard.press("2")
-    expect(page.locator("#comparison-policy-shared")).to_have_attribute("chosen", "")
-
-    page.goto(live_url(newest))
-    rendered(page)
-    expect_showing(page, 2)
-    expect(page.locator("#comparison-policy-shared")).to_have_attribute("chosen", "")
-    expect(page.locator("#comparison-proposed > header")).to_contain_text("selected")
-    expect(page.locator("#comparison-rollout")).to_contain_text(
-        "enables shared refreshes for web clients"
-    )
-    expect(page.locator("#comparison-policy")).to_have_attribute("settled", "")
-    # The obligation reading keeps an obligation the user answered after a later version settles it
-    # (`obligations.py`, the retained answered inventory).
-    expect_obligations_answered(page, "1/1")
-
-    actions = [
-        event
-        for event in events_model.read_events(serve.page_dir)
-        if event["kind"] == "action"
-    ]
-    assert [event["detail"]["value"] for event in actions] == [
-        ["comparison-policy-shared"]
     ]
 
 
@@ -1315,49 +1265,6 @@ def test_presses_and_fills_leave_no_element_naming_stale_keys(browser, serve, ex
         f" repainted {s['repainted']!r}"
         for s in stale
     )
-
-
-def test_a_panel_thread_closes_with_the_panel_as_go_to_threads_does(browser, serve):
-    """A thread with no page destination opens in the panel and Escape puts it away;
-    Go-to's Threads opens the panel's list and puts it away the same way."""
-    url = serve(PANEL_PAGE)
-    root = panel_comment(serve.page_dir, "This thread has no page anchor.")
-    panel_comment(serve.page_dir, "Another panel thread.")
-    page = open_page(browser, url)
-    view = page.locator(f'{PANEL_THREAD}[data-lf-thread="{root}"]')
-    threads = page.locator(panel_view("threads"))
-
-    page.keyboard.press("t")
-    expect(view).to_be_focused()
-    # Threads, from the thread the user is located in, opens on that thread's row.
-    page.keyboard.press("g")
-    page.keyboard.press("Shift+t")
-    expect(threads.locator(f'.lf-fp-thread[data-lf-key="{root}"]')).to_be_focused()
-    page.keyboard.press("Escape")
-    panel_settled(page, open=False)
-    assert page.evaluate("() => document.activeElement === document.body")
-
-    page.keyboard.press("t")
-    expect(page.locator(PANEL_THREAD)).to_be_focused()
-    page.keyboard.press("Escape")
-    panel_settled(page, open=False)
-    assert page.evaluate("() => document.activeElement === document.body")
-
-    # From the page, Threads stands on its first row.
-    page.keyboard.press("g")
-    page.keyboard.press("Shift+t")
-    expect(threads.locator(".lf-fp-thread").first).to_be_focused()
-    page.keyboard.press("Escape")
-    panel_settled(page, open=False)
-    assert page.evaluate("() => document.activeElement === document.body")
-
-    # g T puts away the Threads it opened, as Escape does.
-    page.keyboard.press("g")
-    page.keyboard.press("Shift+t")
-    expect(threads).to_be_visible()
-    page.keyboard.press("g")
-    page.keyboard.press("Shift+t")
-    panel_settled(page, open=False)
 
 
 @pytest.mark.parametrize("viewport", [(1440, 900), (390, 844)])

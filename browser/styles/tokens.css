@@ -65,9 +65,10 @@
      clear of both (html[data-lf-live], base.css). */
   --lf-view-height: calc(100dvh - var(--lf-head-room) - var(--lf-foot-room));
   --lf-top: var(--lf-head-room);
-  /* A scroller's landing band, which its `scroll-padding-top` states (the root's, base.css),
-     in two parts: how much of the sticky-header slot it covers whole (`--lf-top-covered`:
-     on the root, the head room and a page tab strip), and the room it leaves below that
+  /* A scroller's landing band, which its `scroll-padding-top` states (the root's
+     `--lf-landing-top`, base.css), in two parts: how much of the sticky-header slot it
+     covers whole (`--lf-top-covered`: on the root, the head room and a page tab
+     strip), and the room it leaves below that
      for a landing's focus ring (`--lf-landing-room`). The layer's focus margin reads
      both (shadow.css, at `--lf-head-inset`), and a box that scrolls restarts them
      (state.css). */

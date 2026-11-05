@@ -39,6 +39,31 @@ wa-comparison::part(lf-focus-visible) {
   outline-offset: var(--focus-ring-gap);
 }
 
+/* A choice among a few views, such as a recording's scope, an image pair's view or a
+   dial's depth, is a radio group of buttons (`appearance="button"`) that a widget
+   offers in the word role (controls.css), so they look as a row of toggles does: words
+   with no frame, the chosen one wearing a toggle's selected face, rather than
+   upstream's framed and joined segments. Their words take the choice type, whose width
+   that face leaves alone; the row wraps where it runs out of room, and a long name
+   wraps inside its radio. A widget sets only the radios' height. */
+wa-radio-group::part(form-control-input) {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-1);
+}
+wa-radio[appearance="button"] {
+  display: inline-flex;
+  align-items: center;
+  font: var(--font-choice);
+  margin: 0;
+  min-inline-size: 0;
+  max-inline-size: 100%;
+  box-sizing: border-box;
+}
+wa-radio[appearance="button"]::part(label) {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
 /* A radio's actual focus owner is its host, rather than a native shadow control.
    The generic band surrounds its full face, label included, for both appearances. */
 wa-radio[appearance="button"][data-lf-focus-visible] {

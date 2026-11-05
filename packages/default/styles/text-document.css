@@ -163,11 +163,20 @@ lf-text-document .lf-text-document-run:only-child {
     overflow: visible;
     --lf-top: inherit;
   }
+  /* The listing restarts the sticky-header slot from the first paint with every value
+     the runtime's mark on a box that scrolls sets (state.css, `[data-lf-scrolls]`), so
+     the mark changes nothing its rows inherit. Firefox styles the rows of runs it
+     skips too (notes/browser-support.md, "Styling content Firefox skips"), and a mark
+     that changed three of the values took a 270 to 570 ms frame on a listing of 97,000
+     rows. */
   lf-text-document:not([preview])[data-lf-bound] pre {
     block-size: var(--lf-bound, 28rem);
     overflow: auto;
     --lf-holds-height: 1;
-    --lf-top: 0px;
+    --lf-top: var(--lf-top-start);
+    --lf-top-covered: var(--lf-top-start);
+    --lf-landing-room: var(--lf-landing-room-start);
+    --lf-track-scroll-behavior: flow;
   }
   lf-text-document:not([preview])[data-lf-bound] {
     --lf-bound-box: .lf-text-document-listing > pre;

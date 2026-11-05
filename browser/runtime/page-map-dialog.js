@@ -26,6 +26,8 @@
 
 import { showNativeLayer, closeNativeLayer } from "./keyboard/layer-stack.js";
 import { scrollIntoView } from "./landing-scroll.js";
+import { registerReadingRegion } from "./reading-regions.js";
+import { holdUserPlace } from "./user-place.js";
 import { nextRender } from "./rendering.js";
 import { blockAt, says } from "./passages.js";
 import {
@@ -44,7 +46,6 @@ import { coarsePointer, pressIsKeyboardActivation } from "./pointer.js";
 import { rowWalk } from "./walk-position.js";
 import { closeControl, el, offeredAction, searchField } from "./widget-elements.js";
 import { keepsHidden, keepsText } from "./keeps.js";
-import { placeKeeper } from "./user-place.js";
 import { retainUserIntent } from "./user-intent.js";
 import {
   PAGE_CONTROL_RANK,
@@ -92,12 +93,15 @@ const dialogSearch = searchField("lf-page-map-search", {
 });
 const dialogList = el("div", "lf-page-map-list");
 dialogList.toggleAttribute("data-lf-scroll", true);
-// A state update or a search re-renders the open sheet; the row the user was on holds
-// their place in it (user-place.js), under the map key each row is rendered with.
-const place = placeKeeper(dialogList, {
-  items: ".lf-page-map-action",
-  identity: (row) => row.getAttribute("data-lf-map-key"),
-  active: () => dialog.open,
+// While the map stands its list scrolls on its own, so it is a reading region then, as
+// the command reference's list is: the list is what scrolls a row, and what keeps the
+// row the user is on where it stood as the sheet re-renders (user-place.js,
+// `holdUserPlace`).
+/** @type {(() => void) | null} */
+let stopListReading = null;
+dialog.addEventListener("close", () => {
+  stopListReading?.();
+  stopListReading = null;
 });
 const dialogEmpty = el(
   "p",
@@ -333,7 +337,7 @@ export function createPageMapDialog({
 
   function renderSheet() {
     const restoreFocus = holdFocus(dialog);
-    place.around(() => presentSheet());
+    presentSheet();
     // A control the filter hid or the render removed hands the user to the search.
     restoreFocus?.(dialogSearch);
     // Search bindings read the rendered rows, including those the query hid.
@@ -392,7 +396,13 @@ export function createPageMapDialog({
   function renderPageMapDialog(nextEntries) {
     if (nextEntries.length !== entries.length) pageControlsChanged();
     entries = nextEntries;
-    if (dialog.open) renderSheet();
+    if (!dialog.open) return;
+    // What the map lists can change with no reading behind it, as a widget's own
+    // contribution does once its work finishes, so the map keeps the row the user is on
+    // across that as a reading does (user-place.js, `holdUserPlace`).
+    const keep = holdUserPlace();
+    renderSheet();
+    keep();
   }
 
   /** @param {Entry | null} [entry] @param {{invoker?: Element | null, focusSpill?: boolean}} [options] */
@@ -402,6 +412,11 @@ export function createPageMapDialog({
     if (!dialog.open) {
       openLayer(dialog, openedFrom);
       dialogSearch.value = "";
+      stopListReading ??= registerReadingRegion({
+        id: "lf-region:page-map",
+        host: dialog,
+        body: dialogList,
+      });
     }
     renderSheet();
     if (!dialog.open) showNativeLayer(dialog);

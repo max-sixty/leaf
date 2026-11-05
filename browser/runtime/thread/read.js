@@ -27,8 +27,8 @@
    are read again when it ends.
 
    The first unread destination belongs to this reading too. Its Go-to route (`g u`)
-   and Next unread at the head of the floating panel's view of a thread, which goes to
-   that thread's first, share the same exact-message arrival. Ordinary `u` remains
+   and a thread's Next unread (thread-card.js), which goes to that thread's first, share
+   the same exact-message arrival. Ordinary `u` remains
    paired with `d` in whichever reading region the user is in. */
 import { nextRender, sizeObserver } from "../rendering.js";
 import { signal } from "/runtime/framework.js";
@@ -304,7 +304,7 @@ export function createReadTracking({ markRead, openThread }) {
 
   // Runs `then` after the next pass over the presented threads, once what that pass
   // read counts as read in `readThreads()`: what still stands unread then is what the
-  // page has not shown whole, as the floating panel's Next unread asks.
+  // page has not shown whole, as a thread's Next unread asks.
   /** @param {() => void} then */
   function afterPass(then) {
     passWaiters.push(then);

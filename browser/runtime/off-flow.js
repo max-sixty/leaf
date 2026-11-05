@@ -40,14 +40,6 @@ import { isElement } from "./shadow-tree.js";
 /** @type {Map<Element, OffFlowSurface>} */
 const surfaces = new Map();
 
-// The declared surface that owns a node's placement, if one floats over the page.
-/** @param {Node | null | undefined} node */
-export function offFlowSurfaceOf(node) {
-  for (const [surface, { floats }] of surfaces)
-    if (floats() && under(node, surface)) return surface;
-  return null;
-}
-
 // A pixel's slack, so a card the boundary holds flush at the room's edge reads as shown.
 /** @param {Element} node @param {Element} surface */
 const unseen = (node, surface) => {

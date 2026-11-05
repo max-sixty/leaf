@@ -150,6 +150,20 @@ Revisit the fallback when supported engines provide it.
 `tests/browser/widgets/test_contents_and_glosses.py` checks the fallback against
 the native timeline with the API removed.
 
+### Sticky boxes' own place
+
+A margin pin's seat is read against the room around its target, with a sticky box
+counted at its own place, where it stands before sticking (`stuckShift` in
+`browser/runtime/geometry.js`). Only a view timeline reads that place without
+writing to the page. Installed Playwright Firefox 157.0, build 1555, had no
+`ViewTimeline` on 2026-11-05, so there a sticky box counts where it is drawn. A pass
+made while a header inside the target is stuck down the page can then seat the pin
+where the header stands once the user scrolls back, and a later unrelated pass moves
+the pin with no input. Playwright Chromium 156.0.8078.4 (build 1248) and WebKit 27.2
+(build 2370) read the place the same way. Recheck by adding `firefox_browser` to
+`test_a_pin_by_a_sticky_header_takes_one_seat_at_every_scroll` in
+`tests/browser/margin/test_scrollers.py`.
+
 ### Highlight style inheritance
 
 Playwright Firefox 155 accepted `:root::highlight()` and `:host::highlight()`
@@ -324,7 +338,7 @@ Chrome 155 trimmed block-flow margins but left flex and grid item margins;
 a generated child could prevent trimming the authored paragraph. Playwright
 Chromium 153.0.8010.12 and Firefox 155 did not accept the property.
 Recheck wrapper and row behavior, not just parser support, against
-`test_frame_edges_pass_through_whatever_stands_at_them` and
+`test_block_margins_follow_density_frames_and_the_column_on_one_page` and
 `test_a_row_at_a_frame_edge_holds_the_trim_by_declaring_it` in
 `tests/browser/test_render_gate.py`.
 
@@ -724,6 +738,38 @@ short. To recheck, draw a `content-visibility: auto` box with
 `contain-intrinsic-size: auto 100px`, scroll it out of view, write
 `contain-intrinsic-size: 300px` and read its height a few frames later: 300 px is the
 specified behaviour.
+
+### Styling content Firefox skips
+
+Firefox 157 (Playwright build 1555, macOS) styles every element inside a box whose
+content it skips, a `content-visibility: auto` run out of view and a closed tab's
+`hidden="until-found"` panel included, on each restyle that reaches it. Chromium 156
+leaves skipped content unstyled until it is drawn. So in Firefox a restyle that
+reaches a long text document's listing styles every row and its line number. On
+2026-11-04 the Firefox Profiler's `Styles` marker counted 194,514 elements when the
+runtime's scroll mark changed three inherited values on a listing of 97,000 rows (250
+to 330 ms; 25 to 45 in Chromium), and 2.1 million when a page of 30 documents of
+50,000 lines presented (2.6 s).
+
+Leaf keeps its own writes off the rows while a page loads: a listing states its slot
+restart from the first paint (`text-document.css`), and a closed tab's document draws
+after the page presents (`lf-text-document.js`, `drawLater`). Two restyles still reach
+every row in Firefox. A newly started Firefox restyles every page on each
+`font-info-updated` in its first seconds, 1.4 s each on the page of 30 documents. And
+Gecko answers an insertion into an element whose children a `+`, `~` or
+`:nth-*(… of …)` selector has been matched against by restyling every later
+sibling's subtree. The frame-edge trims in `reading.css` are matched against every
+element, as are `.lf-inspection-body :is(h2, h3) + *` (`chrome.css`) and the reading
+theme's `.eyebrow + :is(h1, h2, h3)` against every heading, so a paragraph added at
+the top of `main` restyled the whole page: 280 to 310 ms over 97,000 rows, and 24 ms
+with the trims written as `:first-child` and `:last-child` and the two sibling rules
+taken out. The first is Firefox's to change; rewriting the rules is
+open (#4781).
+
+To recheck, build a `pre` of 97,000 `div` rows in runs of 128 with
+`content-visibility: auto`, each row numbered by a `::before` counter, let it paint,
+then set an inherited custom property on the `pre` and time the next frame: 70 to 77
+ms in Firefox, 17 to 19 in Chromium.
 
 ### A traversal's own scroll restoration under the Navigation API
 

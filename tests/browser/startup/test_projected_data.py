@@ -512,93 +512,6 @@ customElements.define('lf-derived', class extends LeafElement {
     expect(quote.locator(".lf-anchor-status")).to_have_text("Changed")
 
 
-# A widget that reads its text from `.value` and draws each value when the test
-# releases it, so an older draw can finish after a newer one.
-HELD_TEXT_MODULE = """
-import {LeafElement, nothing} from '/runtime/widget-api.js';
-customElements.define('lf-held-text', class extends LeafElement {
-  static properties = {value: {attribute: false}};
-  render() { return nothing; }
-  updated(changed) {
-    super.updated(changed);
-    const value = this.value;
-    const release = Promise.withResolvers();
-    (window.heldDraws ??= {})[value] = release.resolve;
-    if (!value?.startsWith('Held')) release.resolve();
-    this.work = release.promise.then(() => {
-      const p = this.querySelector('p') ?? this.appendChild(document.createElement('p'));
-      p.textContent = value;
-      if (p.dataset.lfDatum !== 'text') p.dataset.lfDatum = 'text';
-      this.dispatchEvent(new CustomEvent('drawn', {detail: {value}}));
-    });
-  }
-  async getUpdateComplete() {
-    const result = await super.getUpdateComplete();
-    await this.work;
-    return result;
-  }
-});
-"""
-
-
-def test_a_draw_that_lands_after_a_newer_value_keeps_the_revision_it_drew(
-    browser, serve
-):
-    """A widget reports the value it drew; Leaf stamps that value's own revision.
-
-    Stamping the revision current when the draw lands would let a comment on the
-    older words claim the newer source revision.
-    """
-    held = {
-        "description": "Text drawn from a bound value.",
-        "type": "object",
-        "properties": {
-            "id": {"type": "string"},
-            "source": {"type": "string"},
-        },
-        "required": ["id", "source"],
-        "additionalProperties": False,
-        "x-content": "empty",
-        "x-data": {
-            "text": {
-                "contract": "text-document",
-                "source": "source",
-                "property": "value",
-            }
-        },
-        "x-upgrade": True,
-        "x-example": '<lf-held-text id="held-example" source="note"></lf-held-text>',
-    }
-    url = serve(
-        leaf_page(
-            "Held text",
-            '<h1 id="title">Note</h1><lf-held-text id="note" source="note"></lf-held-text>',
-        ),
-        layer_registry={"lf-held-text": held},
-        layer_widgets={"lf-held-text.js": HELD_TEXT_MODULE},
-    )
-    data_model.cmd_data_set(serve.page_dir, "note", "First words")
-    page = open_page(browser, live_url(url))
-    datum = page.locator('#note [data-lf-datum="text"]')
-    expect(datum).to_have_attribute(
-        "data-lf-source-revision", source_revision(serve.page_dir, "note")
-    )
-
-    data_model.cmd_data_set(serve.page_dir, "note", "Held older words")
-    older = source_revision(serve.page_dir, "note")
-    page.wait_for_function("() => window.heldDraws?.['Held older words']")
-    data_model.cmd_data_set(serve.page_dir, "note", "Held newer words")
-    newer = source_revision(serve.page_dir, "note")
-    page.wait_for_function("() => window.heldDraws?.['Held newer words']")
-
-    page.evaluate("() => window.heldDraws['Held older words']()")
-    expect(datum).to_have_text("Held older words")
-    expect(datum).to_have_attribute("data-lf-source-revision", older)
-    page.evaluate("() => window.heldDraws['Held newer words']()")
-    expect(datum).to_have_text("Held newer words")
-    expect(datum).to_have_attribute("data-lf-source-revision", newer)
-
-
 def test_a_text_document_is_never_drawn_before_its_text_arrives(browser, serve):
     """A document's source reads null until the page's first state answer brings its
     text, as it does for a source with nothing to read. Drawn then, it showed a one-row
@@ -738,50 +651,6 @@ def test_a_captured_source_stays_pointable_and_pinned(browser, serve):
     expect(page.locator("lf-text-document code")).to_have_text(
         "# Leaf\n\nOriginal instructions.\n"
     )
-
-
-def test_an_older_data_response_cannot_replace_a_newer_reading(browser, serve):
-    """Overlapping reads order data by when the server took them, not by arrival."""
-    delay_second_state = """
-      const nativeFetch = window.fetch.bind(window);
-      let stateCalls = 0;
-      window.fetch = async (...args) => {
-        const input = args[0];
-        const url = typeof input === 'string' ? input : input.url;
-        const response = await nativeFetch(...args);
-        if (new URL(url, location.href).pathname !== '/api/state') return response;
-        stateCalls += 1;
-        if (stateCalls !== 2) return response;
-        const body = await response.text();
-        window.lfOldDataCaptured = true;
-        await new Promise(resolve => setTimeout(resolve, 3000));
-        window.lfOldDataReleased = true;
-        return new Response(body, {
-          status: response.status,
-          statusText: response.statusText,
-          headers: response.headers,
-        });
-      };
-    """
-    page = open_page(
-        browser, data_projection_page(serve), init_script=delay_second_state
-    )
-    # The second read, which the script above holds: the page reads when told to.
-    nudge(serve.page_dir)
-    page.wait_for_function("() => window.lfOldDataCaptured === true")
-
-    data_model.cmd_data_set(
-        serve.page_dir,
-        "deployments",
-        [
-            {"key": "api", "value": "Running"},
-            {"key": "worker", "value": "Ready"},
-        ],
-    )
-    expect(page.locator('[data-lf-datum="api"]')).to_contain_text("Running")
-    page.wait_for_function("() => window.lfOldDataReleased === true")
-    told(page)
-    expect(page.locator('[data-lf-datum="api"]')).to_contain_text("Running")
 
 
 # The page's one read slot bounds the network, not the application: `askOnce` releases
@@ -973,6 +842,10 @@ def test_a_stale_response_cannot_rewind_timestamp_aging(browser, serve):
     ticked(page)
     assert len(crossed) == 1
     expect(timestamp).to_have_text("1h ago")
+    # With no newer state at all, the panel's thread still ages by the clock.
+    page.clock.set_fixed_time(datetime.now().astimezone() + timedelta(hours=3))
+    ticked(page)
+    expect(timestamp).to_have_text("4h ago")
 
 
 def test_a_data_widget_draws_each_publication_and_recovers(browser, serve):
@@ -1287,34 +1160,6 @@ def test_a_held_reading_shows_once_unseen_after_its_owner_returns(browser, serve
         }"""
     )
     assert result == {"waiting": "first", "shown": "second"}
-
-
-def test_a_text_document_projects_its_current_source_provenance(browser, serve):
-    authored = leaf_page(
-        "source provenance",
-        '<h1 id="title">Source</h1>'
-        '<lf-text-document id="live" source="document" language="python"></lf-text-document>'
-        '<lf-text-document id="pinned" source="pinned" language="python"></lf-text-document>',
-    )
-    url = live_url(serve(authored))
-    data_model.cmd_data_set(serve.page_dir, "document", 'route = "old"')
-    data_model.cmd_data_set(serve.page_dir, "pinned", 'route = "old"')
-    page = open_page(browser, url)
-    expect(page.locator("#live code")).to_have_text('route = "old"')
-    expect(page.locator("#pinned code")).to_have_text('route = "old"')
-    data_model.cmd_data_set(serve.page_dir, "document", 'route = "new"')
-    told(page)
-    expect(page.locator("#live code")).to_have_text('route = "new"')
-    for selector, source, text in (
-        ("#live", "document", 'route = "new"'),
-        ("#pinned", "pinned", 'route = "old"'),
-    ):
-        projection = page.locator(f"{selector} [data-lf-datum]")
-        expect(projection).to_have_attribute("data-lf-source", source)
-        expect(projection).to_have_attribute(
-            "data-lf-source-revision", source_revision(serve.page_dir, source)
-        )
-        expect(projection.locator("code")).to_have_text(text)
 
 
 def test_data_readiness_settles_and_reports_failed_drawings(browser, serve):

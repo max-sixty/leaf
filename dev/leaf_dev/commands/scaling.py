@@ -161,12 +161,17 @@ BASE = 8
 SUPERLINEAR = 1.5
 # How many of the largest sizes the exponent is fitted over.
 FITTED = 3
-# Where a cost grows by less than this above BASE, what little it grew is the host's
-# noise, and its exponent leaves that size out. Milliseconds of CPU, kilobytes for the
-# event answer's size, and for the server's time to answer and the time until a click
-# shows its reading, which are elapsed time, milliseconds.
-FLOORS = {"event": 50, "shown": 50}
-FLOOR = 10
+# Where a cost grows by less than its floor above BASE, what little it grew is the
+# host's noise, and its exponent leaves that size out. A floor is a share of a reading
+# from the same run, the BASE page's load for the browser's costs (`floors`). A slower
+# machine slows that reading as much as every cost, so it fits the same sizes to the
+# same exponent. With the BASE page loading in 150-210 ms on an unloaded M5 Max, the
+# shares put a floor near 10 ms of CPU, and near 50 ms for the server's time to answer
+# and the time until a click shows its reading, which are elapsed time. The event
+# answer's size is in kilobytes, which no machine's speed changes.
+FLOOR_SHARE = 0.05
+FLOOR_SHARES = {"event": 0.25, "shown": 0.25}
+KB_FLOOR = 10
 # Root `AGENTS.md`, "Responsiveness": a click shows the server's reading within this
 # many ms on the largest page.
 BUDGET_MS = 100
@@ -819,16 +824,29 @@ def measure(browser, served: ServedPage, profiles: Path | None = None) -> dict:
         return {"elements": elements, **costs}
 
 
+def floors(rows: list[dict]) -> dict[str, float]:
+    """Each browser cost's noise floor in `rows`, one run's readings by size from BASE,
+    for each of `COLUMNS` they read."""
+    unit = rows[0]["load"]
+    return {
+        cost: KB_FLOOR
+        if cost == "event_kb"
+        else FLOOR_SHARES.get(cost, FLOOR_SHARE) * unit
+        for cost in COLUMNS
+        if cost in rows[0]
+    }
+
+
 def exponent(
-    cost: str, sizes: list[int], costs: list[float], fitted: int = FITTED
+    sizes: list[int], costs: list[float], floor: float, fitted: int = FITTED
 ) -> float | None:
     """The least-squares slope of log growth on log size over the `fitted` largest
     sizes, where a cost's growth is what it adds to its cost at the first size,
-    BASE. A size whose growth is under the cost's floor is left out, its growth the
-    host's noise. With fewer than all but one of the fitted sizes left, or fewer
-    than two, there is no exponent: the two largest of four server sizes stand
-    1.56 apart, and a slope across them reads a loaded host's noise as growth."""
-    fixed, floor = costs[0], FLOORS.get(cost, FLOOR)
+    BASE. A size whose growth is under `floor` is left out, its growth the host's
+    noise. With fewer than all but one of the fitted sizes left, or fewer than two,
+    there is no exponent: the two largest of four server sizes stand 1.56 apart, and
+    a slope across them reads a loaded host's noise as growth."""
+    fixed = costs[0]
     pairs = [
         (math.log(n), math.log(c - fixed))
         for n, c in list(zip(sizes, costs, strict=True))[-fitted:]
@@ -843,18 +861,16 @@ def exponent(
 
 
 def failures(
-    rows: list[dict], costs: Iterable[str], fitted: int = FITTED
+    rows: list[dict], noise: dict[str, float], fitted: int = FITTED
 ) -> dict[str, dict]:
-    """Each of `costs` that `rows`, by size, read whose growth above the first size
-    fits an exponent past SUPERLINEAR, which root `AGENTS.md`, "Responsiveness",
-    rules out, with its readings and why."""
+    """Each cost in `noise` whose growth in `rows`, by size, above the first size and
+    its floor there fits an exponent past SUPERLINEAR, which root `AGENTS.md`,
+    "Responsiveness", rules out, with its readings and why."""
     sizes = [row["n"] for row in rows]
     failed = {}
-    for cost in costs:
-        if cost not in rows[0]:
-            continue
+    for cost, floor in noise.items():
         readings = [row[cost] for row in rows]
-        slope = exponent(cost, sizes, readings, fitted)
+        slope = exponent(sizes, readings, floor, fitted)
         if slope is not None and slope > SUPERLINEAR:
             failed[cost] = {
                 "by size": dict(zip(sizes, readings, strict=True)),
@@ -895,11 +911,12 @@ def table(
     rows: list[dict],
     count: str,
     costs: dict[str, str],
+    noise: dict[str, float],
     fitted: int = FITTED,
 ) -> str:
     """`rows` by size, with the `count` each page held and each of `costs` under its
-    label, then each cost's exponent over the `fitted` largest sizes, marked `!`
-    above SUPERLINEAR."""
+    label, then each cost's exponent over the `fitted` largest sizes above its floor
+    in `noise`, marked `!` above SUPERLINEAR."""
     sizes = [row["n"] for row in rows]
     lines = [
         title,
@@ -912,7 +929,7 @@ def table(
         )
     cells = []
     for cost in costs:
-        slope = exponent(cost, sizes, [row[cost] for row in rows], fitted)
+        slope = exponent(sizes, [row[cost] for row in rows], noise[cost], fitted)
         mark = "!" if slope is not None and slope > SUPERLINEAR else " "
         cells.append(f" {'-' if slope is None else f'{slope:.2f}':>9}{mark}")
     lines.append(f"{'exponent':>16}" + "".join(cells))
@@ -1041,7 +1058,7 @@ def scaling(
                 read = {
                     cost: label for cost, label in COLUMNS.items() if cost in rows[0]
                 }
-                click.echo(table(title, rows, "elements", read))
+                click.echo(table(title, rows, "elements", read, floors(rows)))
                 if missing := [cost for cost in COLUMNS if cost not in read]:
                     click.echo(
                         f"  missing, with no option to aim at: {', '.join(missing)}"
@@ -1115,6 +1132,7 @@ def scale_server(
     does (`leaf_dev.server_scaling`), and name each path that breaks the rule
     (`failures`)."""
     from leaf_dev.server_scaling import FITTED, PATHS, RUNS, measure, over_budget
+    from leaf_dev.server_scaling import floors as path_floors
 
     rounds = rounds or RUNS
     click.echo(f"Server paths of this checkout, least CPU of {rounds} runs\n")
@@ -1123,8 +1141,9 @@ def scale_server(
         rows, profiles = measure(COLLECTIONS[axis], sizes, run / axis, profile, rounds)
         results[axis] = rows
         paths = {path: f"{path} ms" for path in PATHS if path in rows[0]}
-        click.echo(table(axis, rows, "events", paths, FITTED))
-        for path, failure in failures(rows, PATHS, FITTED).items():
+        noise = path_floors(rows)
+        click.echo(table(axis, rows, "events", paths, noise, FITTED))
+        for path, failure in failures(rows, noise, FITTED).items():
             click.echo(f"  {path}: {failure['why']}")
         if why := over_budget(rows):
             click.echo(f"  click: {why}")

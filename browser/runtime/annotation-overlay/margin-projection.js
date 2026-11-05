@@ -133,7 +133,7 @@ import { readingRegionFor } from "../reading-regions.js";
 
 import { keys, paintKeys } from "../keyboard/scopes.js";
 import { pageRung, pageScope } from "../keyboard/register.js";
-import { nativeLayerHolding } from "../shadow-tree.js";
+import { nativeLayerHolding, skipped } from "../shadow-tree.js";
 
 import { annotationsHidden, watchAnnotations } from "./annotation-layer.js";
 import { repaint } from "../repaint.js";
@@ -155,7 +155,6 @@ import { releaseReplies } from "../thread/replies.js";
 import { createMarginClusterViews } from "./margin-cluster-view.js";
 
 import { seenRect, shownWindow, watchRoom } from "../geometry.js";
-import { skipped } from "../shown-box.js";
 
 import { renderedOrder, renderedUnder, under } from "../shadow.js";
 import { agentName } from "../semantic-state.js";

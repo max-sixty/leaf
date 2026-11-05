@@ -1440,6 +1440,7 @@ export default [
           "caretKeys",
           "clippingAxes",
           "renderedParent",
+          "skipped",
           "elementAxes",
           "scrollAxes",
           "nativePerformance",

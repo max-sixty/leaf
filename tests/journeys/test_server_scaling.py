@@ -19,7 +19,7 @@ from leaf_dev.commands.scaling import (
     SERVER_SIZES,
     failures,
 )
-from leaf_dev.server_scaling import FITTED, PATHS, measure
+from leaf_dev.server_scaling import FITTED, floors, measure
 
 # Each move on a board records its column's whole authored order, so the cards page's
 # log grows with the square of its cards and its paths fit an exponent of 1.3 to 1.6
@@ -38,5 +38,5 @@ AXES = [
 def test_no_server_path_grows_faster_than_the_page(axis, tmp_path):
     collection = COLLECTIONS[axis]
     rows, _profiles = measure(collection, [BASE, *SERVER_SIZES], tmp_path)
-    failed = failures(rows, PATHS, FITTED)
+    failed = failures(rows, floors(rows), FITTED)
     assert not failed, failed

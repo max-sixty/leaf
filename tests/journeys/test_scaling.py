@@ -10,9 +10,14 @@ fixed work fits an exponent past `SUPERLINEAR` (`scaling.failures`).
 `uv run leaf-dev scaling AXIS --profile` names the function that grew.
 
 A busy runner adds time to a reading and never takes it away, so each size is measured
-twice, the sizes interleaved, and the lower reading counts (`scaling.lowest`). On a
-host at load 50, three such pairs of every cost on every axis stayed under
-`SUPERLINEAR`, and 100 ms per input of added quadratic work failed most of them.
+twice, the sizes interleaved, and the lower reading counts (`scaling.lowest`). Each
+reading is the page's own: the suite's health sensors (`render_harness.watched`) work
+on the main thread at every input, more than most inputs take, so the pages are
+opened without them. Each page's costs stayed under `SUPERLINEAR` on an M5 Max at
+load 10, and the document and asks pages' at CPU rate 10 too, while 100 ms of busy
+work at the 256 page, added to each press, key and wheel step and scaled with the
+square of the page's size, failed the click, key and scroll on the prose and
+document pages.
 
 Each run also writes the readings it takes at `CHARTED` sections, the lower of each
 pair, to `READINGS` in github-action-benchmark's `customSmallerIsBetter` form, and the
@@ -31,6 +36,7 @@ from leaf_dev.commands.scaling import (
     BASE,
     COLUMNS,
     failures,
+    floors,
     measure_rounds,
 )
 
@@ -80,5 +86,6 @@ def test_no_cost_grows_faster_than_the_page(axis, tmp_path, browser):
             ]
         )
     )
-    failed = failures(rows, (cost for cost in costs if cost not in UNHELD))
+    held = {cost: floor for cost, floor in floors(rows).items() if cost not in UNHELD}
+    failed = failures(rows, held)
     assert not failed, failed

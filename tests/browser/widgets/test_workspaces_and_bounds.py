@@ -836,7 +836,9 @@ def test_workspace_end_room_stays_inside_the_last_reading_region(
         resized(page, 900, 500)
         page.get_by_role("link", name="Record decision").click()
         scroll_settled(page, scroller)
-        page.get_by_role("checkbox", name=re.compile("Ship with changes")).click()
+        # The current ask wears its digits, which stand over each card's mark, so the
+        # walk starts from the mark by focus rather than a press on its corner.
+        page.get_by_role("checkbox", name=re.compile("Ship with changes")).focus()
         page.keyboard.press("ArrowDown")
         page.keyboard.press("Space")
         expect(

@@ -58,6 +58,15 @@ RUNS = 3
 FITTED = 4
 
 
+def floors(rows: list[dict]) -> dict[str, float]:
+    """Each path's noise floor (`scaling.exponent`) in `rows`, one run's readings by
+    size from BASE: the path's own reading on the BASE page, a reading of the same run,
+    as the browser's floors are shares of its load (`scaling.floors`). A path's own
+    fixed cost sets the floor, so a cheap path's growth isn't judged against a dearer
+    one's fixed work."""
+    return {path: rows[0][path] for path in PATHS if path in rows[0]}
+
+
 @contextmanager
 def scratch_state(directory: Path) -> Generator[None]:
     """Point Leaf's state home into `directory` while the pages are built and read,

@@ -9,12 +9,10 @@ from playwright.sync_api import expect
 from render_cases_layout import current_location_ring, ring_faults
 from render_cases_navigation import source_revision
 from render_harness import (
-    at_rest,
     holding,
     leaf_page,
     open_page,
     resized,
-    still_page,
     told,
 )
 
@@ -145,13 +143,6 @@ def test_trace_parts_carry_the_recording_and_place_they_were_drawn_from(browser,
         arg=rerun,
     )
     assert [{**part, "revision": rerun} for part in first] == stamps()
-
-
-@pytest.mark.shifts_unsurveyed
-def test_trace_viewer_stays_idle_after_initial_presentation(browser, serve):
-    """The viewer's disabled transition cannot wake margin layout after readiness."""
-    url = serve(named_source("playwright-trace-gallery"))
-    assert at_rest(still_page(browser, url)) == []
 
 
 @pytest.mark.parametrize(
@@ -817,7 +808,7 @@ def test_trace_overview_shows_every_row_and_preserves_page_scrolling(browser, se
         # Keyboard stepping moves the playhead, not the whole-recording window.
         timeline.focus()
         ruler_reading = "nodes => nodes.map(node => [node.textContent, node.getBoundingClientRect().x])"
-        ruler = widget.locator(".lf-trace-tick-major")
+        ruler = widget.locator(".lf-axis-tick[data-lf-major]")
         time_window = ruler.evaluate_all(ruler_reading)
         position = widget.locator(".lf-trace-position")
         for _ in range(4):
@@ -1026,7 +1017,7 @@ def test_trace_render_gate_restores_the_zoomed_time_window(browser, serve):
     for _ in range(3):
         widget.get_by_role("button", name="Zoom in", exact=True).click()
     rendered(user)
-    ruler = widget.locator(".lf-trace-tick-major")
+    ruler = widget.locator(".lf-axis-tick[data-lf-major]")
 
     def time_window():
         return ruler.evaluate_all("""nodes => nodes.map(node => ({

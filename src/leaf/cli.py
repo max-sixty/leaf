@@ -1349,7 +1349,9 @@ def thread_create(
     the work as a whole.
 
     Use --obligation when the next move is the user's: the message waits on
-    On me until their reply or settling reaction. Refuses a quote the active revision does not
+    On me until their reply or settling reaction. A question whose answers you
+    can list takes an `lf-options` choice in --markup instead, which waits on
+    the user until they pick. Refuses a quote the active revision does not
     hold, or holds more than once. The comment's id is the thread's.
     """
     from leaf.thread import cmd_comment
@@ -1399,7 +1401,8 @@ def thread_reply(
     thread PAGE MESSAGE names, which is refused while that thread owes an answer.
 
     An answer declares what it leaves with --done, --todo or --obligation, or
-    carries a widget in --markup that asks; --ephemeral progress declares nothing,
+    carries a widget in --markup that asks, as an `lf-options` choice asks a
+    question whose answers you can list; --ephemeral progress declares nothing,
     and --done needs a reference. The reply
     publishes your saved page edits, checked as `page check` checks them without a
     browser. The Leaf skill's references/threads.md says which to use and what
@@ -1492,37 +1495,28 @@ def task() -> None:
     lay out your plan.
 
     Your list, On <your name>, holds each update you owe an answer and each to-do
-    you opened; a to-do `--on user` is on the user's On me instead. Every write
-    prints the record it appended, one JSON line, as `page events` prints it. The
-    Leaf skill's references/conversation-loop.md, "Long-running work" and "The On
-    lists", says when to use each.
+    you opened. What waits on the user is asked by a widget or a message with
+    --obligation, never a to-do. Every write prints the record it appended, one JSON
+    line, as `page events` prints it. The Leaf skill's references/conversation-loop.md,
+    "Long-running work" and "The On lists", says when to use each.
     """
 
 
-@task.command("create", short_help="Create a to-do, yours or the user's.")
+@task.command("create", short_help="Create a to-do of yours.")
 @page_argument(renew=True)
 @click.argument("subject", metavar="SUBJECT")
 @click.option("--title", required=True, help="the to-do, in a few words")
-@click.option(
-    "--on",
-    "owner",
-    type=click.Choice(["agent", "user"]),
-    default="agent",
-    show_default=True,
-    help="whose list the to-do is on: yours, or the user's On me",
-)
-def task_create(page_dir: Path, subject: str, title: str, owner: str) -> dict:
+def task_create(page_dir: Path, subject: str, title: str) -> dict:
     """Create a to-do titled --title on SUBJECT and print it; its `id` names it later.
 
     SUBJECT is a thread id, an element's id, or `page` for the whole page.
-    Your own to-do on a widget needs a widget that declares x-work or holds an
-    unsettled update. With `--on user` the to-do is the user's: their Done ends it,
-    and you can end it too. A thread attachment provides discussion context;
-    replying does not complete the task. For a conversational request instead,
-    send the message with --obligation."""
+    A to-do on a widget needs a widget that declares x-work or holds an
+    unsettled update. A thread attachment provides discussion context;
+    replying does not complete the task. To leave the user something to do or
+    answer, send a message with --obligation instead."""
     from leaf.todos import cmd_create
 
-    return cmd_create(page_dir, subject, title, owner)
+    return cmd_create(page_dir, subject, title)
 
 
 @task.command(
@@ -1554,7 +1548,7 @@ def task_start(page_dir: Path, item: str, line: str) -> dict:
 def task_end(page_dir: Path, task_id: str, outcome: str, detail: str | None) -> dict:
     """End the to-do or conversational obligation named by ID in `page state`.
 
-    A to-do, yours or the user's, ends done, failed or dropped. --text says where
+    A to-do ends done, failed or dropped. --text says where
     the result is, such as the version or reply holding it, or why there is none.
 
     For a message obligation (`message:<id>`) or a question widget answered in

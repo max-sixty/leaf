@@ -1098,13 +1098,6 @@ def fragment_errors(html, registry):
     return validation_model.fragment_errors(parser, registry)
 
 
-def case_alias(path):
-    alias = path.with_name(path.name.swapcase())
-    if not alias.exists() or not path.samefile(alias):
-        pytest.skip("requires a case-insensitive filesystem")
-    return alias
-
-
 SUGGESTION = """<lf-suggestion id="sug-refill">
   <lf-old><p id="refill-rule">Refill every feeder each morning.</p></lf-old>
   <lf-new><p id="refill-camera">Refill when the camera shows it half-empty.</p></lf-new>
@@ -1465,8 +1458,6 @@ TRIAL_LOG = """<lf-trial id="trial-log">
 PILOT_PURGE = """<lf-pilot id="pilot-purge">
   <lf-proposed><p id="purge-weekly">Purge the dead-letter queue weekly.</p></lf-proposed>
 </lf-pilot>"""
-ADOPTED = '<p id="cache-hourly">Rebuild the cache each hour.</p>'
-SHELVED = '<p id="log-daily">Logs roll over at midnight.</p>'
 
 
 def deciding_verb(outcomes):
@@ -1916,7 +1907,6 @@ def declare_work(page_dir, line, *, item=None, ts=None, **voice):
                 {
                     "kind": "todo",
                     "author": "agent",
-                    "owner": "agent",
                     "subject": {"kind": "page"},
                     "title": "Work on the page",
                     **({"ts": ts} if ts else {}),

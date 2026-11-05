@@ -89,7 +89,7 @@ lf-trace[hidden="until-found"] {
   justify-content: space-between;
   gap: var(--sp-2);
 }
-/* Keep source names visible and let the shared control own keyboard selection. */
+/* The scope's radio group (webawesome.css) at the recording's control size. */
 .lf-trace-sources {
   --wa-form-control-height: var(--lf-trace-control-size);
   display: block;
@@ -98,21 +98,8 @@ lf-trace[hidden="until-found"] {
   min-inline-size: 0;
   max-inline-size: 100%;
 }
-.lf-trace-sources::part(form-control-input) {
-  flex-wrap: wrap;
-  gap: var(--sp-2);
-}
 .lf-trace-source {
-  margin: 0;
-  border-radius: var(--r);
   min-block-size: var(--lf-trace-control-size);
-  min-inline-size: 0;
-  max-inline-size: 100%;
-  box-sizing: border-box;
-}
-.lf-trace-source::part(label) {
-  white-space: normal;
-  overflow-wrap: anywhere;
 }
 .lf-trace-viewer {
   white-space: nowrap;
@@ -216,7 +203,7 @@ lf-trace[hidden="until-found"] {
   scrollbar-width: thin;
 }
 .lf-trace-track {
-  --lf-trace-span: calc(100% - 2 * var(--lf-trace-edge));
+  --lf-trace-span: calc(100% - 2 * var(--lf-axis-edge));
   position: relative;
   inline-size: calc(var(--lf-trace-zoom, 1) * 100%);
   min-inline-size: 100%;
@@ -225,56 +212,14 @@ lf-trace[hidden="until-found"] {
   cursor: crosshair;
   overflow: hidden;
 }
-.lf-trace-ruler {
-  position: relative;
-  color: var(--muted);
+/* The axis's gridlines (controls.css, `.lf-axis-grid`) run from the ruler's foot down
+   every lane, as the playhead does. */
+.lf-trace-grid {
+  position: absolute;
+  inset: var(--lf-trace-ruler-h) 0 0;
 }
 .lf-trace-lane {
   position: relative;
-}
-:is(
-  .lf-trace-tick,
-  .lf-trace-moment-pin,
-  .lf-trace-input-label,
-  .lf-trace-bar,
-  .lf-trace-input-send,
-  .lf-trace-capture
-) {
-  position: absolute;
-  left: calc(var(--lf-trace-edge) + var(--t) * var(--lf-trace-span));
-}
-.lf-trace-tick {
-  inset-block-end: 0;
-  block-size: 4px;
-  border-inline-start: 1px solid var(--border-2);
-}
-.lf-trace-tick-major {
-  block-size: 100%;
-  box-sizing: border-box;
-  padding-inline-start: 3px;
-  padding-block-start: 3px;
-  border-inline-start-color: var(--muted);
-  white-space: nowrap;
-}
-/* The last label reads back from its tick, inside the scale. */
-.lf-trace-tick-major[data-lf-flip] {
-  translate: -100% 0;
-  padding-inline: 0 3px;
-  border-inline-start: 0;
-  border-inline-end: 1px solid var(--muted);
-}
-.lf-trace-tick-major[data-lf-flip]::after {
-  inset-inline: auto -1px;
-}
-/* Grid lines continue the major ticks through the lanes. */
-.lf-trace-tick-major::after {
-  content: "";
-  position: absolute;
-  inset-inline-start: -1px;
-  inset-block-start: 100%;
-  block-size: 2000px;
-  border-inline-start: 1px dashed color-mix(in srgb, var(--border-2) 70%, transparent);
-  pointer-events: none;
 }
 /* Bars span their recorded call; a 2px floor keeps an instant visible. */
 .lf-trace-bar {
@@ -435,9 +380,7 @@ lf-trace[hidden="until-found"] {
 }
 /* The playhead: one line across every lane on the shared time coordinate. */
 .lf-trace-playhead {
-  position: absolute;
   inset-block: 0;
-  left: calc(var(--lf-trace-edge) + var(--lf-trace-time, 0) * var(--lf-trace-span));
   inline-size: 2px;
   translate: -1px 0;
   background: var(--accent);
@@ -874,20 +817,11 @@ lf-trace-bookmark {
   font-variant-numeric: tabular-nums;
 }
 /* The viewer and the marks over it are positioned boxes on the paper, which paint over
- * an outline on the canvas itself, so its inset ring is drawn on a later box above the
- * highest of them, the input's badge and point; the canvas's own layer keeps them all
- * under that box. */
-.lf-trace-canvas[data-lf-focus-visible] {
-  outline: none;
-}
-.lf-trace-canvas[data-lf-focus-visible]::after {
-  content: "";
-  position: absolute;
-  inset: 0;
+ * an outline on the canvas itself, so the canvas is a ring overlay (surfaces.css,
+ * `.lf-ring-overlay`), whose ring stands above the highest of them, the input's badge
+ * and point; the canvas's own layer keeps them all under that ring. */
+.lf-trace-canvas::after {
   z-index: 3;
-  pointer-events: none;
-  outline: var(--focus-ring);
-  outline-offset: var(--focus-ring-inset);
 }
 
 @container (max-width: 480px) {

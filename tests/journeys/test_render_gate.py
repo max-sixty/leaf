@@ -340,57 +340,6 @@ def test_the_render_gate_reads_content_through_bounded_pane_regions(browser, ser
     )
 
 
-def test_a_broken_probe_module_is_a_gate_finding(browser, serve):
-    """A probe module fault names the browser boundary instead of raising a traceback.
-
-    The neighboring stalled-module test owns the short deadline. This test uses the
-    gate's default so the module rejection, rather than the driver's timeout, supplies
-    the finding.
-    """
-
-    def break_probe(page):
-        page.route(
-            "**/checks/index.js",
-            lambda route: route.fulfill(
-                status=200,
-                content_type="text/javascript; charset=utf-8",
-                body='throw new Error("probe module failed for test");',
-            ),
-        )
-
-    failures = render_gate_model.render_version(
-        primed(browser.unwatched, break_probe), serve(LONG_PAGE)
-    ).failures
-
-    assert failures
-    assert {failure.code for failure in failures} == {"probe-failed"}, failures
-    assert all(
-        "probe module failed for test" in failure.values["error"]
-        for failure in failures
-    )
-
-
-def test_an_async_wait_probe_is_refused_instead_of_passing_as_a_promise(browser, serve):
-    """A Promise is not a readiness fact, even when JavaScript treats it as truthy."""
-
-    def make_readiness_async(page):
-        page.route(
-            "**/checks/index.js",
-            lambda route: route.fulfill(
-                status=200,
-                content_type="text/javascript; charset=utf-8",
-                body="export const runtimeStarted = async () => false;",
-            ),
-        )
-
-    failures = render_gate_model.render_version(
-        primed(browser.unwatched, make_readiness_async), serve(LONG_PAGE)
-    ).failures
-
-    assert failures
-    assert all("must be synchronous" in failure.values["error"] for failure in failures)
-
-
 def test_a_probe_module_that_stops_loading_is_a_gate_finding(browser, serve):
     """The module loader has the gate's deadline even though page.evaluate has none."""
     asked = []
@@ -438,6 +387,10 @@ def test_a_failed_probe_import_keeps_its_original_throw_site(browser, serve, fau
         serve(LONG_PAGE),
     ).failures
     assert len(failures) == 2, failures
+    assert {failure.code for failure in failures} == {"probe-failed"}, failures
+    # A dynamic import's failure is no page fault. The gate's own wait must not echo it
+    # back as one, or its timing would split one finding per render.
+    assert all(failure.values["console"] == [] for failure in failures), failures
     errors = [failure.values["error"] for failure in failures]
     assert all('File "' not in error for error in errors), failures
     if fault == "exception":

@@ -19,6 +19,7 @@ from render_cases_widgets import (
 )
 from render_harness import (
     BOARD_PAGE,
+    RELEASE_FOCUS,
     leaf_page,
     margins_laid_out,
     open_page,
@@ -56,11 +57,12 @@ RECEIPT_PHASES = {
 UNID_SELECTION_PAGE = PANEL_PAGE.replace('<p id="how-cap">', "<p>")
 
 
-@pytest.mark.parametrize("scheme", ["light", "dark"])
 def test_margin_entry_tone_stays_distinct_from_control_and_agent_state(
-    browser, serve, scheme
+    browser, serve, subtests
 ):
-    """Tone keeps its meaning through interaction and agent-workflow states."""
+    """Tone keeps its meaning through interaction and agent-workflow states, in either
+    colour scheme. Each case starts with nothing held or pointed at, and ends with the
+    states it walked put back."""
     page = open_page(
         browser,
         serve(
@@ -72,7 +74,7 @@ def test_margin_entry_tone_stays_distinct_from_control_and_agent_state(
             )
         ),
     )
-    page.emulate_media(color_scheme=scheme, reduced_motion="reduce")
+    page.emulate_media(reduced_motion="reduce")
     resized(page, 1440, 900)
     page.evaluate(
         """async () => {
@@ -130,63 +132,75 @@ def test_margin_entry_tone_stays_distinct_from_control_and_agent_state(
         assert readings[0]["mark"] == readings[1]["mark"] == readings[2]["mark"]
         assert len({reading["icon"] for reading in readings}) == 3
 
-    for state in ("idle", "engaged", "busy", "failed"):
-        page.evaluate("state => window.setToneState(state)", state)
-        for button in buttons:
-            expect(button).to_have_attribute("data-lf-state", state)
-            expect(button).to_have_css("opacity", "0.5" if state == "busy" else "1")
-        readings = [button.evaluate(read) for button in buttons]
-        assert all(reading["mark"] is None for reading in readings)
-        assert [reading["shape"] for reading in readings] == [["solid"] * 4] * len(
-            buttons
-        )
-        animation = "lf-runtime-4f3c2a8d-working" if state == "busy" else "none"
-        assert all(reading["animation"] == animation for reading in readings)
-        assert_icon_only(readings)
+    for scheme in ("light", "dark"):
+        with subtests.test(scheme=scheme):
+            page.emulate_media(color_scheme=scheme)
+            page.mouse.move(0, 0)
+            page.evaluate(RELEASE_FOCUS)
+            # What a case that failed partway can leave standing for the next.
+            page.evaluate("() => window.setToneReceiptPhase(null)")
+            buttons[0].evaluate("button => { delete button.dataset.lfAgentWorkflow; }")
+            for state in ("idle", "engaged", "busy", "failed"):
+                page.evaluate("state => window.setToneState(state)", state)
+                for button in buttons:
+                    expect(button).to_have_attribute("data-lf-state", state)
+                    expect(button).to_have_css(
+                        "opacity", "0.5" if state == "busy" else "1"
+                    )
+                readings = [button.evaluate(read) for button in buttons]
+                assert all(reading["mark"] is None for reading in readings)
+                assert [reading["shape"] for reading in readings] == [
+                    ["solid"] * 4
+                ] * len(buttons)
+                animation = "lf-runtime-4f3c2a8d-working" if state == "busy" else "none"
+                assert all(reading["animation"] == animation for reading in readings)
+                assert_icon_only(readings)
 
-    page.evaluate("() => window.setToneState('busy')")
-    buttons[0].evaluate("button => { button.dataset.lfAgentWorkflow = 'working'; }")
-    expect(buttons[0]).to_have_css("opacity", "0.5")
-    buttons[0].evaluate("button => { delete button.dataset.lfAgentWorkflow; }")
+            page.evaluate("() => window.setToneState('busy')")
+            buttons[0].evaluate(
+                "button => { button.dataset.lfAgentWorkflow = 'working'; }"
+            )
+            expect(buttons[0]).to_have_css("opacity", "0.5")
+            buttons[0].evaluate("button => { delete button.dataset.lfAgentWorkflow; }")
 
-    page.evaluate("() => window.setToneState('idle')")
-    ordinary = [button.evaluate(read) for button in buttons]
-    page.evaluate("() => window.setToneReceiptPhase('picked_up')")
-    picked_up = [button.evaluate(read) for button in buttons]
-    assert [reading["shell"] for reading in picked_up] == [
-        reading["shell"] for reading in ordinary
-    ]
-    assert [reading["icon"] for reading in picked_up] == [
-        token_colour(page, "--accent"),
-        ordinary[1]["icon"],
-        ordinary[2]["icon"],
-    ]
-    page.evaluate("() => window.setToneReceiptPhase('working')")
-    working = [button.evaluate(read) for button in buttons]
-    assert [reading["shell"] for reading in working] == [
-        reading["shell"] for reading in ordinary
-    ]
-    assert [reading["icon"] for reading in working] == [
-        token_colour(page, "--accent"),
-        ordinary[1]["icon"],
-        ordinary[2]["icon"],
-    ]
-    page.evaluate("() => window.setToneReceiptPhase(null)")
+            page.evaluate("() => window.setToneState('idle')")
+            ordinary = [button.evaluate(read) for button in buttons]
+            page.evaluate("() => window.setToneReceiptPhase('picked_up')")
+            picked_up = [button.evaluate(read) for button in buttons]
+            assert [reading["shell"] for reading in picked_up] == [
+                reading["shell"] for reading in ordinary
+            ]
+            assert [reading["icon"] for reading in picked_up] == [
+                token_colour(page, "--accent"),
+                ordinary[1]["icon"],
+                ordinary[2]["icon"],
+            ]
+            page.evaluate("() => window.setToneReceiptPhase('working')")
+            working = [button.evaluate(read) for button in buttons]
+            assert [reading["shell"] for reading in working] == [
+                reading["shell"] for reading in ordinary
+            ]
+            assert [reading["icon"] for reading in working] == [
+                token_colour(page, "--accent"),
+                ordinary[1]["icon"],
+                ordinary[2]["icon"],
+            ]
+            page.evaluate("() => window.setToneReceiptPhase(null)")
 
-    hovered = []
-    focused = []
-    for button in buttons:
-        button.hover()
-        hovered.append(button.evaluate(read))
-        page.mouse.move(0, 0)
-        button.focus()
-        page.keyboard.press("Tab")
-        page.keyboard.press("Shift+Tab")
-        expect(button).to_be_focused()
-        assert button.evaluate("node => node.matches(':focus-visible')")
-        focused.append(button.evaluate(read))
-    assert_icon_only(hovered)
-    assert_icon_only(focused)
+            hovered = []
+            focused = []
+            for button in buttons:
+                button.hover()
+                hovered.append(button.evaluate(read))
+                page.mouse.move(0, 0)
+                button.focus()
+                page.keyboard.press("Tab")
+                page.keyboard.press("Shift+Tab")
+                expect(button).to_be_focused()
+                assert button.evaluate("node => node.matches(':focus-visible')")
+                focused.append(button.evaluate(read))
+            assert_icon_only(hovered)
+            assert_icon_only(focused)
 
 
 @pytest.mark.parametrize("reduced_motion", ["no-preference", "reduce"])
@@ -1065,7 +1079,7 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
             expect(marker).to_have_attribute("data-identity-probe", "kept")
         page.evaluate("() => document.activeElement.blur()")
         page.mouse.move(0, 0)
-        expect(page.locator(".lf-traced")).to_have_count(0)
+        expect(page.locator("[data-lf-traced]")).to_have_count(0)
         expect(control.locator(":scope > .lf-margin-entry-label")).to_be_hidden()
         words_still()
         current = face(control)
@@ -1104,7 +1118,7 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
         }
         control.hover()
         traced = page.locator("#jobs")
-        expect(traced).to_have_class(re.compile(r"\blf-traced\b"))
+        expect(traced).to_have_attribute("data-lf-traced", "")
         label = control.locator(":scope > .lf-margin-entry-label")
         expect(label).to_be_visible()
         words_still()
@@ -1355,11 +1369,10 @@ def test_status_hover_trace_uses_a_registered_visual_surface(browser, serve):
     status.hover()
     # The surface draws the trace along its own edge, whole, in the trace's ink; the
     # part it stands for, which holds a decoration too, draws none.
-    traced = re.compile(r"\blf-traced\b")
     surface = page.locator("#outer-surface")
-    expect(surface).to_have_class(traced)
-    expect(page.locator("#outer")).not_to_have_class(traced)
+    expect(surface).to_have_attribute("data-lf-traced", "")
+    expect(page.locator("#outer")).not_to_have_attribute("data-lf-traced", "")
     assert_drawn_in(surface, token_colour(page, "--target-trace-ink"), 2)
 
     page.mouse.move(0, 0)
-    expect(page.locator(".lf-traced")).to_have_count(0)
+    expect(page.locator("[data-lf-traced]")).to_have_count(0)

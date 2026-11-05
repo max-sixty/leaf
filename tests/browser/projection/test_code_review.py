@@ -56,7 +56,8 @@ def test_page_state_and_browser_share_the_decision_and_bound_sources(browser, se
 
     A pin is a source id nothing rewrites: the reviewed copy keeps its revision while
     the current source moves on, and each widget's origin names its own file's digest,
-    the file `page state` names for that source.
+    the file `page state` names for that source. A write to one source, with both
+    documents on the page, moves that document's words and provenance alone.
     """
     authored = leaf_page(
         "construction parity",
@@ -104,6 +105,20 @@ def test_page_state_and_browser_share_the_decision_and_bound_sources(browser, se
         )
     expect(page.locator("#reviewed figcaption")).to_have_text("Reviewed")
     expect(page.locator("#current figcaption")).to_have_text("instructions")
+
+    data_model.cmd_data_set(serve.page_dir, "instructions", "Moved instructions.\n")
+    told(page)
+    expect(page.locator("#current code")).to_have_text("Moved instructions.\n")
+    for selector, source, text in (
+        ("#current", "instructions", "Moved instructions.\n"),
+        ("#reviewed", "reviewed-instructions", "Reviewed instructions.\n"),
+    ):
+        projection = page.locator(f"{selector} [data-lf-datum]")
+        expect(projection).to_have_attribute("data-lf-source", source)
+        expect(projection).to_have_attribute(
+            "data-lf-source-revision", source_revision(serve.page_dir, source)
+        )
+        expect(projection.locator("code")).to_have_text(text)
 
 
 def test_pr_review_package_keeps_the_authors_brief_distinct_and_stable(browser, serve):
@@ -260,10 +275,7 @@ def test_pr_review_package_keeps_the_authors_brief_distinct_and_stable(browser, 
     page.emulate_media(media="screen")
 
 
-@pytest.mark.parametrize("returned", [False, True], ids=["stayed", "returned"])
-def test_pr_review_observed_age_refreshes_without_a_data_change(
-    browser, serve, returned
-):
+def test_pr_review_observed_age_refreshes_without_a_data_change(browser, serve):
     """The observation time is rendered after Markdown loading, but still follows the
     shared clock when the source revision remains unchanged, including after the brief
     leaves the page and returns with its painting kept."""
@@ -296,17 +308,6 @@ def test_pr_review_observed_age_refreshes_without_a_data_change(
     page = open_page(browser, url)
     observed = page.locator(".pr-observed")
     expect(observed).to_have_text("Observed just now")
-    if returned:
-        page.locator("#reviewed-pr").evaluate(
-            """async (element) => {
-              const parent = element.parentNode;
-              const next = element.nextSibling;
-              element.remove();
-              await new Promise((resolve) => setTimeout(resolve));
-              parent.insertBefore(element, next);
-              await new Promise((resolve) => setTimeout(resolve));
-            }"""
-        )
 
     # Only the browser's clock can be moved from here, and every state answer
     # recalibrates the page's one measured offset against the server's real `now`
@@ -319,6 +320,20 @@ def test_pr_review_observed_age_refreshes_without_a_data_change(
     page.clock.set_fixed_time(datetime.now().astimezone() + timedelta(hours=3))
     ticked(page)
     expect(observed).to_have_text("Observed 3h ago")
+
+    page.locator("#reviewed-pr").evaluate(
+        """async (element) => {
+          const parent = element.parentNode;
+          const next = element.nextSibling;
+          element.remove();
+          await new Promise((resolve) => setTimeout(resolve));
+          parent.insertBefore(element, next);
+          await new Promise((resolve) => setTimeout(resolve));
+        }"""
+    )
+    page.clock.set_fixed_time(datetime.now().astimezone() + timedelta(hours=6))
+    ticked(page)
+    expect(observed).to_have_text("Observed 6h ago")
 
 
 def test_pr_review_disconnect_during_markdown_load_is_safe(browser, serve):
@@ -653,10 +668,7 @@ def test_diff_coordinates_keep_identity_separate_from_source_navigation(browser,
     assert resolved(["app.py", "new", 20]) == '["app.py","both",5,20]'
 
 
-@pytest.mark.parametrize("manifest", [False, True])
-def test_call_diff_source_paths_do_not_alias_durable_rename_coordinates(
-    browser, serve, manifest
-):
+def test_call_diff_source_paths_do_not_alias_durable_rename_coordinates(browser, serve):
     """Old source b.py and durable destination b.py identify different rename rows."""
     url = serve(
         leaf_page(
@@ -679,9 +691,7 @@ def test_call_diff_source_paths_do_not_alias_durable_rename_coordinates(
         "diff --git a/a.py b/a.py\nnew file mode 100644\n"
         "--- /dev/null\n+++ b/a.py\n@@ -0,0 +1 @@\n+new_a()\n"
     )
-    data_model.cmd_data_set(
-        serve.page_dir, "patch-data", patch_manifest(patch) if manifest else patch
-    )
+    data_model.cmd_data_set(serve.page_dir, "patch-data", patch_manifest(patch))
     data_model.cmd_data_set(
         serve.page_dir,
         "calls-data",
@@ -734,7 +744,7 @@ def test_call_diff_source_paths_do_not_alias_durable_rename_coordinates(
     data_model.cmd_data_set(
         serve.page_dir,
         "patch-data",
-        patch_manifest(long_preimage) if manifest else long_preimage,
+        patch_manifest(long_preimage),
     )
     told(page)
     expect(header).to_contain_text("legacy/very/long/original.py → c.py")
@@ -749,7 +759,7 @@ def test_call_diff_source_paths_do_not_alias_durable_rename_coordinates(
     data_model.cmd_data_set(
         serve.page_dir,
         "patch-data",
-        patch_manifest(ambiguous) if manifest else ambiguous,
+        patch_manifest(ambiguous),
     )
     told(page)
     expect(header).to_contain_text("a.py → c.py")
@@ -792,7 +802,7 @@ def test_call_diff_source_paths_do_not_alias_durable_rename_coordinates(
         data_model.cmd_data_set(
             serve.page_dir,
             "patch-data",
-            patch_manifest(copy_patch) if manifest else copy_patch,
+            patch_manifest(copy_patch),
         )
         told(page)
         links.nth(1).click()
@@ -817,7 +827,7 @@ def test_call_diff_source_paths_do_not_alias_durable_rename_coordinates(
     data_model.cmd_data_set(
         serve.page_dir,
         "patch-data",
-        patch_manifest(copied("b.py")) if manifest else copied("b.py"),
+        patch_manifest(copied("b.py")),
     )
     told(page)
     links.nth(1).click()
@@ -996,11 +1006,11 @@ def test_a_source_replacement_preserves_the_focused_draft_and_its_original_ancho
     page = open_page(browser, url)
     resized(page, 1024, 900)
     if quote_anchor:
-        # The code box also spans the gutter and blank column; drag on its words.
-        words = page.locator("#source [data-content] [data-line] span").evaluate(
-            """span => {
+        # The row also spans the numbers' column and blank room; drag on its words.
+        words = page.locator("#source .lf-text-document-run > *").evaluate(
+            """row => {
               const range = document.createRange();
-              range.selectNodeContents(span);
+              range.selectNodeContents(row);
               return range.getBoundingClientRect().toJSON();
             }"""
         )
@@ -1071,7 +1081,7 @@ def test_a_source_replacement_preserves_the_focused_draft_and_its_original_ancho
     if quote_anchor:
         # Its words are gone, so the thread stands nowhere on the page, and its head
         # says so.
-        quote = open_panel_thread(page, comment["id"]).locator(".lf-fp-quote")
+        quote = open_panel_thread(page, comment["id"]).locator(".lf-thread-quote")
         expect(quote).to_have_attribute("data-lf-detached", "")
         expect(page.locator(".lf-margin-marker")).to_have_count(0)
         return

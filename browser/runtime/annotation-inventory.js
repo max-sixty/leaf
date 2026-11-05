@@ -31,7 +31,7 @@ import { projectionOrigins } from "./projection/model.js";
 import { authoredStates } from "./projection/authored.js";
 import { currentProjection } from "./projection/state.js";
 import { notice } from "./notifications.js";
-import { claimed, heldOut } from "./thread/surfaces.js";
+import { claimed } from "./thread/surfaces.js";
 import { threadName } from "./thread/messages.js";
 import { outlineSubjectFor, pageOutline } from "./thread/placement.js";
 import {
@@ -87,9 +87,8 @@ const inProgress = readPart(
 // entries report, the shown revision and the agent's to-dos, and the projection whose
 // reported and overridden marks it lists once the projection's chrome has painted them.
 // What the thread pass decides about a thread reaches it as readings its paint follows:
-// where the thread is placed (`placedAt`) and whether a widget seats or holds it
-// (`claimed`, `heldOut`), so a pass that moves one repaints the margin, and one that
-// moves none leaves it.
+// where the thread is placed (`placedAt`) and whether a widget seats it (`claimed`), so
+// a pass that moves one repaints the margin, and one that moves none leaves it.
 /** @param {import("./framework/application.js").SemanticRoot} root */
 export const annotationSelection = (root) => ({
   projection: root.effective.projection,
@@ -340,11 +339,10 @@ export function createAnnotationInventory({
   const watchers = new Set();
 
   // A resolved thread leaves the margin, unless a reply is being written in it: saved
-  // words and an editing session are distinct, and only an active session keeps it. A
-  // widget-held conversation retains its existing notice.
+  // words and an editing session are distinct, and only an active session keeps it.
   /** @param {ThreadRecord} thread */
   const threadHasDiscussion = (thread) =>
-    !thread.resolved || replyIsEditing(threadKey(thread)) || heldOut(thread.id);
+    !thread.resolved || replyIsEditing(threadKey(thread));
 
   // A command's subject does not depend on whether an overlay or exact widget seat
   // has realized its discussion. Attachment place and pointed row share the same
@@ -425,8 +423,8 @@ export function createAnnotationInventory({
       );
     }
 
-    // A widget's obligation and a to-do on the user have a place on the page
-    // (obligations/place.js); the rest have no node.
+    // A widget's obligation has a place on the page (obligations/place.js); the rest
+    // have no node.
     /** @param {import("./framework/application.js").ObligationRecord} item
      * @returns {item is import("./obligations/answer.js").AnswerableObligation} */
     const hasPlace = (item) => Boolean(obligationPlace(item).node);
@@ -442,11 +440,8 @@ export function createAnnotationInventory({
         text: "Waiting on me",
         words: leafSays("Waiting on me"),
         // The marker's own label is the question, which says more than the kind its
-        // glyph already shows: a widget's name, or a to-do's title, which the element
-        // it is on does not say.
-        label:
-          (item.source.kind === "todo" ? item.prompt.text : addressableLabel(target)) ||
-          null,
+        // glyph already shows: the widget's name.
+        label: addressableLabel(target) || null,
         activate: () => {
           const items = placed();
           const next = items.find((candidate) => candidate.id === id);
@@ -571,11 +566,10 @@ export function createAnnotationInventory({
 
     // A to-do the agent opened on a page widget or element stands beside it, as Working
     // with the line of the start running on it, or as an open to-do under its title.
-    // A thread's to-do is its thread's attention (above); the page's is the floating panel's. A
-    // to-do on the user is on their list, On me, instead.
+    // A thread's to-do is its thread's attention (above); the page's is the floating
+    // panel's.
     for (const todo of runtime.todos) {
       if (
-        todo.owner !== "agent" ||
         todo.state !== "open" ||
         (todo.subject.kind !== "widget" && todo.subject.kind !== "element") ||
         Number(todo.revision) > Number(runtime.currentRevision)

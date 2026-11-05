@@ -425,28 +425,6 @@ def test_a_question_in_a_reply_waits_on_the_user_until_their_next_message():
     assert lists(state) == ([], ["update:r"], [])
 
 
-def test_the_agent_ends_a_question_the_user_answered_elsewhere():
-    state = model.reading(
-        page(""),
-        answered_in_words(
-            {
-                "kind": "todo_end",
-                "author": "agent",
-                "todo": "message:asking",
-                "outcome": "done",
-                "detail": "answered in chat",
-            }
-        ),
-    )
-    [item] = served_obligations(state)["all"]
-    assert (item["status"], item["next_actor"], item["answer"]) == (
-        "answered_elsewhere",
-        None,
-        None,
-    )
-    assert item["end"]["detail"] == "answered in chat"
-
-
 def test_a_frame_around_a_decision_widget_stays_one_obligation():
     [item] = page_obligations(model.reading(page(context="frame"), []))["all"]
     assert (item["id"], item["prompt"]["target"]) == ("widget:choice", "frame")
@@ -937,36 +915,6 @@ def test_todo_validation_does_not_rewrite_obligation_identity_and_refuses_bare_s
     with pytest.raises(EventRefused) as refused:
         admitted_event(door, events, {**command, "todo": "prompt"})
     assert refused_on(refused.value).code == "unknown-todo"
-
-
-@pytest.mark.parametrize("state", ["answered", "withdrawn"])
-def test_user_work_can_stand_on_a_source_after_its_obligation_ends(state):
-    documents = page() if state == "answered" else {1: page(), 2: page("")}
-    events: list[dict] = (
-        [
-            {
-                "kind": "action",
-                "widget": "choice",
-                "action": "choose",
-                "detail": {"value": ["a"]},
-            }
-        ]
-        if state == "answered"
-        else []
-    )
-    events.append(
-        {
-            "kind": "todo",
-            "author": "agent",
-            "owner": "user",
-            "title": "Check rollout numbers",
-            "subject": {"kind": "widget", "id": "choice"},
-        }
-    )
-    reading = model.reading(documents, events)
-    revision = 1 if state == "answered" else 2
-    assert page_obligations(reading, revision)["all"][0]["status"] == state
-    assert reading["todos"][0]["title"] == "Check rollout numbers"
 
 
 def test_repicking_a_withdrawn_request_records_provenance_without_reclosing_thread():

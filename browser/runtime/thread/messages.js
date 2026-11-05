@@ -13,8 +13,18 @@
    admission and later descriptor paints never replay the cue.
    The fragment is captured inertly before its first upgrade; presentation waits for
    preparation before capturing typed authored state. */
-import { html, keyed, render, nothing, ref } from "/runtime/framework.js";
-import { generatedElement, offeredAction } from "../widget-elements.js";
+import {
+  Directive,
+  directive,
+  html,
+  keyed,
+  noChange,
+  nothing,
+  ref,
+  render,
+} from "/runtime/framework.js";
+import { setRenderedChildren } from "../dom-children.js";
+import { generatedElement, offeredAction, worksInside } from "../widget-elements.js";
 import {
   loadMarkdown,
   markdownReady,
@@ -61,6 +71,34 @@ import { showsContents } from "../geometry.js";
 import { flashDuration, motion } from "../motion.js";
 import { agentName, pageClaimed } from "../semantic-state.js";
 import { copyControl } from "../copy-control.js";
+
+// A message's words, drawn into the element the binding stands on and reconciled as a
+// revision reconciles authored markup (dom-children.js, `setRenderedChildren`): an
+// edit keeps every node it leaves alone and rewrites a changed paragraph's words in
+// place, so the browser's scroll anchoring still holds the paragraph a reader is in
+// when an edit grows one above it. A property binding to `innerHTML` replaced every
+// one, and neither engine anchors again on a node that replaces its anchor. An edit
+// rewriting nearly every paragraph of a long message is drawn whole again (`bounded`),
+// as that binding drew it, rather than diffed at the square of its length.
+const keptWords = directive(
+  class extends Directive {
+    /** @type {string | null} */
+    #drawn = null;
+    /** @param {string} _markup */
+    render(_markup) {
+      return noChange;
+    }
+    /** @param {import("/vendor/lit.js").ElementPart} part @param {[string]} markup */
+    update(part, [markup]) {
+      if (markup === this.#drawn) return noChange;
+      this.#drawn = markup;
+      const parsed = document.createElement("template");
+      parsed.innerHTML = markup;
+      setRenderedChildren(part.element, parsed.content.childNodes, { bounded: true });
+      return noChange;
+    }
+  },
+);
 
 export const loadMessageMarkdown = () =>
   loadMarkdown((error) => reportPageError(error, `markdown renderer failed to load`));
@@ -322,6 +360,7 @@ export function messageReading(
         ? "suggestion"
         : "prose";
   const prose = kind === "prose" ? proseReading(message) : null;
+  const removal = message.withdrawn ?? message.edited;
   return Object.freeze({
     key: messageKey(message),
     id: message.id,
@@ -346,8 +385,8 @@ export function messageReading(
     age: ago(message.ts),
     // What the message said before its last rewrite is the edited mark's to tell, or a
     // deleted message's, since answers above may have been about those words.
-    edited: message.edited
-      ? `${kind === "deleted" ? "Deleted" : "Edited"} ${ago(message.edited.ts)}. Before, it said: “${message.edited.was}”`
+    edited: removal
+      ? `${kind === "deleted" ? "Deleted" : "Edited"}${"ts" in removal ? ` ${ago(removal.ts)}` : ""}. Before, it said: “${removal.was}”`
       : null,
     editable: editable(message),
     failure: message.failure ?? null,
@@ -455,7 +494,8 @@ export class MessageView {
       this.node.addEventListener("dblclick", (event) => {
         if (
           event.target instanceof Element &&
-          event.target.closest(".lf-msg-editor, .lf-msg-controls, a[href]")
+          (event.target.closest(".lf-msg-editor, .lf-msg-controls") ||
+            worksInside(event.target, this.node))
         )
           return;
         if (!this.#model?.editable) return;
@@ -723,7 +763,7 @@ export class MessageView {
       </div>`;
     if (body.kind === "suggestion")
       return html`<div class="lf-msg-text" .textContent=${body.text}></div>`;
-    return html`<div class="lf-msg-text" .innerHTML=${body.html}></div>
+    return html`<div class="lf-msg-text" ${keptWords(body.html)}></div>
       ${
         body.mediaHtml
           ? html`<div class="lf-msg-media" .innerHTML=${body.mediaHtml}></div>`

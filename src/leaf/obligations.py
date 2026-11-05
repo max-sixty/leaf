@@ -1,4 +1,4 @@
-"""Canonical obligations from messages, user tasks, widgets and updates.
+"""Canonical obligations from messages, widgets and updates.
 
 One record contains its prompt, typed answer, completion and next actor. Its thread
 and exact owning message locate frozen sources without depending on a live renderer.
@@ -8,8 +8,14 @@ input using its data contract's record list and key. Each record owns the stable
 widget-and-unit identity and reads its own action coordinate; replacing that input
 changes membership without changing the answers of retained records.
 The inventory is complete even when a work queue hides a resolved thread or an
-older prompt. A user-owned to-do publishes an obligation with explicit completion;
-agent-owned to-dos stay work records.
+older prompt.
+
+On the page, the user answers an obligation only through its source: a widget
+through the actions its `x-awaits` declares, an agent message through a reply or
+settling reaction in its thread. Leaf adds no control of its own, such as a generic
+Done, and nothing reaches On me unless a widget or a thread answers it (`todos` records
+the decision). Any widget may ask by declaring `x-awaits`; content that doesn't is
+asked about in a thread anchored to it.
 
 An update the user handed over publishes a record of its own (`update_obligation`),
 built by the fold that decides which updates are handed over and settled
@@ -20,8 +26,7 @@ never an obligation itself: its messages publish them.
 
 An agent message carrying `obligation` is a question the user answers in words:
 their next message in its thread, or a reaction there whose token settles it, is its
-answer. The message owns identity and prompt; its thread only locates it. A user to-do
-instead ends explicitly, so discussing the task never claims the work is complete.
+answer. The message owns identity and prompt; its thread only locates it.
 
 A record's `status` is one of four, and this module is their one producer: `open`;
 `answered`, its typed answer in the record; `answered_elsewhere`, a question an agent
@@ -1172,50 +1177,3 @@ def waiting_in_thread(
         and record["status"] == "open"
         and messages[record["message"]]["seq"] < before
     ]
-
-
-def user_task_obligations(
-    log: "TodoReading", reading: FrozenThreadReading
-) -> list[dict]:
-    """User tasks in the canonical inventory, retaining their explicit completion.
-
-    The to-do fold alone decides their outcome. Discussion, thread resolution and
-    page edits never complete the action the user was asked to perform.
-    """
-    events = {event["id"]: event for event in log.events}
-    records = []
-    for todo in log.todos:
-        if todo["owner"] != "user":
-            continue
-        subject, outcome = todo["subject"], todo["outcome"]
-        ended = todo["state"] != "open"
-        records.append(
-            {
-                "id": todo["id"],
-                "source": {"kind": "todo", "id": todo["id"], "subject": subject},
-                "thread": reading.subject_thread(subject),
-                "message": None,
-                "prompt": {
-                    "text": todo["title"],
-                    "target": subject["id"]
-                    if subject["kind"] in {"widget", "element"}
-                    else None,
-                },
-                "answer": {
-                    "value": todo["state"],
-                    "event": event_reference(events[outcome["id"]]),
-                }
-                if ended and todo["state"] != "dropped"
-                else None,
-                "status": "withdrawn"
-                if todo["state"] == "dropped"
-                else "answered"
-                if ended
-                else "open",
-                "end": {"detail": outcome["detail"], "event": event_reference(outcome)}
-                if ended
-                else None,
-                "next_actor": None if ended else "user",
-            }
-        )
-    return records

@@ -12,6 +12,7 @@ from PIL import Image
 from playwright.sync_api import expect
 from render_cases_layout import (
     MARK,
+    NAMED,
     current_location_ring,
     mark_edges,
     ring_faults,
@@ -480,25 +481,41 @@ customElements.define('lf-button-pairs', class extends HTMLElement {
     )
 
 
-FACE = "el => getComputedStyle(el).backgroundColor"
+FACE = "el => { const s = getComputedStyle(el); return [s.backgroundColor, s.outlineStyle]; }"
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
-def test_a_pressed_quiet_action_looks_like_its_neighbour(request, serve, engine):
-    """A press leaves focus on a quiet action, as on any button, and leaves its face
-    alone: once the pointer goes, it matches the action beside it until a key moves
-    focus there, which wears the chip."""
+def test_a_quiet_action_keeps_its_face_and_a_toggle_shows_its_mode(
+    request, serve, subtests, engine
+):
+    """What quiet words and symbols wear under a press and at rest, on one page."""
     page = open_page(request.getfixturevalue(engine), _button_pairs(serve))
-    back, forward = page.locator("#quiet-back"), page.locator("#quiet-next")
-    forward.click()
-    page.mouse.move(0, 0)
-    expect(forward).to_be_focused()
-    rendered(page)
-    assert forward.evaluate(FACE) == back.evaluate(FACE)
-    page.keyboard.press("Shift+Tab")
-    expect(back).to_be_focused()
-    rendered(page)
-    assert back.evaluate(FACE) != forward.evaluate(FACE)
+
+    with subtests.test("a pressed quiet action looks like its neighbour"):
+        # A press leaves focus on a quiet action, as on any button, and leaves its face
+        # alone: once the pointer goes, it matches the action beside it until a key
+        # moves focus there, which wears the band.
+        back, forward = page.locator("#quiet-back"), page.locator("#quiet-next")
+        forward.click()
+        page.mouse.move(0, 0)
+        expect(forward).to_be_focused()
+        rendered(page)
+        assert forward.evaluate(FACE) == back.evaluate(FACE)
+        page.keyboard.press("Shift+Tab")
+        expect(back).to_be_focused()
+        rendered(page)
+        assert back.evaluate(FACE) != forward.evaluate(FACE)
+
+    with subtests.test("a quiet toggle still shows its chosen mode"):
+        # Words are quiet, with no frame at rest, so a mode toggle's chosen mode draws
+        # its own selected face: a frame and ground the unchosen word beside it lacks.
+        page.mouse.move(0, 0)
+        rendered(page)
+        face = "el => [getComputedStyle(el).borderTopColor, getComputedStyle(el).backgroundColor]"
+        chosen = page.locator("#mode-on").evaluate(face)
+        other = page.locator("#mode-off").evaluate(face)
+        assert other == page.locator("#plain-back").evaluate(face)
+        assert chosen[0] != other[0] and chosen[1] != other[1], (chosen, other)
 
 
 def test_a_tapped_button_looks_like_its_neighbour(browser, serve):
@@ -744,10 +761,11 @@ def test_the_ring_reading_distinguishes_target_brackets_from_focus(browser, serv
     target = page.locator("#target")
     target.hover()
     page.keyboard.down("Alt")
-    expect(target).to_have_class(re.compile(r"\blf-aimed\b"))
+    expect(target).to_have_attribute("data-lf-aimed", "")
     aim = target.evaluate(MARK)
     assert aim and aim["style"] == "solid" and aim["brackets"], aim
-    assert not any("lf-aimed" in seen["who"] for seen in rings_drawn(page))
+    aimed = target.evaluate(NAMED)
+    assert not any(seen["who"] == aimed for seen in rings_drawn(page))
     page.keyboard.up("Alt")
     page.keyboard.press("Tab")
     expect(target).to_be_focused()
@@ -1304,19 +1322,6 @@ def test_the_ring_reading_measures_a_displaced_pseudo_element(browser, serve):
     assert any("top edge is under" in c for c in current_location_ring(page)["covers"])
 
 
-def test_a_quiet_toggle_still_shows_its_chosen_mode(browser, serve):
-    """Words are quiet, with no frame at rest, so a mode toggle's chosen mode draws its
-    own selected face: a frame and ground the unchosen word beside it lacks."""
-    page = open_page(browser, _button_pairs(serve))
-    page.mouse.move(0, 0)
-    rendered(page)
-    face = "el => [getComputedStyle(el).borderTopColor, getComputedStyle(el).backgroundColor]"
-    chosen = page.locator("#mode-on").evaluate(face)
-    other = page.locator("#mode-off").evaluate(face)
-    assert other == page.locator("#plain-back").evaluate(face)
-    assert chosen[0] != other[0] and chosen[1] != other[1], (chosen, other)
-
-
 def test_an_obligations_margin_marker_keeps_its_location_ring_whole(browser, serve):
     """A marker's quiet target trace cannot paint over the current obligation's ring."""
     page = open_page(
@@ -1337,9 +1342,9 @@ def test_an_obligations_margin_marker_keeps_its_location_ring_whole(browser, ser
         ),
     )
     marker = page.locator('.lf-margin-entry[data-lf-kinds="on-me"]')
-    decision, traced = page.locator("#decision"), re.compile(r"\blf-traced\b")
+    decision = page.locator("#decision")
     marker.hover()
-    expect(decision).to_have_class(traced)
+    expect(decision).to_have_attribute("data-lf-traced", "")
     page.mouse.move(0, 0)
     for _ in range(40):
         page.keyboard.press("Tab")
@@ -1348,8 +1353,8 @@ def test_an_obligations_margin_marker_keeps_its_location_ring_whole(browser, ser
     else:
         pytest.fail("Tab did not reach the obligation's margin marker")
     rendered(page)
-    expect(page.locator(".lf-traced")).to_have_count(0)
-    expect(decision).to_have_class(re.compile(r"\blf-projected-location\b"))
+    expect(page.locator("[data-lf-traced]")).to_have_count(0)
+    expect(decision).to_have_attribute("data-lf-projected-location", "")
     drawn = rings_drawn(page)
-    assert any("lf-projected-location" in ring["who"] for ring in drawn), drawn
+    assert any(ring["who"] == decision.evaluate(NAMED) for ring in drawn), drawn
     assert not ring_faults(drawn, "on the obligation's margin marker")

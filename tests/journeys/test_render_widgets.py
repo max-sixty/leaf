@@ -368,7 +368,11 @@ def test_pr_walkthrough_moves_from_semantic_call_to_exact_patch_comment(
     line = page.locator(
         '#pr-exact-patch [data-lf-datum=\'["src/summary.rs","new",259]\']'
     )
-    expect(page).to_have_url(re.compile(r"#pr-exact-patch$"))
+    # The URL names the line by its source key, so a reload or a copied URL reaches it.
+    source_key = '["src/summary.rs","source","new",259]'.replace('"', "%22")
+    expect(page).to_have_url(
+        re.compile(re.escape(f"#pr-exact-patch:{source_key}") + "$")
+    )
     expect(line).to_be_in_viewport()
     expect(page.locator(".lf-live")).to_have_text(
         "Opened src/summary.rs:259 in the exact patch"
@@ -1145,7 +1149,9 @@ def test_a_decision_travels_between_tabs_and_the_log_has_the_last_word(browser, 
     second = open_page(browser, url)
 
     # A tab that did not click has only its own poll to learn from.
-    first.locator("[data-lf-margin-for='sug-refill'] .lf-sug-accept").click()
+    first.locator(
+        "[data-lf-margin-for='sug-refill'] [data-lf-margin-entry-key=accept]"
+    ).click()
     told(second)
     expect(second.locator("#sug-refill lf-old")).to_be_hidden()
     expect(second.locator("#sug-refill lf-new")).to_be_visible()
@@ -1159,7 +1165,9 @@ def test_a_decision_travels_between_tabs_and_the_log_has_the_last_word(browser, 
     expect(row.locator(".lf-margin-receipt")).to_have_count(0)
     expect(accepted).to_be_enabled()
     # Its pair leaves; the surviving content and Undo carry the settled state.
-    rejected = second.locator("[data-lf-margin-for='sug-refill'] .lf-sug-reject")
+    rejected = second.locator(
+        "[data-lf-margin-for='sug-refill'] [data-lf-margin-entry-key=reject]"
+    )
     expect(rejected).to_be_hidden()
     expect_accept_all(second, "Accept all (2)")
 
@@ -1169,13 +1177,17 @@ def test_a_decision_travels_between_tabs_and_the_log_has_the_last_word(browser, 
     # settles it for both once the cut-off one catches up.
     third = open_page(browser, url)
     cut = CutOff().hold(third)
-    first.locator("[data-lf-margin-for='sug-thistle'] .lf-sug-accept").click()
+    first.locator(
+        "[data-lf-margin-for='sug-thistle'] [data-lf-margin-entry-key=accept]"
+    ).click()
     # In the log before the reject is clicked, so which one is later is this test's
     # to decide rather than the network's.
     told(second)
     expect_accept_all(second, "Accept all (1)")
     unfolded_button(
-        third.locator("[data-lf-margin-for='sug-thistle'] .lf-sug-reject")
+        third.locator(
+            "[data-lf-margin-for='sug-thistle'] [data-lf-margin-entry-key=reject]"
+        )
     ).click()
     cut.restore()
     # The reject went out over a live channel, so every tab has to read it back —

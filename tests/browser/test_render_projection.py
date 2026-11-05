@@ -681,7 +681,7 @@ def test_atlas_send_and_pause_is_one_thread_fold(browser, serve):
 
     open_panel_thread(page, root["id"])
     with sending(page, "the resolution"):
-        page.locator(".lf-fp-settle").click()
+        page.locator(".lf-fp-thread-controls :is(.lf-resolve, .lf-reopen)").click()
     expect(goal).not_to_have_attribute("data-lf-held")
     page.locator("#atlas-record .lf-activity-news").click()
     released = page.locator("#atlas-record .lf-activity-row").first

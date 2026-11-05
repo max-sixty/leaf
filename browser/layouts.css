@@ -539,7 +539,7 @@
      * could not start shows each undrawn widget's source. Either is prose, so its host
      * keeps the prose's measure, without the margin a breakout reaches the room by,
      * and the source scrolls inside it. */
-    > [data-lf-space]:has(> .lf-error),
+    > [data-lf-space]:is(:has(> .lf-error), [data-lf-failed]),
     html[data-lf-startup-error]:not([data-lf-interactive]) & > [data-lf-space] {
       position: static;
       inline-size: 100%;
@@ -629,6 +629,16 @@
   .layout-sidebar > :not(header, footer, aside) {
     isolation: isolate;
   }
+  /* Scroll anchoring passes over an aside that comes before the body, so growth the
+   * user has scrolled past in the body leaves what they read still. The browser
+   * anchors on the first box in tree order that the window shows whole, or on one it
+   * shows in part when nothing inside that box qualifies: a stuck track never does.
+   * Beside the body, such an aside stretches along it, and growth in the body never
+   * moves its top. An aside after the body keeps anchoring: stacked under it, the
+   * aside's top moves with what grows above, and beside it, the body comes first. */
+  .layout-sidebar > aside:has(~ :not(header, footer, aside)) {
+    overflow-anchor: none;
+  }
   @container not style(--aside: auto) {
     .layout-sidebar > :not(header, footer) {
       flex: 1000000 1 30rem;
@@ -709,8 +719,9 @@
         --lf-landing-room: 0px;
         --lf-head-inset: initial;
         --lf-track-scroll-behavior: flow;
+        /* Its own scroll anchoring holds the line read in it while a block above
+         * grows; the aside before the body keeps the page's anchoring off it. */
         overflow-y: auto;
-        overflow-anchor: none;
         --lf-holds-height: 1;
         max-block-size: calc(
           100dvh - var(--lf-foot-room) - var(--lf-top-outer) - 2 * var(--sp-4)
@@ -736,7 +747,12 @@
   }
   @media screen {
     html[data-lf-interactive]
-      [data-lf-height]:not([data-lf-height=""], .lf-rendered, :has(> .lf-error)) {
+      [data-lf-height]:not(
+        [data-lf-height=""],
+        .lf-rendered,
+        :has(> .lf-error),
+        [data-lf-failed]
+      ) {
       box-sizing: border-box;
       block-size: attr(data-lf-height px);
       overflow: clip;

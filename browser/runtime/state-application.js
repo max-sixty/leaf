@@ -18,6 +18,7 @@ import {
 } from "./semantic-state.js";
 import { runtime } from "./context.js";
 import { reportCarried, sameLayer } from "./layer-client.js";
+import { holdUserPlace } from "./user-place.js";
 import { observeServerNow, observeWorkingGrace } from "./presence.js";
 import { settleAcceptedDrafts } from "./drafts.js";
 import { announce, notice } from "./notifications.js";
@@ -180,6 +181,10 @@ export function createStateApplication({
       };
       for (const { frozen } of frozenDocuments)
         if (frozen) commitWidgetDescriptors(frozen.descriptors);
+      // The user's place across the change this reading brings, kept once the page
+      // shows it (user-place.js, `holdUserPlace`). A revision places the reader with its
+      // own landing instead (version.js).
+      const keepPlace = installed ? null : holdUserPlace();
       if (!applicationState.adopt(state, documentCapture)) {
         await notifyChangedData();
         return;
@@ -200,6 +205,7 @@ export function createStateApplication({
         // it cannot turn accepted truth into a refusal or strand proved receipts.
         if (installed) await installed.land();
         await notifyDataSubscribers();
+        keepPlace?.();
         markStateApplied(state);
         accountPending(state.events);
         // Only the accepted candidate that this full document just presented can

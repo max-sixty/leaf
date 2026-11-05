@@ -110,7 +110,7 @@ import { runtime } from "./context.js";
 import { retainUserIntent } from "./user-intent.js";
 import { recentPlaceInput, focused } from "./focus.js";
 import { focusedInView } from "./user-place.js";
-import { scrollIntoReadingBand } from "./landing-scroll.js";
+import { scrollIntoView } from "./landing-scroll.js";
 import { union } from "./rect.js";
 import { pointerAt } from "./pointer.js";
 
@@ -866,6 +866,6 @@ export function restorePlace(view, region = null, currentIntent = retainUserInte
   // A restored passage or end can carry its focused control beyond the new
   // viewport. Nearest reveal changes nothing when the destination already fits.
   if (currentLocation)
-    scrollIntoReadingBand(currentLocation, currentLocation, "nearest", "instant");
+    scrollIntoView(currentLocation, { block: "nearest", behavior: "instant" });
   placeKept(box, ...(currentLocation ? scrollersOf(currentLocation) : []));
 }

@@ -83,6 +83,7 @@ from .schema import (
     BINARY_TYPES,
     CONTENT_TYPES,
     KEY_COOKIE_MAX_AGE,
+    MEDIA_DIR,
     NO_KEY,
     REVISION_NAME,
     SERVED_PATH,
@@ -267,13 +268,22 @@ class PageEndpoint:
 
     # Every answer that isn't an immutable revision resource may be stored but is asked
     # for again before each reuse. Document and state answers carry no validator, so
-    # every load, Back included, shows the page as it is now. Storing is what lets
+    # a load asks again and shows the page as it is now. A document Chrome loads from
+    # its history, as on Back without the back/forward cache or on restoring tabs,
+    # reuses stored answers without asking, so a state answer names by `Vary` the
+    # request headers its body turns on: else that document, which holds no reading,
+    # would be handed a tail of a reading an earlier document held. Storing is what lets
     # the browser keep the whole page in its back/forward cache, so Back restores it at
     # once and the runtime catches up from there. Chrome keeps no page whose document or
     # fetches said `no-store`, nor Firefox one whose document did. The disk copy holds
     # what the page directory already holds in plain files, for the same user. leaf.page
     # overrides it (`WebsitePageEndpoint`).
     cache_control = "no-cache"
+    # Page media is named by a digest of its bytes (`media.media_name`), so a name never
+    # changes what it answers, and a revision naming the same image reuses the copy.
+    # Starlette's file answer ignores a validator, so `no-cache` here would fetch every
+    # image whole on every load.
+    media_cache_control = "private, max-age=31536000, immutable"
 
     def __init__(
         self,
@@ -1124,7 +1134,10 @@ class PageEndpoint:
                 path,
                 DeliveryAddress(self.page_root, self.page_root),
             )
-            return self._resource_content(resource)
+            response = self._resource_content(resource)
+            if path.startswith(f"/{MEDIA_DIR}/"):
+                response.headers["Cache-Control"] = self.media_cache_control
+            return response
         return None
 
     def _get(self) -> Response:
@@ -1155,7 +1168,13 @@ class PageEndpoint:
             if revision is None and state["active"] is not None:
                 revision = state["active"]["revision"]
             self.response_layer = self._revision_layer(revision)
-            return self._json_body(self.sent(state))
+            answer = self._json_body(self.sent(state))
+            # What the answer holds turns on the reading, data and revision the tab
+            # names (`cache_control`).
+            answer.headers["Vary"] = (
+                "Leaf-Held-Basis, Leaf-Data-Version, Leaf-View-Revision"
+            )
+            return answer
         if path == "/api/deferred":
             try:
                 deferred = self.deferred_value()
@@ -1485,6 +1504,7 @@ class SampleEndpoint(PageEndpoint):
         self.retained_samples = parent.retained_samples
         # A child is stored on its parent's terms, which on leaf.page are the site's.
         self.cache_control = parent.cache_control
+        self.media_cache_control = parent.media_cache_control
         # The address inside the child, below the capability its parent matched.
         self.path = path
         self.asset_root = asset_root

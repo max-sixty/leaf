@@ -151,7 +151,8 @@ function mediaTemplate({ drawing, media, sent, removeMedia }) {
           <span class="lf-composer-media-item lf-composer-drawing">
             <button
               type="button"
-              ${offeredAction("picture", "lf-media-open lf-composer-media-open lf-media-frame")}
+              ${offeredAction("picture", "lf-media-open lf-composer-media-open")}
+              data-lf-frame
               data-lf-media-canvas
               aria-label=${`Inspect drawing, ${counted(strokes, "stroke")}`}
               title="Inspect drawing"
@@ -188,12 +189,14 @@ function mediaTemplate({ drawing, media, sent, removeMedia }) {
               })}
             </button>
             <button
-              ${offeredAction("mark", "lf-corner-mark lf-composer-drawing-undo", "Undo last stroke", { action: "undo" })}
+              ${offeredAction("mark", "lf-composer-drawing-undo", "Undo last stroke", { action: "undo" })}
+              data-lf-corner
               @mousedown=${/** @param {MouseEvent} event */ (event) => event.preventDefault()}
               @click=${drawing.undoStroke}
             ></button>
             <button
-              ${offeredAction("mark", "lf-corner-mark", "Remove drawing", { action: "remove" })}
+              ${offeredAction("mark", "", "Remove drawing", { action: "remove" })}
+              data-lf-corner
               @mousedown=${/** @param {MouseEvent} event */ (event) => event.preventDefault()}
               @click=${drawing.removeDrawing}
             ></button>
@@ -202,7 +205,8 @@ function mediaTemplate({ drawing, media, sent, removeMedia }) {
       : null,
     media.map(({ index, url }) => {
       const remove = html`<button
-        ${offeredAction("mark", "lf-corner-mark lf-composer-media-remove", `Remove attached image ${index + 1}`, { action: "remove" })}
+        ${offeredAction("mark", "lf-composer-media-remove", `Remove attached image ${index + 1}`, { action: "remove" })}
+        data-lf-corner
         @click=${() => removeMedia(index)}
       ></button>`;
       // A sent message's picture is the one its message draws (markdown.js, the image
@@ -222,7 +226,8 @@ function mediaTemplate({ drawing, media, sent, removeMedia }) {
         : html`<span class="lf-composer-media-item">
             <button
               type="button"
-              ${offeredAction("picture", "lf-media-open lf-composer-media-open lf-media-frame")}
+              ${offeredAction("picture", "lf-media-open lf-composer-media-open")}
+              data-lf-frame
               data-lf-media-url=${url}
               aria-label=${`View attached image ${index + 1}`}
             >
@@ -577,6 +582,8 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
           action: actionWord(),
           title: sendKeys ? `${action} (${sendKeys})${newline}` : action,
         })}
+        ?data-lf-disc=${!submitIn}
+        data-lf-tone="accent"
         aria-disabled=${String(!canSend())}
         ?data-lf-empty=${!hasWords}
         ?hidden=${micShown}
@@ -628,6 +635,8 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
               title: live || !status ? micAction : `${micAction} (${status})`,
             })}
             ?hidden=${!micShown}
+            data-lf-disc
+            data-lf-tone=${dictationState === "failed" ? "negative" : nothing}
             data-lf-dictation=${dictationState}
             aria-pressed=${String(live)}
             aria-description=${status || nothing}

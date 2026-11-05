@@ -121,8 +121,10 @@ Usage: leaf thread create [OPTIONS] PAGE
   passage, general where neither does \u2014 a question about the work as a whole.
 
   Use --obligation when the next move is the user's: the message waits on On me
-  until their reply or settling reaction. Refuses a quote the active revision
-  does not hold, or holds more than once. The comment's id is the thread's.
+  until their reply or settling reaction. A question whose answers you can list
+  takes an `lf-options` choice in --markup instead, which waits on the user
+  until they pick. Refuses a quote the active revision does not hold, or holds
+  more than once. The comment's id is the thread's.
 
 Options:
   --quote TEXT   passage text from the active revision
@@ -144,7 +146,8 @@ Usage: leaf thread reply [OPTIONS] REFERENCE_OR_PAGE [MESSAGE]
   PAGE MESSAGE names, which is refused while that thread owes an answer.
 
   An answer declares what it leaves with --done, --todo or --obligation, or
-  carries a widget in --markup that asks; --ephemeral progress declares nothing,
+  carries a widget in --markup that asks, as an `lf-options` choice asks a
+  question whose answers you can list; --ephemeral progress declares nothing,
   and --done needs a reference. The reply publishes your saved page edits,
   checked as `page check` checks them without a browser. The Leaf skill's
   references/threads.md says which to use and what each leaves.
@@ -201,8 +204,8 @@ Usage: leaf task end [OPTIONS] PAGE ID {done|failed|dropped}
 
   End the to-do or conversational obligation named by ID in `page state`.
 
-  A to-do, yours or the user's, ends done, failed or dropped. --text says where
-  the result is, such as the version or reply holding it, or why there is none.
+  A to-do ends done, failed or dropped. --text says where the result is, such as
+  the version or reply holding it, or why there is none.
 
   For a message obligation (`message:<id>`) or a question widget answered in
   words (`widget:<id>`), done records that the user answered elsewhere, --text

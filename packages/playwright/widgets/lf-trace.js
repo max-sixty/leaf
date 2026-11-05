@@ -74,6 +74,7 @@
  * the disclosure and lands on its destination instead.
  */
 import {
+  alreadyShown,
   generatedElement,
   dragging,
   cancelAnimation,
@@ -111,20 +112,22 @@ import {
   scopedMediaUrl,
   retainUserIntent,
   scrollBehavior,
-  scrollIntoReadingBand,
+  scrollIntoView,
   setChildren,
   showReadingSubject,
   sizeObserver,
   whileConnected,
   currentLocationIn,
   commandsChanged,
+  seconds,
+  actionClass,
 } from "/runtime/widget-api.js";
 
 import { advancePlayback, mergeIntervals } from "./playback.js";
 import { RecordingTimeline } from "./timeline.js";
 
-// Reuse the default package’s selected WebAwesome controls, already shipped with Leaf.
-import "/vendor/webawesome.esm.js";
+// The scope chooser's radios, from the default package's Web Awesome controls.
+import "/vendor/webawesome-views.js";
 import { Viewer, css as imageCss } from "/vendor/images.esm.js";
 // Dependency styles apply only inside recording widgets. Keeping them in their
 // module makes the same presentation available in an offline export.
@@ -275,8 +278,6 @@ function streamOrigins(trace) {
 const nodeName = (node) =>
   [node.role, node.name || node.text].filter(Boolean).join(" · ") ||
   "Unnamed saved element";
-/** @param {number} ms */
-const seconds = (ms) => `${(ms / 1000).toFixed(3)} s`;
 // During playback a plain image shows each capture in time; the inspectable
 // Viewer surface takes over again when playback stops. The canvas is the part;
 // the Viewer image names it to assistive tech.
@@ -821,7 +822,8 @@ export class Trace extends LeafElement {
   #time(value, stream) {
     const origin = this.#origin(stream);
     if (!origin) throw new Error(`The recording has no origin for stream ${stream}`);
-    return seconds(value - origin.start);
+    // Every time keeps three decimals, so the readout holds its width as it changes.
+    return seconds(value - origin.start, 3);
   }
   /** @param {string} id */
   #pageLabel(id) {
@@ -1469,17 +1471,16 @@ export class Trace extends LeafElement {
     // and moves nothing that already shows it.
     if (this.#targets.get(id)?.node) {
       const row = this.#inventory.find((part) => part.id === id)?.element;
-      if (row) scrollIntoReadingBand(row, row, "nearest", scrollBehavior());
+      if (row) scrollIntoView(row, { block: "nearest", behavior: scrollBehavior() });
       return;
     }
-    const view = this.#nodes.viewport.getBoundingClientRect();
-    if (this.#pictureId && !(view.top >= 0 && view.bottom <= innerHeight))
-      scrollIntoReadingBand(
-        this.#nodes.stage,
-        this.#nodes.stage,
-        "center",
-        scrollBehavior(),
-      );
+    // The moment's picture comes to the middle of the window where the user does not
+    // already see it whole, as a pane or the floating panel can keep it from them.
+    if (this.#pictureId && !alreadyShown(this.#nodes.viewport))
+      scrollIntoView(this.#nodes.stage, {
+        block: "center",
+        behavior: scrollBehavior(),
+      });
   }
 
   #stream() {
@@ -2249,7 +2250,7 @@ export class Trace extends LeafElement {
             ([value]) => value,
             ([value, label]) =>
               html`<wa-radio
-                ${offered("lf-trace-source")}
+                ${offered(actionClass("word", "lf-trace-source"), true)}
                 appearance="button"
                 value=${value}
                 >${label}</wa-radio
@@ -2605,7 +2606,7 @@ export class Trace extends LeafElement {
         const status = el("span", "lf-trace-image-status", "Loading captured image…");
         figure.classList.add("lf-trace-image-loading");
 
-        const canvas = el("div", "lf-trace-canvas");
+        const canvas = el("div", "lf-trace-canvas lf-ring-overlay");
         canvas.tabIndex = 0;
         canvas.setAttribute("role", "group");
         canvas.setAttribute(

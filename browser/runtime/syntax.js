@@ -122,7 +122,7 @@ export async function highlightBlocks(root) {
     try {
       while (lang) {
         const source = code.textContent;
-        const tokens = await syntax(source, lang);
+        const { tokens } = await syntax(source, lang);
         if (code.textContent !== source || colouredAs(code) !== lang) {
           lang = colouredAs(code);
           continue;

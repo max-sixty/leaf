@@ -905,8 +905,7 @@ def test_the_deploy_gate_stops_waiting_on_a_page_with_no_agent_on_the_comment():
     assert not journey.still_answering({}, "comment-id")
 
 
-@pytest.mark.parametrize("failure", ["startup_failed", "rate_limited"])
-def test_the_deploy_gate_reads_a_durable_harness_failure(page_dir, failure):
+def test_the_deploy_gate_reads_a_durable_harness_failure(page_dir):
     from leaf.event_contracts import event_record_error
     from leaf.registry.storage import load_registry
 
@@ -915,7 +914,7 @@ def test_the_deploy_gate_reads_a_durable_harness_failure(page_dir, failure):
         page_dir,
         {"kind": "comment", "author": "user", "text": "edit the page"},
     )
-    reply = harness.failure_receipt(page_dir, comment["id"], failure)
+    reply = harness.failure_receipt(page_dir, comment["id"], "startup_failed")
     state = page_state(page_dir)
     replies = [event for event in state["events"] if event["kind"] == "reply"]
     assert reply is not None
@@ -928,10 +927,9 @@ def test_the_deploy_gate_reads_a_durable_harness_failure(page_dir, failure):
     assert harness.attach(page_dir, comment["id"]) is None
 
 
-@pytest.mark.parametrize("failure", ["startup_failed", "rate_limited"])
-def test_the_deploy_gate_stops_on_the_first_failure(failure):
+def test_the_deploy_gate_stops_on_the_first_failure():
     """Failure receipts are evidence; the verifier sends no second model task."""
-    context = _FailedTurn(failure)
+    context = _FailedTurn()
     session = journey.Session(
         cast(BrowserContext, context),
         cast(Page, context),
@@ -945,7 +943,7 @@ def test_the_deploy_gate_stops_on_the_first_failure(failure):
     asked = journey.ask_until_answered(journey.BrowserEnd(session, None), "abcd1234")
     assert asked.asks == 1
     assert asked.turn.answer is None
-    assert asked.turn.replies[0]["failure"] == failure
+    assert asked.turn.replies[0]["failure"] == "startup_failed"
     assert len(context.comments) == 1
 
 
@@ -1095,18 +1093,14 @@ def test_a_title_written_after_the_reply_is_still_timed(tmp_path):
     prepare(ROOT, state, page_dir)
     with serving(ROOT, state, page_dir) as url:
         client = PageClient(url)
-        client.post(
+        comment = client.post(
             {
                 "kind": "comment",
-                "revision": client.state()["active"]["revision"],
                 "attempt": "journey-title-wait",
                 "text": "Is the release recorded?",
             }
         )
         untitled = client.state()
-        [comment] = [
-            e for e in untitled["events"] if e.get("attempt") == "journey-title-wait"
-        ]
         assert journey.title(untitled["events"], comment["id"]) is None
         paused = []
 

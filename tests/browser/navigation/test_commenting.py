@@ -150,8 +150,11 @@ def test_a_passage_selection_keeps_native_copy_and_context_menu(browser, serve):
 def test_comment_enters_the_selected_passage_s_field_and_takes_its_letters(
     browser, serve
 ):
-    """Comment enters a selected passage's field, where letters and `?` are words."""
-    page = open_page(browser, serve(TARGETS_PAGE))
+    """Comment enters a selected passage's field, where letters and `?` are words; once
+    the field closes, the page's own keys answer again."""
+    url = serve(TARGETS_PAGE)
+    _publish(serve.page_dir, 2, TARGETS_PAGE, "two")
+    page = open_page(browser, url)
     help_el = page.locator(".lf-command-reference")
 
     # Nothing in hand: the reference names the page comment `c` enters directly.
@@ -174,38 +177,10 @@ def test_comment_enters_the_selected_passage_s_field_and_takes_its_letters(
     expect(field).not_to_be_focused()
     page.keyboard.press("c")
     expect(field).to_be_focused()
+    page.keyboard.press("c")
+    expect(field).to_have_js_property("value", "c")
     page.keyboard.type("?")
-    expect(field).to_have_js_property("value", "?")
-    page.keyboard.press("Escape")
-
-    # An explicit visual target follows the same contract, but its accessible field name
-    # identifies the item rather than a quoted passage.
-    page.locator("#fig svg").click(modifiers=["Alt"])
-    expect(field).to_be_focused()
-    expect(field).to_have_attribute("aria-label", re.compile("figure"))
-    page.keyboard.press("Escape")
-
-
-def test_typing_in_a_selected_comment_wins_over_page_shortcuts(browser, serve):
-    """Once Comment focuses a selected passage's field, shortcut letters are text."""
-    url = serve(TARGETS_PAGE)
-    _publish(serve.page_dir, 2, TARGETS_PAGE, "two")
-    page = open_page(browser, url)
-
-    box = page.locator("#prose").bounding_box()
-    select(
-        page,
-        (box["x"] + 1, box["y"] + 4),
-        (box["x"] + box["width"] - 1, box["y"] + box["height"] - 4),
-        steps=12,
-    )
-    fab = page.locator(".lf-fab-input")
-    expect(page.locator(".lf-fab-bar")).to_be_visible()
-    expect(fab).not_to_be_focused()
-    page.keyboard.press("c")
-    expect(fab).to_be_focused()
-    page.keyboard.press("c")
-    expect(fab).to_have_js_property("value", "c")
+    expect(field).to_have_js_property("value", "c?")
     page.keyboard.press("Escape")
     page.evaluate(RELEASE_FOCUS)
 
@@ -217,10 +192,16 @@ def test_typing_in_a_selected_comment_wins_over_page_shortcuts(browser, serve):
     expect(page.locator(panel_view("menu"))).to_have_count(0)
 
     page.keyboard.press("?")
-    reference = page.locator(".lf-command-reference")
-    expect(reference).to_be_visible()
+    expect(help_el).to_be_visible()
     page.keyboard.press("Escape")
-    expect(reference).to_be_hidden()
+    expect(help_el).to_be_hidden()
+
+    # An explicit visual target follows the same contract, but its accessible field name
+    # identifies the item rather than a quoted passage.
+    page.locator("#fig svg").click(modifiers=["Alt"])
+    expect(field).to_be_focused()
+    expect(field).to_have_attribute("aria-label", re.compile("figure"))
+    page.keyboard.press("Escape")
 
 
 def test_submit_shortcuts_activate_the_controls_that_promise_the_action(browser, serve):
@@ -265,7 +246,7 @@ def test_submit_shortcuts_activate_the_controls_that_promise_the_action(browser,
     page.keyboard.press("Shift+Enter")
     page.keyboard.type("Keep the second line.")
     expect(editor).to_have_js_property(
-        "value", "Save through the visible control.\nKeep the second line."
+        "value", "Save through the visible control.\n\nKeep the second line."
     )
     expect(editor).to_have_attribute(
         "aria-keyshortcuts", "Meta+Enter Control+Enter Escape"
@@ -304,7 +285,7 @@ def test_touch_return_keeps_newlines_until_the_user_taps_submit(browser, serve):
     write(editor, "First paragraph")
     editor.press("Enter")
     editor.type("Second paragraph")
-    expect(editor).to_have_js_property("value", "First paragraph\nSecond paragraph")
+    expect(editor).to_have_js_property("value", "First paragraph\n\nSecond paragraph")
     expect(editor).to_have_attribute(
         "aria-keyshortcuts", "Meta+Enter Control+Enter Escape"
     )
@@ -697,77 +678,97 @@ def test_c_in_a_seated_thread_reaches_the_thread_it_is_in(browser, serve):
     assert page.evaluate("() => document.activeElement === document.body")
 
 
-@pytest.mark.parametrize("gesture", ["keyboard", "pointer"])
-def test_commenting_on_a_closed_disclosure_leaves_it_closed(browser, serve, gesture):
-    """Comment on a visible summary preserves its place and keeps its contents closed."""
+def test_commenting_on_a_closed_disclosure_leaves_it_closed(browser, serve, subtests):
+    """Comment on a visible summary preserves its place and keeps its contents closed.
+    Each gesture closes the box it opened, so they share one page."""
     page = open_page(browser, serve(DISCLOSED_PAGE))
     disclosure = page.locator("#dsc")
     summary = page.locator("#dsc-head")
     expect(disclosure).not_to_have_attribute("open", "")
 
-    if gesture == "keyboard":
+    def keyboard():
         summary.focus()
         page.keyboard.press("c")
-    else:
+
+    def pointer():
         summary.click(modifiers=["Alt"])
 
-    expect(page.locator(".lf-fab-input")).to_be_focused()
-    expect(disclosure).not_to_have_attribute("open", "")
+    for gesture in (keyboard, pointer):
+        with subtests.test(gesture=gesture.__name__):
+            gesture()
+            expect(page.locator(".lf-fab-input")).to_be_focused()
+            expect(disclosure).not_to_have_attribute("open", "")
+        page.keyboard.press("Escape")
+        expect(page.locator(".lf-composer")).to_be_hidden()
 
 
-# A section past the window's foot and past its head, and a small clipped target; the
-# nested scroller holds the one past the head and the clipped one.
-@pytest.mark.parametrize(
-    "target_height,top,nested",
-    [
-        (1400, 320, False),
-        (1400, -500, True),
-        (120, 780, False),
-        (120, 780, True),
-    ],
-)
 def test_opening_comment_preserves_the_visible_reading_position(
-    browser, serve, nested, target_height, top
+    browser, serve, subtests
 ):
     """Opening an overlay on a visible target is not a navigation gesture.
 
     A target need not fit the window: a section can extend beyond either edge,
     and a small target can be clipped. The page and a nested reading scroller
-    both retain their position through placement and the field's focus handoff.
+    both retain their position through placement and the field's focus handoff. Each
+    target is a section of its own and each case closes its box, so they share one page.
     """
-    content = (
-        '<div style="height:1000px"></div>'
-        f'<section id="target" tabindex="0" style="height:{target_height}px">'
-        "<h2>A section to comment on</h2><p>Keep these words where they are.</p>"
-        '</section><div style="height:1400px"></div>'
-    )
-    if nested:
-        content = (
-            f'<div id="reading" style="height:820px;overflow:auto">{content}</div>'
+
+    def target(id_, height):
+        return (
+            f'<section id="{id_}" tabindex="0" style="height:{height}px">'
+            "<h2>A section to comment on</h2><p>Keep these words where they are.</p>"
+            '</section><div style="height:1400px"></div>'
         )
-    page = open_page(browser, serve(leaf_page("Comment without travel", content)))
-    resized(page, 800, 900)
-    page.evaluate(
-        """({nested, top}) => {
-          const target = document.querySelector('#target');
-          target.focus({preventScroll: true});
-          const box = nested ? document.querySelector('#reading') : document.scrollingElement;
-          box.scrollTop += target.getBoundingClientRect().top - top;
-        }""",
-        {"nested": nested, "top": top},
+
+    gap = '<div style="height:1000px"></div>'
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Comment without travel",
+                f"{gap}{target('past-foot', 1400)}{target('clipped', 120)}"
+                f'<div id="reading" style="height:820px;overflow:auto">{gap}'
+                f"{target('past-head', 1400)}{target('clipped-nested', 120)}</div>{gap}",
+            )
+        ),
     )
-    scroll_settled(page)
-    reading = """() => ({
-      page: document.scrollingElement.scrollTop,
-      pane: document.querySelector('#reading')?.scrollTop ?? 0,
-      target: document.querySelector('#target').getBoundingClientRect().top,
-    })"""
-    before = page.evaluate(reading)
-    page.keyboard.press("c")
-    expect(page.locator(".lf-fab-input")).to_be_focused()
-    rendered(page)
-    scroll_settled(page)
-    assert page.evaluate(reading) == before
+    resized(page, 800, 900)
+    # A section past the window's foot and past its head, and a small clipped target; the
+    # nested scroller holds the one past the head and the clipped one.
+    for id_, top in (
+        ("past-foot", 320),
+        ("past-head", -500),
+        ("clipped", 780),
+        ("clipped-nested", 780),
+    ):
+        with subtests.test(target=id_):
+            page.evaluate(
+                """({id, top}) => {
+                  const target = document.getElementById(id);
+                  target.focus({preventScroll: true});
+                  const reading = document.querySelector('#reading');
+                  const nested = reading.contains(target);
+                  if (nested) document.scrollingElement.scrollTop +=
+                    reading.getBoundingClientRect().top;
+                  const box = nested ? reading : document.scrollingElement;
+                  box.scrollTop += target.getBoundingClientRect().top - top;
+                }""",
+                {"id": id_, "top": top},
+            )
+            scroll_settled(page)
+            reading = """id => ({
+              page: document.scrollingElement.scrollTop,
+              pane: document.querySelector('#reading').scrollTop,
+              target: document.getElementById(id).getBoundingClientRect().top,
+            })"""
+            before = page.evaluate(reading, id_)
+            page.keyboard.press("c")
+            expect(page.locator(".lf-fab-input")).to_be_focused()
+            rendered(page)
+            scroll_settled(page)
+            assert page.evaluate(reading, id_) == before
+        page.keyboard.press("Escape")
+        expect(page.locator(".lf-composer")).to_be_hidden()
 
 
 def test_target_picker_comments_on_a_clipped_card_without_moving_the_board(
@@ -827,9 +828,9 @@ def test_target_picker_comments_on_a_clipped_card_without_moving_the_board(
     assert before["visible"] == pytest.approx(before["width"], abs=1), before
     choose(page, "#sq-card-0")
     assert board_reading(page, "#sq-card-0")["scrollLeft"] == before["scrollLeft"]
-    page.close()
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-composer")).to_be_hidden()
 
-    page = open_page(browser, url, context=context)
     page.evaluate(
         """() => {
           const board = document.querySelector('#crowd');
@@ -849,11 +850,11 @@ def test_target_picker_comments_on_a_clipped_card_without_moving_the_board(
     )
 
 
-@pytest.mark.parametrize("reply_visible", [True, False])
 def test_c_enters_a_seated_reply_without_revealing_the_thread_heading(
-    browser, serve, reply_visible
+    browser, serve, subtests
 ):
-    """A visible reply keeps its place; an off-screen reply is revealed on entry."""
+    """A visible reply keeps its place; an off-screen reply is revealed on entry. Each
+    case leaves the reply it entered, so they share one page."""
     url = serve(
         leaf_page(
             "Reply without travel",
@@ -878,29 +879,32 @@ def test_c_enters_a_seated_reply_without_revealing_the_thread_heading(
     thread = page.locator(".lf-page-thread")
     reply = thread.locator("leaf-text")
     expect(reply).to_be_visible()
-    thread.evaluate(
-        """(thread, visible) => {
-          thread.focus({preventScroll: true});
-          const reply = thread.querySelector('leaf-text').getBoundingClientRect();
-          scrollBy(0, reply.top - (visible ? 110 : 1000));
-        }""",
-        reply_visible,
-    )
-    scroll_settled(page)
-    before = page.evaluate("scrollY")
-    if reply_visible:
-        assert thread.bounding_box()["y"] < 42
-        assert reply.bounding_box()["y"] >= 100
-    else:
-        assert reply.bounding_box()["y"] >= 900
-    page.keyboard.press("c")
-    expect(reply).to_be_focused()
-    scroll_settled(page)
-    if reply_visible:
-        assert page.evaluate("scrollY") == before
-    else:
-        box = reply.bounding_box()
-        assert 42 <= box["y"] and box["y"] + box["height"] <= 900
+    for reply_visible in (True, False):
+        with subtests.test(reply_visible=reply_visible):
+            thread.evaluate(
+                """(thread, visible) => {
+                  thread.focus({preventScroll: true});
+                  const reply = thread.querySelector('leaf-text').getBoundingClientRect();
+                  scrollBy(0, reply.top - (visible ? 110 : 1000));
+                }""",
+                reply_visible,
+            )
+            scroll_settled(page)
+            before = page.evaluate("scrollY")
+            if reply_visible:
+                assert thread.bounding_box()["y"] < 42
+                assert reply.bounding_box()["y"] >= 100
+            else:
+                assert reply.bounding_box()["y"] >= 900
+            page.keyboard.press("c")
+            expect(reply).to_be_focused()
+            scroll_settled(page)
+            if reply_visible:
+                assert page.evaluate("scrollY") == before
+            else:
+                box = reply.bounding_box()
+                assert 42 <= box["y"] and box["y"] + box["height"] <= 900
+        page.keyboard.press("Escape")
 
 
 def test_c_comments_and_g_t_navigates_to_threads(browser, serve):

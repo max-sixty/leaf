@@ -40,14 +40,14 @@
    reply does not grow twice. Margin location and its keyboard ladder own dismissal
    and target landing; the card keeps Send's focus on the thread that received it. */
 import {
-  atScrollEnd,
+  followsEnd,
   keepFoot,
   moveScrollerBy,
   pageScroller,
   scrollToEnd,
   scrollLimit,
 } from "../scrolling.js";
-import { computed, signal } from "/runtime/framework.js";
+import { signal } from "/runtime/framework.js";
 import { tick } from "../version-signal.js";
 import { cancelRender, nextRender } from "../rendering.js";
 import { spokenSubject } from "../contribution-model.js";
@@ -61,7 +61,6 @@ import {
   onCurrentLocation,
   onUserInput,
   focused,
-  focusRevision,
   tabStops,
 } from "../focus.js";
 import { TEXT_FIELD } from "../control-selectors.js";
@@ -92,7 +91,6 @@ import {
 import { passageGeometry } from "../resolved-target.js";
 import { floatingPlacement, floatingUi, floatingGeometry } from "./floating.js";
 import { surfaceGrip } from "./surface-grip.js";
-import { placeKeeper } from "../user-place.js";
 import { renderedOrder, renderedUnder, under } from "../shadow.js";
 import { keys } from "../keyboard/scopes.js";
 import { retainUserIntent } from "../user-intent.js";
@@ -113,7 +111,7 @@ import { CardAnchor } from "../thread/card-anchor.js";
  * arriving: boolean, sent: Pick<Origin, "fromEnd" | "field"> | null, away: boolean,
  * positionFrame: number, positionResult: PromiseWithResolvers<boolean> | null,
  * focusPending: {holding: Element | null} | null, withheldFocus: ReturnType<typeof holdFocus>,
- * transcript: HTMLElement | null, place: ReturnType<typeof placeKeeper> | null,
+ * transcript: HTMLElement | null,
  * stopRegion: (() => void) | null, stopFoot: (() => void) | null, side: ReturnType<typeof commentPlacement>, anchor: CardAnchor,
  * reading: {input: number, scroll: number, end: boolean} | null, itemView: {node: HTMLElement, body: HTMLElement} | null, width: number | null, scroller: Element, followed: boolean}} Session
  * @typedef {{latest: boolean, end: boolean, scroll: number, keepTop: boolean, transcript: HTMLElement}} Reading
@@ -130,7 +128,7 @@ const CUT_EDGES = [
 ];
 
 /** @param {{inventory: ReturnType<typeof import("../annotation-inventory.js").createAnnotationInventory>,
- * renderMarginThread: (host: HTMLElement, thread: ThreadRecord, controls: import("../thread/thread-card.js").MarginControls) => ReturnType<typeof import("../thread/inline.js").renderMarginThread>,
+ * renderMarginThread: (host: HTMLElement, thread: ThreadRecord, outlets: import("../thread/thread-card.js").ViewOutlets) => ReturnType<typeof import("../thread/inline.js").renderMarginThread>,
  * placedAt: ReturnType<typeof import("../anchor-placement.js").createAnchorPlacement>["placedAt"],
  * scrollThreadIntoView: typeof import("../thread/reply-landing.js").scrollThreadIntoView,
  * scrollToElement: ReturnType<typeof import("../anchor-travel.js").createAnchorTravel>["scrollToElement"],
@@ -190,6 +188,14 @@ export function createThreadPreview({
     "Open in panel",
     { action: "expand" },
   );
+  // The card's head line: the thread's notice of held news, Previous and Next, Open in
+  // panel, the thread's Resolve or Reopen, and Close. It stands in the thread, over its
+  // first message's head, whose track it shares (annotation-chrome.css), and holds the
+  // boxes the thread draws its notice and its settlement in (thread-card.js,
+  // `CardOutlets`, `line`).
+  const previewHead = el("div", "lf-margin-thread-controls");
+  const previewActions = el("span", "lf-thread-meta-actions");
+  previewHead.append(previewActions);
   const previewList = el("div", "lf-margin-preview-list");
   let dismiss = () => {};
   // Carried by its grip, the card stands where the user drops it, relative to what it is
@@ -260,14 +266,14 @@ export function createThreadPreview({
   // there, as the floating panel's menu does.
   const opener = () =>
     previewSession?.control?.checkVisibility() ? previewSession.control : null;
-  // Every cluster declares the entry's half of these keys (`openerKeys`), so whether the
-  // user is on the entry is one computed their reflections share.
-  const onOpener = computed(() => {
-    focusRevision();
+  // Whether the user is on the entry the card hangs from, which the margin's keys ask
+  // (`openerKeys`). Reading `cardRevision` keeps their reflection current as the card
+  // opens, closes or moves while focus stays where it is.
+  const onOpener = () => {
     void cardRevision.value;
     const target = opener();
     return Boolean(target) && focused() === target;
-  });
+  };
   // The stops in `root` before (-1) or after (1) `at`, in the browser's order.
   /** @param {Element} root @param {Element} at @param {number} side */
   const stopsBeside = (root, at, side) =>
@@ -319,7 +325,7 @@ export function createThreadPreview({
       title: "into the thread card",
       repeat: true,
       runFromCommandReference: false,
-      when: () => onOpener.value && tabStops(preview).length > 0,
+      when: () => onOpener() && tabStops(preview).length > 0,
       run: () => {
         const [target] = tabStops(preview);
         if (target) focusDestination(target, "step");
@@ -333,7 +339,7 @@ export function createThreadPreview({
       repeat: true,
       runFromCommandReference: false,
       when: () => {
-        const target = onOpener.value ? opener() : null;
+        const target = onOpener() ? opener() : null;
         return (
           target !== null && under(stopsBeside(chromeRoot, target, -1).at(-1), preview)
         );
@@ -353,26 +359,22 @@ export function createThreadPreview({
       previewSession?.anchor.writing();
   });
   let previewRegionMounted = false;
-  // The card's transcript is re-rendered on every reading of its thread; a message holds
-  // the user's place in it under the event id it is rendered with (user-place.js).
+  // The card's transcript is re-rendered on every reading of its thread.
   /** @param {Session} session @param {ReturnType<typeof import("../thread/inline.js").renderMarginThread>[number]} reading */
   function syncPreviewTranscript(session, { thread: card, transcript }) {
     if (transcript === session.transcript) return;
     session.stopRegion?.();
     session.stopRegion = null;
     session.transcript = transcript;
+    // The card scrolls its transcript, which grows only at its end (browser/AGENTS.md,
+    // `data-lf-reflow`).
+    if (transcript) keeps(transcript, "data-lf-reflow", "append");
     // The transcript stands on its foot beside the reply box: a reader at its end keeps
     // the turn there beside the box as the box takes room from it or gives it back,
     // whatever changed the box, and one read back keeps their offset, as the card hangs
     // from its passage (scrolling.js, `keepFoot`).
     session.stopFoot?.();
     session.stopFoot = transcript ? keepFoot(transcript, { atEnd: true }) : null;
-    session.place = transcript
-      ? placeKeeper(transcript, {
-          items: ".lf-msg[data-lf-event]",
-          identity: (message) => message.getAttribute("data-lf-event"),
-        })
-      : null;
     if (previewRegionMounted && transcript) {
       // The transcript's width and shown turns when its gutter was last decided.
       let decided = "";
@@ -395,10 +397,12 @@ export function createThreadPreview({
           // fit with it: dropping the gutter whenever they fit brought it back the
           // next frame, and so on every frame. A transcript that stops overflowing
           // otherwise, as when the window grows taller or the reply box empties,
-          // keeps its words the gutter's width narrower until then.
+          // keeps its words the gutter's width narrower until then. A send's ride
+          // draws the turns below where they stand, which the browser counts as
+          // overflow, so the decision reads where layout stands them (`scrollLimit`).
           /** @type {NodeListOf<HTMLElement>} */
           const messages = transcript.querySelectorAll(":scope > .lf-msg");
-          const overflows = transcript.scrollHeight > transcript.clientHeight;
+          const overflows = scrollLimit(transcript) > 0;
           const shown = [...messages].filter((message) => !message.hidden).length;
           const shape = `${transcript.offsetWidth} ${shown}`;
           const room = slotTop(transcript);
@@ -676,7 +680,7 @@ export function createThreadPreview({
             const priorReading =
               session.reading?.input === inputCount() ? session.reading : null;
             reading ??= session.transcript && {
-              end: !fresh && (priorReading?.end ?? atScrollEnd(session.transcript)),
+              end: !fresh && (priorReading?.end ?? followsEnd(session.transcript)),
               scroll: priorReading?.scroll ?? session.transcript.scrollTop,
               keepTop:
                 stationary && !fresh && anchored.edge === "top" && !anchored.writing,
@@ -856,7 +860,6 @@ export function createThreadPreview({
       focusPending: null,
       withheldFocus: null,
       transcript: null,
-      place: null,
       reading: null,
       stopRegion: null,
       stopFoot: null,
@@ -923,7 +926,7 @@ export function createThreadPreview({
       lastBox.bottom >= listBox.top &&
       lastBox.bottom <= (replyBox?.top ?? listBox.bottom) + 80 &&
       followTranscript &&
-      atScrollEnd(followTranscript)
+      followsEnd(followTranscript)
         ? followTranscript
         : null;
     session.reading = session.transcript && {
@@ -964,7 +967,7 @@ export function createThreadPreview({
         previewClose,
       );
     };
-    if (!arriving && session.place) session.place.around(present);
+    if (!arriving && session.transcript) present();
     else {
       present();
       const transcript = session.transcript;
@@ -1005,16 +1008,27 @@ export function createThreadPreview({
       openInPanel(shownThread.id);
     };
     const rendered = renderMarginThread(body, shownThread, {
-      nav: previewNav.hidden ? null : previewNav,
-      expand: previewOpenInPanel,
-      close: previewClose,
-      anchor: session.anchor,
+      line: (apart) => {
+        setChildren(previewActions, [
+          apart.news,
+          ...(previewNav.hidden ? [] : [previewNav]),
+          previewOpenInPanel,
+          apart.controls,
+          previewClose,
+        ]);
+        return previewHead;
+      },
       // A send from the card is the user's change joining the stream the card shows
       // (box-motion.js, "send"), read before the send draws.
-      sending: following.stream,
+      reply: { options: { sending: following.stream } },
+      anchor: session.anchor,
+      // The card stands for the thread on the page, where taking back a settlement made
+      // in it opens the thread again.
+      reader: "page",
       // A resolved thread with no draft has no margin card, so resolving closes it and
-      // hands the user to its target.
-      prepareLanding: () => {
+      // hands the user to its target. Reopen lands as the thread's own does.
+      landing: (resolved) => {
+        if (resolved) return null;
         const target = targetFor(previewSession?.entry);
         if (!target) return () => false;
         const mayLand = retainUserIntent({

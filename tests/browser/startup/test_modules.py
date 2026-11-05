@@ -118,7 +118,7 @@ Two classic models.</pre></lf-code>
     expect(rows).to_have_count(3)
     # The comment on the code's words found them: its quote is no detached one.
     rows.filter(has_text="Still anchored?").click()
-    quote = page.locator(f"{PANEL_THREAD} .lf-fp-quote")
+    quote = page.locator(f"{PANEL_THREAD} .lf-thread-quote")
     expect(quote).to_be_visible()
     expect(quote).not_to_have_attribute("data-lf-detached", "")
 
@@ -615,6 +615,8 @@ def test_the_public_widget_api_can_load_before_boot_registers_page_keys(browser,
     context.route("**/leaf-boot.js", boot_after_one_frame)
     page = open_page(browser, url, context=context)
     assert page.evaluate("window.apiImportedBeforeBoot") is True
-    page.locator("[data-lf-margin-for='sug-refill'] .lf-sug-accept").click()
+    page.locator(
+        "[data-lf-margin-for='sug-refill'] [data-lf-margin-entry-key=accept]"
+    ).click()
     round_trip(page)
     expect(page.locator("#sug-refill")).to_have_attribute("data-lf-state", "accept")

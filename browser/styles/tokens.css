@@ -60,8 +60,9 @@
   );
   /* What a page reads of the chrome, and only where it needs a number: a box that fills
      the window takes --lf-view-height, and a box that sticks stops at --lf-top, below
-     the head room and any sticky header under it. Ordinary content never sees either
-     band; the document already keeps clear of both (html[data-lf-live], base.css). */
+     the head room, the page's own heads (base.css, at `--lf-top`) and any sticky header
+     under them. Ordinary content never sees either band; the document already keeps
+     clear of both (html[data-lf-live], base.css). */
   --lf-view-height: calc(100dvh - var(--lf-head-room) - var(--lf-foot-room));
   --lf-top: var(--lf-head-room);
   /* A scroller's landing band, which its `scroll-padding-top` states (the root's, base.css),
@@ -75,7 +76,7 @@
   /* The page tab strip's stated height: its 8px head, a name's 38px face or the aim
      floor where that is taller, and its 1px rule. The default package draws the strip
      at it, and the root's `scroll-padding` adds it where a page tab strip stands over
-     the root (`--lf-root-headers`, page-layout.js). */
+     the root (`--lf-root-headers`, root-headers.js). */
   --lf-tabstrip-h: calc(9px + max(38px, var(--aim-floor)));
   /* Stacking: one ascending ladder for everything the runtime lifts over the page.
      A number local to a component's own stacking context stays where it is written.
@@ -504,17 +505,24 @@
      a reaction the user added rests on. */
   --accent-tint: color-mix(in srgb, var(--accent) 12%, var(--card));
   /* Status marker, text and ground are independent theme inputs. In particular,
-     a warning dot's color need not provide readable small text on its ground. */
-  --ok-tint: light-dark(#dfeddf, #1d2b1f);
+     a warning dot's color need not provide readable small text on its ground.
+
+     A light status tint is darker than every ground it stands on. A dark one is
+     lighter than the paper, as a card and the panel are, so it takes its distance
+     from them in colour. Each stands at least 5 apart (OKLab, ΔE × 100) from the
+     paper, a card and the panel, about as far as the light tints stand. Tuned on the
+     paper alone, the dark tints stood 3 apart on the panel, where a tag's tint all
+     but vanished. */
+  --ok-tint: light-dark(#dfeddf, #142f1a);
   --ok-wash: color-mix(in srgb, var(--ok-tint) 52%, var(--paper));
   --ok-ink: light-dark(#2f6b40, #97cca3);
   /* Green identifies the user's turn. Unread and agent progress keep the blue
      accent, so neither can be mistaken for a request to the user. */
   --turn-wash: var(--ok-wash);
   --turn-ink: var(--ok-ink);
-  --warn-tint: light-dark(#f7ecd2, #322715);
+  --warn-tint: light-dark(#f7ecd2, #37280e);
   --warn-ink: light-dark(#8a5a12, #e2bb75);
-  --danger-tint: light-dark(#f7e0da, #35211b);
+  --danger-tint: light-dark(#f7e0da, #3c1e16);
   --danger-ink: light-dark(#9c3526, #e0a091);
   --add-tint: light-dark(#e4efe0, #1b2a1c);
   --del-tint: light-dark(#f7e2dc, #33201b);

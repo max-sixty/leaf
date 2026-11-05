@@ -85,6 +85,7 @@ from leaf_dev import browser as dev_browser
 from leaf_dev.browser import (
     ON_ME_MARK,
     PANEL,
+    chromium_metrics,
     panel_view,
     scroll_settled,
     slow_cpu,
@@ -150,11 +151,12 @@ def document_port_binding_source():
 
 @cache
 def shift_watch_source():
-    """Bind the sensor to the runtime's control, clipping, and scroll-space readings."""
+    """Bind the sensor to the runtime's control, clipping, scroll-space and
+    skipped-content readings."""
     source = (
         'import { clippingAxes } from "./browser/runtime/rect.js";\n'
         'import { elementAxes, scrollAxes } from "./browser/runtime/element-axes.js";\n'
-        'import { renderedParent } from "./browser/runtime/shadow-tree.js";\n'
+        'import { renderedParent, skipped } from "./browser/runtime/shadow-tree.js";\n'
         + WATCH_PLATFORM_SOURCE.read_text()
         + "\nconst nativePerformance = window.lfWatchPlatform.performance;\n"
         + "const nativeFrame = callback => window.lfWatchPlatform.frame(callback);\n"
@@ -3170,15 +3172,10 @@ def live_counts(page):
     nodes, those in its documents, comments included, and every detached node something
     still retains, and its event listeners. A count that climbs across repetitions of one
     gesture is a leak whether what it counts piles up in the page or behind it."""
-    session = page.context.new_cdp_session(page)
-    try:
-        session.send("HeapProfiler.collectGarbage")
-        session.send("Performance.enable")
-        metrics = session.send("Performance.getMetrics")["metrics"]
-    finally:
-        session.detach()
-    counted = {"Nodes": "nodes", "JSEventListeners": "event listeners"}
-    return {counted[m["name"]]: m["value"] for m in metrics if m["name"] in counted}
+    with chromium_metrics(page) as metrics:
+        page.request_gc()
+        counts = metrics()
+    return {"nodes": counts["Nodes"], "event listeners": counts["JSEventListeners"]}
 
 
 def still_page(browser, url, width=1200):

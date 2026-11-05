@@ -665,9 +665,9 @@ def test_a_focused_box_that_holds_lines_says_which_key_makes_one(browser, serve)
 
     field = page.locator("#jobs > .lf-another leaf-text")
     field.click()
-    expect(field).to_have_attribute("placeholder", "Add another option ⏎")
+    expect(field).to_have_attribute("placeholder", "Add another option… ⏎")
     shown = field.locator(".lf-compose-placeholder").evaluate(PLACEHOLDER_SHOWN)
-    assert shown["parts"] == ["Add another option", "⏎"], shown
+    assert shown["parts"] == ["Add another option…", "⏎"], shown
 
 
 def test_a_narrow_box_shortens_its_label_before_its_keys(browser, serve):

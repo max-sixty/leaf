@@ -67,8 +67,9 @@ Fix it and post again. Where Leaf has no browser, the failure reaches you instea
 `error` event when the user opens the thread; answer with a corrected reply.
 
 A thread shows in a narrow card or panel, so a paragraph that reads fine in chat is a
-wall there. Say what changed or where to look in a sentence or two, or one short item per
-point; the page carries the evidence. Record a decision, result, or deferred work on
+wall there. Say what changed or where to look in a sentence or two, give each further
+point a short paragraph or item of its own, and put a question you ask on its own
+line; the page carries the evidence. Record a decision, result, or deferred work on
 the page and link it from the reply with a fragment link such as
 `[the decision](#decision)`, which opens any tab or group hiding its target. To point
 at lines of an `lf-code` block, put them after its id and a colon, in the grammar of

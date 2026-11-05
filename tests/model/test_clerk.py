@@ -165,8 +165,8 @@ def test_an_ask_about_a_passage_stands_on_it_or_else_on_the_page(claimed, capsys
 
 
 def test_the_fork_is_asked_the_skills_account_of_the_check(claimed, capsys):
-    """The fork reads the check as the skill ships it, Leaf's rule for On me as the
-    agent reads it, then each page's facts, among
+    """The fork reads the check as the skill ships it, the agent's guidance for
+    asking as the agent reads it, then each page's facts, among
     them each item the agent has started with its line, which tells the fork what the
     page shows under way."""
     hook(capsys, "UserPromptSubmit")
@@ -174,11 +174,13 @@ def test_the_fork_is_asked_the_skills_account_of_the_check(claimed, capsys):
     todos_model.cmd_start(claimed, todo["id"], "revising the plan")
     prompt = asked()["prompt"]
     assert clerk_model.REFERENCE.read_text().strip() in prompt
-    # The asks follow the On me rule the agent reads, sent whole.
-    rule = clerk_model.on_me_rule()
+    # The asks follow the guidance the agent reads, each paragraph sent whole.
+    rule, *rest, linking = clerk_model.guidance()
     assert rule.startswith("The user's **On me** list holds everything waiting on them")
     assert rule.endswith("is not an obligation.")
-    assert f"## Leaf's rule for On me\n\n{rule}\n\n" in prompt
+    assert linking.endswith("opens what it names from there to\ncheck it.")
+    assert f"## Leaf's guidance for asking\n\n{rule}\n\n" in prompt
+    assert all(paragraph in prompt for paragraph in rest)
     assert (
         "Started items, which the page shows as under way, each with its line:\n"
         f'- {todo["id"]}, the agent\'s to-do "Revise the plan": "revising the plan"'

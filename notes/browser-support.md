@@ -150,6 +150,20 @@ Revisit the fallback when supported engines provide it.
 `tests/browser/widgets/test_contents_and_glosses.py` checks the fallback against
 the native timeline with the API removed.
 
+### Sticky boxes' own place
+
+A margin pin's seat is read against the room around its target, with a sticky box
+counted at its own place, where it stands before sticking (`stuckShift` in
+`browser/runtime/geometry.js`). Only a view timeline reads that place without
+writing to the page. Installed Playwright Firefox 157.0, build 1555, had no
+`ViewTimeline` on 2026-11-05, so there a sticky box counts where it is drawn. A pass
+made while a header inside the target is stuck down the page can then seat the pin
+where the header stands once the user scrolls back, and a later unrelated pass moves
+the pin with no input. Playwright Chromium 156.0.8078.4 (build 1248) and WebKit 27.2
+(build 2370) read the place the same way. Recheck by adding `firefox_browser` to
+`test_a_pin_by_a_sticky_header_takes_one_seat_at_every_scroll` in
+`tests/browser/margin/test_scrollers.py`.
+
 ### Highlight style inheritance
 
 Playwright Firefox 155 accepted `:root::highlight()` and `:host::highlight()`
@@ -324,7 +338,7 @@ Chrome 155 trimmed block-flow margins but left flex and grid item margins;
 a generated child could prevent trimming the authored paragraph. Playwright
 Chromium 153.0.8010.12 and Firefox 155 did not accept the property.
 Recheck wrapper and row behavior, not just parser support, against
-`test_frame_edges_pass_through_whatever_stands_at_them` and
+`test_block_margins_follow_density_frames_and_the_column_on_one_page` and
 `test_a_row_at_a_frame_edge_holds_the_trim_by_declaring_it` in
 `tests/browser/test_render_gate.py`.
 

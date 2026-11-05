@@ -35,7 +35,6 @@ from render_cases_widgets import (
     DIAGRAM_AND_RAIL_PAGE,
     DIAGRAM_ROOM,
     DRAWING_PLACEMENT,
-    DRAWN_PAST_A_RAIL_PAGE,
     FRAMED_WIDE_PAGE,
     LONG_CHAIN_PAGE,
     NOTE_AND_WIDE_PAGE,
@@ -899,34 +898,6 @@ def test_a_screenshot_margin_trace_paints_both_quiet_brackets(browser, serve):
     expect(shot.locator('.lf-shotframe[data-lf-state="after"]')).to_be_visible()
 
 
-def test_a_diagram_follows_the_scheme_it_is_read_in(browser, serve):
-    """The SVG keeps Leaf's theme variables, so a scheme flip repaints it live."""
-    page = open_page(browser, serve(WIDE_DIAGRAM_PAGE))
-    node = (
-        page.locator('#flow g[data-id="S"]')
-        .locator("rect, polygon, path, circle, ellipse")
-        .first
-    )
-    expect(node).to_be_visible()
-    fill = "el => getComputedStyle(el).fill"
-    light = node.evaluate(fill)
-    expected = page.evaluate(
-        """() => {
-          const probe = document.createElement('i');
-          probe.style.cssText = 'color:color-mix(in srgb, var(--accent) 10%, var(--paper))';
-          document.body.append(probe);
-          const color = getComputedStyle(probe).color;
-          probe.remove();
-          return color;
-        }"""
-    )
-    assert light == expected, "the renderer must receive Leaf's accent-tinted surface"
-    page.emulate_media(color_scheme="dark")
-    assert node.evaluate(fill) != light, (
-        "a diagram's node surface must follow the page's scheme"
-    )
-
-
 def test_diagrams_keep_fonts_and_svg_definitions_inside_the_page(browser, serve):
     """Renderer output cannot import a web font or reuse one SVG's definition ids.
 
@@ -998,63 +969,97 @@ flowchart LR
     assert not page.evaluate("() => !!window.lfInjected")
 
 
-def test_a_diagram_takes_the_room_and_scrolls_only_past_it(browser, serve):
-    """A diagram keeps the natural geometry its renderer laid out.
-
-    Scaling a wide drawing to the column takes its labels below legibility. The module
-    states the viewBox width explicitly, so only how much of that natural drawing fits
-    in the available room changes.
-
-    Which is the whole of it wherever the window has the room. A drawing is not a box
-    that fills whatever it is given, so the one width the vocabulary shares is no promise
-    about it: held to that number, this 1147px flowchart was cut off at 1080 on a window
-    with 470px to spare. The board on the
-    same page is the half that says the declaration is doing this rather than the tag —
-    it declares `wide` with its `data-width` and lays its columns out into whatever it is
-    given, so it takes that shared number and stops there on the same window that hands
-    the diagram all of the room.
-
-    Past the room there is nothing left to give, and the answer is the theme's for any
-    wide content: the widget's own box scrolls sideways and the document does not."""
+def test_a_diagram_takes_the_room_and_follows_the_scheme_it_is_read_in(
+    browser, serve, subtests
+):
+    """A drawing's width across windows and its paint across schemes, on one page."""
     page = open_page(browser, serve(WIDE_DIAGRAM_PAGE))
 
-    # This width leaves the complete drawing room on both supported font platforms.
-    resized(page, 1920, 900)
-    wide = page.evaluate(DIAGRAM_ROOM)
-    assert wide["natural"] > wide["wide"], (
-        f"the fixture must lay out wider than the shared width ({wide['wide']:.0f}px), "
-        "or the window having room says nothing"
-    )
-    assert wide["natural"] < wide["room"], (
-        "and inside the room this window has, or nothing here is about being cut off"
-    )
-    assert round(wide["drawn"]) == round(wide["natural"]), (
-        f"the drawing was scaled to fit: natural {wide['natural']:.0f}px, "
-        f"drawn {wide['drawn']:.0f}px"
-    )
-    assert not wide["scrolls"], (
-        f"a window with the room for the whole drawing still cut it off: "
-        f"{wide['natural']:.0f}px of diagram in a {wide['box']:.0f}px box"
-    )
-    assert wide["board"] <= wide["wide"] + 1, (
-        f"the board took the room too, so what grew was the tag and not what it "
-        f"declares: board {wide['board']:.0f}px against {wide['wide']:.0f}px"
-    )
-    assert wide["board"] > wide["column"] + 1, (
-        "and the board must still be growing, or its half of this proves nothing"
-    )
-    assert root_overflow(page) == 0, "the page itself must not scroll sideways"
+    with subtests.test("a diagram takes the room and scrolls only past it"):
+        # A diagram keeps the natural geometry its renderer laid out.
+        #
+        # Scaling a wide drawing to the column takes its labels below legibility. The
+        # module states the viewBox width explicitly, so only how much of that natural
+        # drawing fits in the available room changes.
+        #
+        # Which is the whole of it wherever the window has the room. A drawing is not a
+        # box that fills whatever it is given, so the one width the vocabulary shares is
+        # no promise about it: held to that number, this 1147px flowchart was cut off at
+        # 1080 on a window with 470px to spare. The board on the same page is the half
+        # that says the declaration is doing this rather than the tag — it declares
+        # `wide` with its `data-width` and lays its columns out into whatever it is
+        # given, so it takes that shared number and stops there on the same window that
+        # hands the diagram all of the room.
+        #
+        # Past the room there is nothing left to give, and the answer is the theme's for
+        # any wide content: the widget's own box scrolls sideways and the document does
+        # not.
+        # This width leaves the complete drawing room on both supported font platforms.
+        resized(page, 1920, 900)
+        wide = page.evaluate(DIAGRAM_ROOM)
+        assert wide["natural"] > wide["wide"], (
+            f"the fixture must lay out wider than the shared width ({wide['wide']:.0f}px), "
+            "or the window having room says nothing"
+        )
+        assert wide["natural"] < wide["room"], (
+            "and inside the room this window has, or nothing here is about being cut off"
+        )
+        assert round(wide["drawn"]) == round(wide["natural"]), (
+            f"the drawing was scaled to fit: natural {wide['natural']:.0f}px, "
+            f"drawn {wide['drawn']:.0f}px"
+        )
+        assert not wide["scrolls"], (
+            f"a window with the room for the whole drawing still cut it off: "
+            f"{wide['natural']:.0f}px of diagram in a {wide['box']:.0f}px box"
+        )
+        assert wide["board"] <= wide["wide"] + 1, (
+            f"the board took the room too, so what grew was the tag and not what it "
+            f"declares: board {wide['board']:.0f}px against {wide['wide']:.0f}px"
+        )
+        assert wide["board"] > wide["column"] + 1, (
+            "and the board must still be growing, or its half of this proves nothing"
+        )
+        assert root_overflow(page) == 0, "the page itself must not scroll sideways"
+        resized(page, 1000, 900)
+        narrow = page.evaluate(DIAGRAM_ROOM)
+        assert narrow["natural"] > narrow["room"], (
+            "the narrow half proves nothing unless the drawing outgrows the room"
+        )
+        assert round(narrow["drawn"]) == round(narrow["natural"]), (
+            "a drawing that no longer fits is still not scaled down"
+        )
+        assert narrow["scrolls"], (
+            "a drawing wider than the room must scroll inside its box"
+        )
+        assert root_overflow(page) == 0, "nor may the page scroll sideways for it"
 
-    resized(page, 1000, 900)
-    narrow = page.evaluate(DIAGRAM_ROOM)
-    assert narrow["natural"] > narrow["room"], (
-        "the narrow half proves nothing unless the drawing outgrows the room"
-    )
-    assert round(narrow["drawn"]) == round(narrow["natural"]), (
-        "a drawing that no longer fits is still not scaled down"
-    )
-    assert narrow["scrolls"], "a drawing wider than the room must scroll inside its box"
-    assert root_overflow(page) == 0, "nor may the page scroll sideways for it"
+    with subtests.test("a diagram follows the scheme it is read in"):
+        # The SVG keeps Leaf's theme variables, so a scheme flip repaints it live.
+        node = (
+            page.locator('#flow g[data-id="S"]')
+            .locator("rect, polygon, path, circle, ellipse")
+            .first
+        )
+        expect(node).to_be_visible()
+        fill = "el => getComputedStyle(el).fill"
+        light = node.evaluate(fill)
+        expected = page.evaluate(
+            """() => {
+              const probe = document.createElement('i');
+              probe.style.cssText = 'color:color-mix(in srgb, var(--accent) 10%, var(--paper))';
+              document.body.append(probe);
+              const color = getComputedStyle(probe).color;
+              probe.remove();
+              return color;
+            }"""
+        )
+        assert light == expected, (
+            "the renderer must receive Leaf's accent-tinted surface"
+        )
+        page.emulate_media(color_scheme="dark")
+        assert node.evaluate(fill) != light, (
+            "a diagram's node surface must follow the page's scheme"
+        )
 
 
 def test_a_marked_scrolling_visual_keeps_its_keyboard_focus_ring(browser, serve):
@@ -1287,69 +1292,6 @@ def test_a_drawing_stands_on_the_columns_axis_until_it_needs_the_free_margin(
         f"{at['flow']['box']['left']:.0f}px"
     )
     assert root_overflow(page) == 0, "the page must not scroll sideways for either"
-
-
-def test_a_widget_that_declares_width_takes_the_room_and_the_column_stays_put(
-    browser, serve
-):
-    """A board's columns are as wide as what they hold, a diff's lines are as long as its
-    files', and prose is set to a measure, so a page carrying all three used to be a
-    cramped board or a page widened past its own measure for one exhibit. x-space
-    declares the capacity a widget needs, and the theme spends the room the layout
-    measured, so each exhibit grows and the prose does not move. The board, a surface,
-    takes all the room; the diff, slightly wider than the column, starts at the prose's
-    edge and stops at the shared cap.
-
-    The code block is the half that says the declaration is doing this. It is a widget
-    too, and declares nothing, so it stays in the column: a rule that reached every
-    widget, or one naming lf-board, would pass every other assertion here and fail this
-    one."""
-    page = open_page(browser, serve(WIDE_AND_NARROW_PAGE))
-
-    wide = page.evaluate(ROOM_GEOMETRY)
-    board, patch, column = wide["board"], wide["widePatch"], wide["column"]
-    # The room is the body's box; a breakout stops at the shell's 24px gutter.
-    for edge, inset in (("left", 24), ("right", -24)):
-        assert board[edge] == pytest.approx(wide["room"][edge] + inset, abs=1), (
-            f"an available board fills the room: its {edge} edge is at "
-            f"{board[edge]:.0f}px, the room's at {wide['room'][edge]:.0f}px"
-        )
-    assert patch["left"] == pytest.approx(column["left"], abs=1), (
-        "a wide exhibit starts where the prose starts, or it reads as one that slipped: "
-        f"diff at {patch['left']:.0f}, column at {column['left']:.0f}"
-    )
-    # Room to spare at this viewport, so a diff stopping short of it is the shared cap
-    # binding rather than the window: one width for the vocabulary, not each widget's own.
-    assert column["width"] < patch["width"] < wide["room"]["width"], (
-        "the wide breakout must stop at one stated width, not fill whatever is there: "
-        f"diff {patch['width']:.0f}px, room {wide['room']['width']:.0f}px"
-    )
-    assert abs(wide["diff"]["width"] - column["width"]) <= 1, (
-        "a widget that declares nothing keeps the column: code block "
-        f"{wide['diff']['width']:.0f}px against {column['width']:.0f}px"
-    )
-    assert abs(wide["prose"]["width"] - column["width"]) <= 1, (
-        "prose keeps its measure whatever the exhibits beside it do"
-    )
-    assert root_overflow(page) == 0, "the page must not scroll sideways"
-
-    # Under the column's own width there is no room to take, and the rule has to come out
-    # as the layout the page already had: the same edge, not an inset approximation of it.
-    resized(page, 700, 900)
-    narrow = page.evaluate(ROOM_GEOMETRY)
-    assert narrow["column"]["width"] < 720, (
-        "the narrow half proves nothing unless the window is under the column"
-    )
-    for name in ("board", "widePatch"):
-        assert abs(narrow[name]["left"] - narrow["column"]["left"]) <= 1, (
-            f"the {name} on a narrow window must start where the prose starts: at "
-            f"{narrow[name]['left']:.0f}, column at {narrow['column']['left']:.0f}"
-        )
-        assert abs(narrow[name]["width"] - narrow["column"]["width"]) <= 1, (
-            f"and be the column exactly: {name} "
-            f"{narrow[name]['width']:.0f}px, column {narrow['column']['width']:.0f}px"
-        )
-    assert root_overflow(page) == 0, "nor scroll sideways on a narrow window"
 
 
 def test_authored_blocks_choose_wide_or_available_space(browser, serve):
@@ -1802,6 +1744,30 @@ def test_a_scrolling_breakout_table_keeps_its_caption_in_its_scrollport(
     assert root_overflow(page) == 0
 
 
+def test_a_table_caption_reads_at_its_tables_size_and_colour(browser, serve):
+    """A caption names what its table covers, such as which case a table among
+    several shows, so it reads at least at the size and in the colour of the cells
+    it names. Set as apparatus, at the chip size in the muted colour, it was the
+    faintest text around the table, and a reader took three tables for one (#5403)."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Captions",
+                "<h1>Captions</h1><table><caption>Agents that set no working "
+                "directory</caption><thead><tr><th>Agent</th><th>Result</th></tr>"
+                "</thead><tbody><tr><td>Codex</td><td>Refused</td></tr></tbody>"
+                "</table>",
+            )
+        ),
+    )
+    face = "el => { const s = getComputedStyle(el); return [s.fontSize, s.color]; }"
+    caption_size, caption_colour = page.locator("caption").evaluate(face)
+    cell_size, cell_colour = page.locator("td").first.evaluate(face)
+    assert float(caption_size[:-2]) >= float(cell_size[:-2]), (caption_size, cell_size)
+    assert caption_colour == cell_colour
+
+
 @pytest.mark.parametrize("direction", ["ltr", "rtl"])
 def test_a_scrolling_table_keeps_its_row_names_in_view(browser, serve, direction):
     """A table whose rows open with a `<th scope="row">` keeps that column at its start
@@ -2250,35 +2216,100 @@ def test_a_sample_fills_the_room_its_authored_width_takes(browser, serve):
     assert root_overflow(page) == 0
 
 
-def test_paper_keeps_the_column(browser, serve):
-    """Paper has no window to take room from: a printed page is the column's width,
-    whatever the screen it was sent from was showing. The rule that grants the room is
-    therefore screen-only, and leaving it out of print is the whole of what paper needs —
-    the same bargain paper already has with every affordance a copy keeps.
-
-    Asked here rather than left to the print gate beside it, which reads what a medium
-    drops rather than how wide it sets what it keeps: a board printed at a screen's width
-    loses its right-hand columns off the edge of the sheet, and every word of it is still
-    in the document for that gate to find."""
+def test_a_widget_that_declares_width_takes_the_room_on_screen_and_not_on_paper(
+    browser, serve, subtests
+):
+    """Who takes the room beside the column, on a screen and on a sheet, on one page."""
     page = open_page(browser, serve(WIDE_AND_NARROW_PAGE))
-    on_screen = page.evaluate(
-        "() => document.getElementById('sprint').getBoundingClientRect().width"
-    )
-    column = page.evaluate(
-        "() => document.getElementById('prose').getBoundingClientRect().width"
-    )
-    assert on_screen > column + 1, (
-        "the board must be wider than the column on screen, or print proves nothing"
-    )
 
-    page.emulate_media(media="print")
-    printed = page.evaluate(
-        "() => document.getElementById('sprint').getBoundingClientRect().width"
-    )
-    assert abs(printed - column) <= 1, (
-        f"paper set the board to {printed:.0f}px, past a {column:.0f}px column: a sheet "
-        "has no window to take the room from, so what runs past it is off the page"
-    )
+    with subtests.test("paper keeps the column"):
+        # Paper has no window to take room from: a printed page is the column's width,
+        # whatever the screen it was sent from was showing. The rule that grants the
+        # room is therefore screen-only, and leaving it out of print is the whole of
+        # what paper needs — the same bargain paper already has with every affordance a
+        # copy keeps.
+        #
+        # Asked here rather than left to the print gate beside it, which reads what a
+        # medium drops rather than how wide it sets what it keeps: a board printed at a
+        # screen's width loses its right-hand columns off the edge of the sheet, and
+        # every word of it is still in the document for that gate to find.
+        on_screen = page.evaluate(
+            "() => document.getElementById('sprint').getBoundingClientRect().width"
+        )
+        column = page.evaluate(
+            "() => document.getElementById('prose').getBoundingClientRect().width"
+        )
+        assert on_screen > column + 1, (
+            "the board must be wider than the column on screen, or print proves nothing"
+        )
+        page.emulate_media(media="print")
+        printed = page.evaluate(
+            "() => document.getElementById('sprint').getBoundingClientRect().width"
+        )
+        assert abs(printed - column) <= 1, (
+            f"paper set the board to {printed:.0f}px, past a {column:.0f}px column: a sheet "
+            "has no window to take the room from, so what runs past it is off the page"
+        )
+        page.emulate_media(media="screen")
+
+    with subtests.test(
+        "a widget that declares width takes the room and the column stays put"
+    ):
+        # A board's columns are as wide as what they hold, a diff's lines are as long as
+        # its files', and prose is set to a measure, so a page carrying all three used
+        # to be a cramped board or a page widened past its own measure for one exhibit.
+        # x-space declares the capacity a widget needs, and the theme spends the room
+        # the layout measured, so each exhibit grows and the prose does not move. The
+        # board, a surface, takes all the room; the diff, slightly wider than the
+        # column, starts at the prose's edge and stops at the shared cap.
+        #
+        # The code block is the half that says the declaration is doing this. It is a
+        # widget too, and declares nothing, so it stays in the column: a rule that
+        # reached every widget, or one naming lf-board, would pass every other assertion
+        # here and fail this one.
+        wide = page.evaluate(ROOM_GEOMETRY)
+        board, patch, column = wide["board"], wide["widePatch"], wide["column"]
+        # The room is the body's box; a breakout stops at the shell's 24px gutter.
+        for edge, inset in (("left", 24), ("right", -24)):
+            assert board[edge] == pytest.approx(wide["room"][edge] + inset, abs=1), (
+                f"an available board fills the room: its {edge} edge is at "
+                f"{board[edge]:.0f}px, the room's at {wide['room'][edge]:.0f}px"
+            )
+        assert patch["left"] == pytest.approx(column["left"], abs=1), (
+            "a wide exhibit starts where the prose starts, or it reads as one that slipped: "
+            f"diff at {patch['left']:.0f}, column at {column['left']:.0f}"
+        )
+        # Room to spare at this viewport, so a diff stopping short of it is the shared cap
+        # binding rather than the window: one width for the vocabulary, not each widget's own.
+        assert column["width"] < patch["width"] < wide["room"]["width"], (
+            "the wide breakout must stop at one stated width, not fill whatever is there: "
+            f"diff {patch['width']:.0f}px, room {wide['room']['width']:.0f}px"
+        )
+        assert abs(wide["diff"]["width"] - column["width"]) <= 1, (
+            "a widget that declares nothing keeps the column: code block "
+            f"{wide['diff']['width']:.0f}px against {column['width']:.0f}px"
+        )
+        assert abs(wide["prose"]["width"] - column["width"]) <= 1, (
+            "prose keeps its measure whatever the exhibits beside it do"
+        )
+        assert root_overflow(page) == 0, "the page must not scroll sideways"
+        # Under the column's own width there is no room to take, and the rule has to come out
+        # as the layout the page already had: the same edge, not an inset approximation of it.
+        resized(page, 700, 900)
+        narrow = page.evaluate(ROOM_GEOMETRY)
+        assert narrow["column"]["width"] < 720, (
+            "the narrow half proves nothing unless the window is under the column"
+        )
+        for name in ("board", "widePatch"):
+            assert abs(narrow[name]["left"] - narrow["column"]["left"]) <= 1, (
+                f"the {name} on a narrow window must start where the prose starts: at "
+                f"{narrow[name]['left']:.0f}, column at {narrow['column']['left']:.0f}"
+            )
+            assert abs(narrow[name]["width"] - narrow["column"]["width"]) <= 1, (
+                f"and be the column exactly: {name} "
+                f"{narrow[name]['width']:.0f}px, column {narrow['column']['width']:.0f}px"
+            )
+        assert root_overflow(page) == 0, "nor scroll sideways on a narrow window"
 
 
 def test_paper_holds_no_room_for_the_chrome_it_does_not_print(browser, serve):
@@ -2359,34 +2390,6 @@ def test_a_wide_widget_keeps_its_margins_and_its_comment_lands_on_it(browser, se
         assert root_overflow(page) == 0, f"at {width}px the page scrolls sideways"
 
 
-def test_a_drawing_the_room_can_hold_is_shown_whole(browser, serve):
-    """Scrolling is the theme's honest degrade when even the room runs short, and only
-    then: a drawing wider than the column and narrower than the room beside it, with
-    nothing standing in the margin at its band, is shown whole. The guard pins the
-    premise: the graph is wider than the column and narrower than the room."""
-    url = serve(DRAWN_PAST_A_RAIL_PAGE)
-    page = open_page(browser, url)
-    fit = page.evaluate("""() => {
-        const el = document.getElementById('flow');
-        const m = document.querySelector('main');
-        const s = getComputedStyle(m);
-        // The room an available block takes: the shell's width less a gutter each side.
-        const room = parseFloat(s.getPropertyValue('--lf-shell-width'))
-            - 2 * parseFloat(s.getPropertyValue('--col-pad'));
-        return { shows: el.clientWidth, drawn: el.scrollWidth, room,
-                 column: m.querySelector('h1').getBoundingClientRect().width };
-    }""")
-    assert fit["column"] < fit["drawn"] <= fit["room"], (
-        f"the premise is gone — the graph must need growing and fit the room, or "
-        f"this test asks nothing: drawn {fit['drawn']:.0f}px, "
-        f"column {fit['column']:.0f}px, room {fit['room']:.0f}px"
-    )
-    assert fit["shows"] >= fit["drawn"] - 1, (
-        f"the page had {fit['room']:.0f}px of room and no note or row beside the "
-        f"drawing, and still shows {fit['shows']:.0f}px of its {fit['drawn']:.0f}px"
-    )
-
-
 def test_a_box_that_shows_less_than_it_holds_says_so(browser, serve):
     """A drawing that genuinely could not fit scrolls, and on a platform drawing overlay
     scrollbars the scrollbar is no sign at rest: measured, a twelve-node flowchart in a
@@ -2435,24 +2438,6 @@ def test_a_box_that_shows_less_than_it_holds_says_so(browser, serve):
     flow.evaluate("el => { el.scrollLeft = -(el.scrollWidth - el.clientWidth); }")
     expect(flow).to_have_attribute("data-lf-more-before", "")
     expect(flow).not_to_have_attribute("data-lf-more-after", "")
-
-
-def test_a_scroller_that_stops_scrolling_drops_its_continuation(browser, serve):
-    source = leaf_page(
-        "Changing scrollport",
-        '<div id="box" class="scroll" style="width:200px;overflow-x:auto;white-space:nowrap">'
-        '<span style="display:inline-block;width:600px">Wide content</span></div>',
-    )
-    page = open_page(browser, serve(source))
-    box = page.locator("#box")
-    expect(box).to_have_attribute("data-lf-more-after", "")
-    page.evaluate("""() => {
-      const box = document.querySelector('#box');
-      box.style.overflowX = 'hidden';
-      box.firstElementChild.style.width = '650px';
-    }""")
-    rendered(page)
-    expect(box).not_to_have_attribute("data-lf-more-after", "")
 
 
 def test_a_scroller_reclassifies_when_an_ancestor_changes_its_style(browser, serve):

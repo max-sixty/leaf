@@ -1426,12 +1426,16 @@ export function createMarginProjection({
       },
     });
     previewChanged();
+    // The card's messages were drawn from this gesture, outside any paint that follows
+    // their ages; drawing the margin again reads them where it follows them.
+    renderAnnotations.refresh();
     return positioned;
   }
 
   // A press on a marker opens its card, or puts away the card it already shows. Where
   // no card stands, as on a window with no room for the rail (header), the thread opens
-  // where every other route opens it (thread/destination.js): the floating panel.
+  // where every other route opens it (thread/destination.js): the floating panel. Either
+  // way the user lands where every opening puts them (thread/focus.js, `openingPart`).
   /** @param {Entry} entry @param {ThreadChoice} choice @param {Element} button */
   function togglePinned(entry, choice, button) {
     const selected = card.selection();
@@ -1441,7 +1445,7 @@ export function createMarginProjection({
     }
     const positioned = showPreview(entry, choice, button);
     if (positioned) card.focusThread(positioned);
-    else void openPageThread(threadIdOf(choice), { part: "thread", travel: false });
+    else void openPageThread(threadIdOf(choice), { travel: false });
   }
 
   // Closing the card hands a user who was in it on (focus.js, `closeLayer`). A close

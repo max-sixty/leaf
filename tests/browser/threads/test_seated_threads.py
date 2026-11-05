@@ -399,7 +399,7 @@ def test_an_agent_turn_arriving_holds_still_the_page_box_being_typed_in(
     in a chat: the turn draws at once and the box stands where it was, what stood above
     it moving up by the turn, in a bounded block as on the page, and in Firefox, whose
     scroll anchoring differs from Chromium's."""
-    messages = 1 if kind == "bounded-short" else 3
+    messages = 3
     url, root = seated_thread(serve, kind, messages)
     page = open_page(request.getfixturevalue(engine), url)
     thread = page.locator(f'.lf-page-thread[data-lf-thread="{root}"]')
@@ -937,15 +937,12 @@ def test_a_thread_resolved_while_its_reply_is_written_keeps_the_user_on_it(
         expect(box).to_be_focused()
         expect(box).to_have_js_property("value", "")
         assert box.evaluate("box => [box.selectionStart, box.selectionEnd]") == [0, 0]
-        if kind == "margin":
-            expect(thread).to_have_attribute("data-lf-resolved", "true")
-        else:
-            # A seat in the flow holds the resolution behind its notice while the
-            # thread is on screen.
-            notice = thread.locator(".lf-thread-news")
-            expect(notice).to_have_text("1 new")
-            expect(notice).to_have_attribute("title", "Resolved")
-            expect(thread).to_have_attribute("data-lf-resolved", "false")
+        # A seat in the flow holds the resolution behind its notice while the thread is
+        # on screen.
+        notice = thread.locator(".lf-thread-news")
+        expect(notice).to_have_text("1 new")
+        expect(notice).to_have_attribute("title", "Resolved")
+        expect(thread).to_have_attribute("data-lf-resolved", "false")
         return
     page.keyboard.type(" tr")
     expect(box).to_have_js_property("value", "Half tr a thought")

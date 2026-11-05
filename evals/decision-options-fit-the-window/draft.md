@@ -157,6 +157,7 @@ handoff and save it.
               value="b"
             >
               <lf-playground-choice
+                id="format-baseline"
                 value="baseline"
                 label="A. Keep Threads as the only way in"
               >
@@ -186,7 +187,11 @@ handoff and save it.
                   </figure>
                 </div>
               </lf-playground-choice>
-              <lf-playground-choice value="a" label="B. Add Open in panel to the card">
+              <lf-playground-choice
+                id="format-a"
+                value="a"
+                label="B. Add Open in panel to the card"
+              >
                 <p>
                   <small class="tag">one press</small>
                   <small class="tag">today's size</small> The view opens where Threads
@@ -215,6 +220,7 @@ handoff and save it.
                 </div>
               </lf-playground-choice>
               <lf-playground-choice
+                id="format-b"
                 value="b"
                 label="C. Add Open in panel, opening at reading size"
               >

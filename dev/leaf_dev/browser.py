@@ -355,7 +355,8 @@ HOVER_CAUGHT_UP = """() => {
   const hovered = [...document.querySelectorAll(":hover")].at(-1);
   if (hovered instanceof HTMLIFrameElement) return true;
   const under = document.elementFromPoint(at.x, at.y);
-  return !under || under === hovered;
+  // A hovered label also hovers the control it labels, which is no hover still to move.
+  return !under || under === hovered || under.control === hovered;
 }"""
 
 

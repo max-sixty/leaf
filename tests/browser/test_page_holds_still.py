@@ -651,7 +651,13 @@ PLACES = [
     Place(
         "shadow-pointer", "diff", put_gutter_pointer, GUTTER_COMMENT, {"lines above": 5}
     ),
-    Place("dial", "dial", put_dial("no-preference"), DIAL_READING, {"dial": None}),
+    Place(
+        "dial",
+        "dial",
+        put_dial("no-preference"),
+        DIAL_READING,
+        {"dial": None, "glided": "detail-impact-gist"},
+    ),
     Place("dial-reduced", "dial", put_dial("reduce"), DIAL_READING, {"dial": None}),
     Place("pane", "pane", put_pane, Found("#q-30"), {"pane above": "left-body"}),
     Place(
@@ -934,10 +940,10 @@ def deletions(page, built, target, place):
 
 def turn(page, label):
     """Press a depth with the pointer, as the reader does, and wait out its glide."""
-    depth = page.locator("lf-dial .lf-dial-depth", has_text=label)
+    depth = page.get_by_role("radio", name=label, exact=True)
     box = depth.bounding_box()
     page.mouse.click(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
-    expect(depth).to_have_attribute("aria-pressed", "true")
+    expect(depth).to_have_attribute("aria-checked", "true")
     page.wait_for_function("() => document.getAnimations().length === 0")
 
 
@@ -949,6 +955,40 @@ def dial_turn(page, built, target, place):
     checkpoint(page, "skimmed")
     turn(page, "Read")
     expect(page.locator("#detail-cause-1")).to_be_visible()
+
+
+LATE_IMAGE = (
+    '<svg xmlns="http://www.w3.org/2000/svg" width="600" height="200">'
+    '<rect width="600" height="200" fill="gray"/></svg>'
+)
+
+
+def grown_after_glide(page, built, target, place):
+    """Skim, and once the glide has ended, an image in the gist of the section above
+    the one read finishes loading 200px tall."""
+    held = []
+
+    def hold(route):
+        held.append(route)
+
+    page.route("**/late-image.svg", hold)
+    page.locator(f"#{target}").evaluate(
+        """gist => {
+          const image = Object.assign(new Image(), {id: 'late-image', alt: ''});
+          image.style.display = 'block';
+          image.src = '/late-image.svg';
+          gist.append(image);
+        }"""
+    )
+    holding(page, held, 1, "the image's load")
+    turn(page, "Skim")
+    expect(page.locator("#detail-cause-1")).to_be_hidden()
+    settle(page)
+    checkpoint(page, "skimmed")
+    held[0].fulfill(status=200, content_type="image/svg+xml", body=LATE_IMAGE)
+    page.wait_for_function(
+        "() => document.getElementById('late-image').getBoundingClientRect().height"
+    )
 
 
 CHANGES = [
@@ -965,6 +1005,7 @@ CHANGES = [
     Change("ask", "ask above", ask),
     Change("deletions", "lines above", deletions),
     Change("dial-turn", "dial", dial_turn, glides=True),
+    Change("grown-after-glide", "glided", grown_after_glide, glides=True),
 ]
 
 # ---------------------------------------------------------------------------------
@@ -1031,6 +1072,10 @@ EDIT_PARAGRAPH = (
 )
 ON_SCREEN = "the paragraph read moves 67.4px down under the paragraph the revision adds"
 DELETIONS = "the diff's Comment moves 100px down as five deletions join above it"
+GROWN_AFTER_GLIDE = (
+    "the gist read moves 199.7-199.8px down as the 200px image above it loads after "
+    "the glide; Chromium held it before #5397"
+)
 
 # The cases the runtime fails today, with what each measured: a fix flips one to a
 # pass, and its strict mark then fails until its entry goes.
@@ -1044,7 +1089,7 @@ MOVES_ON_MAIN = {
     "reading-page-revision-on-screen-chromium": ON_SCREEN,
     "reading-page-revision-on-screen-firefox": ON_SCREEN,
     "smooth-reply-above-firefox": (
-        "drawing the answer stops the smooth scroll under way: the box moves 2-16px "
+        "drawing the answer stops the smooth scroll under way: the box moves 1-16px "
         "of its 300, by how far the scroll had come"
     ),
     "smooth-revision-above-firefox": (
@@ -1055,10 +1100,8 @@ MOVES_ON_MAIN = {
     "gutter-deletions-firefox": DELETIONS,
     "shadow-pointer-deletions-chromium": DELETIONS,
     "shadow-pointer-deletions-firefox": DELETIONS,
-    "dial-dial-turn-firefox": (
-        "Firefox's anchoring follows the gliding blocks: Skim lands the gist 360.7px "
-        "below the line read, and Read moves it 708.6px in all"
-    ),
+    "dial-grown-after-glide-chromium": GROWN_AFTER_GLIDE,
+    "dial-grown-after-glide-firefox": GROWN_AFTER_GLIDE,
 }
 
 

@@ -514,7 +514,8 @@
      * the room. A table's reach is its whole room, since its columns set its width. A
      * block breaks out only where it stands directly in a flow, so a flow counts its
      * own children and those of the flows in it, and not a block a plain wrapper keeps
-     * in the column. */
+     * in the column. A flow that otherwise keeps the measure, as a question does, gives
+     * it up to reach. */
       :is(.layout-column, .layout-flow, [data-lf-flow])
         > :is(.layout-flow, [data-lf-flow]) {
         --lf-note-reach: 0px;
@@ -549,6 +550,7 @@
           margin-inline: calc(-1 * max(0px, var(--lf-reach-start)))
             calc(-1 * max(0px, var(--lf-reach-end)));
           padding-inline: max(0px, var(--lf-reach-start)) max(0px, var(--lf-reach-end));
+          max-inline-size: none;
         }
       }
     }

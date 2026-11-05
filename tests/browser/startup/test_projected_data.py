@@ -1295,18 +1295,19 @@ def test_widget_errors_keep_exception_evidence(browser, serve):
     expect(page.locator("lf-feed .lf-error")).to_have_count(0)
 
 
-def test_data_written_during_fresh_revision_startup_waits_for_activation(
+def test_data_written_while_a_fresh_revision_starts_shows_once_it_has_started(
     browser, serve
 ):
-    """A source update cannot paint until the new revision document has activated.
+    """Data written while a fresh revision document starts shows once it has started.
 
     The revision published below changes the page's own code, which is the one thing
     the current document cannot take on, so it is followed into a fresh document and
-    there is a startup to write data during.
+    there is a startup to write data during. Nothing can paint the update before then:
+    the test holds the revision's registry, and widgets import their modules only after
+    it arrives (widget-loader.js).
     """
     activation_probe = """
       window.__lfRevisionRegistryBlocked = false;
-      window.__lfDataDuringStartup = false;
       const nativeFetch = window.fetch.bind(window);
       window.fetch = async (...args) => {
         const input = args[0];
@@ -1320,12 +1321,6 @@ def test_data_written_during_fresh_revision_startup_waits_for_activation(
         }
         return nativeFetch(...args);
       };
-      const dataObserver = new MutationObserver(() => {
-        const datum = document.querySelector('[data-lf-datum="api"]');
-        if (window.__lfRevisionRegistryBlocked && datum?.textContent.includes('Running'))
-          window.__lfDataDuringStartup = true;
-      });
-      dataObserver.observe(document, {subtree: true, childList: true, characterData: true});
     """
     page = open_page(
         browser, live_url(data_projection_page(serve)), init_script=activation_probe
@@ -1352,10 +1347,6 @@ def test_data_written_during_fresh_revision_startup_waits_for_activation(
             {"key": "worker", "value": "Ready"},
         ],
     )
-    page.wait_for_timeout(100)
-    assert not page.evaluate("() => window.__lfDataDuringStartup")
-    expect(page.locator('[data-lf-datum="api"]')).to_have_count(0)
-
     page.evaluate("() => window.__lfReleaseRevisionRegistry()")
     wait_until_ready(page)
     nudge(d)

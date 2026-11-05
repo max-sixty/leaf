@@ -848,7 +848,8 @@ def test_a_second_finger_takes_back_the_stroke_the_first_began(browser, serve, s
     expect(page.locator(".lf-live")).to_contain_text("Stroke canceled")
     if spread:
         page.wait_for_function("visualViewport.scale > 1.2")
-    page.wait_for_timeout(100)
+    # Every repaint the release queued has run, so a drawing it made would show.
+    rendered(page)
     expect(page.locator(".lf-drawing-mark")).to_have_count(0)
     expect(page.locator(".lf-live")).not_to_contain_text("Drawing captured")
     expect(page.locator("html")).to_have_attribute("data-lf-draw-mode", "")

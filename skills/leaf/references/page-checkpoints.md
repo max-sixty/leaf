@@ -94,7 +94,8 @@ leaf page stamp <page> --text "<what changed>"
 
 The stamp gives the current source the next public version number. A browser at the
 page's root follows new revisions; one open at `/versions/vN.html` stays on that
-version.
+version. The stamp refuses a version the latest render check failed and names the
+failures; fix them and save, which makes a new version.
 
 ## Ending
 

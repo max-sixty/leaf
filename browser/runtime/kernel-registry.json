@@ -440,6 +440,11 @@
         {
           "text": "The page's runtime reported a failure the user saw. Fix the page or widget and save the fix. Reply only if the user asked about it."
         }
+      ],
+      "render": [
+        {
+          "text": "Leaf's render check read the version you handed over, as the user's browser draws it. Fix each failure it lists and save the fix. Weigh each piece of advice against the page, and change the page only where that helps the user. Reply only if the user asked about it."
+        }
       ]
     },
     "answering": {
@@ -1688,6 +1693,45 @@
           "additionalProperties": false
         },
         "browser": { "required": ["kind", "text"] }
+      },
+      "render": {
+        "skippable": true,
+        "record": {
+          "type": "object",
+          "properties": {
+            "attention": { "type": "boolean" },
+            "id": { "type": "string", "minLength": 1 },
+            "ts": { "type": "string", "minLength": 1 },
+            "author": { "const": "page" },
+            "kind": { "const": "render" },
+            "seq": { "type": "integer", "minimum": 1 },
+            "revision": { "type": "integer", "minimum": 1 },
+            "findings": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "object",
+                "properties": {
+                  "code": { "type": "string", "minLength": 1 },
+                  "severity": { "enum": ["error", "advice"] },
+                  "text": { "type": "string", "minLength": 1 }
+                },
+                "required": ["code", "severity", "text"]
+              }
+            }
+          },
+          "required": [
+            "attention",
+            "id",
+            "ts",
+            "author",
+            "kind",
+            "seq",
+            "revision",
+            "findings"
+          ],
+          "additionalProperties": false
+        }
       }
     }
   }

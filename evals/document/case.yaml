@@ -74,6 +74,27 @@ variants:
       purpose: Act on render findings delivered after a quick handover, unprompted to inspect.
       conditions:
         - leaf
+  render-after-handover-urgent:
+    metadata:
+      executor: leaf_dev.usability_eval
+      scenario: render-after-handover-urgent
+      purpose: Act on render findings delivered after a handover the user is waiting on.
+      conditions:
+        - leaf
+  render-hidden-failure:
+    metadata:
+      executor: leaf_dev.usability_eval
+      scenario: render-hidden-failure
+      purpose: Fix a render failure the source doesn't show, delivered after a handover the user is waiting on.
+      conditions:
+        - leaf
+  render-advice-with-comment:
+    metadata:
+      executor: leaf_dev.usability_eval
+      scenario: render-advice-with-comment
+      purpose: Weigh render advice that arrives with the user's next message.
+      conditions:
+        - leaf
   elided:
     metadata:
       executor: leaf_dev.usability_eval

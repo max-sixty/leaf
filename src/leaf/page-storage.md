@@ -124,6 +124,10 @@ record whose pages are gone is removed whichever Leaf wrote it (`state.retire_if
 - `<state-home>/rows/<page-key>.json` — disposable output of a serving page's own
   activity, for its neighbours (`server_rows.py`). No page's fold reads it.
 
+- `<state-home>/render-readings/<page-key>.json` — the page's latest render check,
+  for its server and `page stamp` (`render_gate/handover_pass.py`). No page's fold
+  reads it, and without it a version is read again.
+
 ## Revision delivery
 
 The live root serves the active revision, and revision and version addresses go through

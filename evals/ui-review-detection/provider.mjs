@@ -121,7 +121,11 @@ export async function openBrowser(manifest, evidenceDir, limit = 12) {
     const captures = [];
     async function snapshot() {
       const controls = await page.evaluate(() => {
-        const candidates = [...document.querySelectorAll("*")].filter((el) => {
+        // Read as inputs, the one element type whose fields cover every line below.
+        const elements = /** @type {NodeListOf<HTMLInputElement>} */ (
+          document.querySelectorAll("*")
+        );
+        const candidates = [...elements].filter((el) => {
           const style = getComputedStyle(el);
           return (
             el.matches(
@@ -266,6 +270,7 @@ async function codexModel(config, content, browser, record) {
   const observed = catalog.models.find((item) => item.slug === config.model);
   if (!observed)
     throw new Error("Requested model is absent from current Codex metadata");
+  /** @type {import("@earendil-works/pi-ai").Model<"openai-codex-responses">} */
   const model = {
     id: config.model,
     name: config.model,
@@ -287,6 +292,7 @@ async function codexModel(config, content, browser, record) {
         },
       ]
     : [];
+  /** @type {import("@earendil-works/pi-ai").Message[]} */
   const messages = [{ role: "user", content, timestamp: Date.now() }];
   const usage = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0 };
   const maxTurns = (config.toolBudget ?? 12) + 1;
@@ -299,7 +305,7 @@ async function codexModel(config, content, browser, record) {
         reasoningEffort: config.effort ?? "high",
         toolChoice: browser ? "auto" : "none",
         transport: "sse",
-        onPayload(payload) {
+        onPayload(/** @type {any} */ payload) {
           if (
             !browser &&
             ((payload.tools?.length ?? 0) !== 0 || payload.tool_choice !== "none")
@@ -452,6 +458,7 @@ async function claudeModel(config, content, browser, record, evidenceDir) {
     // Keep the input stream open while SDK MCP operations run; close it with query.
     let release;
     async function* input() {
+      /** @type {import("@anthropic-ai/claude-agent-sdk").SDKUserMessage} */
       const message = {
         type: "user",
         session_id: "",
@@ -478,6 +485,7 @@ async function claudeModel(config, content, browser, record, evidenceDir) {
         release = resolve;
       });
     }
+    /** @type {import("@anthropic-ai/claude-agent-sdk").Options} */
     const options = {
       model: config.model,
       cwd,
@@ -641,6 +649,7 @@ export default class UiReviewDetectionProvider {
         }
       }
       await writeFile(path.join(evidenceDir, "request.md"), request);
+      /** @type {Array<{type: string, text?: string, data?: string, mimeType?: string}>} */
       const content = [{ type: "text", text: request }];
       for (let index = 0; index < manifest.images.length; index++) {
         const file = contained(candidateDir, manifest.images[index]),

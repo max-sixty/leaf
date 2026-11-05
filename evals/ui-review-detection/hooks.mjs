@@ -117,7 +117,7 @@ async function capture(browser, run, test) {
   const errors = [];
   page.on("pageerror", (error) => errors.push(String(error)));
   await page.goto(url);
-  await page.waitForFunction(() => window.__fixtureReady === true);
+  await page.waitForFunction("window.__fixtureReady === true");
   const images = [];
   const evidenceLabels = [];
   async function screenshot(label) {

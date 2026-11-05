@@ -1,8 +1,9 @@
 """Measure how a page's costs grow with the page, in a browser or on the server.
 
-    uv run leaf-dev scaling [AXIS ...] [--sizes 32,64,128,256] [--browser firefox]
-        [--base [REF]] [--profile]
-    uv run leaf-dev scaling --server [AXIS ...] [--sizes 128,...,1600] [--profile]
+    uv run leaf-dev scaling [AXIS ...] [--sizes 32,64,128,256] [--rounds N]
+        [--browser firefox] [--base [REF]] [--profile]
+    uv run leaf-dev scaling --server [AXIS ...] [--sizes 128,...,1600] [--rounds N]
+        [--profile]
 
 Root `AGENTS.md`, "Responsiveness", sets the rule this checks: no cost grows faster
 than the page, and an input's should hardly grow at all. Each AXIS names a page in
@@ -12,38 +13,48 @@ it. The browser measures `AXES` by default, and the server `SERVER_AXES`; either
 measures any of them.
 
 For each AXIS it generates a page at each size, serves it from this tree, and reads
-the page's main-thread CPU, in Chromium in thread ticks from `Performance.getMetrics`,
-for each transition: the load until the page settles and its main thread goes quiet, a
-click on an option, a keystroke in the page's comment field, a Tab from one stop to
-the next, and a wheel step. Each input is one a user makes, the same at every size.
-A click is the mouse's own press and release at the option's centre. A wheel step is
-one NOTCH, with the pointer over the page's content and the scroller beneath it
-halfway down. Tab starts from the first option's control. The wheel and Tab take RUN
-steps one way and RUN back, so they cross the same rows or stops at every size. An
-input's cost is the mean over several, less the page's idle CPU over the same time,
-which is read once the work the load leaves behind has run (`idle_rate`). Beside
-them stand the server's time to start answering each event the clicks posted, whose
-answer carries the server's reading of the page, and that answer's size. Every run
-also measures a page of BASE, whose costs are mostly the runtime's fixed work. It
-prints each cost by size with the exponent of its growth above the BASE page, fitted
-over the largest sizes (least squares of log growth on log size), and marks an
-exponent above SUPERLINEAR, which is a step nesting one walk of the page inside
-another. Fitting the cost itself would let fixed work hide that: 30 ms per click plus
-20/80/320 ms of quadratic work fits 1.4 over 64-256, and its growth fits 2.0.
+the page's main-thread CPU, in Chromium in thread ticks (`chromium_metrics`), for each
+of `TRANSITIONS`: the load until the page settles and its main thread goes quiet, a
+click on an option, a keystroke in the page's comment field, leaving that field with
+Escape, a Tab from one stop to the next, a wheel step, and an agent's revision, which
+adds a paragraph under the page's title by writing the page's source, as an agent
+does, and the next takes it away. Each input is one a user or agent makes, the same
+at every size. A click is the mouse's own press and release at the option's centre.
+A wheel step is one NOTCH, with the pointer over the page's content and the scroller
+beneath it halfway down. Tab starts from the first option's control. The wheel and
+Tab take RUN steps one way and RUN back, so they cross the same rows or stops at every
+size. An input's cost is the mean over several, less the page's idle CPU over the same
+time, which is read once the work the load leaves behind has run (`idle_rate`).
+Beside them stand the server's time to start answering each event the clicks posted,
+whose answer carries the server's reading of the page, that answer's size, and
+`shown`: the time from a click to the first frame painted once that reading is
+presented (`leaf_dev.painted`), which root `AGENTS.md` holds to BUDGET_MS on the
+largest page and the table flags past it. Every run also measures a page of BASE,
+whose costs are mostly the runtime's fixed work. It prints each cost by size with the
+exponent of its growth above the BASE page, fitted over the largest sizes (least
+squares of log growth on log size), and marks an exponent above SUPERLINEAR, which is
+a step nesting one walk of the page inside another. Fitting the cost itself would let
+fixed work hide that: 30 ms per click plus 20/80/320 ms of quadratic work fits 1.4
+over 64-256, and its growth fits 2.0.
+
+--rounds measures every page N times and reports each cost's lowest reading
+(`lowest`). The rounds are interleaved (`interleaved`): each takes every size in turn
+and every arm at each size, so a burst of load lands on one reading of each page. The
+daily suite reads the browser's pages as this does (`measure_rounds`), and the
+server's (`server_scaling.measure`), with the same rounds.
 
 --server times the server's paths on each page instead, in this process with no
 browser (`leaf_dev.server_scaling` names the paths and how it reads them), and names
-each path that breaks the rule: growth fitting an exponent above SUPERLINEAR, or a
-click's paths together taking more than their budget at REFERENCE. The daily
-`tests/journeys/test_server_scaling.py` fails the growth; the budget waits, as the
-browser's do, until the pages that miss it are fixed.
+each path that breaks the rule: growth fitting an exponent above SUPERLINEAR
+(`failures`), or a click's paths together taking more than their budget at REFERENCE.
+The daily `tests/journeys/test_server_scaling.py` fails the growth; the budget waits,
+as the browser's do, until the pages that miss it are fixed.
 
 --base also measures the merge base with main (or REF), chosen as every A/B command
 chooses its arms (`arms.choose_arms`), so a change shows its exponents beside the
-base's. --profile
-records a V8 CPU profile of each transition at the smallest and largest size and
-lists the functions whose time grew superlinearly between them, which names the
-nested walk.
+base's. --profile records a V8 CPU profile (`leaf_dev.profiles`) of each transition at
+the smallest and largest size, in the first round, and lists the functions whose time
+grew superlinearly between them, which names the nested walk.
 
 --browser firefox measures Playwright's Firefox, on macOS. Firefox offers no count of
 its tasks, so there a transition's CPU is the page's main thread's as the OS counts it
@@ -63,10 +74,13 @@ from a run without it.
     MOZ_PROFILER_STARTUP_ENTRIES=134217728 uv run leaf-dev scaling asks --browser firefox
 
 CPU time rather than wall time, so a loaded host spreads the readings less than it
-spreads elapsed time; each exponent still compares sizes within one run. Pages, the
-profiles and `results.json` land in a run directory under `.tmp/scaling/`. The daily
-suite fails growth well past linear on every axis with the same measurement, of
-every cost but Tab's (`tests/journeys/test_scaling.py`).
+spreads elapsed time; each exponent still compares sizes within one run. `shown` and
+`event` are elapsed time, which a busy host stretches, and so does a run held to the
+efficiency cores: on 2026-11-05 `taskpolicy -c utility` read a click's `shown` at 110
+to 170 ms on pages the default policy showed in 30 to 35. Pages, the profiles and
+`results.json` land in a run directory under `.tmp/scaling/`. The daily suite fails
+growth well past linear on every axis with the same measurement, of every cost but
+Tab's (`tests/journeys/test_scaling.py`).
 """
 
 import ctypes
@@ -74,8 +88,15 @@ import json
 import math
 import statistics
 import time
-from collections.abc import Callable, Iterable
-from contextlib import contextmanager, suppress
+from collections.abc import (
+    Callable,
+    Generator,
+    Hashable,
+    Iterable,
+    Iterator,
+    Sequence,
+)
+from contextlib import ExitStack, contextmanager, nullcontext, suppress
 from itertools import cycle
 from pathlib import Path
 from typing import NamedTuple
@@ -86,14 +107,25 @@ from playwright.sync_api import Page
 
 from leaf_dev import ROOT
 from leaf_dev.arms import (
+    Arm,
+    ServedPage,
     base_option,
     choose_arms,
     describe,
     run_directory,
+    served_page,
     serving_source,
 )
-from leaf_dev.browser import engine_option, headless_shell, launch, settle, tab
-from leaf_dev.commands.bench_latency import Profile
+from leaf_dev.browser import (
+    chromium_metrics,
+    engine_option,
+    headless_shell,
+    launch,
+    settle,
+    tab,
+)
+from leaf_dev.painted import SCRIPT as PAINTED
+from leaf_dev.profiles import Profile, cpu_profile
 
 OUT = ROOT / ".tmp" / "scaling"
 SIZES = (32, 64, 128, 256)
@@ -124,14 +156,22 @@ SUPERLINEAR = 1.5
 FITTED = 3
 # Where a cost grows by less than this above BASE, what little it grew is the host's
 # noise, and its exponent leaves that size out. Milliseconds of CPU, kilobytes for the
-# event answer's size, and for the server's time to answer, which is elapsed time,
-# milliseconds.
-FLOORS = {"event": 50}
+# event answer's size, and for the server's time to answer and the time until a click
+# shows its reading, which are elapsed time, milliseconds.
+FLOORS = {"event": 50, "shown": 50}
 FLOOR = 10
+# Root `AGENTS.md`, "Responsiveness": a click shows the server's reading within this
+# many ms on the largest page.
+BUDGET_MS = 100
 KEYS = 20
 CLICKS = 4
+LEAVES = 4
 TABS = 16
 WHEEL_STEPS = 32
+# An agent's revision adds a paragraph under the page's title, and the next takes it
+# away again.
+REVISIONS = 2
+REVISED = '<p id="revised">The agent adds this paragraph in a revision.</p>'
 # A notch of a mouse wheel, which Chromium and Firefox here both scroll 100 px.
 NOTCH = 100
 # A wheel or Tab takes RUN steps one way and then as many back, so it stays among the
@@ -159,10 +199,24 @@ SPIN = """function scalingSpin(ms) {
 # `sys/proc_info.h`.
 PROC_PIDLISTTHREADS = 6
 PROC_PIDTHREADINFO = 5
-TRANSITIONS = ("load", "click", "key", "tab", "scroll")
-# The server's side of a click: how long it took to start answering each event the
-# clicks posted, whose answer carries its reading of the page, and how large that was.
-SERVER = ("event", "event_kb")
+# What `measure` does to a page, in the order it does them.
+TRANSITIONS = ("load", "click", "key", "leave", "tab", "scroll", "revision", "shown")
+# Each cost `measure` reads, under its label in the table: each transition's
+# main-thread CPU but `shown`'s; for the clicks, how long the server took to start
+# answering each event they posted, whose answer carries its reading of the page, and
+# how large that was; and how long from a click until the page showed that reading.
+COLUMNS = {
+    **{
+        transition: f"{transition} ms"
+        for transition in TRANSITIONS
+        if transition != "shown"
+    },
+    "event": "event ms",
+    "event_kb": "event KB",
+    "shown": "shown ms",
+}
+# A click's goal for `painted.js`: the server's reading of its event, presented.
+SHOWN = [{"name": "shown", "fact": "delivered", "arg": {"kind": "action"}}]
 EVENT_POSTS = """() => performance.getEntriesByType("resource")
   .filter((entry) => new URL(entry.name).pathname.endsWith("/api/event"))
   .map((entry) => ({
@@ -429,17 +483,16 @@ COLLECTIONS: dict[str, Collection] = {
 AXES = {name: COLLECTIONS[name] for name in ("asks", "document", "prose", "threads")}
 
 
-def renderer_clock(page: Page) -> Callable[[], float]:
-    """What reads the page's main-thread CPU so far, in ms, in Chromium: the renderer's
-    own count of its tasks, in thread ticks."""
-    cdp = page.context.new_cdp_session(page)
-    cdp.send("Performance.enable", {"timeDomain": "threadTicks"})
-
-    def clock() -> float:
-        metrics = cdp.send("Performance.getMetrics")["metrics"]
-        return next(m["value"] for m in metrics if m["name"] == "TaskDuration") * 1000
-
-    return clock
+@contextmanager
+def main_thread_clock(engine: str, page: Page) -> Generator[Callable[[], float]]:
+    """Yield what reads the blank `page`'s main-thread CPU so far, in ms, when called:
+    in Chromium the renderer's own count of its tasks, in thread ticks
+    (`chromium_metrics`), and in Firefox the OS's count (`ContentClock`)."""
+    if engine == "chromium":
+        with chromium_metrics(page, ticks=True) as metrics:
+            yield lambda: metrics()["TaskDuration"] * 1000
+    else:
+        yield ContentClock(page)
 
 
 class ThreadTimes(ctypes.Structure):
@@ -545,34 +598,23 @@ class ContentClock:
             )
 
 
-def profiler(page: Page, directory: Path | None):
-    """Start a V8 CPU profile of the transition `name` into `directory`, or nothing,
-    and return what stops it."""
+def profiling(page: Page, directory: Path | None):
+    """What profiles a transition `name` into `directory` (`cpu_profile`) for the
+    life of a block, or nothing where there is no directory."""
     if directory is None:
-        return lambda _: lambda: None
-    cdp = page.context.new_cdp_session(page)
-
-    def start(name: str):
-        target = directory / f"{name}.cpuprofile"
-        cdp.send("Profiler.enable")
-        cdp.send("Profiler.setSamplingInterval", {"interval": 200})
-        cdp.send("Profiler.start")
-        return lambda: target.write_text(
-            json.dumps(cdp.send("Profiler.stop")["profile"])
-        )
-
-    return start
+        return lambda _: nullcontext()
+    return lambda name: cpu_profile(page, directory / f"{name}.cpuprofile")
 
 
-def measure(browser, address: str, profiles: Path | None) -> dict:
-    """Each transition's main-thread CPU on the page at `address`, in ms."""
-    with tab(browser) as tab_page:
+def measure(browser, served: ServedPage, profiles: Path | None = None) -> dict:
+    """Each of `COLUMNS` on the page `served`, with the elements the loaded page
+    holds."""
+    engine = browser.browser_type.name
+    with tab(browser) as tab_page, main_thread_clock(engine, tab_page) as clock:
         # A superlinear path can hold the main thread for seconds per input on a
         # large page, which is what this measures rather than a failure.
         tab_page.set_default_timeout(DEADLINE_MS)
-        chromium = browser.browser_type.name == "chromium"
-        clock = renderer_clock(tab_page) if chromium else ContentClock(tab_page)
-        profiled = profiler(tab_page, profiles)
+        profiled = profiling(tab_page, profiles)
         quiet = tab_page.wait_for_timeout
 
         def idle_rate() -> float:
@@ -592,34 +634,51 @@ def measure(browser, address: str, profiles: Path | None) -> dict:
         # The event answers are read off resource timing, whose buffer holds 250
         # entries by default, and the runtime's own modules fill it before any click.
         tab_page.add_init_script("performance.setResourceTimingBufferSize(100_000)")
+        tab_page.add_init_script(path=PAINTED)
         start = clock()
-        stop = profiled("load")
-        tab_page.goto(address)
-        settle(tab_page)
-        idle = idle_rate()
-        stop()
+        with profiled("load"):
+            tab_page.goto(served.address)
+            settle(tab_page)
+            idle = idle_rate()
         costs = {"load": clock() - start}
         if isinstance(clock, ContentClock):
             clock.confirm()
         elements = tab_page.evaluate("document.querySelectorAll('*').length")
 
-        def per_input(name: str, count: int, act) -> float:
-            start, began = clock(), time.monotonic()
-            stop = profiled(name)
-            for _ in range(count):
-                act()
-            quiet(600)
-            stop()
-            elapsed = (time.monotonic() - began) * 1000
-            return (clock() - start - idle * elapsed) / count
+        def per_input(name: str, count: int, act, ready=None) -> float:
+            """The mean of `count` of `act`'s CPU, less the page's idle CPU over the
+            time read: one window over them all and a quiet after them, or, where
+            `ready` brings the page to where each input starts, a window over each,
+            from `act` to its end, with `ready` outside it. A short window meets
+            fewer of the page's own periodic tasks, which the idle rate leaves out."""
+            windows = [(count, 600)] if ready is None else [(1, 0)] * count
+            spent = 0.0
+            with profiled(name):
+                for inputs, after in windows:
+                    if ready is not None:
+                        ready()
+                    start, began = clock(), time.monotonic()
+                    for _ in range(inputs):
+                        act()
+                    quiet(after)
+                    elapsed = (time.monotonic() - began) * 1000
+                    spent += clock() - start - idle * elapsed
+            return spent / count
 
-        # The mouse's own press and release, over the option's centre before the
-        # clicks begin, since a locator's click first runs its actionability checks
-        # on the page's main thread.
-        box = tab_page.locator("lf-option").first.bounding_box()
-        assert box is not None
-        tab_page.mouse.move(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
-        quiet(600)
+        def aim_at_option() -> None:
+            """Rest the mouse over the first option's centre, in view, before its
+            clicks begin, since a locator's click first runs its actionability checks
+            on the page's main thread."""
+            option = tab_page.locator("lf-option").first
+            option.scroll_into_view_if_needed()
+            box = option.bounding_box()
+            assert box is not None
+            tab_page.mouse.move(
+                box["x"] + box["width"] / 2, box["y"] + box["height"] / 2
+            )
+            quiet(600)
+
+        aim_at_option()
 
         def click():
             # Each click posts its event; the server's answer arrives before the
@@ -637,7 +696,8 @@ def measure(browser, address: str, profiles: Path | None) -> dict:
         costs["event"] = statistics.median(post["ms"] for post in posts)
         costs["event_kb"] = statistics.median(post["kb"] for post in posts)
 
-        tab_page.locator(".lf-fp-field").first.click()
+        field = tab_page.locator(".lf-fp-field").first
+        field.click()
         quiet(600)
         letters = iter("abcdefghijklmnopqrstuvwxyz" * 4)
 
@@ -646,6 +706,19 @@ def measure(browser, address: str, profiles: Path | None) -> dict:
             quiet(60)
 
         costs["key"] = per_input("key", KEYS, key)
+
+        # Escape takes the caret out of the field and keeps its draft, the keys'
+        # words; each leave starts from a click back into it. On 2026-11-05 a leave
+        # and an entry each finished within 50 ms at 256 sections.
+        def enter():
+            field.click()
+            quiet(200)
+
+        def leave():
+            tab_page.keyboard.press("Escape")
+            quiet(200)
+
+        costs["leave"] = per_input("leave", LEAVES, leave, enter)
 
         # From the first option's control, across the same stops at every size: its
         # ask's other controls and, after a short ask, the first link or listing.
@@ -668,6 +741,46 @@ def measure(browser, address: str, profiles: Path | None) -> dict:
             quiet(50)
 
         costs["scroll"] = per_input("scroll", WHEEL_STEPS, wheel)
+
+        # Written as an agent writes the page, whose server makes each valid save the
+        # next revision, which the tab applies in place.
+        source = served.directory / "index.html"
+        authored = source.read_text(encoding="utf-8")
+        revised = authored.replace("</h1>", f"</h1>{REVISED}", 1)
+        writes = cycle(((revised, "attached"), (authored, "detached")))
+
+        def revise():
+            markup, state = next(writes)
+            source.write_text(markup, encoding="utf-8")
+            tab_page.wait_for_selector("#revised", state=state)
+            quiet(300)
+
+        costs["revision"] = per_input("revision", REVISIONS, revise)
+        # Clicks of its own, after every CPU reading: sampling for its goal costs the
+        # page's main thread each frame, and arming it loads the runtime's
+        # diagnostics, which no reading after it should count.
+        aim_at_option()
+
+        def shown() -> float:
+            """From a click to the first frame painted once the server's reading of
+            its event is presented (`painted.js`), in ms."""
+            tab_page.evaluate("goals => window.__leafBench.arm(goals)", SHOWN)
+            tab_page.mouse.down()
+            tab_page.mouse.up()
+            tab_page.wait_for_function(
+                "() => window.__leafBench.watch().goals.every(g => g.at !== null)"
+            )
+            ms = tab_page.evaluate(
+                "() => window.__leafBench.watch().goals[0].at"
+                " - window.__leafBench.input()"
+            )
+            tab_page.evaluate("() => window.__leafBench.disarm()")
+            quiet(200)
+            return ms
+
+        with profiled("shown"):
+            costs["shown"] = statistics.median(shown() for _ in range(CLICKS))
+
         return {"elements": elements, **costs}
 
 
@@ -692,6 +805,54 @@ def exponent(
     mean_y = sum(y for _, y in pairs) / len(pairs)
     spread = sum((x - mean_x) ** 2 for x, _ in pairs)
     return sum((x - mean_x) * (y - mean_y) for x, y in pairs) / spread
+
+
+def failures(
+    rows: list[dict], costs: Iterable[str], fitted: int = FITTED
+) -> dict[str, dict]:
+    """Each of `costs` that `rows`, by size, read whose growth above the first size
+    fits an exponent past SUPERLINEAR, which root `AGENTS.md`, "Responsiveness",
+    rules out, with its readings and why."""
+    sizes = [row["n"] for row in rows]
+    failed = {}
+    for cost in costs:
+        if cost not in rows[0]:
+            continue
+        readings = [row[cost] for row in rows]
+        slope = exponent(cost, sizes, readings, fitted)
+        if slope is not None and slope > SUPERLINEAR:
+            failed[cost] = {
+                "by size": dict(zip(sizes, readings, strict=True)),
+                "exponent": slope,
+                "why": f"growth fits exponent {slope:.2f}, past {SUPERLINEAR}",
+            }
+    return failed
+
+
+def interleaved[K](rounds: int, keys: Sequence[K]) -> Iterator[tuple[int, K]]:
+    """Each round's number and each of `keys` once in it, for `rounds` rounds, the
+    keys in order and then reversed in alternate rounds. A burst of load on the host
+    lands on one reading of each key rather than on every reading of one, and no
+    key always follows the same one, whose leftovers it would meet."""
+    for number in range(rounds):
+        for key in keys[:: 1 if number % 2 == 0 else -1]:
+            yield number, key
+
+
+def lowest[K: Hashable](
+    rounds: int, keys: Sequence[K], read: Callable[[K, int], dict]
+) -> dict[K, dict]:
+    """Each key's lowest reading of each cost over `rounds` interleaved rounds
+    (`interleaved`), where `read` takes the key and the round's number and returns
+    its readings. A busy host adds time to a reading and never takes it away, so
+    the lowest is the nearest the host lets a reading come to the work alone."""
+    readings: dict[K, list[dict]] = {key: [] for key in keys}
+    for number, key in interleaved(rounds, keys):
+        readings[key].append(read(key, number))
+    return {
+        key: {cost: min(each[cost] for each in taken) for cost in taken[0]}
+        for key, taken in readings.items()
+    }
 
 
 def table(
@@ -723,23 +884,6 @@ def table(
     return "\n".join(lines)
 
 
-COLUMNS = {
-    **{transition: f"{transition} ms" for transition in TRANSITIONS},
-    "event": "event ms",
-    "event_kb": "event KB",
-}
-
-
-def function_times(path: Path) -> dict[str, float]:
-    """Inclusive ms per function in a CPU profile, each sample counted once per
-    function on its stack."""
-    times: dict[str, float] = {}
-    for _, duration, chain in Profile(json.loads(path.read_text())).samples:
-        for name in set(chain):
-            times[name] = times.get(name, 0) + duration / 1000
-    return times
-
-
 def growth(
     before: dict[str, float], after: dict[str, float], ratio: float
 ) -> list[str]:
@@ -763,7 +907,7 @@ def growth(
 def serving_collection(arm: Path, collection: Collection, n: int, scratch: Path):
     """Write `collection`'s page of size `n` as an authored source under `scratch`,
     its earlier versions where a fixture keeps them, serve it from `arm` with its log
-    admitted (`serving_source`), and yield the address."""
+    admitted (`serving_source`), and yield the page it serves."""
     *earlier, authored = collection.sources(n)
     source = scratch / "source" / "page.html"
     (source.parent / "versions").mkdir(parents=True)
@@ -775,17 +919,23 @@ def serving_collection(arm: Path, collection: Collection, n: int, scratch: Path)
         # Not the source's stem, which would make it the page's own history.
         seed = scratch / "seed.jsonl"
         seed.write_text("".join(json.dumps(event) + "\n" for event in events))
-    with serving_source(arm, source, scratch / "page", seed) as address:
-        yield address
+    with serving_source(arm, source, scratch / "page", seed):
+        yield served_page.get()
 
 
 def report_growth(title: str, profiles: dict, ratio: float) -> None:
     """Echo the functions that grew superlinearly in each of `profiles`, a pair of
-    function times (smallest page, largest) by what was profiled."""
+    inclusive ms by function (smallest page, largest) by what was profiled."""
     for name, (before, after) in profiles.items():
         if lines := growth(before, after, ratio):
             click.echo(f"{title} {name}: superlinear functions")
             click.echo("\n".join(lines) + "\n")
+
+
+def inclusive_ms(path: Path) -> dict[str, float]:
+    """Each function's inclusive ms in the CPU profile at `path` (`Profile`)."""
+    _own, inclusive = Profile(path).functions()
+    return {name: us / 1000 for name, us in inclusive.items()}
 
 
 @click.command()
@@ -801,6 +951,12 @@ def report_growth(title: str, profiles: dict, ratio: float) -> None:
     f"[default: {','.join(map(str, SIZES))}, or with --server "
     f"{','.join(map(str, SERVER_SIZES))}].",
 )
+@click.option(
+    "--rounds",
+    type=click.IntRange(1),
+    help="Measure every page this many times, interleaved, and report each cost's "
+    "lowest reading [default: 1, or with --server 3].",
+)
 @engine_option
 @base_option()
 @click.option("--profile", is_flag=True, help="Profile the smallest and largest size.")
@@ -808,6 +964,7 @@ def scaling(
     axes: tuple[str, ...],
     server: bool,
     sizes: str | None,
+    rounds: int | None,
     engine: str,
     base: str | None,
     profile: bool,
@@ -818,7 +975,7 @@ def scaling(
     if server:
         if base is not None:
             raise click.UsageError("--server measures this checkout only")
-        scale_server(axes or SERVER_AXES, sized, profile, run)
+        scale_server(axes or SERVER_AXES, sized, rounds, profile, run)
         return
     if engine not in ("chromium", "firefox"):
         raise click.UsageError(
@@ -829,33 +986,40 @@ def scaling(
     arms = choose_arms(base, run)
     click.echo(describe(arms) + "\n")
     results: dict[str, dict[str, list[dict]]] = {}
+    ends = (sized[0], sized[-1])
     with headless_shell() if engine == "chromium" else launch(engine) as browser:
         for axis in axes or tuple(AXES):
-            for arm, chosen in arms.items():
-                rows = []
-                for n in sized:
-                    scratch = run / f"{axis}-{arm}-{n}"
-                    profiles = (
-                        scratch if profile and n in (sized[0], sized[-1]) else None
-                    )
-                    with serving_collection(
-                        chosen.directory, COLLECTIONS[axis], n, scratch
-                    ) as address:
-                        costs = measure(browser, address, profiles)
-                        rows.append({"n": n, "engine": engine, **costs})
-                results.setdefault(axis, {})[arm] = rows
+            by_arm = measure_rounds(
+                browser,
+                arms,
+                COLLECTIONS[axis],
+                sized,
+                rounds or 1,
+                run / axis,
+                profile,
+            )
+            results[axis] = by_arm
+            for arm, rows in by_arm.items():
                 title = f"{axis} ({arm}, {engine})"
-                click.echo(table(title, rows, "elements", COLUMNS) + "\n")
-                if profile:
-                    first, last = (
-                        run / f"{axis}-{arm}-{n}" for n in (sized[0], sized[-1])
+                click.echo(table(title, rows, "elements", COLUMNS))
+                if (largest := rows[-1])["shown"] > BUDGET_MS:
+                    click.echo(
+                        f"  shown: {largest['shown']:.0f} ms at {largest['n']}, "
+                        f"over {BUDGET_MS} ms"
                     )
+                click.echo()
+                if profile:
                     report_growth(
                         f"{axis} ({arm})",
                         {
                             transition: tuple(
-                                function_times(scratch / f"{transition}.cpuprofile")
-                                for scratch in (first, last)
+                                inclusive_ms(
+                                    run
+                                    / axis
+                                    / f"{arm}-{n}"
+                                    / f"{transition}.cpuprofile"
+                                )
+                                for n in ends
                             )
                             for transition in TRANSITIONS
                         },
@@ -865,27 +1029,63 @@ def scaling(
     click.echo(f"Results in {run.relative_to(ROOT)}")
 
 
-def scale_server(axes: Iterable[str], sizes: list[int], profile: bool, run: Path):
+def measure_rounds(
+    browser,
+    arms: dict[str, Arm],
+    collection: Collection,
+    sizes: list[int],
+    rounds: int,
+    directory: Path,
+    profile: bool = False,
+) -> dict[str, list[dict]]:
+    """Each arm's rows, by size, of the lowest of each cost `measure` reads over
+    `rounds` (`lowest`) on `collection`'s page at each of `sizes`, each served from
+    its arm under `directory` throughout, each round taking every size in turn and
+    each arm at each. With `profile`, the first round profiles the smallest and the
+    largest page into their directories, so where there are more rounds, the lowest
+    reading is one the profiler didn't slow."""
+    with ExitStack() as serving:
+        pages = {
+            (n, arm): serving.enter_context(
+                serving_collection(
+                    chosen.directory, collection, n, directory / f"{arm}-{n}"
+                )
+            )
+            for n in sizes
+            for arm, chosen in arms.items()
+        }
+
+        def read(key: tuple[int, str], number: int) -> dict:
+            n, arm = key
+            profiled = profile and number == 0 and n in (sizes[0], sizes[-1])
+            scratch = directory / f"{arm}-{n}" if profiled else None
+            return measure(browser, pages[key], scratch)
+
+        readings = lowest(rounds, list(pages), read)
+    engine = browser.browser_type.name
+    return {
+        arm: [{"n": n, "engine": engine, **readings[n, arm]} for n in sizes]
+        for arm in arms
+    }
+
+
+def scale_server(
+    axes: Iterable[str], sizes: list[int], rounds: int | None, profile: bool, run: Path
+):
     """Time each server path on each axis's pages in this process, as `--server`
     does (`leaf_dev.server_scaling`), and name each path that breaks the rule
-    (`server_scaling.failures`)."""
-    from leaf_dev.server_scaling import (
-        FITTED,
-        PATHS,
-        RUNS,
-        failures,
-        measure,
-        over_budget,
-    )
+    (`failures`)."""
+    from leaf_dev.server_scaling import FITTED, PATHS, RUNS, measure, over_budget
 
-    click.echo(f"Server paths of this checkout, least CPU of {RUNS} runs\n")
+    rounds = rounds or RUNS
+    click.echo(f"Server paths of this checkout, least CPU of {rounds} runs\n")
     results = {}
     for axis in axes:
-        rows, profiles = measure(COLLECTIONS[axis], sizes, run / axis, profile)
+        rows, profiles = measure(COLLECTIONS[axis], sizes, run / axis, profile, rounds)
         results[axis] = rows
         paths = {path: f"{path} ms" for path in PATHS if path in rows[0]}
         click.echo(table(axis, rows, "events", paths, FITTED))
-        for path, failure in failures(rows).items():
+        for path, failure in failures(rows, PATHS, FITTED).items():
             click.echo(f"  {path}: {failure['why']}")
         if why := over_budget(rows):
             click.echo(f"  click: {why}")

@@ -18,13 +18,13 @@ which is the thread's reply box.
 
 A gesture's clock starts at its input event's timestamp; an agent write's at the first
 modification of the file it writes, so the command's startup is left out. It stops at
-the first frame that paints the result (an init script samples after each frame's
-paint). A gesture's `sent` time is the first painted frame after its exact attempt
-was admitted and that application reading was presented, and its `answered` time is
-when the last byte of that POST's answer arrived, so `Sent` less `answered` is the
-page waiting for its main thread and applying the reading. Who held the main thread
-until the last goal is read from the long animation frames the page reports, by
-script owner, with the style and layout each forced.
+the first frame that paints the result (`leaf_dev.painted`'s init script samples
+after each frame's paint). A gesture's `sent` time is the first painted frame after
+its exact attempt was admitted and that application reading was presented, and its
+`answered` time is when the last byte of that POST's answer arrived, so `Sent` less
+`answered` is the page waiting for its main thread and applying the reading. Who
+held the main thread until the last goal is read from the long animation frames the
+page reports, by script owner, with the style and layout each forced.
 
 Requests and bytes, the primary comparison, count what the transition caused. The
 browser reports each request the tab starts in any of its frames, CORS preflights
@@ -41,16 +41,16 @@ beside the transition's `start`, which splits the server's time from the page's.
 Compare the numbers with the objectives in `notes/user-feedback-responsiveness.md`,
 and read the spread and load average before a median.
 
-`--profile` says where that time goes. Each transition runs under a V8 CPU profile and
-a Chrome trace with style invalidation tracking, read over the benchmark's own window:
-from the input or the write to the last frame the probe marks as painting one of its
-goals. For a gesture that is Sent, so the window holds the local draw, the wait for
-the POST's answer and the answer's application. After the table come,
-for each page, transition and arm, when each goal was painted and each run's
-main-thread tasks with the JS that dominated them, then per run: style and layout time
-and how much of it script forced, the forced style recalculations and the writes that
-invalidated style with the JS behind each, JS by self and inclusive time, and the
-user-timing marks and measures the page made in the window, so a temporary
+`--profile` says where that time goes. Each transition runs under a V8 CPU profile
+(`leaf_dev.profiles`) and a Chrome trace with style invalidation tracking, read over
+the benchmark's own window: from the input or the write to the last frame the probe
+marks as painting one of its goals. For a gesture that is Sent, so the window holds
+the local draw, the wait for the POST's answer and the answer's application. After
+the table come, for each page, transition and arm, when each goal was painted and
+each run's main-thread tasks with the JS that dominated them, then per run: style and
+layout time and how much of it script forced, the forced style recalculations and the
+writes that invalidated style with the JS behind each, JS by self and inclusive time,
+and the user-timing marks and measures the page made in the window, so a temporary
 `performance.mark('x')` in source counts how often a path ran. With `--base`, the
 arms' headline numbers follow side by side. Tracing slows the page, so read
 proportions from a profiled run and durations from one without it. Each transition's
@@ -66,7 +66,6 @@ from collections import Counter
 from contextlib import ExitStack, contextmanager, nullcontext
 from dataclasses import dataclass, field
 from functools import partial
-from itertools import pairwise
 from pathlib import Path
 from urllib.parse import urlsplit
 
@@ -88,9 +87,12 @@ from leaf_dev.arms import (
     serving,
 )
 from leaf_dev.browser import PANEL_THREAD, WINDOWS, go_to_threads, headless_shell
+from leaf_dev.commands.scaling import interleaved
 from leaf_dev.example_data import named_source
 from leaf_dev.main_thread import SCRIPT as MAIN_THREAD_SCRIPT
 from leaf_dev.main_thread import main_thread
+from leaf_dev.painted import SCRIPT as PAINTED
+from leaf_dev.profiles import Profile, cpu_profile
 
 OUT = ROOT / ".tmp" / "bench-latency"
 RUNS = 5
@@ -124,7 +126,6 @@ THREAD_TEXT = "Bench thread.\n\n" + "\n\n".join(
     f"Earlier conversation paragraph {line + 1}." for line in range(20)
 )
 
-PROBE = Path(__file__).with_suffix(".js")
 # The page is still ready, read as `wait_until_ready` reads it, and every trip its
 # ledger counts has ended (`__leafBench.quiet`).
 QUIET = (
@@ -156,13 +157,6 @@ RENDER_EVENTS = {
     "Paint": "paint",
     "Commit": "commit",
 }
-# Frames that say nothing about which runtime code ran: the sampler's own states.
-OPAQUE = (
-    "(root)",
-    "(program)",
-    "(idle)",
-    "(garbage collector)",
-)
 # The shortest main-thread task --profile lists, and how many entries each list keeps.
 TASK_MIN_MS = 2
 TOP = 12
@@ -467,21 +461,18 @@ class Session:
         run = len(self.attributed.get(transition, ())) + 1
         name = f"{self.arm}-{self.source}-{transition}-{run}"
         trace = directory / f"{name}.trace.json"
+        profile = directory / f"{name}.cpuprofile"
         browser = self.page.context.browser
         assert browser is not None  # `served` opens a context of a launched browser
-        cdp = self.page.context.new_cdp_session(self.page)
-        cdp.send("Profiler.enable")
-        cdp.send("Profiler.setSamplingInterval", {"interval": 100})
-        browser.start_tracing(page=self.page, path=str(trace), categories=CATEGORIES)
-        cdp.send("Profiler.start")
         recorded = []
+        # The trace starts first: on 2026-11-05 a profile started before it held no
+        # samples in the window the trace's marks bound.
+        browser.start_tracing(page=self.page, path=str(trace), categories=CATEGORIES)
         try:
-            yield recorded
+            with cpu_profile(self.page, profile):
+                yield recorded
         finally:
-            profile = cdp.send("Profiler.stop")["profile"]
             browser.stop_tracing()
-            cdp.detach()
-        (directory / f"{name}.cpuprofile").write_text(json.dumps(profile))
         recorded.extend((trace, Profile(profile)))
 
     def gesture(self, transition: str, goals: dict, press) -> dict:
@@ -641,7 +632,7 @@ def served(
         context = browser.new_context(viewport={"width": width, "height": height})
         try:
             context.add_init_script(path=MAIN_THREAD_SCRIPT)
-            context.add_init_script(path=PROBE)
+            context.add_init_script(path=PAINTED)
             page = context.new_page()
             page.goto(address)  # The token sets the page cookie; later loads drop it.
             origin = address.split("?", 1)[0]
@@ -670,52 +661,6 @@ def stack_label(frames: list, depth: int = 3) -> str:
         f"{f.get('functionName') or '(anon)'}:{f.get('lineNumber')}"
         for f in frames[:depth]
     )
-
-
-class Profile:
-    """One CPU profile: each sample's time and the chain of frames above it."""
-
-    def __init__(self, profile: dict):
-        nodes = {n["id"]: n for n in profile["nodes"]}
-        parent = {c: n["id"] for n in profile["nodes"] for c in n.get("children", ())}
-
-        def label(node_id):
-            frame = nodes[node_id]["callFrame"]
-            where = frame["url"].rsplit("/", 1)[-1]
-            return (
-                f"{frame['functionName'] or '(anon)'} {where}:{frame['lineNumber'] + 1}"
-            )
-
-        self.samples = []  # (timestamp µs, duration µs, frames leaf-first)
-        at = profile["startTime"]
-        deltas = profile["timeDeltas"]
-        for sample, (delta, following) in zip(
-            profile["samples"], pairwise([*deltas, 0]), strict=True
-        ):
-            at += delta
-            chain, node_id = [], sample
-            while node_id is not None:
-                chain.append(label(node_id))
-                node_id = parent.get(node_id)
-            self.samples.append((at, following, chain))
-
-    def dominant(self, lo: float, hi: float, count: int = 2) -> list:
-        """The runtime call paths holding most samples between lo and hi."""
-        paths = Counter()
-        for at, _, chain in self.samples:
-            if lo <= at < hi:
-                named = [f for f in reversed(chain) if not f.startswith(OPAQUE)]
-                paths[" > ".join(named[:3]) or chain[0]] += 1
-        return [path for path, _ in paths.most_common(count)]
-
-    def functions(self, lo: float, hi: float) -> tuple[Counter, Counter]:
-        own, inclusive = Counter(), Counter()
-        for at, duration, chain in self.samples:
-            if lo <= at < hi and not chain[0].startswith(OPAQUE[:3]):
-                own[chain[0]] += duration
-                for frame in set(chain) - {"(root) :0"}:
-                    inclusive[frame] += duration
-        return own, inclusive
 
 
 def renderer_main(events: list) -> list:
@@ -1034,20 +979,17 @@ def bench_latency(
                         )
                         for arm, version in arms.items()
                     ]
-                    for run in range(runs):
-                        # Alternate which arm goes first, so neither always meets
-                        # the machine the other just loaded.
-                        for session in sessions[:: 1 if run % 2 == 0 else -1]:
-                            session.open()
-                            for transition in transitions:
-                                result = getattr(session, transition)(run)
-                                result["run"] = run
-                                results.append(result)
-                                click.echo(
-                                    f"{source} {session.arm} run {run + 1} "
-                                    f"{transition}: {result['painted']:.0f} ms",
-                                    err=True,
-                                )
+                    for run, session in interleaved(runs, sessions):
+                        session.open()
+                        for transition in transitions:
+                            result = getattr(session, transition)(run)
+                            result["run"] = run
+                            results.append(result)
+                            click.echo(
+                                f"{source} {session.arm} run {run + 1} "
+                                f"{transition}: {result['painted']:.0f} ms",
+                                err=True,
+                            )
                     for session in sessions:
                         session.split()
                         alone[(source, session.arm)] = session.left_alone()

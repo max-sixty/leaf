@@ -40,14 +40,10 @@ import shutil
 import time
 from collections.abc import Callable, Generator, Iterator
 from contextlib import contextmanager
+from functools import partial
 from pathlib import Path
 
-from leaf_dev.commands.scaling import (
-    REFERENCE,
-    SUPERLINEAR,
-    Collection,
-    exponent,
-)
+from leaf_dev.commands.scaling import BUDGET_MS, REFERENCE, Collection, lowest
 
 PATHS = ("state", "append", "delivery", "agent", "thread", "activate")
 # A click's paths: admitting its event and computing the reading the server answers
@@ -57,7 +53,6 @@ PATHS = ("state", "append", "delivery", "agent", "thread", "activate")
 # the page as a reading does, so on the `events` page both may grow with the log.
 CLICK = ("append", "state")
 RUNS = 3
-BUDGET_MS = 100
 # How many of the largest sizes an exponent is fitted over: 256 to 1,600, a ratio of
 # 6.25. Over three, a ratio of 3.1, a host at load 50 fitted linear costs past 1.5.
 FITTED = 4
@@ -280,33 +275,34 @@ def function_times(call: Callable[[], object]) -> dict[str, float]:
 
 
 def measure(
-    collection: Collection, sizes: list[int], directory: Path, profile: bool = False
+    collection: Collection,
+    sizes: list[int],
+    directory: Path,
+    profile: bool = False,
+    rounds: int = RUNS,
 ) -> tuple[list[dict], dict[str, tuple[dict, dict]]]:
-    """Each path's least CPU over `RUNS` on `collection`'s page at each of `sizes`,
+    """Each path's least CPU over `rounds` on `collection`'s page at each of `sizes`,
     built under `directory`, in ms, beside the events its log holds; with
     `profile`, the function times of one more run of each path on the smallest
     page and the largest, in the order the rounds take them.
 
-    Each round runs every page once, so a burst of load on the host lands on one
-    reading of each size rather than on every reading of one. In each round a page
-    appends first, as a click does before its reading, and its versions come after
-    every round, since a new one leaves the appended events on an earlier revision."""
+    The rounds are interleaved (`scaling.lowest`). In each a page appends first, as
+    a click does before its reading, and its versions come after every round, since
+    a new one leaves the appended events on an earlier revision."""
     from leaf.event_log import read_events
 
     with scratch_state(directory / "state"):
         pages = build(collection, sizes, directory)
         held = {n: len(read_events(pages[n])) for n in sizes}
         calls = {n: server_paths(pages[n], collection.log(n)) for n in sizes}
-        readings: dict[int, dict[str, list[float]]] = {n: {} for n in sizes}
         order = (("append", "state", "delivery", "agent", "thread"), ("activate",))
-        for paths in order:
-            for _ in range(RUNS):
-                for n in sizes:
-                    for path in paths:
-                        if path in calls[n]:
-                            readings[n].setdefault(path, []).append(
-                                cpu_ms(calls[n][path])
-                            )
+
+        def timed(paths: tuple[str, ...], n: int, _round: int) -> dict[str, float]:
+            return {path: cpu_ms(calls[n][path]) for path in paths if path in calls[n]}
+
+        appended, activated = (
+            lowest(rounds, sizes, partial(timed, paths)) for paths in order
+        )
         profiled: dict[str, list[dict]] = {}
         if profile:
             for n in (sizes[0], sizes[-1]):
@@ -316,35 +312,17 @@ def measure(
                             profiled.setdefault(path, []).append(
                                 function_times(calls[n][path])
                             )
-        rows = [
-            {
-                "n": n,
-                "events": held[n],
-                **{path: min(readings[n][path]) for path in PATHS if path in calls[n]},
-            }
-            for n in sizes
-        ]
+        rows = []
+        for n in sizes:
+            readings = {**appended[n], **activated[n]}
+            rows.append(
+                {
+                    "n": n,
+                    "events": held[n],
+                    **{path: readings[path] for path in PATHS if path in readings},
+                }
+            )
     return rows, {path: (before, after) for path, (before, after) in profiled.items()}
-
-
-def failures(rows: list[dict]) -> dict[str, dict]:
-    """Each path in `rows` whose growth above the smallest page fits an exponent past
-    `SUPERLINEAR`, which root `AGENTS.md`, "Responsiveness", rules out, with its
-    readings and why."""
-    sizes = [row["n"] for row in rows]
-    failed = {}
-    for path in PATHS:
-        if path not in rows[0]:
-            continue
-        readings = [row[path] for row in rows]
-        slope = exponent(path, sizes, readings, FITTED)
-        if slope is not None and slope > SUPERLINEAR:
-            failed[path] = {
-                "by size": dict(zip(sizes, readings, strict=True)),
-                "exponent": slope,
-                "why": f"growth fits exponent {slope:.2f}, past {SUPERLINEAR}",
-            }
-    return failed
 
 
 def over_budget(rows: list[dict]) -> str | None:

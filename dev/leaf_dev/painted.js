@@ -1,12 +1,16 @@
-/* Browser-side latency measurement for leaf-dev bench-latency.
+/* When a page first painted each goal a benchmark waits for: `leaf-dev
+ * bench-latency`'s transitions, and `leaf-dev scaling`'s click showing the server's
+ * reading (`painted.py`).
  *
  * Installed before each document. The goals stay in sessionStorage so a revision
  * that reloads the page is sampled by the document that replaces it. Sampling
  * records the first painted frame that meets each goal, the trips the runtime's
- * ledger counted from arming through settlement, and the long animation frames this
- * document ran since arming, with the scripts that ran in each; Python drives the
- * gestures and agent writes in the top tab, and reads the requests from the browser.
- * Embedded examples have their own semantic document and share no measurement.
+ * ledger counted from arming through settlement, and, where `main_thread.js` is
+ * installed too, the long animation frames this document ran since arming, with the
+ * scripts that ran in each. The input a gesture's time counts from is its last Enter
+ * or pointer click. Python drives the gestures and agent writes in the top tab, and
+ * reads the requests from the browser. Embedded examples have their own semantic
+ * document and share no measurement.
  */
 (() => {
   if (window !== window.top || location.protocol === "about:") return;
@@ -18,6 +22,14 @@
     "keydown",
     (event) => {
       if (event.key === "Enter") input = performance.timeOrigin + event.timeStamp;
+    },
+    true,
+  );
+  addEventListener(
+    "click",
+    (event) => {
+      // A pointer's, which counts its presses; Enter's click on a button counts none.
+      if (event.detail) input = performance.timeOrigin + event.timeStamp;
     },
     true,
   );
@@ -114,7 +126,7 @@
         if (delivering) await diagnostics();
         stopWatching?.();
         input = null;
-        window.__leafMainThread.reset();
+        window.__leafMainThread?.reset();
         const watch = {
           goals: goals.map((goal) => ({ ...goal, at: null })),
           document: documentId,

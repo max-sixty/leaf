@@ -44,6 +44,12 @@ export class OptionAddition {
     this.#context = `option:${host.id}`;
   }
 
+  /** Whether the group takes an unlisted answer at all, so its group reserves the
+   * field's binding only then. */
+  get offered() {
+    return this.#offered;
+  }
+
   connect() {
     if (!this.#offered) return;
     if (this.#ui) return;

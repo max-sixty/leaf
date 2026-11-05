@@ -603,11 +603,11 @@ def _parent_error(event: dict, events: list) -> Finding | None:
     return None
 
 
-def _reopens_error(event: dict, events: list) -> Finding | None:
-    """A message reopens questions its own thread asks in words, each by the id it
-    keeps (`obligations.question_ids`). An event naming any other would put nothing
-    back on On me."""
-    if "reopens" not in event:
+def _named_question_error(event: dict, events: list) -> Finding | None:
+    """A message's `obligation` names questions its own thread asks in words, each by
+    the id it keeps (`obligations.question_ids`). An event naming any other would put
+    nothing back on On me."""
+    if not isinstance(event.get("obligation"), list):
         return None
     threads = thread_names(events)
     thread = threads[event["parent"]]
@@ -617,9 +617,9 @@ def _reopens_error(event: dict, events: list) -> Finding | None:
         if logged.get("obligation") and threads[logged["id"]] == thread
         for question in question_ids(logged)
     }
-    for question in event["reopens"]:
+    for question in event["obligation"]:
         if question not in asked:
-            return Finding("unasked-reopen", values={"question": question})
+            return Finding("unasked-obligation", values={"question": question})
     return None
 
 
@@ -730,7 +730,7 @@ def admission_error(
         or _reaction_error(event, registry)
         or _anchored_comment_error(view, event, registry)
         or _parent_error(event, events)
-        or _reopens_error(event, events)
+        or _named_question_error(event, events)
         or _edit_error(event, events)
         or _thread_presentation_error(view, event, events)
         or _reanchor_error(view, event, events)

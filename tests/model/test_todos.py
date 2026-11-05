@@ -1442,7 +1442,7 @@ def test_a_decision_ends_through_its_state_and_the_agent_ends_a_question(page_di
 def test_a_reply_clears_a_question_until_the_agent_reopens_it(page_dir):
     """The user's reply takes a step off On me at once, whatever it says, and its
     delivery names the step in `settled`. Where the reply only asked back, the agent's
-    `--reopen` returns the same item to On me, and a plan step naming it follows, until
+    `--obligation <id>` returns the same item to On me, and a plan step naming it follows, until
     their next reply answers it."""
 
     def on_me():
@@ -1495,7 +1495,8 @@ def test_a_reply_clears_a_question_until_the_agent_reopens_it(page_dir):
         {"id": item, "text": "Can you try the build on your phone?"}
     ]
     assert any(
-        "--reopen" in batch["handling"][clause] for clause in delivered["handling"]
+        "--obligation <id>" in batch["handling"][clause]
+        for clause in delivered["handling"]
     )
 
     again = written(
@@ -1503,7 +1504,7 @@ def test_a_reply_clears_a_question_until_the_agent_reopens_it(page_dir):
             "thread",
             "reply",
             response_reference(page_dir, said["id"]),
-            "--reopen",
+            "--obligation",
             item,
             "--text",
             "It is at /builds. Reply once it opens.",
@@ -1570,7 +1571,7 @@ def test_one_reply_reopens_each_question_the_users_message_answered(page_dir):
             "thread",
             "reply",
             response_reference(page_dir, said["id"]),
-            *[flag for question in asked for flag in ("--reopen", question)],
+            *[flag for question in asked for flag in ("--obligation", question)],
             "--text",
             "Both are under /previews. Can you try them?",
         )
@@ -1585,10 +1586,11 @@ def test_one_reply_reopens_each_question_the_users_message_answered(page_dir):
     assert len(state["queues"]["on_user"]) == 1
 
 
-def test_reopen_names_a_question_its_own_thread_asks(page_dir):
-    """`--reopen` takes the id a question keeps, from its own thread: a message that
-    reopened a question has no id of its own to name, and neither has another thread's
-    question, so the writer learns at once rather than putting nothing back on On me."""
+def test_obligation_names_a_question_its_own_thread_asks(page_dir):
+    """`--obligation <id>` takes the id a question keeps, from its own thread: a message
+    that asked a question again has no id of its own to name, and neither has another
+    thread's question, so the writer learns at once rather than putting nothing back on
+    On me. A message asks a new question or asks named ones again, so it can't do both."""
 
     def asked_in_a_thread(text):
         root = append_command(
@@ -1618,18 +1620,30 @@ def test_reopen_names_a_question_its_own_thread_asks(page_dir):
         "thread",
         "reply",
         reference,
-        "--reopen",
+        "--obligation",
         f"message:{elsewhere['id']}",
         "--text",
         "Which store?",
     )
-    assert refused.code == "unasked-reopen"
+    assert refused.code == "unasked-obligation"
+    both = leaf(
+        "thread",
+        "reply",
+        reference,
+        "--obligation",
+        "--obligation",
+        f"message:{here['id']}",
+        "--text",
+        "Which queue?",
+    )
+    assert both.exit_code != 0
+    assert "not both" in both.output
     again = written(
         leaf(
             "thread",
             "reply",
             reference,
-            "--reopen",
+            "--obligation",
             f"message:{here['id']}",
             "--text",
             "For sessions. Which queue?",
@@ -1640,12 +1654,12 @@ def test_reopen_names_a_question_its_own_thread_asks(page_dir):
         "reply",
         page_dir,
         again["id"],
-        "--reopen",
+        "--obligation",
         f"message:{again['id']}",
         "--text",
         "Which queue, still?",
     )
-    assert refused.code == "unasked-reopen"
+    assert refused.code == "unasked-obligation"
 
 
 def test_the_agent_ends_a_choice_the_user_answered_in_words(page_dir):

@@ -443,8 +443,7 @@ def reopened(*later):
             "parent": "r",
             "responds": "r",
             "text": "Daily costs more. Weekly or daily?",
-            "obligation": True,
-            "reopens": ["message:asking"],
+            "obligation": ["message:asking"],
         },
         *later,
     )
@@ -499,8 +498,7 @@ def test_a_reopening_outlasts_an_end_before_it_and_can_be_ended_again():
         "author": "agent",
         "parent": "t",
         "text": "Weekly or daily, after all?",
-        "obligation": True,
-        "reopens": ["message:asking"],
+        "obligation": ["message:asking"],
     }
     state = model.reading(page(""), answered_in_words(ended, again))
     [item] = served_obligations(state)["all"]

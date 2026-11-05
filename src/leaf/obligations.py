@@ -24,20 +24,21 @@ answer, the user once a harness handed the update back, and nobody once a reply
 answered it; `response_address` derives the operation that answers it. A thread is
 never an obligation itself: its messages publish them.
 
-An agent message carrying `obligation` is a question the user answers in words:
+An agent message carrying `obligation` asks a question the user answers in words:
 their next message in its thread, or a reaction there whose token settles it, is its
 answer. The message owns identity and prompt; its thread only locates it.
 
 That answer takes effect at once, whatever the words say, so the user can clear On me
 without waiting for the agent. Only the agent can read whether they answered, and
-where they asked back or the step is still to do, its reply names the question in
-`reopens`, as one reply can name each question the user's message answered. The
+where they asked back or the step is still to do, its reply's `obligation` names the
+question by id, as one reply can name each question the user's message answered. The
 question then stands open again under the id and the words of the message that first
-asked it, so a plan step naming it follows under the same title, and stands on the
-reopening reply, which On me shows and the user's next message answers. The
-user chose this on 4 November 2026 over handing the question to the agent until it
-replied, as a widget's does, which left On me full until the agent had read each reply,
-and over asking again under a new id, which left the plan step reading done.
+asked it, so a plan step naming it follows under the same title, and stands on that
+reply, which On me shows and the user's next message answers. The user chose this on
+4 November 2026 over handing the question to the agent until it replied, as a widget's
+does, which left On me full until the agent had read each reply, and over asking again
+under a new id, which left the plan step reading done. Asking again is the declaration
+asking is, an `obligation` naming the questions, rather than a second one beside it.
 
 A record's `status` is one of four, and this module is their one producer: `open`;
 `answered`, its typed answer in the record; `answered_elsewhere`, a question an agent
@@ -110,10 +111,11 @@ def end_question(record: dict, ending: dict) -> None:
 
 
 def question_ids(message: dict) -> list[str]:
-    """The ids of the questions an agent message asks in words: its own, or where the
-    message reopens questions, theirs, each the id of the message that first asked
-    it."""
-    return message.get("reopens", [f"message:{message['id']}"])
+    """The ids of the questions an agent message asks in words: the ones its
+    `obligation` lists, each the id of the message that first asked it, or where it is
+    `true`, its own."""
+    asked = message["obligation"]
+    return [f"message:{message['id']}"] if asked is True else asked
 
 
 def settle_by_words(

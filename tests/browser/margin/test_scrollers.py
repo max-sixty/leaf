@@ -644,7 +644,7 @@ def test_a_pin_on_a_code_block_s_first_line_leaves_copy_pressable(
         or pin["y"] + pin["height"] <= shows["y"]
         or pin["y"] >= shows["y"] + shows["height"]
     ), (pin, shows)
-    copy.click(timeout=5000)
+    copy.click()
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser", "webkit_browser"])
@@ -1444,7 +1444,7 @@ def test_a_row_in_content_skipped_until_near_stands_once_the_page_scrolls_to_it(
         page.mouse.wheel(0, 250)
         page.wait_for_timeout(50)
     expect(page.locator("#far")).to_be_in_viewport()
-    expect(row).not_to_have_class(re.compile(r"\blf-withheld\b"), timeout=5000)
+    expect(row).not_to_have_class(re.compile(r"\blf-withheld\b"))
 
 
 def test_an_authored_anchor_scope_leaves_margin_controls_reachable(browser, serve):

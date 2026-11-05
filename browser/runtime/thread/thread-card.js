@@ -93,7 +93,7 @@ import {
 import { randomId } from "../ids.js";
 import { turns, threadKey } from "./model.js";
 import {
-  anchorQuote,
+  anchorPlace,
   messageReading,
   threadPassage,
   threadSummary,
@@ -157,20 +157,21 @@ import { Transcript } from "./transcript.js";
  * messages: readonly MessageReading[], working: WorkingMessage | null,
  * source: ThreadRecord, reread: (held: ThreadRecord) => ThreadReading}} ThreadReading */
 
-// What a thread says of the words it is about: the quote, whether it still stands on the
-// page, and a status word where the page no longer reads as the quote does: a revision
-// took the words out of the latest version, which may not be the version shown, where
-// they can still stand; they can't be found on the page; they come from earlier data;
-// or they have changed. A thread draws it where its container asks (`ThreadOutlets`,
-// `quote`), as the floating panel's view does, and Threads finds a thread by its label.
-// The status is a word on the quote because a finger never reads a title.
+// What a thread says of the words it is about: where they stand, the words, whether they
+// still stand on the page, and a status word where the page no longer reads as the quote
+// does: a revision took the words out of the latest version, which may not be the
+// version shown, where they can still stand; they can't be found on the page; they come
+// from earlier data; or they have changed. A thread draws it where its container asks
+// (`ThreadOutlets`, `quote`), as the floating panel's view does. The status is a word on
+// the quote because a finger never reads a title.
 /** @param {ThreadRecord} thread
  * @param {Pick<ReturnType<typeof import("../anchor-placement.js").createAnchorPlacement>, "placedAt">} anchors */
-export function quoteReading(thread, anchors) {
+function quoteReading(thread, anchors) {
   const placement = anchors.placedAt(thread.id);
   const quoted = threadPassage(thread);
-  const label = anchorQuote(quoted, thread.root.about);
-  if (!label) return null;
+  const place = anchorPlace(quoted, thread.root.about);
+  const words = quoted?.quote ?? "";
+  if (!place && !words) return null;
   const anchored = Boolean(thread.anchor) || Boolean(thread.detached_from);
   const detached = anchored && (Boolean(thread.detached_from) || placement == null);
   // A version that rewrote the quoted words left the thread on their section
@@ -179,7 +180,8 @@ export function quoteReading(thread, anchors) {
     Boolean(thread.rewritten_from) ||
     Boolean(quoted?.quote && placement?.datumElement && !placement.exact);
   return Object.freeze({
-    label,
+    place,
+    words,
     detached,
     status: detached
       ? thread.detached_from
@@ -1286,6 +1288,8 @@ export class ThreadView {
   /** @param {ReturnType<typeof quoteReading>} quote @param {boolean} expanded */
   #quoteTemplate(quote, expanded) {
     if (!quote) return nothing;
+    const lead = quote.place && quote.words ? `${quote.place} · ` : quote.place;
+    const place = quote.status && lead ? `· ${lead}` : lead;
     return html`${
         quote.localReading
           ? html`<button
@@ -1317,7 +1321,9 @@ export class ThreadView {
           quote.status
             ? html`<span class="lf-anchor-status">${quote.status}</span> `
             : nothing
-        }<span class="lf-quote-label">${quote.label}</span>
+        }<span class="lf-quote-label"
+          ><span class="lf-quote-place">${place}</span>${quote.words}</span
+        >
       </blockquote>`;
   }
 

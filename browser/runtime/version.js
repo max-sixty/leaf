@@ -96,7 +96,7 @@ import {
   inputCount,
 } from "./focus.js";
 import { restrictUserIntent, retainUserIntent } from "./user-intent.js";
-import { focusedInView } from "./user-place.js";
+import { focusPlace } from "./user-place.js";
 import { SourcePairs, patchTree, patchRetains } from "./dom-children.js";
 import { savedReadingSettled } from "./keyboard/bindings.js";
 import { commandSteps } from "./keyboard/control-keys.js";
@@ -1923,8 +1923,8 @@ export function createVersionController({
       draftEditing,
       replyThread: draftEditing?.mirrored ? heldThreadId() : null,
       // A replaced reply box takes focus back either way, but is brought into view only
-      // where it marked the user's place (user-place.js, `focusedInView`).
-      replyInView: focusedInView() !== null,
+      // where it was where the user is (user-place.js, `focusPlace`).
+      replyInView: focusPlace() !== null,
       // Obligation location is the fallback for unnamed controls. An exact editor already
       // has a replacement identity, so its parent obligation does not also own focus.
       obligationCurrentLocation: draftEditing
@@ -2321,7 +2321,7 @@ export function createVersionController({
     const regions = new Map(readingRegions().map((region) => [region.id, region]));
     const active =
       (view.activeRegion === undefined ? undefined : regions.get(view.activeRegion)) ??
-      containingReadingRegionFor(focusedInView()) ??
+      containingReadingRegionFor(focusPlace()) ??
       readingRegionFor(pageReadingBlock());
     if (active) reveal(active.host, currentIntent);
     const restored = new Set();
@@ -2369,14 +2369,14 @@ export function createVersionController({
   }
 
   // The revision handoff restores the region the user works first, so that a box two
-  // regions share lands where that one left it. Focus names a region only while in view
-  // (user-place.js, `focusedInView`): a pane the reader scrolled away from, though it
-  // keeps their focus, would take them back to it.
+  // regions share lands where that one left it. Focus names a region only while it is
+  // where the user is (user-place.js, `focusPlace`): a pane the reader scrolled away
+  // from, though it keeps their focus, would take them back to it.
   const activeReadingRegion = (
     candidates = readingRegions(),
     blocks = textBlocks(),
   ) => {
-    const focusedRegion = containingReadingRegionFor(focusedInView());
+    const focusedRegion = containingReadingRegionFor(focusPlace());
     if (focusedRegion && candidates.some(({ id }) => id === focusedRegion.id))
       return focusedRegion;
     const recent = candidates.find(({ id }) => id === recentReadingRegion()?.id);

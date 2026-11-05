@@ -40,6 +40,28 @@ test("rendered order reads into a shadow tree rather than stopping at its host",
   main.remove();
 });
 
+// Browsers order two trees by where each node happens to sit in memory, so without a rule
+// one host's children could stand on both sides of its shadow root.
+test("a host's shadow tree comes before a child no slot takes", () => {
+  const { main, widget, innerA } = page();
+  const loose = document.createElement("p");
+  widget.append(loose);
+  const { DOCUMENT_POSITION_DISCONNECTED: apart } = Node;
+  const { DOCUMENT_POSITION_PRECEDING: before, DOCUMENT_POSITION_FOLLOWING: after } =
+    Node;
+  // Each side of a memory-address answer, given consistently by both nodes.
+  for (const [side, mirror] of [
+    [before, after],
+    [after, before],
+  ]) {
+    loose.compareDocumentPosition = () => apart | side;
+    widget.shadowRoot.compareDocumentPosition = () => apart | mirror;
+    assert.ok(renderedOrder(loose, innerA) > 0);
+    assert.ok(renderedOrder(innerA, loose) < 0);
+  }
+  main.remove();
+});
+
 test("a place holding the user's is the nearest step either way", () => {
   const { main, first, section, held, last } = page();
   const items = [first, section, last];

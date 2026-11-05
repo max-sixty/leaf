@@ -6,7 +6,7 @@ them to each event it prints: every action in force, and every message in a
 thread it reads, as the message now reads. So a session that missed a delivery,
 or compacted after it, reads what the delivery told the agent, under the same
 names (root `AGENTS.md`, "Validate once and share readings"). What a delivery asks
-of the agent at the time, its `answer`, `handling` and `waiting`, is the
+of the agent at the time, its `answer`, `handling`, `waiting` and `settled`, is the
 delivery's own.
 
 - `subject`: what the event changes, a widget, a thread or the page.

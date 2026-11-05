@@ -79,6 +79,15 @@ leaf-composition-field {
 .lf-compose-placeholder-lead:not(:empty) ~ span {
   flex: none;
 }
+/* The word naming what entering the box does (composing/input.js, `enters`) stands
+   whole after the box's own words, which shorten first. */
+.lf-compose-placeholder > .lf-compose-placeholder-enters {
+  flex: none;
+  margin-inline-start: auto;
+}
+.lf-compose-placeholder > .lf-compose-placeholder-enters:empty {
+  display: none;
+}
 .lf-compose-placeholder-lead:empty {
   display: none;
 }
@@ -697,7 +706,8 @@ leaf-text.lf-fab-input {
   > :is(.lf-response-action-space, .lf-response-action-label) {
   display: none;
 }
-.lf-fab-bar:not([data-lf-target-only]) > .lf-fab {
+.lf-fab-bar:not([data-lf-target-only]) > .lf-fab,
+.lf-fab-bar:not([data-lf-rest]) > .lf-fab-rest {
   display: none;
 }
 /* The picker stands over the ⋯ that opened it, or over the field once words have taken
@@ -770,7 +780,11 @@ leaf-text.lf-fab-input {
   font: var(--font-ui);
 }
 @media screen {
-  .lf-fab-bar:is([data-lf-target-only], :has(> .lf-composer[data-lf-open])) {
+  .lf-fab-bar:is(
+    [data-lf-target-only],
+    [data-lf-rest],
+    :has(> .lf-composer[data-lf-open])
+  ) {
     display: var(--lf-response-display, inline-flex);
   }
 }

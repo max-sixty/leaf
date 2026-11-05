@@ -85,8 +85,9 @@ import {
   typesText,
 } from "./focus.js";
 import { PRESSES } from "./control-selectors.js";
-import { browserScrolls } from "./arrivals.js";
+import { browserScrolls, watchScrollEnds } from "./arrivals.js";
 import { pointerAt } from "./pointer.js";
+import { repaint } from "./repaint.js";
 
 // The box a control stands at, where a rule names one: a thread where its reply box
 // waits, or a hidden stand-in where what it stands for is (details-shelf.js).
@@ -140,6 +141,12 @@ export function focusPlace() {
     : null;
 }
 declareFocusPlace(focusPlace);
+// A scroll's end can take the control out of sight or bring it back, which changes where
+// `c` goes (composing/surface.js, `focusedPlace`), with no focus move to paint it.
+watchScrollEnds(() => {
+  const node = focused();
+  if (node && node !== document.body) repaint();
+});
 // Whether a motion under way carries `node`: a glide in one of the `boxes` scrolling it
 // (scrolling.js, `scrollGoal`), or a finite animation moving a box holding it, as the
 // slide a moved card makes from where it stood. The sheen's endless one, a fade, one held

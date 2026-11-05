@@ -457,6 +457,5 @@ def test_recordings_a_revision_adds_join_the_studys_clock(browser, serve):
     page.wait_for_function(
         "[...document.querySelectorAll('#study video')].map(v => v.currentTime)"
         ".join() === '2,2'",
-        timeout=10_000,
     )
     expect(play).not_to_have_attribute("aria-disabled", "true")

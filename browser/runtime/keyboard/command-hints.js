@@ -406,6 +406,7 @@ export function createCommandHints({ presentedControl }) {
     else placement.paint(seats, chips);
   }
 
+  // A scroll's end seats the chips again.
   const scrollEnded = () => hasRoutes && repaint();
   let stopScrollEnds = () => {};
   function mount() {

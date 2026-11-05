@@ -181,6 +181,25 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item ~ .lf-chrome .lf-mark-el
     outline: var(--focus-ring);
     --lf-wears-ring: 1;
   }
+  /* The box at rest beside a target (composing/surface.js, `restFab`) wears the field's
+     face in the field's cell of the same frame, so opening it moves nothing. It carries
+     no words to carry, so it shows no grip. */
+  .lf-fab-bar > .lf-fab-rest {
+    grid-column: 1;
+    grid-row: 1;
+    align-self: stretch;
+    justify-content: flex-start;
+    padding-inline: calc(var(--lf-thread-text-inset) - 1px);
+    font: var(--font-message);
+    cursor: text;
+  }
+  /* Its words in the empty field's ink. */
+  .lf-fab-rest > .lf-compose-placeholder {
+    color: var(--muted);
+  }
+  .lf-fab-bar[data-lf-rest] > .lf-surface-grip {
+    display: none;
+  }
   .lf-fab-ground {
     display: none;
     position: absolute;
@@ -669,9 +688,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item ~ .lf-chrome .lf-mark-el
     z-index: 0;
   }
   .lf-margin-thread
-    .lf-page-thread:has(
-      > .lf-thread-transcript:is([data-lf-focus], :has([data-lf-focus]))
-    )::after {
+    .lf-page-thread:has(> .lf-thread-transcript[data-lf-focus-within])::after {
     display: none;
   }
   @media (forced-colors: active) {

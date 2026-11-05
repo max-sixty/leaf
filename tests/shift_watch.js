@@ -2524,7 +2524,14 @@
         containing = style.block;
       }
     }
-    return { paintable: true, visible: right > left && bottom > top };
+    const visible = right > left && bottom > top;
+    // What the node paints, which a clipping ancestor such as an ellipsis's box cuts:
+    // the glyphs past it are not painted, so they cannot leave a region.
+    return {
+      paintable: true,
+      visible,
+      painted: visible ? { left, top, right, bottom } : rect,
+    };
   };
   // Chrome signals a changed painted frame; actual reading/control geometry decides
   // motion. A container can grow at one edge while all protected landmarks stand.
@@ -3325,7 +3332,14 @@
             readIn(around[before], node) &&
             readIn(around[after], node) &&
             !permittedAppend(node, previousRect, currentRect, around, growth) &&
-            !permittedReflow({ node, previousRect, currentRect }, around)
+            !permittedReflow(
+              {
+                node,
+                previousRect: fromPaint.painted,
+                currentRect: toPaint.painted,
+              },
+              around,
+            )
           )
             pendingMotion.push({
               node,

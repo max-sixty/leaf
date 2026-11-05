@@ -353,8 +353,8 @@ def test_a_written_comment_keeps_its_originating_agent(browser, serve, monkeypat
     expect(
         thread.locator(".lf-msg[data-lf-author=agent] > .lf-msg-head b")
     ).to_have_text("Codex")
-    expect(thread.locator(".lf-thread-quote")).to_contain_text(
-        "“Retries are capped at three”"
+    expect(thread.locator(".lf-thread-quote")).to_have_text(
+        "Retries are capped at three"
     )
 
     write(panel_field(page), "three is the retry budget, not a guess")
@@ -1808,6 +1808,22 @@ def test_a_scrolling_table_keeps_its_row_names_in_view(browser, serve, direction
     for cell in at:
         assert cell["offset"] <= 0.5, at
         assert cell["on_top"], at
+
+    # The fade past the names goes while focus is in the table, as the table's mask does,
+    # for a control holding focus in its own shadow tree too. `:has()` can't see into
+    # one, so the mask lifted and this fade stayed over the columns.
+    fade = "name => getComputedStyle(name, '::after').content"
+    assert page.locator("#name-0").evaluate(fade) != "none"
+    table.evaluate("""t => {
+      const cell = t.querySelector('tbody td:last-child');
+      const host = cell.appendChild(document.createElement('div'));
+      host.attachShadow({mode: 'open'}).innerHTML = '<button>Open</button>';
+      host.shadowRoot.firstChild.focus({preventScroll: true});
+    }""")
+    rendered(page)
+    expect(table).to_have_attribute("data-lf-more-before", "")
+    assert page.locator("#name-0").evaluate(fade) == "none"
+    assert table.evaluate("t => getComputedStyle(t).maskImage") == "none"
 
 
 @pytest.mark.parametrize("direction", ["ltr", "rtl"])

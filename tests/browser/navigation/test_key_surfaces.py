@@ -463,7 +463,7 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
     wait_for_revision(page, 2)
     register, reference = surfaces_name_what_runs()
     assert "version.open" in register["runs"]
-    assert not {"version.later", "version.earlier"} & reference
+    assert "panel.floating.versions.pick" not in reference
 
     # With every thread resolved and a resolved one open, the reference still names
     # only what runs.

@@ -315,6 +315,10 @@ to-do keeps that obligation the agent's even after the thread is resolved
 is answered by that message instead, along with every open question before it, or by a reaction whose token
 declares `settles` on the message holding it. Neither answer resolves the thread, and
 the agent's `todo_end` can retire a question unanswered (`obligations.settle_by_words`).
+An agent reply whose `obligation` lists such questions, each by the id the message that
+first asked it set, opens each again whatever ended it: each keeps its id and words and
+stands on the reply until the user's next message or a settling reaction answers it
+(`obligations.question_ids`).
 The agent's `todo_end` also retires a frozen widget's question the user answered in
 words, since no revision can write that widget's state; the delivery of the user's
 reply lists such questions up its thread in `waiting` (`obligations.waiting_in_thread`).

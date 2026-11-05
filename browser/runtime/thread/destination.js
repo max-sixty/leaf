@@ -4,10 +4,11 @@
    returning false: Leaf's own chrome, the floating panel, declines a thread about a
    passage, which opens beside its passage. A message whose widgets the primary holds
    goes there even where it declines (messages.js, `authoredHolders`). A part the
-   primary declined uses the page's nearest drawing of its thread: the exact outlet,
-   then a page preview, then a deliberately revealed widget seat; a message part lands
-   on its message there. Where none of
-   those shows it, the primary is asked again with `request.last` set, which says
+   primary declined uses the page's nearest drawing of its thread: the exact outlet, or
+   the seat an `x-thread-seat` widget holds it in (surfaces.js, `surfaceFocusTarget`),
+   whose Resolved disclosure opens for a resolved thread; then a page preview. A message
+   part lands on its message there. Where neither shows it, the primary is asked again
+   with `request.last` set, which says
    nothing else will show the thread, so the floating panel takes any thread then; a
    second refusal leaves the thread unopened. That is every thread about a passage on a
    window with no room for the rail, where no margin card stands (margin-projection.js,
@@ -323,7 +324,7 @@ export function createThreadDestinations({
         return reached ? selected.reader.destination(thread.key, request) : null;
       }
     }
-    // The page's own drawings of the thread: its outlet, a held seat, a preview.
+    // The page's own drawings of the thread: its outlet or seat, a preview.
     async function onPage() {
       const mayPresent = () => (focus === false ? intent.available() : intent());
       // A route to a message is an arrival at it, so a seat holding it back shows it.
@@ -335,6 +336,11 @@ export function createThreadDestinations({
         if (!scroll && (!surface || !presented(surface))) return DECLINED;
         if (preview) intent.handoff(preview.close);
         if (navigationStep) {
+          // Travel lands on the thread's place, so a disclosure holding the drawing
+          // closed there, as a seat's Resolved disclosure holds a resolved thread,
+          // opens first.
+          if (surface) await reveal(surface, intent).ready;
+          if (!mayPresent()) return null;
           if (!(await scrollToThread(id, { part, focus, intent, history })))
             return null;
         } else if (focus === false) {

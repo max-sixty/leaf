@@ -17,7 +17,7 @@ from render_harness import (
     write,
 )
 
-from leaf.render_checks import wait_until_ready
+from leaf.render_checks import rendered, wait_until_ready
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -182,6 +182,9 @@ def test_motion_preference_changes_are_heard_without_reloading(browser, serve):
     page.emulate_media(reduced_motion="no-preference")
     assert page.evaluate(reading) == {"reduced": False, "scroll": "smooth"}
 
+    # A frame still pending takes the glide's first tick without a new request, so the
+    # count below reads only a page with nothing queued.
+    rendered(page)
     page.evaluate(
         """() => {
           window.__lfFrames = [];

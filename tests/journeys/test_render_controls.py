@@ -180,11 +180,11 @@ CONTROL_STABILITY_PAGE = leaf_page(
 
 <lf-ask id="stable-playground-decision"><h2>How should the release card look?</h2>
 <lf-playground id="stable-playground" submit-label="Use these settings">
-  <lf-playground-control name="radius" label="Corner radius" kind="range"
+  <lf-playground-control id="radius" name="radius" label="Corner radius" kind="range"
     value="12" min="0" max="24" step="1" unit="px"></lf-playground-control>
-  <lf-playground-control name="tone" label="Tone" kind="choice" value="quiet">
-    <lf-playground-choice value="quiet" label="Quiet"></lf-playground-choice>
-    <lf-playground-choice value="bold" label="Bold"></lf-playground-choice>
+  <lf-playground-control id="tone" name="tone" label="Tone" kind="choice" value="quiet">
+    <lf-playground-choice id="tone-quiet" value="quiet" label="Quiet"></lf-playground-choice>
+    <lf-playground-choice id="tone-bold" value="bold" label="Bold"></lf-playground-choice>
   </lf-playground-control>
   <lf-playground-preview id="stable-playground-preview">
     <article id="stable-playground-card"><strong>Release card</strong><p>The ceiling doubles per approval.</p></article>

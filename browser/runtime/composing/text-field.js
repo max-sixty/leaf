@@ -16,12 +16,16 @@
  * lists what is drawn). List markers reveal their source only inside the marker: the
  * caret after its trailing space is ready to type content, so even an empty new item
  * already shows its bullet or number. The user can move back into the marker to edit every source
- * character. Nothing is converted: the value is always the source the user typed,
- * which is what the agent reads. The constructs come from the renderer that sends the
- * message (`markdownTokens`), never from a second grammar, so the preview and the
- * message agree on what is a link, a heading or code, Shift+Enter continues the
+ * character. Nothing is converted: the value is always the source, which is what the
+ * agent reads, holding what the user typed and the markers and line breaks their keys
+ * write. The constructs come from the renderer that sends the message
+ * (`markdownTokens`), never from a second grammar, so the preview and the message agree
+ * on what is a link, a heading or code, Shift+Enter and a paste's lines continue the
  * quotes and list items the message will hold, and Tab and Shift+Tab nest a list item
  * and take it out a level.
+ * A fence is left as a code span is, by typing its marks, wherever the code's last line
+ * ends, and the next words go below it (field-editor.js, `fenceBreak`). Down from the
+ * draft's last line leaves it too (`leaveFence`).
  *
  * A field that edits words where they are shown, as a draft's does over its prose, names
  * the element that shows them (`facesOf`) and draws them in that display's faces
@@ -295,8 +299,9 @@ sheet.replaceSync(`
     -webkit-user-select: none; }
   /* A fence's line is a line of the code box, the sent pre's padding of one code line
      (reading.css, \`.lf-msg-body pre\`), and an end where no fence line stands, as
-     where a fence's container or the draft ends it and at both ends of an indented
-     block, takes that padding on the code's own line instead. */
+     where a fence's container or the draft ends it, where code shares its opening line
+     and at both ends of an indented block, takes that padding on the code's own line
+     instead. */
   .cm-line.lf-md-code-pad-start { padding-block-start: var(--code-line); }
   .cm-line.lf-md-code-pad-end { padding-block-end: var(--code-line); }
 `);

@@ -1157,38 +1157,14 @@ def test_a_row_leaving_renames_the_rows_after_it(browser, serve):
     expect(last).to_have_attribute("aria-label", re.compile(r"2 of 2"))
 
 
-def test_a_row_coming_and_going_is_laid_out_once(browser, serve):
-    """Answering a question takes its marker off the margin and puts its options' row on.
-    The margin lays its rows out once for that, and not again when it starts watching the
-    boxes the new row stands by, which that pass has already read."""
-    body = "<h1>Questions</h1>" + "".join(
-        f'<section id="s{g}"><h2>Section {g}</h2><lf-ask id="q{g}"><h3>Question {g}'
-        f'</h3><lf-options id="o{g}" choose><lf-option id="o{g}-1">One</lf-option>'
-        f'<lf-option id="o{g}-2">Two</lf-option></lf-options></lf-ask></section>'
-        for g in range(1, 4)
-    )
-    page = open_page(browser, live_url(serve(leaf_page("Questions", body))))
-    resized(page, 1440, 900)
-    margins_laid_out(page)
-    page.evaluate("""() => {
-      window.passes = 0;
-      document.addEventListener('lf-margin-layout', () => { window.passes += 1; });
-    }""")
-    with sending(page, "the choice"):
-        page.locator("#o2-1").click()
-    told(page)
-    expect(page.locator('[data-lf-margin-for="o2"]')).to_have_count(1)
-    rendered(page)
-    assert page.evaluate("window.passes") == 1
-
-
 def test_a_row_follows_words_rewrapped_as_the_margin_begins_watching_their_box(
     browser, serve
 ):
-    """A row's arrival lays the margin out once, and the boxes its target stands among
-    are watched from then. Where such a box's content narrows before the browser first
-    reports it, as it does when its padding grows while the box keeps its size, its
-    words rewrap, and the row moves with them."""
+    """The boxes a new row's target stands among are watched from the pass that seats
+    it. Where such a box's content narrows before the browser first reports it, as it
+    does when its padding grows while the box keeps its size, its words rewrap and the
+    row moves with them. No write the margin's page observer hears says so; that first
+    report does."""
     words = " ".join(["Words that wrap across the box."] * 6)
     body = (
         '<h1>Narrowing</h1><section><p id="first">A row stands here.</p></section>'

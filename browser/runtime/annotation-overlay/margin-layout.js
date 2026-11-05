@@ -173,43 +173,6 @@ let geometryObservation = 0;
 /** @type {Set<Element>} */
 let wantedGeometry = new Set();
 
-// What a pass read of each box it is about to begin watching. The browser delivers a
-// newly watched box once whatever its size, and that delivery asks for a pass only where
-// the box no longer measures what the pass read, so a row's arrival lays the rows out
-// once rather than twice.
-/** @type {WeakMap<Element, string>} */
-const readAt = new WeakMap();
-// What a box measures, in each part the observer's reading follows from. The observer
-// reports the content box, which narrows as a scrollbar comes or padding grows while the
-// whole box keeps its size, so the measure holds the whole box, the room inside its
-// borders less any scrollbar, and the padding.
-/** @param {Element} box */
-function measure(box) {
-  const { width, height } = box.getBoundingClientRect();
-  const { paddingTop, paddingRight, paddingBottom, paddingLeft } =
-    getComputedStyle(box);
-  return [
-    width,
-    height,
-    box.clientWidth,
-    box.clientHeight,
-    paddingTop,
-    paddingRight,
-    paddingBottom,
-    paddingLeft,
-  ].join(" ");
-}
-/** @param {readonly ResizeObserverEntry[]} entries */
-function heardSizes(entries) {
-  let changed = false;
-  for (const { target } of entries) {
-    const read = readAt.get(target);
-    readAt.delete(target);
-    if (read === undefined || read !== measure(target)) changed = true;
-  }
-  if (changed) layoutMarginRows();
-}
-
 /** @param {Set<Element>} geometry @param {Layer} layer */
 function watchGeometry(geometry, layer) {
   wantedGeometry = geometry;
@@ -759,7 +722,7 @@ export function scheduleMarginEntryLabels() {
 // here, rather than per lane: a table or a board scrolled sideways is no lane of its own.
 /** @param {HTMLElement} root @param {HTMLElement} projection */
 export function mountMarginLayer(root, projection) {
-  layer = { root, projection, lanes: new Map(), sizes: sizeObserver(heardSizes) };
+  layer = { root, projection, lanes: new Map(), sizes: sizeObserver(layoutMarginRows) };
   // Where the root does not scroll, the window bounds a pin's seat (`pinSeating`), and a
   // window resized around a page of fixed size resizes no box the margin watches.
   window.addEventListener("resize", scheduleMarginLayout);
@@ -1897,9 +1860,6 @@ function layoutMountedRows(layer) {
       carrierPaint: null,
     });
   }
-  // The boxes this pass begins to watch, as it reads them (`readAt`).
-  for (const node of geometry)
-    if (!observedGeometry.has(node)) readAt.set(node, measure(node));
   came = arrivals(came, present, pass);
   // Posture determines row size. Write every posture before measuring those sizes;
   // every coordinate is then written together after packing.

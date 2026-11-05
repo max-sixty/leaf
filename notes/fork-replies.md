@@ -129,3 +129,31 @@ whole context cold, rebuilds page data from today's page directory, and assumes 
 effort. Each case ran once, and one agent labelled and scored them all. The scripts and
 per-case records are in `~/.tmp/leaf.forked-replies/replay/` on the machine that ran
 them.
+
+## Forks on real pages
+
+From 1 to 5 November, 58 thread messages on 26 pages (`leaf-dev response-times`, whose
+`fork_*` and `delivered` rows read this). Forks ran on 40: they answered 6, with the
+agent's first words a median 10.6 s after sending; handed 27 to the session, a median
+3.2 s after sending; and failed on 7. The session's own first words on those 27 came a
+median 35 s after sending, 140 s at p90, and the thread showed nothing from the agent
+until then. The session opened 26 of them with a line, and each time the fork's reason
+(`why` in its `fork_reply` record) had already named the same work, such as "needs a
+new survey of real pages' event counts" against the session's "Surveying real pages'
+log lengths and growth".
+
+All 7 failures were `nothing-to-fork`, which Claude Code 2.1.318 returns when it holds
+no main-thread request to resend. Each came after the session had sent none for 1.8 to
+23 hours, and after one of these since its last: a compaction (3), Claude Code's away
+summary (2), or a restart of Claude Code (1 shown by a version change, 1 presumed). A
+fork after 5.9 idle hours with none of them succeeded. Each of those sessions was idle,
+so the hand-over's nudge woke it in about 2 s, and a failure cost only the answer a fork
+might have given.
+
+A message no fork answered reads Delivered until the session's first model call ends, a
+median 14 s and 41 s at p90. In 12 of 14 idle sessions that call posted the one-line
+reply `conversation-loop.md` asks for first, so the wait is the thinking before it:
+0.5–6k output tokens at xhigh, about 95 a second. On a busy session a message first
+waits for the next tool boundary, a median 16 s and 99 s at p90; the longest were
+foreground commands (a `sleep 280`, benchmark scripts). The hold made 6 of 26 busy
+hand-overs miss a boundary, adding 42 s across all of them.

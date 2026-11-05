@@ -158,7 +158,7 @@ counted at its own place, where it stands before sticking (`stuckShift` in
 writing to the page. Installed Playwright Firefox 157.0, build 1555, had no
 `ViewTimeline` on 2026-11-05. Release Firefox 159.0 on macOS builds a `ViewTimeline` the
 same day but throws NotSupportedError on reading its `startOffset` or `endOffset`, which
-stopped every margin layout pass on a page with a pin; `stuckShift` now asks for an
+stopped each margin layout pass whose pin passed a sticky box; `stuckShift` now asks for an
 offset once and reads nothing further from timelines where it throws. In both, a sticky
 box counts where it is drawn. A pass
 made while a header inside the target is stuck down the page can then seat the pin

@@ -130,6 +130,7 @@ function fitShotGeometry({
       "frame-height": height * scale,
       "viewport-width": viewportWidth,
       "viewport-height": viewportHeight,
+      "canvas-width": columns * (viewportWidth + 2) + (columns - 1) * gap,
       "source-width": (sourceWidth || (focus ? focus.x + focus.width : width)) * scale,
       "source-height":
         (sourceHeight || (focus ? focus.y + focus.height : height)) * scale,

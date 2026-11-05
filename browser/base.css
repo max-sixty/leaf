@@ -650,7 +650,7 @@ body {
  * wherever it stands: a paragraph, a list item or a heading is never set wider than the
  * column, however wide the box around it. So does a suggestion, whose slots hold it; a
  * package keeps its own widgets read as lines of text to the measure the same way
- * (ask.css, options.css, and the reading theme's callout). Each starts at its holder's start
+ * (options.css, and the reading theme's callout). Each starts at its holder's start
  * edge, so in a flow wider than the column (a pane, a sidebar page's body) the box and
  * the prose around it share one left edge and one width. It caps the width and sets no
  * margin, so a widget's own arrangement still places the box. Package captions may span

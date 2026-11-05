@@ -3696,7 +3696,7 @@ def test_declared_space_names_containing_holders_as_advice(browser, serve):
     assert len(advice) == 5
     assert all(finding.severity == "advice" for finding in advice)
     assert 'class="layout-flow"' in str(advice[0])
-    assert "put data-width on that holder" in str(advice[0])
+    assert "put data-width on the frame" in str(advice[0])
 
 
 def test_the_sweep_reads_each_width_as_a_load_there_shows_it(browser, serve):
@@ -3754,9 +3754,9 @@ def test_unpainted_padding_can_hold_focus_rings_inside_the_page_gutter(browser, 
 
 
 def test_an_obligation_spanning_its_block_is_a_breakout(browser, serve):
-    """An explicitly widened obligation keeps its evidence inside the ring. Boxes
-    pulled or sized past the actual page edge remain render-gate findings."""
-    item = """<lf-ask id="{id}" data-width="wide"><h2>Which one?</h2>
+    """An obligation holding a wide block keeps it inside the ring. Boxes pulled or
+    sized past the actual page edge remain render-gate findings."""
+    item = """<lf-ask id="{id}"><h2>Which one?</h2>
   <figure data-width="wide"><p>Evidence the room holds.</p></figure>
   <lf-options id="{id}-o" choose><lf-option id="{id}-a">This one</lf-option></lf-options>
 </lf-ask>"""

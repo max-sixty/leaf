@@ -2,14 +2,15 @@
  * Block rather than the custom-element default inline so its box begins at the
  * question's opening and reaches around the context and control the current location ring says
  * are one lf-ask. What it holds doesn't arrange its options: the author lays them across
- * (`across`, options.css). */
+ * (`across`, options.css). It takes no width of its own: its blocks stand in the page's
+ * flow (`x-flow`, layouts.css), so its words keep the prose's edge beside a block that
+ * declares more room, and its box grows round that block. Where no block in it declares
+ * more, its box keeps the measure, on a sidebar page's wider body too. */
 lf-ask {
   display: block;
 }
-/* An lf-ask keeps the prose measure, including on a wider sidebar page.
- * The holder's own data-width requests room for wider evidence inside its ring. */
 @media screen {
-  lf-ask {
+  lf-ask:not(:has([data-lf-space])) {
     box-sizing: border-box;
     max-inline-size: var(--lf-measure);
   }

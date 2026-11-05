@@ -42,8 +42,8 @@ such as a table, a trace or a playground, can ask for one with `data-width` ("Bo
 widths"). The block breaks out of the column and the prose stays where it is.
 
 On a sidebar page, every block, the title included, starts at the same left edge and
-fills its region. Text, an `lf-ask`, a callout, and widgets read as text such as an
-option list keep the reading measure, on a column page too.
+fills its region. Text, a callout, and widgets read as text such as an option list keep
+the reading measure, on a column page too.
 
 A workspace fills the window. It has no reading measure, every block fills its region,
 and `data-width` has no effect. Where a region would hold prose too wide to read,
@@ -257,9 +257,10 @@ column and sidebar pages:
   leave free, into both margins.
 
 A `table` with either value is only as wide as its columns need, up to that width.
-A block widens when it is a child of `layout-column` or `layout-flow`.
-A framed holder, such as an `lf-ask` or callout, needs its own `data-width` to widen;
-its children use the room inside it. A wide child alone does not widen its holder.
+A block widens when it is a child of `layout-column`, `layout-flow` or `lf-ask`, whose
+blocks stand in the flow around it, so its words stay on the column beside a wider one.
+A framed holder, such as a callout, needs its own `data-width` to widen; its children
+use the room inside it. A wide child alone does not widen its holder.
 Under the reading face a table scrolls sideways when needed; a page without the face
 gives a table that can outgrow its width a box of its own that scrolls sideways
 (`page-authoring.md`, "Markup"). Use `layout-flow` on unframed section

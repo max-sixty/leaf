@@ -75,7 +75,7 @@ function containedSpace() {
         breaksOut(holder)
       )
         return [];
-      if (!holder.matches(".layout-flow")) holders.push(at(holder));
+      if (!holder.matches(".layout-flow, [data-lf-flow]")) holders.push(at(holder));
     }
     return [];
   });

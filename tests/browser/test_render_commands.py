@@ -258,7 +258,7 @@ def test_shot_controls_have_disjoint_targets_and_labels_stay_passive(
         const r = element.getBoundingClientRect();
         return {x: r.x, y: r.y + scrollY, width: r.width, height: r.height};
       };
-      return {toolbar: box(node.querySelector('.lf-shot-toolbar')),
+      return {
         controls: [...node.querySelectorAll(
           '.lf-shot-views wa-radio, .lf-shot-tools > button'
         )].map(box), stageTop: box(node.querySelector('.lf-shotstage')).y};
@@ -832,6 +832,49 @@ def test_a_shot_owns_cropped_inspection_and_preserves_choices_when_metadata_chan
     expect(
         shot.locator('.lf-shot-toolbar .lf-shotcap[data-lf-state="before"]')
     ).to_contain_text("Previous")
+
+
+def test_a_shot_narrower_than_its_box_keeps_its_labels_on_its_frames(browser, serve):
+    """A capture narrower than the shot's box stands centred in it, so the source labels
+    stand on the frames' edges in each view rather than on the box's, hundreds of
+    pixels from what they name, and the tools hold the axis as the frames change."""
+    data = {
+        "before": solid_png(600, 300, (210, 220, 235)),
+        "after": solid_png(600, 300, (235, 215, 205)),
+    }
+    sources = {
+        state: f"/media/{hashlib.sha256(value).hexdigest()[:16]}.png"
+        for state, value in data.items()
+    }
+    source = leaf_page(
+        "Narrow pair",
+        f"""<h1>Narrow pair</h1><lf-shot id="narrow" data-width="available" alt="a narrow pair"
+        before="{sources["before"]}" after="{sources["after"]}"></lf-shot>""",
+    )
+    page = open_page(
+        browser,
+        serve(source, media={sources[state]: value for state, value in data.items()}),
+    )
+    resized(page, 1600, 900)
+    shot = page.locator("#narrow")
+    tools = shot.locator(".lf-shot-actions")
+    captions = shot.locator(".lf-shot-toolbar .lf-shotcap")
+    held = None
+    for view, width in (("Slider", 602), ("Pair", 2 * 602 + 8), ("Slider", 602)):
+        shot.get_by_role("radio", name=view, exact=True).click()
+        frames = [
+            frame.bounding_box()
+            for frame in shot.locator(".lf-shotframe").all()
+            if frame.is_visible()
+        ]
+        left = min(frame["x"] for frame in frames)
+        right = max(frame["x"] + frame["width"] for frame in frames)
+        assert right - left == pytest.approx(width, abs=1), (view, frames)
+        before, after = [caption.bounding_box() for caption in captions.all()]
+        assert before["x"] == pytest.approx(left, abs=1), (view, before, frames)
+        assert after["x"] + after["width"] == pytest.approx(right, abs=1), (view, after)
+        held = held or tools.bounding_box()
+        assert tools.bounding_box() == held, view
 
 
 def test_a_shot_fits_both_wide_captures_and_retains_actual_scale_across_views(

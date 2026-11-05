@@ -158,11 +158,12 @@ import { Transcript } from "./transcript.js";
  * source: ThreadRecord, reread: (held: ThreadRecord) => ThreadReading}} ThreadReading */
 
 // What a thread says of the words it is about: the quote, whether it still stands on the
-// page, and a status word where the page no longer reads as the quote does: the words
-// are gone from this version, can't be found on the page, come from earlier data, or
-// have changed. A thread draws it where its container asks (`ThreadOutlets`, `quote`),
-// as the floating panel's view does, and Threads finds a thread by its label. The status
-// is a word on the quote because a finger never reads a title.
+// page, and a status word where the page no longer reads as the quote does: a revision
+// took the words out of the latest version, which may not be the version shown, where
+// they can still stand; they can't be found on the page; they come from earlier data;
+// or they have changed. A thread draws it where its container asks (`ThreadOutlets`,
+// `quote`), as the floating panel's view does, and Threads finds a thread by its label.
+// The status is a word on the quote because a finger never reads a title.
 /** @param {ThreadRecord} thread
  * @param {Pick<ReturnType<typeof import("../anchor-placement.js").createAnchorPlacement>, "placedAt">} anchors */
 export function quoteReading(thread, anchors) {
@@ -182,7 +183,7 @@ export function quoteReading(thread, anchors) {
     detached,
     status: detached
       ? thread.detached_from
-        ? "Not in this version"
+        ? "Not in the latest version"
         : "Not found"
       : anchored && placement?.status === "outdated"
         ? "Earlier data"

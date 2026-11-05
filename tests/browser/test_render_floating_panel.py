@@ -4097,14 +4097,14 @@ def test_versions_travel_opens_in_the_panel(browser, serve):
     first = view.locator(".lf-fp-version .lf-fp-item").first
     expect(first).to_have_accessible_name("v2 (latest version) two")
     expect(first).to_have_accessible_description("")
-    # Opened by its key, the view stands on its first version, as every view a key
-    # opens does, wherever pressed; its list is one stop for Tab, which the arrows walk.
+    # Opened by its key, the view stands on the version the page shows, the tab's v1,
+    # wherever pressed; its list is one stop for Tab, which the arrows walk.
     versions = view.locator(".lf-fp-version > .lf-fp-item")
-    expect(versions.first).to_be_focused()
-    page.keyboard.press("ArrowDown")
     expect(versions.nth(1)).to_be_focused()
-    page.keyboard.press("Home")
+    page.keyboard.press("ArrowUp")
     expect(versions.first).to_be_focused()
+    page.keyboard.press("End")
+    expect(versions.nth(1)).to_be_focused()
     expect(view.locator("[tabindex='0']")).to_have_count(1)
 
     other = view.locator(".lf-fp-version:not([data-lf-current]) .lf-fp-label")
@@ -4143,6 +4143,55 @@ def test_a_finger_reads_a_version_s_note_whole(browser, serve):
     }""")
 
 
+@pytest.mark.parametrize("route", ["finger", "key"])
+def test_versions_opens_at_the_version_the_page_shows(browser, serve, route):
+    """Reopened from an older version, a list too long for the panel opens with the
+    version shown in view, whichever way it opens, so Showing doesn't start out of
+    sight. A key lands on that version, and a finger's opening leaves focus on the
+    list."""
+    url = serve(LONG_PAGE)
+    note = "Moved the rollout decision into its own section. " * 3
+    for revision in range(12):
+        stamp_page(
+            serve.page_dir,
+            LONG_PAGE.replace("Paragraph 0.", f"Paragraph {revision} revised."),
+            note,
+        )
+    finger = route == "finger"
+    # Under a mouse a row holds one line, so a shorter window makes the list too long.
+    context = browser.new_context(
+        viewport={"width": 390, "height": 844 if finger else 480},
+        has_touch=finger,
+        is_mobile=finger,
+    )
+    page = open_page(browser, url, context=context)
+    view = page.locator(panel_view("versions"))
+    panel_menu(page, "versions", touch=finger)
+    older = view.locator(".lf-fp-version > .lf-fp-item").filter(
+        has_text=re.compile(r"^\s*v2\b")
+    )
+    older.tap() if finger else older.click()
+    expect(page).to_have_url(re.compile(r"/versions/v2\b"))
+    wait_until_ready(page)
+
+    if finger:
+        panel_menu(page, "versions", touch=True)
+    else:
+        page.locator("body").focus()
+        page.keyboard.press("g")
+        page.keyboard.press("Shift+V")
+    panel_settled(page, view="versions")
+    assert view.evaluate("view => view.scrollHeight > view.clientHeight")
+    shown = view.locator(".lf-fp-version[data-lf-current]")
+    expect(shown).to_contain_text("Showing")
+    assert shown.evaluate("""row => {
+      const list = row.closest('.lf-fp-view').getBoundingClientRect();
+      const box = row.getBoundingClientRect();
+      return box.top >= list.top - 0.5 && box.bottom <= list.bottom + 0.5;
+    }""")
+    expect(shown.locator(".lf-fp-item") if not finger else view).to_be_focused()
+
+
 def test_versions_rests_the_page_s_keys_and_takes_a_version_s_number(browser, serve):
     """While Versions holds focus the page's keys rest, where d and j scrolled the page
     under it and c left it for the field. A version's number shows that version, not
@@ -4162,8 +4211,10 @@ def test_versions_rests_the_page_s_keys_and_takes_a_version_s_number(browser, se
         page.keyboard.press(key)
     one_frame(page)
     assert page.evaluate(document) == before
-    first = view.locator(".lf-fp-version > .lf-fp-item").first
-    expect(first).to_be_focused()
+    # The tab shows v1, the last row, which the key stands on.
+    shown = view.locator(".lf-fp-version[data-lf-current] > .lf-fp-item")
+    expect(shown).to_have_accessible_name(re.compile(r"^v1\b"))
+    expect(shown).to_be_focused()
 
     page.keyboard.press("?")
     reference = page.locator(".lf-command-reference")
@@ -4175,9 +4226,9 @@ def test_versions_rests_the_page_s_keys_and_takes_a_version_s_number(browser, se
     page.keyboard.press("Escape")
     expect(reference).to_be_hidden()
 
-    # The reference closes back onto Versions, which stood under it; v1 is the last
-    # row, and the number names the version.
-    expect(first).to_be_focused()
+    # The reference closes back onto Versions, which stood under it, and the number
+    # names the version, not the row in that place.
+    expect(shown).to_be_focused()
     page.keyboard.press("1")
     expect(page).to_have_url(re.compile(r"/versions/v1\b"))
 

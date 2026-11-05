@@ -380,7 +380,7 @@ def floating_thread(page: Page) -> None:
 
 def detached_thread(page: Page) -> None:
     """A thread whose passage a revision took out, opened from Threads: its quote,
-    saying it is not in this version, over its messages, and no way to the page."""
+    saying it is not in the latest version, over its messages, and no way to the page."""
     go_to_threads(page)
     page.locator(".lf-fp-thread", has_text="Old release plan").click()
     expect(page.locator(f"{panel_view('thread')} .lf-thread-quote")).to_be_visible()

@@ -106,8 +106,8 @@ nor `touch: false`.
 the row's own control beside the content it changes.
 
 Words owe a finger the same reach. A `title` shows only to a pointer resting on its
-element, so it names a control and doesn't carry a state's reason or the rest of a cut
-word. A state says its word on the surface that holds it (`quoteReading`), a panel
+element, so it can't be the only place a state's reason or the rest of a cut word is
+said. A state says its word on the surface that holds it (`quoteReading`), a panel
 row's cut words stand whole where no pointer can hover (`floating-panel.css`), and a
 control that shows part of its word gives the rest to a held press (`held-word.js`).
 

@@ -394,7 +394,8 @@ const clock = (at) =>
  * controls?: (route: R) => {crumb?: unknown, aux?: unknown},
  * presses?: (route: R) => {facts?: unknown, presses?: unknown},
  * nominate?: (route: R, collection: import("./thread/primary-reader.js").PrimaryCollection, parts: import("./thread/primary-reader.js").NominationParts) => unknown,
- * over?: readonly ("threads" | "queue" | "menu")[], rows?: string, row?: PanelRoute,
+ * over?: readonly ("threads" | "queue" | "menu")[], rows?: string, at?: string,
+ * row?: PanelRoute,
  * keys?: readonly import("./keyboard/bindings.js").Command[],
  * claims?: (binding: string) => boolean}} PanelView */
 /** @typedef {{[K in PanelRoute["view"]]: PanelView<RouteFor<K>>}} PanelViews */
@@ -1334,7 +1335,8 @@ export function createFloatingPanel({
   // - `nominate`: the outlets in it Leaf's reader draws threads or messages into.
   // - `row`: the menu leads to it by a row of the page's controls, which the panel then
   //   opens itself, those rows leading the menu in this order.
-  // - `rows`: the rows of a list the arrows walk (`listRows`).
+  // - `rows`: the rows of a list the arrows walk (`listRows`), and `at`, the one it opens
+  //   at (`focusView`).
   // - `over`: the lists it opens over, which its way back returns to, the first where it
   //   was opened from anywhere else (`open`). A list the menu leads to, such as
   //   Versions, opens over the menu, so its way back returns there.
@@ -1408,6 +1410,7 @@ export function createFloatingPanel({
       title: () => "Versions",
       draw: () => versionsList(),
       rows: ".lf-fp-version > :is(.lf-fp-item, .lf-fp-compare)",
+      at: ".lf-fp-version[data-lf-current] > .lf-fp-item",
       row: { view: "versions" },
       over: ["menu"],
       // Versions is a list for choosing, so while it stands the page's character keys
@@ -2074,7 +2077,9 @@ export function createFloatingPanel({
     // holds neither, as an empty Threads does, so the key's landing wears a ring; opened
     // by a pointer, it holds focus itself. The user chose this on 31 October, after
     // `g T` from the page left focus on the list's view, where nothing showed it and
-    // Enter went nowhere seen.
+    // Enter went nowhere seen. A list that declares a row it opens at, such as the
+    // version the page shows in Versions, brings that row into view by either route, and
+    // a key lands on it, as the user reopening the list from there expects to see it.
     if (route.thread) {
       // A finger opening a thread reads it first, standing in the view, whose box
       // raises no keyboard; the keyboard rises when they tap in.
@@ -2091,10 +2096,15 @@ export function createFloatingPanel({
     const stoodRow =
       stoodIn &&
       rows.find((row) => threadByKey(row.getAttribute("data-lf-key"))?.id === stoodIn);
+    const declared = viewOf(route).at;
+    const at = declared ? view?.querySelector(declared) : null;
     const target =
       stoodRow ||
-      (pressLed() ? view : (rows[0] ?? view?.querySelector("button, input") ?? view));
+      (pressLed()
+        ? view
+        : (at ?? rows[0] ?? view?.querySelector("button, input") ?? view));
     if (target) focusDestination(target, "move");
+    if (at) scrollIntoView(at, { block: "nearest", within: view });
   }
 
   // ---------- the leaf's menu ----------

@@ -846,19 +846,24 @@ export const threadPassage = (thread) =>
   thread.rewritten_from ?? thread.detached_from ?? thread.anchor;
 
 // A named control part belongs to the coordinate in every reading, not just Design.
-/** @param {import("../../types/domain.js").Anchor | null | undefined} anchor @param {string | null | undefined} about @param {string | null | undefined} words */
-const anchorNamed = (anchor, about, words) =>
-  [about === "design" && "design", anchor?.part, coordinatePlace(anchor, about), words]
+/** @param {import("../../types/domain.js").Anchor | null | undefined} anchor @param {string | null | undefined} about */
+const anchorPlace = (anchor, about) =>
+  [about === "design" && "design", anchor?.part, coordinatePlace(anchor, about)]
     .filter(Boolean)
     .join(" · ");
 
-// An anchor named in running text, such as an accessible name or a feed's line, where
-// only the marks set its quoted words off from the words around them.
+// An anchor in words: its place, then the words it quotes. In running text, such as an
+// accessible name or a feed's line, only the marks set those words off from the words
+// around them.
 /** @param {import("../../types/domain.js").Anchor | null | undefined} anchor @param {string | null | undefined} [about] */
 export const anchorLabel = (anchor, about) =>
-  anchorNamed(anchor, about, anchor?.quote && `“${anchor.quote}”`);
+  [anchorPlace(anchor, about), anchor?.quote && `“${anchor.quote}”`]
+    .filter(Boolean)
+    .join(" · ");
 
-// An anchor as a quote's face draws it (`.lf-thread-quote`). The face says its words are
-// quoted, so marks would say it twice.
+// An anchor as a thread's quote draws it (`.lf-thread-quote`). The quote's face says a
+// line holding only words is quoted, so those words take no marks. Beside a place, the
+// marks still say which part of the line is the quotation.
 /** @param {import("../../types/domain.js").Anchor | null | undefined} anchor @param {string | null | undefined} [about] */
-export const anchorQuote = (anchor, about) => anchorNamed(anchor, about, anchor?.quote);
+export const anchorQuote = (anchor, about) =>
+  anchorPlace(anchor, about) ? anchorLabel(anchor, about) : (anchor?.quote ?? "");

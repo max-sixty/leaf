@@ -1296,10 +1296,10 @@ button.lf-thread-news {
 /* A quote of the words a thread is about, where its container asks for one, as the
    floating panel's view does (thread-card.js, `#drawQuote`). The panel stands in the
    chrome and a thread drawn by a package's reader stands in the page, so the face is
-   stated here, where every surface reads it. The rule and the quiet ink say the words
-   are quoted, so they carry no marks (`anchorQuote`, thread/messages.js). It stands over
-   the thread's messages in three lines, the whole on Full quote, its press above the
-   words it grows. It only says what the thread is about, since the container's way to
+   stated here, where every surface reads it. The rule and the quiet ink say a line
+   holding only words is quoted, so those words take no marks (`anchorQuote`,
+   thread/messages.js). It stands over the thread's messages in three lines, the whole
+   on Full quote, its press above the words it grows. It only says what the thread is about, since the container's way to
    the words, as the panel's Show on page, goes there: it takes no press, no aim's room
    and no title naming a jump, though a detached quote's title still says where its
    words went. Its words start on the thread's edge, the 1px rule before them included. */

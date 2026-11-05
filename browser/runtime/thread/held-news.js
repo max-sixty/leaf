@@ -548,8 +548,7 @@ onCurrentLocation(
 /** @typedef {NonNullable<ReturnType<typeof threadChange>>} ThreadChange */
 /** @typedef {ThreadReading & {visible?: boolean, folding?: boolean}} DrawableThread */
 /** @typedef {Omit<DrawableThread, "settlement"> & {
- * settlement: ThreadReading["settlement"] | null, news: NewsNotice | null,
- * change: ThreadChange | null}} HeldThread */
+ * settlement: ThreadReading["settlement"] | null, news: NewsNotice | null}} HeldThread */
 /** @typedef {{threads: readonly HeldThread[]}} HeldCollection */
 /** @typedef {{node: Element, progressOpen?: boolean,
  * newsMoves: (change: ThreadChange) => boolean}} NewsView */
@@ -640,13 +639,13 @@ export class HeldNews {
         // nothing for news to move.
         const shown = thread.visible !== false && !thread.folding;
         if (!was || !shown || this.#released.has(thread.key))
-          return { ...thread, news: null, change: null };
+          return { ...thread, news: null };
         const view = this.#view(thread.key);
         const held = threadChange(was, thread, {
           progressOpen: view?.progressOpen ?? false,
         });
         if (!held || gestured(thread.key) || !view?.newsMoves(held))
-          return { ...thread, news: null, change: held };
+          return { ...thread, news: null };
         this.#holds.add(thread.key);
         const notice = said(held.news);
         // What the news changes stands as drawn.
@@ -664,7 +663,6 @@ export class HeldNews {
                 },
               }
             : null,
-          change: null,
         };
       },
     );

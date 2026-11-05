@@ -448,7 +448,7 @@ def test_the_shipped_long_thread_keeps_the_margin_and_its_height(browser, serve)
     expect(thread.locator(".lf-msg[data-lf-author=user]").first).to_be_visible()
     # The card draws the reply's interactive widgets in place.
     expect(thread.locator("#off-slip-chase [role=checkbox]")).to_be_checked()
-    expect(thread.locator(".lf-page-thread")).to_be_focused()
+    expect(thread.locator("leaf-text")).to_be_focused()
     geometry = marker.evaluate(
         """markerNode => {
           const main = document.querySelector('main').getBoundingClientRect();
@@ -549,7 +549,7 @@ def test_the_shipped_long_thread_keeps_the_margin_and_its_height(browser, serve)
     expect(preview).to_be_hidden()
     marker.click()
     expect(preview).to_be_visible()
-    expect(thread.locator(".lf-page-thread")).to_be_focused()
+    expect(thread.locator("leaf-text")).to_be_focused()
 
     expect(thread.locator("#off-slip-chase [role=checkbox]")).to_be_checked()
 
@@ -588,6 +588,9 @@ def test_the_shipped_long_thread_keeps_the_margin_and_its_height(browser, serve)
     expect(marker).to_have_attribute("aria-controls", "lf-margin-preview")
     expect(marker).to_have_attribute("aria-expanded", "true")
     expect(page.locator(PANEL)).not_to_have_attribute("data-lf-open", re.compile(""))
+    # Out of the reply the click left the caret in, and out of the card.
+    expect(preview.locator("leaf-text")).to_be_focused()
+    page.keyboard.press("Escape")
     leave_card(page)
     marker.hover()
     expect(preview).to_be_hidden()
@@ -595,6 +598,8 @@ def test_the_shipped_long_thread_keeps_the_margin_and_its_height(browser, serve)
     expect(preview).to_be_visible()
     expect(page.locator(PANEL)).not_to_have_attribute("data-lf-open", re.compile(""))
 
+    expect(preview.locator("leaf-text")).to_be_focused()
+    page.keyboard.press("Escape")
     leave_card(page)
     resized(page, 1280, 600)
     marker.evaluate("node => scrollBy(0, node.getBoundingClientRect().top - 330)")
@@ -674,6 +679,9 @@ def test_widening_from_a_thread_in_the_panel_lands_in_its_card(browser, serve):
     resized(page, 390, 760)
     margins_laid_out(page)
     page.locator('.lf-margin-marker[data-lf-kinds~="comment"]').click()
+    # The click puts the caret in the reply (thread/focus.js, `openingPart`); Escape
+    # stands the user on the thread.
+    page.keyboard.press("Escape")
     expect(page.locator(".lf-fp-view:not([data-lf-leaving])")).to_be_focused()
 
     resized(page, 1440, 900)

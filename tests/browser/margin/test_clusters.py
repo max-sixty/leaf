@@ -723,6 +723,11 @@ def test_one_target_has_one_primary_margin_entry_and_inline_secondary_margin_ent
     expect(page.locator(".lf-margin-preview")).to_be_visible()
     expect(page.locator(".lf-margin-thread")).to_have_count(1)
     expect(options).to_be_visible()
+    # From the reply the click left the caret in, Escape stands on the thread, and
+    # from there it takes the card down.
+    expect(page.locator(".lf-margin-preview leaf-text")).to_be_focused()
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-margin-preview .lf-page-thread")).to_be_focused()
     page.keyboard.press("Escape")
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
     expect(options).to_be_visible()

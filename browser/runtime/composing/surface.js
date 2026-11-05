@@ -1243,7 +1243,9 @@ export function createResponseSurface({
         : pointerAt();
       const threadId = markAt?.(point.x, point.y);
       if (threadId)
-        return void openPageThread(threadId, { part: "thread", travel: false });
+        return void openPageThread(threadId, {
+          travel: false,
+        });
     });
     wireFabInput();
   }

@@ -2220,7 +2220,7 @@
   // standing on its foot with it (its stand): what stands in that stand above the
   // scrollport, such as the view's name, rises with it by the same distance and no
   // more. This is the one place news may carry what is read without a gesture
-  // (the user's choice, recorded at `fitAnswer` in `floating-panel.js`: an answer the
+  // (the user's choice, recorded at `answersAtOnce` in `floating-panel.js`: an answer the
   // user waits for grows the panel's thread view).
   const appendGrowth = (around) => {
     if (around.length !== 3) return [];

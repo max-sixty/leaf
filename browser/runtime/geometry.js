@@ -441,6 +441,77 @@ function sticks(sticky) {
   if (Math.abs(box.bottom - footLine) <= 1) return true;
   return box.bottom > footLine && holder.bottom > box.bottom + 1;
 }
+// How far sticking moves `sticky` from its own place in its holder, `{x, y}` in client
+// pixels, zero for a box that is not sticky or stands in its own place. Its own place
+// is the one reading of a sticky box that holds at every scroll. Layout answers
+// nothing else from where the box is drawn: its client rect and `offsetTop` both
+// include the offset, and a box that stuck has lost the place it stuck from. A view
+// timeline on the box knows that place, since the timeline's range runs from it. With
+// the scrollport's end inset by all of its length, a box that sticks at its top starts
+// its range at its own top, and one that sticks at its foot ends it at its own foot,
+// counted in its scroller's scrolled content, at any scroll. Chromium and WebKit agree
+// on that reading. Firefox has no `ViewTimeline` and reads zero, which leaves a sticky
+// box read where it is drawn (notes/browser-support.md, "Sticky boxes' own place").
+//
+// That place leaves out the offset of every sticky box in the scroller, so for a sticky
+// box inside another in the same scroller the outer box's offset is taken off and the
+// answer is the inner box's own: a walk down the boxes adds each one's shift to those
+// around it.
+const VIEW_TIMELINE = "ViewTimeline" in globalThis;
+/** @param {Element} sticky @param {CSSStyleDeclaration} [style] */
+export function stuckShift(sticky, style = getComputedStyle(sticky)) {
+  const shift = { x: 0, y: 0 };
+  if (style.position !== "sticky" || !VIEW_TIMELINE) return shift;
+  for (const axis of /** @type {const} */ (["y", "x"])) {
+    const own = displaced(sticky, style, axis);
+    if (!own) continue;
+    let outer = renderedParent(sticky);
+    for (
+      ;
+      outer?.nodeType === 1 && outer !== own.scroller;
+      outer = renderedParent(outer)
+    ) {
+      const around = getComputedStyle(outer);
+      if (around.position !== "sticky") continue;
+      own.by -= displaced(outer, around, axis)?.by ?? 0;
+      break;
+    }
+    if (Math.abs(own.by) >= 0.5) shift[axis] = own.by;
+  }
+  return shift;
+}
+const SIDES = /** @type {const} */ ({
+  y: { start: "top", end: "bottom", size: "height" },
+  x: { start: "left", end: "right", size: "width" },
+});
+// How far a sticky box is drawn from its own place on one axis, and the scroller that
+// place is counted in, or null where the box sticks on neither of that axis's sides.
+/** @param {Element} sticky @param {CSSStyleDeclaration} style @param {"x" | "y"} axis */
+function displaced(sticky, style, axis) {
+  const { start, end, size } = SIDES[axis];
+  const fromStart = style[start] !== "auto";
+  if (!fromStart && style[end] === "auto") return null;
+  const timeline = new globalThis.ViewTimeline({
+    subject: sticky,
+    axis,
+    inset: "0px 100%",
+  });
+  const scroller = timeline.source;
+  const range = fromStart ? timeline.startOffset : timeline.endOffset;
+  if (!scroller || !range) return null;
+  const box = sticky.getBoundingClientRect();
+  // Where the scrolled content's origin stands in the window.
+  const frame =
+    scroller === scroller.ownerDocument.scrollingElement
+      ? { top: 0, left: 0 }
+      : scroller.getBoundingClientRect();
+  const origin =
+    axis === "y"
+      ? frame.top + scroller.clientTop - scroller.scrollTop
+      : frame.left + scroller.clientLeft - scroller.scrollLeft;
+  const own = origin + range.to("px").value - (fromStart ? 0 : box[size]);
+  return { by: own - box[start], scroller };
+}
 /** @param {Element} scroller */
 export function landingBand(scroller) {
   const band = shownBand(scroller);

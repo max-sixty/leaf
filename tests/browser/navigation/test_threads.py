@@ -588,7 +588,7 @@ CARD_ROUTES = {
     "reply, back to the thread": (["t", "c", "Escape"], True),
     "arrive at the mark": (["@mark"], True),
     "arrive at the mark, step back": (["@mark", "Escape"], True),
-    "press the marker": (["@marker"], True),
+    "press the marker, back to the thread": (["@marker", "Escape"], True),
 }
 
 
@@ -745,13 +745,15 @@ def test_an_inline_thread_rings_its_card_for_keyboard_focus(browser, serve):
     }"""
 
     page.locator('.lf-margin-marker[data-lf-kinds="comment"]').first.click()
-    expect(thread).to_be_focused()
+    expect(preview.locator("leaf-text")).to_be_focused()
     pointer = face.evaluate(paint)
     assert pointer["outline"] == "none"
     drawn = rings_drawn(page)
-    assert not any(ring["sample"] for ring in drawn), drawn
+    assert [".lf-compose-field" in ring["rule"] for ring in drawn] == [True], drawn
     assert not ring_faults(drawn, "the thread opened by pointer")
 
+    page.keyboard.press("Escape")
+    expect(thread).to_be_focused()
     page.keyboard.press("Escape")
     page.keyboard.press("t")
     expect(thread).to_be_focused()
@@ -778,6 +780,9 @@ def test_an_inline_thread_rings_its_card_for_keyboard_focus(browser, serve):
     # same field ring, without returning it to the enclosing card.
     thread.click(position={"x": 3, "y": 3})
     expect(thread).to_be_focused()
+    assert face.evaluate(paint)["outline"] == "none"
+    drawn_on_thread = rings_drawn(page)
+    assert not any(ring["sample"] for ring in drawn_on_thread), drawn_on_thread
     reply.click()
     expect(reply).to_be_focused()
     pointer_reply = rings_drawn(page)

@@ -1180,3 +1180,46 @@ def test_a_row_coming_and_going_is_laid_out_once(browser, serve):
     expect(page.locator('[data-lf-margin-for="o2"]')).to_have_count(1)
     rendered(page)
     assert page.evaluate("window.passes") == 1
+
+
+def test_a_row_follows_words_rewrapped_as_the_margin_begins_watching_their_box(
+    browser, serve
+):
+    """A row's arrival lays the margin out once, and the boxes its target stands among
+    are watched from then. Where such a box's content narrows before the browser first
+    reports it, as it does when its padding grows while the box keeps its size, its
+    words rewrap, and the row moves with them."""
+    words = " ".join(["Words that wrap across the box."] * 6)
+    body = (
+        '<h1>Narrowing</h1><section><p id="first">A row stands here.</p></section>'
+        '<section><p id="box" style="box-sizing: border-box; width: 420px; '
+        f'height: 480px; overflow: auto">{words} <span id="target" '
+        'style="display: inline-block">The last words.</span></p></section>'
+    )
+    source = leaf_page("Narrowing", body, head='<style id="narrowing"></style>')
+    page = open_page(browser, serve(source))
+    resized(page, 1440, 900)
+    register = """async (id) => {
+      const {contributionEntry, registerContribution} = await window.__lfWidgetApi();
+      registerContribution({key: id, target: document.getElementById(id),
+        read: () => ({entries: [contributionEntry({key: 'go', label: 'Go',
+          icon: 'check'})]}), activate() {}});
+    }"""
+    page.evaluate(register, "first")
+    expect(page.locator('[data-lf-margin-for="first"]')).to_have_count(1)
+    margins_laid_out(page)
+    # The page's own stylesheet narrows the box in the pass that seats the new row,
+    # after that pass read the box and before the browser first reports it: a write the
+    # margin's page observer does not hear.
+    page.evaluate("""() => document.addEventListener('lf-margin-layout', () => {
+      document.getElementById('narrowing').textContent =
+        '#box { padding-inline-start: 200px; }';
+    }, {once: true})""")
+    page.evaluate(register, "target")
+    row = page.locator('[data-lf-margin-for="target"]')
+    expect(row).to_have_count(1)
+    rendered(page)
+    top = "row => row.getBoundingClientRect().top"
+    seated = row.evaluate(top)
+    margins_laid_out(page)
+    assert row.evaluate(top) == seated

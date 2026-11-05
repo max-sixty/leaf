@@ -28,7 +28,8 @@ context limit (`event-batches.md`, "Handle the input"). Follow the delivery's
 
 When the task is idle, or a hook's input wasn't confirmed before the turn ended, the
 adapter either queues a `leaf-delivery` pointer as the task's next user message or
-starts an App Server turn with a `leaf_delivery` tool output.
+starts a turn with a `leaf_delivery` tool output, over App Server or through the
+desktop app.
 Leaf acknowledges input it queues or starts. A pointer still needs complete reading
 and its confirmation (`event-batches.md`, "Handle the input"); inline tool output
 needs no acknowledgement command.

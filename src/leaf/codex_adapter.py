@@ -12,9 +12,14 @@ The adapter reserves its own transport only once that turn ends, or at once wher
 nothing would show it the turn's end (`_offer_queued_delivery`), and an unread hook
 pointer then falls back to the same durable delivery.
 
-One of two transports carries the adapter's offer. The `codex queue` command is the
-default for a task whose App Server Leaf cannot reach, such as the Codex desktop
-app's. It leaves a pointer for the task's next turn; the task reads that
+One of three transports carries the adapter's offer. A desktop chat a window of the
+Codex desktop app has opened takes it as a turn the app starts, with the complete
+delivery as a tool output and no message in the user's name (`codex_desktop.py`). The
+adapter sees nothing of that turn but its id, so the task answers with explicit
+commands, and a start that fails falls back to the queue, where a lost answer can run
+the same input twice. The `codex queue` command is the
+default for a task whose App Server Leaf cannot reach. It leaves a pointer for the
+task's next turn; the task reads that
 immutable input through `leaf delivery read` and answers with explicit commands, the
 reply included. On the macOS desktop, the adapter then wakes the queued chat through
 the app's background deep link: an external queue write alone waits for Codex's
@@ -85,6 +90,7 @@ from .codex import (
     retry_delay,
     start_app_server_delivery,
 )
+from .codex_desktop import DesktopStartFailed, start_desktop_turn
 from .codex_state import (
     delivery_lock_path,
     delivery_turn,
@@ -179,6 +185,26 @@ def queue_delivery(
     _run_codex(codex_path, *arguments)
 
 
+def _in_desktop_chat() -> bool:
+    return os.environ.get("CODEX_INTERNAL_ORIGINATOR_OVERRIDE") == "Codex Desktop"
+
+
+def _start_in_desktop_chat(thread_id: str, payload: dict) -> str | None:
+    """The turn the desktop app started for this delivery, or None to leave it to the
+    queue."""
+    if not _in_desktop_chat():
+        return None
+    try:
+        return start_desktop_turn(thread_id, payload)
+    except DesktopStartFailed as error:
+        print(
+            f"Codex desktop start failed; queueing instead: {error}",
+            file=sys.stderr,
+            flush=True,
+        )
+        return None
+
+
 def _wake_desktop_queue(thread_id: str) -> None:
     """Resume an already queued desktop chat without opening or focusing it.
 
@@ -186,10 +212,7 @@ def _wake_desktop_queue(thread_id: str) -> None:
     Codex still owns dispatch and starts only when idle. If the wake fails, the
     accepted message remains in the queue for Codex's external-write watcher.
     """
-    if (
-        sys.platform != "darwin"
-        or os.environ.get("CODEX_INTERNAL_ORIGINATOR_OVERRIDE") != "Codex Desktop"
-    ):
+    if sys.platform != "darwin" or not _in_desktop_chat():
         return
     try:
         subprocess.run(
@@ -882,6 +905,12 @@ def _offer_queued_delivery(
         raise AppServerDeliveryUncertain(
             "the observed App Server delivery is awaiting reconciliation"
         )
+    expected = session_record(session_id)
+    turn = _start_in_desktop_chat(session_id, prepared.payload)
+    if turn is not None:
+        start_session_turn(session_id, turn, expected)
+        accept_codex_delivery(session_id, prepared.payload["id"], turn)
+        return True
     queue_delivery(codex_path, session_id, prepared.prompt)
     # `codex queue` takes no message id and lists nothing queued, so a failure
     # before this acceptance is recorded leaves the offer to be queued again rather

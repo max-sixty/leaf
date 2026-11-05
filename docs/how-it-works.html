@@ -1225,8 +1225,10 @@ flowchart TD
               <p id="host-codex-start">
                 <code>leaf server start</code> connects the page to the current Codex
                 task. <code>leaf page claim ./review</code> connects delivery when
-                claiming a page without serving it. The desktop app uses the queue
-                route, even though it runs an App Server internally.
+                claiming a page without serving it. The desktop app runs an App Server
+                Leaf can't reach, so a chat a window has opened takes each update as a
+                turn the app starts, with no message in the user’s name. Any other chat
+                uses the queue route.
               </p>
               <p id="host-codex-launch">
                 <code>leaf codex launch</code> starts a terminal client with a private

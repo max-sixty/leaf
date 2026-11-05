@@ -1,7 +1,7 @@
 """The Codex adapter and the delivery records it shares with Codex's hooks:
-capturing a page's input, offering it through `codex queue`, an App Server turn,
-or a tool or Stop hook, receipting it on each page, recovering after a restart,
-and the adapter process's lifetime."""
+capturing a page's input, offering it through `codex queue`, the desktop app, an App
+Server turn, or a tool or Stop hook, receipting it on each page, recovering after a
+restart, and the adapter process's lifetime."""
 
 import json
 import os
@@ -11,7 +11,9 @@ import shutil
 import socket
 import subprocess
 import sys
+import tempfile
 import threading
+from contextlib import contextmanager
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -46,6 +48,7 @@ from interact_support import (
 
 from leaf import codex as codex_model
 from leaf import codex_adapter as codex_adapter_model
+from leaf import codex_desktop as codex_desktop_model
 from leaf import codex_state as codex_state_model
 from leaf import delivery as delivery_model
 from leaf import event_log as events_model
@@ -1908,6 +1911,169 @@ def test_desktop_wake_follows_queue_acceptance_without_resending(
         else [["open", "-g", "codex://threads/wake/codex-thread"]]
     )
     assert ("input remains queued" in capsys.readouterr().err) == (wake == "failed")
+
+
+@contextmanager
+def desktop_router(monkeypatch, answers: dict):
+    """Serve the Codex desktop app's IPC router for one connection, as it was observed
+    in app 26.1029 (`codex_desktop.py`): each message a length and JSON, `initialize`
+    answered with a client id, and each answer preceded by another client's traffic.
+    `answers` holds each method's response fields; a method it omits gets silence, as
+    the app's router gives a chat nobody owns. Yield the requests received."""
+    requests = []
+
+    def serve(listener):
+        connection, _ = listener.accept()
+        with connection, connection.makefile("rb") as stream:
+
+            def send(message):
+                data = json.dumps(message).encode()
+                connection.sendall(len(data).to_bytes(4, "little") + data)
+
+            while header := stream.read(4):
+                request = json.loads(stream.read(int.from_bytes(header, "little")))
+                requests.append(request)
+                send({"type": "broadcast", "method": "client-status-changed"})
+                if request["method"] == "initialize":
+                    answer = {"resultType": "success", "result": {"clientId": "leaf"}}
+                elif request["method"] in answers:
+                    answer = answers[request["method"]]
+                else:
+                    continue
+                send({"type": "response", "requestId": request["requestId"], **answer})
+
+    # A socket path has a short limit, which a test's own temporary directory exceeds.
+    with tempfile.TemporaryDirectory(prefix="lf-ipc-", dir="/tmp") as home:
+        monkeypatch.setenv("CODEX_HOME", home)
+        (Path(home) / "ipc").mkdir()
+        with socket.socket(socket.AF_UNIX) as listener:
+            listener.bind(f"{home}/ipc/ipc.sock")
+            listener.listen()
+            server = threading.Thread(target=serve, args=(listener,), daemon=True)
+            server.start()
+            yield requests
+            server.join(timeout=10)
+
+
+@pytest.fixture
+def idle_desktop_chat(page_dir, codex_loop, monkeypatch):
+    """A desktop chat holding one offered update, its turn over. Yield what the two
+    older routes would have done with it: messages queued and deep links opened."""
+    codex_loop(page_dir)
+    cleanup_model.prompt_turn("codex-thread", "user-turn")
+    append_carried_log_record(
+        page_dir, {"kind": "comment", "author": "user", "text": "Wake the chat"}
+    )
+    codex_model.offer_hook_delivery(
+        "codex-thread", cleanup_model.session_record("codex-thread")
+    )
+    cleanup_model.close_session_turn("codex-thread", "user-turn")
+    queued, opened = [], []
+    monkeypatch.setattr(
+        codex_adapter_model, "queue_delivery", lambda *args: queued.append(args)
+    )
+    monkeypatch.setattr(sys, "platform", "darwin")
+    monkeypatch.setenv("CODEX_INTERNAL_ORIGINATOR_OVERRIDE", "Codex Desktop")
+    monkeypatch.setattr(
+        subprocess,
+        "run",
+        lambda arguments, **kwargs: (
+            opened.append(arguments) or subprocess.CompletedProcess(arguments, 0)
+        ),
+    )
+    return queued, opened
+
+
+def test_an_open_desktop_chat_takes_input_with_no_message_in_the_users_name(
+    page_dir, idle_desktop_chat, monkeypatch
+):
+    queued, opened = idle_desktop_chat
+    [(path, _)] = codex_records("codex-thread")
+    owned = {"resultType": "success", "handledByClientId": "window", "result": {}}
+    started = {
+        "resultType": "success",
+        "result": {"result": {"turn": {"id": "desktop-turn"}}},
+    }
+    with desktop_router(
+        monkeypatch,
+        {"thread-owner-discovery": owned, "thread-follower-start-turn": started},
+    ) as requests:
+        assert codex_adapter_model._offer_queued_delivery("codex", "codex-thread", None)
+
+    assert queued == [] and opened == []
+    start = requests[-1]
+    assert (start["method"], start["targetClientId"]) == (
+        "thread-follower-start-turn",
+        "window",
+    )
+    request = start["params"]["turnStart"]["request"]
+    assert request["threadId"] == "codex-thread" and request["input"] == []
+    assert request["toolOutput"]["name"] == "leaf_delivery"
+    delivered = json.loads(request["toolOutput"]["output"])
+    assert delivered["id"] == path.stem
+    # Leaf sees nothing of this turn but its id, so it can't take the final message.
+    assert {
+        event["answer"]["writer"]
+        for batch in delivered["batches"]
+        for event in batch["events"]
+    } == {"agent"}
+    assert [
+        (event["phase"], event["turn"])
+        for event in events_model.read_events(page_dir)
+        if event["kind"] == "pickup"
+    ] == [("opened", "desktop-turn")]
+    assert cleanup_model.turn_open(
+        cleanup_model.session_record("codex-thread"), "desktop-turn"
+    )
+    assert not codex_adapter_model._offer_queued_delivery("codex", "codex-thread", None)
+
+
+@pytest.mark.parametrize(
+    ("answers", "logged"),
+    [
+        pytest.param(
+            {
+                "thread-owner-discovery": {
+                    "resultType": "error",
+                    "error": "no-client-found",
+                }
+            },
+            False,
+            id="no owner",
+        ),
+        pytest.param({}, False, id="the router stays silent"),
+        pytest.param(
+            {
+                "thread-owner-discovery": {
+                    "resultType": "success",
+                    "handledByClientId": "window",
+                },
+                "thread-follower-start-turn": {
+                    "resultType": "error",
+                    "error": "request-version-mismatch",
+                },
+            },
+            True,
+            id="the owner refuses",
+        ),
+    ],
+)
+def test_a_desktop_chat_the_app_cannot_start_falls_back_to_the_queue(
+    page_dir, idle_desktop_chat, monkeypatch, capsys, answers, logged
+):
+    queued, opened = idle_desktop_chat
+    monkeypatch.setattr(codex_desktop_model, "OWNER_TIMEOUT", 0.1)
+    with desktop_router(monkeypatch, answers):
+        assert codex_adapter_model._offer_queued_delivery("codex", "codex-thread", None)
+
+    assert len(queued) == 1
+    assert opened == [["open", "-g", "codex://threads/wake/codex-thread"]]
+    assert ("queueing instead" in capsys.readouterr().err) == logged
+    assert [
+        (event["phase"], event["turn"])
+        for event in events_model.read_events(page_dir)
+        if event["kind"] == "pickup"
+    ] == [("queued", None)]
 
 
 def test_codex_serializes_later_input_behind_the_offered_delivery(

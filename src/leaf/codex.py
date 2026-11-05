@@ -43,10 +43,11 @@ queue adapter, whose turn would open on a pointer Codex shows as the user's own
 message, or a task that waits with `leaf wait`, Stop offers the input into the turn it
 continues, even a resumed turn that ran no tool. Once Stop or Interrupt closes the turn, or the turn no longer reads
 as running, the adapter's `_offer_queued_delivery` offers the pending input, or the
-unread pointer, itself. Without an App Server connection it hands the pointer to
-`codex queue`, retrying the same pointer while the session owns a page, and never
-calls `turn/start`. With a connection it waits until the task is idle and starts the
-turn. A delivery offered by a hook or the queue asks the agent for a plain reply; one
+unread pointer, itself. Without an App Server connection it asks the desktop app to
+start the turn (`codex_desktop.py`), or else hands the pointer to `codex queue`,
+retrying the same pointer while the session owns a page, and never calls `turn/start`.
+With a connection it waits until the task is idle and starts the turn. A delivery
+offered by a hook, the desktop app or the queue asks the agent for a plain reply; one
 started over App Server takes the turn's final message as its reply.
 
 When a session loses its last page, its `Collecting` or `Offering` record waits until

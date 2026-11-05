@@ -1,7 +1,8 @@
 # MCP and further Codex integration work
 
 Leaf reaches a Codex task in the desktop app, an IDE or a plain terminal only through
-hooks and a message it queues between turns, which gives it no more control over a
+hooks, a message it queues between turns and, in a chat the desktop app holds open, a
+turn it asks the app to start, which gives it no more control over a
 turn than it has over a Claude Code session. Only on leaf.page and on an experimental
 terminal route does it connect to the task's App Server. [Session lifetime,
 “Watchers”](../src/leaf/session-lifetime.md#watchers) owns that delivery and
@@ -111,28 +112,95 @@ requirements from rendering the page and starting work on a visible comment.
 Leaf's current alternatives are described by the watcher contract linked above:
 Claude Code normally uses a background Stop-hook watcher to wake its session;
 an explicit `leaf wait` returns input into an already waiting agent call;
-Codex's adapter queues input or starts a turn through an accessible App Server.
+Codex's adapter queues input, or starts a turn through the desktop app or an
+accessible App Server.
 
 ## Delivery without user messages
 
-An idle desktop chat receives Leaf input through `codex queue` as a
-`<leaf-delivery>` user message. The background `threads/wake/<id>` deep link
-removes the external queue's polling delay, but checks for queued input before
-resuming and supplies no input itself.
+An idle desktop chat that a window of the app has opened takes Leaf input as a turn
+the app starts, through the router the app's own clients share
+(`src/leaf/codex_desktop.py`). Any other desktop chat, such as one not opened since
+the app last launched, still takes it through `codex queue` as a `<leaf-delivery>`
+user message. The background `threads/wake/<id>` deep link removes the external
+queue's polling delay, but checks for queued input before resuming and supplies no
+input itself. A chat woken that way gains no owner, so it stays on the queue until a
+window opens it. Ending that case needs an app that gives a chat an owner without a
+window, or a queue that takes non-user input (`thread/queue/add` takes only
+`UserInput`).
 
-Leaf already starts message-free turns where it can reach the App Server, on the
-experimental terminal route and on leaf.page:
-`codex.start_app_server_delivery` sends `turn/start` with a `leaf_delivery` tool
-output. The desktop implements this capability internally, but the 22 October
-2026 inspection found no supported external desktop or MCP interface exposing
-it. Leaf's MCP `run` tool carries commands from the agent to Leaf; registering
-that server supplies no reverse delivery channel.
+The router is private and could change with any app release. Leaf falls back to the
+queue when it does, and the adapter's log (`sessions/<session>.codex.log`) says so for
+a start the app refused. A chat that quietly returns to queued messages is the sign to
+read that log and the app's method table, which lives in its `app.asar` beside
+`thread-follower-start-turn`.
 
-The missing capability is access to the desktop-owned App Server, or an API for
-queuing non-user input. When one is available, reuse the existing delivery
-envelope and acceptance path. Prove that an action on a page starts work in its
-idle owning chat without adding a user message, while Codex retains turn
-serialization and interruption policy.
+What running each route on 4 November 2026 showed, with the desktop app at
+26.1029.61003, its bundled Codex at 0.166.0-alpha.6 and the daemon at 0.166.0:
+
+- **The local daemon and its proxy reach no desktop chat.** The app's chats run on an
+  App Server child it speaks to over stdio, whose standard streams are socket pairs to
+  the app's main process. `codex app-server daemon` is a separate process. Through it
+  `thread/list` lists every chat, because it reads the shared `CODEX_HOME`, but each
+  reads `notLoaded`, the chat in use included, and `thread/loaded/list` is empty.
+  It can't take a chat over either. On a scratch chat the app held, `thread/resume`
+  through the daemon was refused with `already has an active writer`, the lock at
+  `$CODEX_HOME/thread-writer-locks/<id>.lock`, and `turn/start` with `thread not found`.
+  `codex app-server proxy` relays bytes to a socket that speaks WebSocket, which is
+  why JSON written to it gets no reply. Connect as `app_server_connect` does. On this
+  Mac the daemon's cached login had also gone stale, so its turns failed `unauthorized`.
+- **`CODEX_APP_SERVER_USE_LOCAL_DAEMON=1` doesn't move the app onto the daemon.** Its
+  gate refuses any config override, and the app always passes one
+  (`plugins.codex-app-tools@openai-bundled.mcp_servers.codex_app.enabled`). With the
+  variable set and a daemon answering `daemon version`, the app still started its stdio
+  child and the daemon loaded nothing.
+- **`CODEX_APP_SERVER_WS_URL` does move it, for an app launched with it.** With
+  `codex app-server --listen ws://127.0.0.1:<port>` and the variable set, a second
+  client saw the app's open chat in `thread/loaded/list`, `turn/start` with a tool
+  output ran in it, and the window drew the answer with no user message. That reaches
+  every chat and would give the desktop the whole App Server route, streamed replies
+  included, without the router. It wasn't built because it asks the user to launch the
+  app that way, which a Dock launch doesn't, and to keep a server running, and because
+  the router is off in that mode, along with what the app coordinates through it. The
+  server also takes none of the app's own config overrides.
+- **The router reaches an open chat.** `thread-follower-start-turn` carrying
+  `codex.app_server_turn_start_params` started a turn in about 40 ms. Its stored items
+  open on a `functionCallOutput` with no `userMessage`, and the window draws only the
+  answer. That held for an idle chat, for one the window had moved away from, and with
+  `thread_unload_delay_secs = 0`. During a running turn it steered into that turn,
+  whose next boundary showed the tool output, and the turn finished as it would have.
+  Through a Leaf adapter, a page comment opened its turn within a second and the
+  agent's reply posted on the page.
+
+To repeat this without touching a running app or its chats, start a second instance on
+its own home, in the background, and read its window over DevTools. It has its own
+router at `$CODEX_HOME/ipc/ipc.sock`:
+
+```bash
+open -n -g -j --env CODEX_HOME="$home" --env CODEX_ELECTRON_USER_DATA_PATH="$data" \
+  --env CODEX_ELECTRON_START_IN_BACKGROUND=1 /Applications/ChatGPT.app \
+  --args --user-data-dir="$data" --remote-debugging-port=9347 \
+  --disable-backgrounding-occluded-windows --disable-renderer-backgrounding \
+  "codex://threads/$id"
+```
+
+Symlink the login into `$home` (`leaf_dev.arms.codex_home` says why). The window stays
+on its first-run screen for a new home. It got past that screen with an old
+`desktop-first-seen-at-ms` and a saved workspace root in
+`$home/.codex-global-state.json`, and `electron:onboarding-projectless-completed` and
+`last_completed_onboarding` among its `electron-persisted-atom-state`; which of them
+it needs wasn't isolated. `open` sends a `codex://` link to the default handler, the
+user's own app, so give a running instance its links as arguments to its binary with
+the same `--user-data-dir`. `open -j` doesn't keep a window from showing once the app
+starts, so hide it with `NSRunningApplication`'s `hide`, under which it keeps working.
+An instance also rewrites every browser's `com.openai.codexextension.json` native host
+manifest to point into its own home. Afterwards, put each `path` back to the
+`extensionHostPath` in `~/.codex/chrome-native-hosts-v2.json`, or ChatGPT for Chrome
+stops reaching the user's app.
+
+The app's transcript also hides or restyles a user message by its shape, which could
+quiet the queue route: a text that parses as `<external_event …>` draws as an activity
+row, and one whose `text_elements` carry the placeholder `aeon-continuation` isn't
+drawn. This comes from reading the bundle and hasn't been run.
 
 ## Typed operations
 

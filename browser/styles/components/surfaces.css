@@ -485,8 +485,12 @@ a[data-lf-external]::after,
    with it, the top of its ring cut off under the pane's header rule. On every side,
    since the ring is: a link Tab brought in from a wide table's end stood flush with it.
    `:focus` makes that room available to the landing before the focus mark paints
-   after the script. At no weight, like the ring. */
-:where(:focus, [data-lf-focus]) {
+   after the script. At no weight, like the ring. A vendor control holds focus on a node
+   in its own tree, which those selectors don't reach, so the mark's part (focus.js,
+   `markFocus`) brings it there, at a pseudo-element's weight: a diff's file filter
+   stood past its pane's foot, and a code block's Copy past its top. */
+:where(:focus, [data-lf-focus]),
+::part(lf-focus) {
   scroll-margin: var(--focus-ring-landing);
 }
 /* A control in a stuck sticky header stands where the header sticks, which its
@@ -504,7 +508,8 @@ a[data-lf-external]::after,
    counts as shown; anywhere else the margin keeps the focus ring's landing room. A page tab
    strip, which the band covers whole, comes out negative by its height, so its names
    count as shown too. */
-:where(:focus, [data-lf-focus]) {
+:where(:focus, [data-lf-focus]),
+::part(lf-focus) {
   scroll-margin-top: calc(
     var(--lf-top) - var(--lf-top-covered, var(--lf-top)) +
       var(

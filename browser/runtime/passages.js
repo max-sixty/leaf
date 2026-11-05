@@ -775,11 +775,15 @@ export const inPage = (node) => under(node, pageDocument()) && !leafSurface(node
 /** @param {Element} box */
 const isLayoutBox = (box) =>
   getComputedStyle(box).getPropertyValue("--lf-layout-box").trim() === "1";
-const PARTS = ':scope > [data-lf-views="parts"]';
+// Read off `main`'s children rather than by `:scope >`, which walks every element under
+// `main` to find one of its children, several times for each keystroke.
+/** @param {Element} main */
+const partsOf = (main) =>
+  [...main.children].find((child) => child.matches('[data-lf-views="parts"]')) ?? null;
 export const layoutBox = () => {
   const main = document.querySelector("body > main");
   if (!main || isLayoutBox(main)) return main;
-  const parts = main.querySelector(PARTS);
+  const parts = partsOf(main);
   const boxes = [
     ...main.children,
     ...[...(parts?.children ?? [])].flatMap((part) => [...part.children]),
@@ -790,7 +794,7 @@ export const layoutBox = () => {
 // time (layouts.css, "A page of parts"), or null on any other page.
 export const layoutParts = () => {
   const main = document.querySelector("body > main");
-  return main && !isLayoutBox(main) ? main.querySelector(PARTS) : null;
+  return main && !isLayoutBox(main) ? partsOf(main) : null;
 };
 
 /** @param {Node} node */

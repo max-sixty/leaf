@@ -1321,7 +1321,7 @@ wa-copy-button.lf-icon-action {
   font: var(--font-fine);
 }
 /* A context of several lines breaks where its words say, as a change's says what it
-   answered under what it did (change-provenance.js). */
+   came after under what it did (change-provenance.js). */
 .lf-margin-entry-context {
   white-space: pre-line;
 }

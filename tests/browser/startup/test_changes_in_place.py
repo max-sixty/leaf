@@ -545,12 +545,12 @@ def test_a_change_s_card_reads_it_in_order(browser, serve):
     ), "the long redline doesn't scroll inside a card that fits the window"
 
 
-def test_a_change_says_which_comment_it_answers(browser, serve):
+def test_a_change_says_which_comment_it_came_after(browser, serve):
     """Under what a change did, its ⇄ entry says in which version it landed and which
-    of the user's comments the revision that made it answered, with the comment's
-    opening line, wherever on the page the comment stands; a change made once every
-    comment was answered answered none of them, and one made while a comment waits for
-    its answer stands after it. The change walk says the same to a listener
+    of the user's comments the revision that made it came after, before the agent
+    answered it, with the comment's opening line, wherever on the page the comment
+    stands, and whether or not the answer has come; a change made once every comment
+    was answered came with none waiting. The change walk says the same to a listener
     (change-provenance.js, provenance.py)."""
     url = live_url(serve(PAGE))
     d = serve.page_dir
@@ -585,9 +585,9 @@ def test_a_change_says_which_comment_it_answers(browser, serve):
         )
 
     expect(label("b")).to_contain_text(
-        "1 paragraph edited since v1 In v2, answering your comment: “Beta first?”"
+        "1 paragraph edited since v1 In v2, after your comment: “Beta first?”"
     )
-    expect(label("d")).to_contain_text("In v3, answering none of your comments")
+    expect(label("d")).to_contain_text("In v3, with none of your comments waiting")
     expect(label("t")).to_contain_text(
         "In Draft, after your comment: “Is the title right?”"
     )

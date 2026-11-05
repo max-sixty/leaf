@@ -91,7 +91,7 @@ const inProgress = readPart(
  */
 
 // What the inventory reads from the semantic root: the Questions, the workflows its
-// entries report, the shown revision, the agent's to-dos, what each revision answered
+// entries report, the shown revision, the agent's to-dos, what each revision came after
 // (change-provenance.js), and the projection whose reported and overridden marks it
 // lists once the projection's chrome has painted them.
 // What the thread pass decides about a thread reaches it as readings its paint follows:
@@ -104,7 +104,7 @@ export const annotationSelection = (root) => ({
   workflows: root.effective.workflows,
   revision: root.document.revision,
   todos: root.authoritative?.browser.todos ?? null,
-  answers: root.authoritative?.browser.revision_answers ?? null,
+  cameAfter: root.authoritative?.browser.revision_messages ?? null,
 });
 
 /** @param {{readObligations: typeof import("./obligations/model.js").readObligations, placedAt: ReturnType<typeof import("./anchor-placement.js").createAnchorPlacement>["placedAt"], openThread: ReturnType<typeof import("./thread/destination.js").createThreadDestinations>["openPageThread"], goToObligation: ReturnType<typeof import("./obligations/view.js").createObligationView>["goToObligation"], scrollToElement: ScrollToElement}} dependencies */
@@ -562,8 +562,8 @@ export function createAnnotationInventory({
       const account = changeSince(change);
       const card = changeCard(change);
       const mapAccount = card ? did : account;
-      // Under what it did, what it answered, a line each (change-provenance.js).
-      const answered = changeProvenance(change)?.lines ?? [];
+      // Under what it did, what it came after, a line each (change-provenance.js).
+      const cameAfter = changeProvenance(change)?.lines ?? [];
       add(groups, target, {
         kind: "change",
         id: `change:${targetPath(target)}:${index}`,
@@ -583,7 +583,7 @@ export function createAnnotationInventory({
         // the entry (`keptEntry`).
         ...(card
           ? {
-              context: [account, ...answered.flatMap((line) => ["\n", ...line])],
+              context: [account, ...cameAfter.flatMap((line) => ["\n", ...line])],
               mapContext: card.offer,
               cardOpen: card.open,
             }

@@ -11,7 +11,7 @@
    (margin-bars.js, `removalProxy`), which rings the gap, since the block beside the gap
    didn't change. It brings the change into view where it is not, and says the walk's
    position as every walk says it (walk-position.js), a listener hearing after it what
-   the change answered (change-provenance.js). A current location anywhere in a
+   the change came after (change-provenance.js). A current location anywhere in a
    change's blocks, or on its gap's stand-in, is on that change, so the next step goes
    on to the following one, even from one of two gaps beside one block to the other;
    from any other origin a step compares only where each change stands, as an editor's
@@ -82,10 +82,10 @@ function step(dir) {
     scrollIntoView(change.at, { behavior: scrollBehavior(), block: "start" });
   focusDestination(landing(change), "move");
   const said = beginWalk("change", "Change", position);
-  // A listener hears what the change answered after where it stands, as the ⇄ entry's
+  // A listener hears what the change came after where it stands, as the ⇄ entry's
   // label says it under what it did (change-provenance.js).
-  const answered = (changeProvenance(change)?.lines ?? []).map(wordsText).join(" ");
-  if (said) announce(answered ? `${said}. ${answered}` : said);
+  const cameAfter = (changeProvenance(change)?.lines ?? []).map(wordsText).join(" ");
+  if (said) announce(cameAfter ? `${said}. ${cameAfter}` : said);
 }
 
 export function createChangeWalk() {

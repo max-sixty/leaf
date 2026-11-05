@@ -961,10 +961,21 @@
           "type": "object",
           "additionalProperties": { "type": "string" }
         },
-        "revision_answers": {
-          "description": "By revision, for each revision that answered the user's messages or came while one waited for an answer: those messages and whether the agent has answered them (`provenance.revision_answers`). A revision absent answered none.",
+        "revision_messages": {
+          "description": "By revision, for each revision that came after one of the user's messages still waiting for an answer: those of them the agent answered first after it, each by its thread and its id, in the order the user sent them (`provenance.revision_messages`). A revision absent came with none waiting.",
           "type": "object",
-          "additionalProperties": { "$ref": "#/$defs/RevisionAnswers" }
+          "additionalProperties": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "thread": { "type": "string" },
+                "message": { "type": "string" }
+              },
+              "required": ["thread", "message"],
+              "additionalProperties": false
+            }
+          }
         }
       },
       "required": [
@@ -974,7 +985,7 @@
         "plan",
         "thread_memberships",
         "version_notes",
-        "revision_answers"
+        "revision_messages"
       ],
       "additionalProperties": false
     },
@@ -1668,31 +1679,6 @@
     "Stage": {
       "description": "How far an update has reached the agent; `answered` is only ever a retained failed response.",
       "enum": ["sent", "queued", "picked_up", "working", "replying", "answered"]
-    },
-    "RevisionAnswers": {
-      "description": "The user's messages one revision answered, or came while they waited for an answer (`provenance.revision_answers`).",
-      "type": "object",
-      "properties": {
-        "messages": {
-          "description": "Each message, by its thread and its id, in the order the user sent them.",
-          "type": "array",
-          "items": {
-            "type": "object",
-            "properties": {
-              "thread": { "type": "string" },
-              "message": { "type": "string" }
-            },
-            "required": ["thread", "message"],
-            "additionalProperties": false
-          }
-        },
-        "answered": {
-          "description": "Whether the agent has answered them; false while they wait for an answer.",
-          "type": "boolean"
-        }
-      },
-      "required": ["messages", "answered"],
-      "additionalProperties": false
     },
     "ViewAnswer": {
       "description": "The answer `GET /api/view` gives (`served_state.service.PageStateService.page_browser_view`): one revision's browser reading at an exact log boundary, which version comparison folds.",

@@ -1,53 +1,56 @@
 // @ts-check
-/* What a change since a version answered: the user's messages the revisions that made
-   it answered, and the versions those revisions landed in, so a user reviewing a
-   revision learns which of their comments each change answers and which no comment
-   asked for (../SOUL.md, "Changes the user requests remain understandable as they
-   happen").
+/* What a change since a version came after: the user's messages the revisions that made
+   it came after while they waited for an answer, and the versions those revisions
+   landed in, so a user reviewing a revision sees which of their comments each change
+   followed and which came with none waiting (../SOUL.md, "Changes the user requests
+   remain understandable as they happen").
 
    Python derives both halves from the log and the revisions (src/leaf/provenance.py),
-   whose header says how a revision is tied to the messages it answered and where the
-   tie misleads: `revision_answers` in every reading, and what each revision changed
-   with the comparison's base (`/api/view`), from which version.js keeps on each change
-   the revisions that made it (`madeBy`). This module selects from those readings
+   whose header says how a revision is tied to messages and how far the tie holds:
+   `revision_messages` in every reading, and what each revision changed with the
+   comparison's base (`/api/view`), from which version.js keeps on each change the
+   revisions that made it (`madeBy`). This module selects from those readings
    (`provenanceOf`): the versions, by the first stamp at or after each revision, else
    Draft; and the messages, each read off its thread as the page now shows it.
 
-   The revisions that made a change fall into groups, each saying one thing: those that
-   answered the same messages, those made while the same messages waited for an
-   answer, which the agent may yet answer with them or with nothing, and those that
-   answered none of the user's comments. A change one revision made has one group; a
-   run of blocks revisions made for different messages, or a block revised again, has
-   one per thing they did. A change no revision made, as a pick is made in the log, has
-   no provenance: the account of what it did says all there is.
+   The tie is one of order, so the words state order: a change came after the comment
+   it names, before the agent answered it, or with none of the user's comments
+   waiting. They say neither that it answers the comment nor that no comment asked for
+   it, since the log establishes neither: a revision the rule ties to one comment
+   changed that comment's element in 68% of the cases measured, and one made after a
+   quick answer to it no more often than chance. The user chose on 5 November 2026 to
+   say what each change came from rather than only what it did; these words are the
+   part of that the log can back.
+
+   The revisions that made a change fall into groups, each saying one thing: those
+   that came after the same messages, and those that came with none waiting. A change
+   one revision made has one group; a run of blocks revisions made after different
+   messages, or a block revised again, has one per thing they did. A change no
+   revision made, as a pick is made in the log, has no provenance: the account of what
+   it did says all there is.
 
    `changeProvenance` is the one value every surface that describes a change reads: the
    ⇄ entry's label (annotation-inventory.js), and what the change walk says
    (change-walk.js). Its `lines` are the words a surface shows, each in its speaker's
-   face: a group's heading in Leaf's voice, as it reads the log ("In v4, answering your
+   face: a group's heading in Leaf's voice, as it reads the log ("In v4, after your
    comment:"), then the opening line of each of its messages in quotes, the user's own
-   words. The user chose this attribution on 5 November 2026 over describing a change
-   only by what it did. A change no comment asked for says it answered none of the
-   user's comments rather than calling itself unprompted, since the page can't see a
-   request made in the terminal; one made while a comment waits says it came after it,
-   since the log doesn't yet say it answers it. */
+   words. */
 import { runtime } from "./context.js";
 import { threadNamed } from "./thread/state.js";
 import { messageText } from "./thread/messages.js";
 import { leafSays } from "./voice.js";
 import { counted, labelWords, quotedWords } from "./words.js";
 
-/** One of the user's messages a change answered, as its thread now reads it: `words`
+/** One of the user's messages a change came after, as its thread now reads it: `words`
  * its opening line.
- * @typedef {Readonly<{thread: string, message: string, kind: "comment" | "reply", words: string}>} AnsweredMessage */
-/** Revisions that made a change and did one thing: the versions they landed in, the
- * messages they answered, none for revisions that answered none, and whether the agent
- * has answered them, false while they wait.
- * @typedef {Readonly<{versions: readonly string[], messages: readonly AnsweredMessage[], answered: boolean}>} ProvenanceGroup */
-/** What a change answered: its groups, and `lines`, what it says, each line a run of
+ * @typedef {Readonly<{thread: string, message: string, kind: "comment" | "reply", words: string}>} NamedMessage */
+/** Revisions that made a change and came after the same messages: the versions they
+ * landed in, and the messages, none for revisions made with none waiting.
+ * @typedef {Readonly<{versions: readonly string[], messages: readonly NamedMessage[]}>} ProvenanceGroup */
+/** What a change came after: its groups, and `lines`, what it says, each line a run of
  * words in their speakers' faces (voice.js).
  * @typedef {Readonly<{groups: readonly ProvenanceGroup[], lines: readonly (readonly (string | import("./voice.js").Said)[])[]}>} ChangeProvenance */
-/** @typedef {import("../types/contract.js").ServedBrowser["revision_answers"]} RevisionAnswers */
+/** @typedef {import("../types/contract.js").ServedBrowser["revision_messages"]} RevisionMessages */
 
 // The quoted lines a change's provenance shows at most before saying how many more.
 const QUOTED = 3;
@@ -62,7 +65,7 @@ const listed = (names) =>
 
 /** What the messages are to the user: "your comment", "your 2 replies", or for kinds
  * mixed, "your 3 updates" (glossary.md, "Reader-facing words").
- * @param {readonly AnsweredMessage[]} messages */
+ * @param {readonly NamedMessage[]} messages */
 function yours(messages) {
   const kinds = new Set(messages.map(({ kind }) => kind));
   const [one, many] =
@@ -76,39 +79,38 @@ function yours(messages) {
     : `your ${counted(messages.length, one, many)}`;
 }
 
-/** What a change the revisions `revisions` made answered, from the readings it is
- * selected from: what each revision answered (`revision_answers`), the version each
- * landed in, and each message as its thread reads it, null for one no thread shows.
- * @param {readonly number[]} revisions @param {RevisionAnswers} answers
+/** What a change the revisions `revisions` made came after, from the readings it is
+ * selected from: the messages each revision came after (`revision_messages`), the
+ * version each landed in, and each message as its thread reads it, null for one no
+ * thread shows.
+ * @param {readonly number[]} revisions @param {RevisionMessages} cameAfter
  * @param {(revision: number) => string} versionOf
- * @param {(named: {thread: string, message: string}) => AnsweredMessage | null} messageOf
+ * @param {(named: {thread: string, message: string}) => NamedMessage | null} messageOf
  * @returns {ChangeProvenance | null} */
-export function provenanceOf(revisions, answers, versionOf, messageOf) {
+export function provenanceOf(revisions, cameAfter, versionOf, messageOf) {
   if (!revisions.length) return null;
-  /** @type {Map<string, {versions: Set<string>, messages: AnsweredMessage[], answered: boolean}>} */
+  /** @type {Map<string, {versions: Set<string>, messages: NamedMessage[]}>} */
   const groups = new Map();
   for (const revision of revisions) {
-    const record = answers[String(revision)];
-    const messages = (record?.messages ?? []).flatMap((named) => {
+    const messages = (cameAfter[String(revision)] ?? []).flatMap((named) => {
       const message = messageOf(named);
       return message ? [message] : [];
     });
-    const answered = Boolean(record?.answered) && messages.length > 0;
-    const key = `${answered}:${messages.map(({ message }) => message).join(" ")}`;
-    const group = groups.get(key) ?? { versions: new Set(), messages, answered };
+    const key = messages.map(({ message }) => message).join(" ");
+    const group = groups.get(key) ?? { versions: new Set(), messages };
     group.versions.add(versionOf(revision));
     groups.set(key, group);
   }
   /** @type {ChangeProvenance["lines"][number][]} */
   const lines = [];
   let quoted = 0;
-  for (const { versions, messages, answered } of groups.values()) {
+  for (const { versions, messages } of groups.values()) {
     const where = `In ${listed([...versions])}`;
     lines.push([
       leafSays(
-        !messages.length
-          ? `${where}, answering none of your comments`
-          : `${where}, ${answered ? "answering" : "after"} ${yours(messages)}:`,
+        messages.length
+          ? `${where}, after ${yours(messages)}:`
+          : `${where}, with none of your comments waiting`,
       ),
     ]);
     // A group whose messages overrun the room left says how many more in place of
@@ -125,11 +127,10 @@ export function provenanceOf(revisions, answers, versionOf, messageOf) {
   }
   return Object.freeze({
     groups: Object.freeze(
-      [...groups.values()].map(({ versions, messages, answered }) =>
+      [...groups.values()].map(({ versions, messages }) =>
         Object.freeze({
           versions: Object.freeze([...versions]),
           messages: Object.freeze(messages),
-          answered,
         }),
       ),
     ),
@@ -145,8 +146,8 @@ const versionOf = (revision) => {
 };
 
 /** A message as its thread now reads it, or null where no thread shows it.
- * @param {{thread: string, message: string}} named @returns {AnsweredMessage | null} */
-function answeredMessage({ thread: threadId, message: id }) {
+ * @param {{thread: string, message: string}} named @returns {NamedMessage | null} */
+function namedMessage({ thread: threadId, message: id }) {
   const thread = threadNamed(threadId);
   const message = thread?.msgs.find((each) => each.id === id);
   if (!thread || !message) return null;
@@ -161,13 +162,13 @@ function answeredMessage({ thread: threadId, message: id }) {
   });
 }
 
-/** What a change answered, as the page now reads it, or null where no revision made
+/** What a change came after, as the page now reads it, or null where no revision made
  * it (`provenanceOf`).
  * @param {import("./version.js").Change} change */
 export const changeProvenance = (change) =>
   provenanceOf(
     change.revisions,
-    runtime.browser?.revision_answers ?? {},
+    runtime.browser?.revision_messages ?? {},
     versionOf,
-    answeredMessage,
+    namedMessage,
   );

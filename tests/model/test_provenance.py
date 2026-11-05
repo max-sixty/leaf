@@ -1,5 +1,5 @@
-"""What each revision answered and what it changed (`provenance.py`): the facts a change
-since a version is attributed by."""
+"""What each revision came after and what it changed (`provenance.py`): the facts a
+change since a version is attributed by."""
 
 from model_folds import leaf_page, served_reading
 
@@ -10,12 +10,12 @@ from leaf.structure import SourceDocument
 AGENT = {"author": "agent", "agent": "Claude", "session": "s1"}
 
 
-def test_a_revision_answers_the_messages_the_next_answer_after_it_settles():
-    """Each revision answers the messages sent before it that the agent answered first
-    after it: two revisions made before one answer both answer it, two messages in a
-    row one reply settles stand together, a revision made once every message was
-    answered answers none, and one made while a message waits stands after it, not
-    yet answered."""
+def test_a_revision_comes_after_the_waiting_messages_answered_first_after_it():
+    """Each revision comes after the messages sent before it and still waiting, of
+    which it names those the agent answered first after it: two revisions made before
+    one answer both name its message, two messages in a row one reply settles stand
+    together, a revision made once every message was answered names none, and one made
+    while a message is still owed names it."""
     documents = {
         revision: leaf_page("Plan", f'<p id="p">Version {revision}.</p>')
         for revision in range(1, 7)
@@ -42,16 +42,16 @@ def test_a_revision_answers_the_messages_the_next_answer_after_it_settles():
         },
         {"kind": "comment", "text": "Who signs off?", "revision": 5},
     ]
-    answers = served_reading(documents, events)["browser"]["revision_answers"]
+    came_after = served_reading(documents, events)["browser"]["revision_messages"]
 
     def said(thread, *messages):
         return [{"thread": thread, "message": message} for message in messages]
 
-    assert answers == {
-        "2": {"messages": said("e1", "e1"), "answered": True},
-        "3": {"messages": said("e1", "e1"), "answered": True},
-        "4": {"messages": said("e3", "e3", "e4"), "answered": True},
-        "6": {"messages": said("e6", "e6"), "answered": False},
+    assert came_after == {
+        "2": said("e1", "e1"),
+        "3": said("e1", "e1"),
+        "4": said("e3", "e3", "e4"),
+        "6": said("e6", "e6"),
     }
 
 

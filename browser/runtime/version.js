@@ -20,7 +20,7 @@
  * counts and visits; `changeCard` / `toggleChangeCard` open what one replaced on
  * request. Each change carries the revisions that made it (`madeBy`), from what the
  * base's view answer says each later revision changed, and change-provenance.js says
- * from them what it answered. A base is a stamped version, the one a Compare or `v`
+ * from them what it came after. A base is a stamped version, the one a Compare or `v`
  * names.
  * `changesSince` counts a comparison's changes without marking them.
  * `comparisonBase` names the current base.
@@ -611,7 +611,7 @@ const diffMarked = new Set();
  * took out; `at` where it stands, its first block, or for one that only took blocks out,
  * the element its gap stands before, after or in, as `gap` says (`changedSince`);
  * `revisions` the revisions after the base, through the one shown, that changed the
- * words of a unit it stands in, oldest first (`madeBy`), which say what it answered
+ * words of a unit it stands in, oldest first (`madeBy`), which say what it came after
  * (change-provenance.js).
  * @typedef {Readonly<{blocks: readonly Element[], removed: readonly Removed[], at: Element, gap: "before" | "after" | "in" | null, revisions: readonly number[]}>} Change */
 /** @type {readonly Change[]} */

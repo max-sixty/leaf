@@ -231,10 +231,10 @@ choice. The default palette is declared in `browser/base.css`:
 | Page and raised surfaces | `--paper`, `--card`, `--field`; `--ink`, `--ink-2`, `--muted`; `--rule`, `--border-2`                                                                                                 |
 | Interactive emphasis     | `--accent`; focus ring and shadow derive from it at their declaration scope                                                                                                           |
 | Status                   | `--ok`, `--warn`, `--danger` for markers; each has independent `-ink` and `-tint` inputs for text and ground                                                                          |
-| Pins                     | `--pin-fill` with `--pin-ink`; the user's turn uses `--pin-on-user` with `--pin-on-user-ink`                                                                                          |
+| Counts                   | `--badge-fill` with `--badge-ink`, for the count on the folded leaf; pins wear the margin entries' paper, `--border-2` and status inks                                                |
 | Code                     | `--code-bg`, `--pre-bg`, `--code-chrome`, `--code-ink`, `--code-muted`, `--code-border`; `--syn-comment`, `--syn-keyword`, `--syn-string`, `--syn-number`, `--syn-name`, `--syn-type` |
 
-Changing `--accent` does not choose the pin pair or the status palette. Check the
+Changing `--accent` does not choose the count's pair or the status palette. Check the
 foreground against each ground where it is used, in both color schemes. A theme may
 set `light-dark()` values so the browser's scheme preference selects the palette.
 Subtree overrides follow normal CSS inheritance: when changing an input locally,

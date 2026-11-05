@@ -127,12 +127,11 @@
   --ok: light-dark(#3f7d4e, #7fb98c);
   --warn: light-dark(#b4741a, #d8a95c);
   --danger: light-dark(#b4402f, #d98b7a);
-  /* Pins use independent fill/ink pairs: a link's accent may be too pale under a
-     glyph. Themes choose each pair together rather than deriving its contrast. */
-  --pin-fill: light-dark(#2f5480, #4d74a8);
-  --pin-ink: #fff;
-  --pin-on-user: light-dark(#2f7d45, #2d8047);
-  --pin-on-user-ink: #fff;
+  /* A count on the folded leaf is a fill/ink pair: a link's accent may be too pale
+     under its digits. Themes choose the pair together rather than deriving its
+     contrast. */
+  --badge-fill: light-dark(#2f5480, #4d74a8);
+  --badge-ink: #fff;
   /* Corners come in three sizes, set by what wears them: the scale GitHub's Primer and
      Web Awesome's defaults share. A mark no taller than a line of text (a chip, a key,
      inline code, a tooltip, a checkbox, a mark, a word's highlight) takes --r-s.
@@ -174,6 +173,10 @@
      (surfaces.css), not a taller line; a finger's line is taller only because its typed
      words are (`--entry-floor`). */
   --lf-line: 32px;
+  /* A view chooser's height: its words a line tall in the pill's 2px padding and 1px
+     rule (webawesome.css), which the group holds from its first paint, before its
+     radios draw, and a widget holding room for one before its module loads reads. */
+  --lf-chooser: calc(var(--lf-line) + 2 * (2px + 1px));
   /* How far a line-tall control's reach stands past its face on each side: the room a
      place keeps around such a control where something else takes presses. */
   --lf-reach-room: max(0px, (var(--aim-floor) - var(--lf-line)) / 2);

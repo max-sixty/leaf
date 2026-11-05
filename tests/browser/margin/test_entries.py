@@ -887,10 +887,6 @@ def test_every_pin_entry_shares_its_face_and_keeps_its_behavior(browser, serve):
   </lf-column>
 </lf-board>
 """,
-        head="""<style>:root {
-          --pin-fill: light-dark(#e7cbff, #4a236b);
-          --pin-ink: light-dark(#241343, #fbe8a3);
-        }</style>""",
     ).replace("<body>", '<body data-rail="none">')
     events = [
         _comment_on("discussion"),
@@ -939,13 +935,20 @@ def test_every_pin_entry_shares_its_face_and_keeps_its_behavior(browser, serve):
                 "data-lf-place", "pin"
             )
             faces.append(control.evaluate(read_face))
+        inks = [face.pop("ink") for face in faces]
         assert faces == [faces[0]] * len(faces), faces
         assert faces[0]["radius"] == "6px 6px 6px 0px", faces[0]
-        assert faces[0]["background"] == token_colour(page, "--pin-fill"), faces[0]
-        assert faces[0]["border"] == ["2px", token_colour(page, "--paper")], faces[0]
-        assert faces[0]["ink"] == token_colour(page, "--pin-ink"), faces[0]
+        assert faces[0]["background"] == token_colour(page, "--paper"), faces[0]
+        assert faces[0]["border"] == ["1px", token_colour(page, "--border-2")]
+        # The glyphs keep what they say on the rail: Accept's tone, a thread's blue.
+        assert inks == [
+            token_colour(page, "--ink-2"),
+            token_colour(page, "--ok-ink"),
+            token_colour(page, "--accent"),
+            token_colour(page, "--ink-2"),
+        ], inks
         status.hover()
-        assert status.evaluate(read_face) == faces[0]
+        assert status.evaluate(read_face) == {**faces[0], "ink": inks[0]}
         page.mouse.move(0, 0)
 
         more.click()
@@ -953,7 +956,10 @@ def test_every_pin_entry_shares_its_face_and_keeps_its_behavior(browser, serve):
         expect(reject).to_be_visible()
         page.mouse.move(0, 0)
         page.keyboard.press("Tab")
-        assert reject.evaluate(read_face) == faces[0]
+        assert reject.evaluate(read_face) == {
+            **faces[0],
+            "ink": token_colour(page, "--danger-ink"),
+        }
         page.keyboard.press("Escape")
 
     expect(status).to_have_attribute("data-lf-behavior", "status")

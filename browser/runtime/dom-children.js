@@ -578,8 +578,21 @@ const signature = (node) => {
   return `1:${node.localName}#${node.id}:${words.replace(COLLAPSE, " ").trim()}`;
 };
 
+// A diff costs the lists' length times the edits between them, so one that rewrote
+// every paragraph of a long section or message cost the square of its length. Past this
+// many edits a diff stops: no signature pins anything and the whole list is one gap,
+// paired by kind, and a gap past it pairs nothing and is replaced.
+const EDITS = 64;
+
 /** @param {readonly Node[]} held @param {readonly Node[]} wanted @param {SourcePairs} matches */
 function alignRest(held, wanted, matches) {
+  const runs = diffArrays(held.map(signature), wanted.map(signature), {
+    maxEditLength: EDITS,
+  });
+  if (!runs) {
+    pairInGap(held, wanted, matches);
+    return;
+  }
   let heldAt = 0;
   let wantedAt = 0;
   /** @type {Node[]} */
@@ -591,7 +604,7 @@ function alignRest(held, wanted, matches) {
     gapHeld = [];
     gapWanted = [];
   };
-  for (const run of diffArrays(held.map(signature), wanted.map(signature))) {
+  for (const run of runs) {
     const count = run.value.length;
     if (run.added) gapWanted.push(...wanted.slice(wantedAt, (wantedAt += count)));
     else if (run.removed) gapHeld.push(...held.slice(heldAt, (heldAt += count)));
@@ -619,11 +632,15 @@ function alignRest(held, wanted, matches) {
 // that name being given or taken away, which is a thing to do to an element. A key can
 // state the first or the second and not both — `p#a` would have to equal `p` while `p#a`
 // differs from `p#b` — so the rule travels as the comparator it is.
-/** @param {Node[]} held @param {Node[]} wanted @param {SourcePairs} matches */
+/** @param {readonly Node[]} held @param {readonly Node[]} wanted @param {SourcePairs} matches */
 function pairInGap(held, wanted, matches) {
   let heldAt = 0;
   let wantedAt = 0;
-  for (const run of diffArrays(held, wanted, { comparator: interchangeable })) {
+  const runs = diffArrays([...held], [...wanted], {
+    comparator: interchangeable,
+    maxEditLength: EDITS,
+  });
+  for (const run of runs ?? []) {
     const count = run.value.length;
     if (run.added) wantedAt += count;
     else if (run.removed) heldAt += count;

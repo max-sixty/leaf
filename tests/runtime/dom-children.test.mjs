@@ -388,3 +388,29 @@ test("rendered markup redrawn keeps the nodes an edit leaves and its rewritten w
   draw("<p>First, grown.</p>\n<p>Third.</p>");
   assert.deepEqual([...words.children], [first, third]);
 });
+
+test("a rewrite of every paragraph in a long list keeps each paragraph's node", () => {
+  // Completing a Markdown reference definition turns a reference in every paragraph
+  // into a link. The diff stops past its bound on edits, so its cost stays linear in
+  // the list's length, and the whole list pairs by kind: each paragraph keeps its node.
+  const words = document.createElement("div");
+  document.body.replaceChildren(words);
+  /** @param {string} markup */
+  const draw = (markup) => {
+    const parsed = document.createElement("template");
+    parsed.innerHTML = markup;
+    setRenderedChildren(words, parsed.content.childNodes);
+  };
+  const said = Array.from({ length: 300 }, (_, at) => at);
+  draw(said.map((at) => `<p>Paragraph ${at} says [reference].</p>`).join("\n"));
+  const before = [...words.children];
+  const linked = said
+    .map(
+      (at) =>
+        `<p>Paragraph ${at} says <a href="https://example.com">reference</a>.</p>`,
+    )
+    .join("\n");
+  draw(linked);
+  assert.equal(words.innerHTML, linked);
+  assert.deepEqual([...words.children], before);
+});

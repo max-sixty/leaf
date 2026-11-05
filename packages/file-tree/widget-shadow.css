@@ -16,6 +16,12 @@
 :host(lf-file-tree) .lf-file-tree-empty[hidden] {
   display: none;
 }
+/* A row is a button, so Leaf's UI face for a shadow root's controls would set it in
+ * the sans. Rows show file names, which the theme sets in mono like other code, so
+ * they take the face Trees gives the tree from its font overrides in defaults.css. */
+:host(lf-file-tree) [data-type="item"] {
+  font: inherit;
+}
 /* Rows touch one another and their viewport clips at either edge. Draw Leaf's
  * one actual-focus ring inside the row instead of adding it around Trees' ring. */
 :host(lf-file-tree) [role="treeitem"] {

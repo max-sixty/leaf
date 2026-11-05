@@ -1814,6 +1814,13 @@ def test_a_scrolling_table_keeps_its_row_names_in_view(browser, serve, direction
     # one, so the mask lifted and this fade stayed over the columns.
     fade = "name => getComputedStyle(name, '::after').content"
     assert page.locator("#name-0").evaluate(fade) != "none"
+    # It clears away from the names, toward the columns: a right-to-left table's fade
+    # had cleared toward them.
+    toward = "to right" if direction == "ltr" else "to left"
+    ground = "name => getComputedStyle(name, '::after').backgroundImage"
+    assert (
+        page.locator("#name-0").evaluate(ground).startswith(f"linear-gradient({toward}")
+    )
     table.evaluate("""t => {
       const cell = t.querySelector('tbody td:last-child');
       const host = cell.appendChild(document.createElement('div'));

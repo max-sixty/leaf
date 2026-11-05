@@ -367,11 +367,14 @@ targets, or a condition its owner sets on the styled element, and measure with
 
 A `:has()` on a compound that a combinator follows, as in
 `table:has(…) > * > tr > :first-child`, is asked again for every element the rule
-tests below or after it, and Chromium answers a `:has(> …)` by reading the children
-afresh each time, so the rule's cost grows with the square of the sibling group.
-Make that compound the scope, `@scope (table:has(…)) { :scope > * > tr > … }`, which
-the browser answers once for each element. `:scope` weighs one class, so check the
-rules the rewritten one competes with.
+tests, and Chromium answers a `:has(> …)` by reading the children afresh each time,
+so the rule's cost grows with the square of the sibling group. Where the rule styles
+the compound's descendants, make the compound the scope,
+`@scope (table:has(…)) { :scope > * > tr > … }`, which the browser answers once for
+each element; `:scope` weighs one class, so check the rules the rewritten one
+competes with. A scope reaches only its root's subtree, so for the compound's later
+siblings (`~`, `+`) qualify it with a class that rejects most elements, or move the
+condition onto the parent they share and make that the scope.
 
 A `:has()` naming `:focus` or `:focus-visible` makes every focus move, on every page,
 restyle most of the page twice: once for the blur and once for the focus. Name

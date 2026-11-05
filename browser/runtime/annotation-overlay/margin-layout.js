@@ -747,8 +747,8 @@ function placeCarriedRows(box) {
   if (carries && scrollMisplacesAnchors(box)) scheduleMarginLayout();
 }
 
-// A row's face redrawn. The projection draws every row each time it renders, and a seat
-// reads a face only through its size and the controls it holds, so controls put in or
+// A row's face redrawn. The projection draws a row whenever what it shows changes, and a
+// seat reads a face only through its size and the controls it holds, so controls put in or
 // taken out bring a pass, and a changed attribute or text brings one only where the face
 // no longer measures the size the last pass seated it at (`seatedFaces`). A control's
 // label stands over the row, placed by its own pass (`placeMarginEntryLabel`), so what is
@@ -1491,7 +1491,7 @@ function observeLayout(column) {
 
 // Each row states its target (`anchor`), the row inside it it stands level with, if any
 // (`point`, pointed-place.js), and its place among the others in the layer (`order`).
-// The projection registers every row each time it draws, so a pass is asked for only
+// The projection registers every row each time it renders, so a pass is asked for only
 // where a row is new or names another target, point, passage or place in the order.
 /** @param {HTMLElement} row @param {RowOptions} options */
 export function registerMarginRow(row, options) {

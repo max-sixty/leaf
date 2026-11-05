@@ -3,6 +3,7 @@
    Importing this module is inert. leaf.js supplies the concrete feature views once and
    mounts the application before widget upgrade; exported functions are stable closures
    for the public widget API and fail clearly if invoked before that boundary. */
+import { effect, untracked } from "/runtime/framework.js";
 import { annotationMode, runtime } from "./context.js";
 import {
   applicationState,
@@ -322,14 +323,41 @@ function createApplication(dependencies) {
     return entries;
   }
   // The margin's annotations, which the margin's own geometry and contributions also
-  // redraw directly. `refresh()` redraws them once they have been drawn.
+  // redraw directly, at once, since a contribution's control and the focus prepared on
+  // it must stand when the call returns (contributions.js). `refresh()` redraws them
+  // once they have been drawn.
   let annotationsDrawn = false;
-  const renderAnnotations = () => {
+  const paintAnnotations = () => {
     annotationsDrawn = true;
     if (!onPaper.matches) {
       const entries = refreshAnnotationInventory();
       overlay?.paint(entries);
     }
+  };
+  // A direct redraw can show what the presenter's last paint did not read, such as the
+  // age of a message in a card it just opened, so it follows its own reads until the
+  // presenter's next paint reads them all again, and a change to one, such as the
+  // clock, repaints through the presenter.
+  let following = () => {};
+  const forget = () => {
+    following();
+    following = () => {};
+  };
+  const renderAnnotations = () => {
+    forget();
+    let first = true;
+    const stop = effect(() => {
+      if (first) {
+        first = false;
+        paintAnnotations();
+      } else untracked(() => void marginPresentation?.present());
+    });
+    // The paint may itself have redrawn them directly, which follows its own reads.
+    const nested = following;
+    following = () => {
+      nested();
+      stop();
+    };
   };
   renderAnnotations.refresh = () => {
     if (annotationsDrawn) renderAnnotations();
@@ -348,7 +376,10 @@ function createApplication(dependencies) {
       region: "annotations",
       after: PRESENTATION_DOM.obligations,
       reading: () => annotationInputs(),
-      paint: renderAnnotations,
+      paint: () => {
+        forget();
+        paintAnnotations();
+      },
     });
     marginPresentation = presentation;
     void presentation.present();

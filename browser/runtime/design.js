@@ -146,8 +146,9 @@ export function createDesignMode({
   const legend = paintSet(legendRoot, { onNear: () => placeTags() });
   // The legend's own writes are mutations too, inside the chrome, and so is the runtime's
   // paint on page elements: a mark rewrites its classes, in the runtime's namespace, on
-  // every repaint, which a shift starts, and the aim, the trace and the rings stand in
-  // attributes of their own (page-paint.js). A repaint that heard either would never stop,
+  // every repaint, which a shift starts, and the aim, the trace, the rings and the
+  // cursor's paint stand in attributes of their own (page-paint.js). A repaint that heard
+  // either would never stop,
   // and on a page with reactions it didn't, at thousands of mutations a second. Naming
   // the start of a scroller's words (`data-lf-content-start`) moves nothing either.
   const authoredClasses = (/** @type {string | null} */ value) =>
@@ -156,8 +157,18 @@ export function createDesignMode({
       .filter((name) => name && !name.startsWith("lf-"))
       .sort()
       .join(" ");
-  const { aimed, traced, proxied, location } = RUNTIME_PAINT_ATTRIBUTE;
-  const unmoving = new Set(["data-lf-content-start", aimed, traced, proxied, location]);
+  const { aimed, traced, proxied, location, overMark, aiming, overItem } =
+    RUNTIME_PAINT_ATTRIBUTE;
+  const unmoving = new Set([
+    "data-lf-content-start",
+    aimed,
+    traced,
+    proxied,
+    location,
+    overMark,
+    aiming,
+    overItem,
+  ]);
   const movesPage = (/** @type {MutationRecord} */ r) =>
     !inChrome(r.target) &&
     !unmoving.has(r.attributeName ?? "") &&

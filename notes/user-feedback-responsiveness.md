@@ -302,6 +302,20 @@ process: an earlier batch at a load average near 27 read 1.0–3.7 s.
 - **The hosted opening's cost:** whether the hosted agent's opening line delays its
   answer needs runs without one, such as an arm whose `CODEX_INSTRUCTIONS` drop the
   acknowledgement.
+- **The model's own progress while an update reads Delivered, on Claude Code:** a
+  `turn.step` hook in Leaf's module sees the main thread's response stream as it
+  arrives, and `$.http.fetch` posts to the page server in about 1 ms with no effect on
+  the stream (a probe on Claude Code 2.1.318, 2026-11-05, in
+  `/private/tmp/chunkprobe.ZEvu41`, which may be gone). By default the thinking
+  chunks carry no text, only a pulse every 1–1.5 s. With the user setting
+  `showThinkingSummaries`, they carry first-person summaries ("Checking 1009, 1013,
+  1019 and 1021 against the small primes; …") in bursts every 2.5–4 s, the first
+  about 3 s after the response's first byte; the setting also shows those summaries
+  in the terminal, and a plugin's `settings.read` hook did not turn it on. The
+  response's first byte came 0.4–16 s after the request. Streaming the summaries
+  into the update's working line needs a page-server route the module posts to,
+  keyed as the browser's requests are; Codex's provisional reply
+  (`PageTransaction.set_stream_reply`) is the nearest existing path.
 - **Cheap claims:** test a typed harness operation against the CLI path before adding
   another interface. The [Codex brief](codex-integration.md#typed-operations) owns
   that experiment.

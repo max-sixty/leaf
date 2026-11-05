@@ -107,6 +107,8 @@ MODELS = {
     ClaudeCodeHarness.name: "claude-opus-5-5",
     CodexHarness.name: "gpt-6.1-sol",
     "user": "gpt-6.1-sol",
+    # It answers only setup and the developer's turns, so a fast one does.
+    "claude-code-session": "claude-sonnet-5-5",
 }
 JUDGE_MODELS = {
     ClaudeCodeHarness.name: "claude-opus-5-5",

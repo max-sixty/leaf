@@ -56,6 +56,49 @@
     return startupShifts;
   };
 
+  // The block size each element whose tag declares x-height first shows before its
+  // module marks it drawn (`lf-rendered`), read as the page arrives without holding
+  // it. Delivery paints x-height as `data-lf-height` on each such element, empty where
+  // the page states no height, so every one arrives with the parse. A ResizeObserver
+  // delivers a box after the layout of the frame that paints it. An element first
+  // shown already drawn gets no reading, since it never showed a box before drawing.
+  /** @type {Map<Element, number>} */
+  const undrawn = new Map();
+  const shownUndrawn = new ResizeObserver((entries) => {
+    for (const { target, borderBoxSize } of entries) {
+      if (!target.classList.contains("lf-rendered")) {
+        if (!target.checkVisibility()) continue;
+        undrawn.set(target, borderBoxSize[0]?.blockSize ?? 0);
+      }
+      shownUndrawn.unobserve(target);
+    }
+  });
+  /** @param {MutationRecord[]} records */
+  const arrived = (records) => {
+    for (const { addedNodes } of records)
+      for (const node of addedNodes)
+        if (node instanceof Element)
+          for (const element of [node, ...node.querySelectorAll("[data-lf-height]")])
+            if (element.hasAttribute("data-lf-height")) shownUndrawn.observe(element);
+  };
+  // A driver evaluated into a page already parsed (`_ensure_driver`) saw no arrival.
+  if (document.readyState === "loading") {
+    const parsing = new MutationObserver(arrived);
+    parsing.observe(document, { childList: true, subtree: true });
+    document.addEventListener(
+      "DOMContentLoaded",
+      () => {
+        arrived(parsing.takeRecords());
+        parsing.disconnect();
+      },
+      { once: true },
+    );
+  }
+  const undrawnHeights = () => {
+    shownUndrawn.disconnect();
+    return undrawn;
+  };
+
   // The probe module is served beside the page's Leaf entry, so a page served under a
   // revision path loads that revision's probes.
   const resolve = (/** @type {string} */ route) => {
@@ -173,6 +216,7 @@
     renderingState,
     observeLayoutShifts,
     startupLayoutShifts,
+    undrawnHeights,
     captureFirstBoxes,
     firstBoxes: () => firstBoxes,
   });

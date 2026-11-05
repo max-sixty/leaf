@@ -3145,13 +3145,15 @@ def test_the_pointer_stops_claiming_a_mark_it_scrolled_past(browser, serve):
     spot = page.evaluate("""() => { const r = [...CSS.highlights.get('lf-mark')][0].getClientRects()[0];
                                     return {x: r.left + r.width / 2, y: r.top + r.height / 2}; }""")
     page.mouse.move(spot["x"], spot["y"])
-    page.wait_for_function("() => document.body.classList.contains('lf-over-mark')")
+    hand = "({x, y}) => getComputedStyle(document.elementFromPoint(x, y)).cursor"
+    page.wait_for_function(f"(spot) => ({hand})(spot) === 'pointer'", arg=spot)
     page.evaluate(
         "() => document.scrollingElement.scrollBy({top: 900, behavior: 'instant'})"
     )
     page.wait_for_function(
-        "() => !document.body.classList.contains('lf-over-mark')"
-        " && (CSS.highlights.get('lf-mark-hover')?.size ?? 0) === 0"
+        f"(spot) => ({hand})(spot) !== 'pointer'"
+        " && (CSS.highlights.get('lf-mark-hover')?.size ?? 0) === 0",
+        arg=spot,
     )
 
 

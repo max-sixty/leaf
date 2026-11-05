@@ -213,9 +213,9 @@ export function shownBand(el) {
 //
 // `landingBand` is where a landing may put something: the shown band less the
 // `scroll-padding` the scroller declares, which is also what `scrollIntoView` honours.
-// The root states its band apart, in `--lf-landing-top` and `--lf-landing-bottom`
-// (base.css), which its padding copies but for while a floating editor holds focus,
-// when the browser's own caret reveal is given none.
+// The root states its band apart (`landingInsets`), which its padding copies but for
+// while a floating editor holds focus, when the browser's own caret reveal is given
+// none.
 // It clears what stands over the whole scroller (a page tab strip); a header
 // over part of it, a diff's file header, is cleared by the `scroll-margin` of the rows
 // it stands over. Scroll anchoring looks for the box it keeps still in the band the
@@ -546,19 +546,25 @@ function insetBand(scroller, inset) {
   };
 }
 // How far each edge of `landingBand` stands in from the scroller's shown band: the
-// band the scroller states, else the `scroll-padding` it declares. Callers that
-// measure from the scroller's own box take the clearance here rather than reading the
-// style themselves.
+// band the scroller states, else the `scroll-padding` it declares. The root states its
+// top in `--lf-landing-top` (base.css), and the floating panel its foot in pixels in the
+// root's own style (floating-panel.js, `followBox`), which a floating editor's override
+// hides from the browser alone. Callers that measure from the scroller's own box take
+// the clearance here rather than reading the style themselves.
 /** @param {Element} scroller */
 export function landingInsets(scroller) {
   const style = getComputedStyle(scroller);
   const padding = scrollPadding(style);
-  /** @param {"top" | "bottom"} edge */
-  const stated = (edge) => {
-    const value = Number.parseFloat(style.getPropertyValue(`--lf-landing-${edge}`));
-    return Number.isNaN(value) ? padding[edge] : value;
+  const top = Number.parseFloat(style.getPropertyValue("--lf-landing-top"));
+  const foot =
+    scroller === scroller.ownerDocument.documentElement && isHTML(scroller)
+      ? Number.parseFloat(scroller.style.scrollPaddingBottom)
+      : Number.NaN;
+  return {
+    ...padding,
+    top: Number.isNaN(top) ? padding.top : top,
+    bottom: Number.isNaN(foot) ? padding.bottom : foot,
   };
-  return { ...padding, top: stated("top"), bottom: stated("bottom") };
 }
 /** @param {CSSStyleDeclaration} style */
 function scrollPadding(style) {

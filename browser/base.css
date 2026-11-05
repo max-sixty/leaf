@@ -284,25 +284,20 @@ body {
 :root {
   overflow-wrap: break-word;
 }
-/* Read only by the root's own `scroll-padding-bottom`, so it does not inherit: the
- * panel's every change of height then restyles the root alone. */
-@property --lf-panel-reach {
+/* A length, so the floating panel reads it in pixels for the root's landing band at the
+ * window's foot (floating-panel.js, `followBox`). */
+@property --lf-foot-room {
   syntax: "<length>";
-  inherits: false;
+  inherits: true;
   initial-value: 0px;
 }
-/* The edges of the root's landing band, which Leaf's landings read (geometry.js,
- * `landingInsets`) and the root's `scroll-padding` hands to the browser. Stated apart
- * from that padding so a floating editor can take it from the browser's own caret
- * reveal alone (html[data-lf-live], below) while every landing still clears the chrome.
- * Read on the root alone, so they do not inherit, and `none` where nothing states
- * them, as on an export. */
+/* The top edge of the root's landing band, which Leaf's landings read (geometry.js,
+ * `landingInsets`) and the root's `scroll-padding-top` hands to the browser. Stated
+ * apart from that padding so a floating editor can take it from the browser's own caret
+ * reveal alone (html[data-lf-live], below) while every landing still clears the chrome,
+ * as the floating panel states the foot's edge (`followBox`). Read on the root alone,
+ * so it does not inherit, and `none` where nothing states it, as on an export. */
 @property --lf-landing-top {
-  syntax: "<length> | none";
-  inherits: false;
-  initial-value: none;
-}
-@property --lf-landing-bottom {
   syntax: "<length> | none";
   inherits: false;
   initial-value: none;
@@ -332,22 +327,16 @@ body {
      * either way: both idioms land a target once below the header. */
     --lf-landing-top: calc(var(--lf-top-covered) + var(--lf-landing-room));
     scroll-padding-top: var(--lf-landing-top) !important;
-    /* The floating panel's box reaches from the window's foot to its top, a view open
-     * above the row included (`--lf-panel-reach`, floating-panel.js), and every landing
-     * clears it as it clears the row's own room, so an arrival with a view open lands
-     * above it. */
-    --lf-landing-bottom: calc(
-      max(var(--lf-foot-room), var(--lf-panel-reach) + var(--lf-floating-gap)) +
-        var(--lf-landing-room)
-    );
-    scroll-padding-bottom: var(--lf-landing-bottom);
-    /* Floating editors stand above the chrome that this padding clears. Chromium
+    /* The floating panel states the root's `scroll-padding-bottom` in its style as its
+     * box changes height (floating-panel.js, `followBox`).
+     *
+     * Floating editors stand above the chrome that this padding clears. Chromium
      * carries a native caret reveal through a CSS-anchored fixed box and applies the
      * padding to it, moving the document beneath an already visible editor, so the
      * padding goes while the user is in one (floating.js, `readFloatingEditor`). Only
-     * the browser reads it: Leaf's landings read the band stated above, so one made
-     * while such an editor holds focus, as Resume writing's is, still clears the
-     * chrome. */
+     * the browser reads it: Leaf's landings read the band stated above and in the
+     * root's style, so one made while such an editor holds focus, as Resume writing's
+     * is, still clears the chrome. */
     &[data-lf-floating-editor] {
       scroll-padding: 0 !important;
     }

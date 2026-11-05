@@ -4,7 +4,10 @@
  * floating response placement and the contextual Thread preview; importing page chrome
  * needs none of it. */
 
-body.lf-over-mark {
+/* The hand over a mark stands on the element under the pointer (anchor-paint.js,
+   `paintHand`). Armed, the aim's cursor stands instead (chrome.css), and an element's
+   mark states its own (below), at a weight this rule doesn't pass. */
+:where(body:not(.lf-aiming, [data-lf-design-mode])) [data-lf-over-mark] {
   cursor: pointer;
 }
 /* An element holding threads draws no contour at rest: its margin entry says so, and a

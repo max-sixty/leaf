@@ -17,6 +17,7 @@ import {
 import { elementFromPointAcross, pageWords, rangeOf } from "../passages.js";
 import { bareReaction } from "../thread/model.js";
 import { under } from "../shadow.js";
+import { RUNTIME_PAINT_ATTRIBUTE } from "../page-paint.js";
 import { annotationsHidden } from "./annotation-layer.js";
 
 const MARK = "lf-mark";
@@ -231,6 +232,20 @@ export function createAnchorPaint({
     return null;
   }
 
+  // The hand over a mark is a paint on the document's element under the pointer (a
+  // shadow tree's host, whose cursor its tree inherits), which the margin's page
+  // observer does not hear (page-paint.js) and whose cursor reaches only what it holds.
+  // A class on `body` ran a margin pass at each change and restyled the whole body.
+  /** @type {Element | null} */
+  let handOn = null;
+  /** @param {Element | null} element */
+  function paintHand(element) {
+    if (element === handOn) return;
+    handOn?.removeAttribute(RUNTIME_PAINT_ATTRIBUTE.overMark);
+    element?.setAttribute(RUNTIME_PAINT_ATTRIBUTE.overMark, "");
+    handOn = element;
+  }
+
   // Hover reads the pointer, and the rows and margin entries it is on, inside the
   // scheduled frame. Capturing a node at event time would leave reconciliation able to
   // replace it before paint.
@@ -240,7 +255,7 @@ export function createAnchorPaint({
       hoverFrame = 0;
       const at = pointer();
       const onMark = markAt(at.x, at.y);
-      document.body.classList.toggle("lf-over-mark", Boolean(onMark));
+      paintHand(onMark ? document.elementFromPoint(at.x, at.y) : null);
       const row = rowThread();
       const id = row ?? onMark;
       if (id !== hovering || Boolean(row) !== hoverFromRow)
@@ -331,6 +346,7 @@ export function createAnchorPaint({
     mounted = false;
     if (hoverFrame) cancelRender(hoverFrame);
     hoverFrame = 0;
+    paintHand(null);
     const before = outlined();
     marked.clear();
     pendingOutline = [];

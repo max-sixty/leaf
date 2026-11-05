@@ -58,7 +58,7 @@
    applies it to a caret reveal in an editor these surfaces hold too, carrying the
    reveal through the box's anchor and moving the document beneath an editor already in
    view (#4821). So while the user is in a `leaf-text` inside a box standing in a plane,
-   the root says so (`data-lf-floating-editor`, annotation-chrome.css), and is read again
+   the root says so (`data-lf-floating-editor`, base.css), and is read again
    as the user moves and as a box takes or leaves its plane (`readFloatingEditor`). The
    root is the scroller the padding belongs to; a `:has()` on it matched its argument
    against the whole document at each write, 4 ms a write in the chrome on the

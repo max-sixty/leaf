@@ -24,7 +24,7 @@ import { closestAcross } from "../passages.js";
 import { SAYS_IN, THREAD, threadPart, wholeThread } from "./selectors.js";
 import { pageScope } from "../keyboard/register.js";
 import { TEXT_ENTRY } from "../keyboard/text-entry.js";
-import { dismissReplyAt, replyDraftContext } from "./replies.js";
+import { beginReplyAt, dismissReplyAt, replyDraftContext } from "./replies.js";
 import { copyTrigger } from "../copy-control.js";
 import { threadList } from "./state.js";
 import { focusedThreadTarget, focusThread, threadReplyInput } from "./focus.js";
@@ -193,6 +193,7 @@ export function createThreadLanding() {
     // margin card included.
     bringBackSurfaceOf(box);
     focusDestination(box, "move");
+    beginReplyAt(box);
     scrollIntoView(box, { block: "nearest", behavior: "instant" });
     return true;
   };

@@ -82,31 +82,30 @@ export function mountKeyboard({
       run(ev);
     }
   };
-  // Registered ahead of the listeners below, so each reads the key from where the user
-  // is (see the header). The stop leaves the capture listener below, on this same node,
-  // and skips `afterControl`'s bubble pass, so that runs from here.
-  document.addEventListener(
-    "keydown",
-    (ev) => {
-      if (ev.isComposing || ev.key === "Escape" || MODIFIER_KEYS.includes(ev.key))
-        return;
-      const at = focused();
-      if (!at || at === document.body || focusPlace()) return;
-      if (typesText(at) && ev.key !== "Tab") return;
-      if (controlNavigationKeys(at).includes(ev.key)) ev.preventDefault();
-      letGo();
-      ev.stopPropagation();
-      afterControl(ev);
-    },
-    { capture: true },
-  );
+  // Whether `ev` lets go of focus the user can't see (see the header).
+  /** @param {KeyboardEvent} ev */
+  const letsGo = (ev) => {
+    if (ev.isComposing || ev.key === "Escape" || MODIFIER_KEYS.includes(ev.key))
+      return false;
+    const at = focused();
+    if (!at || at === document.body || focusPlace()) return false;
+    if (typesText(at) && ev.key !== "Tab") return false;
+    if (controlNavigationKeys(at).includes(ev.key)) ev.preventDefault();
+    return true;
+  };
   // Page shortcut characters need Leaf's scope resolution before a nested
   // library can use them for typeahead. Other keys keep the control's own
-  // handling first, including search's Enter and Escape steps.
+  // handling first, including search's Enter and Escape steps, but a key that lets go
+  // stops here, ahead of them, so every key reads from where the user is.
   document.addEventListener(
     "keydown",
     (ev) => {
-      if (ev.key.length === 1) press(ev);
+      const away = letsGo(ev);
+      if (away) {
+        letGo();
+        ev.stopPropagation();
+      }
+      if (away || ev.key.length === 1) press(ev);
     },
     { capture: true },
   );

@@ -83,6 +83,43 @@ def test_growth_above_the_window_moves_nothing_read_in_a_sidebar_body(browser, s
     assert moved["moved"] == pytest.approx(0, abs=0.5), moved
 
 
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_growth_above_the_window_moves_nothing_read_in_a_sidebar_track(
+    request, serve, engine
+):
+    """A sticky track scrolls its own blocks, and the browser's scroll anchoring holds
+    the line read there while a block above it grows, as a widget drawing late does.
+    The track set `overflow-anchor: none` on itself, and the line moved by the growth,
+    200px in both engines. The aside before the body keeps the property, which keeps
+    the page's anchoring off the track."""
+    follow_ups = "".join(f'<p id="f{n}">Follow-up {n} to check.</p>' for n in range(60))
+    body = "".join(f"<p>Body paragraph {n} of the review.</p>" for n in range(200))
+    source = leaf_page(
+        "sidebar track anchoring",
+        f'<aside id="route"><div class="layout-track" id="track"><div id="grown"></div>'
+        f'{follow_ups}</div></aside><div id="body">{body}</div>',
+        layout="sidebar",
+    )
+    page = open_page(request.getfixturevalue(engine), serve(source))
+    resized(page, 900, 600)
+    moved = page.evaluate("""async () => {
+      const frame = () => new Promise(requestAnimationFrame);
+      const track = document.getElementById('track');
+      const read = document.getElementById('f30');
+      scrollTo(0, 1500);
+      track.scrollTop += read.getBoundingClientRect().top
+        - track.getBoundingClientRect().top - 120;
+      await frame();
+      const before = read.getBoundingClientRect().top;
+      document.getElementById('grown').style.blockSize = '200px';
+      await frame();
+      return {scrolls: track.scrollHeight > track.clientHeight, before,
+              moved: read.getBoundingClientRect().top - before};
+    }""")
+    assert moved["scrolls"], moved
+    assert moved["moved"] == pytest.approx(0, abs=0.5), moved
+
+
 @pytest.mark.parametrize("direction", ["ltr", "rtl"])
 def test_annotations_read_the_native_prose_track_with_authored_geometry(
     browser, serve, direction

@@ -227,6 +227,11 @@ sheet.replaceSync(`
     contain: inline-size; overflow-x: clip; text-overflow: ellipsis;
     color: var(--muted); }
   :host(:not(:state(placeholder-shown))) .lf-field-placeholder { visibility: hidden; }
+  /* A placeholder holding a press of its own (composing/input.js, \`pressAtRest\`)
+     stands over the empty line, so the press takes the pointer where it reads; the rest
+     of it passes the pointer on to the line beneath, as any placeholder does. Only an
+     empty field at rest holds one, so it stands over no caret. */
+  :host([data-lf-presses]) .lf-field-placeholder { z-index: 1; }
   /* The trailing action's room, on every line. */
   .lf-field { padding-inline-end: var(--lf-field-end-room); }
   /* A draft wears the sent message's faces, or where it stands in place, those its
@@ -952,7 +957,9 @@ class LeafText extends HTMLElement {
   // CodeMirror's to place.
   /** @param {MouseEvent} event */
   #pressPadding(event) {
-    if (event.button !== 0) return;
+    // A press of the placeholder's own that took the press (composing/input.js,
+    // `pressAtRest`) is no press on the field.
+    if (event.button !== 0 || event.defaultPrevented) return;
     if (!this.#view) {
       // The field is empty, so wherever the press lands the caret stands at its start.
       // Another button's press focuses the empty line's place natively, which builds the

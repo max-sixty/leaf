@@ -499,19 +499,10 @@
   .lf-fp-field leaf-text::part(placeholder) {
     color: var(--lf-fp-quiet);
   }
-  /* A press the field's end offers of its own, such as a passing notice's Undo, is
-     said as Comment and its key are (composing/input.js, `enters`), and pressed through
-     the row's press laid over that word and its key (floating-panel.js, `rowNotice`),
-     which these name. */
-  .lf-fp-field .lf-compose-placeholder {
-    anchor-name: --lf-fp-hint;
-  }
-  .lf-fp-field .lf-compose-placeholder-enters[data-lf-offer] {
-    anchor-name: --lf-fp-offer;
-  }
   /* The word naming what entering the field does, after the agent's or Leaf's words
-     (composing/input.js, `enters`), in Leaf's italic whatever voice theirs is. */
-  .lf-fp-field .lf-compose-placeholder-enters {
+     (composing/input.js, `enters`), or the press the field's end offers in its place,
+     such as a passing notice's Undo, in Leaf's italic whatever voice theirs is. */
+  .lf-fp-field :is(.lf-compose-placeholder-enters, .lf-compose-press-word) {
     color: var(--lf-fp-quiet);
     font-style: italic;
   }
@@ -741,28 +732,9 @@
      narrow rewrap, and the field grows up over its line under the reader. It stands
      aside with the mark while the user writes or the field holds a draft
      (floating-panel.js, `writing`). */
-  .lf-floating-panel[data-lf-writing] .lf-fp-row-notice:not([data-lf-passing]),
+  .lf-floating-panel[data-lf-writing] .lf-fp-row-notice,
   .lf-floating-panel[data-lf-drafted] .lf-fp-row-notice {
     display: none;
-  }
-  /* A passing notice's press (`rowNotice`) lies over the word and key the field's end
-     says for it, from the word to the hint's end, the key included, taking no room, so
-     its coming and its going move neither the field nor its controls. It draws nothing
-     of its own but the ring focus gives it. It stands through the writing posture,
-     which lasts while the user stays in the panel, since the gesture it reports, such
-     as a Resolve, stood them outside the field. */
-  .lf-fp-row-notice[data-lf-passing] {
-    position: absolute;
-    left: anchor(--lf-fp-offer left);
-    right: anchor(--lf-fp-hint right);
-    top: anchor(--lf-fp-field top);
-    bottom: anchor(--lf-fp-field bottom);
-    min-height: 0;
-  }
-  .lf-fp-row-notice[data-lf-passing] > .lf-fp-row-notice-press {
-    inline-size: 100%;
-    block-size: 100%;
-    padding: 0;
   }
   /* Its tone tints it: an older version in warning. */
   .lf-fp-row-notice-face {

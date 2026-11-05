@@ -481,9 +481,9 @@ def test_resolving_a_thread_from_threads_moves_on_to_the_next(browser, serve):
     expect(hint.locator(".lf-compose-placeholder-words")).to_have_text(
         f"Resolved “{first}”"
     )
-    expect(hint.locator(".lf-compose-placeholder-enters")).to_have_text("Undo")
-    expect(hint.locator(":scope > kbd")).to_have_text("z")
-    undo = page.locator(".lf-fp-row-notice").get_by_role("button", name="Undo")
+    undo = hint.locator(".lf-compose-press")
+    expect(undo.locator(".lf-compose-press-word")).to_have_text("Undo")
+    expect(undo.locator("kbd")).to_have_text("z")
     second = page.locator(".lf-fp-head .lf-fp-title").inner_text()
     # Taking the first resolve back returns the user to the thread they resolved.
     with sending(page, "the undo"):
@@ -530,8 +530,8 @@ def test_a_resolve_s_notice_stands_for_that_resolve_alone(browser, serve):
     title = page.locator(".lf-fp-head .lf-fp-title")
     expect(thread).to_be_visible()
     first = title.inner_text()
-    notice = page.locator(".lf-fp-row-notice")
     said = page.locator(".lf-fp-field .lf-compose-placeholder-words")
+    undo = page.locator(".lf-fp-field .lf-compose-press")
 
     held = []
     page.route(
@@ -546,18 +546,18 @@ def test_a_resolve_s_notice_stands_for_that_resolve_alone(browser, serve):
     page.keyboard.press("r")
     holding(page, held, 1, "the resolve")
     expect(said).to_have_text(f"Resolved “{first}”")
-    expect(notice.get_by_role("button", name="Undo")).to_be_visible()
+    expect(undo).to_contain_text("Undo")
     held.pop().fulfill(json={"ok": False, "final": True, "error": "Please retry."})
     page.unroute("**/api/event")
     expect(title).to_have_text(first)
-    expect(notice).to_be_hidden()
+    expect(undo).to_have_count(0)
 
     thread.focus()
     with sending(page, "the resolve"):
         page.keyboard.press("r")
     expect(title).not_to_have_text(first)
     expect(said).to_have_text(f"Resolved “{first}”")
-    expect(notice.get_by_role("button", name="Undo")).to_be_visible()
+    expect(undo).to_contain_text("Undo")
     # Another tab of the user's resolves the thread left over, so `z` would take that.
     (other,) = set(roots) - {first, title.inner_text()}
     append_carried_log_record(
@@ -582,7 +582,7 @@ def test_a_resolve_s_notice_stands_for_that_resolve_alone(browser, serve):
     )
     told(page)
     with sending(page, "the undo"):
-        notice.get_by_role("button").click()
+        undo.click()
     events = events_model.read_events(serve.page_dir)
     assert [event["undoes"] for event in events if event["kind"] == "undo"] == [
         resolved

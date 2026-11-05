@@ -49,7 +49,13 @@ import { keys, paintKeysWithin } from "../keyboard/scopes.js";
 import { keeps } from "../keeps.js";
 import { advertisesKeys, submitBindings, spell, PRESS } from "../keyboard/bindings.js";
 import { readAttachedMedia, scopedMediaUrl, writeAttachedMedia } from "../media.js";
-import { announce } from "../notifications.js";
+import { announce, keepsNotice } from "../notifications.js";
+import { selectableOffered } from "../element-markers.js";
+import {
+  keySequenceModel,
+  keySequenceTemplate,
+  neutralSteps,
+} from "../keyboard/key-sequence.js";
 import { drawingThumbnail } from "./drawing-context.js";
 import {
   LitElement,
@@ -78,11 +84,12 @@ import { offeredAction } from "../widget-elements.js";
 /** @typedef {import("./drawing-record.js").DraftDrawing} Drawing
  * @typedef {import("./text-field.js").LeafTextElement} TextField
  * @typedef {(text: string, raw: string, stillCurrent: () => boolean, typed: string) => unknown} Sender
+ * @typedef {{word: string, keys: readonly string[], run: () => unknown}} BoxPress
  * @typedef {Object} InputOptions
  * @property {import("../keyboard/bindings.js").Cell<string>} hint
  * @property {(() => unknown) | null} [hintParts]
  * @property {() => unknown} [hintLead]
- * @property {() => string | {word: string, keys: string}} [enters]
+ * @property {() => string | BoxPress} [enters]
  * @property {import("../keyboard/bindings.js").Cell<string> | null} [accessibleName]
  * @property {(value: string) => unknown} save
  * @property {Sender} send
@@ -261,6 +268,26 @@ export const standsAtItsBox = (error) => {
   const subject = error.subject;
   return Boolean(subject?.[INPUT_DRAFT]) && !error.passed;
 };
+// A box's own press at rest (`enters`, `BoxPress`), drawn in its placeholder after its
+// words as the entering word and its key are, so it stands exactly while they do. The
+// placeholder takes no pointer, so the press takes its own; it keeps the press out of
+// the field, which a press on the box's padding would otherwise focus (text-field.js), and
+// it keeps the notice that offers it (notifications.js, `keepsNotice`). The keyboard's
+// route is the press's own command and a finger's is this, so it takes no tab stop.
+/** @param {BoxPress} press @param {readonly string[]} keys */
+const pressAtRest = (press, keys) =>
+  html`<span
+    ${selectableOffered("button", "lf-compose-press", "inline")}
+    data-lf-hint
+    tabindex="-1"
+    ${keepsNotice()}
+    @mousedown=${(/** @type {MouseEvent} */ event) => event.preventDefault()}
+    @click=${press.run}
+    ><span class="lf-compose-press-word">${press.word}</span>${
+      keys.length ? keySequenceTemplate(keySequenceModel(neutralSteps(keys))) : nothing
+    }</span
+  >`;
+
 // Boot binds one input owner to the app's upload command and contextual-hint
 // reading. Fields keep those capabilities for their lifetime; importing this module
 // never installs or replaces application callbacks.
@@ -295,11 +322,12 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       // What entering the box does, said with the key that enters it, where the box's
       // own words at rest say something else, as the panel's status does. Those words
       // stay first, and this word and its key stand after them, in a part of its own,
-      // so the words never move between parts as focus comes and goes. Or, as
-      // `{word, keys}`, the one press the box offers at rest in its place, such as a
-      // passing notice's Undo, said in the same part with its own keys, and said where
-      // no key is shown too, since its owner takes the press there (floating-panel.js,
-      // `rowNotice`).
+      // so the words never move between parts as focus comes and goes. Or, as a
+      // `BoxPress`, the one press the box offers at rest in that place, such as a
+      // passing notice's Undo: its word and the keys of the command that makes it, read
+      // as the entering word and its key are, and pressed where they read, by a pointer
+      // or a finger, since it stands where the box's own words do and goes when they go
+      // (`pressAtRest`). A finger is shown its word alone, as no key is shown there.
       enters = () => "",
       accessibleName = null,
       save,
@@ -532,8 +560,9 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
         : focusedHere.value
           ? sendKeys
           : press
-            ? press.keys
+            ? ""
             : enteringHint.value;
+      const pressKeys = press && advertising ? press.keys : [];
       const word = status || label();
       // Where Return sends a box that holds lines, the box says which key makes one,
       // beside the key that sends, so a writer meets Shift+Return before Return sends
@@ -541,16 +570,14 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       const lineKey =
         sendKeys === spell("Enter") && !oneLine ? spell("Shift+Enter") : "";
       const lineHint = focusedHere.value && !status ? lineKey : "";
-      const entering = press
-        ? press.word
-        : suffix && typeof offered === "string"
-          ? offered
-          : "";
+      const entering = suffix && typeof offered === "string" ? offered : "";
+      const pressText = press ? [press.word, ...pressKeys].join(" ") : "";
       const placeholder =
         (suffix || press) && !status
-          ? `${word}${entering ? ` · ${entering}` : ""}${suffix ? ` ${suffix}` : ""}${lineHint ? ` · ${NEW_LINE} ${lineHint}` : ""}`
+          ? `${word}${entering ? ` · ${entering}` : ""}${suffix ? ` ${suffix}` : ""}${pressText ? ` · ${pressText}` : ""}${lineHint ? ` · ${NEW_LINE} ${lineHint}` : ""}`
           : word;
       if (ta.placeholder !== placeholder) ta.placeholder = placeholder;
+      keeps(ta, "data-lf-presses", press && !status ? "" : null);
       const ariaLabel = name();
       if (ariaLabel) keeps(ta, "aria-label", ariaLabel);
       const parts = status ? null : hintParts?.();
@@ -561,11 +588,10 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
           ? html` <span class="lf-compose-placeholder" slot="placeholder">
               <span class="lf-compose-placeholder-lead">${lead}</span
               ><span class="lf-compose-placeholder-words">${parts ?? word}</span
-              ><span
-                class="lf-compose-placeholder-enters"
-                ?data-lf-offer=${Boolean(press)}
-                >${entering}</span
+              ><span class="lf-compose-placeholder-enters">${entering}</span
               ><kbd class="lf-key-badge">${suffix}</kbd>${
+                press ? pressAtRest(press, pressKeys) : nothing
+              }${
                 lineHint
                   ? html`<span class="lf-compose-placeholder-line"
                       >· ${NEW_LINE} <kbd class="lf-key-badge">${lineHint}</kbd></span

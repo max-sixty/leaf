@@ -623,7 +623,7 @@ def test_every_way_back_from_a_settlement_returns_the_user_where_they_made_it(
                     s.shown()
                 if way == "notice":
                     with sending(page, "the notice's Undo"):
-                        page.locator(".lf-fp-row-notice-press").click()
+                        page.locator(".lf-fp-field .lf-compose-press").click()
                 else:
                     undo(page)
             round_trip(page)

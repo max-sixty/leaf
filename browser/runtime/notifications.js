@@ -7,16 +7,17 @@
    position, which returns when the notice's time is up (floating-panel.js, `passing`). The
    live region hears the same words. It is text, but for the one press a notice of the
    user's own gesture may carry: the press that takes that gesture back (`press`,
-   undo.js's `offerUndo`), which the floating panel draws beside the words with the key
-   of the page command that makes it too, as "Resolved “One reconnect in about 40” ·
-   Undo z" (floating-panel.js, `rowNotice`). The notice stands no longer than its
+   undo.js's `offerUndo`), which the floating panel's field says at its end with the
+   key of the page command that makes it too, after the words, as "Resolved “One
+   reconnect in about 40” … Undo z" (floating-panel.js, `noticePress`). The notice stands no longer than its
    gesture does, so its press never takes back anything else. The user chose that on
    31 October, after a Resolve that moved the panel on left nothing there offering to
    take it back; until then a notice was text alone, and what it named the panel's own
    controls reached. There is no second surface for news, so nothing floats in a corner
    to become a stale pointer target. A failure is no news: it goes through errors.js,
    which keeps it until the user has dealt with it. */
-import { el } from "./widget-elements.js";
+import { el, elementDirective } from "./widget-elements.js";
+import { keeps } from "./keeps.js";
 import { effect, signal, untracked } from "/runtime/framework.js";
 import { ANNOUNCE } from "./widget-upgrade.js";
 import { leafSays, wordsText } from "./voice.js";
@@ -92,8 +93,8 @@ addEventListener(ANNOUNCE, (event) => announce(event.detail));
 // An undo ("Undid: Chose “Fast” · just now"), an arrival ("Updated to v3"): the
 // quiet words in the panel's seat. A widget's gesture is no notice, since the widget
 // draws it where it was made; the live region alone hears it (application.js,
-// `named`). A notice offering a press (`press`) ends in that press's word and key, so
-// what pressing the words does reads in them.
+// `named`). A notice offering a press (`press`) has the field's end say that press's
+// word and key, where Comment and its key stand at rest.
 /** @param {Words} msg @param {Background | null} background @param {NoticePress | null} [press] */
 function showNotice(msg, background = null, press = null) {
   presentNotice(msg, true, press);
@@ -118,10 +119,13 @@ function retireNotice() {
 // A notice offering a press stands until the user's next input rather than for its
 // time, and no longer than its press can act: a gesture the log refused, or one taken
 // back by any route, takes its notice away. The panel says its press at the field's
-// end (floating-panel.js, `rowNotice`), so one leaving on a timer would take it from
-// under a hand on its way there. An input on the press itself, which carries
-// `NOTICE_PRESS`, keeps it.
+// end (floating-panel.js, `fieldReading`), so one leaving on a timer would take it from
+// under a hand on its way there. An input on the press itself, which `keepsNotice`
+// marks, keeps it.
 const NOTICE_PRESS = "data-lf-notice-press";
+export const keepsNotice = elementDirective("keepsNotice", (element) =>
+  keeps(element, NOTICE_PRESS, ""),
+);
 onUserInput((event) => {
   if (!noticePresentation.peek().press) return;
   const path = event.composedPath?.() ?? [];

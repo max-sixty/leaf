@@ -1,8 +1,7 @@
 <!doctype html>
 <!--
-  Extending: how to implement widgets, themes and packages that participate in
-  Leaf's shared mechanisms. How it works introduces those mechanisms;
-  UI covers composing and operating a page with them.
+  Each guide has one reader. Using: the person working on a page. Pages: its
+  author. How it works: the mechanism. Extending: package authors.
 -->
 <html lang="en">
   <head>
@@ -163,6 +162,139 @@
       #styles-reach-table td:first-child code {
         white-space: nowrap;
       }
+      .developer-galleries {
+        margin-block: 96px 80px;
+        padding-top: 36px;
+        border-top: 1px solid var(--border-2);
+        --lf-block-frame: 1;
+      }
+      .developer-galleries-copy > p:last-of-type {
+        max-width: 62ch;
+      }
+      .developer-gallery-link {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 24px;
+        align-items: center;
+        padding: 18px 0;
+        border-top: 1px solid var(--border-2);
+        color: inherit;
+        text-decoration: none;
+      }
+      .developer-gallery-link:first-of-type {
+        margin-top: 24px;
+      }
+      .developer-gallery-link:last-of-type {
+        border-bottom: 1px solid var(--border-2);
+      }
+      .developer-gallery-link strong,
+      .developer-gallery-description {
+        display: block;
+      }
+      .developer-gallery-link strong {
+        font: 600 var(--t-3) / 1.25 var(--serif);
+        letter-spacing: -0.008em;
+      }
+      .developer-gallery-description {
+        max-width: 52ch;
+        margin-top: 5px;
+        color: var(--ink-2);
+        font-size: var(--t-5);
+        line-height: 1.5;
+      }
+      .developer-gallery-open {
+        color: var(--accent);
+        font: 600 var(--t-6) / 1.4 var(--sans);
+        letter-spacing: 0.035em;
+        text-transform: uppercase;
+      }
+      .developer-gallery-open span {
+        display: inline-block;
+        margin-left: 2px;
+        transition: transform 160ms ease;
+      }
+      .developer-gallery-link:is(:hover, [data-lf-focus]) .developer-gallery-open span {
+        transform: translate(2px, -2px);
+      }
+      .developer-gallery-link[data-lf-focus-visible] {
+        outline: var(--focus-ring);
+        outline-offset: var(--focus-ring-gap);
+      }
+      .reference-index {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px 20px;
+        margin: 18px 0 40px;
+        padding: 14px 0;
+        border-block: 1px solid var(--rule);
+        --lf-block-frame: 1;
+      }
+      .reference-index a {
+        text-decoration: none;
+      }
+      .reference-index a:is(:hover, [data-lf-focus]) {
+        text-decoration: underline;
+      }
+      .reference-index code {
+        padding: 0;
+        overflow-wrap: normal;
+        background: none;
+        font-size: var(--t-5);
+        white-space: nowrap;
+      }
+      .reference-entry {
+        display: grid;
+        grid-template-columns: 9rem minmax(0, 1fr);
+        gap: var(--sp-3);
+        margin: 0;
+        padding: 18px 0;
+        border-bottom: 1px solid var(--rule);
+        scroll-margin-top: 18px;
+      }
+      .reference-entry h3 {
+        margin: 0;
+        font-size: var(--t-4);
+        line-height: 1.6;
+      }
+      .reference-entry h3 code {
+        overflow-wrap: normal;
+        font-size: 84%;
+        white-space: nowrap;
+      }
+      .reference-copy > p {
+        margin: 0;
+      }
+      .reference-more {
+        margin: 8px 0 0;
+        padding: 0;
+        border: 0;
+        border-radius: 0;
+        background: none;
+      }
+      .reference-more > summary {
+        width: max-content;
+        color: var(--accent);
+        font: 500 var(--t-5) / 1.5 var(--sans);
+      }
+      .reference-more > p {
+        margin: 8px 0 0;
+        color: var(--ink-2);
+      }
+      .reference-entry:target {
+        border-bottom-color: var(--accent);
+      }
+      .reference-entry:target h3 code {
+        color: var(--accent);
+      }
+      @media screen and (max-width: 640px) {
+        .reference-index {
+          column-gap: var(--sp-3);
+        }
+        .reference-entry {
+          grid-template-columns: minmax(0, 1fr);
+          gap: var(--sp-1);
+        }
+      }
     </style>
   </head>
   <body class="site-page">
@@ -181,8 +313,9 @@
           This guide covers the interfaces for implementing widgets, themes and
           packages, with a package tutorial and CSS contracts.
           <a href="/how-it-works/">How it works</a> introduces Leaf's core concepts and
-          how they fit together. <a href="/ui/">UI</a> covers composing and operating a
-          page with existing capabilities.
+          how they fit together. <a href="/pages/">Pages</a> covers composing a page
+          with existing capabilities, and <a href="/using/">Using</a> covers working on
+          one.
         </p>
       </header>
 
@@ -233,7 +366,7 @@ flowchart TD
               </figcaption>
             </figure>
             <p id="ownership-example-link">
-              <a href="/ui/#options-demo"
+              <a href="/pages/#options-demo"
                 >Try the separate example: a release review.</a
               >
               Choose an audience and undo a choice to see these responsibilities at
@@ -562,7 +695,7 @@ packages/callout/
               <code>x-example</code> make the merged registry useful to an author.
             </p>
             <p>
-              The <a href="/registry/">registry-key reference</a> lists every
+              The <a href="#keys">registry-key reference</a> lists every
               <code>x-*</code> declaration. A CSS-only widget stops here.
             </p>
           </section>
@@ -586,12 +719,12 @@ $ leaf page check PAGE --render</code></pre>
               machine.
             </p>
             <dl class="package-next">
-              <dt><a href="/registry/">Registry keys</a></dt>
+              <dt><a href="#keys">Registry keys</a></dt>
               <dd>
                 The generated reference for declarations such as <code>x-data</code> and
                 <code>x-state</code>.
               </dd>
-              <dt><a href="/event-log/">Event log</a></dt>
+              <dt><a href="/how-it-works/#event-log">Event log</a></dt>
               <dd>
                 How a widget's <code>x-state</code> verbs become logged events and
                 folded state.
@@ -633,8 +766,8 @@ $ leaf page check PAGE --render</code></pre>
               Widget packages style their own elements; theme packages supply
               presentation across the page. Stylesheet roles set where rules reach, and
               the cascade sets which rule wins.
-              <a href="/ui/#styles">Themes in the UI guide</a> covers selecting a theme
-              and making local page adjustments.
+              <a href="/pages/#styles">Themes in Pages</a> covers selecting a theme and
+              making local page adjustments.
             </p>
             <h3 id="styles-try-title">Which rule wins</h3>
             <p id="styles-try-lede">
@@ -1020,13 +1153,84 @@ flowchart TD
               Those pages keep their task-specific state, schema, and behavior while
               reusing the same package mechanics.
             </p>
+          </section>
+          <section
+            class="developer-galleries layout-flow"
+            id="developer-galleries"
+            aria-labelledby="developer-galleries-title"
+          >
+            <div class="developer-galleries-copy">
+              <p class="eyebrow">developer tools</p>
+              <h2 id="developer-galleries-title">Inspect the product</h2>
+              <p>
+                These developer pages are for debugging Leaf itself. The core product
+                gallery keeps Leaf’s controls and its core interactions on one page;
+                optional widgets live with their working examples under
+                <a href="#bundled">Choose a bundled package</a>.
+              </p>
+              <a
+                class="developer-gallery-link"
+                id="product-gallery"
+                href="/examples/feature-gallery/"
+              >
+                <span>
+                  <strong>Core product gallery</strong>
+                  <span class="developer-gallery-description"
+                    >Leaf chrome and every default-package widget on one synthetic page,
+                    with core interactions to try live.</span
+                  >
+                </span>
+                <span class="developer-gallery-open"
+                  >Open gallery <span aria-hidden="true">↗</span></span
+                >
+              </a>
+              <a
+                class="developer-gallery-link"
+                id="thread-panel-gallery"
+                href="/examples/thread-panel-gallery/"
+              >
+                <span>
+                  <strong>Threads gallery</strong>
+                  <span class="developer-gallery-description"
+                    >Four live panel views: open threads, On me, resolved, and a
+                    summarized discussion.</span
+                  >
+                </span>
+                <span class="developer-gallery-open"
+                  >Open gallery <span aria-hidden="true">↗</span></span
+                >
+              </a>
+            </div>
           </section></lf-tab
         >
+        <lf-tab id="registry-keys" label="Registry keys" class="layout-flow"
+          ><section id="keys" class="layout-flow">
+            <h2>Registry keys</h2>
+            <p id="keys-lede">
+              An element declaration begins as JSON Schema. Its <code>x-*</code> keys
+              tell Leaf how the element reads, renders, changes, and joins the
+              collaboration loop. The index jumps to a key's summary, and a longer
+              contract opens in place.
+            </p>
+            <p id="keys-source">
+              This reference is generated from the registry's <code>$keys</code>, the
+              same entry an agent can query in a page's merged
+              <code>registry.json</code>. The
+              <a
+                href="https://github.com/max-sixty/leaf/blob/main/skills/leaf/references/packages.md"
+                >complete package contract</a
+              >
+              says how the keys combine.
+            </p>
+            <nav class="reference-index" aria-label="Registry keys"></nav>
+            <div class="reference-list"></div></section
+        ></lf-tab>
       </lf-tabs>
       <footer class="site-footer" id="colophon">
         <p id="links">
           <a href="/">Home</a> · <a href="/examples/">Examples</a> ·
-          <a href="/how-it-works/">How it works</a> · <a href="/ui/">UI</a> ·
+          <a href="/using/">Using</a> · <a href="/pages/">Pages</a> ·
+          <a href="/how-it-works/">How it works</a> ·
           <a href="https://github.com/max-sixty/leaf">GitHub</a> ·
           <a href="https://github.com/max-sixty/leaf/blob/main/LICENSE">MIT license</a>
         </p>

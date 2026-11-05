@@ -323,13 +323,13 @@ export function createPageMapDialog({
         <h3 class="lf-rows-head">${name}</h3>
         <div class="lf-page-map-actions lf-rows">
           ${repeat(
-          group.actions,
-          ({ key }) => key,
-          (action) =>
-            action.kind === "item"
-              ? sheetItemTemplate(action)
-              : sheetControlTemplate(action, group.actions),
-        )}
+            group.actions,
+            ({ key }) => key,
+            (action) =>
+              action.kind === "item"
+                ? sheetItemTemplate(action)
+                : sheetControlTemplate(action, group.actions),
+          )}
         </div>
       </section>
     `;

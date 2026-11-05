@@ -1043,7 +1043,7 @@ def test_a_source_replacement_preserves_the_focused_draft_and_its_original_ancho
         "value", "Keep this comment about the original source."
     )
     expect(quote).to_contain_text(
-        "“Original source words.”" if quote_anchor else "§ text-document"
+        "Original source words." if quote_anchor else "§ text-document"
     )
     assert page.evaluate("() => CSS.highlights.get('lf-pending').size") == 0
     # The document is the same document across the replacement, so a draft on all of it

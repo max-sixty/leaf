@@ -819,17 +819,17 @@ export function messageHolding(id) {
 /** @param {string} id */
 const addressableAt = (id) => elementById(id) ?? messageHolding(id)?.element ?? null;
 
+// What a coordinate names besides any words it quotes: a design subject, a datum, a
+// drawing's part or a section. A passage is named by its words alone.
 /** @param {import("../../types/domain.js").Anchor | null | undefined} anchor @param {string | null | undefined} about */
-function coordinateLabel(anchor, about) {
+function coordinatePlace(anchor, about) {
   if (about === "design") {
     const addressable = anchor?.section ? addressableAt(anchor.section) : null;
-    const name = addressable ? designName(addressable) : anchor?.section || "the page";
-    return anchor?.quote ? `${name} · “${anchor.quote}”` : name;
+    return addressable ? designName(addressable) : anchor?.section || "the page";
   }
   const datum = datumLabel(anchor);
-  if (datum) return anchor?.quote ? `${datum} · “${anchor.quote}”` : `§ ${datum}`;
-  if (anchor?.quote) return `“${anchor.quote}”`;
-  if (!anchor?.section) return "";
+  if (datum) return anchor?.quote ? datum : `§ ${datum}`;
+  if (anchor?.quote || !anchor?.section) return "";
   const addressable = addressableAt(anchor.section);
   if (anchor.visual) {
     const part = visualPartLabel(addressable, anchor.visual) ?? anchor.visual;
@@ -846,10 +846,19 @@ export const threadPassage = (thread) =>
   thread.rewritten_from ?? thread.detached_from ?? thread.anchor;
 
 // A named control part belongs to the coordinate in every reading, not just Design.
-/** @param {import("../../types/domain.js").Anchor | null | undefined} anchor @param {string | null | undefined} [about] */
-export function anchorLabel(anchor, about) {
-  const label = coordinateLabel(anchor, about);
-  return [about === "design" && "design", anchor?.part, label]
+/** @param {import("../../types/domain.js").Anchor | null | undefined} anchor @param {string | null | undefined} about @param {string | null | undefined} words */
+const anchorNamed = (anchor, about, words) =>
+  [about === "design" && "design", anchor?.part, coordinatePlace(anchor, about), words]
     .filter(Boolean)
     .join(" · ");
-}
+
+// An anchor named in running text, such as an accessible name or a feed's line, where
+// only the marks set its quoted words off from the words around them.
+/** @param {import("../../types/domain.js").Anchor | null | undefined} anchor @param {string | null | undefined} [about] */
+export const anchorLabel = (anchor, about) =>
+  anchorNamed(anchor, about, anchor?.quote && `“${anchor.quote}”`);
+
+// An anchor as a quote's face draws it (`.lf-thread-quote`). The face says its words are
+// quoted, so marks would say it twice.
+/** @param {import("../../types/domain.js").Anchor | null | undefined} anchor @param {string | null | undefined} [about] */
+export const anchorQuote = (anchor, about) => anchorNamed(anchor, about, anchor?.quote);

@@ -3128,7 +3128,7 @@ def reader_state(page):
     focused = page.locator(":focus")
     native = page.evaluate(_BROWSER_STATE)
     return [
-        *page.locator("body").aria_snapshot(boxes=True).splitlines(),
+        *page.locator(":root").aria_snapshot(boxes=True).splitlines(),
         "focus: "
         + (focused.last.aria_snapshot(boxes=True) if focused.count() else "none"),
         *("field: " + json.dumps(field) for field in native["fields"]),

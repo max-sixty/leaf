@@ -9,6 +9,7 @@ from interact_support import append_carried_log_record
 from playwright.sync_api import expect
 from render_cases_interaction import OBLIGATION_PAGE, PANEL_PAGE, panel_comment
 from render_harness import (
+    LONG_PAGE,
     PANEL,
     holding,
     leaf_page,
@@ -919,6 +920,61 @@ def test_news_while_a_card_s_row_is_scrolled_away_leaves_the_card_open(browser, 
     rendered(page)
     expect(card).to_be_visible()
     expect(card).to_contain_text("missed rows taken late")
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_tab_reaching_a_card_the_page_carried_away_brings_it_back(
+    request, serve, engine
+):
+    """Past the page's last stop, Tab reaches the chrome, whose first stop can stand in a
+    card the user scrolled away from. Firefox can't reveal a control in a box fixed over
+    the page, so the card comes back with the control. Left away, the next Tab would let
+    go of a control the user can't see and land where Tab reaches the same one again."""
+    url = serve(
+        LONG_PAGE,
+        events=[
+            {
+                "kind": "comment",
+                "author": "user",
+                "revision": 1,
+                "text": "Does this paragraph need a source?",
+                "anchor": {"section": "p2"},
+            }
+        ],
+    )
+    page = open_page(request.getfixturevalue(engine), url)
+    resized(page, 1440, 900)
+    page.locator('.lf-margin-marker[data-lf-kinds="comment"]').click()
+    card = page.locator(".lf-margin-preview")
+    expect(card.locator("leaf-text")).to_be_focused()
+    page.keyboard.press("Escape")
+    expect(card.locator(".lf-page-thread")).to_be_focused()
+    page.mouse.move(700, 450)
+    for _ in range(4):
+        page.mouse.wheel(0, 800)
+    page.wait_for_function("() => scrollY > 2000")
+    scroll_settled(page)
+    rendered(page)
+    expect(card).not_to_be_in_viewport()
+
+    def control_in_card():
+        return page.evaluate(
+            """() => {
+              let at = document.activeElement;
+              while (at?.shadowRoot?.activeElement) at = at.shadowRoot.activeElement;
+              return at?.closest('.lf-margin-preview') ? at.outerHTML : null;
+            }"""
+        )
+
+    page.keyboard.press("Tab")
+    expect(card).to_be_in_viewport()
+    scroll_settled(page)
+    rendered(page)
+    reached = control_in_card()
+    assert reached
+    page.keyboard.press("Tab")
+    rendered(page)
+    assert control_in_card() not in (None, reached)
 
 
 def test_the_rail_tab_stop_follows_a_carried_row_back_into_view(browser, serve):

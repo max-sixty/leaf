@@ -249,7 +249,7 @@ def test_a_widgets_attribute_takes_a_comment_like_any_other_passage(browser, ser
     page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
 
     quote = thread_quote(page, comment_ids(serve.page_dir)[-1])
-    assert quote.text_content().strip().strip("“”") == "In flight"
+    assert quote.text_content().strip() == "In flight"
 
     # A second version reworking one card's prose and nothing else. The page follows it,
     # and the anchor is on a word only the runtime puts there, so it has to be found
@@ -401,9 +401,7 @@ def test_a_revision_preserves_every_open_quoted_thread(browser, serve):
         roots.append(json.loads(result.output))
     page = open_page(browser, url)
     for root in roots:
-        expect(thread_quote(page, root["id"])).to_have_text(
-            f"“{root['anchor']['quote']}”"
-        )
+        expect(thread_quote(page, root["id"])).to_have_text(root["anchor"]["quote"])
     source = (serve.page_dir / "index.html").read_text()
     updated = source.replace(
         "The first draft uses an early estimate",
@@ -416,7 +414,7 @@ def test_a_revision_preserves_every_open_quoted_thread(browser, serve):
     )
     for root in roots:
         quote = thread_quote(page, root["id"])
-        expect(quote).to_contain_text(f"“{root['anchor']['quote']}”")
+        expect(quote).to_contain_text(root["anchor"]["quote"])
         expect(quote.locator(".lf-anchor-status")).to_have_text("Changed")
         expect(quote).not_to_have_attribute("data-lf-detached", "")
         expect(page.locator(f"{PANEL_THREAD} .lf-msg")).to_have_count(1)
@@ -547,7 +545,7 @@ def test_quotes_cross_preserving_containers_and_remain_attached(browser, serve):
     assert actual == expected
     page.reload()
     held = thread_quote(page, comment_ids(serve.page_dir)[-1])
-    expect(held).to_have_text(f"“{quote}”")
+    expect(held).to_have_text(quote)
     expect(held).not_to_have_attribute("data-lf-detached", "")
 
 
@@ -620,7 +618,7 @@ def test_a_widgets_label_takes_a_comment_inside_the_control_it_labels(browser, s
     page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
 
     quote = thread_quote(page, comment_ids(d := serve.page_dir)[-1])
-    assert quote.text_content().strip().strip("“”") == "Heated bird bath"
+    assert quote.text_content().strip() == "Heated bird bath"
 
     # A second version reworking the other panel's prose and nothing else: the name the
     # comment is on is still there, so the comment is still on it.
@@ -2538,7 +2536,8 @@ def test_staged_widget_controls_name_the_presses_their_owners_make(browser, serv
 
     summary = page.locator("lf-diff summary").first
     details = page.locator("lf-diff details").first
-    summary.scroll_into_view_if_needed()
+    # Clear of the floating panel, where the user sees the control a key acts on.
+    summary.evaluate("el => el.scrollIntoView({block: 'center'})")
     summary.focus()
     assert details.evaluate("el => el.open"), "the fixture's disclosure starts open"
     page.keyboard.press("Enter")

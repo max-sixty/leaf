@@ -1,136 +1,160 @@
-# Focus rings cut at a scroller's edge
+# Focus rings at a bounded block's side
 
-A focus ring is drawn outside its box, so a scroller that clips at its padding edge
-cuts the ring of a control standing at that edge. Leaf answers this one box at a time.
-The `browser/runtime/chrome.css` header states the rule "every scroll region a ringed
-box can land in reserves `--focus-ring-room`", and each scroller declares that room
-itself: the chrome, the parts list, tabs, the annotation chrome, a sidebar page's
-stuck track body (#3939), and Copy's shadow button (#3916, its own `scroll-margin`).
-The cases below are the ones found so far. Collect more here before choosing a
-mechanism, since the user judged focus rings too central for another per-case patch
-(2026-10-25).
+A focus ring is drawn outside its box, and a scroller clips at its padding edge. At a
+scroller's top and foot a landing keeps the ring's room (`--focus-ring-landing`,
+`browser/styles/components/surfaces.css`), for a vendor control's focused node too. A
+bounded block (`[data-lf-bound]`, `browser/base.css`) has no inline padding and usually
+nothing to scroll sideways, so a box flush with its side loses that side of its ring
+however far the block is scrolled.
 
-Two mechanisms produce the cases:
+At the top and foot, a `wa-select` and a single-thumb `wa-slider` keep under a pixel of
+room, where a diff's file filter keeps 6. The margin is on the node holding focus, and
+their ring stands on a box that reaches further: the select's combobox around its input,
+and the slider's thumb 7px below its rail. No bundled widget uses either control.
 
-- **A. The scroller reserves no room.** Each scroller has to declare the ring's room
-  itself, so a scroller nobody declared it for cuts rings (cases 1–2).
-- **B. The ring is drawn on a box other than the focused node.** Inside a Web Awesome
-  control, focus lands on a node in the control's own shadow tree. Leaf's
-  `:where(:focus, [data-lf-focus])` scroll margin doesn't reach that node, and
-  `ringBox` (`browser/runtime/landing-scroll.js`) finds no `--lf-wears-ring` part. So
-  the Tab-arrival correction reads a zero margin and decides the ring is already shown
-  (cases 3–5).
+Two written rules disagree about this. The choice between them waits on the user
+(#4125), who judged focus rings too central for another per-case patch (2026-10-25).
+
+- The `browser/runtime/chrome.css` header says every scroll region a ringed box can land
+  in reserves `--focus-ring-room`. A sidebar page's `.layout-track`
+  (`browser/layouts.css`) does, with `--focus-region-room` on every side.
+- `browser/styles/tokens.css`, "Where it stands", says a box that clips a mark standing
+  outside its target cuts it. `browser/AGENTS.md` says no rule pads or widens a block to
+  make room for what Leaf draws over it. A bounded block does as these two say.
 
 ## Cases
 
-Measured in headless Chromium 153 and Firefox 155 on 2026-10-25. "Room" is the space
-between the ring's outer edge and the clipping edge; negative means cut.
+Measured in headless Chromium 156 and Firefox 157 on 2026-11-04, with the same numbers in
+both. "Room" is the space between the ring's outer edge and the block's padding edge;
+negative means cut.
 
-| #   | Where                                                                                                                                      | Today                                                                                                                                                                                      | Reproduce                                                                 |
-| --- | ------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------- |
-| 1   | A sidebar page's stuck track body: `examples/live-progress.html`, 1440×900, scroll to 600, Tab five times onto the "Release notes" summary | Cut 5px left and 4.6px right before #3939. #3939's track-only rule in `browser/layouts.css` ("Sticking blocks") now holds the room                                                         | The fixture below, "a sidebar page's track", with that rule removed       |
-| 2   | A column's margin `aside.sidebar` holding more than a contents map (a line-leading link, a summary), while it sticks                       | Cut 5px at the link's start and both sides of the summary, on main and before #3939                                                                                                        | The fixture below, "a column's margin sidebar"                            |
-| 3   | A diff's file filter (`wa-input`, shown for a multi-file `lf-diff`) 3px past the foot of a 240px scroll pane, reached by Tab               | Room −0.6px (Chromium), −1.0px (Firefox); the ring ends 4.05px past the pane                                                                                                               | `EDGE_CONTROLS["filter"]` below in `tests/browser/controls/test_focus.py` |
-| 4   | A package's `wa-select` 3px past a pane's foot                                                                                             | Room −2.8px / −3.2px                                                                                                                                                                       | `EDGE_CONTROLS["select"]` below                                           |
-| 5   | A code block's Copy at a pane's top (#3916)                                                                                                | Held by Copy's own `scroll-margin` in `browser/styles/components/integration.css`; 4.7px outside before it. Measured before #3978 made Copy a 20px mark that rings its own edge: remeasure | `EDGE_CONTROLS["copy"]` below, with that rule removed                     |
-| 6   | A single-thumb `wa-slider`: focus is on its 8px rail, the ring on its 22px thumb 7.2px below                                               | Cut about 2px in both engines. Nothing in the tree uses one yet                                                                                                                            | A `wa-slider` at a pane's foot, reached by Tab                            |
+| What stands in the block                      | Room at its start | Room at its end |
+| --------------------------------------------- | ----------------- | --------------- |
+| A link that starts a line                     | −5px              | clear           |
+| A summary, which fills its line               | −5px              | −5px            |
+| A native `input.field` that starts a line     | −2px              | clear           |
+| A diff's file filter (`wa-input`), filling it | −3px              | −3px            |
+| A package's `wa-select`, filling it           | −3px              | −3px            |
 
-A playground's rail (`[data-lf-track]`) passes, since its panes inset their controls.
-So does every Web Awesome control whose focus stays on its host, such as `wa-radio`.
+## Candidates
 
-## Candidates already tried
+Each candidate was laid over this tree as a sheet and read in both engines, and each is
+titled by what the user sees.
 
-Neither landed. Each is described so it can be rebuilt.
+- **Every ring in a bounded block is whole, and its words stay on the column.** The
+  block reaches 8px past its column on each side and pads by as much. Its box is 16px
+  wider, so a frame an author draws on it stands 8px out on each side, as does its
+  scrollbar. It widens a block for a ring, which `browser/AGENTS.md` rules out.
 
-- **One rule for every sticking block (A).** Move the stuck track body's `padding`,
-  negative block `margin` and `scroll-padding` into the shared "Sticking blocks" rule
-  in `browser/layouts.css`, so all three sticking blocks hold the room. The margin
-  sidebar's float rule then needs `:where()` so its margin doesn't beat the shared
-  one. This fixed cases 1–2. The cost: a stuck block's contents stand 5px in from
-  each side, and a playground rail's panes narrow by 10px.
-- **Read margins from the nearest host Leaf styles (B).** In `landing-scroll.js`,
-  `scrollMargin` reads a node's margins through the nearest element Leaf's CSS
-  reaches, which is a vendor control's host. `wa-input::part(base …)` and
-  `wa-select::part(combobox …)` declare `--lf-wears-ring: 1`. This fixed cases 3–5
-  and let Copy's own rule go. Case 6 stayed, because the thumb isn't an ancestor
-  `ringBox` can find. A flat `--focus-ring-landing` floor was rejected, since it
-  overrides the stuck-header rule that gives a control in a stuck header a top margin
-  of zero or less.
+  ```css
+  [data-lf-bound] {
+    padding-inline: var(--focus-region-room);
+    margin-inline: calc(-1 * var(--focus-region-room));
+  }
+  ```
 
-## Reproductions
+- **Every ring in a bounded block is whole, and its words stand 8px in.** The block pads
+  its sides inside the column, so every bounded block's words stand 8px in from the
+  column's, whether or not a ring is showing. It pads a block for a ring, which
+  `browser/AGENTS.md` rules out.
 
-Cases 1–2, as a browser test using `tests/render_cases_layout.py`'s `rings_drawn` and
-`ring_faults`:
+  ```css
+  [data-lf-bound] {
+    padding-inline: var(--focus-region-room);
+  }
+  ```
 
-```python
-def test_a_sticking_block_shows_whole_the_rings_at_its_edges(browser, serve):
-    held = (
-        "<p id='edge-lead'><a id='edge-link' href='#body'>Jump to the findings</a></p>"
-        "<details><summary id='edge-summary'>Related pages</summary>"
-        "<p>None yet.</p></details>"
-    )
-    body = "<div id='body'>" + "<p>Body paragraph. " * 600 + "</p></div>"
-    pages = {
-        "a column's margin sidebar": leaf_page(
-            "a column page", f"<aside class='sidebar'>{held}</aside>{body}"
-        ),
-        "a sidebar page's track": leaf_page(
-            "a sidebar page",
-            f"<header><h1>Review</h1></header><aside>{held}</aside>{body}",
-            layout="sidebar",
-        ),
-    }
-    holder = """() => getComputedStyle(
-      document.getElementById('edge-lead').parentElement).position"""
-    focused = "() => document.activeElement?.id ?? null"
-    for where, source in pages.items():
-        page = open_page(browser, serve(source))
-        resized(page, 1440, 900)
-        page.evaluate("scrollTo(0, 1500)")
-        assert page.evaluate(holder) == "sticky", where
-        for target in ("edge-link", "edge-summary"):
-            for _ in range(20):
-                page.keyboard.press("Tab")
-                if page.evaluate(focused) == target:
-                    break
-            else:
-                raise AssertionError(f"Tab never reached #{target} in {where}")
-            drawn = [ring for ring in rings_drawn(page) if ring["focused"]]
-            assert drawn, (where, target)
-            assert not ring_faults(drawn, f"in {where}, #{target}"), drawn
+- **A field's ring is whole anywhere, and a link or summary stays cut.** A field's ring
+  stands inside its border, so nothing moves. Every field's ring stands 2-3px tighter on every page. A link
+  and a summary stay cut.
+
+  ```css
+  wa-input::part(base lf-focus-visible-within),
+  wa-select::part(combobox lf-focus-visible-within) {
+    outline-offset: var(--focus-ring-inset);
+  }
+  input.field {
+    --lf-ring-at: var(--focus-ring-inset);
+  }
+  ```
+
+- **Nothing moves, and a ring against a bounded block's side stays cut.** The
+  `browser/runtime/chrome.css` header narrows to the scrollers that keep the room.
+
+## Reproduction
+
+Save the page as `.tmp/bound.html`:
+
+```html
+<!doctype html>
+<html lang="en">
+  <head>
+    <title>A bounded block</title>
+  </head>
+  <body>
+    <main class="layout-column">
+      <h1>Edges</h1>
+      <div id="log" data-bound="start" style="--lf-bound: 16rem">
+        <p><a id="lead" href="#lead">A link that starts its line</a></p>
+        <details>
+          <summary id="fold">A summary</summary>
+          <p>Inside.</p>
+        </details>
+        <p><input id="native" class="field" aria-label="A field" /></p>
+        <lf-diff id="patch">
+          <pre>
+diff --git a/one.py b/one.py
+--- a/one.py
++++ b/one.py
+@@ -1,1 +1,1 @@
+-old
++new
+diff --git a/two.py b/two.py
+--- a/two.py
++++ b/two.py
+@@ -1,1 +1,1 @@
+-old
++new
+</pre>
+        </lf-diff>
+      </div>
+    </main>
+  </body>
+</html>
 ```
 
-Cases 3–5 extend `test_a_key_onto_a_control_at_a_scrollers_edge_shows_its_ring` in
-`tests/browser/controls/test_focus.py`. Add these entries to its tables. The select
-needs a layer widget, passed to the page through `EDGE_LAYERS`. Then add `copy-top`,
-`filter-past` and `select-past` parameters in both engines:
+Then read the room at each side, with `--browser` set to `chromium` or `firefox`. A
+`wa-select` is built in the page, since a page's own module can't import
+`/vendor/webawesome.esm.js` and only a package's can.
 
-```python
-EDGE_CONTROLS |= {
-    "copy": (
-        '<lf-code id="cb" language="python"><pre>'
-        + "\n".join(f"step_{i}()" for i in range(8))
-        + "</pre></lf-code>"
-    ),
-    "filter": (
-        '<lf-diff id="patch"><pre>'
-        + "".join(
-            f"diff --git a/{name} b/{name}\n--- a/{name}\n+++ b/{name}\n"
-            "@@ -1,1 +1,1 @@\n-old\n+new\n"
-            for name in ("one.py", "two.py")
-        )
-        + "</pre></lf-diff>"
-    ),
-    "select": '<lf-edge-select id="sel"></lf-edge-select>',
-}
-EDGE_TARGETS |= {
-    "copy": "#cb .lf-code-copy [part~=button]",
-    "filter": "#patch .lf-diff-search input",
-    "select": "#sel wa-select [part~=display-input]",
-}
-EDGE_SIDES = {"table": "right", "copy": "top"}
-# Copy takes focus only once the keyboard stands in its block.
-EDGE_BEFORE = {"copy": "#cb pre"}
-# lf-edge-select's module appends a `wa-select` labelled "Route" holding two
-# `wa-option`s, after importing '/vendor/webawesome.esm.js'.
+```sh
+READ='() => {
+  let at = document.activeElement;
+  while (at.shadowRoot?.activeElement) at = at.shadowRoot.activeElement;
+  while (getComputedStyle(at).outlineStyle !== "solid")
+    at = at.parentElement ?? at.getRootNode().host;
+  const style = getComputedStyle(at);
+  const out = parseFloat(style.outlineWidth) + parseFloat(style.outlineOffset);
+  const ring = at.getBoundingClientRect();
+  const block = document.getElementById("log").getBoundingClientRect();
+  return { start: ring.left - out - block.left, end: block.right - ring.right - out };
+}'
+SELECT='async () => {
+  const entry = document.querySelector("script[data-lf-entry]").dataset.lfEntry;
+  await import(new URL("vendor/webawesome.esm.js", new URL(entry, location.href)));
+  const select = document.createElement("wa-select");
+  select.label = "Route";
+  select.innerHTML = "<wa-option value=a>First</wa-option>";
+  document.getElementById("log").prepend(select);
+  await select.updateComplete;
+  select.shadowRoot.querySelector("[part~=display-input]").focus();
+  await new Promise(requestAnimationFrame);
+  return ('"$READ"')();
+}'
+for target in '#lead' '#fold' '#native' '#patch .lf-diff-search input'; do
+  uv run leaf-dev probe .tmp/bound.html --browser firefox --viewport 1280x700 \
+    --do press:Tab --do "focus:$target" --js "$READ" | jq -c .result
+done
+uv run leaf-dev probe .tmp/bound.html --browser firefox --viewport 1280x700 \
+  --do press:Tab --js "$SELECT" | jq -c .result
 ```

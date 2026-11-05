@@ -57,7 +57,7 @@ MARK_CONTROLS = f"""(within) => {{
       found.push(`${{holder.localName}}#${{holder.id}} ${{JSON.stringify(words)}}`);
     }}
   }};
-  walk(document.body);
+  walk(document.documentElement);
   return found;
 }}"""
 

@@ -53,6 +53,9 @@ Events keep their stored fields and log order, and add:
   words in a thread about that widget; on the user's reply, those still waiting on a
   pick on a widget you sent in that thread. Its `handling` says how to settle the ones
   the event answers.
+- `settled`: on the user's reply, your questions in words it answered, each its
+  obligation `id` and the `text` that asked it. Their next message answers these by
+  rule, whatever it says, so its `handling` says how to reopen one it left standing.
 - `answer`: the response the event owes. A `kind: "reply"` answer is a thread reply,
   written with `leaf thread reply <answer.ref>` ([threads](threads.md)), or by your
   turn's final message where its `writer` is `"turn"`. A `kind: "markup"` answer is the
@@ -66,8 +69,8 @@ Events keep their stored fields and log order, and add:
   object holds each clause's text once, and the ids mean nothing outside the batch.
   Follow every clause the event names.
 
-`leaf page state` prints the same fields, apart from `waiting`, `answer` and
-`handling`, on each action in force and on each message of a thread it reads, so
+`leaf page state` prints the same fields, apart from `waiting`, `settled`, `answer`
+and `handling`, on each action in force and on each message of a thread it reads, so
 what a delivery told you stays readable after a compaction. It prints a message as
 it now reads, with its latest rewrite's replaced words in `edited` and its `unsent`
 as it stood at that rewrite.

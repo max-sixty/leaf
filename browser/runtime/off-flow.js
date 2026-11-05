@@ -10,9 +10,11 @@
      thread and the comment box makes when `c` enters it;
    - an edit in it, as a browser brings a field back into view for the caret: the words
      typed, deleted, or pasted into a box it holds;
-   - focus moving from one of its controls to another, as sequential navigation reveals
-     the control it reaches. Only a move within it: focus arriving from outside is a
-     landing, and a return (focus.js, `onCurrentLocation`), such as a node the runtime
+   - Tab reaching one of its controls, or focus moving from one of its controls to
+     another, as sequential navigation reveals the control it reaches. Left unrevealed,
+     the next key would let go of a control the user can't see (keyboard/controller.js)
+     and land them where Tab reaches it again. Focus otherwise arriving from outside is
+     a landing, and a return (focus.js, `onCurrentLocation`), such as a node the runtime
      replaced handing focus to its successor, is no move of the user's. Nor is a press:
      the pointer found the control where it stands, so a click into a card's reply
      leaves the page, and the box under the pointer, still. The first word typed
@@ -74,12 +76,13 @@ export function declareOffFlowSurface(
     { capture: true },
   );
 }
-// A move within a surface, a widget's shadow tree inside it included.
+// A Tab reaching a surface, or a move within it, a widget's shadow tree inside it
+// included.
 onCurrentLocation((node, cause, left) => {
-  if (!node || !left || cause === "return" || cause === "press") return;
+  if (!node || cause === "return" || cause === "press") return;
   for (const reading of surfaces.values()) {
     const { surface } = reading;
-    if (under(node, surface) && under(left, surface))
+    if (under(node, surface) && (cause === "step" || under(left, surface)))
       follow(reading, node, scrollBehavior());
   }
 });

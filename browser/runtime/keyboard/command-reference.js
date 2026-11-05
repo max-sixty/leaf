@@ -775,15 +775,21 @@ function commandEntryTemplate(entry, promoted = false, shown = true) {
   </button>`;
 }
 
-// A section's heading names the group of each command under it (`aria-labelledby`), as
+// A section's band names the group of each command under it (`aria-labelledby`), as
 // a listbox holds only options and their groups, so it stands out of the
-// accessibility tree itself.
+// accessibility tree itself. Its box holds only the band, since every row stays under
+// one parent (`commandReferenceItems`), and takes no layout box (chrome.css).
+// The band's words stand in a part of their own, which cuts them where the band
+// ends, with no space around them, so the heading reads as its title alone.
 /** @param {string} id @param {string} title @param {boolean} [hidden] */
-const headingRow = (id, title, hidden = false) => html`
-  <div role="none" ?hidden=${hidden}>
-    <h3 class="lf-rows-head" id=${id} aria-hidden="true">${title}</h3>
-  </div>
-`;
+const headingRow = (id, title, hidden = false) => {
+  const name = html`<span class="lf-row-main">${title}</span>`;
+  return html`
+    <div class="lf-rows-group" role="none" ?hidden=${hidden}>
+      <h3 class="lf-rows-head" id=${id} aria-hidden="true">${name}</h3>
+    </div>
+  `;
+};
 
 const commandReferenceItems = () => {
   /** @type {(ReferenceItem & {order: number})[]} */

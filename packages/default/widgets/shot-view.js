@@ -37,8 +37,9 @@ const differenceMark = (region, reading) =>
   ></span>`;
 
 // Fit uses the content box: the scrollport's padding keeps the image shadow visible.
-// In flow nothing bounds the stage's height, so a stacked Pair takes the screen's room
-// below the toolbar as its bound: the reader compares both frames in one view.
+// In flow nothing bounds the stage's height, so a single frame or a stacked Pair takes
+// the screen's room below the toolbar as its bound: the reader sees the whole
+// comparison in one view, and 100% shows a long capture at its own size.
 /** @param {HTMLElement} host @param {HTMLElement} stage @param {HTMLElement} toolbar */
 function shotAllocation(host, stage, toolbar) {
   const style = getComputedStyle(stage);
@@ -92,13 +93,14 @@ function fitShotGeometry({
     );
   // Pair takes whichever arrangement draws the captures larger, so short wide
   // captures stack and tall narrow ones sit side by side. Frames side by side share
-  // rows, so in flow the page's scrolling keeps them aligned; stacked frames must
-  // both fit the room.
+  // rows, so in flow the page's scrolling keeps them aligned; a single frame and
+  // stacked frames must fit the room.
+  const room = availableHeight ?? screenHeight;
   const side = fit(2, 1);
-  const stack = fit(1, 2, labelHeight, availableHeight ?? screenHeight);
+  const stack = fit(1, 2, labelHeight, room);
   const layout = side >= stack ? "side" : "stack";
   const pairScale = layout === "side" ? side : stack;
-  const fitScale = view === "compare" ? pairScale : fit(1, 1);
+  const fitScale = view === "compare" ? pairScale : fit(1, 1, 0, room);
   const scale = actual ? 1 : fitScale;
   // An image's scale and its viewing window are different dimensions. At actual
   // size each window uses its share of the allocation while both remain visible.

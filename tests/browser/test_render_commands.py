@@ -293,6 +293,16 @@ def test_shot_controls_have_disjoint_targets_and_labels_stay_passive(
         page.set_viewport_size({"width": width, "height": height})
         expect(shot).to_have_attribute("data-lf-shot-layout", layout)
         assert_source_words()
+    # Slider's single frame fits the screen too, so the reader sees all of it while
+    # sliding.
+    page.set_viewport_size({"width": 1000, "height": 300})
+    shot.get_by_role("radio", name="Slider", exact=True).click()
+    toolbar.scroll_into_view_if_needed()
+    shown = shot.evaluate("""node => {
+      const top = node.querySelector('.lf-shot-toolbar').getBoundingClientRect().top;
+      return node.querySelector('.lf-shotstage').getBoundingClientRect().bottom - top;
+    }""")
+    assert shown <= 300 + 1
 
 
 @pytest.mark.parametrize("touch", [False, True])

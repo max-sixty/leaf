@@ -1,6 +1,6 @@
-"""Time the server's paths on the pages `leaf-dev scaling` generates, in this process.
+"""Time the server's paths on the pages `leaf-dev bench` generates, in this process.
 
-`build` makes one collection's page (`scaling.COLLECTIONS`) at each size in a scratch
+`build` makes one collection's page (`bench.COLLECTIONS`) at each size in a scratch
 directory, with its versions activated in turn and then its log, and `measure` reads
 the CPU each of the server's `PATHS` takes on each page, least of `RUNS`:
 
@@ -43,7 +43,7 @@ from contextlib import contextmanager
 from functools import partial
 from pathlib import Path
 
-from leaf_dev.commands.scaling import BUDGET_MS, REFERENCE, Collection, lowest
+from leaf_dev.commands.bench import BUDGET_MS, REFERENCE, Collection, lowest
 
 PATHS = ("state", "append", "delivery", "agent", "thread", "activate")
 # A click's paths: admitting its event and computing the reading the server answers
@@ -59,9 +59,9 @@ FITTED = 4
 
 
 def floors(rows: list[dict]) -> dict[str, float]:
-    """Each path's noise floor (`scaling.exponent`) in `rows`, one run's readings by
+    """Each path's noise floor (`bench.exponent`) in `rows`, one run's readings by
     size from BASE: the path's own reading on the BASE page, a reading of the same run,
-    as the browser's floors are shares of its load (`scaling.floors`). A path's own
+    as the browser's floors are shares of its load (`bench.floor`). A path's own
     fixed cost sets the floor, so a cheap path's growth isn't judged against a dearer
     one's fixed work."""
     return {path: rows[0][path] for path in PATHS if path in rows[0]}
@@ -295,7 +295,7 @@ def measure(
     `profile`, the function times of one more run of each path on the smallest
     page and the largest, in the order the rounds take them.
 
-    The rounds are interleaved (`scaling.lowest`). In each a page appends first, as
+    The rounds are interleaved (`bench.lowest`). In each a page appends first, as
     a click does before its reading, and its versions come after every round, since
     a new one leaves the appended events on an earlier revision."""
     from leaf.event_log import read_events

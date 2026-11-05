@@ -206,8 +206,9 @@ captured sizes beneath it.
 For a hill-climbing journey, write a review and pass it with `--review FILE`. It is
 ordinary Leaf markup (`skills/leaf/SKILL.md`): the report's `<h1>` and any lede, then
 an `lf-tabs` of its views, to which the report adds the browser as a last tab,
-**Outputs**. The report writes the document around the review, so the review starts
-at its `<h1>`. `leaf page check PAGE` validates the regenerated report as it does any
+**Outputs**. The report writes the document around the review, titling it with the
+`<h1>`'s text and giving it a fixed description, so the review starts at its `<h1>`.
+`leaf page check PAGE` validates the regenerated report as it does any
 page. Reports stay comparable across a campaign when they keep the same sections, so
 keep these, leaving out one only where the campaign has nothing for it:
 
@@ -244,7 +245,7 @@ keep these, leaving out one only where the campaign has nothing for it:
     </section>
     <section id="campaign-journey">
       <h2>Campaign journey</h2>
-      <lf-diagram id="campaign-flow" data-height="420" parts="all">
+      <lf-diagram id="campaign-flow" parts="all">
         <pre>
 flowchart TD
   accTitle: Campaign study
@@ -329,8 +330,11 @@ flowchart TD
 
 A section left out reads as not assessed. Where you assessed one and found nothing,
 keep its heading and say so with the reason, such as “No code changed; this campaign
-only graded saved outputs again.” Set the diagram's `data-height` to its drawn height,
-so that the page doesn't shift when it draws.
+only graded saved outputs again.” A diagram reserves no height before it draws, so
+the content below it moves when it does. Set its `data-height` to the drawing's height
+in pixels, read from the drawn diagram in a browser, since no check prints it. The
+value stays the diagram's minimum height, so a larger one leaves blank room under the
+drawing.
 
 `lf-eval-cite` reaches what an author can't write by hand, and the report replaces it
 with elements Leaf ships, so the served page holds none. A citation that names an
@@ -346,21 +350,27 @@ output, phase or file the report can't find stops the report.
 - `file="/absolute/path"`, with an optional `label`, copies a retained file into the
   report's evidence: an image draws in place, a `.diff` draws in `lf-diff` beside its
   source link, and any other file is a link.
-- `links`, added to any citation, draws a line of text in place of its captures, image
-  or diff: for an output its label, links and author's model, and for a file its link.
-  That line and a link to any other kind of file can stand inside a `<p>`. A citation
-  that draws anything else stands where a block can, outside a `<p>`.
+- `links`, added to any citation, draws text in place of its captures, image or diff,
+  and that text can stand inside a `<p>`, as can a citation of any other kind of file.
+  For each output it draws the label, the saved page and a link to the output's
+  details, with its condition, author model and phase on a line of their own; for a
+  file, a link to the file. Without `--output-url`, each saved page and file shows as
+  its path instead of a link. A citation that draws anything else stands where a block
+  can, outside a `<p>`.
 
 `RUN` is the name of a run directory given to `eval-report`. `SAMPLE` is the directory
 `metadata.work` names, which an output's run details show as its Output ID. `SAMPLE@3`
-selects the output as its workflow's third phase left it, the sample's `page-phase3`
-directory, and without it the citation shows the final phase. A phase with no captures
-draws “No screens.” beside its links. Choose the state the change affects, such as the
-page before a later user request corrects its layout, or the controls before a decision
-is recorded, the phase `comparison.json` names `_before_decision` and the report labels
-“Before decision”. Give a citation an `id` where the review links to it or cites the
-same thing twice. The cited sample's checks in the browser link back to the citation,
-and the browser's tasks follow the order the review first cites them.
+selects the page as the sample's third phase left it: a workflow sample keeps phase N
+in `page-phaseN`, and a short authoring case has only `@1`. Without `@`, the citation
+shows the final phase. A workflow captures only the phases its `comparison.json` names:
+the final one and, where the case has them, `_before_decision` and `_before_revision`.
+Any other phase draws “No screens.” beside its links, and the checks pass. Choose the
+state the change affects, such as the page before a later user request corrects its
+layout. For the controls before a decision is recorded, cite the phase
+`comparison.json` lists as `_before_decision`, which the report labels “Before
+decision”. Give a citation an `id` where the review links to it or cites the same
+thing twice. The cited sample's checks in the browser link back to each citation drawn
+without `links`, and the browser's tasks follow the order the review first cites them.
 
 Each section keeps what its reader needs to judge it:
 
@@ -368,18 +378,20 @@ Each section keeps what its reader needs to judge it:
   experiment tests a hypothesis, and a run is an eval execution. Reusing an output in
   a comparison creates no second author attempt, and a fresh author at a later
   checkpoint doesn't isolate the effect of a repair. Same-page runtime probes and
-  sequential repairs state that scope. A case's section shows what its authors
-  produced, and a comparison that tests a change goes under that change. A Leaf output
-  and its plain HTML control are independent outputs, so say in the prose that a pair
-  of them shows no change.
+  sequential repairs state that scope. A case's section shows the outputs its authors
+  produced, including a Leaf output beside its plain HTML control, and a before and
+  after of one change goes under that change's experiment. A Leaf output and its plain
+  HTML control come from independent authors, so say in the prose that their
+  differences don't show the effect of a change to Leaf.
 - A score row states its denominator and meaning, keeping an experiment's pass counts
   separate from ordinal pair preferences. Qualifications that apply to the recorded
   reviews go beside the scores. Name the arms for the reader in the review; the browser
-  keeps their recorded labels. Beside the judge preferences, say which retained changes
-  the judged pairs were produced under, which no pair covers, and which author or model
-  changes limit the reading. Don't retype winners, margins or counts from the Outputs
-  tab, which computes them. Report a before and after observation of one source page
-  as its own table or prose, never as a preference or a score.
+  keeps their recorded labels. Pass each pair-judgment run to `eval-report` too, so the
+  Judge preferences view shows its pairs, and don't retype that view's winners or
+  margins. Beside it, say which retained changes the judged pairs were produced under,
+  which no pair covers, and which author or model changes limit the reading. Report a
+  before and after observation of one source page as its own table or prose, never as
+  a preference or a score.
 - A title names concrete behavior, so a reader can tell what changed without the
   campaign's terminology. The diagram's edges state observed dependencies or decisions,
   rather than inferring causality from timestamps. Order cases and steps as the campaign

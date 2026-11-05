@@ -48,9 +48,10 @@
 // children joining in its place, as the working message does to the answer. A
 // scrollport that grows at its foot by no more than that growth, as a floating card
 // sized to its thread does, is stationary for this: it keeps its other edges. One that declares it stands on its
-// foot (`data-lf-rises`), as the floating panel's thread view stands on its row, may
-// instead rise at its head by no more than that growth, carrying all it holds, and its
-// own head, up by its rise: the one case where news may carry controls (`appendGrowth`).
+// foot (`data-lf-rises`), as the floating panel's thread view stands on its row and
+// a margin card on the edge it holds, may instead rise at its head by no more than
+// that growth, carrying all it holds, and its own head, up by its rise: the one case
+// where news may carry controls (`appendGrowth`).
 // Layout coordinates remove scrolling; sticky descendants retain their
 // mechanical scroller's ownership. Portals with one unique anchor, in their tree or
 // inside the `anchor-scope` that limits its name, and a direct native anchor inset,
@@ -2214,14 +2215,17 @@
   // every other edge, and counts as stationary.
   //
   // A scrollport that declares it stands on its foot (`data-lf-rises`), as the floating
-  // panel's thread view stands on its row, instead rises at its head as it grows with
+  // panel's thread view stands on its row and a margin card on the edge it holds
+  // (thread-preview.js), instead rises at its head as it grows with
   // that growth, by no more than it, keeping its other edges. Its holdings are then
   // read from its head, which carries them all up by its rise, and so does every box
   // standing on its foot with it (its stand): what stands in that stand above the
   // scrollport, such as the view's name, rises with it by the same distance and no
-  // more. This is the one place news may carry what is read without a gesture
-  // (the user's choice, recorded at `answersAtOnce` in `floating-panel.js`: an answer the
-  // user waits for grows the panel's thread view).
+  // more. This is the one place news may carry what is read without a gesture (the
+  // user's choices, recorded at `answersAtOnce` in `floating-panel.js`, where an answer
+  // the user waits for grows the panel's thread view, and in thread-preview.js's header,
+  // where news lifts a margin card's head as it holds its foot or rises beside its
+  // subject).
   const appendGrowth = (around) => {
     if (around.length !== 3) return [];
     const first = around[0].at,

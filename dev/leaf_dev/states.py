@@ -2958,16 +2958,21 @@ STATES = (
         region=".lf-margin-preview",
     ),
     State("plan-card-aging", "review-a-plan", card_aging, region=".lf-margin-preview"),
+    # A window with no room beside the stop's words, so its card stands under them and
+    # holds what would move the reply the user drafts (thread-preview.js,
+    # `endNewsMoves`); beside them, it shows the news at once.
     State(
         "plan-card-held-news",
         "review-a-plan",
         card_held_news,
+        window=Window((1200, 900)),
         region=".lf-margin-preview",
     ),
     State(
         "plan-card-held-step",
         "review-a-plan",
         card_held_step,
+        window=Window((1200, 900)),
         region=".lf-margin-preview",
     ),
     State(

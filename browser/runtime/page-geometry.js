@@ -17,6 +17,8 @@ import { cancelRender, nextRender } from "./rendering.js";
 import { coarsePointer } from "./pointer.js";
 import { LAYOUT } from "./widget-upgrade.js";
 import { keepsText } from "./keeps.js";
+import { RUNTIME_PAINT_ATTRIBUTE } from "./page-paint.js";
+import { setRuntimeRootAttribute } from "./root-state.js";
 
 /** @typedef {ReturnType<typeof import("./design.js").createDesignMode>} DesignMode */
 /** @param {{refreshAnchorHover?: (() => unknown) | undefined,
@@ -60,7 +62,11 @@ export function createPageGeometry({
   function refreshAim() {
     const target = aimTarget();
     const aimed = target?.element ?? null;
-    document.body.classList.toggle("lf-over-item", Boolean(aimed));
+    setRuntimeRootAttribute(
+      document.body,
+      RUNTIME_PAINT_ATTRIBUTE.overItem,
+      aimed ? "" : null,
+    );
     const shown = target && targetPaint.paintAim(target.element, target.surface);
     if (!shown) {
       targetPaint.clearAim();

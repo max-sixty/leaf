@@ -214,7 +214,7 @@ import { actionTemplate, iconTemplate } from "./icons.js";
 import { actionName } from "./icon-paths.js";
 import { commandSteps } from "./keyboard/control-keys.js";
 import { canCopy, copyControl } from "./copy-control.js";
-import { keeps, keepsHidden, layoutPx } from "./keeps.js";
+import { atLayoutPrecision, keeps, keepsHidden } from "./keeps.js";
 import { keepFieldKeys } from "./field-keys.js";
 import { setRuntimeRootStyle } from "./root-state.js";
 import { statusReading } from "./page-status.js";
@@ -324,6 +324,7 @@ import {
   declareCover,
   placeBox,
   placeHolder,
+  stateFootBand,
 } from "./geometry.js";
 import { overlaps } from "./rect.js";
 import { registerReadingRegion } from "./reading-regions.js";
@@ -1731,31 +1732,26 @@ export function createFloatingPanel({
   function streamSend() {
     following.stream();
   }
-  // The band `followBox` last wrote, as it wrote it: the root's style serializes a
-  // length at its own precision.
-  let statedBand = "";
   function followBox() {
     // How far the box reaches up from the window's foot, which the root's
     // `scroll-padding-bottom` keeps every landing clear of, with the gap above the box
-    // and at least the foot's room, so `m`, `t`, a Go-to or an On me row's Show lands
-    // what it reaches above an open view rather than under it. The browser's own
-    // reveals read the same padding, and Leaf's landings read it from the root's style
-    // (geometry.js, `landingInsets`). CSS can't size the root's padding from a fixed
-    // box in the chrome's shadow tree, so the box states it, in pixels and never as a
-    // custom property (root-state.js).
+    // and at least the foot's room (`--lf-foot-band`, base.css), so `m`, `t`, a Go-to
+    // or an On me row's Show lands what it reaches above an open view rather than
+    // under it. The browser's own reveals read the same padding, and Leaf's landings
+    // the band stated beside it (geometry.js, `stateFootBand`). CSS can't size the
+    // root's padding from a fixed box in the chrome's shadow tree, so the box states
+    // it, in pixels and never as a custom property (root-state.js).
     const box = card.getBoundingClientRect();
     const reach = box.height > 0 ? ground.getBoundingClientRect().bottom - box.top : 0;
     const root = document.documentElement;
-    const tokens = getComputedStyle(root);
-    /** @param {string} name */
-    const length = (name) => Number.parseFloat(tokens.getPropertyValue(name)) || 0;
-    const band = layoutPx(
-      Math.max(length("--lf-foot-room"), reach + length("--lf-floating-gap")) +
-        length("--lf-landing-room"),
-    );
-    if (band !== statedBand) {
-      statedBand = band;
-      setRuntimeRootStyle(root, "scroll-padding-bottom", band);
+    const [rest = 0, clear = 0] = getComputedStyle(root)
+      .getPropertyValue("--lf-foot-band")
+      .trim()
+      .split(/\s+/)
+      .map(Number.parseFloat);
+    const band = atLayoutPrecision(Math.max(rest, reach + clear));
+    if (stateFootBand(band)) {
+      setRuntimeRootStyle(root, "scroll-padding-bottom", `${band}px`);
       announceRoom();
     }
     const compact = host.dataset.lfRest === "mark";

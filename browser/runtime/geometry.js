@@ -545,25 +545,33 @@ function insetBand(scroller, inset) {
     bottom: band.bottom - inset.bottom,
   };
 }
+// The root's band at the window's foot, in pixels, which the floating panel states as
+// it writes the root's `scroll-padding-bottom` (floating-panel.js, `followBox`), or
+// null where no panel stands, as on an export. Returns whether the band changed.
+/** @type {number | null} */
+let footBand = null;
+/** @param {number} band */
+export function stateFootBand(band) {
+  if (band === footBand) return false;
+  footBand = band;
+  return true;
+}
 // How far each edge of `landingBand` stands in from the scroller's shown band: the
 // band the scroller states, else the `scroll-padding` it declares. The root states its
-// top in `--lf-landing-top` (base.css), and the floating panel its foot in pixels in the
-// root's own style (floating-panel.js, `followBox`), which a floating editor's override
-// hides from the browser alone. Callers that measure from the scroller's own box take
-// the clearance here rather than reading the style themselves.
+// top in `--lf-landing-top` (base.css), and the floating panel its foot
+// (`stateFootBand`), both of which a floating editor's override hides from the browser
+// alone. Callers that measure from the scroller's own box take the clearance here
+// rather than reading the style themselves.
 /** @param {Element} scroller */
 export function landingInsets(scroller) {
   const style = getComputedStyle(scroller);
   const padding = scrollPadding(style);
   const top = Number.parseFloat(style.getPropertyValue("--lf-landing-top"));
-  const foot =
-    scroller === scroller.ownerDocument.documentElement && isHTML(scroller)
-      ? Number.parseFloat(scroller.style.scrollPaddingBottom)
-      : Number.NaN;
+  const root = scroller === document.documentElement;
   return {
     ...padding,
     top: Number.isNaN(top) ? padding.top : top,
-    bottom: Number.isNaN(foot) ? padding.bottom : foot,
+    bottom: root && footBand !== null ? footBand : padding.bottom,
   };
 }
 /** @param {CSSStyleDeclaration} style */

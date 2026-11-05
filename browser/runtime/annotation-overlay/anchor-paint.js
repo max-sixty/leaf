@@ -14,7 +14,13 @@ import {
   targetSegments,
   targetSurface,
 } from "../resolved-target.js";
-import { elementFromPointAcross, pageWords, rangeOf } from "../passages.js";
+import {
+  closestAcross,
+  elementFromPointAcross,
+  pageWords,
+  rangeOf,
+} from "../passages.js";
+import { WORKS } from "../control-selectors.js";
 import { bareReaction } from "../thread/model.js";
 import { under } from "../shadow.js";
 import { RUNTIME_PAINT_ATTRIBUTE } from "../page-paint.js";
@@ -235,7 +241,9 @@ export function createAnchorPaint({
   // The hand over a mark is a paint on the document's element under the pointer (a
   // shadow tree's host, whose cursor its tree inherits), which the margin's page
   // observer does not hear (page-paint.js) and whose cursor reaches only what it holds.
-  // A class on `body` ran a margin pass at each change and restyled the whole body.
+  // A class on `body` ran a margin pass at each change and restyled the whole body. It
+  // stands only where a press opens the thread: a control or editing region keeps its
+  // own press there (composing/surface.js, the page's click), and so its own cursor.
   /** @type {Element | null} */
   let handOn = null;
   /** @param {Element | null} element */
@@ -255,7 +263,9 @@ export function createAnchorPaint({
       hoverFrame = 0;
       const at = pointer();
       const onMark = markAt(at.x, at.y);
-      paintHand(onMark ? document.elementFromPoint(at.x, at.y) : null);
+      const presses =
+        onMark && !closestAcross(elementFromPointAcross(at.x, at.y), WORKS);
+      paintHand(presses ? document.elementFromPoint(at.x, at.y) : null);
       const row = rowThread();
       const id = row ?? onMark;
       if (id !== hovering || Boolean(row) !== hoverFromRow)

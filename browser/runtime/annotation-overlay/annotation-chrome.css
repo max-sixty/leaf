@@ -7,7 +7,7 @@
 /* The hand over a mark stands on the element under the pointer (anchor-paint.js,
    `paintHand`). Armed, the aim's cursor stands instead (chrome.css), and an element's
    mark states its own (below), at a weight this rule doesn't pass. */
-:where(body:not(.lf-aiming, [data-lf-design-mode])) [data-lf-over-mark] {
+:where(body:not([data-lf-aiming], [data-lf-design-mode])) [data-lf-over-mark] {
   cursor: pointer;
 }
 /* An element holding threads draws no contour at rest: its margin entry says so, and a
@@ -32,12 +32,14 @@
    an item and comes off where it hasn't, which is the same promise the body is making
    and not the mark's own "open this thread". The body carries the stamps, and the
    chrome stands after it, so a mark in the chrome reads them as a sibling's. */
-body:is(.lf-aiming, [data-lf-design-mode]) .lf-mark-el,
-body:is(.lf-aiming, [data-lf-design-mode]) ~ .lf-chrome .lf-mark-el {
+body:is([data-lf-aiming], [data-lf-design-mode]) .lf-mark-el,
+body:is([data-lf-aiming], [data-lf-design-mode]) ~ .lf-chrome .lf-mark-el {
   cursor: default;
 }
-body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el,
-body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item ~ .lf-chrome .lf-mark-el {
+body:is([data-lf-aiming], [data-lf-design-mode])[data-lf-over-item] .lf-mark-el,
+body:is([data-lf-aiming], [data-lf-design-mode])[data-lf-over-item]
+  ~ .lf-chrome
+  .lf-mark-el {
   cursor: pointer;
 }
 

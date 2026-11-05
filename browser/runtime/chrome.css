@@ -86,10 +86,10 @@
    cursor and mark cannot disagree. A control stating its own cursor keeps it while
    armed; covering that would need an important universal rule. One declaration on the
    body, inherited; the chrome holds itself out from inside its own scope. */
-body:is(.lf-aiming, [data-lf-design-mode]) {
+body:is([data-lf-aiming], [data-lf-design-mode]) {
   cursor: default;
 }
-body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item {
+body:is([data-lf-aiming], [data-lf-design-mode])[data-lf-over-item] {
   cursor: pointer;
 }
 /* Region capture and draw mode take presses on the whole plane. Region capture's

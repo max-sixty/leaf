@@ -214,7 +214,7 @@ import { actionTemplate, iconTemplate } from "./icons.js";
 import { actionName } from "./icon-paths.js";
 import { commandSteps } from "./keyboard/control-keys.js";
 import { canCopy, copyControl } from "./copy-control.js";
-import { keeps, keepsHidden, layoutPx } from "./keeps.js";
+import { atLayoutPrecision, keeps, keepsHidden } from "./keeps.js";
 import { keepFieldKeys } from "./field-keys.js";
 import { setRuntimeRootStyle } from "./root-state.js";
 import { statusReading } from "./page-status.js";
@@ -331,6 +331,7 @@ import {
   declareCover,
   placeBox,
   placeHolder,
+  stateFootBand,
 } from "./geometry.js";
 import { overlaps } from "./rect.js";
 import { registerReadingRegion } from "./reading-regions.js";
@@ -1723,7 +1724,7 @@ export function createFloatingPanel({
   ground.setAttribute("part", "panel");
   // The box stands over the window's foot, the row and any view open above it: what it
   // covers reads as unseen (geometry.js, `declareCover`), and a landing stands clear of
-  // its reach (`--lf-panel-reach`, `followBox`). It covers where its surface is drawn
+  // its reach (`followBox`). It covers where its surface is drawn
   // (box-motion.js, `outline`): while the box moves, the card stands transparent at its
   // rest and the surface carries the panel from where it stood. The card's own box is
   // where that motion ends, which a landing about to show a place asks (`standsOver`).
@@ -1741,16 +1742,24 @@ export function createFloatingPanel({
   }
   function followBox() {
     // How far the box reaches up from the window's foot, which the root's
-    // `scroll-padding-bottom` keeps every landing clear of (base.css), so `m`, `t`, a
-    // Go-to or an On me row's Show lands what it reaches above an open view rather than
-    // under it. The browser's own reveals read the same padding. CSS can't size the
-    // root's padding from a fixed box in the chrome's shadow tree, so the box states it.
+    // `scroll-padding-bottom` keeps every landing clear of, with the gap above the box
+    // and at least the foot's room (`--lf-foot-band`, base.css), so `m`, `t`, a Go-to
+    // or an On me row's Show lands what it reaches above an open view rather than
+    // under it. The browser's own reveals read the same padding, and Leaf's landings
+    // the band stated beside it (geometry.js, `stateFootBand`). CSS can't size the
+    // root's padding from a fixed box in the chrome's shadow tree, so the box states
+    // it, in pixels and never as a custom property (root-state.js).
     const box = card.getBoundingClientRect();
-    const reach = layoutPx(
-      box.height > 0 ? ground.getBoundingClientRect().bottom - box.top : 0,
-    );
-    if (document.documentElement.style.getPropertyValue("--lf-panel-reach") !== reach) {
-      setRuntimeRootStyle(document.documentElement, "--lf-panel-reach", reach);
+    const reach = box.height > 0 ? ground.getBoundingClientRect().bottom - box.top : 0;
+    const root = document.documentElement;
+    const [rest = 0, clear = 0] = getComputedStyle(root)
+      .getPropertyValue("--lf-foot-band")
+      .trim()
+      .split(/\s+/)
+      .map(Number.parseFloat);
+    const band = atLayoutPrecision(Math.max(rest, reach + clear));
+    if (stateFootBand(band)) {
+      setRuntimeRootStyle(root, "scroll-padding-bottom", `${band}px`);
       announceRoom();
     }
     const compact = host.dataset.lfRest === "mark";
@@ -1761,8 +1770,6 @@ export function createFloatingPanel({
         : resizeMs();
     following.follow({ duration, easing: compact ? foldEase() : ease() }, compact);
   }
-  // The window changed size, which the box's motion takes as it stands (box-motion.js).
-  addEventListener("resize", followBox);
 
   // A view is as tall as what it holds, up to its cap (floating-panel.css,
   // `--lf-fp-view-height`); what does not fit scrolls inside it. A thread's view follows
@@ -1957,9 +1964,6 @@ export function createFloatingPanel({
     }
     paint();
   });
-  // A list takes its room as it stands before the paint that would change it, once
-  // this opening has drawn it (`drawn`): what it holds then is what it fits, so taking
-  // it writes only the height the list already stands at.
   // The menu grows upward from the row, so news that adds a row to it, or takes one
   // away, would carry every row above up or down the window under the reader: a row a
   // revision offers, such as the newer version, or a status re-wrapping the head. So
@@ -1988,6 +1992,14 @@ export function createFloatingPanel({
     opening.menuLines = { summary: lines("summary"), explain: lines("explain") };
     return true;
   }
+  // A list takes its room as soon as it stands at what it fits: in the paint that
+  // first draws it (`paintPanel`), the frame after a refit settles (`refit`), or once
+  // Leaf's reader has drawn the messages its cards ask (`present`). Taking it then
+  // writes only the height the list already stands at, and before news can arrive:
+  // Chromium suspends the view's scroll anchoring for a layout in which the view's
+  // `height` changes, even to the height it stands at, so the room written in the paint
+  // that adds a row above the rows in sight would move every row in sight by the row's
+  // height.
   function holdRoom() {
     const top = trail.value.at(-1);
     if (!top || top.thread || opening.room !== null || refitting) return false;
@@ -1999,7 +2011,7 @@ export function createFloatingPanel({
   }
   // A tab, filter or search the user presses changes what the list shows, which it
   // then fits, moving as one opening does; each such press repaints. The list takes
-  // its room again from the next frame, once it stands at what it now fits.
+  // its room again in the next frame, once it stands at what it now fits.
   let refitting = false;
   // Each row standing Threads draws, by its thread's key, with its section
   // (`drawnSections`); null while no list stands, so the next paint draws every row
@@ -2019,6 +2031,7 @@ export function createFloatingPanel({
     refitting = true;
     nextRender(() => {
       refitting = false;
+      if (holdRoom()) paint();
     });
   }
   /** @param {PanelRoute | null | undefined} before @param {{focus?: boolean, handedOn?: boolean}} [options] */
@@ -4289,8 +4302,8 @@ export function createFloatingPanel({
       // with its thread, as a card does (margin-projection.js), whoever opened it.
       const top = trail.value.at(-1);
       if (top?.thread && !threadOf(top)) close();
-      holdRoom();
       paintNow();
+      if (holdRoom()) paintNow();
       if (holdMenu()) paintNow();
     } finally {
       painting = false;
@@ -4966,6 +4979,9 @@ export function createFloatingPanel({
     host.draw = paintPanel;
     parent.append(ground, host);
     follow.observe(card);
+    // The window changed size, which the box's motion takes as it stands
+    // (box-motion.js). An export mounts no panel, so its root states no band.
+    addEventListener("resize", followBox);
     presentation = registerChromeThreadPresentation(host, {
       render: nominate,
       // The view makes room for the agent's answer to the user's last turn itself

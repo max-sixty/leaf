@@ -5194,7 +5194,7 @@ def test_a_refused_page_comment_hands_its_words_back_to_the_field(browser, serve
 
 def test_a_thread_whose_words_are_gone_keeps_its_quotation_in_the_panel(browser, serve):
     """A thread about words the page no longer holds opens in the panel, where the
-    quotation it kept stands over its messages in three lines, led by the word that
+    quotation it kept stands over its messages in three lines, under the word that
     says the page has no place for it, which a finger reads as a pointer does; Full
     quote shows the rest, as a card's head does."""
     url = serve(LONG_PAGE)
@@ -5211,14 +5211,13 @@ def test_a_thread_whose_words_are_gone_keeps_its_quotation_in_the_panel(browser,
     expect(view.locator(".lf-msg")).to_contain_text("Does this still apply?")
     quote = view.locator(".lf-thread-quote")
     expect(quote).to_contain_text("FINAL WORDS")
-    expect(quote).to_have_attribute("data-lf-detached", "")
-    assert quote.evaluate("el => el.scrollHeight > el.clientHeight")
-    status = quote.locator(".lf-anchor-status")
-    expect(status).to_have_text("Not found")
-    assert status.evaluate(
-        "s => s.getBoundingClientRect().bottom"
-        " <= s.closest('.lf-thread-quote').getBoundingClientRect().bottom"
+    expect(view.locator(".lf-thread-quote-head")).to_have_attribute(
+        "data-lf-detached", ""
     )
+    assert quote.evaluate("el => el.scrollHeight > el.clientHeight")
+    status = view.locator(".lf-quote-label .lf-anchor-status")
+    expect(status).to_have_text("Not found")
+    expect(status).to_be_visible()
     disclosure = view.get_by_role("button", name="Full quote", exact=True)
     expect(disclosure).to_be_visible()
     disclosure.click()

@@ -213,9 +213,9 @@ export function shownBand(el) {
 //
 // `landingBand` is where a landing may put something: the shown band less the
 // `scroll-padding` the scroller declares, which is also what `scrollIntoView` honours.
-// The root states its band apart, in `--lf-landing-top` and `--lf-landing-bottom`
-// (base.css), which its padding copies but for while a floating editor holds focus,
-// when the browser's own caret reveal is given none.
+// The root states its band apart (`landingInsets`), which its padding copies but for
+// while a floating editor holds focus, when the browser's own caret reveal is given
+// none.
 // It clears what stands over the whole scroller (a page tab strip); a header
 // over part of it, a diff's file header, is cleared by the `scroll-margin` of the rows
 // it stands over. Scroll anchoring looks for the box it keeps still in the band the
@@ -545,20 +545,34 @@ function insetBand(scroller, inset) {
     bottom: band.bottom - inset.bottom,
   };
 }
+// The root's band at the window's foot, in pixels, which the floating panel states as
+// it writes the root's `scroll-padding-bottom` (floating-panel.js, `followBox`), or
+// null where no panel stands, as on an export. Returns whether the band changed.
+/** @type {number | null} */
+let footBand = null;
+/** @param {number} band */
+export function stateFootBand(band) {
+  if (band === footBand) return false;
+  footBand = band;
+  return true;
+}
 // How far each edge of `landingBand` stands in from the scroller's shown band: the
-// band the scroller states, else the `scroll-padding` it declares. Callers that
-// measure from the scroller's own box take the clearance here rather than reading the
-// style themselves.
+// band the scroller states, else the `scroll-padding` it declares. The root states its
+// top in `--lf-landing-top` (base.css), and the floating panel its foot
+// (`stateFootBand`), both of which a floating editor's override hides from the browser
+// alone. Callers that measure from the scroller's own box take the clearance here
+// rather than reading the style themselves.
 /** @param {Element} scroller */
 export function landingInsets(scroller) {
   const style = getComputedStyle(scroller);
   const padding = scrollPadding(style);
-  /** @param {"top" | "bottom"} edge */
-  const stated = (edge) => {
-    const value = Number.parseFloat(style.getPropertyValue(`--lf-landing-${edge}`));
-    return Number.isNaN(value) ? padding[edge] : value;
+  const top = Number.parseFloat(style.getPropertyValue("--lf-landing-top"));
+  const root = scroller === document.documentElement;
+  return {
+    ...padding,
+    top: Number.isNaN(top) ? padding.top : top,
+    bottom: root && footBand !== null ? footBand : padding.bottom,
   };
-  return { ...padding, top: stated("top"), bottom: stated("bottom") };
 }
 /** @param {CSSStyleDeclaration} style */
 function scrollPadding(style) {

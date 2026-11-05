@@ -532,7 +532,7 @@ def show_done(page: Page | FrameLocator):
     if heading.get_attribute("aria-expanded") != "true":
         heading.click()
     return view.locator(
-        ".lf-fp-on-group:has(> .lf-rows-head > .lf-fp-settled) > .lf-fp-on-item"
+        ".lf-rows-group:has(> .lf-rows-head > .lf-fp-settled) > .lf-fp-on-item"
     )
 
 

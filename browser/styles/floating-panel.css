@@ -489,7 +489,14 @@
      card's reply box dim on 27 October, since in a box that says nothing but its own
      hint, an ink Reply read as words already typed. Once the caret is in, where the
      words go stands dim with the key that sends them and the key for a new line, as in
-     every box that holds lines (response.css). No other reading shows a key. */
+     every box that holds lines (response.css).
+
+     Any other reading keeps its words and shows the key alone at the field's end while
+     c enters the field (composing/surface.js, `commentHint`), so the row says that c
+     goes here and, by losing the key, that it goes elsewhere. The user chose this on 4
+     November 2026 for what the row shows, over worded `Comment c` in either face and
+     over nothing, the row's rest since 13 October, when a reader couldn't tell where c
+     would go. */
   .lf-fp-field leaf-text::part(placeholder) {
     color: var(--lf-fp-quiet);
   }
@@ -502,8 +509,8 @@
   .lf-fp-field
     leaf-text:not([data-lf-offers], [data-lf-says="destination"])
     .lf-compose-placeholder
-    kbd {
-    display: none;
+    > kbd {
+    margin-inline-start: auto;
   }
   .lf-fp-field
     leaf-text:not([data-lf-says="destination"])
@@ -1171,12 +1178,13 @@
     --lf-top: 0px;
     --lf-top-covered: 0px;
     --lf-landing-room: 0px;
+    --lf-rows-bleed: 6px;
     grid-area: 1 / 1;
     min-height: 0;
     max-height: 100%;
     overflow-y: auto;
     overscroll-behavior: contain;
-    padding: 8px 6px 6px;
+    padding: 8px var(--lf-rows-bleed) 6px;
     box-sizing: border-box;
     scrollbar-width: thin;
   }
@@ -1492,86 +1500,24 @@
   .lf-fp-on-item > * {
     grid-column: 1 / -1;
   }
-  /* Each group opens with its band (floating-panel.js, `groupedItems`): its name and
-     count across the panel, a thread head's height, on a ground a shade off the
-     panel's, so every item down to the next band reads as the band's. The band sticks
-     at the view's top while its group passes under it, as a message's head sticks in a
-     thread card (annotation-chrome.css), so the group being read is always named; a
-     stuck band needs its ground anyway, since items pass beneath it. A sticky box moves
-     only inside its parent, so each group is a box of its own: its band sticks while
-     the group passes, and the next group's band pushes it off. The groups and the lines
-     in them take the list's columns (`subgrid`), so every line's title starts on one
-     edge in every group. The view's top padding goes, so a band sticks at the panel's
-     top edge; what stands first in place of the list keeps that room. What a landing
-     or focus brings into view stands below the stuck band (`--lf-top`; geometry.js
-     `headerInset`, surfaces.css). */
-  .lf-floating-panel {
-    --lf-fp-band: color-mix(in srgb, var(--ink) 6%, var(--lf-fp-surface));
-    --lf-fp-band-height: var(--lf-msg-head-height);
-  }
-  .lf-fp-view[data-lf-route="queue"] {
+  /* Each group opens with its band, which sticks at the panel's top edge (controls.css,
+     `.lf-rows-group`), so On's and Threads' views take off their top padding; what
+     stands first in place of a list keeps that room. The lines in a group take the
+     list's columns too, so every line's title starts on one edge in every group. */
+  .lf-fp-view:is([data-lf-route="queue"], [data-lf-route="threads"]) {
     padding-top: 0;
+    > :first-child:not(.lf-rows),
+    > .lf-rows > .lf-rows-empty:first-child {
+      margin-block-start: 8px;
+    }
   }
-  .lf-fp-view[data-lf-route="queue"] > :first-child:not(.lf-fp-on-list) {
-    margin-block-start: 8px;
-  }
-  .lf-fp-on-list {
-    --lf-top: var(--lf-fp-band-height);
-  }
-  .lf-fp-on-group,
-  .lf-fp-on-group > .lf-fp-on-item:not([data-lf-card]),
-  .lf-fp-on-group > .lf-fp-on-item > .lf-row {
+  .lf-fp-on-item:not([data-lf-card]),
+  .lf-fp-on-item > .lf-row {
     display: grid;
     grid-template-columns: subgrid;
   }
-  .lf-fp-on-group > *,
-  .lf-fp-on-group > .lf-fp-on-item > .lf-row {
+  .lf-fp-on-item > .lf-row {
     grid-column: 1 / -1;
-  }
-  /* The band sticks at the slot's start, so it reads that slot, and a press in it
-     counts as shown where it sticks (surfaces.css, `--lf-head-inset`). */
-  .lf-fp-on-group > .lf-rows-head {
-    --lf-top: 0px;
-    --lf-head-inset: 0px;
-    position: sticky;
-    top: 0;
-    z-index: 2;
-    align-self: start;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    box-sizing: border-box;
-    block-size: var(--lf-fp-band-height);
-    margin-inline: -6px;
-    padding: 0 14px;
-    background: var(--lf-fp-band);
-  }
-  .lf-fp-on-group > .lf-rows-head .lf-row-end {
-    font-weight: 400;
-  }
-  /* Done's band is the press that unfolds it (`settledHeading`), its arrow hanging in
-     the band's start padding, so its name starts where every other band's does. */
-  .lf-fp-on-group > .lf-rows-head:has(> .lf-row) {
-    padding: 0;
-  }
-  .lf-fp-on-group > .lf-rows-head > .lf-fp-settled {
-    position: relative;
-    display: flex;
-    align-items: center;
-    min-height: 0;
-    block-size: 100%;
-    /* The row face's stripe room (controls.css, `.lf-row`) takes 2px of the start. */
-    padding: 0 14px 0 12px;
-  }
-  .lf-fp-on-group > .lf-rows-head > .lf-fp-settled > .lf-row-end {
-    margin-inline-start: auto;
-  }
-  .lf-fp-on-group > .lf-rows-head > .lf-fp-settled::before {
-    position: absolute;
-    inset-inline-start: 2px;
-    top: 50%;
-    translate: 0 -50%;
-    margin: 0;
   }
   /* A line of the user's under Done names no kind (floating-panel.js, `onItemCard`),
      so it gives the lead column no room. */
@@ -1628,8 +1574,8 @@
     flex-direction: column;
     padding: 8px 8px 10px;
   }
-  .lf-fp-on-group > .lf-rows-head + .lf-fp-on-item[data-lf-card] {
-    padding-top: 10px;
+  .lf-rows-head + .lf-fp-on-item[data-lf-card] {
+    padding-top: 6px;
   }
   /* The message a card quotes from its thread stands as a quote, a stripe in the
      ring's ink down its start edge, so its author's line reads as part of the card
@@ -1637,26 +1583,6 @@
   .lf-fp-on-item .lf-fp-asked:not(:empty) {
     border-inline-start: 2px solid var(--lf-fp-ring);
     padding-inline-start: 10px;
-  }
-  /* What left a list, folded under its group heading (floating-panel.js,
-     `settledHeading`): the heading is the press, a row of the list (controls.css,
-     `.lf-rows`) in the heading's font, so its disclosure arrow (controls.css) stands
-     in the column the rows' news mark takes, its name starts where their names do, and
-     its count ends where their status does. */
-  .lf-fp-settled {
-    align-items: center;
-    gap: 8px;
-    width: 100%;
-    min-height: 34px;
-    /* The row face's stripe room (controls.css, `.lf-row`) takes 2px of the start. */
-    padding: 5px 8px 5px 6px;
-    letter-spacing: inherit;
-    text-transform: inherit;
-  }
-  .lf-fp-settled::before {
-    grid-column: lead;
-    justify-self: center;
-    margin: 0 8px 0 0;
   }
   .lf-fp-on-place,
   .lf-fp-on-title {

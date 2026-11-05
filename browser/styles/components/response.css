@@ -697,7 +697,8 @@ leaf-text.lf-fab-input {
   > :is(.lf-response-action-space, .lf-response-action-label) {
   display: none;
 }
-.lf-fab-bar:not([data-lf-target-only]) > .lf-fab {
+.lf-fab-bar:not([data-lf-target-only]) > .lf-fab,
+.lf-fab-bar:not([data-lf-rest]) > .lf-fab-rest {
   display: none;
 }
 /* The picker stands over the ⋯ that opened it, or over the field once words have taken
@@ -770,7 +771,11 @@ leaf-text.lf-fab-input {
   font: var(--font-ui);
 }
 @media screen {
-  .lf-fab-bar:is([data-lf-target-only], :has(> .lf-composer[data-lf-open])) {
+  .lf-fab-bar:is(
+    [data-lf-target-only],
+    [data-lf-rest],
+    :has(> .lf-composer[data-lf-open])
+  ) {
     display: var(--lf-response-display, inline-flex);
   }
 }

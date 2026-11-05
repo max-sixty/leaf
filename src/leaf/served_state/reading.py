@@ -142,6 +142,15 @@ def page_reading(page_dir: Path) -> str:
         return held_page_reading(page_dir)
 
 
+def page_readings(page_dir: Path) -> tuple[str, tuple[str, str]]:
+    """`page_reading` and the `source_readings` of the same stamps, from one pass over
+    them under the log's lease, for the news a tab asks for several times a second
+    (`LivePage._activated`)."""
+    with flocked(page_dir / EVENTS_FILE):
+        stamps = _page_stamps(page_dir)
+        return _token([*stamps, *_outside_stamps(page_dir)]), _split(stamps)
+
+
 def held_page_reading(page_dir: Path) -> str:
     """`page_reading` for a caller that holds the log's lease.
 
@@ -167,9 +176,11 @@ def held_page_reading(page_dir: Path) -> str:
     also carries each bound file's stamp (`file_bindings.binding_stamps`), naming
     which binding moved.
     """
-    stamps = _page_stamps(page_dir)
-    stamps.extend((name, file_stamp(path)) for name, path in _outside(page_dir))
-    return _token(stamps)
+    return _token([*_page_stamps(page_dir), *_outside_stamps(page_dir)])
+
+
+def _outside_stamps(page_dir: Path) -> list[tuple[str, object]]:
+    return [(name, file_stamp(path)) for name, path in _outside(page_dir)]
 
 
 def record_reading(page_dir: Path) -> str:
@@ -201,9 +212,11 @@ def source_readings(page_dir: Path) -> tuple[str, str]:
     lease without the next state read validating the whole page again; declaring a
     status and acknowledging a delivery append to the log, which is history.
     """
-    stamps = [
-        stamp for stamp in _page_stamps(page_dir) if stamp[0] not in SESSION_FILES
-    ]
+    return _split(_page_stamps(page_dir))
+
+
+def _split(stamps: list[tuple[str, object]]) -> tuple[str, str]:
+    stamps = [stamp for stamp in stamps if stamp[0] not in SESSION_FILES]
     return (
         _token([stamp for stamp in stamps if stamp[0] not in HISTORY]),
         _token([stamp for stamp in stamps if stamp[0] in HISTORY]),

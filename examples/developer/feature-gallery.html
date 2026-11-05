@@ -3142,7 +3142,8 @@ gallery/
               and above its footer. The window below is such a page. Open its command
               trace: the evidence scrolls inside its pane, and the page and the decision
               under the follow-ups stay where they are. In a window too small to hold
-              the panes, such as a phone's, they stack and the page scrolls.
+              the panes, each takes its content's height and the page scrolls, and on a
+              phone they stack.
             </p>
             <lf-sample id="bg-layout-sample" label="workspace" window data-width="wide">
               <template
@@ -3151,23 +3152,29 @@ gallery/
                 class="layout-workspace density-working"
               >
                 <style>
+                  /* The changes take the left column, and the evidence and the
+                     follow-ups share the right, stacked below 720px wide. */
                   #bg-layout-regions {
                     display: grid;
+                    grid-template-columns: repeat(2, minmax(0, 1fr));
                   }
 
-                  /* While the Layout holds the workspace to the window
-                     (`--lf-full-height`), the changes take the left column and the
-                     evidence and follow-ups share the right, the follow-ups taking
-                     more for the decision in their footer. In a window too small to
-                     hold them, the panes stack in the order they are written. */
+                  #bg-layout-list {
+                    grid-row: span 2;
+                  }
+
+                  @media (width < 720px) {
+                    #bg-layout-regions {
+                      grid-template-columns: minmax(0, 1fr);
+                    }
+                  }
+
+                  /* While the Layout holds the workspace to the window, the
+                     follow-ups take more of its height for the decision in their
+                     footer. Flowing, each row keeps its content's height. */
                   @container style(--lf-full-height: 1) {
                     #bg-layout-regions {
-                      grid-template-columns: repeat(2, minmax(0, 1fr));
                       grid-template-rows: minmax(0, 2fr) minmax(0, 3fr);
-                    }
-
-                    #bg-layout-list {
-                      grid-row: span 2;
                     }
                   }
                 </style>

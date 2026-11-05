@@ -288,8 +288,8 @@ export class Shot extends HTMLElement {
       });
   }
 
-  /** Hold the page's readiness until `promise` settles: work this shot draws once
-   * it lands, which a reader outside the page waits for.
+  /** Hold the page's readiness until `promise` settles, so a reader outside the page
+   * waits for what this shot draws when it lands.
    * @param {Promise<unknown>} promise */
   #present(promise) {
     if (this._lfPresentGenerated) this._lfPresentGenerated(promise);

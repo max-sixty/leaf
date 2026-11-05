@@ -113,6 +113,7 @@ export function setRenderedChildren(parent, nodes, { bounded = false } = {}) {
     generated: () => false,
     contains: (target, owner) => Boolean(owner?.contains(target)),
     reaches: () => false,
+    traversed: () => false,
   });
 }
 
@@ -231,6 +232,10 @@ function staying(parent, nodes) {
    - `same(before, after)`: two source elements are spelled the same way, read past the
      address each revision was delivered at. Asked of an element whose interior a pass
      other than a controller has taken, or a widget owns.
+   - `traversed(element)`: this live element is patched child by child even where a
+     pass moved or replaced one of its children, as the root always is, because
+     replacing it whole would take back far more than that pass did. Asked of the
+     live element.
    - `generated(node)`: the live node is the runtime's own. Only placement asks, because
      only placement walks live children; nothing here matches or removes on it.
    - `diffWork`: the most one sibling diff may cost, its lists' length times the edits
@@ -247,6 +252,7 @@ function staying(parent, nodes) {
 /** @typedef {{pairs: SourcePairs, contains: (target: Node, owner: Node | null | undefined) => boolean,
  * declared: (element: Element) => boolean, body: (element: Element) => Element | null,
  * reaches: (before: Element, after: Element) => boolean,
+ * traversed: (element: Element) => boolean,
  * same: (before: Element, after: Element) => boolean, sameValue: (before: string, after: string) => boolean,
  * diffWork: number}} RetentionRules */
 /** @typedef {RetentionRules & {arrive: (node: Node, parent: Node) => Node,
@@ -536,9 +542,10 @@ function pairInterior(before, after, rules) {
 const atomic = (before, after, live, rules) =>
   before.matches('style, link[rel~="stylesheet" i]') ||
   (rules.declared(before) && !rules.reaches(before, after)) ||
-  [...tree(before).childNodes].some(
-    (node) => rules.pairs.get(node)?.parentNode !== holder(live, rules),
-  );
+  (!rules.traversed(live) &&
+    [...tree(before).childNodes].some(
+      (node) => rules.pairs.get(node)?.parentNode !== holder(live, rules),
+    ));
 
 /** @param {readonly Node[]} held @param {readonly Node[]} wanted @param {number} work */
 function matchNodes(held, wanted, work) {

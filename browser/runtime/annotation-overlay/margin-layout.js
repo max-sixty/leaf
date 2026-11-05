@@ -168,15 +168,26 @@ function withhold(row, on) {
 /** @param {Element} target */
 const targetBox = (target) => shownParts(target)[0] ?? target;
 // The boxes whose size can move a row, which the layer's one observer (`layer.sizes`)
-// watches: each target's ancestors and their siblings, and, while the margin holds a
-// row, the body and the column. A resize several of them see arrives in one callback
-// and runs one pass; with an observer of their own, the body and the column ran a
-// second pass over the same layout.
+// watches: each target's ancestors and their siblings, each lane's scroller, and,
+// while the margin holds a row, the body and the column. A resize several of them see
+// arrives in one callback and runs one pass; with an observer of their own, the body
+// and the column ran a second pass over the same layout. Only `subscribe` observes and
+// unobserves, from the one set each pass states, so a box that leaves one use while
+// another still needs it stays watched.
 /** @type {Set<Element>} */
 let observedGeometry = new Set();
 let geometryObservation = 0;
 /** @type {Set<Element>} */
 let wantedGeometry = new Set();
+
+/** @param {Layer} layer */
+function subscribe(layer) {
+  for (const node of observedGeometry)
+    if (!wantedGeometry.has(node)) layer.sizes.unobserve(node);
+  for (const node of wantedGeometry)
+    if (!observedGeometry.has(node)) layer.sizes.observe(node);
+  observedGeometry = wantedGeometry;
+}
 
 /** @param {Set<Element>} geometry @param {Layer} layer */
 function watchGeometry(geometry, layer) {
@@ -192,11 +203,7 @@ function watchGeometry(geometry, layer) {
   // Register before the next resize cycle; this pass already placed its new rows.
   geometryObservation = nextRender(() => {
     geometryObservation = 0;
-    for (const node of observedGeometry)
-      if (!wantedGeometry.has(node)) layer.sizes.unobserve(node);
-    for (const node of wantedGeometry)
-      if (!observedGeometry.has(node)) layer.sizes.observe(node);
-    observedGeometry = wantedGeometry;
+    subscribe(layer);
   });
 }
 const GAP = 4;
@@ -900,7 +907,6 @@ function laneFor(scroller, layer) {
     // foreground whose key chips may anchor to these rows.
     layer.root.after(lane);
     layer.lanes.set(scroller, lane);
-    layer.sizes.observe(scroller);
   }
   return lane;
 }
@@ -1503,8 +1509,8 @@ export function registerMarginRow(row, options) {
   // rows after the first read no column: a column read restyles the page, and a first
   // paint registers every row.
   if (layer && !observedGeometry.size && !geometryObservation) {
-    observedGeometry = new Set([document.body, marginColumn()]);
-    for (const node of observedGeometry) layer.sizes.observe(node);
+    wantedGeometry = new Set([document.body, marginColumn()]);
+    subscribe(layer);
   }
   registered.set(row, named);
   if (
@@ -2008,8 +2014,6 @@ function layoutMountedRows(layer) {
       if (rail) for (const level of levels.slice(-1)) level.axes = { x: true, y: true };
       regions.set(read.scroller, levels);
     }
-  if (rows.size) geometry.add(document.body).add(main);
-  watchGeometry(geometry, layer);
 
   // Lanes, in the order the rows are given, moving only what is out of place; each lane
   // after the last, so the tab order runs the lanes as the rows run.
@@ -2203,11 +2207,11 @@ function layoutMountedRows(layer) {
       root.remove();
       laneFrames.delete(lane);
       for (const [scroller, owned] of layer.lanes)
-        if (owned === lane) {
-          layer.lanes.delete(scroller);
-          layer.sizes.unobserve(scroller);
-        }
+        if (owned === lane) layer.lanes.delete(scroller);
     }
+  if (rows.size) geometry.add(document.body).add(main);
+  for (const scroller of layer.lanes.keys()) geometry.add(scroller);
+  watchGeometry(geometry, layer);
 
   // A push says where a seated row stands, so a row that no longer stands has none.
   for (const row of pushes.keys()) if (!packed.has(row)) pushes.delete(row);

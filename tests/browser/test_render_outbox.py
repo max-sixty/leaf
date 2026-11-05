@@ -442,6 +442,27 @@ def test_a_key_between_ends_what_the_shown_gesture_promised(browser, serve):
     assert _undos(serve.page_dir) == []
 
 
+def test_a_modifier_between_keeps_what_the_shown_gesture_promised(browser, serve):
+    """A modifier alone, such as Shift reached for on the way to the next key, is not
+    the user looking elsewhere: the next `z` still takes the Resolve the first showed,
+    over another tab's newer one."""
+    url, thread, resolve = _old_resolve_below_the_fold(serve)
+    page = open_page(browser, url)
+    undo_offered(page)
+    page.keyboard.press("z")
+    expect(page.locator(".lf-live")).to_have_text(ARMED)
+    _shown(page, thread)
+    newer = panel_comment(serve.page_dir, "Who signs off the rollout?")
+    append_carried_log_record(
+        serve.page_dir, {"kind": "resolve", "author": "user", "parent": newer}
+    )
+    told(page)
+    page.keyboard.press("Shift")
+    with sending(page, "the withdrawal"):
+        page.keyboard.press("z")
+    assert _undos(serve.page_dir) == [resolve]
+
+
 def test_a_quick_second_z_waits_for_the_first_to_show_its_gesture(browser, serve):
     """Two presses of `z` in one task, before the first has opened what it shows, take
     nothing back: the second press arrives before the gesture reached the screen, so

@@ -939,7 +939,7 @@ diff --git a/README.md b/README.md
     ]
     second = open_panel_thread(page, comments[1]["id"])
     expect(second.locator(".lf-thread-quote")).to_have_text(
-        "app.py · new line 2 · “request.token.id”"
+        "app.py · new line 2 · request.token.id"
     )
     page.locator(".lf-fp-close").click()
     panel_settled(page, open=False)

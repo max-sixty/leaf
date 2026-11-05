@@ -389,6 +389,14 @@ function refusesBareText(root) {
     );
   return true;
 }
+// Startup asks every declared root the page reading would cross into before the page
+// upgrades, so a page whose module staged bare text never presents even when nothing
+// has read the page's words yet: a reading is taken only when something needs one, and
+// a page with no comment to find again presents without one.
+export function refuseBareText() {
+  for (const declared of shadowRootsIn(document.body))
+    if (!leafSurface(declared.host)) refusesBareText(declared);
+}
 // The widget a reading belongs to. `.lf-ui` says the runtime built this rather than the
 // author, and a reading rooted at the document takes that straight: everything the layer
 // holds is the layer's, which is the whole of what the anchor pass and the authored

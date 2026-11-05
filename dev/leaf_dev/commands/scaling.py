@@ -338,6 +338,26 @@ def document_lines(n: int) -> str:
     return page("Document", question + document)
 
 
+def table_rows(n: int) -> str:
+    """One ask and a table of `n` rows of four cells, one of them code, as the largest
+    real pages' tables are: the table's cells grow, and the widgets and headings don't."""
+    question = (
+        '<lf-ask id="q0"><h3>Question</h3><lf-options id="o0" choose multiple>'
+        '<lf-option id="o0-1">One</lf-option><lf-option id="o0-2">Two</lf-option>'
+        "</lf-options></lf-ask>"
+    )
+    rows = "".join(
+        f"<tr><td>Row {r}</td><td><code>branch-{r}</code></td><td>{r} days</td>"
+        f"<td>Some words about row {r}.</td></tr>"
+        for r in range(n)
+    )
+    table = (
+        "<table><thead><tr><th>Row</th><th>Branch</th><th>Age</th><th>Note</th></tr>"
+        f"</thead><tbody>{rows}</tbody></table>"
+    )
+    return page("Rows", question + table)
+
+
 def page(title: str, body: str) -> str:
     return (
         f'<!doctype html><html lang="en"><head><title>{title}</title></head><body>'
@@ -455,6 +475,7 @@ COLLECTIONS: dict[str, Collection] = {
     "asks": Collection(ask_sections),
     "document": Collection(document_lines),
     "prose": Collection(prose_sections),
+    "rows": Collection(table_rows),
     "widgets": Collection(
         ask_sections, lambda n: [pick(g, g % 4 + 1) for g in range(1, n + 1)]
     ),
@@ -493,7 +514,9 @@ COLLECTIONS: dict[str, Collection] = {
     ),
 }
 # The pages the browser measures; any other collection is one more name here.
-AXES = {name: COLLECTIONS[name] for name in ("asks", "document", "prose", "threads")}
+AXES = {
+    name: COLLECTIONS[name] for name in ("asks", "document", "prose", "rows", "threads")
+}
 
 
 @contextmanager

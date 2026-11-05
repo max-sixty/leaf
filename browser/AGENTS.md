@@ -365,6 +365,18 @@ root, `body` or `html` is re-evaluated on writes below it. Prefer a class that n
 targets, or a condition its owner sets on the styled element, and measure with
 `leaf-dev bench-latency --profile`.
 
+A `:has()` on a compound that a combinator follows, as in
+`table:has(…) > * > tr > :first-child`, is asked again for every element the rule
+tests, and Chromium answers a `:has(> …)` by reading the children afresh each time,
+so the rule's cost grows with the square of the sibling group. Chromium keeps its
+answer to a `:has()` whose argument starts with a descendant combinator for the
+whole restyle, so put one that most elements fail ahead of the exact question, as
+`table:has(th[scope="row"]:first-child):has(> * > tr > th[scope="row"]:first-child)`
+does, or qualify the compound with a class that rejects most elements. An `@scope`
+rooted on the compound also answers once, but its root needs a class, id or
+attribute (`test_an_untyped_has_leads_only_to_a_typed_subject`), and it reaches
+only the root's subtree, never its later siblings.
+
 A `:has()` naming `:focus` or `:focus-visible` makes every focus move, on every page,
 restyle most of the page twice: once for the blur and once for the focus. Name
 `data-lf-focus` or `data-lf-focus-visible` instead, which `focus.js` writes once for a

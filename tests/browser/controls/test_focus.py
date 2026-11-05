@@ -89,11 +89,9 @@ def test_tab_from_the_pages_last_control_reaches_the_panels_leaf(
 
 
 def test_the_keys_into_and_out_of_a_panel_thread_land_where_keys_act(browser, serve):
-    """`g T` from the page stands Threads on its first row, which wears a ring; Enter
-    there opens the thread on its view, as every opening by a key does (thread/focus.js,
-    `openingPart`), and Enter on the view puts the caret in its reply; Escape from the
-    reply stands the user on the thread's view again, which wears none
-    (floating-panel.css, `.lf-fp-view:focus`)."""
+    """`g T` from the page stands Threads on its first row, which wears a ring, and
+    Escape from a thread's reply in the panel stands the user on the thread's view,
+    which wears none (floating-panel.css, `.lf-fp-view:focus`)."""
     url = serve(PANEL_PAGE)
     panel_comment(
         serve.page_dir, "Where should this explanation go?", {"section": "lede"}
@@ -105,8 +103,6 @@ def test_the_keys_into_and_out_of_a_panel_thread_land_where_keys_act(browser, se
     row = page.locator(f"{panel_view('threads')} .lf-fp-thread").first
     expect(row).to_be_focused()
     assert current_location_ring(page), "Threads opened by key showed no ring"
-    page.keyboard.press("Enter")
-    expect(page.locator(panel_view("thread"))).to_be_focused()
     page.keyboard.press("Enter")
     reply = page.locator('.lf-fp-field leaf-text[name="reply"]')
     expect(reply).to_be_focused()

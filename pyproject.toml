@@ -177,10 +177,9 @@ markers = [
   "shifts_unsurveyed: its browser tests await a shift survey, so they do not reject unsolicited layout shifts",
   "watch_shifts: a surveyed test marked `shifts_unsurveyed` rejects unsolicited layout shifts and typing that carries its field",
 ]
-# A test still running after half an hour is hung, not slow, while the slowest takes
-# under three minutes on CI's runner, so that even ten times slower it finishes
-# (tests/AGENTS.md, "Results do not depend on execution speed"). Sixteen took longer on
-# the 2026-11-05 nightly, the slowest 27 minutes. The worker prints every
+# A test still running after half an hour is hung, not slow, as long as every test
+# takes under three minutes on CI's runner, so that even ten times slower it finishes
+# (tests/AGENTS.md, "Results do not depend on execution speed"). The worker prints every
 # thread's stack, which names the call that blocked, and exits. xdist reports the test
 # as crashed, and `--max-worker-restart=0` (addopts) then ends the run once the other
 # workers finish the tests already sent to them. Replacing the crashed worker instead

@@ -65,11 +65,24 @@
    pressed while focus is not where they are lets go of it first (keyboard/controller.js),
    so every key acts from what they see, and a revision reading where they are asks the
    same (reading-place.js, `capturePlace`; version.js). */
-import { inFront, seenRect, showsContents, shownWindow, stuckBox } from "./geometry.js";
+import {
+  clippedPlace,
+  inFront,
+  seenRect,
+  showsContents,
+  shownWindow,
+  stuckBox,
+} from "./geometry.js";
 import { pageScroller, placeKept, scrollChoices, scrollGoal } from "./scrolling.js";
 import { edgeAt, holderOf, returnTo, scrollersOf } from "./scroll-containers.js";
-import { inChrome, under } from "./shadow-tree.js";
-import { focused, onUserInput, recentPlaceInput, typesText } from "./focus.js";
+import { inChrome, renderedParent, under } from "./shadow-tree.js";
+import {
+  declareFocusPlace,
+  focused,
+  onUserInput,
+  recentPlaceInput,
+  typesText,
+} from "./focus.js";
 import { PRESSES } from "./control-selectors.js";
 import { browserScrolls } from "./arrivals.js";
 import { pointerAt } from "./pointer.js";
@@ -97,8 +110,9 @@ const boxStoodAt = (node) =>
 // Tab there: the user chose this on 2026-11-04. A control in a stuck box, as the floating
 // panel's row is, is in front of them, so a key acts there, though it rides along with
 // every scroll and marks no place in what it stands over (geometry.js, `stuckBox`). Its
-// box is asked of the window and the chrome alone, since a sticky header reads as under
-// the slot it stands in itself (`seenRect`, `headerInset`). A row
+// box is asked of what clips it out to that stuck box, then the window and the chrome,
+// since a sticky header reads as under the slot it stands in itself (`seenRect`,
+// `headerInset`). A row
 // scrolled out of a list of Leaf's own chrome, such as Threads, is still where they are
 // while the list shows: its arrows move on from that row into view, so it is the list
 // that must leave the screen. It reads the page as it stands, with no record of how
@@ -111,25 +125,28 @@ export function focusPlace() {
   const boxes = [...scrollersOf(node)];
   const [list] = boxes;
   const shown = list && list !== pageScroller && inChrome(list) ? list : node;
-  return seenRect(shown, new Map()) ||
-    (stuckBox(node) && inFront(node.getBoundingClientRect(), node)) ||
-    carried(node, boxes)
-    ? node
-    : null;
+  if (seenRect(shown, new Map()) || carried(node, boxes)) return node;
+  const stuck = stuckBox(node);
+  const left =
+    stuck &&
+    clippedPlace(node, new Map(), undefined, renderedParent(stuck) ?? undefined);
+  return left && inFront(left, node) ? node : null;
 }
+declareFocusPlace(focusPlace);
 // Whether a motion under way carries `node`: a glide in one of the `boxes` scrolling it
-// (scrolling.js, `scrollGoal`), or a finite animation of a box holding it that has yet
-// to finish, playing or held, as the slide a moved card makes from where it stood. The
-// sheen's endless one carries nothing.
+// (scrolling.js, `scrollGoal`), or a finite animation moving a box holding it, as the
+// slide a moved card makes from where it stood. The sheen's endless one, a fade and one
+// held paused bring the user nowhere.
 /** @param {Element} node @param {Element[]} boxes */
 const carried = (node, boxes) =>
   boxes.some((box) => scrollGoal(box) !== box.scrollTop) ||
   document.getAnimations().some((animation) => {
     const effect = /** @type {KeyframeEffect | null} */ (animation.effect);
     return (
-      (animation.playState === "running" || animation.playState === "paused") &&
+      animation.playState === "running" &&
       effect?.target != null &&
       effect.getComputedTiming().endTime !== Infinity &&
+      effect.getKeyframes().some((key) => "transform" in key || "translate" in key) &&
       under(node, effect.target)
     );
   });

@@ -968,6 +968,8 @@ def test_tab_reaching_a_card_the_page_carried_away_brings_it_back(
 
     page.keyboard.press("Tab")
     expect(card).to_be_in_viewport()
+    scroll_settled(page)
+    rendered(page)
     reached = control_in_card()
     assert reached
     page.keyboard.press("Tab")

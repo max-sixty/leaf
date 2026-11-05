@@ -968,10 +968,18 @@ onUserInput((event) => {
 
 // Which input last named a place to keep in a reflow: a pointer moving, pressing or
 // wheeling over an item, or the keyboard, whose arrivals name the item focus is on. A
-// key pressed with nothing focused names nothing, so the column the pointer last named
-// stays the reader's for the command it runs (reading-place.js, `readingBlock`). It
-// chooses which visible item holds a reflow, and supersedes no delayed move.
+// key pressed with nothing focused, or at focus the user has scrolled away from
+// (user-place.js, `focusPlace`), names nothing, so the column the pointer last named
+// stays the reader's for the command it runs and the let-go it starts with
+// (reading-place.js, `readingBlock`). It chooses which visible item holds a reflow, and
+// supersedes no delayed move.
 let placeInput = "focus";
+/** @type {() => unknown} */
+let focusIsPlace = () => true;
+/** @param {typeof focusIsPlace} read */
+export const declareFocusPlace = (read) => {
+  focusIsPlace = read;
+};
 for (const type of ["pointermove", "pointerdown", "wheel"])
   addEventListener(type, () => (placeInput = "pointer"), {
     capture: true,
@@ -1204,7 +1212,7 @@ export const recoveredLabelFocus = (event) => recoveredLabelKeys.get(event) ?? n
 addEventListener(
   "keydown",
   (event) => {
-    if (deepFocus() !== document.body) placeInput = "focus";
+    if (deepFocus() !== document.body && focusIsPlace()) placeInput = "focus";
     const recovering = labelPress;
     if (!recovering || event.isComposing || MODIFIER_KEYS.includes(event.key)) return;
     const active = deepFocus();
@@ -1574,15 +1582,14 @@ export const takesLetters = inputs.takesLetters;
 
 // Radio, range and select controls own their arrow navigation before a containing
 // widget. Custom controls expose the same role at their focused element as the native
-// input. A select's arrows step its choice, or open its list on macOS; its other keys
-// are typing (`takesLetters`).
+// input. A select steps its choice by a slider's keys, or opens its list on macOS; its
+// letters are typing (`takesLetters`).
 /** @param {Element | null} node */
 export function controlNavigationKeys(node) {
   if (node?.matches('input[type="radio"], [role="radio"]'))
     return ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"];
-  if (node?.matches("select")) return ["ArrowUp", "ArrowDown"];
-  if (node?.matches('input[type="range"], [role="slider"]'))
-    // A slider's value steps, not control-selectors.js's CARET_KEYS: the same keys today.
+  if (node?.matches('select, input[type="range"], [role="slider"]'))
+    // A value's steps, not control-selectors.js's CARET_KEYS: the same keys today.
     return [
       "ArrowLeft",
       "ArrowRight",

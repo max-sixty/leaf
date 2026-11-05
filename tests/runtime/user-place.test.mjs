@@ -85,22 +85,32 @@ test("focus is where the user is while they see it or a glide carries them to it
   stopGlide(scroller);
   assert.equal(focusPlace(), null);
   // Nor is a key pressed while a card it moved slides from where it stood, though a box
-  // clips it meanwhile; an endless animation, as the sheen's, carries nothing.
-  /** @param {number} endTime */
-  const sliding = (endTime) => () => [
-    /** @type {Animation} */ (
-      /** @type {unknown} */ ({
-        playState: "running",
-        effect: { target: first, getComputedTiming: () => ({ endTime }) },
-      })
-    ),
-  ];
+  // clips it meanwhile; an endless animation, as the sheen's, a fade and a slide held
+  // paused bring the user nowhere.
+  const sliding =
+    ({ endTime = 150, playState = "running", property = "transform" } = {}) =>
+    () => [
+      /** @type {Animation} */ (
+        /** @type {unknown} */ ({
+          playState,
+          effect: {
+            target: first,
+            getComputedTiming: () => ({ endTime }),
+            getKeyframes: () => [{ [property]: "none" }],
+          },
+        })
+      ),
+    ];
   const animations = document.getAnimations;
   try {
-    document.getAnimations = sliding(150);
+    document.getAnimations = sliding();
     assert.equal(focusPlace(), first, "a slide under way didn't carry the user there");
-    document.getAnimations = sliding(Infinity);
+    document.getAnimations = sliding({ endTime: Infinity });
     assert.equal(focusPlace(), null, "an endless animation kept focus the place");
+    document.getAnimations = sliding({ property: "opacity" });
+    assert.equal(focusPlace(), null, "a fade kept focus the place");
+    document.getAnimations = sliding({ playState: "paused" });
+    assert.equal(focusPlace(), null, "a slide held paused kept focus the place");
   } finally {
     document.getAnimations = animations;
   }

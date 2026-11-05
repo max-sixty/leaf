@@ -1401,9 +1401,9 @@ def test_a_key_at_a_control_scrolled_away_acts_from_what_the_user_reads(
 ):
     """Focus stays on a control the user scrolls away from, but a key they press there
     lets go of it first and acts from what they read: Enter follows no link, an arrow
-    moves no radio's choice, Space checks no radio and pages on, and Tab goes on from
-    the paragraph on screen. Chromium would move the radio's choice at the control the
-    arrow was aimed at (notes/browser-support.md)."""
+    moves no radio's choice, End steps no select, Space checks no radio and pages on,
+    and Tab goes on from the paragraph on screen. Chromium would move the radio's choice
+    at the control the arrow was aimed at (notes/browser-support.md)."""
     page = open_page(
         request.getfixturevalue(engine),
         serve(
@@ -1413,7 +1413,9 @@ def test_a_key_at_a_control_scrolled_away_acts_from_what_the_user_reads(
                 "<fieldset><legend>Route</legend>"
                 '<label><input type="radio" name="route" id="left" checked> Left</label>'
                 '<label><input type="radio" name="route" id="right"> Right</label>'
-                '</fieldset><div style="height:2400px"></div><p id="reading">The '
+                '</fieldset><select id="pick" size="3"><option selected>One</option>'
+                "<option>Two</option><option>Three</option></select>"
+                '<div style="height:2400px"></div><p id="reading">The '
                 "paragraph the reader scrolls to and reads, with words enough to name a "
                 'place on the page.</p><p><button id="next">Next</button></p>'
                 '<div style="height:2400px"></div><h2 id="far">Far below</h2>',
@@ -1439,12 +1441,84 @@ def test_a_key_at_a_control_scrolled_away_acts_from_what_the_user_reads(
     assert page.evaluate("location.hash") == ""
     away("#left", "ArrowDown")
     expect(left).to_be_checked()
+    away("#pick", "End")
+    expect(page.locator("#pick")).to_have_value("One")
     scrolled = away("#right", " ")
     expect(left).to_be_checked()
     page.wait_for_function("(at) => scrollY > at", arg=scrolled)
     scroll_settled(page)
     away("#link", "Tab")
     expect(page.locator("#next")).to_be_focused()
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_key_at_a_control_scrolled_out_of_a_fixed_box_lets_go_of_it(
+    request, serve, engine
+):
+    """A fixed box stands in front of the user whatever the page scrolls, so a key at a
+    control in it acts there, but one the box's own scroller has taken out of sight is
+    a control they can't see, and a key lets go of it."""
+    page = open_page(
+        request.getfixturevalue(engine),
+        serve(
+            leaf_page(
+                "A fixed box's scroller",
+                '<div id="box" style="position:fixed;top:300px;left:40px;width:300px;'
+                'height:120px;overflow:auto"><button id="control" '
+                "onclick=\"this.dataset.pressed = 'yes'\">Press</button>"
+                '<div style="height:1000px"></div></div><p>Words on the page.</p>',
+            )
+        ),
+    )
+    control = page.locator("#control")
+    control.focus()
+    page.keyboard.press("Enter")
+    expect(control).to_have_attribute("data-pressed", "yes")
+    control.evaluate("node => node.removeAttribute('data-pressed')")
+    page.locator("#box").evaluate("box => { box.scrollTop = 500; }")
+    scroll_settled(page, "#box")
+    page.keyboard.press("Enter")
+    rendered(page)
+    expect(control).not_to_be_focused()
+    expect(control).not_to_have_attribute("data-pressed", "yes")
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_tab_at_a_control_scrolled_away_goes_on_in_the_column_the_pointer_is_in(
+    request, serve, engine
+):
+    """A key pressed at focus scrolled away names no place, so the column the pointer
+    rests in stays the one the user reads, and Tab goes on from there."""
+    column = (
+        '<section id="{0}"><p id="{0}-reading">The {0} column has words enough to name '
+        'a place on the page.</p><button id="{0}-next">Next</button></section>'
+    )
+    page = open_page(
+        request.getfixturevalue(engine),
+        serve(
+            leaf_page(
+                "Columns",
+                '<button id="old">Old</button><div style="height:2400px"></div>'
+                '<div id="cols" style="display:grid;grid-template-columns:1fr 1fr;'
+                'gap:40px">'
+                + column.format("left")
+                + column.format("right")
+                + '</div><div style="height:2400px"></div>',
+                head="<style>main { max-width: none !important; }</style>",
+            )
+        ),
+    )
+    resized(page, 1200, 800)
+    page.locator("#old").focus()
+    page.evaluate(
+        """() => scrollTo({behavior: 'instant',
+          top: document.getElementById('cols').offsetTop - 100})"""
+    )
+    scroll_settled(page)
+    box = page.locator("#right-reading").bounding_box()
+    page.mouse.move(box["x"] + box["width"] / 2, box["y"] + 5)
+    page.keyboard.press("Tab")
+    expect(page.locator("#right-next")).to_be_focused()
 
 
 # The browser's own back: a close watcher standing before any of the page's, which

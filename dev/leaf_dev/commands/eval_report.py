@@ -115,7 +115,7 @@ main > lf-tabs, #report-views { border-radius: 0; }
 .report-metadata dd { margin: 0; }
 .output-status { color: var(--muted); font-size: .875rem; }
 .report-meta { color: var(--muted); font-size: .875rem; }
-main > lf-tabs > lf-tab:not(#all-results) :is(p, ul, ol, dl) { max-width: 82ch; }
+main > lf-tabs:not(#report-views) > lf-tab:not(#all-results) :is(p, ul, ol, dl) { max-width: 82ch; }
 """
 
 
@@ -282,8 +282,9 @@ def column_figure(
     caption: bool = True,
 ) -> str:
     heading = f"<figcaption>{escape(label)}</figcaption>" if caption else ""
+    row = f'<div class="capture-actions-row">{actions}</div>' if actions else ""
     if not paths:
-        return f'<figure id="{anchor}">{heading}<p>No screens.</p></figure>'
+        return f'<figure id="{anchor}">{heading}{row}<p>No screens.</p></figure>'
     alt = f"{label} page, {width}"
     rest = "".join(
         shot(page, p, f"{alt}, screen {i}", True) for i, p in enumerate(paths[1:], 2)
@@ -294,8 +295,7 @@ def column_figure(
         else ""
     )
     return (
-        f'<figure id="{anchor}">{heading}'
-        + (f'<div class="capture-actions-row">{actions}</div>' if actions else "")
+        f'<figure id="{anchor}">{heading}{row}'
         + f"{shot(page, paths[0], alt + ', first screen')}{more}</figure>"
     )
 
@@ -347,11 +347,12 @@ def comparison_screens(
     phases: list[str] | None = None,
 ) -> str:
     """Compare selected revisions at equal recorded viewport dimensions; default final."""
+    links = "".join(f"<div>{action}</div>" for action in actions or [])
     captures = []
     for index, (label, sample) in enumerate(columns):
         comparison = sample["diagnostics"].get("comparison")
         if not comparison:
-            return "<p>No saved comparison captures are available.</p>"
+            return f"<p>No saved comparison captures are available.</p>{links}"
         phase = phases[index] if phases is not None else str(comparison["phases"][""])
         paths = screens(page, sample, phase)
         captures.append(
@@ -373,7 +374,7 @@ def comparison_screens(
         if all(tuple(size) in capture[2] for capture in captures)
     ]
     if not common:
-        return "<p>No matching captured viewports. Open each output to inspect it.</p>"
+        return f"<p>No matching captured viewports. Open each output to inspect it.</p>{links}"
     views = []
     for name, (width, height) in common:
         images = [paths[width, height] for _, _, paths in captures]
@@ -1361,7 +1362,9 @@ def citations(review: str) -> list[tuple[dict[str, str], slice]]:
         review, context="main", source_locations=True
     ).find_all(CITATION):
         if cite.text.strip() or cite.find(True):
-            raise click.ClickException(f"A citation holds nothing: {cite.html}")
+            raise click.ClickException(
+                f"A citation takes no content; close it with </{CITATION}>: {cite.html[:200]}"
+            )
         location = cite.source_location
         assert location is not None
         end = location.end_tag or location.start_tag
@@ -1448,7 +1451,7 @@ def output_links(sample: dict, phase: str) -> str:
     return (
         '<span class="capture-actions">'
         + sample.get("exports", {}).get(phase, "Saved output unavailable")
-        + f'<a href="#{details}">{escape(role if saved else "Attempt")} and details</a></span>'
+        + f'<a href="#{details}">{escape(f"{role} and details" if saved else "Attempt details")}</a></span>'
         + f'<small class="output-status">{escape(provenance)}</small>'
     )
 
@@ -1646,9 +1649,10 @@ def eval_report(
     views = fragment.select_one(":scope > lf-tabs")
     at = end = len(written)
     if views:
-        assert views.source_location and views.source_location.end_tag
+        assert views.source_location
         at = views.source_location.start_tag.start_offset
-        end = views.source_location.end_tag.start_offset
+        close = views.source_location.end_tag
+        end = close.start_offset if close else end
         browser = f'<lf-tab id="all-results" label="Outputs">{browser}</lf-tab>'
     (page / "index.html").write_text(
         f"""<!doctype html>

@@ -715,6 +715,7 @@ def test_review_citations_become_leaf_elements_the_page_check_accepts(tmp_path):
     <lf-eval-cite id="patch" file="{patch}" label="The patch"></lf-eval-cite>
     <p><lf-eval-cite id="head" output="saved/document-head-1" links></lf-eval-cite>
       <a href="#head">again</a></p>
+    <lf-eval-cite id="uncaptured" output="saved/document-base-0@4"></lf-eval-cite>
   </lf-tab>
 </lf-tabs>
 """
@@ -741,6 +742,9 @@ def test_review_citations_become_leaf_elements_the_page_check_accepts(tmp_path):
     hrefs = {str(link.attrs["href"])[1:] for link in document.select('a[href^="#"]')}
     assert hrefs and hrefs <= ids
     assert "Base and After · " in written
+    # A revision with no captures still offers its links.
+    uncaptured = written.split('id="uncaptured"')[1].split("No screens.")[0]
+    assert "and details</a>" in uncaptured
     eval_report.leaf("page", "check", str(page))
 
     for missing in (
@@ -755,7 +759,7 @@ def test_review_citations_become_leaf_elements_the_page_check_accepts(tmp_path):
         assert result.exit_code != 0 and missing in result.output
     for refused, said in (
         ('<lf-eval-cite file="/absent.json"></lf-eval-cite>', "/absent.json"),
-        (f'<lf-eval-cite file="{patch}">Words</lf-eval-cite>', "holds nothing"),
+        (f'<lf-eval-cite file="{patch}">Words</lf-eval-cite>', "takes no content"),
     ):
         review.write_text(f"<h1>Report</h1>{refused}")
         result = CliRunner().invoke(eval_report.eval_report, arguments)

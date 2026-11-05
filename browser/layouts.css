@@ -839,15 +839,20 @@
     html[data-lf-live][data-lf-layout~="workspace"]
       body
       > main.layout-workspace
-      > :not(header, footer)
-      > [data-lf-reading-role="pane"] {
-      --lf-end-room: inherit;
+      > :not(header, footer, [data-lf-reading-role="pane"], [data-lf-views]):not(
+        :has(> [data-lf-reading-role="pane"])
+      ) {
+      padding-block-end: var(--lf-end-room);
     }
+  }
+  /* Where the workspace flows no pane body scrolls, so a box of panes ends the page
+   * with the room below its panes rather than passing it to each. */
+  @media screen and ((width < 720px) or (height < 480px)) {
     html[data-lf-live][data-lf-layout~="workspace"]
       body
       > main.layout-workspace
-      > :not(header, footer, [data-lf-reading-role="pane"], [data-lf-views]):not(
-        :has(> [data-lf-reading-role="pane"])
+      > :not(header, footer, [data-lf-reading-role="pane"], [data-lf-views]):has(
+        > [data-lf-reading-role="pane"]
       ) {
       padding-block-end: var(--lf-end-room);
     }
@@ -855,6 +860,15 @@
   @media screen and (min-width: 720px) and (min-height: 480px) {
     html[data-lf-live][data-lf-layout~="workspace"] body > main.layout-workspace {
       block-size: calc(var(--lf-view-height) + var(--lf-foot-room));
+    }
+    /* Held, each pane's own body scrolls up to the window's foot, so each pane keeps
+     * the room. */
+    html[data-lf-live][data-lf-layout~="workspace"]
+      body
+      > main.layout-workspace
+      > :not(header, footer)
+      > [data-lf-reading-role="pane"] {
+      --lf-end-room: inherit;
     }
   }
   /* The header is one row: the title with the page's status beside it, wrapping only

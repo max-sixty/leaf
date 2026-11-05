@@ -114,6 +114,7 @@ main > lf-tabs, #report-views { border-radius: 0; }
 .report-metadata dl { display: grid; grid-template-columns: auto 1fr; gap: .35rem 1.5rem; }
 .report-metadata dd { margin: 0; }
 .output-status { color: var(--muted); font-size: .875rem; }
+.capture-actions + .output-status { display: block; }
 .report-meta { color: var(--muted); font-size: .875rem; }
 main > lf-tabs:not(#report-views) > lf-tab:not(#all-results) :is(p, ul, ol, dl) { max-width: 82ch; }
 """
@@ -347,7 +348,10 @@ def comparison_screens(
     phases: list[str] | None = None,
 ) -> str:
     """Compare selected revisions at equal recorded viewport dimensions; default final."""
-    links = "".join(f"<div>{action}</div>" for action in actions or [])
+    links = "".join(
+        f"<div><strong>{escape(label)}</strong> {action}</div>"
+        for (label, _), action in zip(columns, actions or [], strict=False)
+    )
     captures = []
     for index, (label, sample) in enumerate(columns):
         comparison = sample["diagnostics"].get("comparison")

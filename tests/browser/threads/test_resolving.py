@@ -1078,8 +1078,9 @@ def test_r_settles_the_thread_shown_for_the_element_the_user_stands_on(
 
 
 def test_r_leaves_a_thread_the_user_scrolled_away_from(browser, serve):
-    """Focus stays in a card the user has scrolled off screen, but keys act there only
-    while they can see it, so `r` settles nothing until the card is back in view."""
+    """Focus stays in a card the user has scrolled off screen, but a key pressed there
+    lets go of it first, so `r` settles nothing and the card stays open. Back in view,
+    the open card is the conversation the user sees from the page, so `r` resolves it."""
     comment = {
         "kind": "comment",
         "author": "user",
@@ -1111,7 +1112,7 @@ def test_r_leaves_a_thread_the_user_scrolled_away_from(browser, serve):
     rendered(page)
     expect(card).to_be_attached()
     expect(card).not_to_have_attribute("hidden", "")
-    expect(thread).to_be_focused()
+    expect(thread).not_to_be_focused()
     assert events_model.read_events(serve.page_dir)[-1]["kind"] != "resolve"
 
     scroll(down=False)

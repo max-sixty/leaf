@@ -312,15 +312,19 @@ export const recentReadingRegion = () => readingRegion(recentRegionId);
 // where the user reads. One scrolled out of the window still is.
 /** @param {ReadingRegion | undefined} region */
 const shown = (region) => (region?.host.checkVisibility() ? region : undefined);
+// Focus names the page only on something in it: the body is where a click on words and
+// a let-go leave it, which leaves the answer to the place the user last acted in.
+/** @param {Element | null} at */
+const focusInPage = (at) => at !== document.body && inPage(at);
 export const pageReadingRegion = () => {
   const at = deepFocus();
-  if (inPage(at)) return readingRegionFor(at);
+  if (focusInPage(at)) return readingRegionFor(at);
   return shown(readingRegion(pageRegionId));
 };
 export const userReadingRegion = () => {
   const at = deepFocus();
   const region = readingRegionFor(at);
-  if (region || inPage(at)) return region;
+  if (region || focusInPage(at)) return region;
   return shown(recentReadingRegion()) ?? pageReadingRegion();
 };
 

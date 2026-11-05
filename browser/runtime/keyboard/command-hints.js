@@ -129,7 +129,6 @@ function hintRoutes(available) {
 export function createCommandHints({ presentedControl }) {
   let mounted = false;
   let hasRoutes = false;
-  // Whether the last paint found focus scrolled away, which takes the keys at it away.
   /** @type {Map<BindingBadge, LentFace>} */
   const wornBindingBadges = new Map();
   const CONTROL_ROUTES = Symbol("Control binding routes");

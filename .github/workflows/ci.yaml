@@ -209,10 +209,11 @@ jobs:
 
   # The daily benchmark: `leaf-dev scaling` on its generated pages, in the browser and
   # on the server, on a runner of its own so the suite's tests don't share its cores.
-  # No reading passes or fails anything (dev/AGENTS.md, "Tests"); the job fails only
-  # when the command does. Its report, each cost by size with the exponent of its
-  # growth, goes to the job's summary, its log and the `scaling-report` artifact, where
-  # an agent reads it, since GitHub serves no job summary to its API.
+  # No reading passes or fails anything (tests/AGENTS.md, "Results do not depend on
+  # execution speed"); the job fails only when the command does. Its report, each cost
+  # by size with the exponent of its growth, goes to the job's summary, its log and the
+  # `scaling-report` artifact, where an agent reads it, since GitHub serves no job
+  # summary to its API.
   #
   # The browser readings at 64 sections, the size of the largest real pages, are
   # charted on the `gh-pages` branch's `dev/bench` page, and each run's comparison with

@@ -83,8 +83,8 @@ to 170 ms on pages the default policy showed in 30 to 35. Pages, the profiles an
 
 The daily CI run measures the browser's pages at 64 to 256 sections over two rounds,
 and the server's at its default sizes, and charts the browser's readings at 64
-(`.github/workflows/ci.yaml`, `scaling`). Its `!` marks gate nothing (dev/AGENTS.md,
-"Tests").
+(`.github/workflows/ci.yaml`, `scaling`). Its `!` marks gate nothing
+(tests/AGENTS.md, "Results do not depend on execution speed").
 """
 
 import ctypes

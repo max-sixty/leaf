@@ -1217,13 +1217,15 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
           window.lfReceiptSecondary = registerContribution({
             key: 'workflow-primary-probe', target: document.querySelector('#jobs'),
             read: () => ({entries: [contributionEntry({
-              key: 'edit', icon: 'edit', label: 'Edit', behavior: 'disclosure',
-              className: 'lf-workflow-primary-probe'
+              key: 'edit', icon: 'edit', label: 'Edit', behavior: 'disclosure'
             })]}), activate: () => {}
           });
         }"""
     )
-    carrier = page.locator(".lf-workflow-primary-probe")
+    carrier = page.locator(
+        '[data-lf-margin-entry-owner="workflow-primary-probe"]'
+        '[data-lf-margin-entry-key="edit"]'
+    )
     expect(marker).to_be_hidden()
     expect(carrier).to_have_attribute("data-lf-agent-workflow", "picked_up")
     expect(carrier).to_have_attribute("aria-description", "Delivered")

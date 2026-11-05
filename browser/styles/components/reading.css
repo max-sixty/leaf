@@ -406,8 +406,7 @@ dl:is(.facts, .lf-facts) dd {
     }
     @media screen {
       table:has(> * > tr > th[scope="row"]:first-child)[data-lf-more-before]:not(
-          [data-lf-focus],
-          :has([data-lf-focus])
+          [data-lf-focus-within]
         )
         > *
         > tr

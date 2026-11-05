@@ -496,14 +496,15 @@ adds its row. Rows marked _lint_ are enforced in `eslint.config.mjs`.
 | Which of two nodes the reader reaches first, across shadow trees                                      | `shadow-tree.js` `renderedOrder`, `byRenderedOrder`                                |
 | What stands for a node in one tree: the node, or the host of the shadow tree holding it               | `shadow-tree.js` `hostIn`                                                          |
 | Whether a node is inside another across shadow trees                                                  | `shadow-tree.js` `under`, `renderedUnder`, `composedParentNode`                    |
+| Order and containment along another climb of the tree, as the page reading's own order is             | `shadow-tree.js` `alongClimb`                                                      |
 | Put the user on an element, saying what moved them                                                    | `focus.js` `focusDestination(node, cause)` (_lint_)                                |
 | Move a node, keeping the user's place in it                                                           | `dom-move.js` `move(parent, node, before)` (_lint_)                                |
 | Make a list of nodes, some already placed, a parent's children                                        | `dom-children.js` `setChildren`                                                    |
 | Whether a control takes typed letters                                                                 | `focus.js` `typesText`, `takesLetters`                                             |
 | Which keys move a caret, and whether a key is Select All                                              | `control-selectors.js` `CARET_KEYS`, `selectsAll`                                  |
 | A hint map's walk and choose rows                                                                     | `keyboard/hints.js` `createHintSession`                                            |
-| Which focused control counts as the user's place: shown, and not under a stuck box                    | `user-place.js` `focusedInView`                                                    |
-| Whether the user scrolled away from the control focus stands on, which keys then leave alone          | `user-place.js` `focusScrolledAway`                                                |
+| Whether focus is where the user is: seen, or a motion carrying them to it                             | `user-place.js` `focusPlace`                                                       |
+| What the user reads where focus isn't where they are, in their column                                 | `reading-place.js` `pageReadingBlock`                                              |
 | What stands at the reading line, and holding a place across a change anchoring can't keep still       | `user-place.js` `readingAt`, `holdPlace`                                           |
 | Whether a click came from the keyboard                                                                | `pointer.js` `pressIsKeyboardActivation`                                           |
 | Whether a press is a plain primary-button press with no modifier                                      | `pointer.js` `plainPress`                                                          |

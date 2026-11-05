@@ -135,7 +135,7 @@ import { commandScope, projectCommandScope } from "../keyboard/scopes.js";
 import { under, upFrom } from "../shadow.js";
 import { nativeLayers } from "../keyboard/layer-stack.js";
 import { heldObligation } from "../current-target.js";
-import { focusScrolledAway } from "../user-place.js";
+import { focusPlace } from "../user-place.js";
 
 import {
   coarsePointer,
@@ -1313,10 +1313,12 @@ export function createResponseSurface({
   // The element and threads where focus puts the user. Focus they have scrolled out of
   // sight puts them nowhere in the page, so `c` writes where they are reading rather than
   // taking them back to it: a walk's stop scrolled away from took the page back 1949 px
-  // at the median, and they backed out of 4 presses in 7 (dispatch.js says the same of
-  // that control's own keys).
+  // at the median, and they backed out of 4 presses in 7 (keyboard/controller.js lets go
+  // of it on any key).
   function focusedPlace() {
-    if (focusScrolledAway()) return { here: null, threadId: null, said: null };
+    const at = focused();
+    if (at && at !== document.body && !focusPlace())
+      return { here: null, threadId: null, said: null };
     const inline = threadHere();
     const inlineBox = inline && threadInput(inline);
     return {

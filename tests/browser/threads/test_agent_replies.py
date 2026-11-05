@@ -1335,7 +1335,7 @@ def test_progress_the_user_spoke_after_keeps_its_steps_and_its_place(browser, se
     # Opened, the run shows the step itself above its face. A rewrite of it keeps the
     # steps shown, and the page scrolls the step's growth above the toggle away. The
     # toggle stands clear of the floating panel at the window's foot, where it would be
-    # out of the user's sight and so held for nobody (user-place.js, `focusedInView`).
+    # out of the user's sight and so held for nobody (user-place.js, `holdUserPlace`).
     show.press("Enter")
     expect(first).to_be_visible()
     resized(page, 390, 540)

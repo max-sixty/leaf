@@ -12,6 +12,7 @@ from render_cases_interaction import (
     LIVE_V1,
     SEATED_OBLIGATION_PAGE,
     live_url,
+    package_workspace,
 )
 from render_cases_widgets import PAGE_DECLARATION, PAGE_WIDGET
 from render_harness import (
@@ -1444,62 +1445,6 @@ def test_frozen_obligation_reveals_its_exact_message_in_a_selective_primary(
     with sending(page, "answer the ask in its addressed native turn"):
         email.click()
     expect(email.get_by_role("checkbox")).to_be_checked()
-
-
-def package_workspace(serve, *, before_reader="", primary=True):
-    """Run the shipped package example against real event admission."""
-    from render_harness import ROOT
-
-    companion = ROOT / "examples/developer/feature-gallery.page"
-    url = serve(
-        leaf_page(
-            "Package reader",
-            '<h1>Package reader</h1><p id="notes">Announcement notes</p>'
-            + before_reader
-            + (
-                '<lf-conversation-workspace id="workspace"></lf-conversation-workspace>'
-                if primary
-                else ""
-            ),
-        ),
-        layer_registry={
-            "lf-conversation-workspace": json.loads(
-                (companion / "registry.json").read_text()
-            )["lf-conversation-workspace"]
-        },
-        layer_widgets={
-            "lf-conversation-workspace.js": (
-                companion / "widgets/lf-conversation-workspace.js"
-            ).read_text()
-        },
-    )
-    for event in [
-        {
-            "id": "channel-question",
-            "kind": "comment",
-            "author": "agent",
-            "revision": 1,
-            "text": "Which channel?",
-            "markup": '<lf-ask id="channel-ask"><h3>Channel</h3><lf-options id="channel-options" choose><lf-option id="email">Email</lf-option><lf-option id="chat">Chat</lf-option></lf-options></lf-ask>',
-        },
-        {
-            "id": "opening",
-            "kind": "comment",
-            "author": "user",
-            "revision": 1,
-            "text": "Keep it concise.",
-        },
-        {
-            "id": "answer",
-            "kind": "reply",
-            "author": "agent",
-            "revision": 1,
-            "parent": "opening",
-            "text": "One paragraph.",
-        },
-    ]:
-        append_carried_log_record(serve.page_dir, event)
-    return url
 
 
 def test_package_answer_summary_waits_for_widget_completion(browser, serve):

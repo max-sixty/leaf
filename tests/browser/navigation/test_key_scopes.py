@@ -41,6 +41,7 @@ from render_harness import (
     panel_view,
     resized,
     round_trip,
+    scroll_settled,
     select_words,
     told,
     write,
@@ -1392,6 +1393,58 @@ def test_holding_a_key_repeats_only_where_the_press_is_a_walk(
     expect(leaves).to_be_hidden()
     page.evaluate(press, ["l", False, True])  # the same event, answered
     expect(leaves).to_be_visible()
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_key_at_a_control_scrolled_away_acts_from_what_the_user_reads(
+    request, serve, engine
+):
+    """Focus stays on a control the user scrolls away from, but a key they press there
+    lets go of it first and acts from what they read: Enter follows no link, an arrow
+    moves no radio's choice, Space checks no radio and pages on, and Tab goes on from
+    the paragraph on screen. Chromium would move the radio's choice at the control the
+    arrow was aimed at (notes/browser-support.md)."""
+    page = open_page(
+        request.getfixturevalue(engine),
+        serve(
+            leaf_page(
+                "Controls scrolled away",
+                '<h1>Controls scrolled away</h1><p><a id="link" href="#far">Far</a></p>'
+                "<fieldset><legend>Route</legend>"
+                '<label><input type="radio" name="route" id="left" checked> Left</label>'
+                '<label><input type="radio" name="route" id="right"> Right</label>'
+                '</fieldset><div style="height:2400px"></div><p id="reading">The '
+                "paragraph the reader scrolls to and reads, with words enough to name a "
+                'place on the page.</p><p><button id="next">Next</button></p>'
+                '<div style="height:2400px"></div><h2 id="far">Far below</h2>',
+            )
+        ),
+    )
+    left = page.locator("#left")
+
+    def away(control, key):
+        page.locator(control).focus()
+        page.evaluate(
+            """() => scrollTo({behavior: 'instant',
+              top: document.getElementById('reading').offsetTop - 200})"""
+        )
+        scroll_settled(page)
+        scrolled = page.evaluate("scrollY")
+        page.keyboard.press(key)
+        rendered(page)
+        expect(page.locator(control)).not_to_be_focused()
+        return scrolled
+
+    away("#link", "Enter")
+    assert page.evaluate("location.hash") == ""
+    away("#left", "ArrowDown")
+    expect(left).to_be_checked()
+    scrolled = away("#right", " ")
+    expect(left).to_be_checked()
+    page.wait_for_function("(at) => scrollY > at", arg=scrolled)
+    scroll_settled(page)
+    away("#link", "Tab")
+    expect(page.locator("#next")).to_be_focused()
 
 
 # The browser's own back: a close watcher standing before any of the page's, which

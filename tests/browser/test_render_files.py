@@ -456,7 +456,6 @@ def test_sample_file_editor_resize_keeps_classic_scrollbars_inside_its_document(
     one_frame(child)
     rendered(child)
     assert page.evaluate("scrollY") == before
-    expect(editor).to_be_focused()
 
 
 def test_an_exported_file_editor_stays_unavailable_without_starting_a_read(

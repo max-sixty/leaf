@@ -853,8 +853,9 @@ def test_target_picker_comments_on_a_clipped_card_without_moving_the_board(
 def test_c_enters_a_seated_reply_without_revealing_the_thread_heading(
     browser, serve, subtests
 ):
-    """A visible reply keeps its place; an off-screen reply is revealed on entry. Each
-    case leaves the reply it entered, so they share one page."""
+    """A visible reply keeps its place; a reply below the window, in a thread the user
+    still sees, is revealed on entry. Each case leaves the reply it entered, so they
+    share one page."""
     url = serve(
         leaf_page(
             "Reply without travel",
@@ -870,7 +871,8 @@ def test_c_enters_a_seated_reply_without_revealing_the_thread_heading(
             "kind": "comment",
             "author": "user",
             "revision": 1,
-            "text": "A short thread beside the task.",
+            "text": "A thread beside the task, whose head stands well above its reply. "
+            * 12,
             "anchor": {"section": "fitting"},
         },
     )

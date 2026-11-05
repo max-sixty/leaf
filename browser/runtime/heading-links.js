@@ -300,13 +300,19 @@ export function watchHeadingLinks() {
     current = heading;
     return heading && show(heading, "current", true);
   };
-  // The user is on a heading's link while focus is in its control, as after a press.
+  // The user is on a heading's link while focus is in its control, as after a press. A
+  // let-go's focus on a heading is gone by the time its script ends, only moving where
+  // Tab starts (focus.js, `letGo`), so the link is read once the script has ended.
   onCurrentLocation((node) =>
-    stand(
-      node?.nodeType === Node.ELEMENT_NODE
-        ? (headingAt(node) ?? linkHeading(node))
-        : null,
-    ),
+    queueMicrotask(() => {
+      const at = focused();
+      if (node !== (at === document.body ? null : at)) return;
+      stand(
+        node?.nodeType === Node.ELEMENT_NODE
+          ? (headingAt(node) ?? linkHeading(node))
+          : null,
+      );
+    }),
   );
   pageScope("heading", {
     title: "On a section heading",

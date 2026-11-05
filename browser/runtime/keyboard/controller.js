@@ -1,11 +1,35 @@
 /* Browser input lifecycle. The dispatcher resolves declarations; this owner applies
    page policy around a real input (transient modes), and
-   releases bootstrap's ordered keys as their declared input becomes available. */
+   releases bootstrap's ordered keys as their declared input becomes available.
+
+   Focus stays on a control the user has scrolled out of sight, but they are reading
+   something else (user-place.js, `focusPlace`), so a key they press there lets go of it
+   first (focus.js, `letGo`) and then acts from what they see: no Leaf command settles,
+   chooses or toggles what they can't see, Space pages on from what they read and Tab
+   moves on from it. The let-go lands on what they see, so it moves nothing, and they
+   are not beside what they let go of, so no walk comes back to it (current-target.js,
+   `walkOrigin`). It is not Escape's release: a card open beside what they left stays
+   open where it rides. Chromium still applies a radio's, slider's or select's own arrows
+   at the control the key was aimed at, wherever focus has gone
+   (notes/browser-support.md), so those are withheld, and that arrow scrolls nothing. The
+   key's path stays as the browser fixed it, so a listener a widget put on the control
+   still hears it, as a page's own listener on the document does. Escape takes its own
+   step, a key typed into a text field keeps the field, since typing brings its box back
+   (off-flow.js), and a modifier alone is half a press. A select's letters let go, since
+   they choose an option the user can't see. */
 import { dispatchKey, keyReady } from "./dispatch.js";
 import { MODIFIER_KEYS } from "../control-selectors.js";
 import { quickShortcuts } from "./bindings.js";
 import { claimsEsc, paintKeys, watchCommandAvailability } from "./scopes.js";
-import { onCurrentLocation, takesLetters, typesText, focused } from "../focus.js";
+import {
+  controlNavigationKeys,
+  letGo,
+  onCurrentLocation,
+  takesLetters,
+  typesText,
+  focused,
+} from "../focus.js";
+import { focusPlace } from "../user-place.js";
 import { nextFrame } from "../rendering.js";
 import { pageUpgraded } from "../page-paint.js";
 import { runtime } from "../context.js";
@@ -55,6 +79,20 @@ export function mountKeyboard({
       run(ev);
     }
   };
+  // Registered ahead of the listeners below, so each reads the key from where the user
+  // is (see the header).
+  document.addEventListener(
+    "keydown",
+    (ev) => {
+      if (ev.isComposing || ev.key === "Escape" || MODIFIER_KEYS.includes(ev.key))
+        return;
+      const at = focused();
+      if (!at || at === document.body || typesText(at) || focusPlace()) return;
+      if (controlNavigationKeys(at).includes(ev.key)) ev.preventDefault();
+      letGo();
+    },
+    { capture: true },
+  );
   // Page shortcut characters need Leaf's scope resolution before a nested
   // library can use them for typeahead. Other keys keep the control's own
   // handling first, including search's Enter and Escape steps.

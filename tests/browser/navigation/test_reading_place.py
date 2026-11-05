@@ -1454,15 +1454,14 @@ def test_vertical_landing_crosses_a_quarter_turn_without_changing_horizontal_rea
     assert before["top"] > before["height"]
     assert before["axes"] == ([0] if quarter_turn == "owning" else [1, 0])
     assert all(left > 0 for left, _ in before["offsets"])
-    if alignment == "start":
-        page.keyboard.press("g")
-        page.keyboard.press("z")
-    else:
-        page.evaluate("""async () => {
+    page.evaluate(
+        """async (block) => {
           const {scrollIntoView} = await window.__lfWidgetApi();
           const target = document.querySelector('#quarter-target');
-          scrollIntoView(target, {block: 'nearest', behavior: 'instant'});
-        }""")
+          scrollIntoView(target, {block, behavior: 'instant'});
+        }""",
+        alignment,
+    )
     after = page.evaluate("""async () => {
       const {landingBand} = await window.__lfCheckApi();
       const {scrollersOf} = await window.__lfCheckApi();
@@ -1778,8 +1777,10 @@ def test_restore_selection_failed_datum_hydration_leaves_history_untouched(
     page.evaluate("releaseSelectionDatum()")
     expect(line).to_contain_text("violet")
     if not cancel:
+        # The page's field wears `c` once the key has let go of the line scrolled away.
         expect(panel_field(page)).to_have_attribute(
-            "placeholder", "That selected passage is unavailable on this version"
+            "placeholder",
+            re.compile(r"^That selected passage is unavailable on this version"),
         )
     page.evaluate(
         "() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))"

@@ -6,9 +6,9 @@
  *
  * The browser gives such a span no keys, so this module gives it a button's: Enter
  * presses it on keydown, and Space on keyup, its keydown kept from scrolling the page.
- * Only a press on the element itself, with no modifier; a repeat presses nothing more,
- * and neither does a press on one marked `aria-disabled="true"`, as on a disabled
- * button.
+ * Only a press on the element itself while it holds focus, as a native button's key
+ * acts only there, with no modifier; a repeat presses nothing more, and neither does a
+ * press on one marked `aria-disabled="true"`, as on a disabled button.
  *
  * It is the press's default action rather than a handler of the element's own: one
  * listener for every such element, on the window, so it hears a key after every
@@ -32,6 +32,7 @@ const offerPressed = (ev) => {
   const target = ev.composedPath()[0];
   return target instanceof HTMLElement &&
     target.matches(ROLE_BUTTON_OFFER) &&
+    target.matches(":focus") &&
     target.getAttribute("aria-disabled") !== "true" &&
     !(ev.altKey || ev.ctrlKey || ev.metaKey || ev.shiftKey)
     ? target

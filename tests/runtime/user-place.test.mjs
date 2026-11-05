@@ -1,7 +1,8 @@
 /* The user's place in a scroller, and the one hold that keeps it across a change.
 
-   Asked over boxes this file states, since happy-dom lays nothing out: focus scrolled
-   away or riding in a stuck header names no place, and a hold puts the node it read
+   Asked over boxes this file states, since happy-dom lays nothing out: focus is where
+   the user is while they see it, a stuck header included, or while a glide carries them
+   to it, and not once they scrolled it away; a hold puts the node it read
    back where it stood, or its stand-in where the change hid it, paying only for what
    the browser's own anchoring left. The user's place across a reading is the first the
    change moved of those they named, a field they type in before a resting pointer and
@@ -13,7 +14,8 @@ import test from "node:test";
 
 import { recentPlaceInput } from "/runtime/focus.js";
 import { pointerAt } from "/runtime/pointer.js";
-import { focusedInView, holdPlace, holdUserPlace } from "/runtime/user-place.js";
+import { glideTo, stopGlide } from "/runtime/scrolling.js";
+import { focusPlace, holdPlace, holdUserPlace } from "/runtime/user-place.js";
 
 // A scroller whose boxes are stated: each node's viewport top is its content top less
 // the scroller's scrollTop.
@@ -56,7 +58,7 @@ function laidOut() {
   };
 }
 
-test("focus marks the place while some of it shows, and never from a stuck header", () => {
+test("focus is where the user is while they see it or a glide carries them to it", () => {
   const { scroller, item, scrollTo } = laidOut();
   const [first, second] = [item("a", 1000), item("b", 1250)];
   first.tabIndex = 0;
@@ -73,15 +75,46 @@ test("focus marks the place while some of it shows, and never from a stuck heade
 
   scrollTo(1000);
   first.focus();
-  assert.equal(focusedInView(), first);
+  assert.equal(focusPlace(), first);
   scrollTo(3000);
-  assert.equal(focusedInView(), null, "focus scrolled away still named the place");
+  assert.equal(focusPlace(), null, "focus scrolled away was still where the user is");
+  // A walk focuses its stop before gliding there, so a key pressed on the way is meant
+  // for the stop.
+  glideTo(scroller, 1000);
+  assert.equal(focusPlace(), first, "a glide to focus didn't carry the user there");
+  stopGlide(scroller);
+  assert.equal(focusPlace(), null);
+  // Nor is a key pressed while a card it moved slides from where it stood, though a box
+  // clips it meanwhile; an endless animation, as the sheen's, carries nothing.
+  /** @param {number} endTime */
+  const sliding = (endTime) => () => [
+    /** @type {Animation} */ (
+      /** @type {unknown} */ ({
+        playState: "running",
+        effect: { target: first, getComputedTiming: () => ({ endTime }) },
+      })
+    ),
+  ];
+  const animations = document.getAnimations;
+  try {
+    document.getAnimations = sliding(150);
+    assert.equal(focusPlace(), first, "a slide under way didn't carry the user there");
+    document.getAnimations = sliding(Infinity);
+    assert.equal(focusPlace(), null, "an endless animation kept focus the place");
+  } finally {
+    document.getAnimations = animations;
+  }
 
+  // A stuck heading stays in front of the user, so a key pressed there acts there.
   scrollTo(1000);
   heading.focus();
-  assert.equal(focusedInView(), heading);
+  assert.equal(focusPlace(), heading);
   scrollTo(1300);
-  assert.equal(focusedInView(), null, "a stuck heading named the place it rides over");
+  assert.equal(
+    focusPlace(),
+    heading,
+    "a stuck heading in view was not where the user is",
+  );
   scroller.remove();
 });
 

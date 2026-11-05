@@ -2538,7 +2538,8 @@ def test_staged_widget_controls_name_the_presses_their_owners_make(browser, serv
 
     summary = page.locator("lf-diff summary").first
     details = page.locator("lf-diff details").first
-    summary.scroll_into_view_if_needed()
+    # Clear of the floating panel, where the user sees the control a key acts on.
+    summary.evaluate("el => el.scrollIntoView({block: 'center'})")
     summary.focus()
     assert details.evaluate("el => el.open"), "the fixture's disclosure starts open"
     page.keyboard.press("Enter")

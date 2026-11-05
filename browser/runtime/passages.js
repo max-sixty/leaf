@@ -1486,7 +1486,9 @@ export function fencePassageParts(root, children = root.children) {
 //
 // `within` asks for one part of that reading, the words under one element, read alone
 // with its edges as the reading's ends, so a neighbourhood read inside it stops there.
-// A quote anchored in a datum is captured and found again in its datum's part alone
+// `within` is an element the page reading reaches, as a datum is: under a shadow root
+// the page doesn't read, its part would hold words the whole skips, whose changes no
+// watcher reports. A quote anchored in a datum is captured and found again in its datum's part alone
 // (anchor-resolution.js). A page grows large through its widgets' data: on a page of 30
 // text documents of 4 MB, the whole reading took 2.3 to 2.6 s in Chromium and 3.6 to
 // 4.2 s in Firefox, and the part for the document a comment was on 50 to 130 ms. A part
@@ -1532,9 +1534,9 @@ export function elementReading(element, reading = "says") {
   }
   return value;
 }
-// The walk itself, over the page's words under `root`, by the page's rules whatever the
-// root (`walk`, `frame`). A root outside the page, such as a widget in a message the
-// panel shows, holds none of the page's words.
+// The walk itself, over the page's words under `root`, by the page's rules for any root
+// the page reading reaches (`walk`, `frame`). A root outside the page, such as a widget
+// in a message the panel shows, holds none of the page's words.
 /** @param {Element} root @returns {PageReading} */
 function readPage(root) {
   /** @type {Segment[]} */

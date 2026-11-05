@@ -527,14 +527,9 @@ class RunColours {
 // draw (`announce`: its text's marks and `drawn`, which stamps its data's provenance
 // and has the page take a new reading) once the queue is empty, together with the
 // others, or as soon as it shows; until then a comment on its data stands on the
-// document (anchor-resolution.js). Each report sends the page through a document pass,
-// and a pass does work that grows with the whole page. On a page of 30 tabs of 4 MB, a
-// comment quoting prose reads every element again to find its words, 3.7 to 4.7 s a
-// pass in Firefox. A comment on a document's text reads only that document, yet with one
-// on Doc 23, reporting each draw as it landed drew every document by 7.6 to 7.9 s in
-// Chromium and 12 s in Firefox, against 3.4 to 4 s and 7.8 to 11.7 s batched, with a
-// 520 to 690 ms frame for each draw after Doc 23's. The queue is a stopgap until a pass
-// costs what the change it follows does.
+// document (anchor-resolution.js). Each report starts a document pass whose cost grows
+// with the whole page, so the documents report together. The queue is a stopgap until a
+// pass costs what the change it follows does.
 /** @type {{doc: TextDocument, value: string | null, rendering: number}[]} */
 const drawingLater = [];
 /** @type {Promise<void> | null} */

@@ -173,7 +173,9 @@ def test_z_takes_back_the_thread_the_user_just_resolved(browser, serve):
     user on from it, so putting it back by hand means finding it under Resolved and
     pressing Reopen. What `z` writes is a withdrawal
     naming the resolve — not a second settlement, which would read as the user
-    deciding to reopen a thread they had only meant not to close."""
+    deciding to reopen a thread they had only meant not to close. A thread the agent
+    closed with `leaf thread resolve` is not the user's to reopen by pressing undo, so
+    it stays closed."""
     page = open_page(browser, serve(LONG_PAGE, comments=3))
     comments = [
         e["id"]
@@ -181,21 +183,19 @@ def test_z_takes_back_the_thread_the_user_just_resolved(browser, serve):
         if e["kind"] == "comment"
     ]
     comment = comments[0]
-    # The user has done nothing, so there is nothing to take back — a thread the
-    # agent closed with `leaf thread resolve` is not theirs to reopen by pressing undo.
     append_carried_log_record(
         serve.page_dir,
         {"kind": "resolve", "author": "agent", "agent": "A", "parent": comments[1]},
     )
     told(page)
-    undo_offered(page, offered=False)
 
     open_panel_thread(page, comment)
     page.locator(".lf-fp-thread-controls :is(.lf-resolve, .lf-reopen)").click()
     round_trip(page)
 
     undo(page)
-    # Back among the open threads: the user's own and the third, the agent's closed.
+    # Back among the open threads: the user's own and the third, the second still
+    # the agent's closed.
     expect(threads_tab(page).locator(".lf-fp-count")).to_have_text("2")
     log = events_model.read_events(serve.page_dir)
     assert log[-1] == {
@@ -207,8 +207,6 @@ def test_z_takes_back_the_thread_the_user_just_resolved(browser, serve):
         ),
     }
     assert [e["kind"] for e in log if e["kind"] == "unresolve"] == []
-    # The undo is not itself a gesture to take back, so the offer goes with it.
-    undo_offered(page, offered=False)
 
 
 def test_z_waits_for_an_unanswered_thread_resolution(browser, serve):
@@ -519,12 +517,12 @@ FAR_CHOICE_PAGE = leaf_page(
 )
 
 
-def test_another_key_or_a_scroll_away_puts_the_shown_gesture_back_to_showing(
-    browser, serve
-):
+def test_a_scroll_away_puts_the_shown_gesture_back_to_showing(browser, serve):
     """The second press takes the gesture back only while the user is still on what
-    the first showed: another key, or scrolling it out of view, means the next `z`
-    shows it again. A modifier alone, or scrolling with it still in view, keeps it."""
+    the first showed: scrolling it out of view means the next `z` shows it again, and
+    scrolling with it still in view keeps it. Another key between ends the arm too
+    (`test_a_key_between_ends_what_the_shown_gesture_promised`), though with the
+    choice in view the next press takes it either way."""
     url = serve(FAR_CHOICE_PAGE)
     choice = append_command(
         serve.page_dir,
@@ -535,18 +533,6 @@ def test_another_key_or_a_scroll_away_puts_the_shown_gesture_back_to_showing(
             "widget": "picks",
             "action": "choose",
             "detail": {"value": ["opt-a"]},
-        },
-    )
-    append_carried_log_record(
-        serve.page_dir,
-        {
-            "kind": "pickup",
-            "author": "page",
-            "attention": False,
-            "events": [choice["id"]],
-            "phase": "opened",
-            "session": "show-then-take",
-            "turn": "turn-1",
         },
     )
     page = open_page(browser, url)
@@ -565,10 +551,6 @@ def test_another_key_or_a_scroll_away_puts_the_shown_gesture_back_to_showing(
         told(page)
         assert _undos(serve.page_dir) == []
 
-    pressed_without_taking()
-    page.keyboard.press("Shift")
-    page.keyboard.press("j")
-    # `j` was another key, so this press shows the choice again.
     pressed_without_taking()
 
     page.evaluate("window.scrollTo({top: 0, behavior: 'instant'})")

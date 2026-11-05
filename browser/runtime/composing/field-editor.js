@@ -1375,23 +1375,24 @@ function fieldEditor(
     return true;
   }
 
-  // What begins a line below `line` in the quotes and list items it stands in, as the
-  // preview reads the draft.
-  /** @param {EditorState} state @param {import("@codemirror/state").Line} line */
-  function beginBelow(state, line) {
+  // What begins a line below the one holding `at` in the quotes and list items that
+  // line stands in, as the preview reads the draft, or null where `at` stands before
+  // their markers end.
+  /** @param {EditorState} state @param {number} at */
+  function beginBelow(state, at) {
     const { placed } = state.field(reading);
-    const holds = holding(placed, line);
-    return `\n${placed.filter(container).filter(holds).map(carried).join("")}`;
+    const line = state.doc.lineAt(at);
+    const containers = placed.filter(container).filter(holding(placed, line));
+    if (at < opened(line, containers)) return null;
+    return `\n${containers.map(carried).join("")}`;
   }
 
-  // The fence the caret's line stands in, as the preview reads the draft, and what of
-  // the fence that line holds. Null where a selection is held or no fence holds the line.
-  /** @param {EditorState} state */
-  function atFence(state) {
-    const { main } = state.selection;
-    if (!main.empty) return null;
+  // The fence the line holding `at` stands in, as the preview reads the draft, and what
+  // of the fence that line holds, or null where no fence holds it.
+  /** @param {EditorState} state @param {number} at */
+  function fenceAt(state, at) {
     const { placed } = state.field(reading);
-    const line = state.doc.lineAt(main.head);
+    const line = state.doc.lineAt(at);
     const holds = holding(placed, line);
     const fence = placed.find((c) => c.token.type === "fence" && holds(c));
     if (!fence?.markers) return null;
@@ -1406,7 +1407,7 @@ function fieldEditor(
       closing,
       // No marks close it, and this line is the last it holds.
       open: fence.markers.length < 2 && line.to + 1 >= fence.to,
-      begin: beginBelow(state, line),
+      begin: beginBelow(state, line.to) ?? "\n",
       // The words on a line up to `to`, past its containers' markers.
       /** @param {import("@codemirror/state").Line} l @param {number} [to] */
       words: (l, to = l.to) => state.sliceDoc(opened(l, containers), to).trim(),
@@ -1420,7 +1421,8 @@ function fieldEditor(
   /** @param {EditorView} view */
   function leaveFence(view) {
     const { state } = view;
-    const at = atFence(state);
+    const { main } = state.selection;
+    const at = main.empty ? fenceAt(state, main.head) : null;
     if (!at || state.readOnly) return false;
     const { line, fence, closing, begin, words } = at;
     let last = line;
@@ -1453,8 +1455,8 @@ function fieldEditor(
   // closing backtick.
   /** @param {EditorState} state @param {string} put @param {boolean} pasted */
   function fenceBreak(state, put, pasted) {
-    const at = atFence(state);
-    const caret = state.selection.main.head;
+    const { head: caret, empty } = state.selection.main;
+    const at = empty ? fenceAt(state, caret) : null;
     if (!at || caret !== at.line.to) return null;
     const { fence, line, opening, closing, open, words } = at;
     const { markup } = fence.token;
@@ -1604,12 +1606,15 @@ function fieldEditor(
             }
           });
           if (!put) return tr;
-          const begin = beginBelow(state, state.doc.lineAt(start));
-          // A pasted line stays in the quotes and list items the caret stands in, as a
-          // line begun with Shift+Enter does. Those a paragraph continues lazily would
-          // read the same, but a fence's code and a blank line would fall out of them.
+          // Pasted code stays in the quotes and list items the caret stands in, as a
+          // line begun with Shift+Enter does, since a fence's lines don't continue them
+          // lazily as a paragraph's do. Pasted prose keeps its own markers, so a pasted
+          // item stays the item it was.
+          const begin = beginBelow(state, start);
+          const code =
+            fenceAt(state, start) !== null || /^ {0,3}(`{3,}|~{3,})/m.test(put);
           const lines =
-            pasted && begin !== "\n"
+            pasted && code && begin && begin !== "\n"
               ? [...put.matchAll(/\n/g)].map(({ index }) => ({
                   from: at + index,
                   to: at + index + 1,
@@ -1617,7 +1622,8 @@ function fieldEditor(
                 }))
               : [];
           const from = fenceBreak(state, put, pasted);
-          const changes = from === null ? lines : [{ from, insert: begin }, ...lines];
+          const changes =
+            from === null ? lines : [{ from, insert: begin ?? "\n" }, ...lines];
           return changes.length
             ? [
                 tr,

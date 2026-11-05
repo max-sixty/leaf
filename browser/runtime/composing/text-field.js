@@ -20,9 +20,9 @@
  * agent reads, holding what the user typed and the markers and line breaks their keys
  * write. The constructs come from the renderer that sends the message
  * (`markdownTokens`), never from a second grammar, so the preview and the message agree
- * on what is a link, a heading or code, Shift+Enter and a paste's lines continue the
- * quotes and list items the message will hold, and Tab and Shift+Tab nest a list item
- * and take it out a level.
+ * on what is a link, a heading or code, Shift+Enter and pasted code continue the quotes
+ * and list items the message will hold, and Tab and Shift+Tab nest a list item and take
+ * it out a level.
  * A fence is left as a code span is, by typing its marks, wherever the code's last line
  * ends, and the next words go below it (field-editor.js, `fenceBreak`). Down from the
  * draft's last line leaves it too (`leaveFence`).

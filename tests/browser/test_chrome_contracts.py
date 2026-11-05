@@ -1974,7 +1974,8 @@ PASTES = {
     "in an item": ("- ```", "one\ntwo", "- ```\n  one\n  two"),
     "from a line break, in a quote": ("> ```\n> a", "\nb", "> ```\n> a\n> b"),
     "a whole fence, in a quote": ("> ", "```\na\n```", "> ```\n> a\n> ```"),
-    "a blank line, in an item": ("- a", "b\n\nc", "- ab\n  \n  c"),
+    "a whole fence, in an item": ("- ", "```\na\n```", "- ```\n  a\n  ```"),
+    "prose, in an item": ("1. x", "\n2. y", "1. x\n2. y"),
 }
 
 
@@ -2026,9 +2027,13 @@ def test_a_fence_is_left_by_the_ways_a_user_tries(engine, request, serve, subtes
         with subtests.test("a paste", where=name):
             paste(draft, pasted)
             expect(field).to_have_js_property("value", want)
-    with subtests.test("a paste", where="over a selection, in a quote"):
-        paste("> ```\n> xxx", "a\nb", select=3)
-        expect(field).to_have_js_property("value", "> ```\n> a\n> b")
+    for name, (draft, selected, want) in {
+        "over a selection, in a quote": ("> ```\n> xxx", 3, "> ```\n> a\n> b"),
+        "over a whole draft": ("> ```\n> x", 9, "a\nb"),
+    }.items():
+        with subtests.test("a paste", where=name):
+            paste(draft, "a\nb", select=selected)
+            expect(field).to_have_js_property("value", want)
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])

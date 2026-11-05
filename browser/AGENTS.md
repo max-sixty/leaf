@@ -359,6 +359,11 @@ root, `body` or `html` is re-evaluated on writes below it. Prefer a class that n
 targets, or a condition its owner sets on the styled element, and measure with
 `leaf-dev bench-latency --profile`.
 
+A `:has()` naming `:focus` or `:focus-visible` costs every focus move on every page,
+since the browser restyles once for the blur and once for the focus, and each restyle
+then covers the widget and the ancestors a `:has()` tested. Name `data-lf-focus` or
+`data-lf-focus-visible` instead, which `focus.js` writes once for a move.
+
 A `::highlight()` rule with no originating element makes the browser resolve one more
 style for every element it restyles, on every page, whether or not the highlight has
 a range there. Name the elements whose text the ranges paint. The comment marks can

@@ -19,7 +19,9 @@
       interactivity: inert;
     }
     :is(.lf-diff-fold, .lf-call-group)[open]::details-content,
-    :is(.lf-diff-fold, .lf-call-group):has(> summary:focus-visible)::details-content {
+    :is(.lf-diff-fold, .lf-call-group):has(
+        > summary[data-lf-focus-visible]
+      )::details-content {
       transition-duration: 0s;
     }
   }

@@ -207,9 +207,12 @@ jobs:
 
   # The daily run's scaling readings at 64 sections, which `tests/journeys/test_scaling.py`
   # writes into the `test` job's artifact, charted on the `gh-pages` branch's `dev/bench`
-  # page. A reading 50% above the run before comments on the commit. CI's runners vary
-  # from run to run, so tighten the threshold once the chart shows their spread. It has
-  # a fresh checkout of its own, since the action switches it to `gh-pages`.
+  # page, and each run's comparison with the one before in its job summary. A reading
+  # 50% above the run before comments on the commit. CI's runners vary from run to run,
+  # so tighten the threshold once the chart shows their spread. The action compares
+  # with the last reading of another commit, so a day with no merge compares with the
+  # day before it. GitHub Pages doesn't serve the branch, so the chart is read from it
+  # directly. The job has a fresh checkout, since the action switches it to `gh-pages`.
   scaling-chart:
     needs: test
     if: always() && github.event_name == 'schedule'
@@ -240,6 +243,7 @@ jobs:
           auto-push: true
           alert-threshold: "150%"
           comment-on-alert: true
+          summary-always: true
 
   # Every product test on macOS, the platform Leaf's local sessions run on. Only the
   # daily schedule and a dispatch run it, since it adds a runner for as long as the

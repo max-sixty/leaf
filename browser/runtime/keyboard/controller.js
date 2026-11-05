@@ -88,8 +88,9 @@ export function mountKeyboard({
     if (ev.isComposing || ev.key === "Escape" || MODIFIER_KEYS.includes(ev.key))
       return false;
     const at = focused();
-    if (!at || at === document.body || focusPlace()) return false;
+    if (!at || at === document.body) return false;
     if (typesText(at) && ev.key !== "Tab") return false;
+    if (focusPlace()) return false;
     if (controlNavigationKeys(at).includes(ev.key)) ev.preventDefault();
     return true;
   };

@@ -1212,7 +1212,10 @@ export const recoveredLabelFocus = (event) => recoveredLabelKeys.get(event) ?? n
 addEventListener(
   "keydown",
   (event) => {
-    if (deepFocus() !== document.body && focusIsPlace()) placeInput = "focus";
+    const at = deepFocus();
+    // A field the user types in is theirs whatever it takes to see it, and a keystroke
+    // pays for no read of the page's geometry.
+    if (at !== document.body && (typesText(at) || focusIsPlace())) placeInput = "focus";
     const recovering = labelPress;
     if (!recovering || event.isComposing || MODIFIER_KEYS.includes(event.key)) return;
     const active = deepFocus();

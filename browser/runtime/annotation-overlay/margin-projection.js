@@ -56,6 +56,8 @@
 import { createThreadPreview } from "./thread-preview.js";
 import { proseRect, windowHoldsRail } from "../content-layout.js";
 
+import { signal } from "/runtime/framework.js";
+import { tick } from "../version-signal.js";
 import { afterScript, cancelRender, nextRender } from "../rendering.js";
 import { spokenSubject } from "../contribution-model.js";
 import {
@@ -65,7 +67,6 @@ import {
   paintedBox,
   registerMarginRow,
   scheduleMarginEntryLabels,
-  scheduleMarginLayout,
   standsFolded,
   standsWithheld,
   unregisterMarginRow,
@@ -139,13 +140,15 @@ import { repaint } from "../repaint.js";
 import { chromeRoot, chromeForeground } from "../chrome.js";
 import { arrivalOf, declareSide } from "../current-target.js";
 import { closestAcross, inChrome } from "../passages.js";
+import { drawnThreadId, drawnThreadsWithId } from "../thread/selectors.js";
 import { visualAt } from "../anchor-resolution.js";
 import { paintTrace } from "../target-paint.js";
+import { outlineChange } from "../margin-bars.js";
 
 import { threadNamed } from "../thread/state.js";
 import { carryingThreadPlace, currentLocationThreadId } from "../thread/focus.js";
 
-import { claimed, revealHeld } from "../thread/surfaces.js";
+import { claimed } from "../thread/surfaces.js";
 import { releaseReplies } from "../thread/replies.js";
 
 import { createMarginClusterViews } from "./margin-cluster-view.js";
@@ -153,7 +156,7 @@ import { createMarginClusterViews } from "./margin-cluster-view.js";
 import { seenRect, shownWindow, watchRoom } from "../geometry.js";
 import { skipped } from "../shown-box.js";
 
-import { hostIn, renderedUnder, under } from "../shadow.js";
+import { renderedOrder, renderedUnder, under } from "../shadow.js";
 import { retainUserIntent } from "../user-intent.js";
 
 /** @typedef {import("../annotation-inventory.js").InventoryEntry} Entry
@@ -263,12 +266,15 @@ export function createMarginProjection({
   /** @param {(number | null)[]} positions */
   function nameMarkers(positions) {
     spokenPositions = positions;
+    // Each entry's place in the inventory, read once rather than searched for per host.
+    const places = new Map(pageInventory.map((entry, place) => [entry, place]));
+    const placeOf = (/** @type {Entry} */ entry) => places.get(entry) ?? -1;
     const walked = [...hosts.values()].sort(
-      (a, b) => pageInventory.indexOf(a.lfEntry) - pageInventory.indexOf(b.lfEntry),
+      (a, b) => placeOf(a.lfEntry) - placeOf(b.lfEntry),
     );
     walked.forEach((host, index) => {
       const entry = host.lfEntry;
-      const position = positions[pageInventory.indexOf(entry)];
+      const position = positions[placeOf(entry)];
       const name = markerName(entry, index, walked.length, position);
       paintMarker(host.marker, entry, Boolean(host.primary), {
         suppressed: Boolean(
@@ -325,6 +331,9 @@ export function createMarginProjection({
   let expandedOptionsOwner = null;
   /** @type {Element | null} */
   let hoveredHost = null;
+  // The control under the pointer in that cluster.
+  /** @type {Element | null} */
+  let hoveredControl = null;
   /** @type {Element | null} */
   let highlighted = null;
   let highlightFrame = 0;
@@ -831,10 +840,8 @@ export function createMarginProjection({
     if (!(standsFoldedNow || optionsOffered(current, primary))) return;
     if (expandedOptionsKey === current.key && expandedOptionsOwner) return;
     if (entryEngaged(current)) return;
-    const from = left && hostIn(left, host.getRootNode());
-    const back = Boolean(
-      from && host.compareDocumentPosition(from) & Node.DOCUMENT_POSITION_FOLLOWING,
-    );
+    // The node the user left may have left the page, and stands in no order then.
+    const back = Boolean(left?.isConnected && renderedOrder(host, left) < 0);
     setOptionsOpen(current, true, {
       focusOption:
         control === host.more ? (standsFoldedNow && !back ? "first" : "last") : null,
@@ -882,6 +889,12 @@ export function createMarginProjection({
   });
 
   let marginKeysAvailable = false;
+  // The margin's keys are one scope on the projection, which holds every cluster in every
+  // lane (margin-layout.js, `laneFor`), so a press on any entry or marker reaches them and
+  // nothing between the cluster and the projection declares keys of its own. Its
+  // reflection reads them again on every focus move (keyboard/scopes.js) and as the margin
+  // renders, since which entries a cluster offers changes then (`drawnMargin`).
+  const drawnMargin = signal(0);
   const marginKeys = [
     {
       id: "margin.controls",
@@ -889,12 +902,12 @@ export function createMarginProjection({
       title: "move through margin entries",
       repeat: true,
       when: () => {
+        void drawnMargin.value;
         const active = focused();
-        const host = closestAcross(active, "[data-lf-margin-for]");
         return (
           active !== null &&
           active.matches(".lf-margin-entry") &&
-          clusterMarginEntries(host).length > 1
+          clusterMarginEntries(closestAcross(active, "[data-lf-margin-for]")).length > 1
         );
       },
       runKey: stepClusterMarginEntries,
@@ -916,6 +929,7 @@ export function createMarginProjection({
     // Tab from the entry a card hangs from enters the card (thread-preview.js).
     ...card.openerKeys,
   ];
+  keys(nav, "In the margin", marginKeys, () => marginKeysAvailable);
 
   /** @param {HTMLElement} marker @param {Entry} entry */
   function pressMarker(marker, entry) {
@@ -1130,6 +1144,29 @@ export function createMarginProjection({
         host.remove();
         hosts.delete(key);
       }
+    // The host each new one is put before: the next later one already in the toolbar,
+    // read in one walk back over the inventory the first time this render needs it. A
+    // host this render puts in stands earlier than any it is read for, so the walk's
+    // answers hold for the whole render.
+    /** @type {(Host | null)[] | null} */
+    let nextInToolbar = null;
+    /** @param {number} order */
+    const toolbarAfter = (order) => {
+      if (!nextInToolbar) {
+        /** @type {(Host | null)[]} */
+        const after = [];
+        pageInventory.reduceRight((/** @type {Host | null} */ next, entry, at) => {
+          after[at] = next;
+          const later = hosts.get(entry.key);
+          return later?.parentElement === toolbar ? later : next;
+        }, null);
+        nextInToolbar = after;
+      }
+      return nextInToolbar[order] ?? null;
+    };
+    // Each row's place among the rows, which an entry with no row of its own leaves
+    // the same (margin-layout.js, `registerMarginRow`).
+    let rank = 0;
     pageInventory.forEach((entry, order) => {
       if (!entryHasMarginHost(entry)) return;
       let host = hosts.get(entry.key);
@@ -1138,7 +1175,6 @@ export function createMarginProjection({
         const optionsId = `lf-margin-options-${++optionsOrdinal}`;
         const created = clusterViews.createPage(entry, targetFor(entry), optionsId);
         host = created;
-        keys(created, "In the margin", marginKeys, () => marginKeysAvailable);
         created.lfEntry = entry;
         created.more.onclick = () => {
           const open = expandedOptionsKey !== created.lfEntry.key;
@@ -1151,6 +1187,7 @@ export function createMarginProjection({
             .elementFromPoint(event.clientX, event.clientY)
             ?.closest?.(".lf-margin-entry");
           hoveredHost = control && created.contains(control) ? created : null;
+          hoveredControl = hoveredHost ? (control ?? null) : null;
           refreshHighlight();
         };
         created.addEventListener("pointermove", takePointerOwnership);
@@ -1179,18 +1216,10 @@ export function createMarginProjection({
         hosts.set(entry.key, created);
       }
       const { marker, more } = host;
-      registerMarginRow(host, markerOptions(host, order));
+      registerMarginRow(host, markerOptions(host, rank++));
       // Insert in inventory order; the theme keeps the row unpainted and measurable
       // until the layout pass assigns its anchored posture.
-      if (!host.isConnected)
-        move(
-          toolbar,
-          host,
-          pageInventory
-            .slice(order + 1)
-            .map((later) => hosts.get(later.key))
-            .find((later) => later?.parentElement === toolbar) ?? null,
-        );
+      if (!host.isConnected) move(toolbar, host, toolbarAfter(order));
       host.lfEntry = entry;
       host.lfTarget = targetFor(entry);
       marker.lfEntry = entry;
@@ -1256,13 +1285,16 @@ export function createMarginProjection({
     if (room && railRoom === false) queueMicrotask(() => void returnToPage());
     railRoom = room;
     refreshHighlight();
-    scheduleMarginLayout();
+    tick(drawnMargin);
+    // The layout runs a pass where this render changed what a seat reads: a row registered
+    // for another target, or a face drawn at another size (margin-layout.js,
+    // `registerMarginRow`, `faces`).
     scheduleRoving();
     scheduleMarginEntryLabels();
-    // Every Page Map host contributes the same keyboard section. Its capability is the
-    // map's existence; each row already asks the narrower question of whether its press
-    // works from the current focus. Repeating live geometry in every scope's `when`
-    // forced a layout per location when paintKeys reflected them.
+    // The margin's keys have the map's existence as their capability; each row already
+    // asks the narrower question of whether its press works from the current focus.
+    // Repeating live geometry in the scope's `when` forced a layout per location when
+    // paintKeys reflected it.
     if (marginKeysAvailable !== pageInventory.length > 0) {
       marginKeysAvailable = pageInventory.length > 0;
       paintKeys();
@@ -1330,7 +1362,28 @@ export function createMarginProjection({
     // An obligation's location ring already identifies this target, including when
     // its margin marker holds focus. Quiet brackets on that perimeter cover the ring.
     const obligationShown = target && target === currentLocationObligation();
-    highlight(drawingOnly || currentLocationShown || obligationShown ? null : target);
+    // A Change entry under the pointer or focus outlines its whole change, every block
+    // and its gap, in place of the brackets round its first block (margin-bars.js), until
+    // its card stands open over the change. A reading names its own change, as each of
+    // two gaps beside one block does.
+    const control = /** @type {Partial<ReadingNode> | null} */ (
+      pointerHost ? hoveredControl : active
+    );
+    const changeSource = marker
+      ? (control?.lfChoice?.items ?? entry?.items ?? [])
+          .map((item) => sourceItem(item))
+          .find((source) => source?.change)
+      : null;
+    outlineChange(
+      changeSource?.change && !changeSource.discloses?.()?.open
+        ? changeSource.change
+        : null,
+    );
+    highlight(
+      changeSource || drawingOnly || currentLocationShown || obligationShown
+        ? null
+        : target,
+    );
   }
 
   function previewChanged() {
@@ -1373,12 +1426,16 @@ export function createMarginProjection({
       },
     });
     previewChanged();
+    // The card's messages were drawn from this gesture, outside any paint that follows
+    // their ages; drawing the margin again reads them where it follows them.
+    renderAnnotations.refresh();
     return positioned;
   }
 
   // A press on a marker opens its card, or puts away the card it already shows. Where
   // no card stands, as on a window with no room for the rail (header), the thread opens
-  // where every other route opens it (thread/destination.js): the floating panel.
+  // where every other route opens it (thread/destination.js): the floating panel. Either
+  // way the user lands where every opening puts them (thread/focus.js, `openingPart`).
   /** @param {Entry} entry @param {ThreadChoice} choice @param {Element} button */
   function togglePinned(entry, choice, button) {
     const selected = card.selection();
@@ -1388,7 +1445,7 @@ export function createMarginProjection({
     }
     const positioned = showPreview(entry, choice, button);
     if (positioned) card.focusThread(positioned);
-    else void openPageThread(threadIdOf(choice), { part: "thread", travel: false });
+    else void openPageThread(threadIdOf(choice), { travel: false });
   }
 
   // Closing the card hands a user who was in it on (focus.js, `closeLayer`). A close
@@ -1413,7 +1470,7 @@ export function createMarginProjection({
   // (thread/replies.js, `releaseReplies`), or the thread. A widened window gives it back
   // (thread/destination.js, `returnToPage`).
   function yieldPreview() {
-    const id = card.thread()?.getAttribute("data-thread");
+    const id = drawnThreadId(card.thread());
     const inCard = currentLocationIn(preview);
     const replying = card.replying();
     const intent = retainUserIntent();
@@ -1611,22 +1668,6 @@ export function createMarginProjection({
     if (!choice) return;
     if (expandedOptionsKey && expandedOptionsKey !== entry.key)
       setOptionsOpen(entry, false);
-    // A thread a widget holds out of its flow, so as to move nothing the user reads,
-    // has this marker for its notice: pressing it shows the thread where the widget
-    // draws it, and lands the user there (thread/held-news.js).
-    const intent = retainUserIntent();
-    const held = revealHeld(choice.items.map((item) => item.thread.id));
-    if (held) {
-      intent.handoff(closePreview);
-      void held.presented.then(() =>
-        openPageThread(held.id, {
-          part: "thread",
-          travel: false,
-          intent,
-        }),
-      );
-      return;
-    }
     togglePinned(entry, choice, button);
   }
 
@@ -1750,9 +1791,9 @@ export function createMarginProjection({
   /** @param {string} id */
   const seatedOnPage = (id) =>
     claimed(id) ||
-    [
-      ...document.querySelectorAll(`.lf-page-thread[data-thread="${CSS.escape(id)}"]`),
-    ].some((seat) => closestAcross(seat, ".lf-thread-seat[data-lf-thread-seat]"));
+    [...drawnThreadsWithId(document, id)].some((seat) =>
+      closestAcross(seat, ".lf-thread-seat[data-lf-thread-seat]"),
+    );
   // The innermost target holding the node whose threads the card would show. A thread is
   // about exactly its anchor's target (header), reached from anywhere
   // inside it and never from outside: after `m` the user is on the obligation element, so

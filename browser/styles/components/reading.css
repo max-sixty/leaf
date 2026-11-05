@@ -201,78 +201,45 @@
       inset-inline: 0;
       max-inline-size: 100cqi;
     }
-    /* A cell's marks, the ring of a cell the user is on, as a thread's target once its
-     * card closes, among them, stand inside its own box: cells meet edge to edge, and the
-     * table scrolls its columns, so it clips to its own edges, and the outer columns, the
-     * header row and the last row stand flush with them. The layer's outward ring there
-     * lost the side on the table's edge. Room outside the table would have to come from
-     * a negative margin, which overflows any scroller holding the table flush, as an
-     * x-bound box does. */
-    :is(th, td) {
+    /* The marks of a row or a cell, the ring of a cell the user is on, as a thread's
+     * target once its card closes, among them, stand inside its own box: rows and cells
+     * meet edge to edge, and the table scrolls its columns, so it clips to its own
+     * edges, and every row, the outer columns, the header row and the last row stand
+     * flush with them. An outward ring there lost the side on the table's edge. Room
+     * outside the table would have to come from a negative margin, which overflows any
+     * scroller holding the table flush, as an x-bound box does. */
+    :is(tr, th, td) {
       --lf-ring-at: var(--focus-ring-inset);
     }
   }
 }
 
-/* Every picture in reading content wears one face: a 1px ring in its surface's edge
-   colour (`--lf-ring`, which a surface on another ground sets) and the lowest lift
-   (base.css, `--raise-1`, which an image lies at). A capture whose edge is the
-   ground's colour, such as a screenshot of a white page, then shows where it ends: on
-   the page, in a thread wherever it is drawn, and on a draft's shelf as once it is
-   sent. A box that frames a picture wears the face for it by declaring
-   `.lf-media-frame`, as lf-shot's frame does around a capture it scrolls at 100% and
-   a draft's attachment around the picture it crops. Whatever gives a picture a face
-   of its own, as lf-trace's canvas and the media viewer do, or a page whose figure
-   should have no edge, such as a transparent logo, sets the face's radius, shadow
-   and forced-colours outline in its own rule, which outranks this one. The user chose
-   this on 25 October over leaving each page to frame its own captures, which most
-   pages never did. A picture in markup wears it with the reading face
-   (below); a box that declares `.lf-media-frame` wears it on any page. */
-.lf-media-frame {
-  border-radius: var(--r);
-  box-shadow:
-    0 0 0 1px var(--lf-ring, var(--border-2)),
-    var(--raise-1);
-}
-/* A forced palette drops the ring, so a picture takes a system edge; a focused
-   frame's focus ring outranks it. */
-@media (forced-colors: active) {
-  .lf-media-frame {
-    outline: 1px solid CanvasText;
-  }
-}
-
-/* A list of facts, each label beside its value: a page's summary facts (`dl.facts`,
- * the reading theme's) and every set of labelled values Leaf shows itself
- * (`dl.lf-facts`), such as About's counts and a capture's details. One layout for
- * all of them, so a reader learns where a value stands once. The labels take a
- * column as wide as the longest of them, up to two fifths of the list, and wrap past
- * that, so a long label never leaves its value a ribbon of a few words a line; the
- * values take the rest and line up on one edge. A `div` may hold a label with its
- * value, as HTML allows. It is a component rather than part of the face, so it holds
- * on any page and in a widget's slotted content, which a declared shadow tree keeps
- * out of the face (`:host`, above). */
-dl:is(.facts, .lf-facts) {
+/* A list of facts, each label beside its value: every set of labelled values Leaf
+ * shows itself (`dl.lf-facts`), such as About's counts and a capture's details. One
+ * layout for all of them, so a reader learns where a value stands once. The labels
+ * take a column as wide as the longest of them, up to two fifths of the list, and
+ * wrap past that, so a long label never leaves its value a ribbon of a few words a
+ * line; the values take the rest and line up on one edge. A `div` may hold a label
+ * with its value, as HTML allows. Its labels take the interface's small font, as a
+ * field's label over its box does. It is a component rather than part of the face, so
+ * it holds in a widget's slotted content, which a declared shadow tree keeps out of
+ * the face (`:host`, above). It reaches only Leaf's own class: a page's `dl.facts`
+ * keeps the layout its author wrote, and the reading theme gives its own the same
+ * one (packages/reading/defaults.css). */
+dl.lf-facts {
   display: grid;
   grid-template-columns: fit-content(40%) minmax(0, 1fr);
   align-items: baseline;
   gap: var(--sp-1) var(--sp-3);
 }
-dl:is(.facts, .lf-facts) > div {
+dl.lf-facts > div {
   display: contents;
 }
-dl:is(.facts, .lf-facts) dt {
-  color: var(--muted);
-  font-weight: 400;
-}
-/* A label stands a step below its value. Leaf's own lists sit among the interface's
- * words, so their labels take its small font, as a field's label over its box does; a
- * page's labels step down from its prose in its theme (the reading theme's
- * `dl.facts dt`). */
 dl.lf-facts dt {
+  color: var(--muted);
   font: var(--font-small);
 }
-dl:is(.facts, .lf-facts) dd {
+dl.lf-facts dd {
   margin: 0;
   overflow-wrap: anywhere;
   font-variant-numeric: tabular-nums;
@@ -312,7 +279,7 @@ dl:is(.facts, .lf-facts) dd {
     /* A code block is sized by how many characters it takes across, which is why its size
      * is off the serif ladder above. At --code-size, the column keeps a few more than the
      * 80 characters most source is written to (about 84 at 13.5px), and a `wide` block
-     * 100 (base.css, --wide).
+     * 100 (tokens.css, --wide).
      *
      * The size and leading are tokens because plain blocks, upgraded widgets, and the diff's
      * shadow tree must keep one density through upgrade. */
@@ -358,10 +325,14 @@ dl:is(.facts, .lf-facts) dd {
       background: none;
       font-size: 0.9em;
     }
+    /* A caption says what its table covers, such as which case each of several tables
+       shows, so it is the table's title rather than apparatus: it takes the table's
+       face, size and ink, and the weight its column headings wear. Set at the chip size
+       in the muted colour, it was the faintest text around the table, and a reader
+       skipped it and took a run of tables for one. */
     caption {
       text-align: start;
-      font-size: var(--t-6);
-      color: var(--muted);
+      font-weight: 600;
       margin-bottom: 6px;
     }
     :is(th, td) {
@@ -406,9 +377,10 @@ dl:is(.facts, .lf-facts) dd {
     /* A table whose rows open with their names keeps that column in view as its other
        columns scroll sideways, since a value read without its row's name is a value
        read blind. The first cell of every row sticks at the table's start, the corner
-       over the names included, so the heading row stays aligned with the rows. Each
-       cell paints the ground it stands on, so the columns scrolling under it don't show
-       through.
+       over the names included, so the heading row stays aligned with the rows. While
+       columns lie under the names, each name's cell paints the ground it stands on, so
+       they don't show through; at the table's start it paints none, so the mark of a
+       row it stands in, drawn by the row beneath it, shows across it.
        The names stand whole at the table's start, so the fade that says columns lie
        before the scroll position (controls.css, `--lf-more-fade-start`) moves off that
        edge to the names' far side, where the columns pass under them: the same 24px
@@ -420,6 +392,11 @@ dl:is(.facts, .lf-facts) dd {
     table:has(> * > tr > th[scope="row"]:first-child) > * > tr > :first-child {
       position: sticky;
       inset-inline-start: 0;
+    }
+    table:has(> * > tr > th[scope="row"]:first-child)[data-lf-more-before]
+      > *
+      > tr
+      > :first-child {
       background: var(--lf-ground);
     }
     @media screen {
@@ -445,14 +422,14 @@ dl:is(.facts, .lf-facts) dd {
         background: linear-gradient(to left, var(--lf-ground), transparent);
       }
     }
-    img:where(:not(.lf-media-frame img)) {
+    img:where(:not(.lf-media-frame img, [data-lf-frame] img)) {
       border-radius: var(--r);
       box-shadow:
         0 0 0 1px var(--lf-ring, var(--border-2)),
         var(--raise-1);
     }
     @media (forced-colors: active) {
-      img:where(:not(.lf-media-frame img)) {
+      img:where(:not(.lf-media-frame img, [data-lf-frame] img)) {
         outline: 1px solid CanvasText;
       }
     }
@@ -575,7 +552,7 @@ dl:is(.facts, .lf-facts) dd {
     dd {
       margin: 0 0 8px 0;
     }
-    /* The apparatus face, said once per layer. Every label, caption, chip, badge,
+    /* The apparatus face, said once per layer. Every label, figure caption, chip, badge,
      * disclosure summary and column heading on the page is the page pointing at its own
      * content rather than saying something — so it takes the UI sans at a small size,
      * usually tracked, and
@@ -613,7 +590,6 @@ dl:is(.facts, .lf-facts) dd {
      * without it, and stating it there would be a declaration that could never be
      * wrong and never do anything. */
     figcaption,
-    caption,
     th:not([scope="row"]),
     summary {
       font-family: var(--sans);

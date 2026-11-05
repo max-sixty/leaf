@@ -93,7 +93,8 @@ const viewerZoom = offerAction("word", "lf-media-viewer-zoom", "100%");
 const stage = document.createElement("div");
 stage.className = "lf-media-viewer-stage";
 const caption = document.createElement("p");
-caption.className = "lf-media-viewer-caption scroll";
+caption.className = "lf-media-viewer-caption";
+caption.toggleAttribute("data-lf-scroll", true);
 
 /** @type {import("photoswipe").default | null} */
 let inspector = null;
@@ -386,7 +387,9 @@ mediaViewer.addEventListener("close", () => {
   );
 });
 document.addEventListener("click", (event) => {
-  if (event.defaultPrevented || !plainPress(event)) return;
+  // Startup seats the viewer in the chrome after this module loads; until then a
+  // press keeps the link's own destination.
+  if (event.defaultPrevented || !plainPress(event) || !mediaViewer.isConnected) return;
   // The path ends at the document and the window, and an element whose id is
   // `matches` puts an object at `window.matches`, so only elements are asked.
   const path = event.composedPath();

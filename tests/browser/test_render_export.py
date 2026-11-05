@@ -32,7 +32,7 @@ from leaf import files as files_model
 from leaf import media as media_model
 from leaf.render_checks import HANDOVER_DEADLINE_MS, rendered, wait_until_ready
 from leaf.structure import UTF8_BOM
-from leaf_dev.example_data import patch_manifest
+from leaf_dev.example_data import named_source, patch_manifest
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -41,7 +41,6 @@ from journeys.test_render_export import (  # noqa: F401 (fixtures)
     OFFLINE_WIDGET,
     PIXEL,
     POLICY_ATTEMPTS,
-    ROOT,
     _reachable,
     requested_documents,
 )
@@ -52,7 +51,7 @@ def test_interactive_export_with_an_obligation_reaches_application_presentation(
     browser, serve, tmp_path, draft
 ):
     """Offline mode omits page controls without leaving their ticket pending."""
-    serve(ROOT / "examples" / "notification-playground.html")
+    serve(named_source("notification-playground"))
     interactive = tmp_path / "interactive-with-ask.html"
     result = CliRunner().invoke(
         cli_model.cli,
@@ -402,7 +401,7 @@ def test_an_export_keeps_visual_review_images_and_inspection_offline(
             "async images => { await Promise.all(images.map(image => image.decode())); return true; }"
         )
     shot = selected.locator("lf-shot")
-    shot.get_by_role("button", name="Slider", exact=True).click()
+    shot.get_by_role("radio", name="Slider", exact=True).click()
     comparison = shot.locator("wa-comparison")
     handle = comparison.get_by_role("scrollbar")
     handle.press("Home")
@@ -495,67 +494,31 @@ def test_an_export_without_scripts_keeps_text_layout_and_alt_text(
     assert page.locator("body").bounding_box()["width"] <= 390
 
 
-def test_an_export_draws_a_chart_whose_body_is_plot_code(browser, serve, tmp_path):
-    """An lf-chart body is a Plot expression the widget compiles, so the export's policy
+def test_an_export_draws_the_widgets_its_markup_names_and_brings_no_others(
+    browser, serve, tmp_path, subtests
+):
+    """One exported file, read for what its widgets need offline.
+
+    An lf-chart body is a Plot expression the widget compiles, so the export's policy
     admits compiling it as the served page's does. Refused, the chart shows an error
-    over its source in the file a user was sent, while it drew in the author's
-    preview."""
-    serve(
-        leaf_page(
-            "Exported chart",
-            '<h1>Exported chart</h1><lf-chart id="c"><pre>'
-            '{ariaLabel: "one bar of 3", marks: [Plot.barY([3])]}'
-            "</pre></lf-chart>",
-        )
-    )
-    out = tmp_path / "chart.html"
-    exporting_model.cmd_export(serve.page_dir, out, None)
-    page = browser.new_page()
-    page.goto(out.as_uri(), wait_until="load")
-    expect(page.locator("body")).to_have_attribute("data-lf-presented", "1")
-    expect(page.locator("#c svg[role=img]")).to_have_attribute(
-        "aria-label", "one bar of 3"
-    )
-    expect(page.locator("#c .lf-error")).to_have_count(0)
+    over its source in the file a user was sent, while it drew in the author's preview.
 
+    A word written for a user listening (`.lf-quiet`), here a highlighted code line's,
+    is clipped on screen in an export as in the live page. The rule that clips it once
+    lived only in the chrome's sheet, which an export never adopts, so quiet words in an
+    exported file appeared on screen as well as their tint.
 
-def test_an_export_keeps_its_quiet_words_off_screen(browser, serve, tmp_path):
-    """A word written for a user listening (`.lf-quiet`), here a highlighted code
-    line's, is clipped on screen in an export as in the live page. The rule that clips
-    it once lived only in the chrome's sheet, which an export never adopts, so quiet
-    words in an exported file appeared on screen as well as their tint."""
-    serve(
-        leaf_page(
-            "Quiet words",
-            '<h1>Quiet words</h1><lf-code id="m" language="python" hi="1">'
-            "<pre>ship()</pre></lf-code>",
-        )
-    )
-    out = tmp_path / "quiet.html"
-    exporting_model.cmd_export(serve.page_dir, out, None)
-    page = browser.new_page()
-    page.goto(out.as_uri(), wait_until="load")
-    expect(page.locator("body")).to_have_attribute("data-lf-presented", "1")
-    quiet = page.locator("#m .lf-quiet")
-    expect(quiet).to_have_count(1)
-    box = quiet.evaluate(
-        "el => { const r = el.getBoundingClientRect();"
-        " return [r.width, r.height, getComputedStyle(el).clipPath]; }"
-    )
-    assert box[0] <= 1 and box[1] <= 1 and box[2] != "none", box
-
-
-def test_an_export_embeds_only_the_widgets_its_markup_names(browser, serve, tmp_path):
-    """A widget the page and its messages never name brings none of its modules.
-
-    The page draws code and a reply carries a diagram; nothing names a diff, so
+    A widget the page and its messages never name brings none of its modules. The page
+    draws code and a chart and a reply carries a diagram; nothing names a diff, so
     Pierre's renderer stays out of the file.
     """
     serve(
         leaf_page(
             "Reachable modules",
-            '<h1>Reachable</h1><lf-code id="snippet" language="python">'
-            "<pre>print('hi')</pre></lf-code>",
+            '<h1>Reachable</h1><lf-chart id="c"><pre>'
+            '{ariaLabel: "one bar of 3", marks: [Plot.barY([3])]}'
+            '</pre></lf-chart><lf-code id="m" language="python" hi="1">'
+            "<pre>ship()</pre></lf-code>",
         )
     )
     root = append_carried_log_record(
@@ -598,7 +561,20 @@ def test_an_export_embeds_only_the_widgets_its_markup_names(browser, serve, tmp_
     page = browser.new_page()
     page.goto(out.as_uri(), wait_until="load")
     expect(page.locator("body")).to_have_attribute("data-lf-presented", "1")
-    expect(page.locator("#snippet")).to_contain_text("print")
+    with subtests.test("chart"):
+        expect(page.locator("#c svg[role=img]")).to_have_attribute(
+            "aria-label", "one bar of 3"
+        )
+        expect(page.locator("#c .lf-error")).to_have_count(0)
+    with subtests.test("quiet words"):
+        expect(page.locator("#m")).to_contain_text("ship")
+        quiet = page.locator("#m .lf-quiet")
+        expect(quiet).to_have_count(1)
+        box = quiet.evaluate(
+            "el => { const r = el.getBoundingClientRect();"
+            " return [r.width, r.height, getComputedStyle(el).clipPath]; }"
+        )
+        assert box[0] <= 1 and box[1] <= 1 and box[2] != "none", box
 
 
 def test_a_historical_export_embeds_its_captured_css_graph(browser, serve, tmp_path):
@@ -752,7 +728,7 @@ def test_inline_threads_keep_their_words_without_live_controls_in_print(
             serve.page_dir,
             {"kind": "resolve", "author": "user", "parent": root["id"]},
         )
-    selector = f'lf-diff .lf-page-thread[data-thread="{root["id"]}"]'
+    selector = f'lf-diff .lf-page-thread[data-lf-thread="{root["id"]}"]'
     live = open_page(browser, url)
     thread = live.locator(selector)
     expect(thread).to_have_count(1)

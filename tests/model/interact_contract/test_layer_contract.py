@@ -39,6 +39,7 @@ from leaf.findings import Finding
 from leaf.registry import contract as registry_contract
 from leaf.registry import layer as registry_layer
 from leaf.registry import storage as registry_storage
+from leaf.registry import validation as registry_validation
 from leaf_dev.page_fixtures import package_selection_args
 from model.interact_contract import vocabulary
 
@@ -60,16 +61,18 @@ def test_idioms_have_nonblank_authoring_fields_and_no_widget_behavior(
     registry = shipped_core_registry()
     entry = {"description": "An eyebrow.", "x-example": '<p class="eyebrow">Title</p>'}
     registry[".eyebrow"] = entry
-    registry_layer.validate_layer_declarations(registry, "registry.json")
+    registry_validation.validate_layer_declarations(registry, "registry.json")
     entry["x-instructions"] = "Use above a heading."
-    registry_layer.validate_layer_declarations(registry, "registry.json")
+    registry_validation.validate_layer_declarations(registry, "registry.json")
     for key, value in changes.items():
         if value is None:
             del entry[key]
         else:
             entry[key] = value
     refused = registry_refusal(
-        lambda: registry_layer.validate_layer_declarations(registry, "registry.json")
+        lambda: registry_validation.validate_layer_declarations(
+            registry, "registry.json"
+        )
     )
     assert found(
         [refused], "idiom-schema", selector=".eyebrow", keyword=keyword, path=path
@@ -86,7 +89,7 @@ def test_layer_facts_read_names_whole_and_an_absent_records_as_null():
         registry = deepcopy(kernel)
         for fact, value in changes.items():
             registry[f"${fact}"] = {**registry[f"${fact}"], **value}
-        registry_layer.check_layer_facts(registry, "kernel")
+        registry_validation.check_layer_facts(registry, "kernel")
 
     facts()
     absent = {"description": "Build facts.", "schema": {}, "records": None}
@@ -112,7 +115,7 @@ def test_one_check_names_the_first_departure_in_each_layer_fact():
     }
 
     with pytest.raises(registry_contract.RegistryError) as refused:
-        registry_layer.check_layer_facts(registry, "kernel")
+        registry_validation.check_layer_facts(registry, "kernel")
 
     assert [finding.values["path"][0] for finding in refused.value.findings] == [
         "$data",
@@ -126,7 +129,7 @@ def test_one_check_names_each_missing_layer_fact():
     del registry["$languages"], registry["$tones"]
 
     with pytest.raises(registry_contract.RegistryError) as refused:
-        registry_layer.check_layer_facts(registry, "kernel")
+        registry_validation.check_layer_facts(registry, "kernel")
 
     assert [finding.values["reason"] for finding in refused.value.findings] == [
         "'$languages' is a required property",
@@ -251,6 +254,30 @@ def test_init_refuses_instructions_that_a_batch_could_not_carry(
     finding = init_refusal(page_dir)
     assert finding.code == code
     assert next(iter(events)) in json.dumps(finding.values)
+
+
+@pytest.mark.parametrize(
+    "path", [("x-state", "decide", "unit"), ("x-upgrade",)], ids="-".join
+)
+def test_init_refuses_a_declaration_the_vocabulary_would_read_unchecked(
+    page_dir, tmp_path, path
+):
+    """A layer's vocabulary stamps each widget's states and finds its module by
+    reading its declaration as valid (`layer.compose_vocabulary`), so `page init`
+    validates the registry first and names a declaration that leaves out a field they
+    read, rather than failing inside them."""
+    entry = deepcopy(vocabulary(page_dir)["lf-suggestion"])
+    *parents, field = path
+    held = entry
+    for key in parents:
+        held = held[key]
+    del held[field]
+    overlay = tmp_path / ".leaf"
+    overlay.mkdir(parents=True)
+    (overlay / "registry.json").write_text(json.dumps({"lf-suggestion": entry}))
+
+    finding = init_refusal(page_dir)
+    assert "lf-suggestion" in json.dumps(finding.json()), finding
 
 
 def test_the_events_reference_names_the_fields_each_kind_declares():
@@ -558,7 +585,6 @@ def test_each_case_of_an_event_is_told_what_the_snapshot_shows(
         },
         "resolve": {"kind": "resolve"},
         "unresolve": {"kind": "unresolve"},
-        "Done on a to-do on the user": {"kind": "todo_end"},
         "undo": {"kind": "undo"},
         "report": {"kind": "report"},
         "error": {"kind": "error"},
@@ -988,13 +1014,13 @@ def test_the_field_docs_hold_to_the_fields_their_schema_admits(fact):
     x-awaits, held to their schemas as `$keys` is to the x- keys: a field the schema
     admits with no member is one an author reads the registry for and finds unsaid."""
     kernel = shipped_core_registry()
-    registry_layer.validate_layer_declarations(kernel, "kernel")
+    registry_validation.validate_layer_declarations(kernel, "kernel")
     documented = deepcopy(kernel)
-    field = min(registry_layer.DOCUMENTED_KEYS[fact]["properties"])
+    field = min(registry_validation.DOCUMENTED_KEYS[fact]["properties"])
     del documented[fact][field]
     documented[fact]["nope"] = "?"
     refused = registry_refusal(
-        lambda: registry_layer.validate_layer_declarations(documented, "kernel")
+        lambda: registry_validation.validate_layer_declarations(documented, "kernel")
     )
     assert found(
         [refused], "keys-documentation", fact=fact, missing=[field], unadmitted=["nope"]

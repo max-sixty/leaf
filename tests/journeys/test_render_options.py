@@ -19,7 +19,6 @@ from render_cases_interaction import (
     live_url,
 )
 from render_harness import (
-    PANEL_THREAD,
     SAMPLE_PAGE,
     active_digit_bindings,
     available_commands,
@@ -31,6 +30,8 @@ from render_harness import (
     wait_for_revision,
     write,
 )
+
+from leaf_dev.browser import PANEL_THREAD
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -360,6 +361,18 @@ def test_the_gutter_runs_beside_the_exhibit_and_no_further(source, browser, serv
                 f"truncated image"
             )
             strip = Image.open(io.BytesIO(page.screenshot(clip=clip))).convert("RGB")
+            # The pixels answer for the geometry only if nothing moved between the two
+            # reads: a layout change landing between them makes the strip read as a bar
+            # of the wrong length, which the edge asserts below would blame on the theme.
+            settled = (
+                page.locator(f"#{spec}").bounding_box(),
+                page.evaluate(EXHIBIT_EXTENT, spec),
+            )
+            assert settled == (box, exhibit), (
+                f"#{spec} moved while its {edge} strip was taken: {(box, exhibit)} "
+                f"before the screenshot, {settled} after — the page was still "
+                f"settling, so the strip does not read the gutter the rects describe"
+            )
             assert strip.height == clip["height"] * scale, (
                 f"the clip asked for {clip['height']} CSS px at dpr {scale} and came "
                 f"back {strip.height} device px: the arithmetic below no longer "

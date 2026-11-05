@@ -1940,10 +1940,10 @@ flowchart TD
               <summary>The On me walk can leave the panel's filtered list</summary>
               <p id="navigation-queue-rule">
                 <kbd>m</kbd> / <kbd>Shift</kbd> + <kbd>m</kbd> walk work waiting on the
-                user: open obligations, to-dos and updates to send again. The walk
-                reveals closed tabs or disclosures and can leave a filtered panel list.
-                A single-choice obligation ends when answered; a multi-select choice
-                waits for Done. Later presses walk the remaining work.
+                user: open obligations and updates to send again. The walk reveals
+                closed tabs or disclosures and can leave a filtered panel list. A
+                single-choice obligation ends when answered; a multi-select choice waits
+                for Done. Later presses walk the remaining work.
               </p>
               <p id="navigation-tab-rule">
                 Page walks through open threads (<kbd>t</kbd>), On me (<kbd>m</kbd>) and
@@ -1961,8 +1961,9 @@ flowchart TD
             <p id="navigation-resolve-rule">
               <kbd>r</kbd> resolves the focused open thread. A thread opened from
               Threads advances to the next open thread in page order, or the previous at
-              the end; with none left, it returns to the list. A margin card returns to
-              its passage. An embedded thread folds in place.
+              the end; with none left, it returns to the list. A margin card moves on to
+              the next thread at its passage, or the one before, and closes onto its
+              passage with none left. An embedded thread folds in place.
             </p>
             <details id="navigation-resolution-cases">
               <summary>Search, replies, and undo</summary>
@@ -2048,10 +2049,9 @@ flowchart TD
             <h2>Back and Forward</h2>
             <p id="navigation-history-rule">
               A successful navigation step to a destination that is not fully readable
-              adds a return stop. Consecutive navigation steps form a navigation group
-              and share that stop while part of the preceding landing remains visible
-              and the user has not clicked or Tabbed onto another passage. Back returns
-              to the navigation group’s start. A fully readable destination adds no
+              adds a return stop where the user stood, so Back returns to the item they
+              were on: after t then m, Back returns to the thread, and Back again to
+              where they were reading before t. A fully readable destination adds no
               stop.
             </p>
             <details id="navigation-history-cases">
@@ -2070,27 +2070,9 @@ flowchart TD
                       destination
                     </td>
                     <td>
-                      A successful navigation step pushes an entry, or replaces the
-                      current navigation group's entry. Changing focus alone adds none.
+                      A successful navigation step pushes an entry. Changing focus alone
+                      adds none.
                     </td>
-                  </tr>
-                  <tr>
-                    <td>
-                      Click or Tab onto a different passage, then take another
-                      navigation step
-                    </td>
-                    <td>
-                      The reading choice ends the navigation group; the next offscreen
-                      navigation step saves that passage. Controls and runtime focus
-                      handoffs do not end it.
-                    </td>
-                  </tr>
-                  <tr>
-                    <td>
-                      Scroll completely away from the last landing, then take another
-                      navigation step
-                    </td>
-                    <td>The new navigation step adds a separate return stop.</td>
                   </tr>
                   <tr>
                     <td>Follow a #fragment link</td>

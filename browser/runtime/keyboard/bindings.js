@@ -191,7 +191,7 @@ import { runtime } from "../context.js";
 
 // Which platform's spelling, and which modifier is the sequence's. Up here rather than beside
 // the text inputs because the spelling table below is the first thing that needs it.
-const MAC = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
+export const MAC = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
 
 // How a key is spelled, in one column. The line said "esc" where the overlay said "Esc"
 // for the same binding, and lf-options declared one pair of arrows twice, as "↑ / ↓" and
@@ -728,12 +728,6 @@ export function answers(binding, ev) {
 // canonical key spelling at registration. Computed titles and live conflicts are
 // validated when read, under the owner's current state. A title is mandatory;
 // bar wording defaults to it and additional reference detail is optional.
-/** Registration reads declared invocation capabilities, without evaluating live availability.
- * @param {Command} row @param {"run" | "runKey"} handler */
-export const declaresCommandHandler = (row, handler) =>
-  Boolean(Object.getOwnPropertyDescriptor(row, handler)?.get) ||
-  typeof row[handler] === "function";
-
 /** @template {readonly Command[]} T @param {T} rows @param {string} where @param {(() => boolean)} [ready] @returns {T} */
 export function checked(rows, where, ready) {
   declareCommandReadiness(rows, ready);
@@ -772,23 +766,19 @@ export function checked(rows, where, ready) {
   rows.forEach((row, i) => {
     if (!row) throw new TypeError(`${where}: row ${i + 1} is missing`);
     named(row);
-    // A live handler getter declares the capability even while its action is
-    // unavailable. Registration validates the declaration; dispatch reads it.
-    const declaresRun = declaresCommandHandler(row, "run");
-    const declaresRunKey = declaresCommandHandler(row, "runKey");
     if (row.decision && row.control == null)
       throw new Error(`leaf: ${row.id} is a Decision command with no control`);
     if (row.lands !== undefined && typeof row.lands !== "function")
       throw new TypeError(`leaf: ${row.id} lands must be a function`);
-    if (row.native && !declaresRun && !declaresRunKey)
+    if (row.native && !row.run && !row.runKey)
       throw new Error(
         `leaf: row ${i} of ${where} leaves the native press to the platform but runs no result`,
       );
-    if (row.exit && (!declaresRun || row.touch || row.routes))
+    if (row.exit && (!row.run || row.touch || row.routes))
       throw new Error(
         `leaf: ${row.id} is its stance's way out, which the panel's row offers in its own words, so it needs a run and no touch words or routes`,
       );
-    if (row.touch && (!declaresRun || row.routes))
+    if (row.touch && (!row.run || row.routes))
       throw new Error(
         `leaf: ${row.id} stands in for its keys under a finger, so it needs a run and makes one press, with no routes`,
       );

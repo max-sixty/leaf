@@ -2,7 +2,6 @@
 
 import re
 from itertools import pairwise
-from pathlib import Path
 
 import pytest
 import turbohtml
@@ -47,6 +46,7 @@ from leaf import event_log as events_model
 from leaf import service as service_model
 from leaf import thread as thread_model
 from leaf.render_checks import rendered, wait_until_ready
+from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -54,7 +54,7 @@ pytestmark = pytest.mark.shifts_unsurveyed
 def expect_accept_all(page, words):
     """The leaf's menu offers accepting every remaining suggestion, by its count; read
     the row enabled and put the menu away."""
-    row = panel_menu(page).locator('.lf-fp-item[data-row="blanket:accept"]')
+    row = panel_menu(page).locator('.lf-fp-item[data-lf-row="blanket:accept"]')
     expect(row).to_have_text(words)
     expect(row).to_be_enabled()
     page.locator(".lf-fp-leaf").click()
@@ -338,7 +338,7 @@ def test_pr_walkthrough_moves_from_semantic_call_to_exact_patch_comment(
     browser, serve, one_user
 ):
     """The specialized report's signature path reaches reviewable source evidence."""
-    example = Path(__file__).parents[2] / "examples" / "pr-walkthrough.html"
+    example = named_source("pr-walkthrough")
     page = open_page(browser, live_url(serve(example)), context=one_user)
 
     page.get_by_role("tab", name="CallDiff").click()
@@ -368,7 +368,11 @@ def test_pr_walkthrough_moves_from_semantic_call_to_exact_patch_comment(
     line = page.locator(
         '#pr-exact-patch [data-lf-datum=\'["src/summary.rs","new",259]\']'
     )
-    expect(page).to_have_url(re.compile(r"#pr-exact-patch$"))
+    # The URL names the line by its source key, so a reload or a copied URL reaches it.
+    source_key = '["src/summary.rs","source","new",259]'.replace('"', "%22")
+    expect(page).to_have_url(
+        re.compile(re.escape(f"#pr-exact-patch:{source_key}") + "$")
+    )
     expect(line).to_be_in_viewport()
     expect(page.locator(".lf-live")).to_have_text(
         "Opened src/summary.rs:259 in the exact patch"
@@ -1012,7 +1016,7 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_user_enters_it(
 
 def test_built_code_comparison_drives_both_candidates(browser, serve):
     """Candidate measurements follow rendered readers through sizing and edits."""
-    source = Path(__file__).parents[2] / "examples" / "code-comparison.html"
+    source = named_source("code-comparison")
     context = browser.new_context(permissions=["clipboard-read", "clipboard-write"])
     page = open_page(browser, serve(source), context=context)
     playground = page.locator("#code-comparison-playground")
@@ -1145,7 +1149,9 @@ def test_a_decision_travels_between_tabs_and_the_log_has_the_last_word(browser, 
     second = open_page(browser, url)
 
     # A tab that did not click has only its own poll to learn from.
-    first.locator("[data-lf-margin-for='sug-refill'] .lf-sug-accept").click()
+    first.locator(
+        "[data-lf-margin-for='sug-refill'] [data-lf-margin-entry-key=accept]"
+    ).click()
     told(second)
     expect(second.locator("#sug-refill lf-old")).to_be_hidden()
     expect(second.locator("#sug-refill lf-new")).to_be_visible()
@@ -1159,7 +1165,9 @@ def test_a_decision_travels_between_tabs_and_the_log_has_the_last_word(browser, 
     expect(row.locator(".lf-margin-receipt")).to_have_count(0)
     expect(accepted).to_be_enabled()
     # Its pair leaves; the surviving content and Undo carry the settled state.
-    rejected = second.locator("[data-lf-margin-for='sug-refill'] .lf-sug-reject")
+    rejected = second.locator(
+        "[data-lf-margin-for='sug-refill'] [data-lf-margin-entry-key=reject]"
+    )
     expect(rejected).to_be_hidden()
     expect_accept_all(second, "Accept all (2)")
 
@@ -1169,13 +1177,17 @@ def test_a_decision_travels_between_tabs_and_the_log_has_the_last_word(browser, 
     # settles it for both once the cut-off one catches up.
     third = open_page(browser, url)
     cut = CutOff().hold(third)
-    first.locator("[data-lf-margin-for='sug-thistle'] .lf-sug-accept").click()
+    first.locator(
+        "[data-lf-margin-for='sug-thistle'] [data-lf-margin-entry-key=accept]"
+    ).click()
     # In the log before the reject is clicked, so which one is later is this test's
     # to decide rather than the network's.
     told(second)
     expect_accept_all(second, "Accept all (1)")
     unfolded_button(
-        third.locator("[data-lf-margin-for='sug-thistle'] .lf-sug-reject")
+        third.locator(
+            "[data-lf-margin-for='sug-thistle'] [data-lf-margin-entry-key=reject]"
+        )
     ).click()
     cut.restore()
     # The reject went out over a live channel, so every tab has to read it back —
@@ -1284,7 +1296,7 @@ import pytest
 @pytest.mark.parametrize("destination", ["call", "patch"])
 def test_focus_reactions_keep_a_projected_data_target(browser, serve, destination):
     """Light-DOM data and its shadow-DOM destination keep exact identity."""
-    example = Path(__file__).parents[2] / "examples" / "pr-walkthrough.html"
+    example = named_source("pr-walkthrough")
     page = open_page(browser, live_url(serve(example)))
     page.get_by_role("tab", name="CallDiff").click()
     location = (
@@ -1393,9 +1405,7 @@ def test_notification_configuration_becomes_a_commentable_local_artifact(
     The page exposes that file through data, then a user comment changes the file and
     remains anchored on the revised result.
     """
-    source_path = (
-        Path(__file__).parents[2] / "examples" / "notification-playground.html"
-    )
+    source_path = named_source("notification-playground")
     source = source_path.read_text(encoding="utf-8")
     page = open_page(browser, live_url(serve(source_path)))
     playground = page.locator("#notification-playground")
@@ -1640,7 +1650,7 @@ body { font-family: system-ui, sans-serif; }
 def test_structured_data_explorer_keeps_one_aggregate_query_configuration(
     browser, serve
 ):
-    source = Path(__file__).parents[2] / "examples" / "data-explorer.html"
+    source = named_source("data-explorer")
     context = browser.new_context(permissions=["clipboard-read", "clipboard-write"])
     page = open_page(browser, serve(source), context=context)
     playground = page.locator("#release-query-playground")

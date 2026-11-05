@@ -32,15 +32,16 @@ export { fragmentUrl } from "./anchor-coordinate.js";
 export { addressableLabel, addressableWord } from "./addressable-names.js";
 // The name Threads, the margin, and reactions give a comment's anchor.
 export { anchorLabel } from "./thread/messages.js";
-// The page's `main`, or the body of the message whose markup a node stands in.
+// The authored page body, or the body of the message whose markup a node stands in.
 export { authoredScope, elementById } from "./passages.js";
 export { navigateToDatum } from "./application.js";
 // `growthIsSeen(element)`: whether the element changing size now would move what the
 // user sees, as scroll anchoring and the chrome leave it.
 export { growthIsSeen, landingInsets, shownWindow } from "./geometry.js";
-export { registerRootHeader } from "./page-layout.js";
-// Holding the user's place in a scroller whose contents a widget re-renders.
-export { placeKeeper } from "./user-place.js";
+export { registerRootHeader } from "./root-headers.js";
+// What stands at the reading line, and holding a place across one change the
+// browser's scroll anchoring can't keep still, such as one hiding what it anchors.
+export { holdPlace, readingAt } from "./user-place.js";
 export { under } from "./shadow.js";
 // Putting the user on an element, saying what moved them there; holding their place,
 // caret included, across a move or re-render of the node they stand on, by key in a
@@ -68,13 +69,7 @@ export { comparisonChanges } from "./version.js";
 export { answerWords } from "./obligations/answer.js";
 // A view's reading and writing of another widget's answer (x-shows).
 export { shownAnswer } from "./shown-answer.js";
-export {
-  readWork,
-  workRole,
-  workElements,
-  directWorkElements,
-  workAncestor,
-} from "./work.js";
+export { readWork, workAncestor } from "./work.js";
 export { obligationActions } from "./application.js";
 export { readQueues, queueItemKey } from "./queue-api.js";
 export { queueTitle } from "./queue-title.js";
@@ -123,7 +118,7 @@ export {
 } from "./markdown.js";
 export { isCanonicalMediaUrl, scopedMediaUrl } from "./media.js";
 export { atScrollEnd, pageScroller, scrollLimit } from "./scrolling.js";
-export { fitsWhole } from "./landing-scroll.js";
+export { alreadyShown, fitsWhole } from "./landing-scroll.js";
 // The user's place as a landmark, and the history entries a widget adds.
 export { capturePlace, restorePlace } from "./reading-place.js";
 export { claimTraversals, pushEntry, replaceEntry } from "./history.js";
@@ -138,7 +133,7 @@ export {
 } from "./reading-regions.js";
 export { notice } from "./notifications.js";
 export { raiseError } from "./errors.js";
-export { alignText } from "./text-alignment.js";
+export { alignText, MAX_EDIT_LENGTH } from "./text-alignment.js";
 export { says, wrote } from "./passages.js";
 export { ago, clockValue, quietSince, shortAgo } from "./presence.js";
 export { revisionLabel } from "./context.js";
@@ -177,7 +172,7 @@ export { copyControl } from "./copy-control.js";
 // and whether a click came from the keyboard rather than a pointer.
 export { plainPress, pressIsKeyboardActivation } from "./pointer.js";
 export { onUserInput } from "./focus.js";
-export { keepView, openingView, viewMembers } from "./storage.js";
+export { keepView, openingView, viewDocument, viewMembers } from "./storage.js";
 export { highlightBlocks } from "./syntax.js";
 export {
   saidAt,

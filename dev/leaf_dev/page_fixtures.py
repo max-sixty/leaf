@@ -20,7 +20,9 @@ from pathlib import Path
 from typing import Literal, Protocol
 
 import click
+from click.testing import CliRunner
 
+from leaf.cli import cli
 from leaf.event_log import read_events
 from leaf.interaction_log import append_interactions
 from leaf.media import media_name
@@ -29,6 +31,7 @@ from leaf.schema import MEDIA_DIR, MEDIA_TYPES
 from leaf.structure import SourceDocument
 from leaf_dev import ROOT, docs
 from leaf_dev.example_data import (
+    DEVELOPER_GALLERIES,
     data_operations,
     example_versions,
     page_files,
@@ -95,8 +98,8 @@ def record_run_context(
 
 def source_manifest_candidates(source: Path) -> list[Path]:
     candidates = [source.parent / "layer.json"]
-    # `examples/developer/` pages take the catalog's package selection.
-    if source.parent.name == "developer":
+    # The developer galleries take the worked examples' package selection.
+    if source.parent.match(DEVELOPER_GALLERIES.as_posix()):
         candidates.append(source.parent.parent / "layer.json")
     return candidates
 
@@ -225,6 +228,16 @@ class LeafRunner(Protocol):
     directory and failure report."""
 
     def __call__(self, *args: str, input_text: str | None = None) -> object: ...
+
+
+def leaf_in_process(*args: str, input_text: str | None = None) -> None:
+    """The `LeafRunner` that runs a command in this process, with its environment
+    and working directory, failing with the command's output."""
+    result = CliRunner().invoke(cli, list(args), input=input_text)
+    if result.exit_code:
+        raise click.ClickException(
+            f"leaf {' '.join(args)}: {result.output}"
+        ) from result.exception
 
 
 def import_referenced_media(

@@ -111,7 +111,7 @@ def test_timeline_steps_by_every_route_and_keeps_the_step(browser, serve):
     # A row of the step list, and a press on a mark, go to that event's step.
     rows.nth(3).click()
     expect(position).to_have_text("Step 4 of 6 · 1.2 s")
-    page.locator('[data-event="a-write"] .lf-timeline-mark').click()
+    page.locator('[data-lf-event="a-write"] .lf-timeline-mark').click()
     expect(position).to_have_text("Step 5 of 6 · 4.2 s")
 
     # From a row, the arrows carry focus along the list with the step.
@@ -129,7 +129,7 @@ def test_timeline_labels_stay_clear_at_any_width_and_on_paper(browser, serve):
     page = open_page(browser, serve(leaf_page("Race", RACE), packages=("timeline",)))
     assert_labels_clear(page)
     # The ruler picks round intervals, and events with room share a label row.
-    expect(page.locator("#race .lf-timeline-tick[data-major]")).to_have_text(
+    expect(page.locator("#race .lf-axis-tick[data-lf-major]")).to_have_text(
         ["0 s", "1 s", "2 s", "3 s", "4 s", "5 s"]
     )
     lanes = page.evaluate(LABEL_BOXES)["lanes"]
@@ -180,13 +180,46 @@ RUNS = """<h1>Race</h1>
 </lf-timeline>"""
 
 
+def test_a_tall_timeline_s_gridlines_reach_its_last_lane(browser, serve):
+    """Each major time's line runs from the ruler's foot to the chart's, however many
+    lanes the chart holds, as its playhead does."""
+    lanes = "".join(
+        f'<lf-lane label="Worker {n}"><lf-event id="w{n}" at="{n * 100}" '
+        f'end="{n * 100 + 2000}" label="Job {n}"></lf-event></lf-lane>'
+        for n in range(60)
+    )
+    source = leaf_page(
+        "Tall",
+        f'<h1>Tall</h1><lf-timeline id="tall" aria-label="Workers">{lanes}</lf-timeline>',
+    )
+    page = open_page(browser, serve(source, packages=("timeline",)))
+    reading = page.evaluate(
+        """() => {
+          const tall = document.querySelector('#tall');
+          const box = (node) => node.getBoundingClientRect();
+          return {
+            chart: box(tall.querySelector('.lf-timeline-chart')),
+            ruler: box(tall.querySelector('.lf-timeline-ruler')),
+            playhead: box(tall.querySelector('.lf-timeline-playhead-line')),
+            lines: [...tall.querySelectorAll('.lf-axis-gridline')].map(box),
+          };
+        }"""
+    )
+    assert reading["chart"]["height"] > 2000, reading["chart"]
+    assert reading["lines"], reading
+    for line in reading["lines"]:
+        assert abs(line["top"] - reading["ruler"]["bottom"]) < 0.5, (line, reading)
+        assert abs(line["bottom"] - reading["chart"]["bottom"]) < 0.5, (line, reading)
+    assert abs(reading["playhead"]["bottom"] - reading["chart"]["bottom"]) < 0.5
+
+
 def test_compared_runs_line_up_on_one_axis_under_one_playhead(browser, serve):
     page = open_page(browser, serve(leaf_page("Race", RUNS), packages=("timeline",)))
     reading = page.evaluate(
         """() => {
           const race = document.querySelector('#race');
           const box = (selector) => race.querySelector(selector).getBoundingClientRect();
-          const mark = (id) => box(`[data-event="${id}"] .lf-timeline-mark`);
+          const mark = (id) => box(`[data-lf-event="${id}"] .lf-timeline-mark`);
           const lanes = [...race.querySelectorAll('.lf-timeline-lane')].map((lane) =>
             lane.getBoundingClientRect());
           const runs = [...race.querySelectorAll('.lf-timeline-run')].map((run) =>
@@ -240,9 +273,9 @@ def test_timeline_revision_keeps_position_and_updates_labels_steps_and_routes(
     before = page.locator("#race .lf-timeline-next").bounding_box()
     source.write_text(source.read_text().replace('label="Adds 50"', 'label="Adds 75"'))
     told(page)
-    expect(page.locator('#race [data-event="a-work"] .lf-timeline-label')).to_have_text(
-        "Adds 75"
-    )
+    expect(
+        page.locator('#race [data-lf-event="a-work"] .lf-timeline-label')
+    ).to_have_text("Adds 75")
     assert page.locator("#race .lf-timeline-next").bounding_box() == before
     page.get_by_text("Sequence", exact=True).click()
     source.write_text(
@@ -261,7 +294,7 @@ def test_timeline_revision_keeps_position_and_updates_labels_steps_and_routes(
     race = page.locator("#race")
     expect(race.locator(".lf-timeline-step")).to_have_count(7)
     expect(race.locator(".lf-timeline-position")).to_have_text("Step 2 of 7 · 0.2 s")
-    expect(race.locator('[data-event="a-work"] .lf-timeline-label')).to_have_text(
+    expect(race.locator('[data-lf-event="a-work"] .lf-timeline-label')).to_have_text(
         "Adds 75"
     )
     added = race.locator(".lf-timeline-step").filter(has_text="Checks the amount")

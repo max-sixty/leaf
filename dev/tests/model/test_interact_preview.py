@@ -46,7 +46,8 @@ from leaf.registry.storage import layer_record, load_registry, selected
 from leaf.structure import SourceDocument
 from leaf_dev import arms, page_fixtures
 from leaf_dev.commands import preview, record_demo, site
-from leaf_dev.page_fixtures import prepare_page, read_fixture
+from leaf_dev.example_data import named_source
+from leaf_dev.page_fixtures import leaf_in_process, prepare_page, read_fixture
 
 LEAF_S_THEME = {"name": "reading", "source": "default"}
 
@@ -192,15 +193,10 @@ def test_product_previews_prepare_the_authored_layer_and_media(
     tmp_path, monkeypatch, name
 ):
     """A product preview includes its site furniture, composed parts, and images."""
-    source = ROOT / "docs" / f"{name}.html"
+    source = named_source(name)
     page = tmp_path / "preview"
     monkeypatch.chdir(ROOT)
-
-    def run_leaf(*args, input_text=None):
-        result = CliRunner().invoke(cli_model.cli, list(args), input=input_text)
-        assert result.exit_code == 0, result.output
-
-    prepare_page(page, read_fixture(source), run_leaf, final_status=None)
+    prepare_page(page, read_fixture(source), leaf_in_process, final_status=None)
     served = SourceDocument((page / "index.html").read_text())
     assert served.tree.select("nav.sitenav a[aria-current=page]")
     assert all(
@@ -220,7 +216,7 @@ def test_product_previews_prepare_the_authored_layer_and_media(
     assert str(ROOT / "docs" / "layer.json") in watched.paths
     # A composed part's owner is an input: a caption follows its example's edit.
     if name == "examples":
-        assert str(ROOT / "examples" / "review-a-plan.html") in watched.paths
+        assert str(named_source("review-a-plan")) in watched.paths
 
 
 @pytest.mark.parametrize("kind", ["image", "css", "inline", "stylesheet", "sample"])
@@ -274,19 +270,16 @@ def test_fixture_media_follows_versions_draft_assets_and_live_edits(
     (versions / "index.v1.html").write_text(markup(previous))
     source.write_text(markup(current))
     page = tmp_path / "page"
-
-    def run_leaf(*args, input_text=None):
-        result = CliRunner().invoke(cli_model.cli, list(args), input=input_text)
-        assert result.exit_code == 0, result.output
-
-    prepare_page(page, read_fixture(source), run_leaf, assets=assets, final_status=None)
+    prepare_page(
+        page, read_fixture(source), leaf_in_process, assets=assets, final_status=None
+    )
     expected = {
         media_name(path.read_bytes(), path.suffix) for path in (previous, current)
     }
     assert {path.name for path in (page / "media").iterdir()} == expected
     source.write_text(markup(revised, kind="inline"))
     monkeypatch.setattr(page_fixtures, "pinned_assets", lambda root: assets)
-    preview.refresh_media(source, page, run_leaf)
+    preview.refresh_media(source, page, leaf_in_process)
     expected.add(media_name(revised.read_bytes(), revised.suffix))
     assert {path.name for path in (page / "media").iterdir()} == expected
 
@@ -294,7 +287,7 @@ def test_fixture_media_follows_versions_draft_assets_and_live_edits(
 def test_a_preview_subscribes_to_a_root_over_every_input_it_follows():
     """A path outside the subscribed roots is never reported, so it can never refresh.
 
-    watchfiles watches each root recursively and names the path that changed; the
+    The subscription watches each root and names the path that changed; the
     watcher decides from that name alone. Any watched path the roots do not cover is
     therefore an input the preview silently stops following. The page directory is the
     other half: its own writes are a user's feedback, and watching them would make
@@ -302,7 +295,7 @@ def test_a_preview_subscribes_to_a_root_over_every_input_it_follows():
     """
     from leaf.layer import layer_inputs
 
-    source = ROOT / "examples" / "heat-loss.html"
+    source = named_source("heat-loss")
     packages = json.loads((ROOT / "examples" / "layer.json").read_text())
     watched = preview.watch_paths(
         source,
@@ -456,8 +449,7 @@ def test_corpus_preview_follows_authored_sources(tmp_path, monkeypatch, capsys):
     """Native source events regenerate the corpus before its live page is refreshed."""
     from leaf.data import read_data
     from leaf.registry.storage import load_registry
-    from leaf_dev.commands import corpus
-    from leaf_dev.example_data import data_file, named_source, page_files
+    from leaf_dev.example_data import data_file, page_files
 
     examples = tmp_path / "examples"
     examples.mkdir()
@@ -466,7 +458,6 @@ def test_corpus_preview_follows_authored_sources(tmp_path, monkeypatch, capsys):
     docs.mkdir()
     (docs / "examples.html").write_text("")
     (tmp_path / "tests/fixtures/pages").mkdir(parents=True)
-    monkeypatch.setattr(corpus, "DEVELOPER_SOURCES", ())
     source = examples / "reading.html"
     source.write_text(
         "<html><head><title>Reading</title></head><body><main><h1>Before</h1>"
@@ -1195,7 +1186,7 @@ def test_a_fixture_acknowledges_its_seed_with_the_runtime_it_was_read_for(tmp_pa
     prepare_page(
         page,
         read_fixture(
-            ROOT / "examples/log-retention.html",
+            named_source("log-retention"),
             runtime=runtime,
             env=arms.environment(XDG_STATE_HOME=str(state)),
         ),

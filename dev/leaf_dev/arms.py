@@ -1,10 +1,14 @@
 """Arms, served pages, and isolated CC, Codex and Pi sessions for the commands and eval
 harnesses that run a version of Leaf.
 
-An arm is the plugin payload (`PAYLOAD`) at one ref, or as the working tree has it, and
-nothing else: no `.git`, examples or notes, so a child cannot read its way to another
-arm's version. An A/B's base is the merge base with the local `main` unless the caller
-names another ref (`base_ref`).
+A command that runs Leaf at two versions, such as `stills`, `probe` or `compare`, runs
+`head`, this working tree in place with its uncommitted edits, and `base`, the merge
+base with the local `main` unless `--base REF` names another commit (`choose_arms`,
+`base_option`). The base is the whole tree at its commit, so it serves pages, runs the
+preview worker and reads its own authored sources (`own_source`) as this checkout does.
+An eval's `base` and `head` are instead each a copy of the plugin payload (`PAYLOAD`)
+at its version and nothing else: no `.git`, examples or notes, so a child cannot read
+its way to another arm's version.
 
 A child runs from a scratch cwd outside any repository, so no project instructions
 load, under a home of its own beside that cwd, so its bypassed permissions write to
@@ -39,8 +43,8 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
-from collections.abc import Callable, Iterable
-from contextlib import contextmanager
+from collections.abc import Iterable
+from contextlib import ExitStack, contextmanager
 from contextvars import ContextVar
 from datetime import datetime
 from functools import partial
@@ -50,11 +54,12 @@ from typing import IO, NamedTuple, Self, overload
 import click
 
 from leaf.codex import APP_SERVER_ENV
-from leaf.delivery import opened_input_ids
+from leaf.event_log import initialized
 from leaf.harness import IDENTITY_VARIABLES, ClaudeCodeHarness, CodexHarness
+from leaf.registry.kernel import kernel_event_kinds
 from leaf.render_gate import browser as browser_model
 from leaf.render_gate import command as render_command_model
-from leaf_dev import ROOT
+from leaf_dev import ROOT, plain_html
 from leaf_dev.browser import shell_executable
 from leaf_dev.page_fixtures import (
     admit_events,
@@ -83,7 +88,6 @@ PAYLOAD = (
     "src",
     "browser",
     "packages",
-    "dist",
     "package.json",
     "leaf-distribution.json",
     "pyproject.toml",
@@ -232,9 +236,8 @@ def serving(arm: Path, state: Path, page: Path):
 
 def build_source(arm: Path, state: Path, source: Path, page: Path) -> None:
     """Build the authored `source` into the page directory `page` with the arm's own
-    launcher under the state home `state`. Callers make the arm's kernel current
-    before building (`current_kernel`), then serve or check the page from that arm.
-    A generated source, such as the corpus, is generated first (`refresh_composition`).
+    launcher under the state home `state`, to serve or check from that arm. A
+    generated source, such as the corpus, is generated first (`refresh_composition`).
     """
     refresh_composition(source)
     prepare_page(
@@ -246,16 +249,23 @@ def build_source(arm: Path, state: Path, source: Path, page: Path) -> None:
 
 
 class ServedPage(NamedTuple):
-    """A page `serving_source` serves: its directory, its keyed address, and its arm's
-    launcher under its state home."""
+    """A page `serving_source` or `live_copies` serves: its directory, its address,
+    and the arm that serves it under the state home `state`."""
 
     directory: Path
     address: str
-    leaf: Callable[..., subprocess.CompletedProcess]
+    arm: Path
+    state: Path
+
+    def leaf(
+        self, *args: str, timeout: float | None = None
+    ) -> subprocess.CompletedProcess:
+        """Run the arm's launcher under the state home, refusing a failed command."""
+        return run_leaf(self.arm, self.state, *args, check=True, timeout=timeout)
 
 
 # The page `serving_source` serves while it does, for an input that writes to it from
-# outside the tab, as the agent or another tab does (stills.py, `held_news`).
+# outside the tab, as the agent or another tab does (states.py, `held_news`).
 served_page: ContextVar[ServedPage] = ContextVar("served_page")
 
 
@@ -263,11 +273,7 @@ served_page: ContextVar[ServedPage] = ContextVar("served_page")
 def serving_source(arm: Path, source: Path, scratch: Path, log: Path | None = None):
     """Build `source` into a page under `scratch` (`build_source`), admit `log`'s
     events after its own history, unacknowledged as a writer's would be
-    (`admit_events`), serve it (`serving`), and yield the address, all from `arm`
-    with its kernel current (`current_kernel`)."""
-    from leaf_dev.commands.distribution import current_kernel
-
-    arm = current_kernel(arm)
+    (`admit_events`), serve it (`serving`), and yield the address, all from `arm`."""
     state, page = scratch / "state", scratch / "page"
     build_source(arm, state, source, page)
     if log is not None:
@@ -279,18 +285,39 @@ def serving_source(arm: Path, source: Path, scratch: Path, log: Path | None = No
             env=environment(XDG_STATE_HOME=str(state)),
         )
     with serving(arm, state, page) as address:
-        bound = served_page.set(
-            ServedPage(page, address, partial(run_leaf, arm, state, check=True))
-        )
+        bound = served_page.set(ServedPage(page, address, arm, state))
         try:
             yield address
         finally:
             served_page.reset(bound)
 
 
+@contextmanager
+def live_copies(pages: Iterable[Path], arm: Path, *, plain: bool):
+    """Serve a disposable copy of each saved page directory in `pages`, under its own
+    name, and yield their `ServedPage`s in order. What serving writes, and any edit a
+    reader makes, lands in the copies, so the saved pages stay as their author left
+    them. `plain` pages are ordinary HTML, served as written (`plain_html.serving`);
+    any others are Leaf pages, which `arm` serves under one state home, as the pages
+    they were saved from shared one (`serving`)."""
+    with (
+        tempfile.TemporaryDirectory(prefix="leaf-live-copies-") as scratch,
+        ExitStack() as servers,
+    ):
+        state = Path(scratch) / "state"
+        copies = []
+        for page in pages:
+            copy = shutil.copytree(page, Path(scratch) / "pages" / page.name)
+            address = servers.enter_context(
+                plain_html.serving(copy) if plain else serving(arm, state, copy)
+            )
+            copies.append(ServedPage(copy, address, arm, state))
+        yield copies
+
+
 def merge_base(ref: str = "HEAD") -> str:
-    """The commit `ref` branched from the local `main`: the base an A/B command
-    compares HEAD against unless it is handed another."""
+    """The commit `ref` branched from the local `main`: the base a command compares
+    this working tree with unless it is handed another."""
     return subprocess.run(
         ["git", "-C", ROOT, "merge-base", ref, "main"],
         capture_output=True,
@@ -360,14 +387,6 @@ def arm_commit(ref: str | None) -> str:
     ).stdout.strip()
 
 
-def extract_arm(ref: str | None, dest: Path) -> str:
-    """Extract an arm's payload without building its environment, for a caller that
-    serves it through `serving_source`, whose first `uv run` in the arm builds one.
-    Return the commit."""
-    extract_payload(dest, ref)
-    return arm_commit(ref)
-
-
 def build_arm(ref: str | None, dest: Path, *, paths: Iterable[str] = PAYLOAD) -> str:
     """Extract `paths` at `ref`, or as the working tree has it when `ref` is None,
     into `dest`, replacing any earlier arm there, and build its environment; return
@@ -387,18 +406,92 @@ def build_arm(ref: str | None, dest: Path, *, paths: Iterable[str] = PAYLOAD) ->
     return arm_commit(ref)
 
 
-def base_ref(ref: str | None) -> str:
-    """The ref an A/B command compares HEAD against: the one it was handed, else
-    `merge_base()`."""
-    return ref or merge_base()
+def named_commit(_context, _parameter, ref: str | None) -> str | None:
+    """Refuse a REF that names no commit while the command line is read, before any
+    arm is built. An optional value takes the next word, so `--base` written before
+    an argument reads that argument as its REF."""
+    if (
+        ref
+        and subprocess.run(
+            ["git", "-C", ROOT, "rev-parse", "--verify", "-q", f"{ref}^{{commit}}"],
+            capture_output=True,
+            check=False,
+        ).returncode
+    ):
+        raise click.BadParameter(
+            f"no commit {ref!r}; without REF, put --base after any arguments"
+        )
+    return ref
 
 
-def build_pair(base: str | None, dest: Path) -> tuple[dict[str, Path], dict[str, str]]:
-    """Build an A/B's arms under `dest`: `base` at `base_ref(base)` and `head` at
-    HEAD. Return each arm's directory and its commit, both keyed `base` and `head`."""
-    refs = {"base": base_ref(base), "head": "HEAD"}
-    arms = {arm: dest / arm for arm in refs}
-    return arms, {arm: build_arm(ref, arms[arm]) for arm, ref in refs.items()}
+def base_option(*, paired: bool = False):
+    """The `--base [REF]` option of every command that runs Leaf at two versions.
+
+    A paired command, whose readings mean something only beside the base's, always
+    runs the base; any other runs it only when given `--base`. The value is None for
+    no base, and empty for the merge base (`choose_arms`)."""
+    return click.option(
+        "--base",
+        is_flag=False,
+        flag_value="",
+        default="" if paired else None,
+        metavar="[REF]",
+        callback=named_commit,
+        help="Compare with REF instead of the merge base with main."
+        if paired
+        else "Also run the merge base with main, or REF. Without REF, put it after "
+        "any arguments.",
+    )
+
+
+class Arm(NamedTuple):
+    """A version of Leaf a command runs: its checkout, and the commit that checkout
+    stands on, HEAD's for this working tree."""
+
+    directory: Path
+    commit: str
+
+
+def choose_arms(
+    base: str | None, scratch: Path, *, payload: bool = False
+) -> dict[str, Arm]:
+    """The arms a command runs, keyed `base` and `head`, base first. `head` is this
+    working tree in place, uncommitted edits included, so an edit made during a run
+    reaches what the run reads after it. Unless `base` is None, `base` is the whole
+    tree at `base`, or at the merge base when `base` is empty, built under `scratch`
+    in `arms/` (`build_arm`).
+
+    With `payload`, as for a command that installs each arm for child agents, both
+    arms are copies of the plugin payload alone in `scratch`'s `arms/`, the head's
+    taken from the working tree now: a child can't read its way to the other arm,
+    and a later edit changes neither."""
+    paths = PAYLOAD if payload else (".",)
+    arms = {}
+    if base is not None:
+        directory = scratch / "arms" / "base"
+        commit = build_arm(base or merge_base(), directory, paths=paths)
+        arms["base"] = Arm(directory, commit)
+    if not payload:
+        return {**arms, "head": Arm(ROOT, arm_commit(None))}
+    directory = scratch / "arms" / "head"
+    return {**arms, "head": Arm(directory, build_arm(None, directory))}
+
+
+def describe(arms: dict[str, Arm]) -> str:
+    """Name each arm and its commit, as a command's report heads its readings."""
+    return " vs ".join(f"{name} {arm.commit[:10]}" for name, arm in arms.items())
+
+
+def own_source(arm: Arm, source: Path) -> Path:
+    """`source`, an authored page in this checkout, as `arm`'s checkout has it, with
+    that checkout's companions and asset pin beside it: `source` itself on the head,
+    the base commit's copy on the base. The base holds only tracked files, so a
+    generated source, such as the corpus, is generated there when it is missing
+    (`refresh_composition`); its readers regenerate it as they read it."""
+    own = arm.directory / source.relative_to(ROOT)
+    if not own.exists():
+        refresh_composition(own)
+    return own
 
 
 def load_average() -> str:
@@ -618,7 +711,7 @@ def authoring_sandbox(*owned: Path) -> str:
     uid = os.getuid()
     names = (
         rf"claude-{uid}(/|$)|claude-[0-9a-f]+-cwd$|cc-socks(/|$)|zsh[^/]+$"
-        rf"|leaf-package-locks-{uid}(/|$)|leaf-codex-[^/]+(/|$)"
+        rf"|leaf-path-locks-{uid}(/|$)|leaf-codex-[^/]+(/|$)"
         rf"|codex-daemon-{uid}(/|$)"
     )
     host_plugins = (
@@ -1028,7 +1121,7 @@ class LiveSession:
 
     def _observe(self, record: dict) -> None:
         # An agent authoring the page has not made it yet.
-        if self.watch is None or not (self.watch[2] / "events.jsonl").exists():
+        if self.watch is None or not initialized(self.watch[2]):
             return
         if not self.url and record.get("type") in ("user", "result"):
             state = read_page_state(*self.watch)
@@ -1152,15 +1245,27 @@ class PageClient:
             return json.loads(response.read())
 
     def post(self, event: dict) -> dict:
-        """Post one move as the page does: keyed, on the served layer, and return the
-        state the server answers with, which shows the move. The caller names the
-        revision and the retry key, as the browser does.
+        """Post one move as the page's tab does, and return the event the log holds
+        for it, as the server's answer names it. The caller names the retry key.
+
+        The move is posted keyed and on the served layer. Any move may name the
+        revision it was made on, as a tab's is made on the revision it shows, and is
+        otherwise made on the active one. The revision goes with the move only where
+        its kind's record has one (`$events.kinds` in the kernel registry). One state
+        read gives the layer and the active revision. A kind the kernel doesn't
+        declare goes as it is, for the server to refuse.
 
         An answer naming another layer than the one posted on admitted nothing: the
         page was re-initialized between the state read and the post. A tab reloads onto
         that layer and the user moves again, so the move is posted again under it.
         """
-        layer = self.state()["layer"]["generation"]
+        read = self.state()
+        layer = read["layer"]["generation"]
+        event = dict(event)
+        if contract := kernel_event_kinds().get(event.get("kind")):
+            made_on = event.pop("revision", None)
+            if "revision" in contract["record"]["properties"]:
+                event["revision"] = made_on or read["active"]["revision"]
         while True:
             request = urllib.request.Request(
                 f"{self.origin}/api/event?t={self.token}",
@@ -1176,7 +1281,7 @@ class PageClient:
                     f"posting {event}: HTTP {error.code} {error.read().decode()}"
                 ) from error
             if answered == layer:
-                return answer["state"]
+                return answer["event"]
             layer = answered
 
 
@@ -1200,19 +1305,6 @@ def commands(record: dict) -> list[str]:
         for block in (content if isinstance(content, list) else ())
         if block.get("type") == "tool_use"
     ]
-
-
-def inputs_received(events: list[dict], attempts: set[str]) -> bool:
-    """Whether a posted round is admitted and its attention inputs are received.
-
-    Inline context, pointer reads, and attempted ACK commands are presentations,
-    not acceptance. Every attempt must be admitted; only attention-marked inputs
-    require the opened pickups that name exactly what the reader received.
-    Page-authored errors carry no user attempt and do not advance user rounds.
-    """
-    posted = [e for e in events if e.get("attempt") in attempts]
-    inputs = {e["id"] for e in posted if e["attention"]}
-    return len(posted) == len(attempts) and inputs <= opened_input_ids(events)
 
 
 def read_trace(stream: Path) -> list[dict]:

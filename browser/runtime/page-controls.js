@@ -16,9 +16,9 @@
  * view of the panel's own, such as Threads, has no press: the panel opens the view.
  *
  * An `exit` row is the way out of the stance the user is in, such as page search or
- * Draw mode, or the Done of a to-do they stand on (keyboard/touch-controls.js), which
- * stands at the row's end beside its counts as its `action`'s symbol. No other row stands in the panel's row: what a gesture does next, a finger
- * does on what the gesture acts on (keyboard/AGENTS.md, "Touch routes").
+ * Draw mode (keyboard/touch-controls.js), which stands at the row's end beside its
+ * counts as a ✕. No other row stands in the panel's row: what a gesture does next, a
+ * finger does on what the gesture acts on (keyboard/AGENTS.md, "Touch routes").
  *
  * Each field may be a value or a function read when the rows are read, so a paint that
  * reads them follows their native signals.

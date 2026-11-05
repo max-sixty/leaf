@@ -23,7 +23,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import NamedTuple
 
-from .event_log import start_log
+from .event_log import initialized, start_log
 from .findings import Finding, note
 from .harness import Harness, session_harness
 from .hosting import restarting_server
@@ -58,14 +58,12 @@ from .service import (
 )
 from .session_runtime import select_checkout
 from .state import (
-    EVENTS_FILE,
     SESSION_SUFFIX,
     remove_claim,
     session_file,
     session_record,
 )
 from .themes import ThemeChoice, selected_theme, with_theme
-from .validation.source import check_source
 
 
 def cmd_init(
@@ -107,7 +105,7 @@ def cmd_init(
         )
         page_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
     harness = session_harness()
-    if (page_dir / EVENTS_FILE).is_file():
+    if initialized(page_dir):
         if dry_run:
             with page_locked(page_dir):
                 plan = _plan_page(page_dir, selected, theme=theme, fresh=False)
@@ -127,9 +125,29 @@ def cmd_init(
                     page_dir.rmdir()
                 raise
     if harness is not None:
-        # The copy the session loaded may not read the page at this protocol.
-        select_checkout(harness.session)
+        _deliver_from_here(page_dir, harness)
     return {"page": str(page_dir)}
+
+
+def _deliver_from_here(page_dir: Path, harness: Harness) -> None:
+    """Where the session holds the page this command initialized, make this Leaf
+    its delivering Leaf (`session_runtime.select_checkout`), since the copy the
+    session loaded may not read the page at this protocol. Where that changed the
+    selection, start delivery again: a Codex task's adapter running from the former
+    Leaf leaves once another is selected.
+
+    The session's hooks read only the pages it holds, so a page it doesn't hold
+    leaves the selection alone: one a plain preview or a scratch `page init`
+    builds, or one another session holds. That includes a scratch page a Claude
+    Code subagent builds in its own worktree, whose commands act for the session
+    (`ClaudeCodeHarness`)."""
+    claim = page_claim(page_dir)
+    if (
+        claim_is_active(claim)
+        and claimant_matches(claim, harness)
+        and select_checkout(harness.session)
+    ):
+        harness.ensure_delivery()
 
 
 def renew_layer(
@@ -153,7 +171,8 @@ def renew_layer(
     initialized, which `_plan_page` refuses.
 
     A `command` from a checkout also selects that checkout to deliver for the
-    session (`session_runtime.select_checkout`); a hook leaves the selection alone.
+    session, where the session holds the page (`_deliver_from_here`); a hook leaves
+    the selection alone.
 
     What it finds is why the renewal was refused, or the `page check` errors that
     keep index.html from activating under the new layer, since a source an older
@@ -192,7 +211,7 @@ def renew_layer(
             "renewal-refused", values={"page": str(page_dir), "error": str(error)}
         )
     if command and harness is not None:
-        select_checkout(harness.session)
+        _deliver_from_here(page_dir, harness)
     return _unready(page_dir, errors)
 
 
@@ -266,6 +285,7 @@ def _init_page(
     return what keeps a re-selected index.html from activating; a re-selection
     `still` no longer wants under the transaction commits nothing."""
     from .revisioning import activate_checked_source
+    from .validation.source import check_source
 
     # The restart around this took the server down, but the page lock came after
     # it, and a start can land in between.
@@ -274,11 +294,10 @@ def _init_page(
             f"a server started on {page_dir} while it was being re-initialized; "
             f"re-run `leaf page init {page_dir}`"
         )
-    # Successful init creates the append-only log's stable inode. A directory
-    # the caller prepared is still a fresh page until that marker exists: it
-    # keeps the caller's chosen mode, takes no PageTransaction yet, and a failed
-    # validation leaves it untouched.
-    if not (page_dir / EVENTS_FILE).is_file():
+    # A directory the caller prepared is still a fresh page until it is
+    # `initialized`: it keeps the caller's chosen mode, takes no PageTransaction
+    # yet, and a failed validation leaves it untouched.
+    if not initialized(page_dir):
         plan = _plan_page(page_dir, selected, theme=theme, fresh=True)
         # A page's claim lives outside its directory. Recreating a deleted path
         # creates a new page, so it must not inherit the deleted page's owner.

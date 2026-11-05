@@ -5,12 +5,14 @@ import { setRuntimeRootStyle, removeRuntimeRootStyle } from "./root-state.js";
 import { nextFrame, nextRender, sizeObserver } from "./rendering.js";
 import { repaintPage } from "./repaint.js";
 import { layoutChanged } from "./widget-upgrade.js";
-import { layoutBox, pageDocument } from "./passages.js";
+import { layoutBox, layoutParts, pageDocument } from "./passages.js";
 import { pageControlsChanged } from "./page-controls.js";
 import { elementFrame } from "./element-frame.js";
 import { layoutWindow, shellRight } from "./geometry.js";
 import { union } from "./rect.js";
 import { syncLayoutRegion } from "./reading-regions.js";
+import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
+import { readPageHead } from "./root-headers.js";
 
 let documentLayoutOpen = false;
 /** @type {((changed: boolean) => unknown) | null | undefined} */
@@ -25,6 +27,9 @@ let watchedHead = null;
 let railAvailable = null;
 function readDocumentLayout() {
   const { changed } = readDocumentHeaders();
+  // The page's own head, read once the Layout's header has passed its height on, so
+  // the one is never read as the other (root-headers.js).
+  readPageHead();
   syncLayoutRegion();
   const header = layoutBox()?.querySelector(":scope > header") ?? null;
   if (header !== watchedHead) {
@@ -40,8 +45,8 @@ function readDocumentLayout() {
     pageControlsChanged();
   }
   if (changed) {
-    const main = pageDocument();
-    if (main) layoutChanged(main);
+    const page = pageDocument();
+    if (page) layoutChanged(page);
     repaintPage();
   }
 }
@@ -123,7 +128,7 @@ export const railStands = (main = layoutBox()) => {
   return shellRight() - proseRect(main).right >= width;
 };
 // Whether the window has room for the rail: as wide as the column with a rail on either
-// side (`--lf-rail-room`, base.css), the width at which a column page's rail stands
+// side (`--lf-rail-room`, styles/tokens.css), the width at which a column page's rail stands
 // (`railStands`), whatever this page's own Layout or body does with the room. A
 // workspace keeps no rail at any width, and still has this room on a desktop's window.
 export const windowHoldsRail = () =>
@@ -136,19 +141,15 @@ export const windowHoldsRail = () =>
 // surface alongside the layout, so reach need not discover it by scanning content.
 // CSS anchors its list below the title (layouts.css, "A page of parts").
 const title = () => {
-  const main = document.querySelector("body > main");
-  const parts =
-    main && getComputedStyle(main).getPropertyValue("--lf-layout-box").trim() !== "1"
-      ? main.querySelector(':scope > [data-lf-views="parts"]')
-      : null;
+  const parts = layoutParts();
   let marked = false;
   for (
     let node = parts?.previousElementSibling;
     node;
     node = node.previousElementSibling
   ) {
-    if (!node.classList.contains("scroll")) {
-      node.classList.add("scroll");
+    if (!node.hasAttribute(PAGE_PAINT_ATTRIBUTE.scrollSurface)) {
+      node.toggleAttribute(PAGE_PAINT_ATTRIBUTE.scrollSurface, true);
       marked = true;
     }
   }

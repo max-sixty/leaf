@@ -16,6 +16,7 @@ from interact_support import STATED_TIMEOUT, wait_for
 def test_flake_copies_share_a_snapshot_but_not_outputs(tmp_path, monkeypatch, scenario):
     flake = importlib.import_module("leaf_dev.commands.flake")
     arms = importlib.import_module("leaf_dev.arms")
+    suite = importlib.import_module("leaf_dev.suite")
     root = tmp_path / "candidate"
     root.mkdir()
     subprocess.run(["git", "init", "-q", root], check=True)
@@ -55,6 +56,7 @@ def test_flake_copies_share_a_snapshot_but_not_outputs(tmp_path, monkeypatch, sc
     )
     monkeypatch.setattr(flake, "ROOT", root)
     monkeypatch.setattr(arms, "ROOT", root)
+    monkeypatch.setattr(suite, "ROOT", root)
     monkeypatch.setattr(flake, "OUT", root / ".tmp" / "flake")
     monkeypatch.setattr(flake, "COPIES", 4)
     monkeypatch.setattr(flake, "WORKERS", 2)

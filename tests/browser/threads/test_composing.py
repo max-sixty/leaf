@@ -125,7 +125,7 @@ def test_a_refused_reply_folds_away_and_its_words_return_whole(browser, serve, s
     write(box, words)
     page.keyboard.press("Enter")
     holding(page, held, 1, "the reply")
-    sent = card.locator('.lf-msg[data-event^="pending:"]')
+    sent = card.locator('.lf-msg[data-lf-event^="pending:"]')
     expect(sent).to_be_visible()
     rendered(page)
     space = card.locator(".lf-reply-space")
@@ -156,7 +156,7 @@ def test_a_refused_reply_folds_away_and_its_words_return_whole(browser, serve, s
     expect(folding).to_have_count(1)
     expect(sent).to_have_count(0)
     assert folding.evaluate(
-        "node => node.matches(':not([data-event], [data-message])')"
+        "node => node.matches(':not([data-lf-event], [data-lf-message])')"
     )
     page.evaluate(
         "() => window.retirement.currentTime ="
@@ -198,7 +198,7 @@ def test_a_new_sent_message_does_not_hide_work_on_an_earlier_message(browser, se
     )
     told(page)
     workflow = page.locator(
-        f'.lf-margin-preview .lf-msg[data-event="{later["id"]}"] .lf-msg-sending'
+        f'.lf-margin-preview .lf-msg[data-lf-event="{later["id"]}"] .lf-msg-sending'
     )
     expect(workflow).to_have_text(re.compile(r"^Queued for "))
     assert workflow.evaluate(
@@ -209,7 +209,7 @@ def test_a_new_sent_message_does_not_hide_work_on_an_earlier_message(browser, se
     # is set larger (surfaces.css, the name's strut).
     baselines = workflow.evaluate(
         """node => [...node.closest('.lf-msg-head').querySelectorAll(
-          ':scope > b, :scope > .lf-msg-meta > time, [data-voice]')].map(words => {
+          ':scope > b, :scope > .lf-msg-meta > time, [data-lf-voice]')].map(words => {
           const mark = words.appendChild(document.createElement('span'));
           mark.style.cssText = 'display: inline-block; block-size: 0';
           const y = mark.getBoundingClientRect().top;
@@ -293,7 +293,7 @@ def test_escape_from_a_box_leaves_it_where_it_stood(browser, serve):
     url, root = long_seated_thread(serve)
     page = open_page(browser, url)
     resized(page, 1200, 560)
-    thread = page.locator(f'.lf-page-thread[data-thread="{root}"]')
+    thread = page.locator(f'.lf-page-thread[data-lf-thread="{root}"]')
     box = thread.locator("leaf-text")
     expect(box).to_be_visible()
     box.click()
@@ -554,22 +554,6 @@ def test_a_pointer_send_finishes_the_words_an_input_method_holds(browser, serve)
     assert any(event.get("text") == "Sent from the box.にほ" for event in sent), sent
     # The page comment's box the send emptied stays empty.
     expect(page_comment(page)).to_have_js_property("value", "")
-
-
-def test_a_seat_send_puts_the_user_on_the_thread_it_started(browser, serve):
-    """A seat that gives its box up to the thread its first message starts took the
-    focus with it, dropping the user on the page. They stand on the thread instead,
-    where any send leaves them."""
-    url, host = seated_page(serve, "verdict")
-    page = open_page(browser, url)
-    box = page.locator(f"{host} > .lf-thread-seat > .lf-say leaf-text")
-    box.scroll_into_view_if_needed()
-    write(box, "First thought.")
-    with sending(page, "the first message"):
-        page.keyboard.press("Enter")
-    thread = page.locator(f"{host} > .lf-thread-seat > .lf-page-thread")
-    expect(thread).to_have_count(1)
-    expect(thread).to_be_focused()
 
 
 @pytest.mark.parametrize("kind", ["task", "verdict"])

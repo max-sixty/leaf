@@ -113,6 +113,7 @@ const browserGlobals = Object.fromEntries(
     "SVGTextElement",
     "SVGUseElement",
     "ShadowRoot",
+    "StaticRange",
     "Text",
     "ToggleEvent",
     "URL",
@@ -709,6 +710,42 @@ const scrollWritesRule = {
   },
 };
 
+// The runtime hears a scroll's end through `watchScrollEnds` (runtime/arrivals.js),
+// which ends each box's scroll once however many frames a script writes it in; a
+// listener of its own hears every frame of a glide as a scroll that ended. The option
+// names the runtime files that may listen.
+const scrollEndsRule = {
+  meta: { type: "problem", schema: [{ type: "array", items: { type: "string" } }] },
+  create(context) {
+    const file = path
+      .relative(repoRoot, context.filename ?? context.getFilename())
+      .split(path.sep)
+      .join("/");
+    if (
+      !file.startsWith("browser/runtime/") ||
+      (context.options[0] ?? []).includes(file)
+    )
+      return {};
+    return {
+      CallExpression(node) {
+        const [type] = node.arguments;
+        if (
+          node.callee.type === "MemberExpression" &&
+          !node.callee.computed &&
+          node.callee.property.name === "addEventListener" &&
+          type?.type === "Literal" &&
+          type.value === "scrollend"
+        )
+          context.report({
+            node,
+            message:
+              "Hear a scroll's end with watchScrollEnds (runtime/arrivals.js), which ends a glide once rather than on each of its frames.",
+          });
+      },
+    };
+  },
+};
+
 // A node that already stands somewhere moves through `move(parent, node, before)`
 // (runtime/dom-move.js), or `setChildren` beside it, which keeps the user's focus, caret
 // and native state in it; a plain insertion takes the node out first, which blurs it.
@@ -1025,6 +1062,7 @@ const architecturePlugin = {
     "current-location-listeners": currentLocationListenersRule,
     placements: placementsRule,
     "scroll-writes": scrollWritesRule,
+    "scroll-ends": scrollEndsRule,
     "current-location-reads": currentLocationReadsRule,
     "open-layers": openLayersRule,
     moves: movesRule,
@@ -1337,9 +1375,7 @@ export default [
     ignores: [
       ".tmp/**",
       ".venv/**",
-      "examples/corpus.html",
       "browser/vendor/**",
-      "dist/kernel/**",
       "packages/*/vendor/**",
       "evals/ui-review-detection/fixtures/**",
     ],
@@ -1651,6 +1687,13 @@ export default [
           "browser/runtime/shadow-tree.js",
         ],
       ],
+      "architecture/scroll-ends": [
+        "error",
+        [
+          // The one owner of a scroll's end.
+          "browser/runtime/arrivals.js",
+        ],
+      ],
       "architecture/scroll-writes": [
         "error",
         [
@@ -1772,7 +1815,7 @@ export default [
           patterns: [
             {
               regex:
-                "^(?!\\.\\./(?:anchor-coordinate|kernel-facts|semantic-state)\\.js$|(?:\\.\\./thread/|\\./)(?:identity|workflow)\\.js$|\\./model\\.js$)",
+                "^(?!\\.\\./(?:anchor-coordinate|kept|kernel-facts|semantic-state)\\.js$|(?:\\.\\./thread/|\\./)(?:identity|workflow)\\.js$|\\./model\\.js$)",
               message: "Thread readings depend only on pure record operations.",
             },
           ],

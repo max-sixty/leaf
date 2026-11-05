@@ -4,7 +4,7 @@ On me is the user's list of everything waiting on them. This file covers the que
 and choices you put there for the user to answer. A widget records a structured answer;
 a thread message with `--obligation` asks for an answer in words. Recommending an answer
 doesn't make the decision; the user does. `conversation-loop.md`, "The On lists", covers
-the rest of the list, such as to-dos you give the user, and the agent's own list.
+the rest of the list, such as actions you ask the user to take, and the agent's own list.
 
 ## What a question holds
 
@@ -28,10 +28,11 @@ or label shows.
 Order the options by the subject, such as from today's behavior to the largest
 change, and keep that one order wherever the question lists them, including a
 comparison table and lettered names, so the user matches each option to its row by
-position. The recommended option stays where that order puts it; its `recommended`
-label marks your advice. Prose that recommends or discusses an option names it by
-its title, as in “I'd keep handwritten types”, never by its position or by a letter
-from an earlier list, since the options' order can change after you write it.
+position. The recommended option stays where that order puts it;
+`<small class="tag ok">recommended</small>` marks your advice, and its `ok` draws it
+green. Prose that recommends or discusses an option names it by its title, as in
+“I'd keep handwritten types”, never by its position or by a letter from an earlier
+list, since the options' order can change after you write it.
 
 Let the user judge each option by its result rather than a description of it, on plans
 and work-item lists too: an interaction they can try, a drawing of an arrangement or
@@ -57,8 +58,10 @@ How to build an alternative waits for the user's pick.
 ## Asking and retiring
 
 Let the user answer in the form the answer takes: a widget wherever it is a choice or
-an edit, and a thread message with `--obligation` for a conversational answer. Put the
-widget where the question arises: a question a thread raises, such as which way to do
+an edit, and a thread message with `--obligation` for a conversational answer. Any
+widget whose registry entry declares `x-awaits` asks, a package's as well as the
+bundled `lf-options`; a question about content that asks nothing, such as a chart or a
+passage, goes in a thread on it. Put the widget where the question arises: a question a thread raises, such as which way to do
 what the user asked there, goes in your reply's markup (`threads.md`, "Ask for a
 pick"), and a decision the page records goes on the page.
 Each widget that asks puts one question on On me and records its answer. A choice can hold a
@@ -78,8 +81,7 @@ once it stops mattering, by removing its widget in a new version or marking it
 `restated` (`authoring-revisions.md`). For a question asked in a thread message, use
 `leaf task end` as "The On lists" describes. A request the user made stays open until you
 answer it or they withdraw it; deciding something else, however related, doesn't
-answer it. To retire one yourself, say what changed to make it unnecessary. A to-do you
-put on the user is work for them to do, such as trying a build, not a question.
+answer it. To retire one yourself, say what changed to make it unnecessary.
 
 ## On the page
 

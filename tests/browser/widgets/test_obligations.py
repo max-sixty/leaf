@@ -23,7 +23,6 @@ from render_cases_interaction import (
 from render_cases_layout import SHOT_SRC, SHOTS
 from render_cases_navigation import BINDING_BADGE_PAGE, actions
 from render_harness import (
-    ROOT,
     active_digit_bindings,
     available_commands,
     expect_comment_notes,
@@ -46,6 +45,7 @@ from browser.widgets import (
     observe_live_region,
 )
 from leaf.render_checks import rendered
+from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -371,7 +371,7 @@ def test_options_laid_across_take_a_widened_obligations_width(browser, serve):
 
 def test_ideas_shortlist_survives_revision_and_can_reopen(browser, serve):
     """Ordinary choices retain the implementation set and a reversible Done."""
-    example = ROOT / "examples/ideas-to-implement.html"
+    example = named_source("ideas-to-implement")
     context = browser.new_context(
         viewport={"width": 390, "height": 844}, has_touch=True
     )
@@ -480,7 +480,9 @@ def test_the_obligation_reading_counts_completed_obligations_against_the_active_
     # is in the log alone, so that one follows the round trip.
     page.locator("#lq-token").click()
     expect_obligations_answered(page, "2/5")
-    page.locator("[data-lf-margin-for='sug-refill'] .lf-sug-accept").click()
+    page.locator(
+        "[data-lf-margin-for='sug-refill'] [data-lf-margin-entry-key=accept]"
+    ).click()
     expect_obligations_answered(page, "3/5")
     expect_accept_all(page, 0)
 
@@ -490,7 +492,7 @@ def test_the_obligation_reading_counts_completed_obligations_against_the_active_
     expect_obligations_answered(page, "2/5")
 
 
-def test_a_key_walks_the_page_s_open_obligations(browser, serve):
+def test_a_key_walks_the_page_s_open_obligations(browser, serve, subtests):
     """t/T step the open threads; m/M step the things the page is waiting on the user
     for. The category letter stays under one finger: lowercase advances and Shift goes
     back. Both walks repeat when held because walking often takes several presses.
@@ -504,6 +506,37 @@ def test_a_key_walks_the_page_s_open_obligations(browser, serve):
     the controls themselves remain the next Tab stops."""
     page = open_page(browser, serve(OBLIGATIONS_PAGE))
     expect_obligations_answered(page, "1/5")
+
+    with subtests.test("the obligation stood on survives the window losing focus"):
+        # Another app taking key focus for a moment, such as macOS verifying a newly
+        # installed binary, blurs the obligation the user is located on but leaves it the
+        # document's focused area, and the browser puts them back on it when the window
+        # returns. The tab stop the walk lent the obligation is held through that blur.
+        # Taking it back made the obligation unfocusable while focused, the browser
+        # dropped the user to the body, and the window returned without preserving their
+        # current location.
+        #
+        # Headless Playwright cannot take system focus from its window, so the test
+        # delivers the platform's blur at the obligation while it stays the focused area,
+        # which is what the window losing focus does.
+        first = page.locator(f"#{OBLIGATIONS_IN_ORDER[0]}")
+        page.keyboard.press("m")
+        expect(first).to_be_focused()
+        first.evaluate("ask => ask.dispatchEvent(new FocusEvent('blur'))")
+        expect(first).to_be_focused()
+        expect(first).to_have_attribute("tabindex", "-1")
+
+        # Moving off within the page still gives the stop back.
+        page.keyboard.press("m")
+        expect(page.locator(f"#{OBLIGATIONS_IN_ORDER[1]}")).to_be_focused()
+        expect(first).not_to_have_attribute("tabindex", re.compile(".*"))
+
+    # Off the walk and back at the page's start, so it starts from its first stop.
+    page.locator("#h").click()
+    page.evaluate("scrollTo({top: 0, behavior: 'instant'})")
+    scroll_settled(page)
+    expect(page.locator(CURRENT_OBLIGATION)).to_have_count(0)
+
     walked = []
     for expected in [*OBLIGATIONS_IN_ORDER, OBLIGATIONS_IN_ORDER[0]]:
         page.keyboard.press("m")
@@ -566,39 +599,14 @@ def test_a_key_walks_the_page_s_open_obligations(browser, serve):
     # the user now stands, and the next press reaches what followed it rather than the
     # change they have just settled. The control the user answered from keeps the
     # focus. It leaves the open walk while the completed/total count advances.
-    page.locator("[data-lf-margin-for='sug-refill'] .lf-sug-accept").click()
+    page.locator(
+        "[data-lf-margin-for='sug-refill'] [data-lf-margin-entry-key=accept]"
+    ).click()
     expect_obligations_answered(page, "2/5")
     page.keyboard.press("m")
     expect(page.locator("#t-baffles-decision[data-lf-obligation]")).to_have_count(1)
     expect(page.locator("#t-baffles-decision")).to_be_focused()
     expect_obligations_answered(page, "2/5")
-
-
-def test_an_obligation_the_user_stands_on_survives_the_window_losing_focus(
-    browser, serve
-):
-    """Another app taking key focus for a moment, such as macOS verifying a newly
-    installed binary, blurs the obligation the user is located on but leaves it the document's
-    focused area, and the browser puts them back on it when the window returns. The tab
-    stop the walk lent the obligation is held through that blur. Taking it back made the obligation
-    unfocusable while focused, the browser dropped the user to the body, and the window
-    returned without preserving their current location.
-
-    Headless Playwright cannot take system focus from its window, so the test delivers
-    the platform's blur at the obligation while it stays the focused area, which is what the
-    window losing focus does."""
-    page = open_page(browser, serve(OBLIGATIONS_PAGE))
-    first = page.locator(f"#{OBLIGATIONS_IN_ORDER[0]}")
-    page.keyboard.press("m")
-    expect(first).to_be_focused()
-    first.evaluate("ask => ask.dispatchEvent(new FocusEvent('blur'))")
-    expect(first).to_be_focused()
-    expect(first).to_have_attribute("tabindex", "-1")
-
-    # Moving off within the page still gives the stop back.
-    page.keyboard.press("m")
-    expect(page.locator(f"#{OBLIGATIONS_IN_ORDER[1]}")).to_be_focused()
-    expect(first).not_to_have_attribute("tabindex", re.compile(".*"))
 
 
 def test_an_obligation_arrival_starts_with_the_context_that_frames_it(browser, serve):
@@ -742,10 +750,14 @@ def test_the_obligation_itself_binds_each_contributed_action(browser, serve):
     expect(page.locator("#sug-refill")).to_be_focused()
     assert active_digit_bindings(page) == "1–2"
     expect(
-        page.locator("[data-lf-margin-for='sug-refill'] .lf-sug-accept")
+        page.locator(
+            "[data-lf-margin-for='sug-refill'] [data-lf-margin-entry-key=accept]"
+        )
     ).to_have_attribute("aria-keyshortcuts", "1")
     expect(
-        page.locator("[data-lf-margin-for='sug-refill'] .lf-sug-reject")
+        page.locator(
+            "[data-lf-margin-for='sug-refill'] [data-lf-margin-entry-key=reject]"
+        )
     ).to_have_attribute("aria-keyshortcuts", "2")
     page.keyboard.press("2")
     round_trip(page)
@@ -1214,8 +1226,25 @@ def test_obligation_binding_badges_do_not_cover_their_key_line(browser, serve):
     ), geometry
 
 
-def test_an_obligation_that_cannot_name_itself_arrives_on_the_words_that_explain_it(
-    browser, serve
+def walked_to(page, key, target):
+    """Press `key`, then wait for the walk to put focus on `target` and its travel to end.
+
+    The arrival focuses and issues its smooth scroll in one task, but the page's scroll
+    position first moves frames later, and `scroll_settled` counts those frames as
+    stillness. So the travel must be seen to start before its end is waited for, which
+    holds only for a destination the arrival moves the page to.
+    """
+    before = page.evaluate("document.scrollingElement.scrollTop")
+    page.keyboard.press(key)
+    expect(page.locator(target)).to_be_focused()
+    page.wait_for_function(
+        "(before) => document.scrollingElement.scrollTop !== before", arg=before
+    )
+    scroll_settled(page)
+
+
+def test_an_arrival_on_a_change_takes_in_the_words_that_explain_it_and_stops_there(
+    browser, serve, subtests
 ):
     """A change to a phrase has no region to declare, so the document supplies one.
 
@@ -1243,9 +1272,7 @@ def test_an_obligation_that_cannot_name_itself_arrives_on_the_words_that_explain
         }"""
     ), "the fixture already shows the change on the first screen"
 
-    page.keyboard.press("m")
-    expect(page.locator("#sc-sug")).to_be_focused()
-    scroll_settled(page)
+    walked_to(page, "m", "#sc-sug")
 
     landed = page.evaluate(
         """() => {
@@ -1269,47 +1296,88 @@ def test_an_obligation_that_cannot_name_itself_arrives_on_the_words_that_explain
     )
     assert landed["foot"] <= landed["view"], "the change itself ran off the screen"
 
+    with subtests.test(
+        "an obligation already in front of the user is not travelled to"
+    ):
+        # The press moves the ring and the focus and leaves the page where it stands.
+        # Rebuilding a view the user is already looking at is motion that says nothing,
+        # and it costs them whatever adjustment they had made within it. The gate reads
+        # what the page shows of the obligation rather than what its own box claims,
+        # which is the reading commentOnAddressable makes before its own travel.
+        #
+        # The walk above is the control: it did travel, from a page that opens above
+        # the change, so a second press standing still is this gate rather than a walk
+        # that never moves the page at all.
+        arrived = page.evaluate("() => document.scrollingElement.scrollTop")
+        assert arrived > 0, "the walk did not travel to the obligation at all"
 
-def test_an_arrival_region_fits_above_the_floating_panel(browser, serve):
-    """The region an arrival takes in is measured against the landing band.
+        # A little above that arrival: the region's start is still in the window and
+        # the change's foot is still on screen, so this is the same view with the user's
+        # own adjustment in it.
+        page.evaluate("() => document.scrollingElement.scrollBy(0, -40)")
+        scroll_settled(page)
+        held = page.evaluate("() => document.scrollingElement.scrollTop")
+        assert held == arrived - 40, "the page did not take the user's own adjustment"
 
-    The floating panel's row stands over the window's foot, so a region measured against
-    the whole window put the heading at the top of the screen and the change it was
-    chosen for under the row. The window is sized so the heading's region fits in the
-    window but not above the panel's band: the arrival takes a narrower region, and the
-    change stays where the user can read it.
-    """
-    page = open_page(browser, serve(SUGGESTION_IN_CONTEXT_PAGE))
-    resized(page, 900, 500)
-    measure = """() => {
-      const at = (id) => document.getElementById(id).getBoundingClientRect();
-      const style = getComputedStyle(document.scrollingElement);
-      return {
-        span: at('sc-sug').bottom - at('sc-api-heading').top,
-        foot: at('sc-sug').bottom,
-        view: document.scrollingElement.clientHeight,
-        top: parseFloat(style.scrollPaddingTop),
-        bottom: parseFloat(style.scrollPaddingBottom),
-      };
-    }"""
-    before = page.evaluate(measure)
-    assert before["bottom"] > 0, "the fixture has no panel band to land clear of"
-    # The region misses the room above the band by a few pixels; the change alone fits.
-    resized(page, 900, round(before["span"] + before["top"] + before["bottom"] - 8))
+        # The press's own announcement is the edge this absence stands behind.
+        # `goToObligation` travels before it announces, so a live region that has spoken
+        # again is a press whose travel has already been decided and begun. Waiting on
+        # the scroll alone cannot say that: frames held still before a glide starts read
+        # the same as a page that never moved, and only the announcement puts the read
+        # behind the decision.
+        observe_live_region(page)
+        page.keyboard.press("m")  # one obligation, so the walk stays on it
+        page.wait_for_function(
+            "() => window.__lfLiveRegionChanges.some("
+            "words => words.includes('waiting on me'))"
+        )
+        expect(page.locator(".lf-live")).to_have_text(re.compile(r"waiting on me"))
+        assert "" in page.evaluate("window.__lfLiveRegionChanges")
+        expect(page.locator("#sc-sug")).to_be_focused()
+        scroll_settled(page)
+        assert page.evaluate("() => document.scrollingElement.scrollTop") == held, (
+            "the walk travelled to an obligation the user could already see"
+        )
 
-    page.keyboard.press("m")
-    expect(page.locator("#sc-sug")).to_be_focused()
-    scroll_settled(page)
+    with subtests.test("the region an arrival takes in fits above the floating panel"):
+        # The region is measured against the landing band. The floating panel's row
+        # stands over the window's foot, so a region measured against the whole window
+        # put the heading at the top of the screen and the change it was chosen for
+        # under the row. The window is sized so the heading's region fits in the window
+        # but not above the panel's band: the arrival takes a narrower region, and the
+        # change stays where the user can read it.
+        measure = """() => {
+          const at = (id) => document.getElementById(id).getBoundingClientRect();
+          const style = getComputedStyle(document.scrollingElement);
+          return {
+            span: at('sc-sug').bottom - at('sc-api-heading').top,
+            foot: at('sc-sug').bottom,
+            view: document.scrollingElement.clientHeight,
+            top: parseFloat(style.scrollPaddingTop),
+            bottom: parseFloat(style.scrollPaddingBottom),
+          };
+        }"""
+        before = page.evaluate(measure)
+        assert before["bottom"] > 0, "the fixture has no panel band to land clear of"
+        # The region misses the room above the band by a few pixels; the change alone
+        # fits.
+        resized(page, 900, round(before["span"] + before["top"] + before["bottom"] - 8))
+        # Off the change and back to the page's start, so the walk travels again.
+        page.locator("#sc-h").click()
+        page.evaluate("scrollTo({top: 0, behavior: 'instant'})")
+        scroll_settled(page)
 
-    landed = page.evaluate(measure)
-    assert landed["span"] == pytest.approx(before["span"], abs=1), (
-        "the resize reflowed the region, so the window no longer falls between the two "
-        "readings of the room"
-    )
-    assert landed["foot"] <= landed["view"] - landed["bottom"] + 0.5, (
-        f"the arrival put the change's foot at {landed['foot']:.1f}px, under the foot "
-        f"band that starts at {landed['view'] - landed['bottom']:.1f}px"
-    )
+        walked_to(page, "m", "#sc-sug")
+
+        landed = page.evaluate(measure)
+        assert landed["span"] == pytest.approx(before["span"], abs=1), (
+            "the resize reflowed the region, so the window no longer falls between the "
+            "two readings of the room"
+        )
+        assert landed["foot"] <= landed["view"] - landed["bottom"] + 0.5, (
+            f"the arrival put the change's foot at {landed['foot']:.1f}px, under the "
+            f"foot band that starts at {landed['view'] - landed['bottom']:.1f}px"
+        )
 
 
 def test_an_arrival_does_not_reach_back_into_the_obligation_before_it(browser, serve):
@@ -1334,11 +1402,8 @@ def test_an_arrival_does_not_reach_back_into_the_obligation_before_it(browser, s
     )
     scroll_settled(page)
 
-    page.keyboard.press(
-        "Shift+m"
-    )  # back to the nearest obligation above, which is the change
-    expect(page.locator("#ar-sug")).to_be_focused()
-    scroll_settled(page)
+    # Back to the nearest obligation above, which is the change.
+    walked_to(page, "Shift+m", "#ar-sug")
 
     landed = page.evaluate(
         """() => {
@@ -1426,55 +1491,6 @@ def test_an_obligation_inside_a_card_is_brought_into_that_card(browser, serve):
     # the card, and placing that at the band's top takes the card's top edge above it. What
     # is promised is the change, in the window and in its card's band at once.
     assert seen["onScreen"], "the change is in its card's band but off the window"
-
-
-def test_an_obligation_already_in_front_of_the_user_is_not_travelled_to(browser, serve):
-    """The press moves the ring and the focus and leaves the page where it stands.
-
-    Rebuilding a view the user is already looking at is motion that says nothing, and
-    it costs them whatever adjustment they had made within it. The gate reads what the
-    page shows of the obligation rather than what its own box claims, which is the reading
-    commentOnAddressable makes before its own travel.
-
-    The first press is the control: the walk does travel, from a page that opens above
-    the change, so a second press standing still is this gate rather than a walk that
-    never moves the page at all.
-    """
-    page = open_page(browser, serve(SUGGESTION_IN_CONTEXT_PAGE))
-    resized(page, 900, 500)
-
-    page.keyboard.press("m")
-    expect(page.locator("#sc-sug")).to_be_focused()
-    scroll_settled(page)
-    arrived = page.evaluate("() => document.scrollingElement.scrollTop")
-    assert arrived > 0, "the walk did not travel to the obligation at all"
-
-    # A little above that arrival: the region's start is still in the window and
-    # the change's foot is still on screen, so this is the same view with the user's
-    # own adjustment in it.
-    page.evaluate("() => document.scrollingElement.scrollBy(0, -40)")
-    scroll_settled(page)
-    held = page.evaluate("() => document.scrollingElement.scrollTop")
-    assert held == arrived - 40, "the page did not take the user's own adjustment"
-
-    # The press's own announcement is the edge this absence stands behind. `goToObligation`
-    # travels before it announces, so a live region that has spoken again is a press whose
-    # travel has already been decided and begun. Waiting on the scroll alone cannot say
-    # that: frames held still before a glide starts read the same as a page that never
-    # moved, and only the announcement puts the read behind the decision.
-    observe_live_region(page)
-    page.keyboard.press("m")  # one obligation, so the walk stays on it
-    page.wait_for_function(
-        "() => window.__lfLiveRegionChanges.some("
-        "words => words.includes('waiting on me'))"
-    )
-    expect(page.locator(".lf-live")).to_have_text(re.compile(r"waiting on me"))
-    assert "" in page.evaluate("window.__lfLiveRegionChanges")
-    expect(page.locator("#sc-sug")).to_be_focused()
-    scroll_settled(page)
-    assert page.evaluate("() => document.scrollingElement.scrollTop") == held, (
-        "the walk travelled to an obligation the user could already see"
-    )
 
 
 def test_the_obligation_walk_starts_from_where_the_user_is(browser, serve):
@@ -1584,9 +1600,9 @@ def test_the_ring_is_one_box_around_the_whole_change(browser, serve):
     # anchor its controls from — a 2px mark of its own beside the change is not the
     # promise.
     marks = page.evaluate("""() => [...document.querySelectorAll('main [data-lf-obligation]')].map(e => {
-      const ring = document.querySelector('.lf-location');
       return { what: e.id || e.tagName, fragments: e.getClientRects().length,
-               ring: ring?.dataset.for === e.id && getComputedStyle(ring).display !== 'none' };
+               ring: e.hasAttribute('data-lf-projected-location')
+                 && getComputedStyle(e).outlineStyle === 'solid' };
     })""")
     assert [m["what"] for m in marks] == ["sug-refill"]
     assert marks[0]["ring"]
@@ -1671,16 +1687,13 @@ def test_the_walk_travels_to_an_obligation_a_page_left_boxless(browser, serve):
         "LF-NEW",
     ], f"the mark went somewhere else than the decision and its shown boxes: {marks}"
     expect(page.locator(CURRENT_OBLIGATION)).to_have_count(1)
-    # One ring, round every box the decision shows through: rings on the pieces read
-    # as boxes touching rather than as the one decision the user is in.
-    assert page.evaluate("""() => {
-      const ring = document.querySelector('.lf-location[data-for="sug-refill"]');
-      const w = ring.getBoundingClientRect();
-      return ['refill-was', 'refill-now'].every(id => {
-        const r = document.getElementById(id).getBoundingClientRect();
-        return r.top >= w.top - 1 && r.bottom <= w.bottom + 1
-            && r.left >= w.left - 1 && r.right <= w.right + 1; });
-    }"""), "the location ring does not reach round both slots"
+    # The decision draws no box, so each box it shows through draws the location ring
+    # round itself (target-paint.js, `paintLocation`).
+    rings = page.evaluate("""() => ['lf-old', 'lf-new'].map(tag => {
+      const slot = document.querySelector(`#sug-refill > ${tag}`);
+      return slot.hasAttribute('data-lf-projected-location')
+        && getComputedStyle(slot).outlineStyle === 'solid'; })""")
+    assert rings == [True, True], f"a slot of the decision wears no ring: {rings}"
 
 
 def test_a_commented_obligation_does_not_wear_its_ring_on_the_runtime_s_own_note(

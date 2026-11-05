@@ -12,11 +12,17 @@ import { KINDS } from "./contribution-model.js";
 import { excerptWords, labelWords } from "./words.js";
 import { contributionEntries } from "./contributions.js";
 import { marginInventory, threadMarks } from "./margin-model.js";
-import { agentName } from "./semantic-state.js";
+import { agentName, readPart } from "./semantic-state.js";
 import { livePoint } from "./pointed-place.js";
 import { ago } from "./presence.js";
 import { runtime } from "./context.js";
-import { elementById, inChrome, quoteFrom, textNodesUnder } from "./passages.js";
+import {
+  elementById,
+  GENERATED,
+  inChrome,
+  quoteFrom,
+  textNodesUnder,
+} from "./passages.js";
 import { addressableLabel, addressableWord } from "./addressable-names.js";
 import { threadList } from "./thread/state.js";
 import { threadKey } from "./thread/model.js";
@@ -25,7 +31,7 @@ import { projectionOrigins } from "./projection/model.js";
 import { authoredStates } from "./projection/authored.js";
 import { currentProjection } from "./projection/state.js";
 import { notice } from "./notifications.js";
-import { claimed, heldOut } from "./thread/surfaces.js";
+import { claimed } from "./thread/surfaces.js";
 import { threadName } from "./thread/messages.js";
 import { outlineSubjectFor, pageOutline } from "./thread/placement.js";
 import {
@@ -42,11 +48,23 @@ import { placeOf } from "./current-target.js";
 import { obligationPlace } from "./obligations/place.js";
 import { scrollBehavior } from "./motion.js";
 import {
-  comparisonBase,
+  changeAccount,
+  changeCard,
+  changeSince,
   comparisonChanges,
-  inlineComparison,
-  toggleInlineComparison,
+  toggleChangeCard,
 } from "./version.js";
+
+// Where each published workflow still in progress stands in the published order, by
+// its id.
+const inProgress = readPart(
+  (root) =>
+    new Map(
+      root.effective.workflows.flatMap((workflow, at) =>
+        isWorkflowProgress(workflow) ? [[workflow.id, at]] : [],
+      ),
+    ),
+);
 
 /** @typedef {import("./margin-model.js").AnnotationItem} AnnotationItem
  * @typedef {import("./contributions.js").ContributionSource} ContributionSource
@@ -55,7 +73,7 @@ import {
  * @typedef {import("./framework/application.js").Workflow} Workflow
  * @typedef {import("./thread/workflow.js").ThreadRecord} ThreadRecord
  * @typedef {import("./anchor-placement.js").Placement} Placement
- * @typedef {{activate: () => unknown, discloses?: () => ReturnType<typeof inlineComparison>}} ItemSource
+ * @typedef {{activate: () => unknown, discloses?: () => ReturnType<typeof changeCard>, change?: import("./version.js").Change}} ItemSource
  * @typedef {AnnotationItem & ItemSource} LiveItem
  * @typedef {{key: string | null, element?: Element | null, passage?: Placement | null, words?: string | null | undefined}} Pointed
  * @typedef {{key: string, target: Element, point: Element | null, passage: Placement | null,
@@ -69,9 +87,8 @@ import {
 // entries report, the shown revision and the agent's to-dos, and the projection whose
 // reported and overridden marks it lists once the projection's chrome has painted them.
 // What the thread pass decides about a thread reaches it as readings its paint follows:
-// where the thread is placed (`placedAt`) and whether a widget seats or holds it
-// (`claimed`, `heldOut`), so a pass that moves one repaints the margin, and one that
-// moves none leaves it.
+// where the thread is placed (`placedAt`) and whether a widget seats it (`claimed`), so
+// a pass that moves one repaints the margin, and one that moves none leaves it.
 /** @param {import("./framework/application.js").SemanticRoot} root */
 export const annotationSelection = (root) => ({
   projection: root.effective.projection,
@@ -120,12 +137,10 @@ export function createAnnotationInventory({
         (node.parentNode instanceof ShadowRoot ? node.parentNode : null);
       if (!parent) break;
       const siblings = [...parent.children].filter(
-        (candidate) =>
-          !candidate.classList.contains("lf-ui") &&
-          !candidate.hasAttribute("data-lf-gen"),
+        (candidate) => !candidate.matches(GENERATED),
       );
       steps.push(`${node.localName}:${siblings.indexOf(node)}`);
-      if (node.localName === "main" || parent instanceof ShadowRoot) break;
+      if (node.localName === "body" || parent instanceof ShadowRoot) break;
       node = parent;
     }
     return `${prefix}${from}${steps.reverse().join("/")}`;
@@ -182,7 +197,7 @@ export function createAnnotationInventory({
   const sourceItem = (item) => itemSources.get(item);
   /** @param {LiveItem} item */
   function captureItem(item) {
-    const { activate, discloses, ...data } = item;
+    const { activate, discloses, change, ...data } = item;
     const snapshot = Object.freeze({
       ...data,
       carriesWorkflow: Boolean(workflowReceipt([item])),
@@ -190,20 +205,28 @@ export function createAnnotationInventory({
     itemSources.set(snapshot, {
       activate,
       ...(discloses ? { discloses } : {}),
+      ...(change ? { change } : {}),
     });
     return snapshot;
   }
 
   const workflows = () => runtime.workflows;
   // Selected from the published workflows rather than gathered from the items, whose
-  // order is the margin's, so the strongest is the server's.
+  // order is the margin's, so the strongest is the server's. A receipt is looked up by
+  // its id among those still in progress, so each item costs what it holds rather than
+  // every workflow on the page.
   /** @param {readonly AnnotationItem[]} items */
   const workflowReceipt = (items) => {
-    const receipts = new Set(items.map((item) => item.workflowReceipt?.id));
+    const at = inProgress();
+    const published = workflows();
+    /** @type {Set<number>} */
+    const receipts = new Set();
+    for (const { workflowReceipt } of items) {
+      const index = workflowReceipt ? at.get(workflowReceipt.id) : undefined;
+      if (index !== undefined) receipts.add(index);
+    }
     return strongestWorkflow(
-      workflows().filter(
-        (workflow) => receipts.has(workflow.id) && isWorkflowProgress(workflow),
-      ),
+      [...receipts].sort((a, b) => a - b).flatMap((index) => published[index] ?? []),
     );
   };
   // One group per target, one more for each row inside it that pointing gestures stood
@@ -316,11 +339,10 @@ export function createAnnotationInventory({
   const watchers = new Set();
 
   // A resolved thread leaves the margin, unless a reply is being written in it: saved
-  // words and an editing session are distinct, and only an active session keeps it. A
-  // widget-held conversation retains its existing notice.
+  // words and an editing session are distinct, and only an active session keeps it.
   /** @param {ThreadRecord} thread */
   const threadHasDiscussion = (thread) =>
-    !thread.resolved || replyIsEditing(threadKey(thread)) || heldOut(thread.id);
+    !thread.resolved || replyIsEditing(threadKey(thread));
 
   // A command's subject does not depend on whether an overlay or exact widget seat
   // has realized its discussion. Attachment place and pointed row share the same
@@ -401,8 +423,8 @@ export function createAnnotationInventory({
       );
     }
 
-    // A widget's obligation and a to-do on the user have a place on the page
-    // (obligations/place.js); the rest have no node.
+    // A widget's obligation has a place on the page (obligations/place.js); the rest
+    // have no node.
     /** @param {import("./framework/application.js").ObligationRecord} item
      * @returns {item is import("./obligations/answer.js").AnswerableObligation} */
     const hasPlace = (item) => Boolean(obligationPlace(item).node);
@@ -418,11 +440,8 @@ export function createAnnotationInventory({
         text: "Waiting on me",
         words: leafSays("Waiting on me"),
         // The marker's own label is the question, which says more than the kind its
-        // glyph already shows: a widget's name, or a to-do's title, which the element
-        // it is on does not say.
-        label:
-          (item.source.kind === "todo" ? item.prompt.text : addressableLabel(target)) ||
-          null,
+        // glyph already shows: the widget's name.
+        label: addressableLabel(target) || null,
         activate: () => {
           const items = placed();
           const next = items.find((candidate) => candidate.id === id);
@@ -498,29 +517,16 @@ export function createAnnotationInventory({
       });
     }
 
-    const base = comparisonBase();
-    // One entry per change (a run of changed blocks), beside the block the run starts
-    // with, so a section rewritten whole gets one entry rather than one per paragraph.
-    // Its size counts what the reader sees changed: the children of the nearest element
-    // holding the whole run, so a rewritten table counts once rather than once a cell.
+    // One entry per change (version.js, `changeRuns`), beside the block the change starts
+    // with, or the block beside its gap where it only took blocks out, so a section
+    // rewritten whole gets one entry rather than one per paragraph. It says what the
+    // change did in blocks (`changeAccount`): "2 paragraphs replaced by 3".
     comparisonChanges().forEach((change, index) => {
-      const [target] = change;
-      let holder = target.parentElement;
-      while (holder && !change.every((block) => holder?.contains(block)))
-        holder = holder.parentElement;
-      /** @param {Element} block */
-      const childOf = (block) => {
-        let at = block;
-        while (at.parentElement && at.parentElement !== holder) at = at.parentElement;
-        return at;
-      };
-      const more = new Set(change.map(childOf)).size - 1;
-      const what = more
-        ? `${addressableWord(target)} and ${more} more`
-        : addressableWord(target);
-      const account = `${what} changed${base == null ? "" : ` since ${base.name}`}`;
-      const inline = inlineComparison(change);
-      const mapAccount = inline ? `${what} changed` : account;
+      const target = change.at;
+      const did = changeAccount(change);
+      const account = changeSince(change);
+      const card = changeCard(change);
+      const mapAccount = card ? did : account;
       add(groups, target, {
         kind: "change",
         id: `change:${targetPath(target)}:${index}`,
@@ -532,20 +538,23 @@ export function createAnnotationInventory({
           ...(addressableLabel(target) ? [` · ${addressableLabel(target)}`] : []),
         ],
         // A disclosure has to say what it holds, or its one word reports a fact and
-        // promises nothing. The margin entry's quieter line carries it, and a change the
-        // comparison holds nothing for has none, so no margin entry offers a press it has
-        // not got.
-        ...(inline ? { context: inline.offer, mapContext: inline.offer } : {}),
-        // What a Change reading holds, where the comparison kept the base version's
-        // words for the change's blocks: pressing it splices dropped text into each
-        // passage and paints additions there, so the user learns what changed without
-        // travelling to the other version and back. Where it kept none, the press is the
-        // travel it always was, and `discloses` answering null is what says so — to the
-        // margin entry's relation, to the hint's word for the press, and to the
-        // reference.
-        discloses: () => inlineComparison(change),
+        // promises nothing. The margin entry's quieter line carries what the change did,
+        // and the Page Map row the versions its card compares; a change the comparison
+        // holds nothing for has neither, so no margin entry offers a press it has not
+        // got.
+        ...(card ? { context: account, mapContext: card.offer } : {}),
+        // What a Change reading holds, where the comparison kept the words the change
+        // replaced or edited: pressing it opens the change's card over the change, so
+        // the user learns what changed without travelling to the other version and back
+        // and without the page moving. Where it kept none, the press is the travel it
+        // always was, and `discloses` answering null is what says so — to the margin
+        // entry's relation, to the hint's word for the press, and to the reference.
+        discloses: () => changeCard(change),
+        // Hovering or focusing the entry outlines the whole change
+        // (margin-projection.js, `refreshHighlight`).
+        change,
         activate: () => {
-          const said = toggleInlineComparison(change);
+          const said = toggleChangeCard(change);
           revealTarget(
             target,
             said ? `${account} · ${said}` : account,
@@ -557,11 +566,10 @@ export function createAnnotationInventory({
 
     // A to-do the agent opened on a page widget or element stands beside it, as Working
     // with the line of the start running on it, or as an open to-do under its title.
-    // A thread's to-do is its thread's attention (above); the page's is the floating panel's. A
-    // to-do on the user is on their list, On me, instead.
+    // A thread's to-do is its thread's attention (above); the page's is the floating
+    // panel's.
     for (const todo of runtime.todos) {
       if (
-        todo.owner !== "agent" ||
         todo.state !== "open" ||
         (todo.subject.kind !== "widget" && todo.subject.kind !== "element") ||
         Number(todo.revision) > Number(runtime.currentRevision)

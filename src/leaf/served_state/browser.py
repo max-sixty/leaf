@@ -12,7 +12,6 @@ from ..projection import (
     canonical_reports,
     page_reading,
 )
-from ..registry.kernel import verb_writers
 from ..thread_context import thread_memberships
 from .context import PageRead
 from .document import browser_document, browser_undo_candidates
@@ -128,9 +127,10 @@ def browser_state(
 
     Documents and the append-only log remain the authorities. Each of `readings`
     is one revision's document under the registry it is read in. This object is an
-    ephemeral transport projection, keyed by the exact log sequence and revisions
-    from which it was read. `revisions` reads a revision a gesture names that is
-    not among `readings`; without it every such revision must be there.
+    ephemeral transport projection of the exact log sequence and revisions from
+    which it was read; the page server names what it serves (`tail.answer`). `revisions`
+    reads a revision a gesture names that is not among `readings`; without it every
+    such revision must be there.
     """
     through_seq = events[-1]["seq"] if events else 0
 
@@ -151,16 +151,11 @@ def browser_state(
     withdrawn = durable.log.withdrawn
     threads = durable.threads
     undo_reading = UndoReading(
-        events,
-        threads=threads,
-        withdrawn=withdrawn,
-        absorbed=active_page.projection.absorbed,
+        events, withdrawn=withdrawn, absorbed=active_page.projection.absorbed
     )
     workflows = work.workflows
     todos = durable.page_todos(work.activity["todos"])
-    agent_todos = [
-        todo for todo in todos if todo["owner"] == "agent" and todo["state"] == "open"
-    ]
+    open_todos = [todo for todo in todos if todo["state"] == "open"]
 
     words = GestureWords(events, active_registry, revisions or readings.__getitem__)
     views = {}
@@ -187,29 +182,9 @@ def browser_state(
         # the page's updates', served once: a list row names a
         # record by its id.
         items = viewed.all_obligations["all"] + durable.updates["all"]
-        _apply_thread_attention(items, workflows, thread["threads"], agent_todos)
+        _apply_thread_attention(items, workflows, thread["threads"], open_todos)
         documents[revision] = reading
         projection = reading.projection
-        classified = {
-            **projection.classified,
-            **thread_reading.projection.classified,
-        }
-        coverage = []
-        for event in events:
-            if event["kind"] in verb_writers():
-                classified_entry = classified.get(event["id"])
-            elif event["kind"] == "undo":
-                classified_entry = classified.get(event["undoes"])
-            else:
-                continue
-            coverage.append(
-                {
-                    "event": event,
-                    "coordinate": (
-                        list(classified_entry[0]) if classified_entry else None
-                    ),
-                }
-            )
         published_at = next(
             (
                 event["ts"]
@@ -231,7 +206,6 @@ def browser_state(
                 undo_reading=undo_reading,
                 words=words,
             ),
-            "coverage": coverage,
             "published_at": published_at,
             "queues": queues(workflows, todos, items, threads, reading.within),
         }
@@ -253,7 +227,6 @@ def browser_state(
         "views": views,
         "todos": todos,
         "plan": durable.plan,
-        "receipts": [event for event in events if event.get("attempt")],
         "thread_memberships": {
             identity: threads
             for identity, threads in thread_memberships(

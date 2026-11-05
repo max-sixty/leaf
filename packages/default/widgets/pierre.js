@@ -1,6 +1,6 @@
-/* Source files and diffs share Pierre's static renderer and Leaf's syntax theme.
- * Static DOM keeps selection and annotation with Leaf rather than introducing
- * Pierre's interaction manager alongside it. The renderer loads on first use. */
+/* Diffs draw with Pierre's static renderer and Leaf's syntax theme. Static DOM keeps
+ * selection and annotation with Leaf rather than introducing Pierre's interaction
+ * manager alongside it. The renderer loads on first use. */
 let renderer;
 export const pierre = () => (renderer ??= import("/vendor/pierre-diffs.esm.js"));
 

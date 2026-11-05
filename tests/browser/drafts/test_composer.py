@@ -36,7 +36,7 @@ from render_harness import (
 )
 
 from browser.margin import MARGIN_EDITOR_ROOTS
-from browser.threads import clear_of_the_panel
+from browser.threads import clear_of_the_panel, paste_image
 from leaf import event_log as events_model
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -236,11 +236,9 @@ def test_picture_paste_belongs_to_the_composer_not_the_shared_text_field(
         }""")
 
 
-@pytest.mark.parametrize("leave", [False, True])
-def test_image_upload_completion_preserves_the_readers_focus_and_scroll(
-    browser, serve, leave
-):
-    """Finishing a paste updates the draft without repeating the user's entry gesture."""
+def _a_picture_uploading(browser, serve):
+    """A comment box on #p3 holding a pasted picture whose upload the route holds: the
+    page, the box and the held requests."""
     held = []
     controlled = primed(
         browser,
@@ -262,6 +260,15 @@ def test_image_upload_completion_preserves_the_readers_focus_and_scroll(
         base64.b64encode(pixels).decode(),
     )
     holding(page, held, 1, "the pasted image")
+    return page, box, held
+
+
+@pytest.mark.parametrize("leave", [False, True])
+def test_image_upload_completion_preserves_the_readers_focus_and_scroll(
+    browser, serve, leave
+):
+    """Finishing a paste updates the draft without repeating the user's entry gesture."""
+    page, box, held = _a_picture_uploading(browser, serve)
     expect(box).to_have_attribute("aria-busy", "true")
     expect(box).to_be_focused()
     if leave:
@@ -285,27 +292,7 @@ def test_a_picture_still_uploading_stays_out_of_the_next_passages_draft(browser,
     picture was the first passage's, so it does not land in the second one's draft, and
     the user is told it was not added rather than finding it somewhere they did not put
     it."""
-    held = []
-    controlled = primed(
-        browser,
-        lambda page: page.route("**/api/media", lambda route: held.append(route)),
-    )
-    page = open_page(controlled, serve(LONG_PAGE))
-    compose(page, "#p3")
-    box = page.locator(".lf-fab-input")
-    pixels = (example_media() / "051bee487bfb5d13.png").read_bytes()
-    box.evaluate(
-        """(box, encoded) => {
-          const bytes = Uint8Array.from(atob(encoded), char => char.charCodeAt(0));
-          const transfer = new DataTransfer();
-          transfer.items.add(new File([bytes], 'pasted.png', {type: 'image/png'}));
-          box.dispatchEvent(new ClipboardEvent('paste', {
-            bubbles: true, cancelable: true, clipboardData: transfer,
-          }));
-        }""",
-        base64.b64encode(pixels).decode(),
-    )
-    holding(page, held, 1, "the pasted image")
+    page, box, held = _a_picture_uploading(browser, serve)
     compose(page, "#p1")
     held.pop().continue_()
     expect(box).not_to_have_attribute("aria-busy", "true")
@@ -339,21 +326,10 @@ def test_a_pasted_image_is_a_whole_draft_and_leaves_with_the_send_that_took_it(
     page = open_page(browser, serve(LONG_PAGE))
     image_markdown = "![Attached image](/media/051bee487bfb5d13.png)"
     compose(page, "#p3")
-    pixels = (example_media() / "051bee487bfb5d13.png").read_bytes()
-    with page.expect_response(lambda response: response.url.endswith("/api/media")):
-        page.locator(".lf-fab-input").evaluate(
-            """(box, encoded) => {
-              const bytes = Uint8Array.from(atob(encoded), char => char.charCodeAt(0));
-              const transfer = new DataTransfer();
-              transfer.items.add(new File([bytes], 'pasted.png', {type: 'image/png'}));
-              box.dispatchEvent(new ClipboardEvent('paste', {
-                bubbles: true,
-                cancelable: true,
-                clipboardData: transfer,
-              }));
-            }""",
-            base64.b64encode(pixels).decode(),
-        )
+    paste_image(
+        page.locator(".lf-fab-input"),
+        (example_media() / "051bee487bfb5d13.png").read_bytes(),
+    )
     shelf = page.locator(".lf-composer .lf-composer-media")
     expect(shelf.locator("img")).to_be_visible()
 
@@ -486,7 +462,7 @@ def test_resume_writing_reveals_page_editor_from_a_covering_panel_and_keeps_back
     source_entry = page.evaluate("navigation.currentEntry.key")
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
-    expect(page.locator(PANEL)).to_have_attribute("data-open", "threads")
+    expect(page.locator(PANEL)).to_have_attribute("data-lf-open", "threads")
     page.keyboard.press("g")
     page.keyboard.press("i")
     if hidden_tab:

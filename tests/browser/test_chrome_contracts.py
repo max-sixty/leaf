@@ -272,14 +272,10 @@ FIRST_LINE = """box => {
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
-def test_a_caret_at_a_lines_end_paints_inside_the_field(engine, request, serve):
-    """The caret after a line's last character stands at the very end of the text
-    column: in a box that grows with its words, and in a narrow allocation. Firefox
-    paints the caret a pixel wide from that offset onward, pulled
-    inside only by a scroll container (nsCaret, `AdjustRectForClipping`), so a field
-    clipping its words at the column's end hid it, and it read as gone under Send.
-    Chromium and WebKit pull a line-end caret back inside the line's block, and WebKit
-    has no `overflow-clip-margin` to read."""
+def test_a_caret_is_drawn_at_a_lines_end_and_after_a_list_bullet(
+    engine, request, serve, subtests
+):
+    """Where the caret stands in the response bar's field, and that it shows."""
     page = open_page(
         request.getfixturevalue(engine),
         serve(
@@ -290,51 +286,86 @@ def test_a_caret_at_a_lines_end_paints_inside_the_field(engine, request, serve):
     page.locator("#passage").click(modifiers=["Alt"])
     field = page.locator(".lf-fab-input")
     expect(field).to_be_focused()
-    box = page.locator(".lf-fab-bar .lf-compose-field")
-    least = box.bounding_box()
-    page.keyboard.insert_text(
-        "it's not really a feed as much as a list? I see a feed as a stream of"
-        " things that keep arriving while a list is something you work down"
-    )
-    rendered(page)
-    wrapped = box.bounding_box()
-    hold_motion(page)
-    # The box grows with its words, so the caret after the last word ends its column,
-    # and the lines the words give up move the box. The first line's words are those
-    # each platform's fonts fit.
-    first_line = field.evaluate(FIRST_LINE)
-    assert first_line, wrapped
-    page.keyboard.press("ControlOrMeta+a")
-    page.keyboard.insert_text(first_line)
-    page.wait_for_function(
-        "line => document.querySelector('.lf-fab-bar .lf-compose-field')"
-        ".getBoundingClientRect().height < line",
-        arg=least["height"] + 0.5,
-    )
-    one_line = box.bounding_box()
-    assert least["width"] < one_line["width"] < wrapped["width"], (
-        least,
-        one_line,
-        wrapped,
-    )
-    rendered(page)
-    held_motion(page, ".lf-fab-ground")
-    # Read the final moving frame, before cleanup restores the field's resting clip.
-    page.evaluate("""() => __lfHeld.filter(a => a.playState !== 'idle').forEach(a => {
-      a.currentTime = Number(a.effect.getTiming().duration) - 0.01;
-    })""")
-    assert field.evaluate(CARET_ROOM) >= 1
-    finish_held(page)
-    # Check the last ink at a narrow allocation too. A trailing pre-wrap space can
-    # hang outside the line: its Range box is not the native caret's painted box,
-    # which Chromium pulls back inside the line. Read before that space instead.
-    resized(page, 346, 900)
-    page.keyboard.press("ControlOrMeta+a")
-    page.keyboard.insert_text("this is a nice feature; is it in leaf, or you")
-    page.keyboard.press("Space")
-    page.keyboard.press("ArrowLeft")
-    rendered(page)
-    assert field.evaluate(CARET_ROOM) >= 1
+
+    with subtests.test("a caret at a line's end paints inside the field"):
+        # The caret after a line's last character stands at the very end of the text
+        # column: in a box that grows with its words, and in a narrow allocation.
+        # Firefox paints the caret a pixel wide from that offset onward, pulled inside
+        # only by a scroll container (nsCaret, `AdjustRectForClipping`), so a field
+        # clipping its words at the column's end hid it, and it read as gone under Send.
+        # Chromium and WebKit pull a line-end caret back inside the line's block, and
+        # WebKit has no `overflow-clip-margin` to read.
+        box = page.locator(".lf-fab-bar .lf-compose-field")
+        least = box.bounding_box()
+        page.keyboard.insert_text(
+            "it's not really a feed as much as a list? I see a feed as a stream of"
+            " things that keep arriving while a list is something you work down"
+        )
+        rendered(page)
+        wrapped = box.bounding_box()
+        hold_motion(page)
+        # The box grows with its words, so the caret after the last word ends its column,
+        # and the lines the words give up move the box. The first line's words are those
+        # each platform's fonts fit.
+        first_line = field.evaluate(FIRST_LINE)
+        assert first_line, wrapped
+        page.keyboard.press("ControlOrMeta+a")
+        page.keyboard.insert_text(first_line)
+        page.wait_for_function(
+            "line => document.querySelector('.lf-fab-bar .lf-compose-field')"
+            ".getBoundingClientRect().height < line",
+            arg=least["height"] + 0.5,
+        )
+        one_line = box.bounding_box()
+        assert least["width"] < one_line["width"] < wrapped["width"], (
+            least,
+            one_line,
+            wrapped,
+        )
+        rendered(page)
+        held_motion(page, ".lf-fab-ground")
+        # Read the final moving frame, before cleanup restores the field's resting clip.
+        page.evaluate("""() => __lfHeld.filter(a => a.playState !== 'idle').forEach(a => {
+          a.currentTime = Number(a.effect.getTiming().duration) - 0.01;
+        })""")
+        assert field.evaluate(CARET_ROOM) >= 1
+        finish_held(page)
+        # Check the last ink at a narrow allocation too. A trailing pre-wrap space can
+        # hang outside the line: its Range box is not the native caret's painted box,
+        # which Chromium pulls back inside the line. Read before that space instead.
+        resized(page, 346, 900)
+        page.keyboard.press("ControlOrMeta+a")
+        page.keyboard.insert_text("this is a nice feature; is it in leaf, or you")
+        page.keyboard.press("Space")
+        page.keyboard.press("ArrowLeft")
+        rendered(page)
+        assert field.evaluate(CARET_ROOM) >= 1
+
+    with subtests.test("the caret after a list bullet is drawn"):
+        # A new list item shows its bullet with the caret just past the hidden source
+        # marker, so the browser places the caret inside the marker's text. The caret
+        # takes that text's ink, so hiding the marker's glyphs must leave the ink alone,
+        # however the caret arrived: continuing the list, deleting the marker's space,
+        # or arrows.
+        page.keyboard.press("ControlOrMeta+a")
+        page.keyboard.press("Backspace")
+        expect(field).to_have_js_property("value", "")
+        page.keyboard.type("- one")
+        page.keyboard.press("Shift+Enter")
+        expect(field).to_have_js_property("value", "- one\n- ")
+        rendered(page)
+        caret, words = field.evaluate(CARET_INK)
+        assert caret == words
+        page.keyboard.press("Backspace")
+        expect(field).to_have_js_property("value", "- one\n-")
+        rendered(page)
+        caret, words = field.evaluate(CARET_INK)
+        assert caret == words
+        page.keyboard.press("ArrowLeft")
+        page.keyboard.press("ArrowRight")
+        rendered(page)
+        caret, words = field.evaluate(CARET_INK)
+        assert caret == words
 
 
 # The ink the browser draws the caret in, beside the ink of the field's words.
@@ -343,40 +374,6 @@ CARET_INK = f"""box => {{{CARET_AT}
   return [getComputedStyle(holder).caretColor,
     getComputedStyle(holder.closest('.cm-content')).color];
 }}"""
-
-
-@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
-def test_the_caret_after_a_list_bullet_is_drawn(engine, request, serve):
-    """A new list item shows its bullet with the caret just past the hidden source
-    marker, so the browser places the caret inside the marker's text. The caret takes
-    that text's ink, so hiding the marker's glyphs must leave the ink alone, however
-    the caret arrived: continuing the list, deleting the marker's space, or arrows."""
-    page = open_page(
-        request.getfixturevalue(engine),
-        serve(
-            leaf_page("Compact comment", '<p id="passage">A passage to comment on.</p>')
-        ),
-        init_script=KEEP_ROOTS,
-    )
-    page.locator("#passage").click(modifiers=["Alt"])
-    field = page.locator(".lf-fab-input")
-    expect(field).to_be_focused()
-    page.keyboard.type("- one")
-    page.keyboard.press("Shift+Enter")
-    expect(field).to_have_js_property("value", "- one\n- ")
-    rendered(page)
-    caret, words = field.evaluate(CARET_INK)
-    assert caret == words
-    page.keyboard.press("Backspace")
-    expect(field).to_have_js_property("value", "- one\n-")
-    rendered(page)
-    caret, words = field.evaluate(CARET_INK)
-    assert caret == words
-    page.keyboard.press("ArrowLeft")
-    page.keyboard.press("ArrowRight")
-    rendered(page)
-    caret, words = field.evaluate(CARET_INK)
-    assert caret == words
 
 
 # Two threads put the card's navigation on the row too, which a finger's larger
@@ -572,7 +569,7 @@ def test_a_page_module_importing_the_widget_api_hears_dom_content_loaded(
 
 
 def test_script_region_moves_reload_without_leaving_duplicate_nodes(browser, serve):
-    """Retained scripts and main's patched scripts have distinct document lifetimes."""
+    """Head and body scripts have distinct document lifetimes; body moves patch."""
     script = (
         '<script id="page-behavior" type="module">'
         "window.pageRuns = (window.pageRuns || 0) + 1;</script>"
@@ -586,7 +583,7 @@ def test_script_region_moves_reload_without_leaving_duplicate_nodes(browser, ser
     for revision, html, region, reloads in [
         (2, main, "main", True),
         (3, main.replace(script, f"<div>{script}</div>"), "div", False),
-        (4, tail, "body", True),
+        (4, tail, "body", False),
         (5, tail.replace("Original words.", "Revised words."), "body", False),
     ]:
         stamp_page(serve.page_dir, html, "Revise script placement or prose")
@@ -677,13 +674,12 @@ def test_the_delivered_stylesheets_read_exactly_as_their_files_do(browser, serve
     )
     if mode == "page":
         assert ".lf-margin-cluster" not in carrier
-        assert ".lf-visual-mark {" not in carrier
+        assert ".lf-mark-el {" not in carrier
         assert "::highlight(lf-mark)" not in carrier
         assert ".lf-margin-preview { position: fixed" not in carrier
-    assert ".lf-aim {" in selected["chrome"]
-    assert ".lf-target-trace {" in selected["chrome"]
+    assert ".lf-inspect {" in selected["chrome"]
     assert ".lf-drawing-mark path" in selected["chrome"]
-    assert "::highlight(lf-version-insert)" in selected["marks"]
+    assert ".lf-change-card {" in selected["chrome"]
 
 
 def test_message_markdown_reads_a_link_scheme_as_the_attribute_resolves_it(
@@ -892,10 +888,10 @@ def test_the_page_paints_beneath_leaf_and_rises_only_through_the_top_layer(
     browser, serve
 ):
     """A box the page writes stacks beneath every surface Leaf lifts over the page,
-    whatever its z-index: `main` is one stacking context at 0, so the panel with Threads
-    open paints over a page overlay at the largest z-index there is, and
-    `stackLevel`, which paint, chips and landings ask where a node stacks, reads the
-    overlay beneath the panel. The page's way over Leaf is the top layer: its own modal
+    whatever its z-index: Leaf's chrome follows `body` at the largest z-index and wins
+    the tie in tree order, so the panel with Threads open paints over a page overlay
+    beside `main` at the largest z-index there is, and `stackLevel`, which paint, chips
+    and landings ask where a node stacks, reads the overlay beneath the panel. The page's way over Leaf is the top layer: its own modal
     dialog paints over the panel, and reads above it."""
     page = open_page(browser, serve(LONG_PAGE))
     resized(page, 1440, 900)
@@ -904,7 +900,7 @@ def test_the_page_paints_beneath_leaf_and_rises_only_through_the_top_layer(
         """async () => {
           const { stackLevel } = await window.__lfCheckApi();
           const main = document.querySelector('main');
-          const overlay = main.appendChild(document.createElement('div'));
+          const overlay = document.body.appendChild(document.createElement('header'));
           overlay.id = 'page-overlay';
           overlay.style.cssText = `position: fixed; inset: 0; z-index: 2147483647;
             background: rgb(255 0 0 / 0.3);`;
@@ -995,6 +991,65 @@ def test_a_page_map_update_keeps_the_row_the_user_was_on(browser, serve):
     page.evaluate("() => window.lfMoveToTop()")
     first = dialog.locator(".lf-page-map-action-label-word").first
     expect(first).to_have_text("Moving action")
+    assert row.evaluate("node => node.getBoundingClientRect().top") == pytest.approx(
+        top, abs=1
+    )
+
+
+@pytest.mark.parametrize("aim", ["focus", "pointer"])
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_thread_joining_page_map_above_the_row_the_user_is_on_leaves_it_still(
+    request, serve, engine, aim
+):
+    """A thread the agent starts joins Page Map between the first row in view and the
+    row the user is on, and pushed that row down by the row it added, 63px: the
+    browser's scroll anchoring holds the first row in view, and nothing held the focused
+    one. The reading that brings the thread keeps the control the user is on where it
+    stood once the page shows it, as it does for every surface: the focused row, or,
+    with focus in the search field, which names no place, the row under the resting
+    pointer, which moved 32px when only focus named one."""
+    fixture = leaf_page(
+        "Page Map focus",
+        "".join(
+            f'<p id="place-{index}">Target {index} of the plan.</p>'
+            for index in range(30)
+        ),
+    )
+    url = serve(fixture)
+    for index in range(30):
+        if index != 14:
+            panel_comment(
+                serve.page_dir,
+                f"Question {index:02d}?",
+                {"section": f"place-{index}"},
+                author="agent",
+            )
+    page = open_page(request.getfixturevalue(engine), url)
+    resized(page, 1280, 600)
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+p")
+    dialog = page.get_by_role("dialog", name="Page Map", exact=True)
+    expect(dialog).to_be_visible()
+    rows = dialog.locator(".lf-page-map-action")
+    row = rows.filter(has_text="Question 15?")
+    row.evaluate("node => node.scrollIntoView({block: 'center'})")
+    held = row if aim == "focus" else dialog.get_by_role("searchbox")
+    held.focus()
+    if aim == "pointer":
+        row.hover()
+    assert rows.filter(has_text="Question 13?").evaluate(
+        "node => node.getBoundingClientRect().top"
+        " > node.closest('.lf-page-map-list').getBoundingClientRect().top"
+    ), "the row joins inside the list's view, below its first row there"
+    top = row.evaluate("node => node.getBoundingClientRect().top")
+
+    panel_comment(
+        serve.page_dir, "Question 14?", {"section": "place-14"}, author="agent"
+    )
+    told(page)
+    expect(rows.filter(has_text="Question 14?")).to_have_count(1)
+    rendered(page)
+    expect(held).to_be_focused()
     assert row.evaluate("node => node.getBoundingClientRect().top") == pytest.approx(
         top, abs=1
     )
@@ -1229,12 +1284,12 @@ def test_a_phone_starts_the_page_and_comments_on_a_selection(iphone, serve, view
     # and the On me mark keeps its seat; the leaf's menu stays shut.
     comment = selection_field(page)
     expect(comment).to_have_attribute("placeholder", "“Paragraph one”")
-    expect(page.locator(PANEL)).not_to_have_attribute("data-open", re.compile("."))
+    expect(page.locator(PANEL)).not_to_have_attribute("data-lf-open", re.compile("."))
     expect(page.locator(".lf-fp-on-user")).to_be_visible()
     box = comment.bounding_box()
     assert box["x"] + box["width"] <= page.evaluate("innerWidth"), box
     comment.tap()
-    expect(page.locator(PANEL)).not_to_have_attribute("data-open", re.compile("."))
+    expect(page.locator(PANEL)).not_to_have_attribute("data-lf-open", re.compile("."))
     expect(field).to_be_focused()
     write(field, "From a phone")
     with sending(page, "the comment"):
@@ -1253,7 +1308,7 @@ def test_a_phone_starts_the_page_and_comments_on_a_selection(iphone, serve, view
 @pytest.mark.parametrize(
     "surface, scheme",
     [
-        *((surface, "light") for surface in ("general", "panel", "margin", "outlet")),
+        *((surface, "light") for surface in ("panel", "margin", "outlet")),
         ("outlet", "dark"),
     ],
 )
@@ -1325,8 +1380,6 @@ def test_a_draft_wears_the_faces_its_sent_message_wears(
               code: code.getBoundingClientRect().top};
     }""")
     assert flow["code"] == pytest.approx(flow["words"], abs=4), flow
-    # Read first: the page's general box stands in the panel's field with no view open,
-    # the one place a page thread starts, so writing there puts the thread's view away.
     sent = body.evaluate(
         """(body, [faces, face]) => Object.fromEntries(Object.entries(faces)
           .map(([name, [selector]]) => {
@@ -1337,7 +1390,7 @@ def test_a_draft_wears_the_faces_its_sent_message_wears(
         [FACES, FACE],
     )
     sent_size = body.evaluate("body => getComputedStyle(body).fontSize")
-    box = page_comment(page) if surface == "general" else page.locator(box_selector)
+    box = page.locator(box_selector)
     if surface == "outlet":
         # Reply rests as a press; open it by user input before write() focuses it.
         box.click()
@@ -1584,12 +1637,8 @@ STILL = """async box => {
 }"""
 
 
-# Rules between paragraphs, with and without blank lines around them.
-@pytest.mark.parametrize(
-    "source", ["P\n\n---\n\nQ", "P\n***\nQ"], ids=["apart", "close"]
-)
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
-def test_arrow_keys_step_onto_a_drawn_rule(engine, source, request, serve):
+def test_arrow_keys_step_onto_a_drawn_rule(engine, request, serve, subtests):
     """Up and Down step onto a rule's line, which then shows its source on that line,
     and nothing moves. The rule's line was a stroke's height while the caret was away,
     and grew to a line's height as its source showed, growing the field and moving
@@ -1598,19 +1647,28 @@ def test_arrow_keys_step_onto_a_drawn_rule(engine, source, request, serve):
         request.getfixturevalue(engine), serve(LONG_PAGE), init_script=KEEP_ROOTS
     )
     field = page_comment(page)
-    write(field, source)
-    rendered(page)
-    still = field.evaluate(STILL)
-    rule = next(at for at in range(len(source)) if source[at] in "-*")
-    landed = []
-    for key in ["ArrowUp"] * source[rule:].count("\n") + ["ArrowUp", "ArrowDown"]:
-        page.keyboard.press(key)
-        landed.append(field.evaluate("box => box.selectionStart"))
-        rendered(page)
-        assert field.evaluate(STILL) == pytest.approx(still, abs=0.5), landed
-    on_rule = [rule <= at <= rule + 3 for at in landed]
-    # Up from the last line reaches the rule, Up leaves it, Down comes back.
-    assert on_rule[-3:] == [True, False, True], landed
+    # Rules between paragraphs, with and without blank lines around them.
+    for source in ("P\n\n---\n\nQ", "P\n***\nQ"):
+        with subtests.test(source=source):
+            page.keyboard.press("ControlOrMeta+a")
+            page.keyboard.press("Backspace")
+            expect(field).to_have_js_property("value", "")
+            write(field, source)
+            rendered(page)
+            still = field.evaluate(STILL)
+            rule = next(at for at in range(len(source)) if source[at] in "-*")
+            landed = []
+            for key in ["ArrowUp"] * source[rule:].count("\n") + [
+                "ArrowUp",
+                "ArrowDown",
+            ]:
+                page.keyboard.press(key)
+                landed.append(field.evaluate("box => box.selectionStart"))
+                rendered(page)
+                assert field.evaluate(STILL) == pytest.approx(still, abs=0.5), landed
+            on_rule = [rule <= at <= rule + 3 for at in landed]
+            # Up from the last line reaches the rule, Up leaves it, Down comes back.
+            assert on_rule[-3:] == [True, False, True], landed
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
@@ -1666,9 +1724,8 @@ CARET_X = """box => {
 }"""
 
 
-@pytest.mark.parametrize("column", [0, 14])
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
-def test_arrow_keys_keep_their_column_across_a_fence(engine, column, request, serve):
+def test_arrow_keys_keep_their_column_across_a_fence(engine, request, serve, subtests):
     """Up through a fence and its code visits every line, keeping the caret as near
     the column it set out from as each line allows, as CodeMirror's own motion does.
     The step onto a short line placed the caret by the character column it carried,
@@ -1684,39 +1741,41 @@ def test_arrow_keys_keep_their_column_across_a_fence(engine, column, request, se
         "Para above the fence.\n\n```\ncode line that is long\n```\n\n"
         "after the fence, too"
     )
-    write(field, source)
-    last = source.rindex("\n") + 1
-    field.evaluate("(box, at) => box.setSelectionRange(at, at)", last + column)
-    # An arrow there and back reads the place as the user's, and sets the goal.
-    page.keyboard.press("ArrowRight" if column == 0 else "ArrowLeft")
-    page.keyboard.press("ArrowLeft" if column == 0 else "ArrowRight")
-    *_, goal = field.evaluate(CARET_X)
-    rendered(page)
-    still = field.evaluate(STILL)
-    lines = source.split("\n")
-    landed = []
-    for _ in range(len(lines) - 1):
-        page.keyboard.press("ArrowUp")
-        landed.append(field.evaluate(CARET_X))
-        rendered(page)
-        assert field.evaluate(STILL) == pytest.approx(still, abs=0.5), landed
-    assert [line for line, _, _ in landed] == list(range(len(lines) - 2, -1, -1))
-    for (line, at, x), text in zip(landed, reversed(lines[:-1]), strict=True):
-        if column == 0:
-            assert at == 0, (line, landed)
-        # A line shorter than the goal holds the caret at its end, a blank one at 0;
-        # code's characters are wider than prose's, so the caret is a character off.
-        elif len(text) > column + 2:
-            assert x == pytest.approx(goal, abs=9), (line, landed, goal)
+    for column in (0, 14):
+        with subtests.test(column=column):
+            write(field, source)
+            last = source.rindex("\n") + 1
+            field.evaluate("(box, at) => box.setSelectionRange(at, at)", last + column)
+            # An arrow there and back reads the place as the user's, and sets the goal.
+            page.keyboard.press("ArrowRight" if column == 0 else "ArrowLeft")
+            page.keyboard.press("ArrowLeft" if column == 0 else "ArrowRight")
+            *_, goal = field.evaluate(CARET_X)
+            rendered(page)
+            still = field.evaluate(STILL)
+            lines = source.split("\n")
+            landed = []
+            for _ in range(len(lines) - 1):
+                page.keyboard.press("ArrowUp")
+                landed.append(field.evaluate(CARET_X))
+                rendered(page)
+                assert field.evaluate(STILL) == pytest.approx(still, abs=0.5), landed
+            assert [line for line, _, _ in landed] == list(
+                range(len(lines) - 2, -1, -1)
+            )
+            for (line, at, x), text in zip(landed, reversed(lines[:-1]), strict=True):
+                if column == 0:
+                    assert at == 0, (line, landed)
+                # A line shorter than the goal holds the caret at its end, a blank one
+                # at 0; code's characters are wider than prose's, so the caret is a
+                # character off.
+                elif len(text) > column + 2:
+                    assert x == pytest.approx(goal, abs=9), (line, landed, goal)
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
-@pytest.mark.parametrize(
-    "lines",
-    [["```", "one", ""], ["- item", "  ```", "  one", "  "]],
-    ids=["draft", "item"],
-)
-def test_a_new_line_in_an_open_fence_starts_in_its_code(engine, lines, request, serve):
+def test_a_new_line_in_an_open_fence_starts_in_its_code(
+    engine, request, serve, subtests
+):
     """A line begun at the end of a fence not yet closed is a line of its code from the
     start, in the draft or in a list item, its indent unseen as the message drops it.
     The parser's reading of the fence stops before the draft's blank last line, so the
@@ -1727,15 +1786,6 @@ def test_a_new_line_in_an_open_fence_starts_in_its_code(engine, lines, request, 
         request.getfixturevalue(engine), serve(LONG_PAGE), init_script=KEEP_ROOTS
     )
     field = page_comment(page)
-    for at, text in enumerate(lines):
-        if at:
-            # A user retyping the line takes back what continuing the list put there.
-            before = field.evaluate("box => box.value")
-            page.keyboard.press("Shift+Enter")
-            while len(field.evaluate("box => box.value")) > len(before) + 1:
-                page.keyboard.press("Backspace")
-        page.keyboard.type(text)
-    expect(field).to_have_js_property("value", "\n".join(lines))
     # The last line's box from the fence's, which the field's growth carries with it,
     # and where the words of each line start.
     last_line = r"""box => {
@@ -1758,16 +1808,34 @@ def test_a_new_line_in_an_open_fence_starts_in_its_code(engine, lines, request, 
       return {box: [r.left - fence.left, r.top - fence.top, r.width],
         face: [style.fontFamily, style.backgroundColor], words};
     }"""
-    rendered(page)
-    empty = field.evaluate(last_line)
-    page.keyboard.type("two")
-    expect(field).to_have_js_property("value", "\n".join(lines) + "two")
-    rendered(page)
-    typed = field.evaluate(last_line)
-    assert typed["box"] == pytest.approx(empty["box"], abs=0.5), (empty, typed)
-    assert typed["face"] == empty["face"]
-    one, two = typed["words"]
-    assert two == pytest.approx(one, abs=0.5), typed
+    for name, lines in (
+        ("draft", ["```", "one", ""]),
+        ("item", ["- item", "  ```", "  one", "  "]),
+    ):
+        with subtests.test(where=name):
+            page.keyboard.press("ControlOrMeta+a")
+            page.keyboard.press("Backspace")
+            expect(field).to_have_js_property("value", "")
+            for at, text in enumerate(lines):
+                if at:
+                    # A user retyping the line takes back what continuing the list put
+                    # there.
+                    before = field.evaluate("box => box.value")
+                    page.keyboard.press("Shift+Enter")
+                    while len(field.evaluate("box => box.value")) > len(before) + 1:
+                        page.keyboard.press("Backspace")
+                page.keyboard.type(text)
+            expect(field).to_have_js_property("value", "\n".join(lines))
+            rendered(page)
+            empty = field.evaluate(last_line)
+            page.keyboard.type("two")
+            expect(field).to_have_js_property("value", "\n".join(lines) + "two")
+            rendered(page)
+            typed = field.evaluate(last_line)
+            assert typed["box"] == pytest.approx(empty["box"], abs=0.5), (empty, typed)
+            assert typed["face"] == empty["face"]
+            one, two = typed["words"]
+            assert two == pytest.approx(one, abs=0.5), typed
 
 
 # Keys typed into a draft, Shift+Enter as `⏎`, Backspace as `⌫`, ArrowLeft as `←`, Tab
@@ -1816,21 +1884,57 @@ CONTINUED = {
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
-def test_shift_enter_continues_the_containers_the_message_will_hold(
-    engine, request, serve
+def test_shift_enter_and_tab_keep_a_draft_in_the_containers_the_message_will_hold(
+    engine, request, serve, subtests
 ):
-    """Shift+Enter begins a line in each quote and list item the message will read the
-    caret's line in, a fence's code included, and on a line holding only their markers
-    leaves the innermost, an item in an item outdenting; a task's next item is an open
-    task. CodeMirror's own Markdown grammar decided it, which stopped at a fence, so a
-    fence's next line fell out of its quote or item and its closing fence opened
-    another; leaving a list took a third press, the second only loosening it. A bare
-    `> ` after a list read as inside the list's last item, so leaving the quote did
-    nothing."""
-    page = open_page(request.getfixturevalue(engine), serve(LONG_PAGE))
-    field = page_comment(page)
-    left = type_drafts(page, field, CONTINUED)
-    assert left == {name: draft for name, (_, draft) in CONTINUED.items()}
+    """The keys that shape a draft's quotes and lists, typed into one field."""
+    page = open_page(
+        request.getfixturevalue(engine), serve(LONG_PAGE), init_script=KEEP_ROOTS
+    )
+
+    with subtests.test("Shift+Enter continues the containers the message will hold"):
+        # Shift+Enter begins a line in each quote and list item the message will read
+        # the caret's line in, a fence's code included, and on a line holding only their
+        # markers leaves the innermost, an item in an item outdenting; a task's next
+        # item is an open task. CodeMirror's own Markdown grammar decided it, which
+        # stopped at a fence, so a fence's next line fell out of its quote or item and
+        # its closing fence opened another; leaving a list took a third press, the
+        # second only loosening it. A bare `> ` after a list read as inside the list's
+        # last item, so leaving the quote did nothing.
+        field = page_comment(page)
+        left = type_drafts(page, field, CONTINUED)
+        assert left == {name: draft for name, (_, draft) in CONTINUED.items()}
+
+    with subtests.test("Tab nests a list item and Shift+Tab takes it out"):
+        # Tab in a list item nests it under the item above, where the message will draw
+        # it as a nested item, in the platform's nested bullet; Shift+Tab takes it out a
+        # level, and one undo takes back one Tab. The first item, with no item to nest
+        # under, stays and keeps the caret. Elsewhere Tab and Shift+Tab leave the field,
+        # as they used to from a list too.
+        field = page_comment(page)
+        left = type_drafts(page, field, NESTING)
+        assert left == {name: draft for name, (_, draft) in NESTING.items()}
+        expect(field).to_be_focused()
+        # The nested item wears the nested bullet with its words and before them, though
+        # the message reads an empty nested item as words of the item above.
+        bullets = """box => [...window.__lfRoots.get(box).querySelectorAll('.cm-line')]
+          .map(line => [...line.closest('.lf-md-item').classList]
+            .find(name => /^lf-md-(disc|circle|square)$/.test(name)))"""
+        for erase in (0, len("two")):
+            for _ in range(erase):
+                page.keyboard.press("Backspace")
+            rendered(page)
+            assert field.evaluate(bullets) == ["lf-md-disc", "lf-md-circle"], erase
+        expect(field).to_have_js_property("value", "- one\n  - ")
+        # Outside a list item the press leaves the field as before, and so does Shift+Tab
+        # with no item to take out, so a draft that is all list still lets focus out.
+        for typed, key in (("plain", "Tab"), ("- one", "Shift+Tab")):
+            field.focus()
+            page.keyboard.press("ControlOrMeta+a")
+            page.keyboard.type(typed)
+            page.keyboard.press(key)
+            expect(field).not_to_be_focused()
+            expect(field).to_have_js_property("value", typed)
 
 
 # The last draft stays in the field for its preview to be read.
@@ -1842,39 +1946,3 @@ NESTING = {
     "undoing a nest": ("- one⏎⇥↶", "- one\n- "),
     "nesting a new item": ("- one⏎⇥two", "- one\n  - two"),
 }
-
-
-@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
-def test_tab_nests_a_list_item_and_shift_tab_takes_it_out(engine, request, serve):
-    """Tab in a list item nests it under the item above, where the message will draw it
-    as a nested item, in the platform's nested bullet; Shift+Tab takes it out a level,
-    and one undo takes back one Tab. The first item, with no item to nest under, stays
-    and keeps the caret. Elsewhere Tab and Shift+Tab leave the field, as they used to
-    from a list too."""
-    page = open_page(
-        request.getfixturevalue(engine), serve(LONG_PAGE), init_script=KEEP_ROOTS
-    )
-    field = page_comment(page)
-    left = type_drafts(page, field, NESTING)
-    assert left == {name: draft for name, (_, draft) in NESTING.items()}
-    expect(field).to_be_focused()
-    # The nested item wears the nested bullet with its words and before them, though
-    # the message reads an empty nested item as words of the item above.
-    bullets = """box => [...window.__lfRoots.get(box).querySelectorAll('.cm-line')]
-      .map(line => [...line.closest('.lf-md-item').classList]
-        .find(name => /^lf-md-(disc|circle|square)$/.test(name)))"""
-    for erase in (0, len("two")):
-        for _ in range(erase):
-            page.keyboard.press("Backspace")
-        rendered(page)
-        assert field.evaluate(bullets) == ["lf-md-disc", "lf-md-circle"], erase
-    expect(field).to_have_js_property("value", "- one\n  - ")
-    # Outside a list item the press leaves the field as before, and so does Shift+Tab
-    # with no item to take out, so a draft that is all list still lets focus out.
-    for typed, key in (("plain", "Tab"), ("- one", "Shift+Tab")):
-        field.focus()
-        page.keyboard.press("ControlOrMeta+a")
-        page.keyboard.type(typed)
-        page.keyboard.press(key)
-        expect(field).not_to_be_focused()
-        expect(field).to_have_js_property("value", typed)

@@ -22,7 +22,6 @@ from render_cases_navigation import (
 )
 from render_harness import (
     INLINE_PAGE,
-    PANEL_THREAD,
     PASSAGE_SOURCES,
     RELEASE_FOCUS,
     command_reference_rows,
@@ -53,6 +52,7 @@ from leaf import service as service_model
 from leaf import structure as structure_model
 from leaf.registry.storage import read_page_registry
 from leaf.render_checks import rendered, wait_until_ready
+from leaf_dev.browser import PANEL_THREAD
 from leaf_dev.example_data import patch_manifest
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -679,7 +679,7 @@ def test_the_menu_runs_in_descending_number_order_past_v9(browser, serve):
     # Pinned to the oldest, the row naming the newest is the runtime's one place that
     # spells a version out in a sentence.
     page = open_page(browser, url, pin=True)
-    expect(panel_menu(page).locator('.lf-fp-item[data-row="latest"]')).to_have_text(
+    expect(panel_menu(page).locator('.lf-fp-item[data-lf-row="latest"]')).to_have_text(
         "New page available → open v10"
     )
 
@@ -753,7 +753,7 @@ diff --git a/README.md b/README.md
 
     summary.hover(position={"x": 100, "y": 10})
     page.keyboard.down("Alt")
-    expect(page.locator(".lf-aim")).to_be_visible()
+    expect(page.locator("[data-lf-aimed]").first).to_be_visible()
     page.keyboard.up("Alt")
     summary.click(modifiers=["Alt"])
     expect(page.locator(".lf-fab-bar")).to_be_visible()
@@ -938,7 +938,7 @@ diff --git a/README.md b/README.md
         },
     ]
     second = open_panel_thread(page, comments[1]["id"])
-    expect(second.locator(".lf-fp-quote")).to_have_text(
+    expect(second.locator(".lf-thread-quote")).to_have_text(
         "app.py · new line 2 · “request.token.id”"
     )
     page.locator(".lf-fp-close").click()
@@ -962,7 +962,9 @@ diff --git a/README.md b/README.md
     for comment in comments:
         view = open_panel_thread(page, comment["id"])
         expect(view.locator(".lf-anchor-status")).to_have_text("Earlier data")
-        assert view.locator(".lf-fp-quote").get_attribute("data-lf-detached") is None
+        assert (
+            view.locator(".lf-thread-quote").get_attribute("data-lf-detached") is None
+        )
 
 
 def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(browser, serve):
@@ -1007,8 +1009,8 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(browser, serv
     )
     page = open_page(browser, url)
     resized(page, 1920, 900)
-    thread = page.locator(f'lf-diff .lf-page-thread[data-thread="{root["id"]}"]')
-    panel_thread = page.locator(f'{PANEL_THREAD}[data-thread="{root["id"]}"]')
+    thread = page.locator(f'lf-diff .lf-page-thread[data-lf-thread="{root["id"]}"]')
+    panel_thread = page.locator(f'{PANEL_THREAD}[data-lf-thread="{root["id"]}"]')
     expect(thread).to_have_count(1)
     expect(thread.locator("leaf-text")).to_be_visible()
     open_panel_thread(page, root["id"])
@@ -1076,7 +1078,7 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(browser, serv
     page.locator(".lf-fp-close").click()
     panel_settled(page, open=False)
 
-    expect(thread.locator(f'.lf-msg[data-event="{reply["id"]}"]')).to_be_visible()
+    expect(thread.locator(f'.lf-msg[data-lf-event="{reply["id"]}"]')).to_be_visible()
 
     # Each message's workflow line reads the same in both views.
     question = append_carried_log_record(
@@ -1124,18 +1126,18 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(browser, serv
         if view == panel_thread:
             open_panel_thread(page, root["id"])
         expect(
-            view.locator(f'.lf-msg[data-event="{question["id"]}"]').locator(line)
+            view.locator(f'.lf-msg[data-lf-event="{question["id"]}"]').locator(line)
         ).to_have_text("On it")
         expect(
-            view.locator(f'.lf-msg[data-event="{followup["id"]}"]').locator(line)
+            view.locator(f'.lf-msg[data-lf-event="{followup["id"]}"]').locator(line)
         ).to_have_text(re.compile(r"^Queued for "))
     page.locator(".lf-fp-close").click()
     panel_settled(page, open=False)
 
-    strip = thread.locator(f'.lf-msg[data-event="{reply["id"]}"] .lf-react-strip')
-    thread.locator(f'.lf-msg[data-event="{reply["id"]}"] .lf-react-trigger').click()
+    strip = thread.locator(f'.lf-msg[data-lf-event="{reply["id"]}"] .lf-react-strip')
+    thread.locator(f'.lf-msg[data-lf-event="{reply["id"]}"] .lf-react-trigger').click()
     with sending(page, "the inline reaction"):
-        strip.locator('.lf-react[data-token="change"]').click()
+        strip.locator('.lf-react[data-lf-token="change"]').click()
     reacted = events_model.read_events(serve.page_dir)[-1]
     assert (reacted["kind"], reacted["parent"], reacted["token"]) == (
         "reply",
@@ -1206,10 +1208,9 @@ def test_the_widget_reads_the_diff_patch_table(browser, serve):
     readings = page.locator("lf-diff").evaluate_all(
         """hosts => Object.fromEntries(hosts.map(host => [host.id, {
           rendered: host.classList.contains('lf-rendered'),
-          errors: [...new Set([...host.querySelectorAll('.lf-error'),
-            ...(host.shadowRoot?.querySelectorAll('.lf-error') ?? [])]
-            .map(box => box.firstChild?.textContent ?? null))],
-          source: host.querySelector('.lf-error pre')?.textContent ?? null,
+          errors: [...(host.shadowRoot?.querySelectorAll('.lf-error') ?? [])]
+            .map(box => box.firstChild?.textContent ?? null),
+          source: host.shadowRoot?.querySelector('.lf-error pre')?.textContent ?? null,
           files: [...(host.shadowRoot?.querySelectorAll('.lf-diff-path') ?? [])].map(
             path => (path.querySelector('.lf-diff-destination-path') ?? path)
               .textContent.replaceAll('\\u200b', '')),
@@ -1269,7 +1270,7 @@ def test_the_widget_reads_the_diff_patch_table(browser, serve):
       const { says, wrote } = await window.__lfWidgetApi();
       return {
         rendered: host.classList.contains('lf-rendered'),
-        error: host.querySelector('.lf-error')?.firstChild?.textContent ?? null,
+        error: host.shadowRoot?.querySelector('.lf-error')?.firstChild?.textContent ?? null,
         details: shadow?.querySelectorAll('details').length ?? 0,
         diffs: shadow?.querySelectorAll('pre').length ?? 0,
         renameCount: renames.length,
@@ -1313,7 +1314,7 @@ def test_the_widget_reads_the_diff_patch_table(browser, serve):
       const host = document.querySelector('#final-empty-context-diff');
       return {
         rendered: host.classList.contains('lf-rendered'),
-        error: host.querySelector('.lf-error')?.firstChild?.textContent ?? null,
+        error: host.shadowRoot?.querySelector('.lf-error')?.firstChild?.textContent ?? null,
         lines: [...(host.shadowRoot?.querySelectorAll('[data-line]') ?? [])]
           .map(line => line.textContent),
       };

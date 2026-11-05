@@ -71,7 +71,7 @@ import { letGo, focusDestination, focused } from "../focus.js";
 import { pageParts } from "../passages.js";
 import { addressableSays } from "../addressable-names.js";
 import { announce, notice } from "../notifications.js";
-import { closestAcross, pageQueryAll } from "../passages.js";
+import { closestAcross, inPage, pageQueryAll } from "../passages.js";
 
 import { claimsEsc, saying } from "./scopes.js";
 import { repaint } from "../repaint.js";
@@ -119,16 +119,15 @@ export function createGoToSequence({
 
   // ---------- the g sequence: visible page targets ----------
   // These queries declare which page actions join the generated namespace. A link belongs
-  // to the page when it is inside main, including link apparatus a page widget generated:
-  // lf-toc's roomy map is chrome so passage capture ignores its repeated heading words, but
-  // its visible anchors are still routes through this page. Chrome-owned panels sit outside
-  // main and remain named global destinations. Other platform targets use pageParts so an
+  // to the authored body, including link apparatus a page widget generated: lf-toc's
+  // map repeats heading words, but its visible anchors are still routes through this
+  // page. Runtime surfaces remain named global destinations. Other platform targets use pageParts so an
   // injected control inside the document does not silently become a tab or fold route.
   /** @returns {HTMLAnchorElement[]} */
   const pageLinks = () => {
     /** @type {HTMLAnchorElement[]} */
     const links = pageQueryAll("a[href]");
-    return links.filter((link) => closestAcross(link, "main"));
+    return links.filter(inPage);
   };
   // The tabs rather than their panels: the visible choice is what wears the hint and
   // what the user is on afterwards. `role=tab` is the platform vocabulary, so an
@@ -714,20 +713,12 @@ export function createGoToSequence({
   // Every named capability stays invocable by id outside the armed sequence. Native
   // control activation and generated touch controls remain separate from that route:
   // a run-less row delegates to its control without replacing its native default.
-  for (const destination of destinations) {
-    const registered = {
+  for (const destination of destinations)
+    pageCommand({
       ...destination,
       keys: [],
       touch: destination.touch ?? false,
-    };
-    // Invocation is a live capability. Spreading a destination would freeze an
-    // unavailable getter at registration, before its owner can offer the action.
-    for (const name of ["run", "runKey"]) {
-      const handler = Object.getOwnPropertyDescriptor(destination, name);
-      if (handler) Object.defineProperty(registered, name, handler);
-    }
-    pageCommand(registered);
-  }
+    });
 
   return {
     goToStatus,

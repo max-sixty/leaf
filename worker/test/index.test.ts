@@ -1695,7 +1695,12 @@ describe("product-site delivery", () => {
     const attempt = "read-attempt-0001";
     const env = environment();
     const containerFetch = vi.fn(async (_request: Request) =>
-      Response.json({ ok: true, state: { events: [], activity: { obligations: [] } } }),
+      Response.json({
+        ok: true,
+        event: { id: "1f".repeat(16), attempt, kind: "read", revision: 1 },
+        needs_reply: false,
+        state: { events: [], activity: { obligations: [] } },
+      }),
     );
     vi.mocked(getContainer).mockReturnValue({ fetch: containerFetch } as never);
     const read = (cookie?: string) =>
@@ -1890,6 +1895,15 @@ describe("website event analytics", () => {
       .mockResolvedValueOnce(
         Response.json({
           ok: true,
+          event: {
+            id: eventId,
+            attempt,
+            kind: "action",
+            action: "choose",
+            revision: 2,
+            detail: { private: "not analytics" },
+          },
+          needs_reply: false,
           state: {
             events: [
               {
@@ -2006,7 +2020,12 @@ describe("page faults", () => {
   it("keeps an active session's faults and a passive reader's gestures in the container", async () => {
     const sessionId = "14".repeat(16);
     const containerFetch = vi.fn(async (_request: Request) =>
-      Response.json({ ok: true, state: { events: [], activity: { obligations: [] } } }),
+      Response.json({
+        ok: true,
+        event: { id: "15".repeat(16), kind: "comment", revision: 1 },
+        needs_reply: false,
+        state: { events: [], activity: { obligations: [] } },
+      }),
     );
     vi.mocked(getContainer).mockReturnValue({ fetch: containerFetch } as never);
 
@@ -2483,6 +2502,8 @@ describe("website page agent", () => {
         if (new URL(request.url).pathname.endsWith("/api/event")) {
           return Response.json({
             ok: true,
+            event: { id: eventId, attempt, kind: "comment", revision: 1 },
+            needs_reply: true,
             state: {
               events: [{ id: eventId, attempt, kind: "comment", revision: 1 }],
               activity: { obligations: [`update:${eventId}`] },
@@ -2533,6 +2554,8 @@ describe("website page agent", () => {
       fetch: async () =>
         Response.json({
           ok: true,
+          event: { id: "07".repeat(16), attempt, kind: "comment", revision: 1 },
+          needs_reply: false,
           state: {
             events: [{ id: "07".repeat(16), attempt, kind: "comment", revision: 1 }],
             activity: { obligations: [] },
@@ -2566,6 +2589,8 @@ describe("website page agent", () => {
       .mockResolvedValueOnce(
         Response.json({
           ok: true,
+          event: { id: eventId, attempt, kind: "comment", revision: 1 },
+          needs_reply: true,
           state: {
             events: [{ id: eventId, attempt, kind: "comment", revision: 1 }],
             activity: { obligations: [`update:${eventId}`] },
@@ -2613,6 +2638,8 @@ describe("website page agent", () => {
       .mockResolvedValueOnce(
         Response.json({
           ok: true,
+          event: { id: eventId, attempt, kind: "comment", revision: 1 },
+          needs_reply: true,
           state: {
             events: [{ id: eventId, attempt, kind: "comment", revision: 1 }],
             activity: { obligations: [`update:${eventId}`] },

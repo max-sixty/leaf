@@ -72,7 +72,7 @@ def test_nothing_lies_over_a_view_s_foot_but_new_reply(browser, serve):
     page = floating(browser, url)
 
     def at_end(parts):
-        page.locator(".lf-fp-view:not([data-leaving])").evaluate(
+        page.locator(".lf-fp-view:not([data-lf-leaving])").evaluate(
             "view => view.scrollTop = view.scrollHeight"
         )
         settled(page)
@@ -85,7 +85,7 @@ def test_nothing_lies_over_a_view_s_foot_but_new_reply(browser, serve):
     expect(inventory.locator(".lf-fp-thread")).to_have_count(13)
     field(page).click()
     page.keyboard.type("Could")
-    expect(page.locator(".lf-floating-panel")).to_have_attribute("data-drafted", "")
+    expect(page.locator(".lf-floating-panel")).to_have_attribute("data-lf-drafted", "")
     at_end(".lf-fp-thread")
 
     page.keyboard.press("ControlOrMeta+a")
@@ -95,7 +95,7 @@ def test_nothing_lies_over_a_view_s_foot_but_new_reply(browser, serve):
     expect(reader.locator(".lf-msg")).to_have_count(9)
     field(page).click()
     page.keyboard.type("Could")
-    expect(page.locator(".lf-floating-panel")).to_have_attribute("data-drafted", "")
+    expect(page.locator(".lf-floating-panel")).to_have_attribute("data-lf-drafted", "")
     at_end(".lf-msg")
 
     # The answer to the user's turn waits below the fold behind New reply, and its
@@ -119,7 +119,7 @@ def test_nothing_lies_over_a_view_s_foot_but_new_reply(browser, serve):
         },
     )
     told(page)
-    expect(reader.locator(".lf-fp-new-reply")).to_have_text("New reply")
+    expect(reader.locator(".lf-new-reply")).to_have_text("New reply")
     settled(page)
     # The user's own turn, the last message but the answer below the fold.
     foot = page.evaluate(FOOT, [".lf-msg-text", 1])

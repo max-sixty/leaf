@@ -1,7 +1,7 @@
 # Added after the obligations API audit: task end already settles message
 # obligations, but its help described only to-dos and widget questions. This
 # probe checks using that operation without erasing a separate pending decision.
-# At a9b34d60a, Codex base and candidate each passed 1/1 after reading their
+# At a9b34d60a, Codex base and head each passed 1/1 after reading their
 # conversation-loop reference: regression coverage, not a measured improvement.
 description: settle-conversational-obligations
 metadata:

@@ -1,9 +1,9 @@
 /* The optional file editor reserves its frame before CodeMirror arrives. Internal
  * presentation belongs to shadow.css, alongside the registered shadow stage.
  * Public host input: --lf-file-editor-height chooses the editing region height; set
- * it on lf-file-editor to override the responsive default. The editor sets its text
- * at the theme's code size (`--code-size`), and colors and focus consume the shared
- * inherited theme inputs. */
+ * it on lf-file-editor to override the responsive default. The source takes the
+ * theme's code size (--code-size), and colors and focus the shared inherited theme
+ * inputs, which a page may set on lf-file-editor too. */
 lf-file-editor {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
@@ -12,9 +12,9 @@ lf-file-editor {
   margin-block: 1rem;
   border: 1px solid var(--border-2);
   border-radius: var(--r);
-  background: var(--card);
+  --lf-ground: var(--card);
+  background: var(--lf-ground);
   overflow: clip;
-  font-family: var(--sans);
   --lf-file-editor-height: clamp(24rem, 60vh, 42rem);
 }
 /* The comparison the reader opened shares the editing region with the editor. */

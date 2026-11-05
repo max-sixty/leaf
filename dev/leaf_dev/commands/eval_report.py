@@ -34,12 +34,13 @@ from urllib.parse import quote
 import click
 from PIL import Image
 
+from leaf.event_log import initialized
 from leaf.registry.storage import layer_packages
 from leaf.schema import MEDIA_TYPES
 from leaf_dev import LEAF_COMMAND
 from leaf_dev.arms import observed_sum
-from leaf_dev.commands.eval_pairs import saved_comparison
-from leaf_dev.eval_records import execution_metadata
+from leaf_dev.eval_records import judgments, run_samples
+from leaf_dev.regrade import ASPECTS, saved_comparison
 
 # Run against the retained payload's Python APIs as well as its browser layer.
 # Exporting an old capture with today's composer can silently change its runtime.
@@ -178,81 +179,6 @@ def condition_labels(columns: dict) -> dict[str, str]:
         else column
         for column, name in names.items()
     }
-
-
-def execution_status(response: dict) -> str:
-    """Read native completion before interpreting checks on its authored output."""
-    metadata = response.get("metadata") or {}
-    checks = metadata.get("checks") or {}
-    if (
-        checks.get("completed") is False
-        or (metadata.get("trace") or {}).get("completed") is False
-    ):
-        return "incomplete"
-    if response.get("error"):
-        return "error"
-    if checks.get("page") is False or not response.get("output"):
-        return "empty"
-    return "complete"
-
-
-def report_samples(runs: tuple[Path, ...]) -> dict:
-    """Read every Promptfoo result, including failed attempts with no saved page."""
-    found = defaultdict(lambda: defaultdict(list))
-    retained: dict[str, dict] = {}
-    for run in runs:
-        document = json.loads((run / "results.json").read_text())
-        results = document["results"]["results"]
-        providers = document["config"]["providers"]
-        for index, result in enumerate(results):
-            # A copied native result is reusable; a revised grade is a new record.
-            identity = hashlib.sha256(
-                json.dumps(result, sort_keys=True).encode()
-            ).hexdigest()
-            if identity in retained:
-                retained[identity]["runs"].append(run)
-                continue
-            response = result.get("response") or {}
-            metadata = response.get("metadata") or {}
-            diagnostics = metadata.get("diagnostics") or {}
-            subject = (
-                diagnostics.get("subject")
-                or result.get("testCase", {}).get("metadata", {}).get("case")
-                or result.get("testCase", {}).get("description")
-                or "Unfinished attempts"
-            )
-            work = (
-                Path(metadata["work"])
-                if metadata.get("work")
-                else run / f"unsaved-{index}"
-            )
-            sample = {
-                "result_id": result["id"],
-                "identity": identity,
-                "sample": work.name,
-                "subject": subject,
-                "title": result.get("testCase", {}).get("description") or subject,
-                "work": work,
-                "diagnostics": diagnostics,
-                "execution_metadata": execution_metadata(result, providers),
-                "checks": metadata.get("checks") or {},
-                "assertions": result.get("testCase", {}).get("assert", []),
-                "execution": execution_status(response),
-                "execution_error": response.get("error"),
-                "shots": run / "screenshots" / work.name,
-                "runs": [run],
-                "gradingResult": result.get("gradingResult"),
-                "error": result.get("error")
-                or response.get("error")
-                or (result.get("gradingResult") or {}).get("reason"),
-            }
-            retained[identity] = sample
-            found[subject][result["provider"]["label"]].append(sample)
-    for columns in found.values():
-        for members in columns.values():
-            for number, sample in enumerate(members, 1):
-                sample["attempt"] = number
-    return found
 
 
 def task_anchor(subject: str) -> str:
@@ -1205,12 +1131,8 @@ def discovery_section(
     found: dict | None = None,
 ) -> str:
     """Show exploratory observations separately from pair outcomes and score totals."""
-    responses = [
-        path
-        for run in runs
-        for path in sorted((run / "discovery").glob("*/attempt-*/response.json"))
-    ]
-    if not responses:
+    records = judgments(runs, "discovery")
+    if not records:
         return ""
     identities = {
         sample["sample"]: sample_anchor(sample)
@@ -1219,14 +1141,16 @@ def discovery_section(
         for sample in members
     }
     attempts = []
-    for path in responses:
-        anchor = "discovery-" + hashlib.sha256(str(path).encode()).hexdigest()[:12]
-        response = json.loads(path.read_text())
-        output = response.get("output")
-        sample = response["sample"]
+    for run, result, recorded in records:
+        anchor = "discovery-" + hashlib.sha256(result["id"].encode()).hexdigest()[:12]
+        judge = recorded.get("metadata", {}).get("judge", {})
+        output = judge.get("output")
+        sample = result["testCase"]["metadata"]["saved"][0]["sample"]
         observations = []
         summaries = []
         if output:
+            # The judge names its evidence relative to the directory it was given.
+            directory = Path(judge["metadata"]["evidence"])
             status = output["status"].replace("_", " ")
             for index, observation in enumerate(output["observations"], 1):
                 width, height = observation["viewport"]
@@ -1236,7 +1160,7 @@ def discovery_section(
                 )
                 evidence = discovery_evidence(
                     page,
-                    path.parent,
+                    directory,
                     observation["evidence"],
                     f"{anchor}-observation-{index}",
                 )
@@ -1255,11 +1179,11 @@ def discovery_section(
         else:
             status = "unscored"
             explored = ""
-            remaining = f"<p>{escape(response.get('error') or 'No observation output returned.')}</p>"
-        links = " · ".join(
-            f'<a href="#{identities[name]}">View {escape(name)}</a>'
-            for name in response.get("samples", [sample])
-            if name in identities
+            remaining = f"<p>{escape(recorded.get('reason') or result.get('error') or 'No observation output returned.')}</p>"
+        links = (
+            f'<a href="#{identities[sample]}">View {escape(sample)}</a>'
+            if sample in identities
+            else ""
         )
         attempts.append(
             f'<details id="{anchor}"><summary>{escape(sample)}: {escape(" · ".join(summaries) or status)}</summary>'
@@ -1267,15 +1191,7 @@ def discovery_section(
             + explored
             + ("".join(observations) or "<p>No observations recorded.</p>")
             + remaining
-            + f"<p>{linked_file(page, path, output_url, 'Observation response')}"
-            + (
-                " · "
-                + linked_file(
-                    page, Path(response["source"]), output_url, "Original judgment"
-                )
-                if response.get("source")
-                else ""
-            )
+            + f"<p>{linked_file(page, run / 'results.json', output_url, 'Observation results')}"
             + "</p></details>"
         )
     return (
@@ -1420,15 +1336,68 @@ def journey_view(page: Path, lanes: list[dict], samples: dict) -> str:
     )
 
 
+def by_column(verdict: dict | None, columns: dict[str, str]) -> dict | None:
+    """A verdict's winners named by column rather than position, or None where the
+    judge gave no verdict."""
+    if verdict is None:
+        return None
+    named = {**columns, "tie": "tie"}
+    return {
+        "status": verdict["status"],
+        **{key: named[verdict[key]] for key in (*ASPECTS, "overall")},
+        "margin": verdict["margin"],
+        "defects": {columns[p]: verdict[f"defects_{p}"] for p in ("A", "B")},
+        "reason": verdict["reason"],
+    }
+
+
 def pair_records(runs: tuple[Path, ...]) -> list[tuple[Path, dict]]:
-    """Read native judgments once, retaining a source for each distinct record."""
-    records = {}
-    for run in runs:
-        source = run / "pairs.json"
-        if source.exists():
-            for pair in json.loads(source.read_text()):
-                records.setdefault(json.dumps(pair, sort_keys=True), (source, pair))
-    return list(records.values())
+    """Each saved pair's two presentation-order judgments from `eval --judge pair`
+    runs, with the results file holding them, once per Promptfoo repetition. A
+    winner counts only where both completed orders name it."""
+    pairs: dict[tuple, dict] = {}
+    for run, result, recorded in judgments(runs, "pair"):
+        test = result["testCase"]["metadata"]
+        pair = pairs.setdefault(
+            (run, test["subject"], test["pair"], result.get("repeatIndex", 0)),
+            {"subject": test["subject"], "pair": test["pair"], "orders": {}},
+        )
+        pair["samples"] = {
+            ref["column"]: ref["sample"]
+            for ref in sorted(test["saved"], key=lambda ref: ref["column"])
+        }
+        pair["orders"][test["order"]] = by_column(
+            recorded.get("metadata", {}).get("judge", {}).get("output"),
+            {p: ref["column"] for p, ref in zip("AB", test["saved"], strict=True)},
+        )
+    records = []
+    for (run, *_), pair in pairs.items():
+        orders = [pair["orders"].get(order) for order in (1, 2)]
+        complete = all(o and o["status"] == "complete" for o in orders)
+        winners = {o["overall"] for o in orders if o}
+        status = (
+            "unscored"
+            if not all(orders)
+            else "insufficient_evidence"
+            if not complete
+            else "split"
+            if len(winners) != 1
+            else "tie"
+            if winners == {"tie"}
+            else "complete"
+        )
+        records.append(
+            (
+                run / "results.json",
+                {
+                    **pair,
+                    "orders": orders,
+                    "status": status,
+                    "winner": winners.pop() if status == "complete" else None,
+                },
+            )
+        )
+    return records
 
 
 def judge_preferences(
@@ -1446,19 +1415,19 @@ def judge_preferences(
     for checkpoint in checkpoints:
         members = []
         for reference in checkpoint["pairs"]:
-            source = Path(reference["run"]) / "pairs.json"
             matches = [
-                pair
-                for pair in json.loads(source.read_text())
-                if pair["subject"] == reference["subject"]
+                (source, pair)
+                for source, pair in records
+                if source.parent == Path(reference["run"]).resolve()
+                and pair["subject"] == reference["subject"]
                 and pair["pair"] == reference["pair"]
             ]
-            if len(matches) != 1 or not any(matches[0] == pair for _, pair in records):
+            if len(matches) != 1:
                 raise click.ClickException(
                     f"Pair reference must identify one loaded native judgment: {reference}"
                 )
-            members.append((source, matches[0]))
-            selected.append(matches[0])
+            members.append(matches[0])
+            selected.append(matches[0][1])
         groups.append((checkpoint["label"], members))
     unassigned = [(source, pair) for source, pair in records if pair not in selected]
     if unassigned:
@@ -2082,14 +2051,14 @@ def eval_report(
 ):
     """Write PAGE, a Leaf page of the authored-task samples in RUNS.
 
-    RUNS are run directories under `.tmp/eval/`; `eval-pairs` on the same runs
-    supplies the pairing and verdicts. PAGE is created when absent, and its
+    RUNS are run directories under `.tmp/eval/`, including any `eval --from`
+    runs that judged their samples. PAGE is created when absent, and its
     `index.html` is rewritten otherwise. Serve it with `leaf server start PAGE`.
     Serve PAGE/evidence with a static server and pass its URL as --output-url
     to open saved pages and raw evidence from the report. Without that URL the
     report names the exported files but does not claim they are reachable."""
     assessment = json.loads(review.read_text()) if review else None
-    packages = list(layer_packages(page)) if (page / "events.jsonl").exists() else []
+    packages = list(layer_packages(page)) if initialized(page) else []
     required = ["diff", *(["diagram"] if (assessment or {}).get("campaign") else [])]
     if any(name not in packages for name in required):
         leaf(
@@ -2102,7 +2071,7 @@ def eval_report(
                 for argument in ("--package", name)
             ],
         )
-    found = report_samples(runs)
+    found = run_samples(runs)
     # The story owns the reader's sequence; input-file order carries no task meaning.
     subjects_by_sample = {
         (run.resolve(), sample["sample"]): subject
@@ -2172,12 +2141,6 @@ def eval_report(
         + "".join(
             f"<li>{escape(run.name)}: "
             + linked_file(page, run / "results.json", output_url, "Results")
-            + (
-                " · "
-                + linked_file(page, run / "pairs.json", output_url, "Pair judgments")
-                if (run / "pairs.json").exists()
-                else ""
-            )
             + "</li>"
             for run in runs
         )

@@ -121,6 +121,11 @@ def test_file_editor_uses_package_typography_and_the_inherited_focus_ring(
     expect(editor).to_have_attribute("aria-readonly", "false")
     heading = editor.locator(".cm-line", has_text="A real file").locator("span").first
     expect(heading).to_have_css("font-weight", "650")
+    size = editor.evaluate("node => getComputedStyle(node).fontSize")
+    root_size = page.locator("html").evaluate(
+        "node => parseFloat(getComputedStyle(node).fontSize)"
+    )
+    assert abs(float(size.removesuffix("px")) - root_size * 0.84375) < 0.01
 
     page.evaluate("""() => document.querySelector('#change-theme').addEventListener('click', () => {
       const style = document.createElement('style');

@@ -8,6 +8,7 @@ import pytest
 from interact_support import append_carried_log_record
 from playwright.sync_api import expect
 from render_cases_interaction import (
+    HOLD_MOTION,
     OBLIGATION_PAGE,
     PANEL_PAGE,
     SUGGESTION_PAGE,
@@ -17,7 +18,6 @@ from render_cases_interaction import (
 from render_cases_layout import current_location_ring, rings_drawn
 from render_harness import (
     PANEL,
-    PANEL_THREAD,
     RELEASE_FOCUS,
     comment_note,
     leaf_page,
@@ -40,6 +40,9 @@ from render_harness import (
 from browser.margin import (
     ACTION_ON_OBLIGATION,
     ACTION_PAGE,
+    CARD_AT_REST,
+    CARD_OUTLINE,
+    CARD_RELEASED,
     COMMENT_ON_OBLIGATION,
     COMMENT_ON_SUGGESTION,
     LONG_THREAD,
@@ -55,6 +58,7 @@ from browser.margin import (
 from leaf import event_log as events_model
 from leaf import render_checks as render_checks_model
 from leaf.render_checks import rendered
+from leaf_dev.browser import PANEL_THREAD
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -105,13 +109,12 @@ def test_a_spilled_thread_opens_the_full_thread_without_a_hidden_anchor(browser,
         if event.get("text") == COMMENT_ON_SUGGESTION["text"]
     )
     thread = page.locator(
-        f'.lf-margin-preview .lf-page-thread[data-thread="{thread_id}"]'
+        f'.lf-margin-preview .lf-page-thread[data-lf-thread="{thread_id}"]'
     )
-    expect(thread).to_be_focused()
-    expect(thread).to_contain_text(COMMENT_ON_SUGGESTION["text"])
-    expect(page.locator(PANEL)).not_to_have_attribute("data-open", re.compile(""))
-    page.keyboard.press("c")
+    # A press on its row opens it as a press on its marker does (thread/focus.js).
     expect(thread.locator("leaf-text")).to_be_focused()
+    expect(thread).to_contain_text(COMMENT_ON_SUGGESTION["text"])
+    expect(page.locator(PANEL)).not_to_have_attribute("data-lf-open", re.compile(""))
 
 
 def test_page_map_opens_a_thread_anchored_to_a_drawn_zero_area_svg_line(browser, serve):
@@ -156,9 +159,37 @@ def test_page_map_opens_a_thread_anchored_to_a_drawn_zero_area_svg_line(browser,
         for event in events_model.read_events(serve.page_dir)
         if event.get("text") == comment["text"]
     )
-    thread = preview.locator(f'.lf-page-thread[data-thread="{thread_id}"]')
-    expect(thread).to_be_focused()
+    thread = preview.locator(f'.lf-page-thread[data-lf-thread="{thread_id}"]')
+    expect(thread.locator("leaf-text")).to_be_focused()
     expect(thread).to_contain_text("Check this line.")
+
+
+@pytest.mark.parametrize("how", ["press", "key"])
+def test_a_page_map_row_opens_a_thread_where_every_opening_does(browser, serve, how):
+    """A route that names no part lands where opening a thread does (thread/focus.js,
+    `openingPart`): a press on a Page Map row in the thread's reply, and a key on the
+    thread, where keys act."""
+    comment = {
+        "kind": "comment",
+        "author": "user",
+        "revision": 1,
+        "text": "Worth a look.",
+        "anchor": {"section": "bracket"},
+    }
+    page = open_page(browser, serve(OBLIGATION_PAGE, events=[comment]))
+    margins_laid_out(page)
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+p")
+    dialog = page.get_by_role("dialog", name="Page Map", exact=True)
+    row = dialog.get_by_role("button", name="Open thread: Worth a look.", exact=True)
+    if how == "press":
+        row.click()
+    else:
+        row.focus()
+        page.keyboard.press("Enter")
+    thread = page.locator(".lf-margin-preview .lf-page-thread")
+    expect(thread).to_contain_text("Worth a look.")
+    expect(thread.locator("leaf-text") if how == "press" else thread).to_be_focused()
 
 
 def test_a_secondary_thread_keeps_card_ownership_through_membership_and_posture(
@@ -254,7 +285,7 @@ def test_a_secondary_thread_keeps_card_ownership_through_membership_and_posture(
 
     resized(page, 1207, 900)
     expect(page.locator(".lf-margin-preview")).to_be_visible()
-    expect(page.locator(PANEL)).not_to_have_attribute("data-open", re.compile(""))
+    expect(page.locator(PANEL)).not_to_have_attribute("data-lf-open", re.compile(""))
     expect(thread).to_have_attribute("aria-controls", "lf-margin-preview")
     expect(thread).to_have_attribute("aria-expanded", "true")
     page.keyboard.press("Escape")
@@ -272,7 +303,10 @@ def test_a_secondary_thread_keeps_card_ownership_through_membership_and_posture(
     thread.click()
     expect(page.locator(".lf-margin-preview")).to_be_visible()
     expect(thread).to_have_attribute("aria-expanded", "true")
-    # A click leaves the card no different to close than a key: one press.
+    # A click leaves the caret in the reply, Escape stands the user on the thread,
+    # and from there the card closes as a key's does: one press.
+    expect(page.locator(".lf-margin-preview leaf-text")).to_be_focused()
+    page.keyboard.press("Escape")
     leave_card(page)
     expect(thread).to_have_attribute("aria-expanded", "false")
 
@@ -391,7 +425,7 @@ def test_a_thread_whose_passage_stays_hidden_opens_in_the_panel(browser, serve):
     strip = page.locator("#views > .lf-tabstrip")
     assert strip.evaluate("s => s.scrollWidth > s.clientWidth"), "the strip fits"
     assert open_where_the_user_stands(page, "last-words", scroll=False) is True
-    expect(page.locator(PANEL)).to_have_attribute("data-open", re.compile(".+"))
+    expect(page.locator(PANEL)).to_have_attribute("data-lf-open", re.compile(".+"))
     expect(page.locator("#view-last")).to_be_hidden()
     assert strip.evaluate("s => s.scrollLeft") == 0
     for section in ("hidden-words", "unseen-words"):
@@ -410,7 +444,7 @@ def test_a_thread_in_view_opens_and_leaves_the_tab_strip(browser, serve):
     assert left > 0, "the strip fits, so it proves nothing"
     assert open_where_the_user_stands(page, "open-words") is True
     expect(
-        page.locator(".lf-fp-view:not([data-leaving]) .lf-page-thread")
+        page.locator(".lf-fp-view:not([data-lf-leaving]) .lf-page-thread")
     ).to_be_visible()
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
     assert strip.evaluate("s => s.scrollLeft") == left
@@ -427,15 +461,12 @@ def test_show_on_page_on_a_phone_lands_on_the_thread_s_marker(browser, serve):
     resized(page, 390, 844)
     marker = page.locator('[data-lf-margin-for="open-words"] .lf-margin-marker')
     marker.click()
-    view = page.locator(".lf-fp-view:not([data-leaving])")
+    view = page.locator(".lf-fp-view:not([data-lf-leaving])")
     expect(view.locator(".lf-page-thread")).to_be_visible()
     page.locator(".lf-fp-on-page").click()
     expect(view).to_have_count(0)
     expect(marker).to_be_focused()
-    page.wait_for_function(
-        "() => document.querySelector('.lf-target-trace')"
-        "?.getBoundingClientRect().width > 0"
-    )
+    expect(page.locator("#open-words")).to_have_attribute("data-lf-traced", "")
     page.keyboard.press("Enter")
     expect(view.locator(".lf-page-thread")).to_be_visible()
 
@@ -517,7 +548,9 @@ def test_one_information_margin_entry_does_not_raise_a_preview(browser, serve):
 def test_the_margin_groups_meanings_at_one_destination_without_moving_the_page(
     browser, serve
 ):
-    """One location groups its thread and engaged handoff without moving the page."""
+    """One location groups its thread and engaged handoff without moving the page. Only
+    a press opens its card: walking the Page Map never inserts an unrequested thread into
+    the Tab order."""
     page = open_page(
         browser,
         serve(OBLIGATION_PAGE, events=[ACTION_ON_OBLIGATION, COMMENT_ON_OBLIGATION]),
@@ -532,16 +565,7 @@ def test_the_margin_groups_meanings_at_one_destination_without_moving_the_page(
     expect(more).to_be_hidden()
     claim = marker.locator("xpath=..").evaluate(
         """item => {
-          const style = getComputedStyle(item);
-          const buttons = [...item.querySelectorAll(':scope > .lf-margin-entry')]
-            .filter(button => button.checkVisibility());
-          const needed = buttons.reduce(
-            (total, button) => total + button.getBoundingClientRect().width, 0
-          ) + (parseFloat(style.columnGap || style.gap) || 0)
-            * Math.max(0, buttons.length - 1)
-            + (parseFloat(style.marginLeft) || 0)
-            + (parseFloat(style.paddingLeft) || 0)
-            + (parseFloat(style.paddingRight) || 0);
+          const needed = item.getBoundingClientRect().width;
           const probe = document.createElement('i');
           probe.style.cssText =
             'position:fixed;visibility:hidden;height:0;padding:0;border:0;width:var(--rail)';
@@ -554,8 +578,16 @@ def test_the_margin_groups_meanings_at_one_destination_without_moving_the_page(
     assert claim["rail"] >= claim["needed"] - 0.5, claim
 
     before = page.evaluate("() => document.scrollingElement.scrollTop")
-    marker.hover()
     preview = page.locator(".lf-margin-preview")
+    marker.focus()
+    expect(preview).to_be_hidden()
+    toggle = page.locator(".lf-fp-on-user")
+    toggle.focus()
+    expect(toggle).to_be_focused()
+    expect(preview).to_be_hidden()
+    expect(page.locator("#bracket")).not_to_have_attribute("data-lf-traced", "")
+
+    marker.hover()
     expect(preview).to_be_hidden()
     expect(marker.locator(".lf-margin-entry-label")).to_be_visible()
     marker.focus()
@@ -566,8 +598,8 @@ def test_the_margin_groups_meanings_at_one_destination_without_moving_the_page(
     expect(preview).to_be_visible()
     expect(marker.locator(".lf-margin-entry-label")).to_be_hidden()
     # The thread the user now stands in marks its element; no trace doubles it.
-    expect(page.locator(".lf-visual-mark-here")).to_be_visible()
-    expect(page.locator('.lf-target-trace[data-for="bracket"]')).to_be_hidden()
+    expect(page.locator('[data-lf-mark~="here"]')).to_have_id("bracket")
+    expect(page.locator("#bracket")).not_to_have_attribute("data-lf-traced", "")
     preview_box = preview.bounding_box()
     assert preview_box["x"] >= page.evaluate(WORDS_RIGHT) + 7.5
     assert preview_box["x"] >= 0
@@ -641,7 +673,7 @@ def test_the_margin_groups_meanings_at_one_destination_without_moving_the_page(
                 "author": "agent",
                 "agent": "Codex",
                 "parent": preview.locator(".lf-page-thread").get_attribute(
-                    "data-thread"
+                    "data-lf-thread"
                 ),
             },
         )
@@ -739,11 +771,13 @@ def test_design_mode_retires_and_suppresses_the_top_layer_margin_preview(
 
 
 def test_a_thread_can_be_answered_in_the_margin_without_opening_threads(browser, serve):
-    """The anchored thread is a complete thread in its margin card: its marker opens
-    the card on the thread, `c` writes in its reply box, and Send answers the thread
-    with Threads left shut. With Threads open in the panel, the marker still opens the
-    card beside the passage: the panel shows a passage's thread only where the page
-    draws it nowhere.
+    """The anchored thread is a complete thread in its margin card: a click on its
+    marker opens the card with the caret in its reply box, so typing answers at once,
+    Escape stands the user on the thread, where `c` writes in the reply again, and Send
+    answers the thread with Threads left shut. With Threads open in the panel, Enter on
+    the marker opens the card on the thread, beside the passage: a key's opening stands
+    the user where keys act (thread/focus.js, `openingPart`), and the panel shows a
+    passage's thread only where the page draws it nowhere.
 
     Where the card stands belongs to the placement tests beside this one; how a send
     is delivered belongs to the `margin` case of `test_render_thread_snapshots.py`."""
@@ -755,9 +789,12 @@ def test_a_thread_can_be_answered_in_the_margin_without_opening_threads(browser,
     reply = thread.locator("leaf-text")
 
     marker.click()
-    expect(thread.locator(".lf-page-thread")).to_be_focused()
+    expect(reply).to_be_focused()
     expect(thread.locator(".lf-msg-body")).to_have_text(PARAGRAPH_ON_OBLIGATION["text"])
     expect(preview.get_by_role("button", name=re.compile(r"Threads?"))).to_have_count(0)
+    page.keyboard.press("Escape")
+    expect(thread.locator(".lf-page-thread")).to_be_focused()
+    expect(preview).to_be_visible()
     page.keyboard.press("c")
     expect(reply).to_be_focused()
     write(reply, "Yes. One visit can cover both jobs.")
@@ -767,9 +804,9 @@ def test_a_thread_can_be_answered_in_the_margin_without_opening_threads(browser,
     expect(thread.locator(".lf-page-thread")).to_contain_text(
         "Yes. One visit can cover both jobs."
     )
-    expect(page.locator(PANEL)).not_to_have_attribute("data-open", re.compile(""))
+    expect(page.locator(PANEL)).not_to_have_attribute("data-lf-open", re.compile(""))
     expect(preview).to_be_visible()
-    root_id = thread.locator(".lf-page-thread").get_attribute("data-thread")
+    root_id = thread.locator(".lf-page-thread").get_attribute("data-lf-thread")
     replies = [
         event
         for event in events_model.read_events(serve.page_dir)
@@ -785,35 +822,27 @@ def test_a_thread_can_be_answered_in_the_margin_without_opening_threads(browser,
     marker.focus()
     page.keyboard.press("Enter")
     expect(preview).to_be_visible()
-    expect(preview.locator(f'.lf-page-thread[data-thread="{root_id}"]')).to_be_focused()
+    expect(
+        preview.locator(f'.lf-page-thread[data-lf-thread="{root_id}"]')
+    ).to_be_focused()
     expect(page.locator(PANEL_THREAD)).to_have_count(0)
 
 
-def test_a_thread_margin_entry_opens_inline_when_the_panel_is_closed(browser, serve):
-    """A marker opens its thread in a card beside the passage, even where a sidebar
-    takes the room the margin would have."""
-    sidebar_page = OBLIGATION_PAGE.replace(
-        '<main class="layout-column">',
-        '<main class="layout-sidebar"><aside><div class="layout-track">Page reference</div></aside>'
-        '<div class="layout-column">',
-        1,
-    ).replace("</main>", "</div></main>", 1)
-    page = open_page(browser, serve(sidebar_page, events=[COMMENT_ON_OBLIGATION]))
-    resized(page, 1200, 900)
-    marker = page.locator('.lf-margin-marker[data-lf-kinds="comment"]')
-
-    marker.click()
-
-    expect(page.locator(PANEL)).not_to_have_attribute("data-open", re.compile(""))
+def test_a_finger_opens_a_card_on_its_thread(browser, serve):
+    """A finger reads what it opened first, so its tap stands it on the thread, whose box
+    raises no keyboard, on a window with room for a card as in the panel's view
+    (thread/focus.js, `openingPart`)."""
+    context = browser.new_context(
+        viewport={"width": 1400, "height": 844}, has_touch=True, is_mobile=True
+    )
+    page = open_page(
+        browser,
+        serve(OBLIGATION_PAGE, events=[PARAGRAPH_ON_OBLIGATION]),
+        context=context,
+    )
+    page.locator('.lf-margin-marker[data-lf-kinds="comment"]').tap()
     expect(page.locator(".lf-margin-preview")).to_be_visible()
     expect(page.locator(".lf-margin-thread .lf-page-thread")).to_be_focused()
-    expect(
-        page.locator(".lf-margin-thread").get_by_role(
-            "textbox", name="Reply", exact=True
-        )
-    ).to_be_visible()
-    expect(marker).to_have_attribute("aria-controls", "lf-margin-preview")
-    expect(marker).to_have_attribute("aria-expanded", "true")
 
 
 def test_a_card_opens_on_its_first_unread_reply(browser, serve):
@@ -884,14 +913,15 @@ def test_a_card_opens_on_its_first_unread_reply(browser, serve):
 
 
 @pytest.mark.parametrize(
-    ("width", "threads_open"), [(760, False), (1000, True), (1440, False)]
+    ("width", "threads_open", "card"),
+    [(760, False, False), (1000, True, True), (1440, False, True)],
 )
 def test_a_new_anchored_comment_keeps_the_users_thread_view(
-    browser, serve, width, threads_open
+    browser, serve, width, threads_open, card
 ):
     """A send continues beside the passage, keeping the page put, whether or not the
     panel's Threads view stood open: the panel shows a passage's thread only where the
-    page draws it nowhere."""
+    page draws it nowhere, as on a window narrower than `--lf-rail-room`."""
     page = open_page(browser, serve(OBLIGATION_PAGE))
     resized(page, width, 900)
     if threads_open:
@@ -910,9 +940,20 @@ def test_a_new_anchored_comment_keeps_the_users_thread_view(
         "Check the January failure mode.",
     )
     preview = page.locator(".lf-margin-preview")
+    if not card:
+        panel_thread = page.locator(PANEL_THREAD)
+        expect(panel_thread).to_contain_text(sent["text"])
+        expect(panel_thread).to_be_focused()
+        expect(preview).to_be_hidden()
+        passage_after = page.locator("#mounts-p").bounding_box()
+        for coordinate in ("x", "y", "width", "height"):
+            assert passage_after[coordinate] == pytest.approx(
+                passage_before[coordinate], abs=1
+            )
+        return
     expect(preview).to_be_visible()
     thread = preview.locator(
-        f'.lf-margin-thread .lf-page-thread[data-thread="{sent["id"]}"]'
+        f'.lf-margin-thread .lf-page-thread[data-lf-thread="{sent["id"]}"]'
     )
     expect(thread.locator(".lf-msg-body")).to_have_text(sent["text"])
     expect(page.locator(PANEL_THREAD)).to_have_count(0)
@@ -939,39 +980,6 @@ def test_a_new_anchored_comment_keeps_the_users_thread_view(
     leave_card(page)
 
 
-@pytest.mark.parametrize("threads_open", [False, True])
-def test_a_comment_sent_from_a_control_is_left_by_the_levels_it_opened(
-    browser, serve, threads_open
-):
-    """The send lands on its thread, and each press takes off one level.
-
-    `c` opens the box on whatever the user is located in without moving them off it,
-    and the send leaves them on the card it puts up, whether or not the panel's Threads
-    view stood open. The card's one press lets them go beside the page it is about.
-    The control `c` was pressed from is not a landing.
-    """
-    page = open_page(browser, serve(OBLIGATION_PAGE))
-    resized(page, 1440, 900)
-    if threads_open:
-        open_threads(page)
-    stood = page.locator("lf-option-control").first
-    stood.focus()
-    expect(stood).to_be_focused()
-
-    page.keyboard.press("c")
-    composer = page.locator(".lf-fab-input")
-    expect(composer).to_be_focused()
-    page.keyboard.type("Worth checking before the frost.")
-    with sending(page, "the comment on the chosen option"):
-        page.keyboard.press("ControlOrMeta+Enter")
-    sent = events_model.read_events(serve.page_dir)[-1]
-    preview = page.locator(".lf-margin-preview")
-    expect(
-        preview.locator(f'.lf-page-thread[data-thread="{sent["id"]}"]')
-    ).to_be_focused()
-    leave_card(page)
-
-
 def test_arriving_on_a_commented_element_shows_its_thread_beside_it(browser, serve):
     """A thread belongs to the element it is about, so both stand together.
 
@@ -984,7 +992,7 @@ def test_arriving_on_a_commented_element_shows_its_thread_beside_it(browser, ser
     resized(page, 1201, 900)
     sent = seeded_thread(page, serve.page_dir, "#mounts-p")
     preview = page.locator(".lf-margin-preview")
-    card = preview.locator(f'.lf-page-thread[data-thread="{sent["id"]}"]')
+    card = preview.locator(f'.lf-page-thread[data-lf-thread="{sent["id"]}"]')
     passage = page.locator("#mounts-p")
 
     # Keyboard modality, then the user lands on the element as a go-to hint puts them.
@@ -1016,7 +1024,7 @@ def test_arriving_on_a_commented_element_shows_its_thread_beside_it(browser, ser
     passage.evaluate("node => node.removeAttribute('tabindex')")
     marker = page.locator('[data-lf-margin-for="mounts-p"] .lf-margin-marker')
     marker.click()
-    expect(card).to_be_focused()
+    expect(preview.locator("leaf-text")).to_be_focused()
     passage.click()
     expect(preview).to_be_visible()
     assert page.evaluate("() => document.activeElement === document.body")
@@ -1025,48 +1033,100 @@ def test_arriving_on_a_commented_element_shows_its_thread_beside_it(browser, ser
 
     # A press elsewhere on the page moves the current location elsewhere.
     marker.click()
-    expect(card).to_be_focused()
+    expect(preview.locator("leaf-text")).to_be_focused()
     page.locator("h1").click()
     expect(preview).to_be_hidden()
 
 
-@pytest.mark.parametrize("entry", ["note", "comment"])
-def test_a_card_stays_its_press_to_take_off_when_it_moves_on(browser, serve, entry):
-    """The card a press put up adds no level whatever thread it shows.
+def test_a_card_is_one_press_to_leave_however_it_came_to_its_thread(
+    browser, serve, subtests
+):
+    """The card a press put up adds no level whatever thread it shows, so its way out is
+    one press, beside the target it is anchored to: neither a note, a marker nor the
+    control `c` was pressed from is a place the user was located, and the margin entry
+    the card hangs from is one they never stood on.
 
-    `t` walks the card on to the next thread without adding a level, so the way out is
-    still one press, beside the thread's target: neither the note nor the control `c`
-    was pressed from is current any more, and the margin entry the card now hangs from
-    is one the user never stood on.
-    """
+    `t` walks the card on to the next thread, and a second note or marker from outside
+    replaces what it shows rather than stacking a level. `c` opens the box on whatever
+    the user is located in without moving them off it, and the send leaves them on the
+    card it puts up, whether or not the panel's Threads view stood open. The sends come
+    last, since they write to the page's log, and the Threads view stands open for the
+    last of them."""
     page = open_page(browser, serve(OBLIGATION_PAGE))
     resized(page, 1440, 900)
     seeded_thread(page, serve.page_dir, "#mounts-p")
     seeded_thread(page, serve.page_dir, "#heater-p")
     preview = page.locator(".lf-margin-preview")
     card = preview.locator(".lf-page-thread")
-    if entry == "note":
-        stood = comment_note(page, "#mounts-p")
-        stood.focus()
+
+    def card_put_away():
+        """A case that failed can leave its card up, where the next press would answer it."""
+        if preview.is_visible():
+            page.locator(".lf-margin-preview-close").click()
+            expect(preview).to_be_hidden()
+
+    def press_note_on_the_first_thread():
+        card_put_away()
+        comment_note(page, "#mounts-p").focus()
         page.keyboard.press("Enter")
         expect(card).to_be_focused()
-    else:
-        stood = page.locator("lf-option-control").first
+        return card.get_attribute("data-lf-thread")
+
+    def send_from_a_control(option, words):
+        """Comment from an option. The comment is the option's whole ask's, where `c`
+        would next enter its reply, so each send takes an ask with no thread yet."""
+        card_put_away()
+        stood = page.locator(f"#{option} lf-option-control")
         stood.focus()
+        expect(stood).to_be_focused()
         page.keyboard.press("c")
-        page.keyboard.type("A third thought.")
-        with sending(page, "the comment from the control"):
+        expect(page.locator(".lf-fab-input")).to_be_focused()
+        page.keyboard.type(words)
+        with sending(page, "the comment on the chosen option"):
             page.keyboard.press("ControlOrMeta+Enter")
+        sent = events_model.read_events(serve.page_dir)[-1]
+        expect(
+            preview.locator(f'.lf-page-thread[data-lf-thread="{sent["id"]}"]')
+        ).to_be_focused()
+        return sent["id"]
+
+    with subtests.test("t walks the card on"):
+        shown = press_note_on_the_first_thread()
+        page.keyboard.press("t")
+        expect(card).not_to_have_attribute("data-lf-thread", shown)
         expect(card).to_be_focused()
-    shown = card.get_attribute("data-thread")
+        leave_card(page)
 
-    page.keyboard.press("t")
-    expect(card).not_to_have_attribute("data-thread", shown)
-    expect(card).to_be_focused()
+    for second in ("note", "marker"):
+        with subtests.test("a second press from outside", second=second):
+            shown = press_note_on_the_first_thread()
+            stood = (
+                comment_note(page, "#heater-p")
+                if second == "note"
+                else page.locator('[data-lf-margin-for="heater-p"] .lf-margin-marker')
+            )
+            stood.focus()
+            page.keyboard.press("Enter")
+            expect(card).not_to_have_attribute("data-lf-thread", shown)
+            expect(card).to_be_focused()
+            leave_card(page)
 
-    # The card lets the user go beside the target it is anchored to rather than onto
-    # the margin control it hangs from.
-    leave_card(page)
+    with subtests.test("a send from a control"):
+        send_from_a_control("job-mounts", "Worth checking before the frost.")
+        leave_card(page)
+
+    with subtests.test("a send from a control, then t"):
+        shown = send_from_a_control("br-steel", "A third thought.")
+        page.keyboard.press("t")
+        expect(card).not_to_have_attribute("data-lf-thread", shown)
+        expect(card).to_be_focused()
+        leave_card(page)
+
+    with subtests.test("a send from a control with Threads open"):
+        card_put_away()
+        open_threads(page)
+        send_from_a_control("tl-clamp", "A fourth thought.")
+        leave_card(page)
 
 
 def test_an_asks_card_closes_beside_its_options_and_comes_back_with_them(
@@ -1171,15 +1231,16 @@ def test_a_card_walked_off_the_unfolded_cluster_lands_on_the_page(browser, serve
     thread_margin_entry.click()
     preview = page.locator(".lf-margin-preview")
     card = preview.locator(".lf-page-thread")
-    expect(preview).to_be_visible()
-    card.focus()
-    shown = card.get_attribute("data-thread")
+    expect(preview.locator("leaf-text")).to_be_focused()
+    page.keyboard.press("Escape")
+    expect(card).to_be_focused()
+    shown = card.get_attribute("data-lf-thread")
 
     # The walk carries the card to a thread whose own margin entry is already shown,
     # so nothing unfolds to hang it from and nothing folds the cluster: the card holds
     # the margin's context, so the user's cluster is still open behind it.
     page.keyboard.press("t")
-    expect(card).not_to_have_attribute("data-thread", shown)
+    expect(card).not_to_have_attribute("data-lf-thread", shown)
     expect(options).to_be_visible()
 
     page.keyboard.press("Escape")
@@ -1219,41 +1280,59 @@ def test_going_to_a_side_surface_folds_the_cluster_the_user_left(browser, serve)
     expect(item).not_to_have_attribute("data-lf-options-open", "")
 
 
-@pytest.mark.parametrize("second", ["note", "marker"])
-def test_a_second_press_into_an_open_card_leaves_one_level_to_take_off(
-    browser, serve, second
-):
-    """A press from outside replaces what the card shows rather than stacking a level.
+THREE_THREADS_PAGE = leaf_page(
+    "Three threads on two passages",
+    '<div style="height: 20vh"></div>'
+    '<p id="gutters">Decide the gutters.</p>'
+    '<div style="height: 160px"></div>'
+    '<p id="lines">Review the open questions.<br><br><br><br><br><br><br><br>'
+    "Settle the release date.</p>"
+    '<div style="height: 200vh"></div>',
+)
 
-    The card shows one thread, so the second note or marker changes its contents and
-    leaves one card open. Its way out is the target it is anchored to and then the
-    page: neither note nor marker is a place the user was located.
-    """
-    page = open_page(browser, serve(OBLIGATION_PAGE))
-    resized(page, 1440, 900)
-    seeded_thread(page, serve.page_dir, "#mounts-p")
-    seeded_thread(page, serve.page_dir, "#heater-p")
-    preview = page.locator(".lf-margin-preview")
-    card = preview.locator(".lf-page-thread")
-    first = comment_note(page, "#mounts-p")
-    first.focus()
-    page.keyboard.press("Enter")
-    expect(card).to_be_focused()
-    shown = card.get_attribute("data-thread")
 
-    stood = (
-        comment_note(page, "#heater-p")
-        if second == "note"
-        else page.locator('[data-lf-margin-for="heater-p"] .lf-margin-marker')
+def test_a_card_open_on_one_thread_travels_to_another_the_user_clicks(browser, serve):
+    """A click on another thread's margin entry while a card is open carries the card
+    from where it stood to that thread, whether the thread is on another passage or on
+    the same one. A card the same size as the last was taken to have moved as the page
+    does, so it stood beside the other thread at once."""
+    page = open_page(
+        browser,
+        serve(
+            THREE_THREADS_PAGE,
+            events=[
+                _comment_on("gutters", "Can this wait?"),
+                _comment_on("lines", "Can this wait?", "Review the open questions."),
+                _comment_on("lines", "Can this wait?", "Settle the release date."),
+            ],
+        ),
     )
-    stood.focus()
-    page.keyboard.press("Enter")
-    expect(card).not_to_have_attribute("data-thread", shown)
-    expect(card).to_be_focused()
-
-    # One card is open whichever press put this thread in it, so there is one way
-    # out of it, beside the target it is anchored to.
-    leave_card(page)
+    page.emulate_media(reduced_motion="no-preference")
+    resized(page, 1440, 900)
+    preview = page.locator(".lf-margin-preview")
+    page.locator('[data-lf-margin-for="gutters"] .lf-margin-marker').click()
+    expect(preview).to_be_visible()
+    rendered(page)
+    page.wait_for_function(CARD_AT_REST)
+    stood = preview.evaluate(CARD_OUTLINE)
+    page.evaluate("() => {" + HOLD_MOTION + "}")
+    lines = page.locator('[data-lf-margin-for="lines"] .lf-margin-marker')
+    expect(lines).to_have_count(2)
+    for passage, marker in [("another", lines.first), ("the same", lines.last)]:
+        marker.click()
+        page.wait_for_function(
+            "() => window.__lfHeld.some(motion =>"
+            " motion.effect?.target?.matches?.('.lf-margin-preview .lf-box-ring'))"
+        )
+        drawn = preview.evaluate(CARD_OUTLINE)
+        page.wait_for_function(CARD_RELEASED)
+        rest = preview.evaluate(CARD_OUTLINE)
+        assert rest[1] - rest[0] == pytest.approx(stood[1] - stood[0], abs=1), (
+            f"a card of another size, on {passage} passage: {stood} -> {rest}"
+        )
+        assert rest[0] > stood[0] + 100, f"on {passage} passage: {stood} -> {rest}"
+        assert drawn == pytest.approx(stood, abs=1), f"{stood} -> {drawn} -> {rest}"
+        stood = rest
 
 
 def test_a_shared_passage_steps_between_single_thread_cards(browser, serve):
@@ -1271,9 +1350,11 @@ def test_a_shared_passage_steps_between_single_thread_cards(browser, serve):
     resized(page, 1440, 900)
     page.locator('.lf-margin-marker[data-lf-kinds="comment"]').click()
     preview = page.locator(".lf-margin-preview")
+    reply = preview.locator(".lf-thread-reply leaf-text")
 
     expect(preview.locator(".lf-margin-thread")).to_have_count(1)
     expect(preview.locator(".lf-margin-preview-position")).to_have_text("1/2")
+    expect(reply).to_be_focused()
     previous = preview.get_by_role("button", name="Previous thread")
     next_thread = preview.get_by_role("button", name="Next thread")
     controls = preview.evaluate(
@@ -1314,17 +1395,21 @@ def test_a_shared_passage_steps_between_single_thread_cards(browser, serve):
         == disabled_style
     )
     expect(preview).to_contain_text(COMMENT_ON_OBLIGATION["text"])
+    # From the caret in the first thread's reply, Next steps to the second, which a
+    # press opens in its reply too.
     next_thread.click()
     expect(preview.locator(".lf-margin-preview-position")).to_have_text("2/2")
     expect(preview).to_contain_text(second_comment["text"])
     expect(preview).not_to_contain_text(COMMENT_ON_OBLIGATION["text"])
     expect(previous).to_be_enabled()
     expect(next_thread).to_be_disabled()
-    expect(preview.locator(".lf-page-thread")).to_be_focused()
+    expect(reply).to_be_focused()
     previous.click()
     expect(next_thread).to_be_visible()
     expect(preview.get_by_role("button", name="Dismiss thread view")).to_be_visible()
     next_thread.click()
+    expect(reply).to_be_focused()
+    page.keyboard.press("Escape")
     expect(preview.locator(".lf-page-thread")).to_be_focused()
     page.keyboard.press("r")
     told(page)
@@ -1346,7 +1431,9 @@ def test_an_open_thread_refresh_keeps_the_current_margin_entry_target_highlighte
     suggestion.locator(".lf-margin-more").click()
     suggestion.locator('.lf-margin-reading-option[data-lf-kinds="comment"]').click()
     expect(page.locator(".lf-margin-preview")).to_be_visible()
-    page.locator('[data-lf-margin-for="sug-thistle"] .lf-sug-accept').focus()
+    page.locator(
+        '[data-lf-margin-for="sug-thistle"] [data-lf-margin-entry-key=accept]'
+    ).focus()
     # This suggestion is the current obligation, so its ring identifies the target
     # instead of the duplicate margin trace, even while another card stays open.
     drawn = rings_drawn(page)
@@ -1358,26 +1445,6 @@ def test_an_open_thread_refresh_keeps_the_current_margin_entry_target_highlighte
     assert any(
         ring["here"] and "proposed insertionSwitch" in ring["who"] for ring in drawn
     ), drawn
-
-
-def test_focusing_a_thread_margin_entry_does_not_open_its_card(browser, serve):
-    """Walking the Page Map never inserts an unrequested thread into the Tab order."""
-    page = open_page(
-        browser,
-        serve(OBLIGATION_PAGE, events=[ACTION_ON_OBLIGATION, COMMENT_ON_OBLIGATION]),
-    )
-    resized(page, 1440, 900)
-    marker = page.locator('.lf-margin-marker[data-lf-kinds~="comment"]')
-    preview = page.locator(".lf-margin-preview")
-
-    marker.focus()
-    expect(preview).to_be_hidden()
-    toggle = page.locator(".lf-fp-on-user")
-    toggle.focus()
-
-    expect(toggle).to_be_focused()
-    expect(preview).to_be_hidden()
-    expect(page.locator('.lf-target-trace[data-for="bracket"]')).to_be_hidden()
 
 
 def test_a_card_follows_the_margin_entry_it_hangs_from_in_the_tab_order(browser, serve):

@@ -3,22 +3,33 @@
  * wrote when the markup binds neither (element-data.js, "Bound values"). Optional
  * previews compose the ordinary lf-tabs switcher, so keyboard, reveal, and tab
  * memory have the same owner as authored views. Each reading has its own bounded
- * viewport, keeping the page still when switching and its scroll place independent.
- * Pierre draws numbered source using the same static renderer as diffs. Its sheets
- * are scoped to the listing; gutter glyphs are generated content, so selecting or
- * copying the source never includes line numbers. The listing's rows stand in runs that
- * the browser draws only in view (`inRuns`), each sized ahead of drawing by the lines
- * its rows fill (`sizeRuns`). The Markdown preview renders a file, whose soft line
- * breaks are spaces, so a paragraph wraps to the preview's width. The source and
- * Markdown renderers reconcile unchanged text across source updates, the source's rows
- * across the whole listing (`reconcileRuns`). HTML
- * lives in a separate frame so its styles and scripts cannot access Leaf’s document.
- * Source provenance is stamped with its text before awaiting the frame's presentation. */
+ * viewport, which keeps its scroll place independent, and switching keeps the page
+ * still. Where the text can arrive after first paint, the viewport is `--lf-bound`
+ * tall. A Markdown preview of written text instead takes its rendered height, which
+ * its first paint already holds (`x-prepaint`), and its Source tab takes the same
+ * height (`holdSource`), drawn on it or switched to it. Where that height cuts the
+ * source, a press shows every line (`cut`), as a thread's Full quote shows a whole
+ * quote: a reflow the reader asks for. The cut box doesn't scroll, so the press is the
+ * one way to the rest, and stays at the box's foot rather than scrolling off with the
+ * lines.
+ * The source reading is a numbered listing of plain rows, one a line (`listing`), so
+ * every document's whole text stands in the page for find-in-page, selection, copy
+ * and comments, in a tab nobody has opened too; held back until its tab opened, a
+ * document's text would be out of Find's reach. Line numbers are generated content
+ * (text-document.css), so selecting or copying the source never includes them. The
+ * rows stand in runs that the browser draws only in view (`inRuns`), each sized ahead
+ * of drawing by the lines its rows fill (`sizeRuns`), and syntax colour is painted on
+ * the runs in view alone, as highlights over their text (`RunColours`). Built whole,
+ * with a span for each token and a gutter cell for each number, 30 documents of 4 MB
+ * took 23 s and 8.6 GB to show the one in view. The Markdown preview renders a file,
+ * whose soft line breaks are spaces, so a paragraph wraps to the preview's width. The
+ * source and Markdown renderers reconcile unchanged text across source updates, the
+ * source's rows across the whole listing (`reconcileRuns`). HTML lives in a separate
+ * frame so its styles and scripts cannot access Leaf’s document. Source provenance is
+ * stamped with its text before awaiting the frame's presentation. */
 import {
   failSoft,
-  generatedElement,
   ensureSyntaxLanguage,
-  inBaseLayer,
   keeps,
   LeafElement,
   nothing,
@@ -27,14 +38,27 @@ import {
   setRenderedChildren,
   setChildLists,
   setChildren,
+  focusDestination,
+  keepsHidden,
+  generatedElement,
+  offer,
+  offerAction,
   loadMarkdown,
   renderMarkdown,
+  reportFailure,
   sizeObserver,
+  layoutPx,
+  syntax,
   textWidth,
   nextFrame,
+  MAX_EDIT_LENGTH,
+  afterPresentation,
 } from "/runtime/widget-api.js";
 import { diffArrays } from "/vendor/jsdiff.esm.js";
-import { pierre, markSyntax } from "./pierre.js";
+
+// A Markdown preview of text written in the page, whose rendering sets the box both
+// tabs share (text-document.css).
+const WRITTEN = '[preview="markdown"]:not([source], [for])';
 
 // Each reading shows the same document whatever text its source holds, so its key is
 // also its identity (projection/data.js). A comment on a passage then follows the
@@ -45,95 +69,56 @@ const mark = (node, key) => {
   keeps(node, "data-lf-identity", key);
 };
 
-/** @param {string} source @param {string | null} language */
-async function sourceListing(source, language) {
-  const [{ preloadFile }, { themeName, foreground }] = await Promise.all([
-    pierre(),
-    ensureSyntaxLanguage(language),
-  ]);
-  const { prerenderedHTML } = await preloadFile({
-    file: { name: "source", contents: source, lang: language ?? "text" },
-    options: { theme: themeName, disableFileHeader: true, overflow: "wrap" },
-  });
-  const template = document.createElement("template");
-  template.innerHTML = prerenderedHTML;
-  const rendered = template.content;
-  rendered.querySelector("svg[data-icon-sprite]")?.remove();
-  for (const style of rendered.querySelectorAll("style")) {
-    // A style's implicit @scope root is its parent listing. Pierre's :host rules
-    // describe that file box here, without adding a second shadow-tree owner.
-    style.textContent = inBaseLayer(
-      `@scope { ${style.textContent.replaceAll(":host", ":scope")} }`,
-    );
-  }
-  // A line number is Leaf's control, drawn from `data-number`; dropping Pierre's
-  // attribute keeps its sheet's rule for that span (a positioned, stacked
-  // inline-block) off it.
-  for (const number of rendered.querySelectorAll("span[data-line-number-content]")) {
-    number.removeAttribute("data-line-number-content");
-    number.setAttribute("data-number", number.textContent);
-    number.textContent = "";
-    number.classList.add("lf-ui");
-    generatedElement(number, { says: false });
-    number.setAttribute("aria-hidden", "true");
-  }
-  // Pierre uses block rows without source newlines. Retain the exact input in the
-  // DOM as well as its drawing, including its final newline (or absence of one).
-  const lines = [...rendered.querySelectorAll("[data-content] [data-line]")];
-  const text = source.split(/\r\n|\r|\n/);
-  const endings = source.match(/\r\n|\r|\n/g) ?? [];
-  lines.forEach((line, index) => {
-    // Some grammars represent an empty row with a newline placeholder.
-    if (text[index] === "" && line.textContent === "\n") line.replaceChildren();
-    const ending = endings[index];
-    if (ending !== undefined) line.append(ending);
-  });
-  const code = rendered.querySelector("code");
-  const pre = rendered.querySelector("pre");
-  if (!code || !pre) throw new Error("Pierre did not return a listing");
-  inRuns(code);
-  if (code.textContent !== source)
-    throw new Error("Pierre did not return the source unchanged");
-  markSyntax(rendered, foreground);
-  return { rendered, pre, code, text };
-}
-
 // Rows per run: several times the lines a document's box shows, so the runs in view
-// are cheap to draw, and a megabyte of text makes about 150 runs.
+// are cheap to draw and colour, and a megabyte of text makes about 150 runs.
 const RUN = 128;
 
-// Pierre draws the numbers and the lines as two columns, each a subgrid spanning every
-// row. This regroups them into runs of rows, each a grid of the two columns that the
-// browser skips while it is out of view (`content-visibility: auto`). The browser
-// styles and lays out a skipped run only when it comes into view, a search lands in
-// it, or a script measures it, and its text stays in the DOM for find-in-page,
-// selection, copy and comments. When every row was styled on each change to the page,
-// a few megabytes of text took tens of seconds and gigabytes of memory to draw. A lone
-// run stays drawn (text-document.css): skipping it buys nothing, and its rows would
-// stand undrawn for the frames after the document scrolls into view.
-/** @param {Element} code */
-function inRuns(code) {
-  const [gutter, content] = /** @type {[Element, Element]} */ ([...code.children]);
-  const numbers = [...gutter.children];
-  const lines = [...content.children];
-  /** @param {Element} column @param {Element[]} cells @param {number} first @param {number} rows */
-  const part = (column, cells, first, rows) => {
-    const box = /** @type {HTMLElement} */ (column.cloneNode(false));
-    box.style.gridRow = `span ${rows}`;
-    box.append(...cells.slice(first, first + rows));
-    return box;
-  };
-  const runs = [];
-  for (let first = 0; first < lines.length; first += RUN) {
-    const rows = Math.min(RUN, lines.length - first);
+// The source as the listing draws it: a `pre`, which owns scroll and provenance,
+// holding a `code`, which owns the native reach stop, holding the rows in runs (`inRuns`).
+// A row is one line's text and its ending, exactly as the source has them, so the
+// listing's text is the source, a final newline (or its absence) included; its number
+// is its place, counted in the stylesheet. `text` is the lines without their endings.
+/** @param {string} source */
+function listing(source) {
+  const text = source.split(/\r\n|\r|\n/);
+  const endings = source.match(/\r\n|\r|\n/g) ?? [];
+  const pre = document.createElement("pre");
+  const code = document.createElement("code");
+  // Every number takes the width of the text's widest one, so every row's text starts
+  // at the same x.
+  pre.style.setProperty("--lf-number-digits", `${String(text.length).length}`);
+  pre.append(code);
+  const rows = text.map((line, at) => {
+    const row = document.createElement("div");
+    const words = line + (endings[at] ?? "");
+    if (words) row.append(words);
+    return row;
+  });
+  inRuns(code, rows);
+  return { pre, code, text };
+}
+
+// Groups the rows into runs, each a box the browser skips while it is out of view
+// (`content-visibility: auto`). The browser styles and lays out a skipped run only
+// when it comes into view, a search lands in it, or a script measures it, and its text
+// stays in the DOM for find-in-page, selection, copy and comments. When every row was
+// styled on each change to the page, a few megabytes of text took tens of seconds and
+// gigabytes of memory to draw. A lone run stays drawn (text-document.css): skipping it
+// buys nothing, and its rows would stand undrawn for the frames after the document
+// scrolls into view. Each run counts its numbers on from the lines before it
+// (`--lf-lines-before`, text-document.css).
+/** @param {Element} code @param {readonly Element[]} rows */
+function inRuns(code, rows) {
+  for (let first = 0; first < rows.length; first += RUN) {
     const run = document.createElement("div");
     run.className = "lf-text-document-run";
+    const count = Math.min(RUN, rows.length - first);
     // A line a row until the drawn listing says how long a line is (`sizeRuns`).
-    run.style.containIntrinsicBlockSize = `auto ${rows}lh`;
-    run.append(part(gutter, numbers, first, rows), part(content, lines, first, rows));
-    runs.push(run);
+    run.style.containIntrinsicBlockSize = `auto ${count}lh`;
+    run.style.setProperty("--lf-lines-before", `${first}`);
+    run.append(...rows.slice(first, first + count));
+    code.append(run);
   }
-  code.replaceChildren(...runs);
 }
 
 // Which line of `before` each line of `after` stands for, or -1 for a line it adds,
@@ -142,7 +127,7 @@ function inRuns(code) {
 // one for one, so an edited line keeps the row of the line it replaced. Exported for
 // its test.
 /** @param {readonly string[]} before @param {readonly string[]} after @param {number} [maxEditLength] @returns {number[] | null} */
-export function keptLines(before, after, maxEditLength = 1_000) {
+export function keptLines(before, after, maxEditLength = MAX_EDIT_LENGTH) {
   const changes = diffArrays([...before], [...after], { maxEditLength });
   if (!changes) return null;
   const kept = after.map(() => -1);
@@ -171,12 +156,12 @@ export function keptLines(before, after, maxEditLength = 1_000) {
 // moves into the run the new text puts it in (`setChildLists`, which keeps a selection
 // in it), and each run then reconciles its rows (`setRenderedChildren`), finding its
 // kept rows in place. An edited line keeps the row of the line it replaced, so its
-// text is patched in place. A run's numbers stay with it, since they count its places
-// rather than its rows. Reconciled run by run alone, a row that lines added above it
-// carried across a run's edge was drawn anew, and a selection in it was lost, or grew
-// to take in the row before it. Where a rewrite runs past the line walk's cap
-// (`keptLines`), nothing moves and each run reconciles its own rows: walked to the end,
-// every line of 4 MB rewritten took 285 s.
+// text is patched in place. A row's number is its place, so it follows the row.
+// Reconciled run by run alone, a row that lines added above it carried across a run's
+// edge was drawn anew, and a selection in it was lost, or grew to take in the row
+// before it. Where a rewrite runs past the line walk's cap (`keptLines`), nothing moves
+// and each run reconciles its own rows: walked to the end, every line of 4 MB
+// rewritten took 285 s.
 /** @param {Element} code @param {Element} drawn @param {readonly string[]} before @param {readonly string[]} after */
 function reconcileRuns(code, drawn, before, after) {
   const held = [...code.children];
@@ -186,23 +171,20 @@ function reconcileRuns(code, drawn, before, after) {
     const live = held[at];
     if (live) return live;
     const shell = /** @type {Element} */ (run.cloneNode(false));
-    shell.append(...[...run.children].map((part) => part.cloneNode(false)));
     code.append(shell);
     return shell;
   });
   if (kept) {
-    const lines = held.flatMap((run) => [...(run.lastElementChild?.children ?? [])]);
+    const lines = held.flatMap((run) => [...run.children]);
     let line = 0;
-    /** @type {[Element, Element[]][]} */
-    const lists = [];
-    runs.forEach((run, at) => {
-      const rows = kept
-        .slice(line, (line += fresh[at]?.lastElementChild?.childElementCount ?? 0))
-        .filter((row) => row >= 0);
-      if (run.lastElementChild)
-        lists.push([run.lastElementChild, rows.flatMap((row) => lines[row] ?? [])]);
-    });
-    setChildLists(lists);
+    setChildLists(
+      runs.map((run, at) => {
+        const rows = kept
+          .slice(line, (line += fresh[at]?.childElementCount ?? 0))
+          .filter((row) => row >= 0);
+        return [run, rows.flatMap((row) => lines[row] ?? [])];
+      }),
+    );
   }
   runs.forEach((run, at) => setRenderedChildren(run, fresh[at]?.childNodes ?? []));
   setChildren(code, runs);
@@ -212,12 +194,14 @@ function reconcileRuns(code, drawn, before, after) {
 // text box over the average advance of the first run's one-line rows, as drawn. The
 // face drawn need not be the one named: a freshly started Firefox sets the listing in a
 // proportional fallback until its font list loads, seconds later. Null while the rows
-// have no box, as in a hidden tab.
+// aren't drawn, as in a closed tab, which is asked before any box: Chromium lays a
+// closed tab's rows out to answer for their width.
 /** @param {Element} code */
 function lineColumns(code) {
-  const rows = [...(code.firstElementChild?.lastElementChild?.children ?? [])];
+  const rows = [...(code.firstElementChild?.children ?? [])];
   const first = rows[0];
-  if (!(first instanceof HTMLElement) || !first.clientWidth) return null;
+  if (!(first instanceof HTMLElement) || !code.checkVisibility() || !first.clientWidth)
+    return null;
   const style = getComputedStyle(first);
   const line = parseFloat(style.lineHeight);
   const range = document.createRange();
@@ -287,11 +271,7 @@ function sizeRuns(code, text, { columns, tab }, drawn) {
   for (const run of code.children) {
     if (!(run instanceof HTMLElement)) continue;
     let lines = 0;
-    for (
-      const end = line + (run.lastElementChild?.childElementCount ?? 0);
-      line < end;
-      line++
-    )
+    for (const end = line + run.childElementCount; line < end; line++)
       lines += rowLines(text[line] ?? "", columns, tab);
     if (run.style.containIntrinsicBlockSize !== `auto ${lines}lh`)
       resized.push([run, lines]);
@@ -299,9 +279,7 @@ function sizeRuns(code, text, { columns, tab }, drawn) {
   const forgetting = resized.filter(
     ([run]) =>
       drawn?.has(run) &&
-      run.lastElementChild?.firstElementChild?.checkVisibility({
-        contentVisibilityAuto: true,
-      }) === false,
+      run.firstElementChild?.checkVisibility({ contentVisibilityAuto: true }) === false,
   );
   for (const [run, lines] of forgetting) {
     drawn?.delete(run);
@@ -312,6 +290,267 @@ function sizeRuns(code, text, { columns, tab }, drawn) {
   for (const [run] of forgetting) run.style.removeProperty("content-visibility");
   for (const [run, lines] of resized)
     run.style.containIntrinsicBlockSize = `auto ${lines}lh`;
+}
+
+// Each token colour's highlight, registered once for every document in the page and
+// named by the token theme's colour variable, which text-document.css paints. A
+// highlight paints only what doesn't change layout (css-highlight-api-1), so a token
+// keeps its theme colour but not its font style: a comment, italic in a code block,
+// stands upright here. A token whose colour is no variable, or that has none, has no
+// highlight (null). The rules are declared rather than written as each colour first
+// appears: Firefox restyled the whole page for each rule a sheet gained, 0.85 s a rule
+// beside a long document, and End there showed its scroll 1.5 s after the press.
+/** @type {Map<string, Highlight>} */
+const tokenHighlights = new Map();
+/** @param {{color?: string}} style */
+function tokenHighlight(style) {
+  const colour = style.color?.match(/^var\(--([\w-]+)\)$/)?.[1];
+  if (!colour) return null;
+  let highlight = tokenHighlights.get(colour);
+  if (!highlight) {
+    highlight = new Highlight();
+    CSS.highlights.set(`lf-token-${colour}`, highlight);
+    tokenHighlights.set(colour, highlight);
+  }
+  return highlight;
+}
+
+// Syntax colour for the runs the browser draws and their neighbours (`follow`), painted
+// over their rows' text as highlights rather than spans, so the rows stay one text each
+// and colour costs nothing where the reader isn't looking. A run is tokenized from the
+// grammar state the run before it ended in (`syntax`), so a run starting inside a block
+// comment or a fenced code block is coloured as the whole text would be. Those states
+// are kept, and a run far down whose state isn't known yet is painted at once from a
+// fresh state, then again once `walk` has tokenized the runs before it, a slice of the
+// main thread at a time: waiting for its state, End on 4 MB of Python stood uncoloured
+// for 2.1 s in Chromium and 18.5 s in Firefox. Until then only a construct open across
+// the run's first line, such as a docstring, reads wrong. A new text keeps the states
+// and the paint of the runs before its first changed line.
+/** @typedef {{exact: boolean, ranges: [Highlight, StaticRange][]}} Paint */
+class RunColours {
+  /** @param {string} lang @param {(error: unknown) => void} failed */
+  constructor(lang, failed) {
+    this.lang = lang;
+    this.failed = failed;
+    /** The state each run starts in, as far down as it is known.
+     * @type {Awaited<ReturnType<typeof syntax>>["state"][]} */
+    this.states = [undefined];
+    /** @type {Map<Element, Paint>} */
+    this.painted = new Map();
+    /** The runs to paint (`follow`). @type {Set<Element>} */
+    this.near = new Set();
+    /** @type {readonly string[]} */
+    this.text = [];
+    this.version = 0;
+    /** @type {Promise<void>} */
+    this.queue = Promise.resolve();
+    this.walking = false;
+  }
+
+  // The text's lines from `from` on are new: the paint and states past that run go.
+  /** @param {readonly string[]} text @param {Element} code @param {number} from */
+  changed(text, code, from) {
+    this.text = text;
+    this.version++;
+    const run = Math.floor(from / RUN);
+    this.states.length = Math.min(this.states.length, run + 1);
+    const runs = [...code.children];
+    this.unpaint(
+      [...this.painted.keys()].filter((painted) => {
+        const place = runs.indexOf(painted);
+        return place < 0 || place >= run;
+      }),
+    );
+  }
+
+  // Paint the runs the browser draws (`shown`) and the run on either side of each, and
+  // no others, so a run scrolling into view is coloured before it shows: Firefox draws
+  // a run only once it enters the view, and painted then, its first frame there stood
+  // uncoloured.
+  /** @param {Element} code @param {ReadonlySet<Element>} shown */
+  follow(code, shown) {
+    const runs = [...code.children];
+    this.near.clear();
+    for (const run of shown) {
+      const at = runs.indexOf(run);
+      if (at >= 0)
+        for (const near of runs.slice(Math.max(0, at - 1), at + 2)) this.near.add(near);
+    }
+    this.unpaint([...this.painted.keys()].filter((run) => !this.near.has(run)));
+    for (const run of this.near) if (!this.painted.has(run)) this.paint(code, run);
+    this.walk(code).catch(this.failed);
+  }
+
+  /** @param {Element} code @param {Element} run */
+  paint(code, run) {
+    const { version } = this;
+    this.queue = this.queue
+      .then(() => this.#paint(code, run, version))
+      .catch(this.failed);
+  }
+
+  // Paints `run` from its state where that is known, else from a fresh one, replacing
+  // its paint in the same task, so it never stands uncoloured between the two.
+  /** @param {Element} code @param {Element} run @param {number} version */
+  async #paint(code, run, version) {
+    const current = () => version === this.version && this.near.has(run);
+    if (!current() || this.painted.get(run)?.exact) return;
+    const at = [...code.children].indexOf(run);
+    if (at < 0) return;
+    const exact = at < this.states.length;
+    const { tokens, state } = await syntax(
+      this.lines(at),
+      this.lang,
+      exact ? this.states[at] : undefined,
+    );
+    if (!current() || this.painted.get(run)?.exact) return;
+    if (exact && this.states.length === at + 1) this.states.push(state);
+    /** @type {[Highlight, StaticRange][]} */
+    const ranges = [];
+    const rows = [...run.children];
+    // Where each row's text starts in the run's, a newline between rows. An offset at
+    // a line's end, its newline's place, stays on its line.
+    let row = 0;
+    let start = 0;
+    const lengths = rows.map((_, index) => this.text[at * RUN + index]?.length ?? 0);
+    /** @param {number} offset */
+    const place = (offset) => {
+      while (row < rows.length - 1 && offset > start + (lengths[row] ?? 0)) {
+        start += (lengths[row] ?? 0) + 1;
+        row++;
+      }
+      const node = rows[row]?.firstChild;
+      return (
+        node && {
+          node,
+          offset: Math.min(offset - start, node.textContent?.length ?? 0),
+        }
+      );
+    };
+    let offset = 0;
+    for (const { text, style } of tokens) {
+      const highlight = tokenHighlight(style);
+      if (highlight) {
+        const from = place(offset);
+        const to = place(offset + text.length);
+        if (from && to) {
+          const range = new StaticRange({
+            startContainer: from.node,
+            startOffset: from.offset,
+            endContainer: to.node,
+            endOffset: to.offset,
+          });
+          highlight.add(range);
+          ranges.push([highlight, range]);
+        }
+      }
+      offset += text.length;
+    }
+    this.unpaint([run]);
+    this.painted.set(run, { exact, ranges });
+  }
+
+  // Tokenizes the runs before the farthest run near the view whose state isn't known,
+  // in order, yielding to input between slices, and paints each near run again once its
+  // state is known. One walk at a time; a new text or view steers the walk under way.
+  /** @param {Element} code */
+  async walk(code) {
+    if (this.walking) return;
+    this.walking = true;
+    try {
+      let slice = performance.now();
+      for (;;) {
+        const runs = [...code.children];
+        const known = this.states.length;
+        for (const run of this.near) {
+          const at = runs.indexOf(run);
+          if (at >= 0 && at < known && this.painted.get(run)?.exact === false)
+            this.paint(code, run);
+        }
+        const far = Math.max(-1, ...[...this.near].map((run) => runs.indexOf(run)));
+        if (far < known) return;
+        const { version } = this;
+        const before = known - 1;
+        const { state } = await syntax(
+          this.lines(before),
+          this.lang,
+          this.states[before],
+        );
+        if (version === this.version && this.states.length === known)
+          this.states.push(state);
+        if (performance.now() - slice > 8) {
+          await new Promise((resolve) => setTimeout(resolve));
+          slice = performance.now();
+        }
+      }
+    } finally {
+      this.walking = false;
+    }
+  }
+
+  /** The lines of the run at `at`, as the tokenizer reads them. @param {number} at */
+  lines(at) {
+    return this.text.slice(at * RUN, (at + 1) * RUN).join("\n");
+  }
+
+  // Takes the paint off `runs`. Each highlight it touches is rebuilt from the ranges it
+  // keeps rather than losing each of its ranges in turn: Firefox finds a range to delete
+  // by walking the highlight's list, and taking two runs scrolled out of view off it
+  // held a frame for over 100 ms.
+  /** @param {Iterable<Element>} runs */
+  unpaint(runs) {
+    /** @type {Map<Highlight, Set<AbstractRange>>} */
+    const gone = new Map();
+    for (const run of runs) {
+      for (const [highlight, range] of this.painted.get(run)?.ranges ?? []) {
+        const ranges = gone.get(highlight) ?? new Set();
+        gone.set(highlight, ranges.add(range));
+      }
+      this.painted.delete(run);
+    }
+    for (const [highlight, ranges] of gone) {
+      const kept = [...highlight].filter((range) => !ranges.has(range));
+      highlight.clear();
+      for (const range of kept) highlight.add(range);
+    }
+  }
+
+  clear() {
+    this.version++;
+    this.near.clear();
+    this.unpaint([...this.painted.keys()]);
+  }
+}
+
+// First draws the page doesn't show, as in a closed tab, made once it has presented, one
+// a task in the order their updates asked (`show`). A document drawn so reports its
+// draw (`announce`: its text's marks and `drawn`, which stamps its data's provenance
+// and has the page take a new reading) once the queue is empty, together with the
+// others, or as soon as it shows; until then a comment on its data stands on the
+// document (anchor-resolution.js). Reported one at a time, each sent the page through a
+// pass that read every element in it again to find a comment's words: 3 to 5 s a
+// document in Firefox with one comment on the page. The queue is a stopgap: a page
+// reading that keeps what an unchanged part of the page read would make each report
+// cheap, and the queue removable.
+/** @type {{doc: TextDocument, value: string | null, rendering: number}[]} */
+const drawingLater = [];
+/** @type {Promise<void> | null} */
+let drawingAfterPresentation = null;
+/** @param {TextDocument} doc @param {string | null} value @param {number} rendering */
+function drawLater(doc, value, rendering) {
+  drawingLater.push({ doc, value, rendering });
+  drawingAfterPresentation ??= afterPresentation(async () => {
+    /** @type {Set<TextDocument>} */
+    const drawn = new Set();
+    for (let next; (next = drawingLater.shift());) {
+      await new Promise((resolve) => setTimeout(resolve));
+      if (next.rendering !== next.doc.rendering) continue;
+      await next.doc.show(next.value, true);
+      drawn.add(next.doc);
+    }
+    drawingAfterPresentation = null;
+    for (const doc of drawn) doc.announce();
+  });
 }
 
 class TextDocument extends LeafElement {
@@ -332,10 +571,98 @@ class TextDocument extends LeafElement {
   // So can a new face, which shows where a drawn run changes height. The runs are
   // sized again in the next frame, outside the observer's delivery: sized in it when
   // Firefox's face arrived, they resized the code it watches, and Firefox reported the
-  // notification it couldn't deliver as an error.
-  sizes = sizeObserver(() => nextFrame(() => this.refit()));
+  // notification it couldn't deliver as an error. A document the page shows is sized
+  // as it draws (`show`), so the observer's first delivery already sees its runs at
+  // their lines' heights; left to the next frame, Firefox on Linux CI reported a loop
+  // of undelivered notifications for a long document.
+  // A hidden one is sized by the observer once its listing has a box: measured as each
+  // document drew, every closed tab's listing was a read of the page's layout, and
+  // Chromium's answer took longer for each document drawn before it, 0.8 s over 30
+  // documents of 4 MB.
+  sizes = sizeObserver((entries) => {
+    for (const { target, contentRect } of entries)
+      if (target === this.view?.listing) this.list(contentRect.width > 0);
+    nextFrame(() => {
+      this.refit();
+      this.holdSource();
+      this.measureCut();
+    });
+  });
+  // A written preview's Source tab, which shows what the preview's height holds, and
+  // the press that shows the rest where that height cuts the source.
+  /** @type {{panel: HTMLElement, box: HTMLElement, press: HTMLButtonElement} | null} */
+  cut = null;
+  // The Source tab takes the preview's height, so switching to it moves nothing below
+  // the document. A closed tab skips its contents' layout (`hidden="until-found"`), so
+  // the height is read while the preview shows, after each of its resizes. A document
+  // drawn on Source, as after a reload, never showed its preview; it keeps the box the
+  // page first painted (`firstBox`), which holds the preview's rendering (`x-prepaint`).
+  // Either reaches the Source tab before the frame paints.
+  /** @param {number | null} [firstBox] */
+  holdSource(firstBox = null) {
+    const preview = this.view?.preview;
+    const tab = preview?.parentElement;
+    if (!this.cut || !preview || !tab) return;
+    const { panel } = this.cut;
+    let measured;
+    if (!tab.hidden) measured = preview.getBoundingClientRect().height;
+    else if (firstBox !== null)
+      measured =
+        panel.getBoundingClientRect().height +
+        firstBox -
+        this.getBoundingClientRect().height;
+    else return;
+    panel.style.setProperty("--lf-preview-block", layoutPx(measured));
+  }
+  // The press shows only while the box cuts lines off, as a thread's Full quote does.
+  measureCut() {
+    if (!this.cut) return;
+    const { panel, box } = this.cut;
+    keepsHidden(
+      box,
+      panel.hidden ||
+        panel.hasAttribute("data-lf-all") ||
+        panel.scrollHeight <= panel.clientHeight + 1,
+    );
+  }
   // The runs the browser has drawn since they last forgot a height (`sizeRuns`).
   drawn = new WeakSet();
+  // The runs the browser draws now, which syntax colour paints (`RunColours`), while
+  // the listing has a box (`listed`). Firefox reports the runs of a closed tab's
+  // listing drawn, and every document in a closed tab was coloured as the page loaded.
+  /** @type {Set<Element>} */
+  shown = new Set();
+  listed = false;
+  /** @type {RunColours | null} */
+  colours = null;
+  /** @param {boolean} listed */
+  list(listed) {
+    if (listed === this.listed) return;
+    this.listed = listed;
+    if (listed) this.announce();
+    this.colourShown();
+  }
+  // The value of the draw the document has yet to announce (`drawLater`).
+  /** @type {{value: string | null} | null} */
+  unannounced = null;
+  // Reports the draw: marks its text's items for whoever hosts the widget, in the turn
+  // that announces them (`drawn`), so on a Leaf page comments on them anchor to the
+  // document's data.
+  announce() {
+    const drawing = this.unannounced;
+    const { view, sourceView } = this;
+    if (!drawing || !view || !sourceView || !this.isConnected) return;
+    this.unannounced = null;
+    if (view.preview) {
+      mark(sourceView.pre, "source");
+      mark(view.preview, "preview");
+    } else mark(view.figure, "document");
+    this.dispatchEvent(new CustomEvent("drawn", { detail: { value: drawing.value } }));
+  }
+  colourShown() {
+    const code = this.sourceView?.code;
+    if (code) this.colours?.follow(code, this.listed ? this.shown : new Set());
+  }
   // Size the drawn runs again where the listing's line length changed.
   refit() {
     const code = this.sourceView?.code;
@@ -348,10 +675,16 @@ class TextDocument extends LeafElement {
   }
 
   setup() {
-    // A departure abandons the rendering in flight and its frame's wait.
-    whileConnected(this, () => () => {
-      this.rendering = this.rendering + 1;
-      this.finishFrame?.();
+    // A departure abandons the rendering in flight and its frame's wait, and the
+    // colour of the runs it drew, which a return draws again as they show.
+    whileConnected(this, () => {
+      this.showLone();
+      return () => {
+        this.rendering = this.rendering + 1;
+        this.finishFrame?.();
+        this.colours?.clear();
+        this.shown.clear();
+      };
     });
   }
 
@@ -367,12 +700,27 @@ class TextDocument extends LeafElement {
       (event) => {
         const { skipped, target } =
           /** @type {ContentVisibilityAutoStateChangeEvent} */ (event);
-        if (!skipped && target instanceof Element) this.drawn.add(target);
+        if (!(target instanceof Element)) return;
+        if (!skipped) this.drawn.add(target);
+        const code = this.sourceView?.code;
+        if (target.parentElement !== code || !code) return;
+        if (skipped) this.shown.delete(target);
+        else this.shown.add(target);
+        this.colourShown();
       },
       { capture: true },
     );
     /** @type {string | null} */
     this.value = null;
+  }
+
+  // A lone run is never skipped (`inRuns`), so no change of state says it shows.
+  showLone() {
+    const code = this.sourceView?.code;
+    const run = code?.childElementCount === 1 ? code.firstElementChild : null;
+    if (!code || !run) return;
+    this.shown.add(run);
+    this.colourShown();
   }
 
   render() {
@@ -395,8 +743,8 @@ class TextDocument extends LeafElement {
     return result;
   }
 
-  /** @param {string | null} value */
-  async show(value) {
+  /** @param {string | null} value @param {boolean} [presented] whether this draw waited for the page to present */
+  async show(value, presented = false) {
     const rendering = this.rendering + 1;
     this.rendering = rendering;
     const source = value ?? "";
@@ -404,17 +752,34 @@ class TextDocument extends LeafElement {
     try {
       if (preview) await import("./lf-tabs.js");
       const language = this.getAttribute("language") ?? preview;
-      const {
-        rendered: listing,
-        pre: drawnPre,
-        code: drawnCode,
-        text,
-      } = await sourceListing(source, language);
+      // A language with no grammar fails the document here, before it draws.
+      if (language) await ensureSyntaxLanguage(language);
       if (preview === "markdown") {
         let failure;
         if (!(await loadMarkdown((error) => (failure = error)))) throw failure;
       }
+      // A document the page shows draws at once; one it doesn't, as in a closed tab,
+      // first draws once the page has presented (`drawLater`), and this update
+      // completes without it: the page counts the draws as an arrival. Drawn in page
+      // order, a reload on the 30th of 30 tabs of 4 MB showed its document only after
+      // the 29 before it: 2.8 s in Chromium, 33 s in Firefox. Drawn before
+      // presentation, they held it back, and Firefox, which styles a closed tab's rows
+      // too, restyled every one of them as the page presented: 2.6 s for 30 documents
+      // of 50,000 lines.
+      if (!this.sourceView) {
+        this.listed = this.checkVisibility();
+        if (!this.listed && !presented) return drawLater(this, value, rendering);
+      }
       if (rendering !== this.rendering || !this.isConnected) return;
+      const { pre: drawnPre, code: drawnCode, text } = listing(source);
+      if (this.colours?.lang !== language) {
+        this.colours?.clear();
+        this.colours = language
+          ? new RunColours(language, (error) => {
+              if (this.isConnected) reportFailure(this, error);
+            })
+          : null;
+      }
       const view = (this.view ??= this.build(preview));
       const label =
         this.getAttribute("label") ??
@@ -423,11 +788,20 @@ class TextDocument extends LeafElement {
       keepsText(view.caption, value == null ? `${label} · no data` : label);
       const previous = this.text;
       this.text = text;
+      if (this.cut) keepsText(this.cut.press, `Show all ${text.length} lines`);
+      // The first line the new text changes, past the end where it changes none.
+      let from = 0;
+      while (from < text.length && previous[from] === text[from]) from++;
+      if (from === text.length && previous.length === text.length) from = Infinity;
       if (!this.sourceView) {
-        setChildren(view.listing, [...listing.childNodes]);
+        setChildren(view.listing, [drawnPre]);
         this.sourceView = { pre: drawnPre, code: drawnCode };
         this.sizes.observe(view.listing);
         this.sizes.observe(drawnCode);
+        if (this.cut && view.preview) {
+          this.sizes.observe(this.cut.panel);
+          this.sizes.observe(view.preview);
+        }
       } else {
         // The pre owns provenance and scroll; the code owns its native reach stop.
         // Reconcile only their source children, leaving those independent owners
@@ -435,10 +809,18 @@ class TextDocument extends LeafElement {
         reconcileRuns(this.sourceView.code, drawnCode, previous, text);
         if (this.lineLength)
           sizeRuns(this.sourceView.code, text, this.lineLength, this.drawn);
-        const width = "--diffs-min-number-column-width-default";
-        const drawnWidth = drawnPre.style.getPropertyValue(width);
-        if (this.sourceView.pre.style.getPropertyValue(width) !== drawnWidth)
-          this.sourceView.pre.style.setProperty(width, drawnWidth);
+        const digits = "--lf-number-digits";
+        this.sourceView.pre.style.setProperty(
+          digits,
+          drawnPre.style.getPropertyValue(digits),
+        );
+      }
+      const { code } = this.sourceView;
+      for (const run of [...this.shown])
+        if (run.parentElement !== code) this.shown.delete(run);
+      if (this.colours) {
+        this.colours.changed(text, code, from);
+        this.colourShown();
       }
       let loaded = this.frameLoaded;
       const previewNode = view.preview;
@@ -465,18 +847,22 @@ class TextDocument extends LeafElement {
         if (!previewNode.hasAttribute("srcdoc") || previewNode.srcdoc !== source)
           previewNode.srcdoc = source;
       }
+      const firstBox =
+        this.cut && !view.figure.isConnected
+          ? this.getBoundingClientRect().height
+          : null;
       setChildren(this, [view.figure]);
-      this.refit();
-      // The drawn text's items, marked for whoever hosts the widget: on a Leaf page,
-      // comments on them anchor to the document's data.
-      if (previewNode) {
-        mark(this.sourceView.pre, "source");
-        mark(previewNode, "preview");
-      } else mark(view.figure, "document");
-      this.dispatchEvent(new CustomEvent("drawn", { detail: { value } }));
+      this.showLone();
+      if (this.listed) this.refit();
+      // A first draw the page doesn't show is announced with the others (`drawLater`).
+      this.unannounced = { value };
+      if (!presented || this.listed) this.announce();
       if (loaded) await loaded;
       if (rendering !== this.rendering || !this.isConnected) return;
       this.classList.toggle("lf-rendered", true);
+      // Measured once drawn, since until then the host wears the source face
+      // (reading.css).
+      this.holdSource(firstBox);
     } catch (error) {
       if (rendering !== this.rendering || !this.isConnected) return;
       failSoft(this, error, source);
@@ -490,7 +876,8 @@ class TextDocument extends LeafElement {
     figure.className = "lf-text-document-view";
     const caption = document.createElement("figcaption");
     const listing = document.createElement("div");
-    listing.className = "lf-text-document-listing scroll";
+    listing.className = "lf-text-document-listing lf-ring-frame";
+    listing.toggleAttribute("data-lf-scroll", true);
     figure.append(caption);
     if (!preview) {
       figure.append(listing);
@@ -520,6 +907,20 @@ class TextDocument extends LeafElement {
     }
     rendered.append(drawn);
     literal.append(listing);
+    if (this.matches(WRITTEN)) {
+      const box = offer("div", "lf-text-document-cut");
+      box.hidden = true;
+      const press = offerAction("inline", "lf-text-document-more", "");
+      // The press goes once it has shown the lines, so focus moves to the listing.
+      press.addEventListener("click", () => {
+        literal.toggleAttribute("data-lf-all", true);
+        keepsHidden(box, true);
+        if (this.sourceView) focusDestination(this.sourceView.pre, "return");
+      });
+      box.append(press);
+      literal.append(box);
+      this.cut = { panel: literal, box, press };
+    }
     tabs.append(rendered, literal);
     figure.append(tabs);
     return { figure, caption, listing, preview: drawn };

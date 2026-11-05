@@ -5,8 +5,9 @@
    A document block's control stands in chrome, so the page's own sibling and child
    selectors keep matching what the page wrote. CSS anchors keep it on the block without
    wrapping authored nodes or moving them on arrival: `aimControl` names the block as
-   the control's `position-anchor`, and the control's rules place it with `anchor()`
-   against that block. The control passes under the sticky headers the page declares
+   the control's `position-anchor`, as a heading's link does only while it shows
+   (heading-links.js), and the control's rules place it with `anchor()` against that
+   block. The control passes under the sticky headers the page declares
    over its block, as the block's own words do, standing in the frames that cut every
    box following scrolled content (css-anchors.js, `headerLevels`), so a block scrolled
    under a stuck toolbar offers no control over the toolbar's.
@@ -49,8 +50,9 @@ const makeCut = () => {
   return frame;
 };
 // Stands a document control in the frames its block's headers cut (`headerLevels`),
-// read again each time the control is revealed and once a frame after a resize, since a
-// header can come, go or change height while the control shows or while it hides.
+// read again each time the control is revealed and once a frame after a resize or a
+// change of the page's own heads (`restandControls`), since a header can come, go or
+// change height while the control shows or while it hides.
 /** @type {Map<HTMLElement, Element>} */
 const placed = new Map(); // document control → its block
 const wired = new WeakSet();
@@ -87,10 +89,13 @@ onCurrentLocation((node) => {
   }
   setActiveControl("focus", null);
 });
-let resized = 0;
-addEventListener("resize", () => {
-  resized ||= nextRender(() => {
-    resized = 0;
+let restanding = 0;
+/** Stand every document control in its block's frames again, in the next frame: after
+ * a resize, and when the page's own heads change what they cover (root-headers.js),
+ * which no resize says. */
+export function restandControls() {
+  restanding ||= nextRender(() => {
+    restanding = 0;
     // A hidden panel's old layout is invalid after resize. Reading its cuts would
     // force the browser to lay out each skipped subtree; revealControl reads them
     // when the user next reveals the control. Read every shown block before writing.
@@ -100,7 +105,8 @@ addEventListener("resize", () => {
     for (const { control, block, levels } of read)
       standInChrome(control, block, levels);
   });
-});
+}
+addEventListener("resize", restandControls);
 
 /** Where each document control with a footprint stands over its block, shown or
  * hidden at rest, so a margin pin keeps off it (margin-layout.js, `coverIn`) and
@@ -149,20 +155,22 @@ export function standInChrome(control, block, levels, footprint = true) {
   if (control.parentNode !== frame) move(frame, control, null);
 }
 
-/** The reading `aimControl` writes from: whether `block` renders near the window,
- * kept current while the control stands, and the block's anchor name. A control
- * whose block is away is `hidden`, which hides it whatever display its own rules give
- * it (base.css). */
-/** @template {HTMLElement} C @param {C} control @param {Element} block */
-export function anchorControl(control, block) {
+/** Whether `block` renders near the window, kept current while the control stands: a
+ * control whose block is away is `hidden`, which hides it whatever display its own
+ * rules give it (base.css). The caller writes the first reading. */
+/** @param {HTMLElement} control @param {Element} block */
+export function watchNear(control, block) {
   const place = () => {
     keepsHidden(control, !anchorView(control, block, place));
   };
-  return {
-    control,
-    near: anchorView(control, block, place),
-    anchor: anchorReading(block),
-  };
+  return anchorView(control, block, place);
+}
+
+/** The reading `aimControl` writes from: whether `block` renders near the window
+ * (`watchNear`), and the block's anchor name. */
+/** @template {HTMLElement} C @param {C} control @param {Element} block */
+export function anchorControl(control, block) {
+  return { control, near: watchNear(control, block), anchor: anchorReading(block) };
 }
 
 /** @template {HTMLElement} C @param {{control: C, near: boolean, anchor: ReturnType<typeof anchorReading>}} reading */
@@ -202,9 +210,7 @@ export function writeInsets(control, { dx, dy, dw, dh }) {
     "--lf-block-control-dw": dw,
     "--lf-block-control-dh": dh,
   })) {
-    const value = length ? layoutPx(length) : "";
-    if (control.style.getPropertyValue(property) !== value)
-      control.style.setProperty(property, value);
+    control.style.setProperty(property, length ? layoutPx(length) : "");
   }
 }
 /** @param {HTMLElement} control @param {Element} block */

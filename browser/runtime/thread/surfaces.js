@@ -16,29 +16,24 @@
    Source coverage and outlet containment are separate: an authored page rail can
    show a target elsewhere in the document.
 
-   A thread the widget would draw in a seat it has not opened yet, while that would move
-   what the reader reads, is held out of what the widget is handed (`HeldArrivals`,
-   held-news.js): its target stays out of the batch, so the selected annotation
-   presentation notices it, and `revealHeld` is how the margin's marker shows it.
-
-   Which threads a widget has claimed or holds out is a reading other paints follow
-   (`claimed`, `heldOut`): the margin lists a thread no widget seats, so a commit or a
-   hold that changes the answer repaints it through its own presenter, and the thread
-   pass itself paints no other owner's region. */
+   Which threads a widget has claimed is a reading other paints follow (`claimed`):
+   the margin lists a thread no widget seats, so a commit that changes the answer
+   repaints it through its own presenter, and the thread pass itself paints no other
+   owner's region. */
 import { aborted } from "../abort.js";
 import { reportPageError } from "../layer-client.js";
 import { aimTargetAt, datumAimTarget } from "../anchor-resolution.js";
 import { sameAnchor } from "../anchor-coordinate.js";
 import { closestAcross } from "../passages.js";
+import { drawnThreadId, drawnThreadsWithId } from "./selectors.js";
 import { tagsDeclaring } from "../registry.js";
 import { watchArrivals } from "../arrivals.js";
 import { renderThreadSurface, clearThreadSurface } from "./inline.js";
-import { readThreads, threadIdNamed } from "./state.js";
+import { readThreads, threadIdNamed, threadNamed } from "./state.js";
+import { discussed } from "./model.js";
 import { threadFocusDestination } from "./focus.js";
-import { HeldArrivals } from "./held-news.js";
 import { under } from "../shadow.js";
 import { declareSide } from "../current-target.js";
-import { whenDocumentPresented } from "../semantic-state.js";
 import { signal } from "/runtime/framework.js";
 import { tick } from "../version-signal.js";
 
@@ -67,22 +62,16 @@ import { registrations, setRegistration, updateSurface } from "./surface-handles
  * reveal: ReturnType<typeof import("./destination.js").createThreadDestinations>["openPageThread"]}} SurfaceServices */
 /** @typedef {Omit<SurfaceServices, "reveal"> & {owner: Element, render: OutletRender, kind: "widget" | "page",
  * outlets: Set<Element>, placements: ReturnType<typeof import("../anchor-placement.js").createAnchorPlacement> | null,
- * drawn: Set<string>, held: HeldArrivals | null, heldKeys: Set<string>,
  * reconcileQueued: boolean, cancelRender: () => void, stopSide: () => void,
  * handle: {read: typeof readThreads, reveal: (key: string) => unknown,
  * open: (node: Element) => boolean, update: () => void, unregister: () => void}}} Registration */
 /** @type {Set<string>} */
 let claimedIds = new Set();
 let renderGeneration = 0;
-// Moves when the answer `claimed` or `heldOut` gives changes, so a paint reading either
-// follows it. This module's own reads take the plain answer (`holdsOut`): a pass that
-// followed what it moves itself would claim another.
+// Moves when the answer `claimed` gives changes, so a paint reading it follows it.
 const ownership = signal(0);
 /** @template T @param {ReadonlySet<T>} a @param {ReadonlySet<T>} b */
 const sameSet = (a, b) => a.size === b.size && [...a].every((item) => b.has(item));
-/** @param {string} id */
-const holdsOut = (id) =>
-  [...registrations.values()].some(({ held }) => held?.holds(id));
 
 /** @param {SurfaceServices} commands */
 export function watchThreadSurfaces(commands) {
@@ -142,10 +131,7 @@ function register(owner, render, { invalidate, composition, reveal }, kind) {
     if (!outlet) return null;
     const thread = closestAcross(node, ".lf-page-thread");
     if (thread && under(thread, outlet))
-      return (
-        registration.placements?.placedAt(thread.getAttribute("data-thread"))?.place ??
-        null
-      );
+      return registration.placements?.placedAt(drawnThreadId(thread))?.place ?? null;
     return outlet === composition.outlet()
       ? (registration.placements?.pendingAt()?.place ?? null)
       : null;
@@ -155,8 +141,8 @@ function register(owner, render, { invalidate, composition, reveal }, kind) {
     read: readThreads,
     reveal(key) {
       if (registrations.get(owner) !== registration) return false;
-      const thread = readThreads().threads.find((item) => item.key === key);
-      return thread ? reveal(thread.id) : false;
+      const thread = threadNamed(key);
+      return thread && discussed(thread) ? reveal(thread.id) : false;
     },
     open(node) {
       if (registrations.get(owner) !== registration) return false;
@@ -193,13 +179,6 @@ function register(owner, render, { invalidate, composition, reveal }, kind) {
     composition,
     outlets: new Set(),
     placements: null,
-    // The datums where the widget drew a thread last, and the threads it holds out of
-    // the seats it has not opened.
-    drawn: new Set(),
-    held:
-      kind === "widget" ? new HeldArrivals(() => updateSurface(registration)) : null,
-    // The keys the last hold kept out, to tell a hold that changed from one that didn't.
-    heldKeys: new Set(),
     reconcileQueued: false,
     cancelRender: () => {},
   };
@@ -225,8 +204,6 @@ function reportFailure({ owner }, error) {
 function clearRegistration(registration) {
   registration.cancelRender();
   registration.stopSide();
-  registration.held?.dispose();
-  registration.drawn = new Set();
   if (
     [...registration.outlets].some(
       (outlet) => outlet === registration.composition.outlet(),
@@ -316,7 +293,7 @@ export function renderSurfaces(collection, placements, commands) {
     /** @type {SurfacePlan[]} */
     const plans = [];
     // Registration order cannot confer source ownership: the selected page owner
-    // runs after the widgets establish their held-arrival admission in this pass.
+    // runs after the widgets in this pass.
     const ordered = [...registrations.values()].sort(
       (a, b) => Number(a.kind === "page") - Number(b.kind === "page"),
     );
@@ -342,11 +319,7 @@ export function renderSurfaces(collection, placements, commands) {
         /** @type {Map<string, NonNullable<ReturnType<typeof admitTarget<ThreadRecord>>>>} */
         const targets = new Map();
         for (const thread of collection.threads) {
-          if (
-            registration.kind === "page"
-              ? holdsOut(thread.id)
-              : thread.anchor?.section !== owner.id
-          )
+          if (registration.kind !== "page" && thread.anchor?.section !== owner.id)
             continue;
           const placement = placements.placedAt(thread.id);
           const admitted = admitTarget(registration, {
@@ -355,24 +328,6 @@ export function renderSurfaces(collection, placements, commands) {
             thread,
           });
           if (admitted) targets.set(thread.key, admitted);
-        }
-        const held = registration.held?.hold(
-          [...targets.values()].flatMap(({ kind, target }) =>
-            kind === "widget"
-              ? [
-                  {
-                    thread: target.thread,
-                    datum: target.anchor.datum,
-                    node: target.placement.datumElement,
-                  },
-                ]
-              : [],
-          ),
-          { drawn: registration.drawn, all: collection.threads },
-        );
-        if (held && !sameSet(held, registration.heldKeys)) {
-          registration.heldKeys = held;
-          tick(ownership);
         }
         const anchor = activeComposition?.anchor;
         const placement =
@@ -384,9 +339,7 @@ export function renderSurfaces(collection, placements, commands) {
         // The core supplies the complete admitted batch. Each position keeps its
         // canonical Thread or composer identity here; consumers only return seats.
         /** @type {(PageOutletTarget | OutletTarget)[]} */
-        const batch = [...targets]
-          .filter(([key]) => !held?.has(key))
-          .map(([_key, { target }]) => Object.freeze(target));
+        const batch = [...targets.values()].map(({ target }) => Object.freeze(target));
         const compositionTarget = admitTarget(registration, {
           anchor,
           placement,
@@ -480,8 +433,7 @@ export function renderSurfaces(collection, placements, commands) {
                   placement: placements.placedAt(thread.id),
                   thread,
                 }) &&
-                (plan.registration.kind === "widget" ||
-                  (!widgetClaims.has(thread.id) && !holdsOut(thread.id))),
+                (plan.registration.kind === "widget" || !widgetClaims.has(thread.id)),
             ),
           );
         if (
@@ -546,11 +498,6 @@ export function renderSurfaces(collection, placements, commands) {
         for (const outlet of byOutlet.keys())
           outlet.toggleAttribute("data-lf-thread-surface", true);
         registration.outlets = new Set(byOutlet.keys());
-        registration.drawn = new Set(
-          [...byOutlet.values()]
-            .flat()
-            .flatMap((thread) => (thread.anchor?.datum ? [thread.anchor.datum] : [])),
-        );
       }
       if (!sameSet(claimedIds, nextClaimed)) {
         claimedIds = nextClaimed;
@@ -590,32 +537,6 @@ export const claimed = (id) => {
   return claimedIds.has(id);
 };
 
-// Whether a widget holds the thread `id` out of its flow, so that its margin marker is
-// the notice it waits behind. Followed like `claimed`.
-/** @param {string} id */
-export const heldOut = (id) => {
-  ownership.value;
-  return holdsOut(id);
-};
-
-// Release the named held arrivals through their widget's existing render proof.
-// This owner decides admission and returns readiness; the core destination owns the
-// gesture's original intent and its focus after the current outlet has committed.
-/** @param {readonly string[]} ids */
-export function revealHeld(ids) {
-  for (const registration of registrations.values()) {
-    const [id] = registration.held?.show(ids) ?? [];
-    if (id) {
-      const presented = (async () => {
-        await registration.invalidate();
-        await whenDocumentPresented();
-      })();
-      return { id, presented };
-    }
-  }
-  return null;
-}
-
 // Resolve after reveal/presentation: a datum's outlet may have been replaced. Travel
 // takes the node rather than a callback that privately focuses and scrolls it.
 /** @param {string} name @param {{part?: import("./destination.js").ThreadPart}} [options] */
@@ -623,9 +544,7 @@ export function surfaceFocusTarget(name, { part = "reply" } = {}) {
   const id = threadIdNamed(name);
   for (const registration of registrations.values()) {
     const thread = [...registration.outlets]
-      .map((outlet) =>
-        outlet.querySelector(`.lf-page-thread[data-thread="${CSS.escape(id)}"]`),
-      )
+      .map((outlet) => drawnThreadsWithId(outlet, id)[0])
       .find(Boolean);
     if (!thread) continue;
     return threadFocusDestination(thread, { part, message: name });

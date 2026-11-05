@@ -399,7 +399,7 @@ def test_every_lift_names_one_of_the_theme_s_heights_cast_in_the_scheme_s_ink(
 
     Twenty-nine lifts once wrote fourteen geometries between them, so two menus beside
     each other stood at different heights for no reason anyone chose, and nothing kept
-    the next one from writing a fifteenth. The `--raise-*` tokens (base.css, beside
+    the next one from writing a fifteenth. The `--raise-*` tokens (tokens.css, beside
     --shade) are now the only declarations that write a blur; every other rule, a
     filter's drop-shadow() included, names one, with a hairline or ring beside it where
     its edge needs one.

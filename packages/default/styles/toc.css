@@ -150,6 +150,28 @@ lf-toc a[data-lf-focus] {
       height: var(--lf-view-height);
       margin: 0;
     }
+    /* The spine runs the window's height down the track's start edge. The block after
+     * the map, such as a status line, starts past the map's resting box, clear of the
+     * spine and of the strip that opens the labels, so a press on its first words
+     * reaches the words rather than opening the map. Revealed, the labels still cover
+     * it. A track holds the map and one short block (page-layout.md, "A sidebar page";
+     * page-authoring.md). A page with several blocks there wraps them in one element,
+     * since a second block standing loose stands by the spine.
+     *
+     * The rule asks only for the element just before each one, because every form that
+     * asks more costs pages with no map as well. `lf-toc ~ *` and `:has(> lf-toc) > *`
+     * read every earlier sibling, or every child of the parent, for each element
+     * Chromium tests, so a full restyle grows with the square of a long column: 4,000
+     * paragraphs restyled in 82 ms with `lf-toc ~ :not(lf-toc)`, against 54 ms with no
+     * rule. A scope rooted at `div:has(> lf-toc)` made every `div` a root to test, and
+     * adding or removing a node inside one, as a heading's link moving into the chrome
+     * does, restyled 20,255 of the 28,335 elements of the 512-section asks page of
+     * `leaf-dev scaling` (`test_an_untyped_has_leads_only_to_a_typed_subject`). Naming
+     * the track's class instead would have the package read a Layout
+     * (`test_layout_style_and_widgets_never_read_each_other`). */
+    lf-toc + * {
+      margin-inline-start: var(--sp-4);
+    }
     /* The revealed background includes the space above and below the spine, where
        * the first and last labels extend beyond their markers. */
     lf-toc .lf-toc-nav {

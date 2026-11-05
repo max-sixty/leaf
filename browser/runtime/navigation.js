@@ -7,7 +7,13 @@ import { pageCommand } from "./keyboard/register.js";
 import { nativeModalAdmits } from "./keyboard/layer-stack.js";
 import { sampleNotice } from "./sample-child.js";
 import { scrollBehavior } from "./motion.js";
-import { atScrollEnd, glideTo, scrollGoal, stopGlide } from "./scrolling.js";
+import {
+  afterBrowserScroll,
+  atScrollEnd,
+  glideTo,
+  scrollGoal,
+  stopGlide,
+} from "./scrolling.js";
 import { landingBand, shownRect } from "./geometry.js";
 import { intersect } from "./rect.js";
 import {
@@ -29,7 +35,7 @@ import { focused } from "./focus.js";
 import { pageSelection } from "./composing/capture.js";
 import { blockAt, closestAcross } from "./passages.js";
 import { readingBlock } from "./reading-place.js";
-import { scrollIntoReadingBand, scrollIntoView } from "./landing-scroll.js";
+import { scrollIntoView } from "./landing-scroll.js";
 import { drawnThreadId, THREAD } from "./thread/selectors.js";
 import { threadIn } from "./thread/focus.js";
 import { threadList } from "./thread/state.js";
@@ -54,6 +60,10 @@ const openThreads = (placedAt) =>
     threadList().filter((thread) => !thread.resolved),
     placedAt,
   ).map((thread) => thread.id);
+// Whether the walk has anywhere to go, which the keys ask on every input: the open
+// threads' order is the walk's business, and sorting them for a count cost a sort of
+// every thread per input.
+const anyOpenThread = () => threadList().some((thread) => !thread.resolved);
 
 // The thread the walk stands on: the one the origin's current location is in,
 // wherever it is drawn. Its target, with the thread's card beside it, is at the thread,
@@ -132,10 +142,10 @@ export function placeThreadEdge(thread, edge) {
 }
 
 // j/k take small pixel steps; d/u move 60% of the visible reading page. Both follow
-// the active region and share one glide (scrolling.js, `glideTo`). A press steps from
-// where the box is headed (`scrollGoal`), so presses made while Leaf still moves the
-// page, whether after another step or after a landing such as `m`'s, add up as if each
-// had landed. At a region's edge
+// the active region and glide (scrolling.js, `glideTo`). A press steps from where the
+// box is headed (`scrollGoal`), so presses made while the page still moves, whether
+// after another step, after a landing such as `m`'s, or after the browser's own Space
+// or PageDown (`afterBrowserScroll`), add up as if each had landed. At a region's edge
 // they follow its CSS scroll chain (`scrollChainOf`, `stepAlong`), stopping at the
 // same task or modal boundary as native input, so a floating thread's turns, once
 // spent, hand the step to the document, and a sample's to its containing page, as the
@@ -197,6 +207,7 @@ function stepAlong(from, amount, unit) {
   const clips = new Map();
   for (const box of scrollChainOf(from)) {
     if (!nativeModalAdmits(box)) return;
+    if (afterBrowserScroll(box, () => stepAlong(from, amount, unit))) return;
     const step = readingStep(box, clips);
     const goal = scrollGoal(box);
     const canMove = amount > 0 ? !atScrollEnd(box, goal) : goal > 0;
@@ -252,7 +263,11 @@ export function createNavigation({ threadDestinations, placedAt }) {
       const item = currentItem();
       if (!item) return;
       for (const box of scrollersOf(item)) stopGlide(box);
-      scrollIntoReadingBand(item, item, "start", scrollBehavior());
+      scrollIntoView(item, {
+        block: "start",
+        behavior: scrollBehavior(),
+        sideways: false,
+      });
     },
   };
   const move = stepReading;
@@ -264,7 +279,7 @@ export function createNavigation({ threadDestinations, placedAt }) {
     id: "thread.walk",
     // A walk needs a visible destination, not the complete saved inventory: local
     // sends are usable destinations while the first reading is still loading.
-    ready: () => savedReadingSettled() || openThreads(placedAt).length > 0,
+    ready: () => savedReadingSettled() || anyOpenThread(),
     touch: false,
     // A walk's letter names its category; Shift reverses it. The page's walks therefore
     // share one compact, repeatable grammar.
@@ -282,7 +297,7 @@ export function createNavigation({ threadDestinations, placedAt }) {
       },
     ],
     title: "threads",
-    when: () => openThreads(placedAt).length > 0,
+    when: anyOpenThread,
     repeat: true,
     travels: true,
     // The walk moves the user laterally: it is the surface it reaches through, rather

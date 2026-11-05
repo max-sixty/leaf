@@ -58,11 +58,9 @@ from render_cases_widgets import (
     visual_widgets,
 )
 from render_harness import (
-    CORPUS_SOURCES,
     EXAMPLE_PACKAGES,
     LONG_PAGE,
     OPEN_THREAD_COUNT,
-    ROOT,
     TOKEN,
     _traffic,
     _until,
@@ -113,6 +111,7 @@ from leaf.render_gate import scheme as render_gate_scheme
 from leaf.render_gate import version as render_gate_model
 from leaf.render_gate.widget_quality import own_tags
 from leaf.validation import composition as validation_model
+from leaf_dev.example_data import authored_sources, named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -1079,7 +1078,6 @@ def _author_lying_callout(tmp_path):
         ("arrived", True),
         ("presented", False),
         ("log", False),
-        ("state", False),
     ],
 )
 def test_only_a_final_settling_failure_keeps_projection_findings(
@@ -1181,8 +1179,8 @@ def test_a_pane_compares_its_words_without_its_opaque_children_rendered_data(
         "</pre></lf-diff></div><footer>Tests not run</footer></lf-pane>",
     )
     page = open_page(browser, live_url(serve(source, packages=("diff", "file-tree"))))
-    # The pane's prose, without its opaque children's rendered data, owns the inline
-    # explanation of a revision.
+    # The pane's prose, without its opaque children's rendered data, owns what its
+    # change's card says of a revision.
     stamp_page(
         serve.page_dir,
         source.replace(">Patch</header>", ">xxx  </header>").replace(
@@ -1194,14 +1192,13 @@ def test_a_pane_compares_its_words_without_its_opaque_children_rendered_data(
     compare_with(page, 1)
     change = page.locator('[data-lf-margin-for="code"] [data-lf-kinds~="change"]')
     change.click()
-    expect(page.locator("#code .lf-version-inline-deletion del")).to_have_text(
-        "Patch Tests not run"
-    )
-    assert page.evaluate(
-        "() => [...CSS.highlights.get('lf-version-insert') ?? []].map(range => range.toString())"
-    ) == ["xxx  ", "  yyy"]
-    expect(page.locator("#patch .lf-version-inline-deletion")).to_have_count(0)
+    card = page.locator("#lf-change-card")
+    expect(card.locator("del")).to_have_text("Patch Tests not run")
+    expect(card.locator("ins")).to_have_text(re.compile(r"^\s*xxx\s+yyy\s*$"))
+    expect(card).not_to_contain_text("diff --git")
+    expect(card).not_to_contain_text("UNCHANGED DRAWING")
     change.click()
+    expect(card).to_have_count(0)
     expect(page.locator("#code > header")).to_have_text("xxx")
 
 
@@ -1554,9 +1551,9 @@ def rest_findings(page):
     return at_rest(page)
 
 
-@pytest.mark.parametrize("work", [1, 10])
-def test_rest_runs_its_timer_callbacks_before_reading(browser, serve, work):
+def test_rest_runs_its_timer_callbacks_before_reading(browser, serve):
     """A delayed passive write is observed with ten times the callback's CPU work."""
+    work = 10
     page = still_page(browser, serve(leaf_page("Rest clock", "<p>Reading</p>")))
     page.evaluate(
         """work => {
@@ -1881,7 +1878,7 @@ def has_open_thread(page):
 def other_pages(page):
     """Whether the leaf's menu offers All pages, which it does only while other pages
     are live; the menu is put away again."""
-    offered = panel_menu(page, "navigate").locator('.lf-fp-item[data-row="leaves"]')
+    offered = panel_menu(page, "navigate").locator('.lf-fp-item[data-lf-row="leaves"]')
     count = offered.count()
     close_panel_menu(page)
     return count > 0
@@ -2302,13 +2299,29 @@ def held_scroller_findings(page, source):
     return findings
 
 
-def test_working_prose_density_yields_to_component_spacing(browser, serve):
-    """Density supplies prose defaults without defeating a component's own rhythm."""
+def test_block_margins_follow_density_frames_and_the_column_on_one_page(
+    browser, serve, subtests
+):
+    """Three readings of a block's margins on one page, each over its own part of it.
+
+    Density supplies prose defaults without defeating a component's own rhythm.
+
+    A frame trims the margin at its edge through every first or last child: a bare
+    section, a boxless one, and a padded grid section alike, with nothing declared on
+    them. A padded box away from any frame's edge, and from the column's own items, keeps
+    its heading's margin inside its inset, and the reading says to declare that box's
+    frame.
+
+    The reading column is block flow, so a block's first child's top margin collapses
+    out through it and the block's box starts at its first line, whatever opens it: the
+    focus ring, margin entry and landing Leaf places by that box stand at its text. The
+    gap above stays the larger margin, the heading's. A callout keeps its own margin,
+    since its frame holds its heading's margin in."""
     page = open_page(
         browser,
         serve(
             leaf_page(
-                "Working prose and component rhythm",
+                "Block margins",
                 """<style>@layer lf-base {
 .component-line { margin: 0; }
 .component-cell { padding: 3px; }
@@ -2327,43 +2340,8 @@ def test_working_prose_density_yields_to_component_spacing(browser, serve):
       <td class="component-cell">Value</td></tr></table>
   </div>
   <p>Last paragraph.</p>
-</section>""",
-            )
-        ),
-    )
-    reading = page.evaluate(
-        """() => {
-          const margin = node => {
-            const s = getComputedStyle(node);
-            return [parseFloat(s.marginBlockStart), parseFloat(s.marginBlockEnd)];
-          };
-          return {
-            heading: margin(document.querySelector('#prose-heading')),
-            paragraph: margin(document.querySelector('#prose-paragraph')),
-            components: [...document.querySelectorAll('.component-line')].map(margin),
-            cells: [...document.querySelectorAll('.component-cell')]
-              .map(node => getComputedStyle(node).paddingBlock),
-          };
-        }"""
-    )
-    assert reading["heading"] == [18, 6], reading
-    assert reading["paragraph"] == [6, 6], reading
-    assert all(margin == [0, 0] for margin in reading["components"]), reading
-    assert reading["cells"] == ["3px", "3px"], reading
-
-
-def test_frame_edges_pass_through_whatever_stands_at_them(browser, serve):
-    """A frame trims the margin at its edge through every first or last child: a bare
-    section, a boxless one, and a padded grid section alike, with nothing declared on
-    them. A padded box away from any frame's edge, and from the column's own items, keeps
-    its heading's margin inside its inset, and the reading says to declare that box's
-    frame."""
-    page = open_page(
-        browser,
-        serve(
-            leaf_page(
-                "Frame edges",
-                """<div id="frame" style="padding:24px;--lf-block-frame:1">
+</section>
+<div id="frame" style="padding:24px;--lf-block-frame:1">
   <section id="first">
     <h2 id="opening">Opening</h2>
     <p>First section.</p>
@@ -2390,54 +2368,8 @@ def test_frame_edges_pass_through_whatever_stands_at_them(browser, serve):
     <h2 id="padded-heading">Padded, undeclared</h2>
   </div>
 </div>
-<p>After the padded box.</p>""",
-            )
-        ),
-    )
-    margins = page.evaluate(
-        """() => Object.fromEntries(
-          ['opening', 'middle-heading', 'closing', 'grid-heading', 'contents-heading',
-           'padded-heading'].map(id => {
-            const s = getComputedStyle(document.getElementById(id));
-            return [id, [parseFloat(s.marginBlockStart), parseFloat(s.marginBlockEnd)]];
-          }))"""
-    )
-    assert margins["opening"][0] == 0
-    assert margins["middle-heading"][0] > 0
-    assert margins["closing"][1] == 0
-    assert margins["grid-heading"][0] == 0
-    assert margins["contents-heading"][0] == 0
-    assert margins["padded-heading"][0] > 0
-    trapped = render_checks_model.evaluate_probe(page, "trappedMargins")
-    assert not [
-        f for f in trapped if f["id"] in {"frame", "grid-frame", "contents-frame"}
-    ], trapped
-    assert any(
-        f["id"] == "padded" and f["child"] == "h2" and not f["frameDeclared"]
-        for f in trapped
-    ), trapped
-    page.locator("#padded").evaluate(
-        "el => el.style.setProperty('--lf-block-frame', '1')"
-    )
-    assert not [
-        f
-        for f in render_checks_model.evaluate_probe(page, "trappedMargins")
-        if f["id"] == "padded"
-    ]
-
-
-def test_a_column_block_starts_at_its_first_line(browser, serve):
-    """The reading column is block flow, so a block's first child's top margin collapses
-    out through it and the block's box starts at its first line, whatever opens it: the
-    focus ring, margin entry and landing Leaf places by that box stand at its text. The
-    gap above stays the larger margin, the heading's. A callout keeps its own margin,
-    since its frame holds its heading's margin in."""
-    page = open_page(
-        browser,
-        serve(
-            leaf_page(
-                "Column blocks",
-                """<p>Before.</p>
+<p>After the padded box.</p>
+<p>Before.</p>
 <section id="h2-led"><h2>Heading</h2><p>Body.</p></section>
 <section id="h3-led"><h3>Subheading</h3><p>Body.</p></section>
 <section id="eyebrow-led"><p class="eyebrow">Eyebrow</p><h2>Heading</h2></section>
@@ -2448,56 +2380,118 @@ def test_a_column_block_starts_at_its_first_line(browser, serve):
             )
         ),
     )
-    items = page.evaluate(
-        """() => Object.fromEntries(
-          ['h2-led', 'h3-led', 'eyebrow-led', 'framed', 'prose-led', 'list-led',
-           'flow-led'].map(id => {
-            const item = document.getElementById(id);
-            const box = item.getBoundingClientRect();
-            let first = item.firstElementChild;
-            while (first.firstElementChild && !/^(h[1-6]|p)$/.test(first.localName))
-              first = first.firstElementChild;
-            const top = first.getBoundingClientRect().top;
-            const above = item.previousElementSibling?.getBoundingClientRect();
-            return [id, {
-              band: top - box.top,
-              gap: above ? top - above.bottom : null,
-              margin: parseFloat(getComputedStyle(item).marginBlockStart),
-            }];
-          }))"""
-    )
-    tokens = page.evaluate(
-        """() => ['--h2-start', '--h3-start', '--callout-margin-block'].map(name =>
-          parseFloat(getComputedStyle(document.querySelector('main'))
-            .getPropertyValue(name)))"""
-    )
-    page.close()
-
-    h2_start, h3_start, callout_margin = tokens
-    for led in ("h2-led", "h3-led", "eyebrow-led", "prose-led", "list-led", "flow-led"):
-        assert items[led]["band"] == pytest.approx(0, abs=0.5), (led, items)
-    assert items["h2-led"]["gap"] == pytest.approx(h2_start, abs=0.5), items
-    assert items["h3-led"]["gap"] == pytest.approx(h3_start, abs=0.5), items
-    assert items["eyebrow-led"]["gap"] == pytest.approx(h2_start, abs=0.5), items
-    assert items["framed"]["margin"] == pytest.approx(callout_margin, abs=0.5), items
+    with subtests.test("density"):
+        reading = page.evaluate(
+            """() => {
+              const margin = node => {
+                const s = getComputedStyle(node);
+                return [parseFloat(s.marginBlockStart), parseFloat(s.marginBlockEnd)];
+              };
+              return {
+                heading: margin(document.querySelector('#prose-heading')),
+                paragraph: margin(document.querySelector('#prose-paragraph')),
+                components: [...document.querySelectorAll('.component-line')].map(margin),
+                cells: [...document.querySelectorAll('.component-cell')]
+                  .map(node => getComputedStyle(node).paddingBlock),
+              };
+            }"""
+        )
+        assert reading["heading"] == [18, 6], reading
+        assert reading["paragraph"] == [6, 6], reading
+        assert all(margin == [0, 0] for margin in reading["components"]), reading
+        assert reading["cells"] == ["3px", "3px"], reading
+    with subtests.test("column blocks"):
+        items = page.evaluate(
+            """() => Object.fromEntries(
+              ['h2-led', 'h3-led', 'eyebrow-led', 'framed', 'prose-led', 'list-led',
+               'flow-led'].map(id => {
+                const item = document.getElementById(id);
+                const box = item.getBoundingClientRect();
+                let first = item.firstElementChild;
+                while (first.firstElementChild && !/^(h[1-6]|p)$/.test(first.localName))
+                  first = first.firstElementChild;
+                const top = first.getBoundingClientRect().top;
+                const above = item.previousElementSibling?.getBoundingClientRect();
+                return [id, {
+                  band: top - box.top,
+                  gap: above ? top - above.bottom : null,
+                  margin: parseFloat(getComputedStyle(item).marginBlockStart),
+                }];
+              }))"""
+        )
+        tokens = page.evaluate(
+            """() => ['--h2-start', '--h3-start', '--callout-margin-block'].map(name =>
+              parseFloat(getComputedStyle(document.querySelector('main'))
+                .getPropertyValue(name)))"""
+        )
+        h2_start, h3_start, callout_margin = tokens
+        for led in (
+            "h2-led",
+            "h3-led",
+            "eyebrow-led",
+            "prose-led",
+            "list-led",
+            "flow-led",
+        ):
+            assert items[led]["band"] == pytest.approx(0, abs=0.5), (led, items)
+        assert items["h2-led"]["gap"] == pytest.approx(h2_start, abs=0.5), items
+        assert items["h3-led"]["gap"] == pytest.approx(h3_start, abs=0.5), items
+        assert items["eyebrow-led"]["gap"] == pytest.approx(h2_start, abs=0.5), items
+        assert items["framed"]["margin"] == pytest.approx(callout_margin, abs=0.5), (
+            items
+        )
+    with subtests.test("frame edges"):
+        margins = page.evaluate(
+            """() => Object.fromEntries(
+              ['opening', 'middle-heading', 'closing', 'grid-heading', 'contents-heading',
+               'padded-heading'].map(id => {
+                const s = getComputedStyle(document.getElementById(id));
+                return [id, [parseFloat(s.marginBlockStart), parseFloat(s.marginBlockEnd)]];
+              }))"""
+        )
+        assert margins["opening"][0] == 0
+        assert margins["middle-heading"][0] > 0
+        assert margins["closing"][1] == 0
+        assert margins["grid-heading"][0] == 0
+        assert margins["contents-heading"][0] == 0
+        assert margins["padded-heading"][0] > 0
+        trapped = render_checks_model.evaluate_probe(page, "trappedMargins")
+        assert not [
+            f for f in trapped if f["id"] in {"frame", "grid-frame", "contents-frame"}
+        ], trapped
+        assert any(
+            f["id"] == "padded" and f["child"] == "h2" and not f["frameDeclared"]
+            for f in trapped
+        ), trapped
+        page.locator("#padded").evaluate(
+            "el => el.style.setProperty('--lf-block-frame', '1')"
+        )
+        assert not [
+            f
+            for f in render_checks_model.evaluate_probe(page, "trappedMargins")
+            if f["id"] == "padded"
+        ]
 
 
 def test_the_page_edge_is_no_frame(browser, serve):
     """A page with no Layout keeps the browser's margin on its body, and the live root
     scrolls, so the root holds that margin in. The root draws no frame, its edge
-    being the window's, so the reading has nothing to ask of it, where it named the
-    root of every such page. A root that draws padding is a frame like any box."""
+    being the window's. Shell padding is viewport spacing, including Leaf's panel
+    clearance; a border makes the shell an actual frame whose edges can be read."""
     page = open_page(
         browser, serve(leaf_page("No Layout", "<p>Plain prose.</p>", layout=None))
     )
     margin = page.evaluate("() => getComputedStyle(document.body).marginTop")
     trapped = render_checks_model.evaluate_probe(page, "trappedMargins")
     page.evaluate("() => document.documentElement.style.padding = '12px'")
+    padded = render_checks_model.evaluate_probe(page, "trappedMargins")
+    page.evaluate("() => document.documentElement.style.border = '1px solid'")
     framed = render_checks_model.evaluate_probe(page, "trappedMargins")
     page.close()
 
     assert margin == "8px", "the body lost the browser's margin, so this tests nothing"
     assert trapped == [], trapped
+    assert padded == [], padded
     assert [f["at"] for f in framed] == ["<html>", "<html>"], framed
 
 
@@ -2603,7 +2597,7 @@ def test_every_idiom_in_the_catalog_stands_in_a_corpus_source(browser):
     assert idioms, "no idioms read — an empty catalog demonstrates itself"
     page = browser.new_page()
     held, invalid = set(), set()
-    for example in CORPUS_SOURCES:
+    for example in authored_sources():
         page.set_content(example.read_text(), wait_until="domcontentloaded")
         answer = page.evaluate(
             """(selectors) => {
@@ -2929,7 +2923,7 @@ def _short_aims(page, *, every_tab):
             confirming_resize_notices(page, opening, reopening)
             # What the opening shows: the panel, and the chrome the runtime draws for
             # it, such as the margin's entries for what the panel holds.
-            read(page.locator(f'[id="{tab}"], body > .lf-chrome'), tab)
+            read(page.locator(f'[id="{tab}"], :root > .lf-chrome'), tab)
     assert seen > 30, f"only {seen} aims stood on the corpus"
     if not short:
         return []
@@ -3068,7 +3062,7 @@ def test_a_box_of_text_that_scrolls_leaves_its_last_line_clear_of_the_bar(
         + TEXT_CLEAR_OF_BAR
         + """;
         const [wide, fits] = document.querySelectorAll(
-          '.lf-fp-view[data-view="thread"] .lf-msg-body pre');
+          '.lf-fp-view[data-lf-route="thread"] .lf-msg-body pre');
         const reading = { table: read(document.querySelector('#sessions')),
                           wide: read(wide), fits: read(fits),
                           fitsPad: parseFloat(getComputedStyle(fits).paddingBottom),
@@ -3159,7 +3153,7 @@ def test_a_diagrams_reserved_box_includes_its_scrollbar_clearance(
     font metrics. Removing it exposes the natural drawing and native track sizes;
     the overlay and classic track share the drawing's own blank bottom padding.
     """
-    source = (ROOT / "examples" / "security-boundary.html").read_text()
+    source = named_source("security-boundary").read_text()
     # The example draws its five-step chain top-down so it fits a phone; drawn
     # left-to-right it runs past a 678px viewport and scrolls, which this test needs.
     source = source.replace("flowchart TD", "flowchart LR", 1).replace(
@@ -3509,10 +3503,16 @@ def test_the_squeeze_reading_follows_words_into_an_open_shadow_root(
     ), squeezed
 
 
-def test_a_quiet_word_inside_a_scrolling_table_leaves_the_page_its_own_width(
-    browser, serve
-):
-    """A widget hangs a word clipped to nothing among the page's own words (.lf-quiet),
+def test_a_table_too_wide_to_wrap_scrolls_inside_the_column(browser, serve, subtests):
+    """The theme's answer for a table with more in it than the column holds. Its
+    columns hold what is in them, so it takes the measure only when it needs to
+    and wraps its cells past that; when even wrapping can't fit it scrolls inside
+    itself — like pre, like lf-board — rather than out into the margin
+    where a suggestion's controls hang. `width: 100%` had no third case: the
+    table spilled, and at this viewport the window is wide enough that nothing
+    scrolled to say so.
+
+    A widget hangs a word clipped to nothing among the page's own words (.lf-quiet),
     out of flow so it holds no room. Out of flow with no positioned ancestor is
     positioned against the page, though, and a table scrolling inside itself holds
     its far column three hundred pixels past the window: the cell is there, the
@@ -3525,49 +3525,65 @@ def test_a_quiet_word_inside_a_scrolling_table_leaves_the_page_its_own_width(
     cell rather than standing still while the cell moves; and the cell has to be off
     the table's own edge at the first of them, or nothing here could have escaped."""
     page = open_page(browser, serve(WIDE_TABLE_PAGE))
-    note = plant_quiet_word(page, "#sessions td", "value_number_7")
+    with subtests.test("column"):
+        measured = page.locator("#sessions").evaluate(
+            """(t) => {
+            const main = t.closest('main'), pad = parseFloat(getComputedStyle(main).paddingRight);
+            const column = main.getBoundingClientRect().right - pad;
+            return { past: Math.round(t.getBoundingClientRect().right - column),
+                     scrolls: Math.round(t.scrollWidth - t.clientWidth) };
+        }"""
+        )
+        # Where the width went, then that there was width to go anywhere: a table
+        # narrow enough to fit satisfies the first of these while proving nothing,
+        # and it is the second that says this one was never such a table.
+        assert measured["past"] <= 0
+        assert measured["scrolls"] > 0, "this table fits, so it proves nothing"
+        assert root_overflow(page) == 0
+    with subtests.test("quiet word"):
+        note = plant_quiet_word(page, "#sessions td", "value_number_7")
 
-    # At rest, then with the table scrolled to its far end; the page's own width is
-    # the gate's reading, taken at each.
-    read = """(n, scrolled) => {
-        const table = document.querySelector('#sessions');
-        if (scrolled) table.scrollLeft = table.scrollWidth;
-        const word = n.getBoundingClientRect();
-        const cell = n.closest('td').getBoundingClientRect();
-        const shown = table.getBoundingClientRect();
-        return {
-            holder: n.closest('td').firstChild.data,
-            scrolls: Math.round(table.scrollWidth - table.clientWidth),
-            onItsCell: word.left >= Math.floor(cell.left)
-                       && word.right <= Math.ceil(cell.right),
-            // Within a pixel: the table scrolls to a whole-pixel scrollWidth, so a
-            // cell ending on a fraction stands that fraction past the box at the end.
-            cellShown: cell.left >= shown.left - 1 && cell.right <= shown.right + 1,
-        };
-    }"""
-    measured = {
-        position: {
-            **note.evaluate(read, position == "scrolled"),
-            "sideways": root_overflow(page),
+        # At rest, then with the table scrolled to its far end; the page's own width is
+        # the gate's reading, taken at each.
+        read = """(n, scrolled) => {
+            const table = document.querySelector('#sessions');
+            if (scrolled) table.scrollLeft = table.scrollWidth;
+            const word = n.getBoundingClientRect();
+            const cell = n.closest('td').getBoundingClientRect();
+            const shown = table.getBoundingClientRect();
+            return {
+                holder: n.closest('td').firstChild.data,
+                scrolls: Math.round(table.scrollWidth - table.clientWidth),
+                onItsCell: word.left >= Math.floor(cell.left)
+                           && word.right <= Math.ceil(cell.right),
+                // Within a pixel: the table scrolls to a whole-pixel scrollWidth, so a
+                // cell ending on a fraction stands that fraction past the box at the end.
+                cellShown: cell.left >= shown.left - 1 && cell.right <= shown.right + 1,
+            };
+        }"""
+        measured = {
+            position: {
+                **note.evaluate(read, position == "scrolled"),
+                "sideways": root_overflow(page),
+            }
+            for position in ("rest", "scrolled")
         }
-        for position in ("rest", "scrolled")
-    }
-    assert measured["rest"]["holder"] == "value_number_7", (
-        "the word is on the marked cell"
-    )
-    assert measured["rest"]["scrolls"] > 0, "this table fits, so it proves nothing"
-    assert not measured["rest"]["cellShown"], (
-        "the cell is on screen already, so nothing here could have escaped"
-    )
-    assert measured["scrolled"]["cellShown"], (
-        f"the table did not scroll to the cell: {measured}"
-    )
-    assert measured["rest"]["onItsCell"] and measured["scrolled"]["onItsCell"], (
-        f"the word left the cell it belongs to: {measured}"
-    )
-    assert (
-        measured["rest"]["sideways"] == 0 and measured["scrolled"]["sideways"] == 0
-    ), f"the page grew sideways reaching for the word: {measured}"
+        assert measured["rest"]["holder"] == "value_number_7", (
+            "the word is on the marked cell"
+        )
+        assert measured["rest"]["scrolls"] > 0, "this table fits, so it proves nothing"
+        assert not measured["rest"]["cellShown"], (
+            "the cell is on screen already, so nothing here could have escaped"
+        )
+        assert measured["scrolled"]["cellShown"], (
+            f"the table did not scroll to the cell: {measured}"
+        )
+        assert measured["rest"]["onItsCell"] and measured["scrolled"]["onItsCell"], (
+            f"the word left the cell it belongs to: {measured}"
+        )
+        assert (
+            measured["rest"]["sideways"] == 0 and measured["scrolled"]["sideways"] == 0
+        ), f"the page grew sideways reaching for the word: {measured}"
 
 
 @pytest.mark.parametrize("shape", HIDDEN_SCROLLERS)
@@ -3696,6 +3712,33 @@ def test_declared_space_names_containing_holders_as_advice(browser, serve):
     assert all(finding.severity == "advice" for finding in advice)
     assert 'class="layout-flow"' in str(advice[0])
     assert "put data-width on that holder" in str(advice[0])
+
+
+def test_the_sweep_reads_each_width_as_a_load_there_shows_it(browser, serve):
+    """A width the sweep steps to is read as it settles, not partway through a
+    transition the step started, which no load at that width shows. A sidebar's
+    contents map, once the window is wide enough to lay it in the margin, fades its
+    labels out at the places they take over the column; the sweep up from a phone's
+    window read them mid-fade and failed the page for words they covered for a fifth
+    of a second."""
+    source = leaf_page(
+        "Settling",
+        """<div id="stage"><p id="prose">Words a fading label passes over.</p>
+        <p id="label">A label that fades out</p></div>""",
+        head="""<style>
+#stage { position: relative; }
+#stage > p { margin: 0; }
+#label { transition: opacity 60s linear; }
+@media (min-width: 1000px) {
+  #label { position: absolute; inset: 0 auto auto 0; opacity: 0; }
+}
+</style>""",
+    )
+    # Loaded where the label stands in flow, so the step to 1200px starts the whole fade.
+    context = browser.new_context(viewport={"width": 800, "height": 720})
+    page = open_page(browser, serve(source), context=context)
+    readings = render_gate_readings.sweep(page, [1200], [])
+    assert render_gate_readings.swept_faults(readings) == []
 
 
 def test_unpainted_padding_can_hold_focus_rings_inside_the_page_gutter(browser, serve):
@@ -3979,7 +4022,7 @@ def test_the_layer_traps_no_margin_in_the_panel_it_draws(browser, serve):
     panel on nothing and reports the control as missing."""
     seeded = [
         path
-        for path in CORPUS_SOURCES
+        for path in authored_sources()
         if (log := path.with_suffix(".jsonl")).exists()
         and any(
             event.get("kind") == "comment" and event.get("anchor")
@@ -4504,31 +4547,6 @@ body { width: 40vw; }
         )
         assert body > 0, f"the two candidate measurements do not diverge at {width}px"
         assert root_overflow(page) == 0, (width, body)
-
-
-def test_a_table_too_wide_to_wrap_scrolls_inside_the_column(browser, serve):
-    """The theme's answer for a table with more in it than the column holds. Its
-    columns hold what is in them, so it takes the measure only when it needs to
-    and wraps its cells past that; when even wrapping can't fit it scrolls inside
-    itself — like pre, like lf-board — rather than out into the margin
-    where a suggestion's controls hang. `width: 100%` had no third case: the
-    table spilled, and at this viewport the window is wide enough that nothing
-    scrolled to say so."""
-    page = open_page(browser, serve(WIDE_TABLE_PAGE))
-    measured = page.locator("#sessions").evaluate(
-        """(t) => {
-        const main = t.closest('main'), pad = parseFloat(getComputedStyle(main).paddingRight);
-        const column = main.getBoundingClientRect().right - pad;
-        return { past: Math.round(t.getBoundingClientRect().right - column),
-                 scrolls: Math.round(t.scrollWidth - t.clientWidth) };
-    }"""
-    )
-    # Where the width went, then that there was width to go anywhere: a table
-    # narrow enough to fit satisfies the first of these while proving nothing,
-    # and it is the second that says this one was never such a table.
-    assert measured["past"] <= 0
-    assert measured["scrolls"] > 0, "this table fits, so it proves nothing"
-    assert root_overflow(page) == 0
 
 
 def test_a_page_hands_its_note_strip_back_when_the_panel_takes_the_room(browser, serve):

@@ -8,7 +8,6 @@ from playwright.sync_api import expect
 from render_cases_interaction import live_url
 from render_cases_layout import SHOT_SRC, SHOTS
 from render_harness import (
-    ROOT,
     displayed,
     holding,
     leaf_page,
@@ -26,9 +25,10 @@ from render_harness import (
 
 from leaf import render_checks as render_checks_model
 from leaf.render_checks import rendered, wait_until_ready
+from leaf_dev.example_data import named_source
 
-ROOT_TABS_PAGE = ROOT / "tests/fixtures/pages/root-tabs.html"
-ROOT_PARTS_PAGE = ROOT / "tests/fixtures/pages/root-parts.html"
+ROOT_TABS_PAGE = named_source("root-tabs")
+ROOT_PARTS_PAGE = named_source("root-parts")
 
 
 def test_root_tabs_switch_views_without_moving_the_strip_and_follow_history(
@@ -370,7 +370,7 @@ def test_a_stuck_root_tab_strip_hides_what_passes_under_it(browser, serve):
         page.keyboard.press("ArrowRight")
 
 
-def _stacked_headers(browser, serve, flow="page"):
+def _stacked_headers(browser, serve, flow):
     """A tab strip with a long pinned diff in its first tab, then a short one whose code
     is wide enough to scroll sideways, and another long one after the tabs. In the
     page's flow the strip stands over the root; a set in a section is a framed box,
@@ -420,7 +420,7 @@ def _stacked_headers(browser, serve, flow="page"):
 
 @pytest.mark.parametrize("flow", ["page", "box"])
 def test_sticky_headers_stack_so_a_diff_in_a_tab_pins_under_the_strip(
-    browser, serve, flow
+    browser, serve, subtests, flow
 ):
     """A diff's file header in a tab pins under the stuck tab strip rather than over
     it: each sticky header has a stated height and adds it to `--lf-top` for what it
@@ -428,7 +428,16 @@ def test_sticky_headers_stack_so_a_diff_in_a_tab_pins_under_the_strip(
     the part of a row under the diff's header reads as not on screen. A page's strip
     is cleared by the root's own padding; a framed set's strip stands over only the
     set, so the rows clear it with their margin, read through the code's sideways
-    scroller, where a framed set's rows had landed under the file header."""
+    scroller, where a framed set's rows had landed under the file header.
+
+    A control in a stuck sticky header stands inside the root's landing band, so the
+    browser scrolled toward it on every focus and the header never came out from under
+    the band: the page crept 17px a focus under a diff's file header, and was centred,
+    hundreds of pixels a key, under a page tab strip. The focus margin is read from the
+    sticky-header slot, so focusing one where it sticks scrolls nothing: in a page tab,
+    where the strip stands over it, and after the tabs, where the root's band still
+    counts the strip. Focus moving on from the file header into its code, a tab stop
+    since it scrolls sideways, clears the header."""
     page = _stacked_headers(browser, serve, flow)
     read = page.evaluate(
         """async () => {
@@ -460,18 +469,9 @@ def test_sticky_headers_stack_so_a_diff_in_a_tab_pins_under_the_strip(
     assert landed["row"] > landed["head"], landed
     assert read["row"]["top"] < read["head"]["bottom"] < read["row"]["bottom"], read
     assert read["shown"] == pytest.approx(read["head"]["bottom"], abs=0.5), read
+    if flow != "page":
+        return
 
-
-def test_focus_in_a_stuck_header_leaves_the_page_where_it_is(browser, serve):
-    """A control in a stuck sticky header stands inside the root's landing band, so the
-    browser scrolled toward it on every focus and the header never came out from under
-    the band: the page crept 17px a focus under a diff's file header, and was centred,
-    hundreds of pixels a key, under a page tab strip. The focus margin is read from the
-    sticky-header slot, so focusing one where it sticks scrolls nothing: in a page tab,
-    where the strip stands over it, and after the tabs, where the root's band still
-    counts the strip. Focus moving on from the file header into its code, a tab stop
-    since it scrolls sideways, clears the header."""
-    page = _stacked_headers(browser, serve)
     focus_in = """async (id) => {
         const page = document.scrollingElement;
         const diff = document.getElementById(id);
@@ -493,32 +493,34 @@ def test_focus_in_a_stuck_header_leaves_the_page_where_it_is(browser, serve):
         }
         return moved;
     }"""
-    assert page.evaluate(focus_in, "patch") == {"file": 0, "tab": 0}
-    assert page.evaluate(focus_in, "after-tabs") == {"file": 0}
-    # Tab from a stuck file header into its code, scrolled partly past above it.
-    page.evaluate(
-        """async () => {
-        const root = document.getElementById('wide').shadowRoot;
-        const code = root.querySelector('.lf-text-scroller');
-        document.scrollingElement.scrollTop += code.getBoundingClientRect().top - 60;
-        await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
-        root.querySelector('.lf-diff-file > details > summary').focus({preventScroll: true});
-    }"""
-    )
-    page.keyboard.press("Tab")
-    rendered(page)
-    code = page.evaluate(
-        """() => {
-        const root = document.getElementById('wide').shadowRoot;
-        const head = root.querySelector('.lf-diff-file > details > summary');
-        const focused = root.activeElement;
-        return {scroller: focused?.classList.contains('lf-text-scroller'),
-                top: focused?.getBoundingClientRect().top,
-                head: head.getBoundingClientRect().bottom};
-    }"""
-    )
-    assert code["scroller"], code
-    assert code["top"] >= code["head"], code
+    with subtests.test("focus in a stuck header leaves the page where it is"):
+        assert page.evaluate(focus_in, "patch") == {"file": 0, "tab": 0}
+        assert page.evaluate(focus_in, "after-tabs") == {"file": 0}
+    with subtests.test("Tab from a stuck file header into its code clears the header"):
+        # Scrolled partly past above it.
+        page.evaluate(
+            """async () => {
+            const root = document.getElementById('wide').shadowRoot;
+            const code = root.querySelector('.lf-text-scroller');
+            document.scrollingElement.scrollTop += code.getBoundingClientRect().top - 60;
+            await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+            root.querySelector('.lf-diff-file > details > summary').focus({preventScroll: true});
+        }"""
+        )
+        page.keyboard.press("Tab")
+        rendered(page)
+        code = page.evaluate(
+            """() => {
+            const root = document.getElementById('wide').shadowRoot;
+            const head = root.querySelector('.lf-diff-file > details > summary');
+            const focused = root.activeElement;
+            return {scroller: focused?.classList.contains('lf-text-scroller'),
+                    top: focused?.getBoundingClientRect().top,
+                    head: head.getBoundingClientRect().bottom};
+        }"""
+        )
+        assert code["scroller"], code
+        assert code["top"] >= code["head"], code
 
 
 WIDE_TABLE_IN_A_FRAMED_SET = leaf_page(
@@ -1394,7 +1396,7 @@ def test_a_tab_strip_keeps_its_open_tab_in_its_one_row(browser, serve):
           strip.scrollLeft = 0;
           const expected = sign * Math.min(
             0.8 * strip.clientWidth, strip.scrollWidth - strip.clientWidth);
-          strip.querySelector('.lf-tabstrip-scroll[data-to="end"] > span').click();
+          strip.querySelector('.lf-tabstrip-scroll[data-lf-to="end"] > span').click();
           return {expected, actual: strip.scrollLeft};
         }""",
             [strip_id, sign],
@@ -1841,87 +1843,87 @@ def test_wide_evidence_in_a_part_takes_the_room_it_would_on_a_page_of_its_own(
     twin(phone, "phone")
 
 
-def test_the_list_of_parts_lands_its_last_name_above_the_floating_row(browser, serve):
-    """The list of parts runs to the window's foot, under the floating panel's row where
-    a narrow window puts the row over the column. A name the keyboard moves to still
-    lands above the row, as a landing in the page does. The window leaves the list
-    100 px between its title and the row, whatever height the host's fonts give the
-    title, so the list scrolls to reach its last name."""
+def test_the_list_of_parts_stays_in_reach_in_every_window(browser, serve, subtests):
+    """A page of parts keeps its list where the keyboard and the eye can reach it,
+    whatever window it is in. They run on one page, the window resized for each."""
     page = open_page(browser, serve(ROOT_PARTS_PAGE))
-    resized(page, 800, 900)
-    title = page.locator("main > header").bounding_box()
-    under_row = 900 - page.locator(".lf-fp-row").bounding_box()["y"]
-    resized(page, 800, round(title["y"] + title["height"] + 100 + under_row))
-    tabs = page.locator("#root-parts")
-    tabs.get_by_role("tab", name="Plan", exact=True).focus()
-    page.keyboard.press("End")
-    last = tabs.get_by_role("tab", name="Summary", exact=True)
-    expect(last).to_be_focused()
-    scroll_settled(page)
-    row = page.locator(".lf-fp-row").bounding_box()
-    box = last.bounding_box()
-    assert box["x"] < row["x"] + row["width"], (box, row)
-    assert box["y"] + box["height"] <= row["y"], (box, row)
-
-
-def test_a_short_window_keeps_the_list_of_parts_in_reach(browser, serve):
-    """The column stands fixed in the window, so a title taller than a short window
-    scrolls on its own and leaves the list a few names' room, rather than pushing the
-    list below the window's foot."""
-    page = open_page(browser, serve(ROOT_PARTS_PAGE))
-    resized(page, 1280, 300)
-    tabs = page.locator("#root-parts")
-    tabs.get_by_role("tab", name="Plan", exact=True).focus()
-    page.keyboard.press("End")
-    last = tabs.get_by_role("tab", name="Summary", exact=True)
-    expect(last).to_be_focused()
-    scroll_settled(page)
-    box = last.bounding_box()
-    assert 0 <= box["y"] and box["y"] + box["height"] <= 300, box
-
-
-def test_a_phone_keeps_the_list_of_parts_in_reach_and_each_part_s_place(browser, serve):
-    """On a phone the list of parts is a row over the open part, and it sticks there as
-    page tabs' strip does: the reader reaches another part from deep in this one, the
-    part they leave keeps their place, and a link lands below the row rather than under
-    it."""
-    page = open_page(browser, serve(ROOT_PARTS_PAGE))
-    resized(page, 390, 800)
     tabs = page.locator("#root-parts")
     plan = tabs.get_by_role("tab", name="Plan", exact=True)
     evidence = tabs.get_by_role("tab", name="Evidence", exact=True)
+    last = tabs.get_by_role("tab", name="Summary", exact=True)
     strip = page.locator("#root-parts > .lf-tabstrip")
 
-    def settled():
+    with subtests.test("its last name lands above the floating row"):
+        # The list runs to the window's foot, under the floating panel's row where a
+        # narrow window puts the row over the column. A name the keyboard moves to
+        # still lands above the row, as a landing in the page does. The window leaves
+        # the list 100 px between its title and the row, whatever height the host's
+        # fonts give the title, so the list scrolls to reach its last name.
+        resized(page, 800, 900)
+        title = page.locator("main > header").bounding_box()
+        under_row = 900 - page.locator(".lf-fp-row").bounding_box()["y"]
+        resized(page, 800, round(title["y"] + title["height"] + 100 + under_row))
+        plan.focus()
+        page.keyboard.press("End")
+        expect(last).to_be_focused()
         scroll_settled(page)
-        return page.evaluate("scrollY")
+        row = page.locator(".lf-fp-row").bounding_box()
+        box = last.bounding_box()
+        assert box["x"] < row["x"] + row["width"], (box, row)
+        assert box["y"] + box["height"] <= row["y"], (box, row)
 
-    def press(tab):
-        # Locator.click would scroll the stuck row's tab to where the row stands in
-        # flow first.
-        box = tab.bounding_box()
-        page.mouse.click(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+    with subtests.test("a short window leaves it a few names' room"):
+        # The column stands fixed in the window, so a title taller than a short window
+        # scrolls on its own and leaves the list that room, rather than pushing the
+        # list below the window's foot. Home first, so End has somewhere to bring it.
+        resized(page, 1280, 300)
+        last.focus()
+        page.keyboard.press("Home")
+        expect(plan).to_be_focused()
+        scroll_settled(page)
+        page.keyboard.press("End")
+        expect(last).to_be_focused()
+        scroll_settled(page)
+        box = last.bounding_box()
+        assert 0 <= box["y"] and box["y"] + box["height"] <= 300, box
 
-    evidence.click()
-    expect(evidence).to_have_attribute("aria-selected", "true")
-    page.evaluate("scrollTo({top: 1000, behavior: 'instant'})")
-    read = settled()
-    assert read == 1000
-    row = strip.bounding_box()
-    assert 0 <= row["y"] < 40, row
-    press(plan)
-    expect(plan).to_have_attribute("aria-selected", "true")
-    settled()
-    press(evidence)
-    expect(evidence).to_have_attribute("aria-selected", "true")
-    assert settled() == pytest.approx(read, abs=2)
+    with subtests.test("a phone keeps it stuck and each part's place"):
+        # On a phone the list of parts is a row over the open part, and it sticks there
+        # as page tabs' strip does: the reader reaches another part from deep in this
+        # one, the part they leave keeps their place, and a link lands below the row
+        # rather than under it.
+        resized(page, 390, 800)
 
-    page.evaluate("location.hash = 'part-plan-rollback'")
-    expect(plan).to_have_attribute("aria-selected", "true")
-    settled()
-    row = strip.bounding_box()
-    heading = page.locator("#part-plan-rollback h2").bounding_box()
-    assert heading["y"] >= row["y"] + row["height"] - 1, (heading, row)
+        def settled():
+            scroll_settled(page)
+            return page.evaluate("scrollY")
+
+        def press(tab):
+            # Locator.click would scroll the stuck row's tab to where the row stands in
+            # flow first.
+            box = tab.bounding_box()
+            page.mouse.click(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+
+        evidence.click()
+        expect(evidence).to_have_attribute("aria-selected", "true")
+        page.evaluate("scrollTo({top: 1000, behavior: 'instant'})")
+        read = settled()
+        assert read == 1000
+        row = strip.bounding_box()
+        assert 0 <= row["y"] < 40, row
+        press(plan)
+        expect(plan).to_have_attribute("aria-selected", "true")
+        settled()
+        press(evidence)
+        expect(evidence).to_have_attribute("aria-selected", "true")
+        assert settled() == pytest.approx(read, abs=2)
+
+        page.evaluate("location.hash = 'part-plan-rollback'")
+        expect(plan).to_have_attribute("aria-selected", "true")
+        settled()
+        row = strip.bounding_box()
+        heading = page.locator("#part-plan-rollback h2").bounding_box()
+        assert heading["y"] >= row["y"] + row["height"] - 1, (heading, row)
 
 
 @pytest.mark.parametrize("route", ["pointer", "keyboard", "touch"])

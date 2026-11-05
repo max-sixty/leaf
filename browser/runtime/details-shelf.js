@@ -35,7 +35,11 @@
  * any focus, visible or not: nothing but the keys or assistive technology reaches the
  * shelf. The ring follows what the note stands for while focus stays, so a target the
  * page draws anew, which shelves the note under the new element, takes it with it.
- * The shelf stands fixed, so the focus moves the page no other way (chrome.css).
+ * A note standing for a place the element only stands beside, as a removed paragraph's
+ * gap stands beside the block after it, has its owner open, bring into view and ring
+ * that place instead (margin-bars.js), and says so as it is shelved (`presents:
+ * false`). The shelf stands fixed, so the focus moves the page no other way
+ * (chrome.css).
  */
 import { chromeRoot } from "./chrome.js";
 import { move } from "./dom-move.js";
@@ -52,25 +56,32 @@ import { offer, reveal } from "./widget-elements.js";
 // node in it stands for.
 /** @typedef {{notes: Element[], authored: string | null}} ShelfRecord */
 /** @typedef {(node: Element) => Element | null} StandsFor */
+/** @typedef {{element: Element, standsFor: StandsFor, presents: boolean}} ShelfOwner */
 /** @type {Map<Element, ShelfRecord>} */
 const records = new Map();
-/** @type {WeakMap<Node, {element: Element, standsFor: StandsFor}>} */
+/** @type {WeakMap<Node, ShelfOwner>} */
 const owners = new WeakMap();
 /** @type {HTMLDivElement | null} */
 let shelf = null;
 
+// How the note a node on the shelf is in was shelved, or null for a node off the shelf.
+/** @param {Element} node */
+function noteOf(node) {
+  /** @type {Element | null} */
+  let at = node;
+  for (; at && at !== shelf; at = upFrom(at)) {
+    const owner = owners.get(at);
+    if (owner) return owner;
+  }
+  return null;
+}
 // What a node on the shelf stands for: what its note's owner reads for the node, such as
 // one of a picture's parts for that part's proxy, else the element naming the note.
 // Null for a node off the shelf.
 /** @param {Element} node */
 function standsFor(node) {
-  /** @type {Element | null} */
-  let at = node;
-  for (; at && at !== shelf; at = upFrom(at)) {
-    const owner = owners.get(at);
-    if (owner) return owner.standsFor(node) ?? owner.element;
-  }
-  return null;
+  const owner = noteOf(node);
+  return owner && (owner.standsFor(node) ?? owner.element);
 }
 declareSide(standsFor);
 
@@ -82,14 +93,14 @@ let ringed = null;
 // stands for can change.
 function ring() {
   const node = focused();
-  const target = node && standsFor(node);
+  const target = node && noteOf(node)?.presents ? standsFor(node) : null;
   if (target === ringed && (!target || target.isConnected)) return;
   ringed = target;
   const part = target && visualAt(target, { unclaimed: false })?.part;
   paintProxyRing(target, part?.element === target ? part.surface : target);
 }
 onCurrentLocation((node) => {
-  if (node && standsFor(node)) {
+  if (node && noteOf(node)?.presents && standsFor(node)) {
     reveal(standsFor(node), retainUserIntent());
     // What the reveal opened may have drawn the target anew.
     scrollIntoView(standsFor(node), { behavior: "instant", block: "nearest" });
@@ -130,16 +141,22 @@ function name(element, record) {
 
 // Stand `note` on the shelf and have `element` name it. Idempotent, and meant to be asked
 // on every pass that finds the note still owed. `standsFor` reads what a node in the
-// note stands for where that is not `element` itself. A note shelved under another
-// element moves to it, keeping its node, so a user on it stays there.
+// note stands for where that is not `element` itself, and `presents: false` leaves
+// showing that place on focus to the note's owner. A note shelved under another element
+// moves to it, keeping its node, so a user on it stays there.
 /** @param {Element} element @param {Element} note @param {StandsFor} [standsFor] */
-export function shelve(element, note, standsFor = () => null) {
+export function shelve(
+  element,
+  note,
+  standsFor = () => null,
+  { presents = true } = {},
+) {
   shelf ??= offer("div", "lf-details-shelf");
   if (!shelf.isConnected) chromeRoot.append(shelf);
   if (note.parentNode !== shelf) move(shelf, note, null);
   const before = owners.get(note)?.element;
   if (before && before !== element) forget(before, note);
-  owners.set(note, { element, standsFor });
+  owners.set(note, { element, standsFor, presents });
   let record = records.get(element);
   if (!record) {
     record = { notes: [], authored: null };

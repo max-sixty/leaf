@@ -1,0 +1,735 @@
+# Leaf's two conversation forks, replayed on short constructed conversations
+# (`dev/leaf_dev/fork_eval.py`). A case names its fork, the page the session holds
+# (a source under evals/, with `log` events admitted as its history), the
+# conversation (a `from` item stands for a named one, and `found` for the line the
+# arm's clerk queues for that finding), and how its answer is scored. `{page}` and
+# `{session}` stand for the case's page directory and session id.
+#
+# Turn-end labels: `expect` items the answer must name, and `absent` items it must
+# leave out, each by `kind` and the `words` (any of them) it rests on; a guardrail
+# shares its words with its positive case. A stale label's `edit` is the words its
+# fix must remove, or null where the turn-end check's prompt asks for no edit
+# (skills/leaf/references/turn-end-check.md). A reply case's `decision` is `reply`
+# or `hand_over`.
+
+# When each conversation starts; its records follow seven seconds apart.
+start: "2026-11-03T09:00:00+00:00"
+
+rubrics:
+  items: &items
+    type: llm-rubric
+    metric: items-right
+    # A run with no answer Leaf took, from a tool call or a refusal, leaves no text.
+    transform: context.metadata.texts?.judge || 'The fork gave no usable answer.'
+    value: >-
+      The input is the line "The fork gave no usable answer.", which fails; the line
+      "No items and no changes.", which passes; or a conversation between a user and
+      a coding agent, the question Leaf's turn-end
+      check asked a fork of that conversation, every item of the fork's answer that
+      Leaf took (each ask as Leaf put it On me, with the title and text the user
+      reads; each finding as Leaf passed it to the agent), each marked `labelled`
+      where this test expects it, and the changes Leaf made to the page from the
+      answer's edits. Pass only if all of these hold. A question's title names its
+      subject and its text asks what the conversation leaves to the user, correctly,
+      in a way the user can answer from the card alone; for a step the user takes,
+      it says what to do and asks for a reply once it is done. A finding's summary says correctly what the conversation
+      shows. Each change makes the page say what the conversation shows now, in the
+      page's own register. Each item not labelled is one the question asks for and
+      the conversation clearly shows: an ask the agent left to the user that no On me
+      item holds and the user hasn't answered since; a page passage the work or the
+      conversation has since contradicted; an On me item settled elsewhere; or work
+      the agent promised or set running that no page shows. An unlabelled item fails
+      if it hedges about what the page may say, if a Leaf message in the
+      conversation already passed it on, if it concerns a chat reply rather than the
+      page, if an On me item already holds it, if the user has since answered it, if
+      it concerns a server, watcher or wait loop serving only the agent's own checks,
+      or if it repeats another item.
+  reply: &reply
+    type: llm-rubric
+    metric: reply-right
+    transform: context.metadata.texts?.reply || 'The fork gave no usable answer.'
+    value: >-
+      The input is the line "The fork gave no usable answer.", which fails, or a
+      conversation between a user and a coding agent, the user's
+      message in a thread on the agent's page, and the reply a fork of the
+      conversation posted in the thread as the agent's. Pass only if the reply answers
+      the message directly and correctly, and promises no work. Every observation it
+      states must be in the conversation: a count, an error message, a result, a
+      command that ran or what a file contains. Fail a reply that states one the
+      conversation lacks, such as all of several failures having one error when the
+      output shows one. An explanation the reply offers passes where it is
+      consistent with what the conversation shows, even if the conversation never
+      states it.
+
+# The words a guardrail and its positive case share.
+words:
+  cache-question: &cache-question [lru, ttl]
+  flag-step: &flag-step [flags set search cache lru, search cache]
+  staging-flag: &staging-flag [staging]
+  reindex-stale:
+    &reindex-stale [
+      2 of 5,
+      all 5 shards rebuilt,
+      remaining shards rebuilt,
+      staging now serves,
+      search v7,
+      reindex is running,
+    ]
+  old-index:
+    &old-index [
+      old index,
+      delete it as soon as the swap,
+      deletes the old index,
+      retain old index,
+    ]
+  eu-west-rebuild:
+    &eu-west-rebuild [
+      eu west rebuild,
+      running in the background,
+      tell you when it finishes,
+      tell me when it s done,
+      reindex start,
+    ]
+
+conversations:
+  cache:
+    - user: >-
+        Compare an LRU cache and a TTL cache for the search API's result cache, and
+        keep the page at {page} up to date with what you find.
+    - assistant: I'll replay last week's query log through both policies.
+    - tool: Bash
+      input:
+        command: python bench/cache_sim.py --policy lru --size 50000 && python bench/cache_sim.py --policy ttl --ttl 300
+        description: Simulate both eviction policies on last week's queries
+      result: |-
+        policy=lru size=50000 queries=1204331 hit_rate=0.81 p95_age=41m peak_mem=1.9GB
+        policy=ttl ttl=300s queries=1204331 hit_rate=0.74 p95_age=4m peak_mem=2.6GB
+    - tool: Edit
+      input:
+        file_path: "{page}/index.html"
+        old_string: |-
+          <p id="cache-findings-body">
+                    Simulating both policies.
+                  </p>
+        new_string: |-
+          <p id="cache-findings-body">
+                    LRU hits 81% of queries and stays under 1.9 GB, but a result can be 41
+                    minutes old at p95. TTL hits 74% and keeps every result under five minutes
+                    old, at up to 2.6 GB.
+                  </p>
+      result: The file {page}/index.html has been updated successfully.
+  cache-chosen:
+    - user: LRU. Memory is what's tight on the search hosts.
+    - assistant: Going with LRU, behind a flag so it can be turned on per environment.
+    - tool: Edit
+      input:
+        file_path: search/cache.py
+        old_string: "        return self._search(query)"
+        new_string: "        if flags.get(\"search.cache\") == \"lru\":\n            return self._lru.get_or_compute(query.key, lambda: self._search(query))\n        return self._search(query)"
+      result: The file search/cache.py has been updated successfully.
+    - tool: Bash
+      input:
+        command: pytest tests/search -q
+        description: Run the search tests
+      result: 48 passed in 3.1s
+    - tool: Edit
+      input:
+        file_path: "{page}/index.html"
+        old_string: |-
+          Two eviction policies, simulated on last week's query log: LRU at 50,000
+                  entries and TTL at five minutes.
+        new_string: |-
+          The search API's result cache evicts by LRU at 50,000 entries, since memory is
+                  the constraint on the search hosts. It serves where the search.cache flag
+                  is lru.
+      result: The file {page}/index.html has been updated successfully.
+    - assistant: >-
+        The LRU cache is in `search/cache.py`, behind the `search.cache` flag, and the
+        search tests pass. The page records the choice and why.
+  flag-asked:
+    - user: Turn the LRU cache on in staging.
+    - tool: Bash
+      input:
+        command: ./ops/flags set search.cache lru --env staging
+        description: Turn the LRU cache on in staging
+      result: "error: staging flags need an ops token (OPS_TOKEN unset); run `ops login` first"
+      error: true
+    - assistant: >-
+        Setting staging flags needs your ops login, which this session doesn't have.
+        Run `./ops/flags set search.cache lru --env staging` from your terminal, and
+        tell me when it's done.
+  flag-on:
+    - user: Ran it. Staging should have it now.
+    - tool: Bash
+      input:
+        command: ./ops/flags get search.cache --env staging
+        description: Check the staging flag
+      result: search.cache=lru (staging, set 2026-11-03T09:06Z)
+    - assistant: Confirmed, staging has `search.cache=lru`, so its search results now come through the LRU cache.
+  reindex:
+    - user: >-
+        Check on the staging reindex and finish it if it's stuck. The page at {page}
+        tracks it.
+    - tool: Bash
+      input:
+        command: ./ops/reindex status --env staging
+        description: Check the staging reindex
+      result: |-
+        shard-0 rebuilt
+        shard-1 rebuilt
+        shard-2 stuck: lock held by worker 4412 (exited 3h ago)
+        shard-3 pending
+        shard-4 pending
+    - assistant: Shard 2 is stuck on a lock left by a worker that exited three hours ago. Clearing it and resuming.
+    - tool: Bash
+      input:
+        command: ./ops/reindex unlock --shard 2 --env staging && ./ops/reindex resume --env staging --wait
+        description: Clear the stale lock and finish the reindex
+      result: |-
+        shard-2 rebuilt
+        shard-3 rebuilt
+        shard-4 rebuilt
+        all 5 shards rebuilt; alias search -> search-v7
+    - assistant: >-
+        Done: once shard 2's stale lock was cleared, the remaining shards rebuilt, and
+        staging now serves search-v7.
+  flaky:
+    - user: >-
+        test_cache_warmup keeps failing on CI but never on my laptop. Find out why,
+        and put what you find on the page at {page}.
+    - tool: Bash
+      input:
+        command: pytest tests/test_cache.py::test_cache_warmup -n 8 --count 300 -q
+        description: Run the test 300 times under eight workers
+      result: |-
+        FAILED tests/test_cache.py::test_cache_warmup[17-300] - KeyError: 'q:shoes'
+        FAILED tests/test_cache.py::test_cache_warmup[42-300] - KeyError: 'q:shoes'
+        FAILED tests/test_cache.py::test_cache_warmup[61-300] - KeyError: 'q:shoes'
+        FAILED tests/test_cache.py::test_cache_warmup[95-300] - KeyError: 'q:shoes'
+        FAILED tests/test_cache.py::test_cache_warmup[118-300] - KeyError: 'q:shoes'
+        FAILED tests/test_cache.py::test_cache_warmup[151-300] - KeyError: 'q:shoes'
+        FAILED tests/test_cache.py::test_cache_warmup[187-300] - KeyError: 'q:shoes'
+        FAILED tests/test_cache.py::test_cache_warmup[230-300] - KeyError: 'q:shoes'
+        FAILED tests/test_cache.py::test_cache_warmup[264-300] - KeyError: 'q:shoes'
+        FAILED tests/test_cache.py::test_cache_warmup[289-300] - KeyError: 'q:shoes'
+        10 failed, 290 passed in 41.2s
+    - tool: Bash
+      input:
+        command: pytest tests/test_cache.py::test_cache_warmup -n 0 --count 300 -q
+        description: Run it 300 times serially
+      result: 300 passed in 96.0s
+    - tool: Read
+      input:
+        file_path: src/search/cache.py
+      result: |-
+        40	    async def start(self):
+        41	        self._task = asyncio.create_task(self._warm())
+        42	        return self
+        43
+        58	    async def _warm(self):
+        59	        # Fill the cache with the 10,000 most frequent queries from yesterday's log.
+        60	        for query in await top_queries(10_000):
+        61	            self._store[query.key] = await self._search(query)
+
+# The agent's replies more than one case ends a turn with.
+replies:
+  cache: &cache-reply
+    assistant: >-
+      Both are on the page now. LRU hits 81% of queries and stays under 1.9 GB, but
+      at p95 a result is 41 minutes old; TTL hits 74% and keeps every result under
+      five minutes old, at up to 2.6 GB. Do you want the LRU cache, for its hit rate and
+      bounded memory, or the TTL cache, for fresher results? I'll wire up whichever
+      you pick.
+  flaky: &flaky-reply
+    assistant: >-
+      Found it. `start()` launches the warmup with `asyncio.create_task` and returns
+      at once, so a request can arrive before the cache is filled. Run serially, the
+      warmup always finishes first; under eight workers it loses about 1 run in 30.
+      CI runs the suite with `-n 8`, and pytest on your laptop runs serially unless
+      you pass `-n`, which is why you've never seen it fail. The page has the cause
+      and two fixes: await the warmup in `start()` (three lines, about 200 ms more
+      startup), or lock around the fill (no startup cost, about forty lines).
+
+cases:
+  ask-question:
+    fork: turn-end
+    page: turn-end-check/pages/cache.html
+    conversation:
+      - from: cache
+      - *cache-reply
+    labels:
+      expect:
+        - kind: question
+          words: *cache-question
+    assert:
+      - *items
+  ask-on-me:
+    fork: turn-end
+    page: turn-end-check/pages/cache.html
+    log:
+      - kind: comment
+        author: agent
+        agent: Claude
+        revision: 1
+        id: q1
+        ts: "2026-11-03T09:00:30+00:00"
+        title: LRU or TTL for the result cache
+        obligation: true
+        text: >-
+          LRU hits 81% of queries within 1.9 GB but serves results up to 41 minutes
+          old at p95; TTL hits 74% and keeps every result under five minutes old, at
+          up to 2.6 GB. Which should I wire up?
+    conversation:
+      - from: cache
+      - tool: Bash
+        input:
+          command: >-
+            leaf thread create {page} --obligation --title "LRU or TTL for the result
+            cache" --text "LRU hits 81% of queries within 1.9 GB but serves results up
+            to 41 minutes old at p95; TTL hits 74% and keeps every result under five
+            minutes old, at up to 2.6 GB. Which should I wire up?"
+          description: Ask on the page which policy to wire up
+        result: '{"kind": "comment", "id": "q1", "author": "agent", "title": "LRU or TTL for the result cache", "obligation": true}'
+      - *cache-reply
+    labels:
+      absent:
+        - kind: question
+          words: *cache-question
+    assert:
+      - *items
+  ask-answered:
+    fork: turn-end
+    page: turn-end-check/pages/cache-chosen.html
+    conversation:
+      - from: cache
+      - *cache-reply
+      - from: cache-chosen
+    labels:
+      absent:
+        - kind: question
+          words: *cache-question
+    assert:
+      - *items
+  ask-step:
+    fork: turn-end
+    page: turn-end-check/pages/cache-chosen.html
+    conversation:
+      - from: cache
+      - *cache-reply
+      - from: cache-chosen
+      - from: flag-asked
+    labels:
+      expect:
+        - kind: question
+          words: *flag-step
+    assert:
+      - *items
+  ask-step-done:
+    fork: turn-end
+    page: turn-end-check/pages/cache-staging.html
+    conversation:
+      - from: cache
+      - *cache-reply
+      - from: cache-chosen
+      - from: flag-asked
+      - from: flag-on
+      - tool: Edit
+        input:
+          file_path: "{page}/index.html"
+          old_string: It serves where the search.cache flag is lru.
+          new_string: It serves where the search.cache flag is lru, as it is in staging since 3 November.
+        result: The file {page}/index.html has been updated successfully.
+      - assistant: The page now says staging has it on.
+    labels:
+      absent:
+        - kind: question
+          words: *flag-step
+    assert:
+      - *items
+  stale-omission:
+    fork: turn-end
+    page: turn-end-check/pages/cache-chosen.html
+    conversation:
+      - from: cache
+      - *cache-reply
+      - from: cache-chosen
+      - from: flag-asked
+      - from: flag-on
+    labels:
+      absent:
+        - kind: stale
+          words: *staging-flag
+    assert:
+      - *items
+  stale-edit:
+    fork: turn-end
+    page: turn-end-check/pages/reindex-running.html
+    conversation:
+      - from: reindex
+    labels:
+      expect:
+        - kind: stale
+          words: *reindex-stale
+          edit:
+            words: 2 of 5
+    assert:
+      - *items
+  stale-rewrite:
+    fork: turn-end
+    page: turn-end-check/pages/reindex-staged.html
+    conversation:
+      - user: >-
+          Staging looks good. Before production, drop the fallback plan from the page
+          at {page}: we're shutting es-legacy down this week, so there's no old
+          cluster to fall back to.
+      - assistant: Understood, no fallback to es-legacy. First I'll check production is ready for the rebuild.
+      - tool: Bash
+        input:
+          command: ./ops/reindex preflight --env prod
+          description: Check both production regions can take the rebuild
+        result: |-
+          eu-west: ready (disk 61% free)
+          us-east: ready (disk 58% free)
+      - assistant: >-
+          Production is ready: both regions pass the preflight with about 60% of disk
+          free, enough to hold a second index during the swap.
+    labels:
+      expect:
+        - kind: stale
+          words: [fallback, es legacy]
+          edit: null
+    assert:
+      - *items
+  stale-passed-on:
+    fork: turn-end
+    page: turn-end-check/pages/reindex-running.html
+    conversation:
+      - from: reindex
+      - user: Nice. Draft a two-line note for the search channel saying staging is on the new index.
+      - found:
+          kind: stale
+          page: "{page}"
+          summary: >-
+            The lede still says the reindex is running with 2 of 5 shards rebuilt, but
+            all five shards rebuilt and staging now serves search-v7.
+          quote: all 5 shards rebuilt; alias search -> search-v7
+          edit: null
+      - assistant: |-
+          A note for the search channel:
+
+          > Staging now serves the rebuilt search index, search-v7. Production follows, one region at a time.
+    labels:
+      absent:
+        - kind: stale
+          words: *reindex-stale
+    assert:
+      - *items
+  settled:
+    fork: turn-end
+    page: turn-end-check/pages/reindex-staged.html
+    log: &old-index-question
+      - kind: comment
+        author: agent
+        agent: Claude
+        revision: 1
+        id: q1
+        ts: "2026-11-03T08:40:00+00:00"
+        title: The old index after the swap
+        obligation: true
+        text: >-
+          Once production swaps to search-v7, should the old index stay for a week as
+          a quick way back, or be deleted at once to free 1.8 TB on each node?
+    conversation:
+      - user: About the old index on the page at {page}, delete it as soon as the swap is done. We need the disk.
+      - assistant: Setting that.
+      - tool: Edit
+        input:
+          file_path: ops/reindex.yaml
+          old_string: "retain_old_index: 7d"
+          new_string: "retain_old_index: 0"
+        result: The file ops/reindex.yaml has been updated successfully.
+      - assistant: Done. `ops/reindex.yaml` now deletes the old index as soon as each region's swap completes.
+    labels:
+      expect:
+        - kind: settled
+          words: *old-index
+    assert:
+      - *items
+  settled-open:
+    fork: turn-end
+    page: turn-end-check/pages/reindex-staged.html
+    log: *old-index-question
+    conversation:
+      - user: How much disk does the old index take on each node? The page at {page} tracks the rebuild.
+      - tool: Bash
+        input:
+          command: ./ops/disk --env prod --index search-v6
+          description: Measure the old index on each production node
+        result: |-
+          eu-west-1 1.8T
+          eu-west-2 1.8T
+          us-east-1 1.8T
+          us-east-2 1.8T
+      - assistant: 1.8 TB on each of the four nodes.
+    labels:
+      absent:
+        - kind: settled
+          words: *old-index
+        - kind: question
+          words: *old-index
+    assert:
+      - *items
+  unshown:
+    fork: turn-end
+    page: turn-end-check/pages/reindex-staged.html
+    conversation:
+      - user: Start the production rebuild in eu-west, and tell me when it's done. The page at {page} tracks it.
+      - tool: Bash
+        input:
+          command: ./ops/reindex start --env prod --region eu-west --wait
+          description: Rebuild eu-west's index
+          run_in_background: true
+        result: "Command running in background with ID: bk7f2q. Output is being written to: /private/tmp/claude-501/bk7f2q.output"
+      - assistant: The eu-west rebuild is running in the background; on staging it took about 40 minutes. I'll tell you when it finishes.
+    labels:
+      expect:
+        - kind: unshown
+          words: *eu-west-rebuild
+    assert:
+      - *items
+  unshown-shown:
+    fork: turn-end
+    page: turn-end-check/pages/reindex-production.html
+    log:
+      - kind: todo
+        author: agent
+        agent: Claude
+        id: t1
+        ts: "2026-11-03T09:00:10+00:00"
+        subject:
+          kind: page
+        title: Rebuild production eu-west
+      - kind: start
+        author: agent
+        agent: Claude
+        id: s1
+        ts: "2026-11-03T09:00:20+00:00"
+        item: t1
+        text: Rebuilding eu-west's five shards, about 40 minutes
+    conversation:
+      - user: Start the production rebuild in eu-west, and tell me when it's done. The page at {page} tracks it.
+      - tool: Bash
+        input:
+          command: leaf task create {page} --title "Rebuild production eu-west"
+          description: Put the rebuild on my list
+        result: '{"kind": "todo", "id": "t1", "title": "Rebuild production eu-west"}'
+      - tool: Bash
+        input:
+          command: leaf task start {page} t1 --text "Rebuilding eu-west's five shards, about 40 minutes"
+          description: Show the rebuild under way
+        result: '{"kind": "start", "id": "s1", "item": "t1", "text": "Rebuilding eu-west''s five shards, about 40 minutes"}'
+      - tool: Bash
+        input:
+          command: ./ops/reindex start --env prod --region eu-west --wait
+          description: Rebuild eu-west's index
+          run_in_background: true
+        result: "Command running in background with ID: bk7f2q. Output is being written to: /private/tmp/claude-501/bk7f2q.output"
+      - tool: Bash
+        input:
+          command: ./ops/tail-errors --env prod --region eu-west > /tmp/eu-west-errors.log
+          description: Watch eu-west's error rate while it rebuilds
+          run_in_background: true
+        result: "Command running in background with ID: c3m9wd. Output is being written to: /private/tmp/claude-501/c3m9wd.output"
+      - assistant: >-
+          The eu-west rebuild is running, and the page shows it under way; on staging
+          it took about 40 minutes. I'm watching eu-west's error rate meanwhile, and
+          I'll tell you when it finishes.
+    labels:
+      absent:
+        - kind: unshown
+          words: *eu-west-rebuild
+        - kind: unshown
+          words: [tail errors, error rate]
+    assert:
+      - *items
+  clean:
+    fork: turn-end
+    page: turn-end-check/pages/reindex-staged.html
+    conversation:
+      - user: How long did the staging rebuild take, start to finish? It's on the page at {page}.
+      - tool: Bash
+        input:
+          command: ./ops/reindex history --env staging --last 1
+          description: Read the last staging rebuild's times
+        result: rx-298 staging started 2026-11-02T08:12Z finished 2026-11-02T08:51Z shards=5 status=done
+      - assistant: "39 minutes: it started at 08:12 UTC yesterday and finished at 08:51."
+    assert:
+      - *items
+
+  why-ci:
+    fork: reply
+    page: fork-reply/pages/flaky-test.html
+    conversation:
+      - from: flaky
+      - *flaky-reply
+    thread: w1
+    waiting:
+      - kind: comment
+        author: user
+        revision: 1
+        id: w1
+        text: Why does this only fail on CI?
+        anchor:
+          section: ft-lede
+          quote: fails in about 1 run in 30 on CI and never on a laptop
+    decision: reply
+    assert:
+      - *reply
+  meaning:
+    fork: reply
+    page: fork-reply/pages/flaky-test.html
+    conversation:
+      - from: flaky
+      - *flaky-reply
+    thread: w1
+    waiting:
+      - kind: comment
+        author: user
+        revision: 1
+        id: w1
+        text: What does the warmup actually load?
+        anchor:
+          section: ft-cause-body
+          quote: launches the warmup as a background task
+    decision: reply
+    assert:
+      - *reply
+  work-request:
+    fork: reply
+    page: fork-reply/pages/flaky-test.html
+    conversation:
+      - from: flaky
+      - *flaky-reply
+    thread: w1
+    waiting:
+      - kind: comment
+        author: user
+        revision: 1
+        id: w1
+        text: Call this section "Root cause" instead.
+        anchor:
+          section: ft-cause
+          quote: Cause
+    decision: hand_over
+    assert: []
+  user-decides:
+    fork: reply
+    page: fork-reply/pages/flaky-test.html
+    log:
+      - kind: comment
+        author: agent
+        agent: Claude
+        revision: 1
+        id: q1
+        ts: "2026-11-03T09:00:40+00:00"
+        title: Which fix to make
+        obligation: true
+        anchor:
+          section: ft-fixes-list
+        text: >-
+          Which fix should I make: await the warmup in start() (three lines, about 200
+          ms more startup), or lock around the fill (no startup cost, about forty
+          lines)?
+    conversation:
+      - from: flaky
+      - tool: Bash
+        input:
+          command: >-
+            leaf thread create {page} --section ft-fixes-list --obligation --title
+            "Which fix to make" --text "Which fix should I make: await the warmup in
+            start() (three lines, about 200 ms more startup), or lock around the fill
+            (no startup cost, about forty lines)?"
+          description: Ask on the page which fix to make
+        result: '{"kind": "comment", "id": "q1", "author": "agent", "title": "Which fix to make", "obligation": true}'
+      - *flaky-reply
+    thread: q1
+    waiting:
+      - kind: reply
+        author: user
+        revision: 1
+        parent: q1
+        id: w1
+        text: Await it. 200 ms at startup doesn't matter for us.
+    decision: hand_over
+    assert: []
+  still-running:
+    fork: reply
+    page: fork-reply/pages/flaky-test.html
+    conversation:
+      - from: flaky
+      - *flaky-reply
+      - user: Make the await fix and run the whole suite.
+      - tool: Edit
+        input:
+          file_path: src/search/cache.py
+          old_string: "        self._task = asyncio.create_task(self._warm())"
+          new_string: "        await self._warm()"
+        result: The file src/search/cache.py has been updated successfully.
+    running:
+      - tool: Bash
+        input:
+          command: pytest -n 8 -q
+          description: Run the full suite with the warmup awaited
+    thread: w1
+    waiting:
+      - kind: comment
+        author: user
+        revision: 1
+        id: w1
+        text: Is the suite green with the fix?
+        anchor:
+          section: ft-fix-await
+          quote: Await the warmup in
+    decision: hand_over
+    assert: []
+  work-out:
+    fork: reply
+    page: fork-reply/pages/flaky-test.html
+    conversation:
+      - from: flaky
+      - *flaky-reply
+    thread: w1
+    waiting:
+      - kind: comment
+        author: user
+        revision: 1
+        id: w1
+        text: Would the same race hit the autocomplete service? It starts its cache the same way.
+        anchor:
+          section: ft-cause-body
+          quote: the first request can arrive before the cache is filled
+    decision: hand_over
+    assert: []
+  still-deciding:
+    fork: reply
+    page: fork-reply/pages/flaky-test.html
+    conversation:
+      - from: flaky
+      - *flaky-reply
+      - user: Which fix do you recommend?
+      - assistant: >-
+          I'm leaning toward awaiting the warmup, since it's three lines, but the 200 ms
+          is an estimate. I'll measure startup on a production-size cache next, and
+          recommend one once I have the number.
+    thread: w1
+    waiting:
+      - kind: comment
+        author: user
+        revision: 1
+        id: w1
+        text: Just pick one now. Which fix are we doing?
+        anchor:
+          section: ft-fixes
+          quote: Two fixes
+    decision: hand_over
+    assert: []

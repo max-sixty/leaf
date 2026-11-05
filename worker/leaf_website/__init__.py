@@ -1404,10 +1404,12 @@ def released_path(pages: dict, path: str) -> str | None:
 class WebsitePageEndpoint(PageEndpoint):
     """Bind every clean website route to one initialized page directory."""
 
-    # A visitor's private comments and replies would otherwise stay in the browser's
-    # disk cache after their session ends, for anyone who later uses that browser
-    # profile to read. The price is the back/forward cache, which keeps no such page.
+    # A visitor's private comments, replies and attached images would otherwise stay
+    # in the browser's disk cache after their session ends, for anyone who later uses
+    # that browser profile to read. The price is the back/forward cache, which keeps
+    # no such page.
     cache_control = "no-store"
+    media_cache_control = cache_control
 
     def __init__(
         self,
@@ -1535,7 +1537,9 @@ class WebsitePageEndpoint(PageEndpoint):
             or (root := self._published_root(revision)) is None
         ):
             return None
-        response = self._revision_resource(revision, "/" + match["resource"], root)
+        response = self._revision_resource(
+            self._artifact(revision), "/" + match["resource"], root
+        )
         if response is not None:
             response.headers.update(
                 {

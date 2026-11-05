@@ -490,8 +490,8 @@ variants:
           evidence, gives only a general promise to inspect every state without
           identifying the temporary preview, or asks Max to do missing verification.
 
-  # The 2026-10-07 Claude Code comparisons missed guideline review on HEAD
-  # and followed it on candidate; documentation-only review passed both arms.
+  # The 2026-10-07 Claude Code comparisons missed guideline review on the base
+  # and followed it on the head; documentation-only review passed both arms.
   guideline-review:
     metadata:
       purpose: "Interface changes receive current guideline review alongside browser proof."
@@ -521,7 +521,7 @@ variants:
           verify unchanged behavior. Do not require exact wording or filenames.
 
   # One 2026-10-07 Claude Code run per arm offered external perspectives on
-  # candidate, omitted them on HEAD, and kept documentation review on both.
+  # the head, omitted them on the base, and kept documentation review on both.
   # This scores the route, not the external tools' ability to detect defects.
   review-selection:
     metadata:

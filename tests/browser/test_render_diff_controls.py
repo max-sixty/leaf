@@ -8,6 +8,7 @@ import pytest
 from playwright.sync_api import expect
 from render_cases_interaction import live_url
 from render_harness import (
+    before_landing_frame,
     consume_browser_errors,
     holding,
     leaf_page,
@@ -295,21 +296,15 @@ def test_a_visible_datum_takes_over_pending_thread_motion(browser, serve):
     datum = page.locator('lf-diff [data-lf-datum=\'["app.py","new",1]\']')
     expect(datum).to_be_in_viewport()
     page.locator("h1").click()
-    page.evaluate("""async () => {
-      const {navigateToDatum} = await window.__lfWidgetApi();
-      const scrollTo = Element.prototype.scrollTo;
-      Element.prototype.scrollTo = function(options) {
-        const result = scrollTo.call(this, options);
-        if (this === document.scrollingElement && options.behavior === 'smooth') {
-          Element.prototype.scrollTo = scrollTo;
+    before_landing_frame(
+        page,
+        """window.__lfWidgetApi().then(({navigateToDatum}) => () => {
           queueMicrotask(async () => {
             window.datumArrived = await navigateToDatum(document.querySelector('#files'),
               'for', '["app.py","new",1]');
           });
-        }
-        return result;
-      };
-    }""")
+        })""",
+    )
     page.keyboard.press("t")
     page.wait_for_function("window.datumArrived !== undefined")
     assert page.evaluate("datumArrived")
@@ -646,14 +641,14 @@ def test_a_patch_that_failed_stays_failed_when_its_diff_returns(browser, serve, 
     expect(page.locator("#d-bad .lf-error")).to_contain_text("repeats file path")
     returned = page.evaluate("""async () => {
         const diff = document.getElementById('d-bad');
-        const failure = diff.querySelector('.lf-error');
+        const failure = diff.shadowRoot.querySelector('.lf-error');
         const parent = diff.parentNode;
         const next = diff.nextSibling;
         diff.remove();
         await new Promise((resolve) => setTimeout(resolve));
         parent.insertBefore(diff, next);
         for (let i = 0; i < 3; i++) await new Promise(requestAnimationFrame);
-        return diff.querySelector('.lf-error') === failure;
+        return diff.shadowRoot.querySelector('.lf-error') === failure;
     }""")
     assert returned, "the returning diff cleared its completed refusal"
     errors = consume_browser_errors(page, '<lf-diff id="d-bad"> failed: ')
@@ -823,11 +818,10 @@ def test_an_expanded_diff_file_can_retry_its_failed_chunk_in_place(browser, serv
     assert len(attempts) == 4
 
 
-@pytest.mark.parametrize("defer_first", [False, True])
-def test_phone_diff_headers_keep_distinguishing_parent_folder_readable(
-    browser, serve, defer_first
-):
-    """Repeated basenames remain identifiable before tapping their source rows."""
+def test_phone_diff_headers_keep_distinguishing_parent_folder_readable(browser, serve):
+    """Repeated basenames remain identifiable before tapping their source rows. The
+    first file's lines land after the tap's frame, its preparation held; the others'
+    come at once."""
     names = ("dispatch", "improving-instructions", "todos")
     patch = "".join(
         f"diff --git a/.claude/skills/{name}/CLAUDE.md b/.claude/skills/{name}/CLAUDE.md\n"
@@ -848,10 +842,9 @@ def test_phone_diff_headers_keep_distinguishing_parent_folder_readable(
     )
     page = open_page(browser, url, context=context)
     page.evaluate("document.fonts.ready")
-    if defer_first:
-        # Hold the first file's preparation after the native disclosure opens.
-        # This orders insertion after the tap's settled frame without a delay.
-        page.evaluate("""() => {
+    # Hold the first file's preparation after the native disclosure opens. This orders
+    # insertion after the tap's settled frame without a delay.
+    page.evaluate("""() => {
       const diff = document.querySelector('#patch');
       const original = diff.prepareEntry;
       let release;
@@ -859,7 +852,7 @@ def test_phone_diff_headers_keep_distinguishing_parent_folder_readable(
         release: () => release(),
       };
       diff.prepareEntry = async function(...args) {
-        if (args[1].path.endsWith('/dispatch/CLAUDE.md')) {
+        if (args[0].path.endsWith('/dispatch/CLAUDE.md')) {
           const held = new Promise(resolve => { release = resolve; });
           window.lfDiffPreparationStarted = true;
           await held;
@@ -889,7 +882,7 @@ def test_phone_diff_headers_keep_distinguishing_parent_folder_readable(
         head.tap()
         file = head.locator("..")
         expect(file).to_have_attribute("open", "")
-        if defer_first and name == "dispatch":
+        if name == "dispatch":
             page.wait_for_function("window.lfDiffPreparationStarted === true")
             one_frame(page)
             page.evaluate("window.lfDiffPreparation.release()")

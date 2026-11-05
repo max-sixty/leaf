@@ -25,7 +25,8 @@
  * it out a level.
  * A fence is left as a code span is, by typing its marks, wherever the code's last line
  * ends, and the next words go below it (field-editor.js, `fenceBreak`). Down from the
- * draft's last line leaves it too (`leaveFence`).
+ * draft's last line leaves it too, and leaves the indented code a body reads
+ * (`leaveCode`).
  *
  * A field that edits words where they are shown, as a draft's does over its prose, names
  * the element that shows them (`facesOf`) and draws them in that display's faces

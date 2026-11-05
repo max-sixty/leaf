@@ -8,7 +8,8 @@ import { keepFieldKeys } from "./field-keys.js";
 // Runtime searches share the vendor's native editor, frame and focus band. Callers
 // own their query and results; an auxiliary reading, such as a match count, belongs
 // in the control's `end` slot so it stays inside that same frame. Keys typed into it
-// stop at it (field-keys.js).
+// stop at it (field-keys.js). Its prompt is Leaf's words, as an empty comment box's
+// are, so it wears Leaf's face (voice.js).
 /** @param {string} cls @param {{name: string, label: string, placeholder?: string}} options */
 export function searchField(cls, { name, label, placeholder = label }) {
   const field = offer("wa-input", `lf-search-field lf-label-hidden ${cls}`);
@@ -22,6 +23,7 @@ export function searchField(cls, { name, label, placeholder = label }) {
   field.name = name;
   field.label = label;
   field.placeholder = placeholder;
+  field.setAttribute("data-lf-voice", "leaf");
   field.autocomplete = "off";
   field.spellcheck = false;
   keepFieldKeys(field);

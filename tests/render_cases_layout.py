@@ -905,9 +905,20 @@ def assert_drawn_in(part, ink, width):
 DRAFT_MARK = """() =>
   document.querySelector(".lf-mark-el.lf-pending")?.closest("[id]")?.id ?? null"""
 # What the arm says about the next press, in the one property that is on screen before
-# the box is read. Asked of body, where the aim declares it and from where it is
-# inherited by everything on the page that doesn't state a cursor of its own.
-AIM_CURSOR = """() => getComputedStyle(document.body).cursor"""
+# the box is read: the cursor of the deepest element at the point, where the aim stands
+# its hand, and whether that element is in a control, which keeps a cursor of its own
+# (page-geometry.js).
+AIM_CURSOR = """async ([x, y]) => {
+  const {WORKS} = await window.__lfCheckApi();
+  let el = document.elementFromPoint(x, y);
+  for (let inner = el?.shadowRoot?.elementFromPoint(x, y); inner && inner !== el;
+       inner = el.shadowRoot?.elementFromPoint(x, y))
+    el = inner;
+  let control = false;
+  for (let at = el; at && !control; at = at.parentElement ?? at.getRootNode().host)
+    control = at.matches(WORKS);
+  return {cursor: el ? getComputedStyle(el).cursor : null, control};
+}"""
 # Where focus ended up, which is the effect a press has that leaves no mark in the markup:
 # `offer` gives every press it builds a tabindex, so a press the page received lands on
 # the control, where the aim's own leaves focus to the composer it opened.
@@ -945,7 +956,8 @@ PAGE_MARKUP = r"""() => [...document.body.children]
                 "lf-binding-seat",
             );
             for (const paint of ["data-lf-mark", "data-lf-aimed", "data-lf-traced",
-                "data-lf-proxied", "data-lf-projected-location"])
+                "data-lf-proxied", "data-lf-projected-location", "data-lf-over-mark",
+                "data-lf-over-item"])
                 el.removeAttribute?.(paint);
             // Anchor naming is presentation state. The layout may copy a name
             // from a stylesheet into inline style while positioning a comment.

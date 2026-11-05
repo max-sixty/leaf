@@ -115,7 +115,7 @@ let stopReferenceReading = null;
 const commandReferenceSearch = searchField("lf-command-reference-search", {
   name: "shortcut-search",
   label: "Search commands",
-  placeholder: "Find a key or action",
+  placeholder: "Find a key or action…",
 });
 commandReferenceSearch.addEventListener("input", readCommandReferenceSearch);
 // Page-key presentation owns this retained native control's changing name and shortcut

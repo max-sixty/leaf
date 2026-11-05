@@ -174,11 +174,12 @@ export function alongClimb(parentOf) {
 // holding an x-shadow widget does not `contains` the words that widget renders, so
 // narrowing a search to that section threw away every candidate inside it and the
 // passage resolved to nothing — the anchor captured, the mark never painted.
-export const { under } = alongClimb(composedParentNode);
+export const under = alongClimb(composedParentNode).under;
 // Which of two nodes the reader reaches first in the page as rendered, and containment in
 // the rendered tree, which includes slots and their shadow ancestors.
-export const { order: renderedOrder, under: renderedUnder } =
-  alongClimb(renderedParentNode);
+const rendered = alongClimb(renderedParentNode);
+export const renderedOrder = rendered.order;
+export const renderedUnder = rendered.under;
 
 // Which layer a node stands in — the runtime's chrome, a declared label, or the
 // document — is asked by every reading that climbs out of a widget, so it is answered

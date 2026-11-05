@@ -797,22 +797,30 @@ export const focusInPage = (at) => at !== document.body && inPage(at);
 /** @param {Element} box */
 const isLayoutBox = (box) =>
   getComputedStyle(box).getPropertyValue("--lf-layout-box").trim() === "1";
-const PARTS = ':scope > [data-lf-views="parts"]';
+/** @param {Element} box */
+const isLayoutShell = (box) =>
+  getComputedStyle(box).getPropertyValue("--lf-layout-shell").trim() === "1";
+// Read off `main`'s children rather than by `:scope >`, which walks every element under
+// `main` to find one of its children, several times for each keystroke.
+/** @param {Element} main */
+const partsOf = (main) =>
+  [...main.children].find((child) => child.matches('[data-lf-views="parts"]')) ?? null;
 export const layoutBox = () => {
   const main = document.querySelector("body > main");
   if (!main || isLayoutBox(main)) return main;
-  const parts = main.querySelector(PARTS);
-  const boxes = [
-    ...main.children,
-    ...[...(parts?.children ?? [])].flatMap((part) => [...part.children]),
-  ];
+  const parts = partsOf(main);
+  // Only a shell holds a layout box, so a `main` of plain sections is read once, not once
+  // for each section (layouts.css, `--lf-layout-shell`).
+  const boxes = [main, ...(parts?.children ?? [])]
+    .filter(isLayoutShell)
+    .flatMap((shell) => [...shell.children]);
   return boxes.find((box) => box.checkVisibility() && isLayoutBox(box)) ?? main;
 };
 // A page of parts' views: the parts a `main` with no Layout of its own shows one at a
 // time (layouts.css, "A page of parts"), or null on any other page.
 export const layoutParts = () => {
   const main = document.querySelector("body > main");
-  return main && !isLayoutBox(main) ? main.querySelector(PARTS) : null;
+  return main && !isLayoutBox(main) ? partsOf(main) : null;
 };
 
 /** @param {Node} node */

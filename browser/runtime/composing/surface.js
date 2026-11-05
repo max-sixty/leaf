@@ -1412,11 +1412,14 @@ export function createResponseSurface({
 
   // The destination's box is the identity chrome uses to place a contextual binding badge,
   // and the label is whichever Comment route dispatch would answer from here. Dispatch
-  // still decides whether either row can be reached from the current scope.
-  const commentHint = () => ({
-    box: commentDestination().box,
-    label: activeCommandLabel(["comment.create"]),
-  });
+  // still decides whether either row can be reached from the current scope. A repaint
+  // asks for this hint and then rests the box (repaint.js), so the walk answers both.
+  let commentKey = "";
+  const commentHint = () => {
+    const { box } = commentDestination();
+    commentKey = activeCommandLabel(["comment.create"]);
+    return { box, label: commentKey };
+  };
 
   // The target the box rests beside: the one `c` would open it on, while the user can see
   // it. A finger is shown no keys, so it is shown no box waiting for one, and a frame
@@ -1445,7 +1448,7 @@ export function createResponseSurface({
   // Read in each repaint, since where `c` goes follows focus, a scroll's end and the state.
   function restFab() {
     const next = restingTarget();
-    const key = next && activeCommandLabel(["comment.create"]);
+    const key = next && commentKey;
     const target = key ? next : null;
     if (!target) {
       letGoOfRest();

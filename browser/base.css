@@ -861,11 +861,14 @@ lf-new {
 /* The words that moved, deepened against the slot's own tint: the module's ranges
  * through the highlight registry (lf-suggestion.js #emphasize), so no node is
  * wrapped. Layout-free
- * properties only, which is all ::highlight() may carry. */
-::highlight(lf-sug-del) {
+ * properties only, which is all ::highlight() may carry. Each rule names its slot,
+ * whose text is all these ranges paint (AGENTS.md, "Runtime ownership"). */
+lf-old::highlight(lf-sug-del),
+lf-old *::highlight(lf-sug-del) {
   background-color: color-mix(in srgb, var(--danger) 30%, transparent);
 }
-::highlight(lf-sug-ins) {
+lf-new::highlight(lf-sug-ins),
+lf-new *::highlight(lf-sug-ins) {
   background-color: color-mix(in srgb, var(--ok) 26%, transparent);
 }
 /* Which form a slot takes is asked of the platform's own closed set, inverted: any

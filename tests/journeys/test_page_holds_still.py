@@ -220,15 +220,21 @@ def diff_page(serve):
     return Built(live_url(url), serve.page_dir, DIFF_PAGE)
 
 
-def dial_page(serve):
+def dial_page(serve, repeat=1):
     """The detail example's incident report, with the words of the cause's first
-    paragraph in an `em`, inline text the dial's Skim folds behind the section's
-    gist."""
+    paragraph, `repeat` times over, in an `em`, inline text the dial's Skim folds behind
+    the section's gist."""
     source = named_source("detail").read_text()
     start = source.index('<p id="detail-cause-1">') + len('<p id="detail-cause-1">')
     end = source.index("</p>", start)
-    source = f"{source[:start]}<em>{source[start:end]}</em>{source[end:]}"
+    words = " ".join([source[start:end]] * repeat)
+    source = f"{source[:start]}<em>{words}</em>{source[end:]}"
     return Built(serve(source), serve.page_dir, source)
+
+
+def tall_dial_page(serve):
+    """The dial's page with the cause's first paragraph taller than the window."""
+    return dial_page(serve, 12)
 
 
 PANE_PAGE = leaf_page(
@@ -278,6 +284,7 @@ PAGES = {
     "map": map_page,
     "diff": diff_page,
     "dial": dial_page,
+    "tall-dial": tall_dial_page,
     "pane": pane_page,
     "queue": queue_page,
 }
@@ -587,6 +594,31 @@ def put_disclosure(page, built):
     expect(page.locator("#note")).not_to_be_in_viewport()
 
 
+def nothing_focused(page):
+    """Rest the pointer aside, and check the reader holds nothing focused."""
+    page.mouse.move(*ASIDE)
+    assert page.evaluate("document.activeElement === document.body"), (
+        "something is focused"
+    )
+
+
+def put_reading_unfocused(page, built):
+    """Read the second paragraph of an earlier message at the reading line, having
+    focused nothing on the page."""
+    read = page.locator(f"{message(built, 'read')} p", has_text="being read")
+    scroll_to(page, read, READING_LINE)
+    nothing_focused(page)
+
+
+def put_diff_reading(page, built):
+    """Read the diff's twenty-eighth new line at the reading line, having focused
+    nothing on the page."""
+    line = page.locator(GUTTER).first
+    expect(line).to_be_visible()
+    scroll_to(page, line, READING_LINE)
+    nothing_focused(page)
+
+
 def put_gutter_focus(page, built):
     to_gutter(page).focus()
     page.mouse.move(*ASIDE)
@@ -599,6 +631,14 @@ def put_gutter_pointer(page, built):
     comment.hover()
 
 
+# That line, found inside the diff's shadow root.
+GUTTER_LINE = f"""() => {{
+  const deep = (root) => root.querySelector({json.dumps(GUTTER)})
+    ?? [...root.querySelectorAll('*')].map(n => n.shadowRoot && deep(n.shadowRoot))
+      .find(Boolean) ?? null;
+  return deep(document);
+}}"""
+
 # That Comment, found inside the diff's shadow root.
 GUTTER_COMMENT = f"""() => {{
   const deep = (root) => root.querySelector({json.dumps(GUTTER)})
@@ -608,10 +648,10 @@ GUTTER_COMMENT = f"""() => {{
 }}"""
 
 
-def put_dial(motion):
+def put_dial(motion, at=900 * 0.25 - 10):
     def put(page, built):
         page.emulate_media(reduced_motion=motion)
-        scroll_to(page, "#detail-cause-1", 900 * 0.25 - 10)
+        scroll_to(page, "#detail-cause-1", at)
 
     return put
 
@@ -627,6 +667,25 @@ DIAL_READING = """() => {
   const text = read.firstChild;
   const at = text.data.search(/\\S/);
   const range = document.createRange();
+  range.setStart(text, at);
+  range.setEnd(text, at + 1);
+  return range;
+}"""
+
+# For a reader in the middle of a paragraph that began above the window: the first
+# letter of the line at the reading line, a quarter down the window, found once, and
+# from the fold on, the gist. Its box lands where those letters stood, which puts its
+# own letters half a leading lower, 2.1-2.5px, a step below what the eye takes in
+# across a fold.
+DIAL_WORDS = """() => {
+  const em = document.querySelector('#detail-cause-1 em');
+  if (!em.checkVisibility()) window.__lfDialFolded = true;
+  if (window.__lfDialFolded) return document.getElementById('detail-cause-gist');
+  if (window.__lfDialWords) return window.__lfDialWords;
+  const {offsetNode: text, offset} = document.caretPositionFromPoint(
+    em.parentElement.getBoundingClientRect().left + 1, innerHeight / 4);
+  const at = offset + text.data.slice(offset).search(/\\S/);
+  const range = window.__lfDialWords = document.createRange();
   range.setStart(text, at);
   range.setEnd(text, at + 1);
   return range;
@@ -765,6 +824,13 @@ PLACES = [
         "send-words", "thread", put_send_words, Found(SEND), {"thread above": "jobs"}
     ),
     Place(
+        "reading-unfocused",
+        "thread",
+        put_reading_unfocused,
+        Found('.lf-msg[data-lf-event="$read"] p', "being read"),
+        {"paragraph above": "read"},
+    ),
+    Place(
         "reading-lines",
         "thread",
         put_reading_lines,
@@ -805,6 +871,7 @@ PLACES = [
         {"map row above": "place-14", "contribution above": "place-14"},
     ),
     Place("gutter", "diff", put_gutter_focus, GUTTER_COMMENT, {"lines above": 5}),
+    Place("diff-reading", "diff", put_diff_reading, GUTTER_LINE, {"lines above": 5}),
     Place(
         "disclosure",
         "diff",
@@ -823,6 +890,13 @@ PLACES = [
         {"dial": None, "glided": "detail-impact-gist"},
     ),
     Place("dial-reduced", "dial", put_dial("reduce"), DIAL_READING, {"dial": None}),
+    Place(
+        "dial-begun",
+        "tall-dial",
+        put_dial("no-preference", -400),
+        DIAL_WORDS,
+        {"dial": None},
+    ),
     Place("pane", "pane", put_pane, Found("#q-30"), {"pane above": "left-body"}),
     Place(
         "on-me-row",
@@ -1420,6 +1494,10 @@ REVISION_LANDING = "the revision's landing moves the message clicked 96px up"
 ON_SCREEN = "the paragraph read moves 67.4px down under the paragraph the revision adds"
 REMOVES = "the paragraph read moves 67.4px up into the paragraph the revision takes out"
 DELETIONS = "the diff's Comment moves 100px down as five deletions join above it"
+DIFF_READING = (
+    "the diff line read moves 100px down as five deletions join above it, nothing "
+    "focused: anchoring holds the first block in view, above the rows"
+)
 GROWN_AFTER_GLIDE = (
     "the gist read moves 199.7-199.8px down as the 200px image above it loads after "
     "the glide; Chromium held it before #5397"
@@ -1428,6 +1506,8 @@ GROWN_AFTER_GLIDE = (
 # The cases the runtime fails today, with what each measured: a fix flips one to a
 # pass, and its strict mark then fails until its entry goes.
 MOVES_ON_MAIN = {
+    "diff-reading-deletions-chromium": DIFF_READING,
+    "diff-reading-deletions-firefox": DIFF_READING,
     "message-reply-below-chromium": REPLY_BELOW,
     "message-reply-below-firefox": REPLY_BELOW,
     "message-revision-above-chromium": REVISION_LANDING,

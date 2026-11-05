@@ -323,12 +323,14 @@ customElements.define(
         for (const block of run.blocks) owner.set(block, run.after ?? run.container);
       for (const [marker, { after }] of this.#runs) if (after) owner.set(marker, after);
       // The block holding the words at the line, since a fold replaces whole blocks:
-      // its gist lands where the block's top stood, line for line.
+      // its gist lands where the block's top stood, line for line. A block that began
+      // above the window would take its gist out of sight with its top, 978px up for a
+      // paragraph of 2,700px, so its gist lands where the words read stood.
       const words = readingAt(scope);
       const at = words instanceof Range ? words.startContainer : words;
-      const reading =
-        at && [...this.#blocks(scope)].find((block) => block.contains(at));
-      const hold = holdPlace(reading ?? words, (node) => {
+      const block = at && [...this.#blocks(scope)].find((each) => each.contains(at));
+      const begun = block && block.getBoundingClientRect().top < shownWindow().top;
+      const hold = holdPlace(block && !begun ? block : words, (node) => {
         const folded = node.closest(`[${FOLDED}], .lf-dial-more`);
         return folded && owner.get(folded);
       });

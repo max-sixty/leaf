@@ -72,6 +72,7 @@
    floating panel's growth with it (floating-panel.js, which records it); the margin
    card gained it on 4 November, so one mechanism serves both, and that mechanism's rule
    at its end, under the user's request for one thread view (card-anchor.js). */
+import { REOPEN_HINT, REPLY_HINT } from "../words.js";
 import { nextRender, sizeObserver } from "../rendering.js";
 import {
   holdFocus,
@@ -1486,7 +1487,7 @@ export class ThreadView {
       {
         hint: hint
           ? () => hint(drawn())
-          : () => (drawn().resolved ? "Reply to reopen" : "Reply"),
+          : () => (drawn().resolved ? REOPEN_HINT : REPLY_HINT),
         ...(hintParts && { hintParts: () => hintParts(drawn()) }),
         ...(hintLead && { hintLead: () => hintLead(drawn()) }),
         // A container says what the box reads and how a send lands there, as a margin

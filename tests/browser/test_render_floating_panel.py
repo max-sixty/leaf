@@ -122,7 +122,7 @@ def test_one_field_starts_a_thread_takes_its_reply_and_settles_it(browser, serve
         "Could the rollback cover the weekend?"
     )
     expect(field(page)).to_be_focused()
-    expect(field(page)).to_have_attribute("placeholder", re.compile("^Reply ⏎"))
+    expect(field(page)).to_have_attribute("placeholder", re.compile("^Reply… ⏎"))
 
     write(field(page), "And the mobile cohort too.")
     with sending(page, "the reply"):
@@ -950,12 +950,12 @@ def test_news_in_an_open_thread_moves_none_of_its_controls(browser, serve):
     box = field(page)
     box.focus()
     words = page.locator(".lf-fp-field .lf-compose-placeholder-words")
-    expect(words).to_have_text("Reply")
+    expect(words).to_have_text("Reply…")
     agent({"kind": "resolve", "parent": root})
     notice = page.locator(".lf-fp-news-outlet .lf-thread-news")
     expect(notice).to_have_attribute("title", "Resolved")
     expect(page.locator(".lf-fp-head .lf-resolve")).to_be_visible()
-    expect(words).to_have_text("Reply")
+    expect(words).to_have_text("Reply…")
     # Off the field, it says the thread's word before Reply, which isn't Resolved yet.
     page.locator(panel_view("thread")).focus()
     expect(lead(page)).not_to_contain_text("Resolved")
@@ -966,7 +966,7 @@ def test_news_in_an_open_thread_moves_none_of_its_controls(browser, serve):
     expect(page.locator(".lf-fp-head .lf-reopen")).to_be_visible()
     expect(lead(page)).to_contain_text("Resolved")
     box.focus()
-    expect(words).to_have_text("Reply to reopen")
+    expect(words).to_have_text("Reply to reopen…")
     settled(page)
     assert page.evaluate(SEATS) == seats
 
@@ -3112,7 +3112,7 @@ def test_the_empty_field_says_the_agent_s_status_until_the_caret_is_in(browser, 
     sheen(True)
 
     field(page).click()
-    expect(field(page)).to_have_attribute("placeholder", re.compile("^Comment ⏎"))
+    expect(field(page)).to_have_attribute("placeholder", re.compile("^Comment… ⏎"))
     sheen(False)
     page.keyboard.type("Could")
     page.keyboard.press("ControlOrMeta+a")
@@ -3184,7 +3184,7 @@ def test_nothing_passing_interrupts_the_user_writing(browser, serve):
         "placeholder", re.compile(r"^Saved for later")
     )
     field(page).click()
-    expect(field(page)).to_have_attribute("placeholder", re.compile(r"^Comment ⏎"))
+    expect(field(page)).to_have_attribute("placeholder", re.compile(r"^Comment… ⏎"))
     write(field(page), "Could the rollback cover the weekend?")
     page.evaluate(say, "Saved for later")
     page.mouse.click(5, 5)
@@ -3371,7 +3371,7 @@ def test_a_walk_says_its_position_in_the_panel(browser, serve):
     write(field(page), "Is this the one?")
     page.keyboard.press("Enter")
     expect(page.locator(panel_view("thread"))).to_be_visible()
-    expect(field(page)).to_have_attribute("placeholder", re.compile("^Reply ⏎"))
+    expect(field(page)).to_have_attribute("placeholder", re.compile("^Reply… ⏎"))
     expect(page.locator(".lf-fp-peek")).to_be_hidden()
 
 

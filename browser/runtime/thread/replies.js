@@ -38,6 +38,7 @@
    thread is still in the margin, and a hidden panel, keep their rows, since the user
    goes on there when they open again. Every view draws whichever row it holds, a
    primary reader's reply part (primary-reader.js) as a card does. */
+import { REPLY_HINT } from "../words.js";
 import {
   captureDraftEditing,
   loadDraft,
@@ -382,6 +383,7 @@ function wireReply(
   { hint, hintParts, hintLead, accessibleName, busy },
 ) {
   row.classList.add("lf-comment-box");
+  input.setAttribute("data-lf-voice", "leaf");
   const draftCtx = replyContext(key);
   input.value = loadDraft(draftCtx)?.text ?? "";
   const sync = commands.wireInput(input, {
@@ -568,7 +570,7 @@ export function createReplyView(
   {
     onChange = () => {},
     editLast = null,
-    hint = () => "Reply",
+    hint = () => REPLY_HINT,
     hintParts = null,
     hintLead = () => "",
     accessibleName = "Reply",

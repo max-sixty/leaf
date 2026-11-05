@@ -9,10 +9,11 @@
    with `voiced`, whose `data-lf-voice` the theme gives each speaker's face
    (controls.css); a seat with one face for all its words, such as the field's native
    placeholder, wears the run's one voice (`voiceOf`, floating-panel.css). A
-   string is said by no one: a name, such as a thread's title or a mode's, an offer of
-   a press, such as Reply, or where the user stands in a walk, which the interface
-   states in its own face. So a seat never decides a voice: each word reaches it with
-   its speaker, or as the interface's own. */
+   string is said by no one: a name, such as a thread's title or a mode's, or where the
+   user stands in a walk, which the interface states in its own face. An empty comment
+   box's Reply… or Comment… is Leaf's, as the user chose on 5 November 2026 (words.js).
+   So a seat never decides a voice: each word reaches it with its speaker, or as the
+   interface's own. */
 import { html } from "/vendor/lit.js";
 
 /** @typedef {"agent" | "leaf"} Voice */

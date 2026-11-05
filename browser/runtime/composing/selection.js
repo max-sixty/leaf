@@ -23,6 +23,7 @@
    commands and boot's travel, delivery, and repaint capabilities. Importing this module exposes only passive nodes and live draft
    readings. mount binds the field and its controls after those owners exist. */
 import { el, offerAction, responseAction } from "../widget-elements.js";
+import { COMMENT_HINT } from "../words.js";
 import { anchorKey } from "../anchor-coordinate.js";
 import { keeps, keepsHidden } from "../keeps.js";
 
@@ -98,9 +99,8 @@ fabBar.setAttribute("part", "composer");
 export const fabInput = textField();
 fabInput.className = "lf-ui lf-response-control lf-fab-input";
 fabInput.name = "comment";
-// What the empty field says, and the box at rest beside a target (composing/surface.js).
-export const COMMENT_HINT = "Comment…";
 fabInput.placeholder = COMMENT_HINT;
+fabInput.setAttribute("data-lf-voice", "leaf");
 fabInput.setAttribute("aria-label", "Comment");
 const fab = responseAction(offerAction("response", "lf-fab"), {
   action: "comment",

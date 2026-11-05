@@ -511,7 +511,7 @@
      (composing/input.js, `enters`), in the interface's own face whatever theirs is. */
   .lf-fp-field .lf-compose-placeholder-enters {
     color: var(--lf-fp-quiet);
-    font-style: normal;
+    font-style: italic;
   }
   .lf-fp-field
     leaf-text:not([data-lf-offers], [data-lf-says="destination"])
@@ -606,11 +606,8 @@
      about the agent (the user's choices, 26, 28 and 30 October 2026; voice.js). The
      panel's spans take the page's rule (components/controls.css); the field's native
      placeholder sits in its own tree and wears the voice its words all share
-     (`saying`). Both speakers' words are regular here, in the field's message font, so a
-     notice or an error stands out by its colour alone. */
-  .lf-fp-field leaf-text[data-lf-voice="leaf"]::part(placeholder) {
-    font-style: italic;
-  }
+     (`saying`; response.css). Both speakers' words are regular here, in the field's
+     message font, so a notice or an error stands out by its colour alone. */
   /* The field's presses float in its foot's end corner, as an anchored comment box's
      do (response.css), and every line keeps room for them (text-field.js,
      `--lf-field-end-room`), so where the words wrap turns on nothing but the words.

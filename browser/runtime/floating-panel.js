@@ -309,7 +309,14 @@ import {
   currentLocationIn,
 } from "./focus.js";
 import { rowWalk } from "./walk-position.js";
-import { capitalized, counted, excerptWords } from "./words.js";
+import {
+  capitalized,
+  COMMENT_HINT,
+  counted,
+  excerptWords,
+  REOPEN_HINT,
+  REPLY_HINT,
+} from "./words.js";
 import { coarsePointer } from "./pointer.js";
 import { holdRendering, nextRender, sizeObserver } from "./rendering.js";
 import { boxMotion } from "./box-motion.js";
@@ -957,10 +964,9 @@ export function createFloatingPanel({
   // reading.
   //
   // A reading that offers a press (`offers`), the reply or the selected words, stands
-  // with the key that makes it, in the interface's own words; every other reading, and
-  // the words standing before the reply, are said by the agent or by Leaf, each in its
-  // face (voice.js). All of them read dim (floating-panel.css). A stance's name is the
-  // interface's.
+  // with the key that makes it; every reading, and the words standing before the reply,
+  // are said by the agent or by Leaf, each in its face (voice.js), and read dim
+  // (floating-panel.css). A stance's name and the words quoted are nobody's.
   const HIDDEN = "Annotations hidden";
   // The page field's readings that say something other than a press there.
   const SAYS_ELSE = new Set(["status", "stance", "notice"]);
@@ -979,7 +985,7 @@ export function createFloatingPanel({
     if (input === focused())
       return { says: "destination", words: whereTo(drawn ?? thread) };
     if (thread && !noticeReading().visible && !statusContextReading().goTo)
-      return { says: "turn", words: "Reply", offers: true };
+      return { says: "turn", words: leafSays(REPLY_HINT), offers: true };
     const stance = key ? null : statusContextReading().stance;
     // Keep the current navigation context alongside the selection's comment offer.
     // The field's own name says what a press does (`pageEditor`); on a narrow phone
@@ -1012,7 +1018,7 @@ export function createFloatingPanel({
       };
     if (!key)
       return { says: "status", words: [...hiddenLead(), ...status().summaryParts] };
-    return { says: "turn", words: "Reply", offers: true };
+    return { says: "turn", words: leafSays(REPLY_HINT), offers: true };
   }
   // What stands before an open thread's reply while the field says it, beside the leaf
   // (composing/input.js, `hintLead`): the thread's word, as Threads says it, then a
@@ -1047,7 +1053,7 @@ export function createFloatingPanel({
   // Resolved that says so at rest goes with the caret.
   /** @param {{resolved: unknown} | null} thread */
   const whereTo = (thread) =>
-    !thread ? "Comment" : thread.resolved ? "Reply to reopen" : "Reply";
+    leafSays(!thread ? COMMENT_HINT : thread.resolved ? REOPEN_HINT : REPLY_HINT);
   // An editor's empty words, as its own paint draws them (composing/input.js, `hint`),
   // which marks the editor with whose reading they are, so the face the theme gives that
   // reading changes in the same paint as the words (floating-panel.css). Words all one
@@ -1101,7 +1107,7 @@ export function createFloatingPanel({
       // press is the one the row offers while it passes.
       enters: () => {
         const { says, words } = fieldReading(null, input);
-        return SAYS_ELSE.has(says) && wordsText(words) ? "Comment" : "";
+        return SAYS_ELSE.has(says) && wordsText(words) ? COMMENT_HINT : "";
       },
       // Named for what a press there does, as the field's reading says it, once the
       // editor this builds is the one the reading reads.

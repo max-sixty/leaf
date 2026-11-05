@@ -73,6 +73,7 @@ import {
 } from "../native-selection.js";
 import { html, render, signal } from "/runtime/framework.js";
 import { addressableWord } from "../addressable-names.js";
+import { COMMENT_HINT } from "../words.js";
 import {
   anchoringIsReady,
   lightSeat,
@@ -92,7 +93,6 @@ import {
   targetRange,
 } from "../resolved-target.js";
 import {
-  COMMENT_HINT,
   composerOpen,
   createSelectionComposer,
   fabBar,

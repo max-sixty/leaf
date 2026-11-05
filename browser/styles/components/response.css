@@ -72,7 +72,14 @@ leaf-composition-field {
    layer, so they move none of the box's controls as they come and go. They send the
    hint and its key to the box's far end, and a narrow box shortens them first, keeping
    the hint whole. */
+/* An empty box's words, when Leaf says them all (voice.js), wear Leaf's italic, the
+   new-line hint with them; a key keeps its own face. What stands before them is its own
+   speakers'. */
+leaf-text[data-lf-voice="leaf"]::part(placeholder) {
+  font-style: italic;
+}
 .lf-compose-placeholder > .lf-compose-placeholder-lead {
+  font-style: normal;
   margin-inline-end: auto;
   padding-inline-end: 0.75em;
 }

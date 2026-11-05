@@ -127,7 +127,7 @@ test("a return stays interrupted until its refreshed reading is actually present
       };
       const feed = createStateFeed({
         stateApplying: () => applying,
-        readingInHand: () => runtime.reading,
+        stateInHand: () => runtime.state,
         invalidateDom: async () => {},
         receiveState,
         prepareActivation: async () => null,
@@ -217,7 +217,7 @@ test("the page asks for no reading it already has in hand", async (t) => {
   };
   createStateFeed({
     stateApplying: () => false,
-    readingInHand: () => inHand?.reading ?? runtime.reading,
+    stateInHand: () => inHand ?? runtime.state,
     invalidateDom: async () => {},
     receiveState,
     prepareActivation: async () => null,
@@ -284,6 +284,29 @@ test("the page asks for no reading it already has in hand", async (t) => {
     4,
     "the page read again for the revision its read answered with",
   );
+
+  // An activity transition that comes due asks once, and the answer in hand settles it.
+  const due = new Date(Date.now() - 60_000).toISOString();
+  applicationState.adopt(
+    servedState({
+      taken: ++taken,
+      reading: "due",
+      activity: { next_transition_at: due },
+    }),
+  );
+  news = "due";
+  looks.at(-1)();
+  await setImmediate();
+  const aged = prepare("aged");
+  answers.push("aged");
+  clock();
+  await setImmediate();
+  assert.equal(reads(), 5);
+  clock();
+  await setImmediate();
+  assert.equal(reads(), 5, "the clock read again for a transition its answer settles");
+  aged();
+  await setImmediate();
 });
 
 test("a matching response completes from its held data after a newer admission", async (t) => {

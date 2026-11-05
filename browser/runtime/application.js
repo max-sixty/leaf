@@ -489,7 +489,7 @@ function createApplication(dependencies) {
 
   const feed = createStateFeed({
     prepareActivation: dependencies.state.prepareActivation,
-    readingInHand: installedState.readingInHand,
+    stateInHand: installedState.stateInHand,
     stateApplying,
     invalidateDom,
     receiveState,

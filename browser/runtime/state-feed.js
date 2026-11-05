@@ -111,19 +111,21 @@ export function beginRead() {
 // cannot guarantee its state read succeeded. Healthy pages read state only on change.
 /** @param {{
  * stateApplying: () => boolean,
- * readingInHand: () => string | null,
+ * stateInHand: () => import("../types/contract.js").ServedState | null,
  * invalidateDom: () => Promise<unknown>,
  * receiveState: (state: import("./layer-client.js").CompletedState) => Promise<unknown>,
  * prepareActivation: ReturnType<typeof import("./version.js").createVersionController>["prepareActivation"]
  * }} dependencies */
 export function createStateFeed({
   stateApplying,
-  readingInHand,
+  stateInHand,
   invalidateDom,
   receiveState,
   prepareActivation,
 }) {
   let readAnswered = false;
+  // What the page has adopted or has in hand, and so needs no read for.
+  const readingInHand = () => stateInHand()?.reading ?? null;
 
   // A read that did not land: the page asks again on the next tick and says why. A fault
   // its producer already reported (a paint, a state application) is reported once.
@@ -393,7 +395,8 @@ export function createStateFeed({
       // One shared clock serves temporal paint, deferred work, and failed reads.
       setInterval(() => {
         if (!pageIsVisible()) return;
-        // The last look heard the news name a reading other than the one the page
+        // Ask again when the state in hand says its activity has come due, or when
+        // the last look heard the news name a reading other than the one the page
         // still has in hand: a state read crossed a short-lived process lease the
         // news never named, or the page dropped an answer it could not adopt.
         // Repair either on the same clock as failed reads, rather than repeating
@@ -402,8 +405,9 @@ export function createStateFeed({
         if (
           readAnswered &&
           sessionIsActive() &&
-          (activityTransitionDue(runtime.state) ||
-            (!reading && crossed !== null && crossed.held === readingInHand()))
+          !reading &&
+          (activityTransitionDue(stateInHand()) ||
+            (crossed !== null && crossed.held === readingInHand()))
         )
           void item();
         else if (readAnswered) void heartbeat();

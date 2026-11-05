@@ -55,8 +55,8 @@ export function createStateApplication({
   let admission = Promise.resolve();
   // Every answer handed in through any door, a state read or a gesture's POST, while
   // it is still being prepared or applied. Until one is adopted or dropped,
-  // `runtime.reading` names the reading before it, so whoever asks whether the page
-  // already has a reading asks `readingInHand`.
+  // `runtime.state` is the state before it, so whoever asks what the page already
+  // has asks `stateInHand`.
   /** @type {Set<import("./layer-client.js").CompletedState>} */
   const inHand = new Set();
 
@@ -84,13 +84,13 @@ export function createStateApplication({
     }
   }
 
-  // The newest reading, by when the server took it, of those the page has adopted or
+  // The newest state, by when the server took it, of those the page has adopted or
   // has in hand.
-  function readingInHand() {
+  function stateInHand() {
     let newest = runtime.state;
     for (const state of inHand)
       if (!newest || state.taken > newest.taken) newest = state;
-    return newest?.reading ?? null;
+    return newest;
   }
 
   /** @param {import("./layer-client.js").CompletedState} state */
@@ -255,7 +255,7 @@ export function createStateApplication({
 
   return {
     isApplying: () => stateApplying,
-    readingInHand,
+    stateInHand,
     receiveState,
     runSerialized,
   };

@@ -30,24 +30,30 @@ later change, so the guarantee is owed to the paths users take often: a rare pat
 user takes in at a glance may move what is on screen rather than carry a mechanism of its
 own (`../SOUL.md`, "Keep the foundation small and extensible").
 
-- **Controls stay where the user aims.** A state change may repaint any box, but a control
-  the user pressed stays where it was while it still stands. When the press removes it,
-  the press's result takes its place, and that may be the next item's same control, as
-  when Resolve in the floating panel moves the user on to the next thread
-  (`floating-panel.js`); a change the user asked for may reflow what it replaces, with
-  motion the eye can follow. A scroll the gesture makes carries the pressed control only
-  to bring it whole into a scroller that showed part of it, or where the gesture says it
-  takes the user somewhere. Without a gesture, as when news arrives or a widget finishes
-  loading, a box may grow or shrink into free room, but reading content and controls stay
-  put. No hard-to-undo action arrives under a pointer that hasn't moved. A reveal on
-  hover, focus or a key never moves its ancestors or siblings, and typing may grow a
-  field but never moves it. Check: `tests/shift_watch.js`, whose header lists what it
-  credits.
+- **Controls stay where the user aims.** A state change may repaint any box. What a
+  press changes grows or shrinks its box away from the edge the box holds (next spec),
+  whatever was pressed, so a pressed control between that edge and the change stays
+  where it was, and one past the change moves with it, as a disclosure opening above its
+  button moves the button down. A box that holds its size while the press acts keeps the
+  control still. That is the platform's rule: CSS scroll anchoring prefers a focused text
+  field or the find match as the node it keeps still, never a pressed control. When the
+  press removes the control, the press's result takes its place, and that may be the
+  next item's same control, as when Resolve in the floating panel moves the user on to
+  the next thread (`floating-panel.js`); a change the user asked for may reflow what it
+  replaces, with motion the eye can follow. A scroll the gesture makes carries the
+  pressed control only to bring it whole into a scroller that showed part of it, or
+  where the gesture says it takes the user somewhere. Without a gesture, as when news
+  arrives or a widget finishes loading, a box may grow or shrink into free room, but
+  reading content and controls stay put. No hard-to-undo action arrives under a pointer
+  that hasn't moved. A reveal on hover, focus or a key never moves its ancestors or
+  siblings, and typing may grow a field but never moves it. Check: `tests/shift_watch.js`,
+  whose header lists what it credits.
 - **A box's controls stand on an edge the box holds as its content changes**, or the
-  box holds its size while they act. A thread card holds its head's edge; the floating
-  panel, standing on the window's foot, holds a list's foot, and a thread's height while
-  a press on its head line acts. Each box's header says how (`floating-panel.js`,
-  **Opened**; `thread/card-anchor.js`).
+  box holds its size while they act. A thread card holds the edge it is attached by,
+  and beside its subject its foot while the user types in it; the floating panel,
+  standing on the window's foot, holds a list's foot, and a thread's height while a
+  press on its head line acts. Each box's header says how (`floating-panel.js`,
+  **Opened**; `annotation-overlay/thread-preview.js`).
 - **News moves what the reader reads only in the thread they are in.** News from the
   server grows above the screen, where scroll anchoring absorbs it, or below it. In the
   thread the user is in, what it adds draws at once, as in a chat: the page scrolls
@@ -93,9 +99,9 @@ own (`../SOUL.md`, "Keep the foundation small and extensible").
 - **A box floating over the page grows inside the window**, toward the edge that has
   room, and sending and later growth never scroll the page to make room. Owners:
   `annotation-overlay/comment-placement.js` for attachment and bounds, and
-  `thread/card-anchor.js` for what each interaction preserves. A freshly opened card may
-  scroll to open clear of its target, and otherwise only a field in flow scrolls to keep
-  its controls in view (`thread/reply-landing.js`).
+  `annotation-overlay/thread-preview.js` for the edge a card holds. A freshly opened card
+  may scroll to open clear of its target, and otherwise only a field in flow scrolls to
+  keep its controls in view (`thread/reply-landing.js`).
 - **Readable content comes before activation.** Authored HTML paints while browser
   modules load. Each widget owns one Lit view across its lifetime; native slots retain
   authored children and CSS owns their initial layout. Each control waits only for the

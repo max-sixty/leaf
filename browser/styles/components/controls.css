@@ -1998,8 +1998,12 @@ textarea.field {
 .lf-rows-group > :not(.lf-rows-head) {
   --lf-top: calc(var(--lf-rows-slot) + var(--lf-rows-band));
 }
-.lf-rows-group:not(:first-child) {
-  margin-block-start: 10px;
+/* The space between groups hangs below each group but the last, so a group joining
+   above the one being read leaves that group's style as it was: a margin changed on
+   the box holding the browser's scroll anchor suppresses the anchoring that holds the
+   row being read in place. */
+.lf-rows-group:not(:last-child) {
+  margin-block-end: 10px;
 }
 .lf-rows > .lf-rows-group {
   display: grid;

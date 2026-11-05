@@ -242,15 +242,16 @@ import {
 } from "./thread/workflow.js";
 import { agentSays, leafSays, voiceOf, voiced, wordsText } from "./voice.js";
 import {
+  anchorLabel,
   messageReading,
   messageText,
   threadHeading,
   threadName,
+  threadPassage,
   titlePending,
 } from "./thread/messages.js";
 import { drawnThreadId, THREAD } from "./thread/selectors.js";
 import { declareThreadParts } from "./thread/selectors.js";
-import { quoteReading } from "./thread/thread-card.js";
 import { inPageOrder } from "./thread/placement.js";
 import { dismissReply, releaseReplies } from "./thread/replies.js";
 import {
@@ -2576,14 +2577,14 @@ export function createFloatingPanel({
   // October, with Threads becoming the On view's tab, over Open, Unread, Drafts and
   // Resolved filters, which a second row of tabs would have had to hold. A search reads
   // every thread's name, its messages and summaries as they read, and the words it is
-  // about, as its head quotes them (`quoteReading`), and lists matches as one list.
+  // about, as its head quotes them (`threadPassage`), and lists matches as one list.
   function shownThreads() {
     const words = query.trim().toLowerCase();
     const shown = words
       ? threads().filter((thread) =>
           [
             threadName(thread),
-            quoteReading(thread, { placedAt })?.label ?? "",
+            anchorLabel(threadPassage(thread), thread.root.about),
             ...thread.msgs.map(messageText),
             ...thread.summaries.map(messageText),
           ]

@@ -93,7 +93,7 @@ import {
 import { randomId } from "../ids.js";
 import { turns, threadKey } from "./model.js";
 import {
-  anchorQuote,
+  anchorPlace,
   messageReading,
   threadPassage,
   threadSummary,
@@ -157,19 +157,20 @@ import { Transcript } from "./transcript.js";
  * messages: readonly MessageReading[], working: WorkingMessage | null,
  * source: ThreadRecord, reread: (held: ThreadRecord) => ThreadReading}} ThreadReading */
 
-// What a thread says of the words it is about: the quote, whether it still stands on the
-// page, and its hover. A thread draws it where its container asks (`ThreadOutlets`,
-// `quote`), as the floating panel's view does, and Threads finds a thread by its label.
+// What a thread says of the words it is about: where they stand, the words, whether they
+// still stand on the page, and its hover. A thread draws it where its container asks
+// (`ThreadOutlets`, `quote`), as the floating panel's view does.
 /** @param {ThreadRecord} thread
  * @param {Pick<ReturnType<typeof import("../anchor-placement.js").createAnchorPlacement>, "placedAt">} anchors */
-export function quoteReading(thread, anchors) {
+function quoteReading(thread, anchors) {
   const placement = anchors.placedAt(thread.id);
   // A version that rewrote the quoted words left the thread on their section
   // (`rewritten_from`, events.md); the head still names those words, marked as changed.
   const rewritten = thread.rewritten_from;
   const quoted = threadPassage(thread);
-  const label = anchorQuote(quoted, thread.root.about);
-  if (!label) return null;
+  const place = anchorPlace(quoted, thread.root.about);
+  const words = quoted?.quote ?? "";
+  if (!place && !words) return null;
   const anchored = Boolean(thread.anchor) || Boolean(thread.detached_from);
   const found = !thread.detached_from && placement != null;
   const outdated = anchored && placement?.status === "outdated";
@@ -177,7 +178,8 @@ export function quoteReading(thread, anchors) {
     Boolean(rewritten) ||
     Boolean(quoted?.quote && placement?.datumElement && !placement.exact);
   return Object.freeze({
-    label,
+    place,
+    words,
     anchored,
     found,
     outdated,
@@ -1289,6 +1291,7 @@ export class ThreadView {
   /** @param {ReturnType<typeof quoteReading>} quote @param {boolean} expanded */
   #quoteTemplate(quote, expanded) {
     if (!quote) return nothing;
+    const place = quote.place && quote.words ? `${quote.place} · ` : quote.place;
     return html`${
         quote.localReading
           ? html`<button
@@ -1317,7 +1320,9 @@ export class ThreadView {
         data-lf-expanded=${String(quote.localReading && expanded)}
         title=${(quote.anchored && !quote.found && quote.title) || nothing}
       >
-        <span class="lf-quote-label">${quote.label}</span>${
+        <span class="lf-quote-label"
+          ><span class="lf-quote-place">${place}</span>${quote.words}</span
+        >${
           quote.outdated
             ? html`<span class="lf-anchor-status">Earlier data</span>`
             : quote.changed

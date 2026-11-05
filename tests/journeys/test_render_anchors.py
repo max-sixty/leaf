@@ -935,11 +935,13 @@ diff --git a/README.md b/README.md
             "source": "review-patch",
             "source_revision": revision,
             "quote": "request.token.id",
+            "prefix": 'return f"tok:{',
+            "suffix": '}"',
         },
     ]
     second = open_panel_thread(page, comments[1]["id"])
     expect(second.locator(".lf-thread-quote")).to_have_text(
-        "app.py · new line 2 · “request.token.id”"
+        "app.py · new line 2 · request.token.id"
     )
     page.locator(".lf-fp-close").click()
     panel_settled(page, open=False)

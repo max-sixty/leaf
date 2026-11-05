@@ -32,17 +32,15 @@ export function searchField(cls, { name, label, placeholder = label }) {
 
 // A role's symbol whose action follows its state, as Expand all turns to Collapse
 // all, takes its new symbol and name from its action:
-// `nameAction(button, action, {label, title, className})`. It shows `action`'s symbol
-// and says the action's name as tooltip and accessible name unless `label` says
-// more, as a symbol role does, so the name and the symbol can't drift apart.
+// `nameAction(button, action, {label, className})`. It shows `action`'s symbol and
+// says the action's name as accessible name and preview unless `label` says more, as
+// a symbol role does, so the name and the symbol can't drift apart.
 /**
  * @param {Element} control @param {string} action
- * @param {{label?: string, title?: string, className?: string}} [options]
+ * @param {{label?: string, className?: string}} [options]
  */
-export function nameAction(control, action, { label, title, className } = {}) {
-  const name = label ?? actionName(action);
-  keeps(control, "aria-label", name);
-  keeps(control, "title", title ?? name);
+export function nameAction(control, action, { label, className } = {}) {
+  keeps(control, "aria-label", label ?? actionName(action));
   showAction(control, action, className);
 }
 

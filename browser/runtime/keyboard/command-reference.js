@@ -125,7 +125,6 @@ const commandReferenceClose = closeControl({
   className: "lf-command-reference-close",
 });
 
-commandReferenceClose.dataset.lfKeyTitle = "Close the command reference";
 commandReferenceClose.setAttribute("aria-label", "Close the command reference");
 // Retained controls connect with their closed dialog at boot, so their native editor
 // and command wiring are ready before the first opening. Local renders only seat them.

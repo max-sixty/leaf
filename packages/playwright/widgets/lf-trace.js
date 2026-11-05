@@ -289,10 +289,10 @@ const playbackLayer = () =>
   });
 
 // A command row owns each transport button's activation and availability.
-/** @param {import("lit/directives/ref.js").Ref<HTMLButtonElement>} target @param {string} label @param {string} action @param {boolean} disabled @param {string} [title] */
-const transport = (target, label, action, disabled, title = label) =>
+/** @param {import("lit/directives/ref.js").Ref<HTMLButtonElement>} target @param {string} label @param {string} action @param {boolean} disabled */
+const transport = (target, label, action, disabled) =>
   html`<button
-    ${offeredAction("symbol", "lf-trace-transport-button", label, { title, action })}
+    ${offeredAction("symbol", "lf-trace-transport-button", label, { action })}
     ${ref(target)}
     ?disabled=${disabled}
   ></button>`;
@@ -1532,7 +1532,12 @@ export class Trace extends LeafElement {
     const percent = `${Math.round((this.#picture?.imageData.ratio ?? 1) * 100)}%`;
     const fitted = !this.#scopeView().image;
     keepsText(this.#nodes.zoomLabel, fitted ? "Fit" : percent);
-    keeps(this.#nodes.imageScale, "title", fitted ? `Fit · ${percent}` : percent);
+    // What the scale stands at, which its preview says beside its name (preview.js).
+    keeps(
+      this.#nodes.imageScale,
+      "aria-description",
+      fitted ? `Fit · ${percent}` : percent,
+    );
     for (const button of this.#nodes.imageScaleOptions.querySelectorAll("button"))
       keeps(
         button,
@@ -2350,14 +2355,8 @@ export class Trace extends LeafElement {
                       it at once (defaults.css, .lf-trace-play[data-lf-playing]). -->
                   ${actionTemplate("pause", "lf-action-icon")}
                 </button>
-                ${transport(
-                  this.#previous,
-                  "Previous",
-                  "previous",
-                  q,
-                  "Previous capture",
-                )}
-                ${transport(this.#next, "Next", "next", q, "Next capture")}
+                ${transport(this.#previous, "Previous capture", "previous", q)}
+                ${transport(this.#next, "Next capture", "next", q)}
               </div>
               <div class="lf-trace-position-row">
                 <span class="lf-trace-position" ${ref(this.#positionLabel)}></span
@@ -2378,7 +2377,7 @@ export class Trace extends LeafElement {
                   ${offered("")}
                   name=${`${this.id}-pace`}
                   aria-label="Playback pace"
-                  title="Review pace slows near recorded input and marked results, and speeds quiet intervals."
+                  aria-description="Review pace slows near recorded input and marked results, and speeds quiet intervals."
                   ?disabled=${q}
                   .value=${live(this.#pace)}
                   @change=${(/** @type {Event} */ event) => {

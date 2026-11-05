@@ -43,9 +43,11 @@ function wireSample({ sample, key, control, disclosure }) {
         : null,
       sample.awaitsUser ?? false,
     );
+    // The words beside each fixed sample say what its preview would, over the next
+    // cell, so only the live discovery samples keep the preview the factory gives them.
+    if (!sample.showLabel) control.lfPreview = () => null;
   };
   paint();
-  if (sample.showLabel) control.dataset.marginEntryLabelLive = "";
   if (disclosure) {
     control.addEventListener("click", () => {
       expanded = !expanded;

@@ -74,6 +74,7 @@ import { scrollIntoView } from "../landing-scroll.js";
 import { retainUserIntent } from "../user-intent.js";
 import { coarsePointer } from "../pointer.js";
 import { offeredAction } from "../widget-elements.js";
+import { pressPreview } from "../preview.js";
 
 /** @typedef {import("./drawing-record.js").DraftDrawing} Drawing
  * @typedef {import("./text-field.js").LeafTextElement} TextField
@@ -572,7 +573,6 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
         else watchError.unobserve(ta);
       }
       const action = sendLabel();
-      const newline = lineKey ? ` · ${NEW_LINE} (${lineKey})` : "";
       const phase = dictationPhase();
       const live = phase === "starting" || phase === "listening";
       const failed = loadingFailure || dictation?.failure;
@@ -588,7 +588,6 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
         type="button"
         ${offeredAction("symbol", `${sendClass} lf-compose-submit`.trim(), action, {
           action: actionWord(),
-          title: sendKeys ? `${action} (${sendKeys})${newline}` : action,
         })}
         ?data-lf-disc=${!submitIn}
         data-lf-tone="accent"
@@ -640,7 +639,6 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
             type="button"
             ${offeredAction("symbol", "lf-compose-dictate", micAction, {
               action: "dictate",
-              title: live || !status ? micAction : `${micAction} (${status})`,
             })}
             ?hidden=${!micShown}
             data-lf-disc
@@ -760,6 +758,13 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     if (!visualField) throw new Error("Composition template has no field frame");
     sync.composition = () => ({ field: visualField, frame: field });
     sendBtn = (submitIn ?? field).querySelector("button.lf-compose-submit");
+    // Send's preview names the key that sends from the box, which the box's own
+    // `text.send` answers rather than the control (preview.js, `pressPreview`).
+    if (sendBtn) {
+      const control = sendBtn;
+      control.lfPreview = () =>
+        pressPreview(control, advertisesKeys() ? [[sendKey()]] : []);
+    }
     mic = field.querySelector("button.lf-compose-dictate");
     sync.button = sendBtn;
     whileConnected(field, (signal) => {

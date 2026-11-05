@@ -284,6 +284,23 @@ the navigation then opens or closes a surface that moves focus, wrap that change
 returns false if the change had already moved focus. `threadActions.open` handles this
 itself (`module-annotations.md`, "Reading and opening Threads from a widget").
 
+### Previews
+
+Pointing reads; pressing acts (`interface-goals.md`). What pointing at an element reads,
+a widget declares as the element's `lfPreview()`, with no import, as it declares
+`lfCommands`. Leaf asks it when a pointer rests on the element, when the keyboard
+focuses it or something inside it, and when a finger holds it, and shows the answer
+beside the element over the page: words or an `html` template in the tooltip face,
+`{popover: words}` for a passage of words in the larger popover face, or `null` where
+the element says nothing now, as a file's row does while it shows its whole path. The
+answer is read once as it shows, takes no pointer and holds no control, so a control
+the user presses stays on the widget. A control needs no declaration: its accessible
+name, where its face shows only a symbol, and the keys its commands bind are its
+preview, and an `aria-description` adds a line under them; a `title` beside them would
+be a second tooltip, so a control carries none. A finger's release after a hold presses
+the element, so a widget that answers a click answers the hold too. Off Leaf nothing
+reads `lfPreview`.
+
 ### Pointer presses
 
 A handler that takes over a click, such as a link that opens a source line, acts only on
@@ -296,10 +313,6 @@ click made with Enter or Space through, checking `pressIsKeyboardActivation(even
 first. A container that takes a click anywhere on it, as an option card does, asks
 `worksInside(event.target, container)` for the control inside that the click was aimed
 at.
-
-A control that shows only part of its word, with the whole in `title`, carries the class
-`HOLDS_WORD`; a held finger reads the word, and the package's CSS shows it whole under
-`data-lf-held-word`.
 
 Call `dragging(this, true)` when the user starts dragging the widget and
 `dragging(this, false)` when the drag ends, is cancelled or the widget disconnects;

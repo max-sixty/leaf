@@ -6,14 +6,18 @@
    advertise a shortcut the dispatcher has withdrawn. A row inside a sequence scope carries
    that sequence's steps, so a destination reached through `g` says the whole shortcut.
 
-   This pass is the one writer of such a control's `title`. The control's owner names it
-   in `data-lf-key-title`, and a static control's first title is taken as that name, so
-   the owner and this pass never take turns rewriting the one attribute.
+   A key that presses a control another command owns, as `r` presses a thread's Resolve,
+   names the control with no `run` of its own: its press is the control's activation
+   (bindings.js, `commandRun`), so the button keeps one command and the key is one more
+   way to press it. A row that both names a button and runs a result claims the button's
+   activation, and two such claims on one button are refused (scopes.js, `chosenCommand`).
 
-   The pass runs in the fixed chrome's frame, so every name it writes goes through
-   `keeps` and says nothing where the control already says it. Restated title or shortcut
-   metadata is news to whatever is reading the page — the mutation stream a screen reader
-   rebuilds its buffer from. */
+   `controlKeys` is what the preview of a control names (preview.js), read when the
+   preview shows; `paintCoreControls` keeps the control's `aria-keyshortcuts`, the same
+   reading for a screen reader. The pass runs in the fixed chrome's frame, so every
+   attribute it writes goes through `keeps` and says nothing where the control already
+   says it. Restated shortcut metadata is news to whatever is reading the page — the
+   mutation stream a screen reader rebuilds its buffer from. */
 import {
   ariaShortcuts,
   bindings,
@@ -90,19 +94,41 @@ function controlRows() {
   return controls;
 }
 
+// Every press that reaches `control`, each its steps as key chips spell them: the live
+// page rows and routes that name it, and the command its press answers where that is
+// declared away from it, as a box's send key presses its Send. Keys a scope declares on
+// the control itself are its own activation, the platform's press, not a shortcut.
+/** @param {Element} control @returns {string[][]} */
+export function controlKeys(control) {
+  /** @type {Map<string, string[]>} */
+  const presses = new Map();
+  /** @param {import("./bindings.js").Scope | null | undefined} scope @param {string} press */
+  const add = (scope, press) => {
+    const steps = [...stepsBefore(scope), press].filter(Boolean);
+    if (steps.length) presses.set(steps.join(" "), steps);
+  };
+  for (const scope of pageScopes().filter((scope) => scope !== ELEMENTS))
+    for (const row of scope?.rows ?? [])
+      for (const named of namedControls(row))
+        if (named.active && word(named.control) === control) add(scope, named.press);
+  const own = buttonCommand(control);
+  if (own && own.source !== control && bindings(own.row).length) {
+    const route = own.entry === own.row ? null : own.entry;
+    if (commandAvailable(own.row, route))
+      add(
+        own.scope,
+        route?.binding !== undefined ? spell(route.binding) : labelOf(own.row),
+      );
+  }
+  return [...presses.values()];
+}
+
 export function paintCoreControls() {
-  for (const [control, { scope, active, press, shortcuts }] of controlRows()) {
-    let title = control.getAttribute("data-lf-key-title");
-    if (title === null) {
-      title = control.getAttribute("title") ?? "";
-      control.setAttribute("data-lf-key-title", title);
-    }
-    const steps = [...stepsBefore(scope), press].filter(Boolean).join(" ");
-    keeps(control, "title", title + (active ? ` (${steps})` : ""));
+  for (const [control, { scope, active, shortcuts }] of controlRows()) {
     // Native command buttons receive exact reachable shortcuts from command-hints.
     if (buttonCommand(control)) continue;
     // aria-keyshortcuts has no syntax for sequential shortcuts: its spaces separate
-    // alternatives. The complete sequence remains in the overlay, tooltip, and
+    // alternatives. The complete sequence remains in the overlay, the preview, and
     // accessible command reference instead of claiming its final press works alone.
     keeps(control, "aria-keyshortcuts", active && !scope.sequence ? shortcuts() : null);
   }

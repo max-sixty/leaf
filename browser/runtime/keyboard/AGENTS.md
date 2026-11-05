@@ -51,6 +51,8 @@ same step, through its row's `keep` where `run` would throw away unsent words
 
 - The document is the base. In a live sample, one more Escape returns focus to the
   containing page.
+- A preview standing over the page is no step: Escape puts it away and still takes the
+  step in front of the user (`preview.js`), so dismissing one never costs a press.
 - Draw and Design are page modes; surfaces opened inside them close first.
 - A surface's own state, such as Threads' search, clears before the surface closes.
   Page-side selections, targets, margin clusters and the page composer coexist beside a view the
@@ -108,8 +110,9 @@ the row's own control beside the content it changes.
 Words owe a finger the same reach. A `title` shows only to a pointer resting on its
 element, so it can't be the only place a state's reason or the rest of a cut word is
 said. A state says its word on the surface that holds it (`quoteReading`), a panel
-row's cut words stand whole where no pointer can hover (`floating-panel.css`), and a
-control that shows part of its word gives the rest to a held press (`held-word.js`).
+row's cut words stand whole where no pointer can hover (`floating-panel.css`), and
+whatever previews, a control's word and keys among it, shows its preview to a finger
+holding it, whose release still presses (`preview.js`).
 
 The comment field has one primary action, Dictate while empty and Send once it has
 words. Suggest and reactions share an anchored Other responses picker, reached by the

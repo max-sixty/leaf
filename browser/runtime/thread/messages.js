@@ -745,7 +745,6 @@ export class MessageView {
         error: "Message not copied · select its words to copy",
       });
       this.#copy.tabIndex = -1;
-      this.#copy.title = "Copy as Markdown";
     }
     if (this.#copy.value !== markdown) this.#copy.value = markdown;
     return this.#copy;

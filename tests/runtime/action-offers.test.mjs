@@ -13,7 +13,8 @@ test("a symbol shows its action's symbol and says its name unless its label says
   const retry = offerAction("symbol", "", undefined, { action: "retry" });
   assert.deepEqual(symbolOf(retry), ["retry"]);
   assert.equal(retry.getAttribute("aria-label"), "Retry");
-  assert.equal(retry.title, "Retry");
+  // Its preview says the name (preview.js), so the platform's tooltip doesn't too.
+  assert.equal(retry.hasAttribute("title"), false);
   const named = offerAction("symbol", "", "Retry loading the file", {
     action: "retry",
   });
@@ -65,14 +66,10 @@ test("a symbol whose action follows its state takes the new action's symbol and 
   nameAction(button, "collapse-all");
   assert.deepEqual(symbolOf(button), ["fold"]);
   assert.equal(button.getAttribute("aria-label"), "Collapse all");
-  assert.equal(button.title, "Collapse all");
-  // A label says more, a title more again, and the role's face stays as it was.
-  nameAction(button, "expand-all", {
-    label: "Expand all files",
-    title: "Expand all files (o)",
-  });
+  // A label says more, and the role's face stays as it was.
+  nameAction(button, "expand-all", { label: "Expand all files" });
   assert.deepEqual(symbolOf(button), ["unfold"]);
   assert.equal(button.getAttribute("aria-label"), "Expand all files");
-  assert.equal(button.title, "Expand all files (o)");
+  assert.equal(button.hasAttribute("title"), false);
   assert.equal(button.className, face);
 });

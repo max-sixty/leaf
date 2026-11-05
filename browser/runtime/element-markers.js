@@ -85,21 +85,19 @@ export function offer(tag, cls, label, inputType, pressable = false) {
 }
 // `label` names the press. A worded role shows it, and `offerAction` writes it as the
 // words; the element writer leaves the words to whoever owns the element's content,
-// such as a template. A symbol or mark says it as the accessible name and the
-// tooltip, `title` where the tooltip says more, such as the key that does the same.
+// such as a template. A symbol or mark says it as the accessible name, which its
+// preview shows with the keys that press it (preview.js); off Leaf it has no tooltip.
 /** @template {Element} T @param {T} node @param {LeafActionRole} role
- * @param {string} [cls] @param {string} [label] @param {{title?: string}} [options] @returns {T} */
-const roleElement = (node, role, cls, label, { title = label } = {}) => {
+ * @param {string} [cls] @param {string} [label] @returns {T} */
+const roleElement = (node, role, cls, label) => {
   offerElement(node, actionClass(role, cls));
-  if (label !== undefined && (role === "symbol" || role === "mark")) {
+  if (label !== undefined && (role === "symbol" || role === "mark"))
     keeps(node, "aria-label", label);
-    keeps(node, "title", title);
-  }
   return node;
 };
-/** @param {LeafActionRole} role @param {string} [cls] @param {string} [label] @param {{title?: string}} [options] */
-const buildAction = (role, cls, label, options) => {
-  const node = roleElement(document.createElement("button"), role, cls, label, options);
+/** @param {LeafActionRole} role @param {string} [cls] @param {string} [label] */
+const buildAction = (role, cls, label) => {
+  const node = roleElement(document.createElement("button"), role, cls, label);
   if (label !== undefined && role !== "symbol" && role !== "mark")
     node.textContent = label;
   return node;
@@ -173,12 +171,12 @@ export function elementDirective(name, write) {
 export const offered = elementDirective("offered", offerElement);
 
 // A press that wears one of Leaf's control faces is built by its role, never by naming
-// the face's classes: `offerAction(role, className, label, {title, action})` and, in a
+// the face's classes: `offerAction(role, className, label, {action})` and, in a
 // template, `<button ${offeredAction(role, className, label, {action})}></button>`.
 // `control-faces.js` lists the roles; `className`
 // places the control and never restyles its face. A symbol or mark names its `action`
 // (icon-paths.js, `ACTIONS`), whose symbol it shows and whose name it says as its
-// tooltip and accessible name unless `label` says more.
+// accessible name and preview unless `label` says more.
 const { offerAction, offerActionElement: offeredActionElement } = actionOffers({
   offerAction: buildAction,
   offerActionElement: roleElement,

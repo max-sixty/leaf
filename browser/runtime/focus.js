@@ -1085,7 +1085,7 @@ function overPress(ended) {
 }
 /** @param {Press} ended */
 const overSoon = (ended) => setTimeout(() => overPress(ended));
-// A press that commits at its release, as a held word does or the panel's field handing
+// A press that commits at its release, as a held preview does or the panel's field handing
 // selected words to the comment box, leaves the browser's own click after it to land on
 // whatever the release put under the pointer. The release claims that click, the one the
 // press under way owes; a keyboard's carries no count and is never it.

@@ -258,27 +258,23 @@ export function declareThreadKeys(landIn, threadHere) {
           else resolutionControl(thread)?.click();
         },
       },
+      // `r` presses the thread's own Resolve or Reopen, whose command answers it, so the
+      // control's preview names `r` (control-keys.js).
       {
         id: "thread.resolution.toggle",
         touch: false,
         keys: ["r"],
         title: () =>
           resolutionControl(threadHere())?.matches(".lf-reopen") ? "reopen" : "resolve",
-        when: () =>
-          Boolean(
-            resolutionControl(threadHere())?.matches(
-              ':not(:disabled, [aria-disabled="true"])',
-            ),
-          ),
-        run: () => resolutionControl(threadHere())?.click(),
+        control: () => resolutionControl(threadHere()),
       },
       {
         id: "message.copy",
         touch: false,
         keys: ["Mod+c"],
         title: "copy message as Markdown",
-        when: () => Boolean(messageCopy(threadHere()) && getSelection()?.isCollapsed),
-        run: () => messageCopy(threadHere())?.click(),
+        when: () => Boolean(getSelection()?.isCollapsed),
+        control: () => messageCopy(threadHere()),
       },
     ],
   });

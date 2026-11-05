@@ -4708,7 +4708,9 @@ def test_the_register_is_the_only_way_a_key_enters_the_runtime():
     other listener enters its browsing context on trusted input without answering a
     key; the same listener handles pointer input. document-inputs.js records inputs
     from the document's first script. focus.js reads keys as the end of a label press
-    and as a Tab's step; neither answers a command. The
+    and as a Tab's step; neither answers a command. A key puts away the preview a
+    pointer reads, and Escape a focus's too, while the press goes on to its command
+    (preview.js). The
     interaction log records keys and answers none. A control standing over a page block, such as a code block's Copy, hands Tab back to its block. A span Leaf offers as
     a button takes a button's Enter and Space as their default action
     (role-button-press.js), on any page; the register names that press as native
@@ -4736,6 +4738,7 @@ def test_the_register_is_the_only_way_a_key_enters_the_runtime():
         "focus.js": 2,
         "interaction-log.js": 1,
         "block-controls.js": 1,
+        "preview.js": 1,
         "role-button-press.js": 1,
     }, (
         f"the runtime's keydown listeners changed: {listed}. A key belongs in the "

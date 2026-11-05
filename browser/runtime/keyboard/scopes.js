@@ -350,7 +350,8 @@ function commandsAt(control) {
   return found;
 }
 // The one command a button answers now: the available declaration, or the first where
-// none is. Two available at once is an ambiguous button.
+// none is. Two available at once is an ambiguous button. A row that only adds a key to
+// press the button names it with no `run`, and claims nothing (control-keys.js).
 /** @template {ButtonCommand} T @param {[T, ...T[]]} candidates @returns {T} */
 function chosenCommand(candidates) {
   const available = candidates.filter(
@@ -361,7 +362,8 @@ function chosenCommand(candidates) {
   const [first, second] = available;
   if (first && second)
     throw new TypeError(
-      `leaf: ${second.entry.id} shares a button with ${first.entry.id}`,
+      `leaf: ${second.entry.id} shares a button with ${first.entry.id}; ` +
+        `a key that presses ${first.entry.id}'s button names it as \`control\` with no \`run\``,
     );
   return first ?? candidates[0];
 }

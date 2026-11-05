@@ -234,6 +234,7 @@ the headings over the document's height.
 | **Focus ring** | The one ring on whatever takes the user's next press: a focused control, a bounded decision, an obligation the user is at. It shows the current location as well as DOM focus (`--focus-ring` in `base.css`) |
 | **Key badge** | A keycap-shaped label for a binding or a hint code |
 | **Binding badge** | A key badge showing a command's current binding |
+| **Preview** | What pointing at a mark, control or value reads, standing beside it over the page: its whole word, the keys that press it, and what pressing it opens or the fact it stands for. A resting pointer, keyboard focus and a held finger read it (`preview.js`); the card a press opens beside a thread's words is its thread card, not a preview |
 
 Only Design mode and Draw mode are *modes*, lasting until an explicit exit; `o`
 toggles what the page shows without changing what input means. Commands have stable

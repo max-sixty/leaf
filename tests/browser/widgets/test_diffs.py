@@ -20,6 +20,7 @@ from render_cases_widgets import (
     PANE_DIFF_PAGE,
 )
 from render_harness import (
+    PREVIEW,
     RELEASE_FOCUS,
     consume_browser_errors,
     displayed,
@@ -1762,7 +1763,6 @@ def test_a_phone_keeps_the_diff_file_name_and_the_sticky_header_height(
             reserved: parseFloat(getComputedStyle(
                 head.parentElement.querySelector('[data-line]')
             ).scrollMarginTop),
-            title: path.title,
             bases: bases.map(base => ({text: base.textContent,
                 cut: base.scrollWidth > base.clientWidth,
                 width: base.getBoundingClientRect().width})),
@@ -1774,12 +1774,8 @@ def test_a_phone_keeps_the_diff_file_name_and_the_sticky_header_height(
     )
     page.keyboard.press("Shift")  # keyboard modality, so the focus below is visible
     page.locator("lf-diff .lf-diff-head").focus()
-    said = page.locator("lf-diff .lf-diff-path").evaluate(
-        """path => {
-        const word = getComputedStyle(path, '::after');
-        return [word.content.replace(/\\u200b/g, ''), parseFloat(word.width)];
-    }"""
-    )
+    expect(page.locator(PREVIEW)).to_be_visible()
+    said = page.locator(PREVIEW).inner_text()
     assert head["height"] == pytest.approx(head["reserved"], abs=0.5), head
     assert [base["text"] for base in head["bases"]] == (
         ["original.md", "config.md"] if renamed else ["config.md"]
@@ -1793,19 +1789,17 @@ def test_a_phone_keeps_the_diff_file_name_and_the_sticky_header_height(
         assert head["arrow"]["right"] < head["path"]["right"], head
     else:
         assert not head["bases"][0]["cut"], head
-    assert head["title"] == (f"{previous} → {path}" if renamed else path), head
-    assert path in said[0] and said[1] > 0, said
+    assert said == (f"{previous} → {path}" if renamed else path), said
 
 
 def test_a_file_row_says_its_whole_path_to_the_keyboard_and_a_held_finger(
     browser, serve
 ):
-    """A file's row gives way from its folders, and its title reaches only a pointer
-    resting on it. The keyboard location on the row, and a finger held on it, read the
-    whole path in a box under the row, a folded file's too, over the next file's row.
-    Releasing the hold folds the file, as a tap does. Touch focus keeps the path
-    visible until it leaves. A row that shows its whole path at the width it has
-    now shows no box and has no title."""
+    """A file's row gives way from its folders, and says its whole path as its preview:
+    to the keyboard's location on the row, under it, and to a finger held on it, above
+    it, a folded file's too. Releasing the hold folds the file, as a tap does, and a tap
+    reads nothing. A row that shows its whole path at the width it has now previews
+    nothing."""
     path = "plugins/worktrunk/skills/worktrunk/reference/config/deeply/nested/file.md"
     patch = "".join(
         f"diff --git a/{name} b/{name}\n--- a/{name}\n+++ b/{name}\n"
@@ -1827,50 +1821,39 @@ def test_a_file_row_says_its_whole_path_to_the_keyboard_and_a_held_finger(
     )
     page.wait_for_function("() => document.querySelector('lf-diff.lf-rendered')")
     head = page.locator("lf-diff .lf-diff-head").first
-    # The box is generated content, which takes no hit unless a rule lets it: this
-    # test's own rule does, so a hit-test at the box's corner says what stands on top.
-    head.evaluate("""head => {
-        const sheet = new CSSStyleSheet();
-        sheet.replaceSync('.lf-diff-path::after { pointer-events: auto !important; }');
-        const root = head.getRootNode();
-        root.adoptedStyleSheets = [...root.adoptedStyleSheets, sheet];
-    }""")
+    preview = page.locator(PREVIEW)
     read = """head => {
-        const path = head.querySelector('.lf-diff-path');
-        const word = getComputedStyle(path, '::after');
+        const tip = document.getElementById('lf-preview');
+        const shown = tip.matches(':popover-open');
         const at = head.getBoundingClientRect();
-        const hit = word.content === 'none' ? null : head.getRootNode().elementFromPoint(
-            at.left + head.clientLeft + parseFloat(word.left) + 6,
-            at.top + head.clientTop + parseFloat(word.top) + 6,
-        );
+        const box = tip.getBoundingClientRect();
         return {
             open: head.parentElement.open,
-            word: word.content === 'none' ? null
-                : word.content.replace(/\\u200b/g, ''),
-            shown: word.visibility === 'visible',
-            below: parseFloat(word.top) >= at.height,
-            fits: parseFloat(word.left) + parseFloat(word.width) <= at.width + 0.5,
-            onTop: hit === path,
+            word: shown ? tip.innerText : null,
+            below: shown && box.top >= at.bottom,
+            above: shown && box.bottom <= at.top,
+            inside: shown && box.left >= 0 && box.right <= innerWidth,
         };
     }"""
-    whole = f'"{path}" / ""'
     assert head.evaluate(read)["word"] is None
 
     page.keyboard.press("Shift")  # keyboard modality, so the focus below is visible
     head.focus()
+    expect(preview).to_be_visible()
     focused = head.evaluate(read)
     assert focused == {
         "open": True,
-        "word": whole,
-        "shown": True,
+        "word": path,
         "below": True,
-        "fits": True,
-        "onTop": True,
+        "above": False,
+        "inside": True,
     }, focused
     page.keyboard.press("Enter")
+    rendered(page)
     assert head.evaluate(read) == {**focused, "open": False}
     page.keyboard.press("Enter")
     head.evaluate("head => head.blur()")
+    expect(preview).to_be_hidden()
 
     cdp = context.new_cdp_session(page)
     box = head.bounding_box()
@@ -1883,50 +1866,45 @@ def test_a_file_row_says_its_whole_path_to_the_keyboard_and_a_held_finger(
         )
 
     touch("touchStart")
-    rendered(page)
-    expect(head).to_have_attribute("data-lf-held-word", "")
-    page.wait_for_function(
-        """() => getComputedStyle(document.querySelector('lf-diff').shadowRoot
-            .querySelector('.lf-diff-path'), '::after').visibility === 'visible'"""
-    )
+    expect(preview).to_be_visible()
+    expect(head).to_have_attribute("data-lf-held", "")
     held = head.evaluate(read)
-    assert held["word"] == whole and held["open"], held
+    assert (held["word"], held["open"], held["above"]) == (path, True, True), held
     touch("touchEnd")
     rendered(page)
-    assert head.evaluate(read)["open"] is False, "the release folds the file"
+    assert head.evaluate(read) == {
+        "open": False,
+        "word": None,
+        "below": False,
+        "above": False,
+        "inside": False,
+    }, "the release folds the file and puts the preview away"
     expect(head).to_be_focused()
-    expect(head).to_have_attribute("data-lf-focus", "")
-    assert head.evaluate(read)["word"] == whole
     page.evaluate(RELEASE_FOCUS)
-    assert head.evaluate(read)["word"] is None
 
     page.touchscreen.tap(point["x"], point["y"])
     rendered(page)
     assert head.evaluate(read)["open"] is True, "a tap unfolds it"
-    expect(head).to_be_focused()
-    expect(head).to_have_attribute("data-lf-focus", "")
-    assert head.evaluate(read)["word"] == whole
+    assert head.evaluate(read)["word"] is None, "a tap reads the path"
     page.evaluate(RELEASE_FOCUS)
-    assert head.evaluate(read)["word"] is None
 
-    # A row that shows its whole path shows no box and has no title, and a row's box
-    # and title follow the width the row is given while the keyboard stays on it.
+    # A row that shows its whole path previews nothing, and what a row previews
+    # follows the width it is given.
     page.keyboard.press("Shift")
-    titled = "head => head.querySelector('.lf-diff-path').getAttribute('title')"
     short = page.locator("lf-diff .lf-diff-head").nth(1)
     short.focus()
+    rendered(page)
     assert short.evaluate(read)["word"] is None, "a short path is said twice"
-    assert short.evaluate(titled) is None, "a short path's title repeats it"
-    head.focus()
-    assert head.evaluate(read)["word"] == whole and head.evaluate(titled) == path
     page.set_viewport_size({"width": 1400, "height": 844})
     rendered(page)
+    head.focus()
+    rendered(page)
     assert head.evaluate(read)["word"] is None, "a path the row shows whole is said"
-    assert head.evaluate(titled) is None
+    short.focus()
     page.set_viewport_size({"width": 390, "height": 844})
     rendered(page)
-    assert head.evaluate(read)["word"] == whole, "a narrowed row hides its path"
-    assert head.evaluate(titled) == path
+    head.focus()
+    expect(preview).to_have_text(path)
 
 
 def test_author_notes_follow_source_lines_and_survive_deferred_refresh(browser, serve):

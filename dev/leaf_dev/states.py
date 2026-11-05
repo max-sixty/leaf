@@ -590,6 +590,21 @@ def card_by_pointer(page: Page) -> None:
     open_card(page, page.locator(".lf-margin-marker").first)
 
 
+def control_preview(page: Page) -> None:
+    """The first margin card's Resolve under a resting pointer, whose preview names its
+    word and the key that presses it (preview.js). A runtime without previews shows
+    the card alone."""
+    card_by_pointer(page)
+    page.locator(".lf-margin-preview .lf-resolve").hover()
+    page.wait_for_function(
+        """() => {
+          const tip = document.getElementById('lf-preview');
+          return !tip || tip.matches(':popover-open');
+        }"""
+    )
+    settle(page)
+
+
 def open_card(page: Page, marker: Locator) -> None:
     """The margin card `marker` opens, by a click on it. The margin is fixed to the
     window and anchored to the page, so Playwright's scroll into view leaves a marker
@@ -2890,6 +2905,7 @@ STATES = (
     # Its threads on the user's turn, tinted and saying so at their ends.
     State("page-map-turn", "ship-review", page_map, region=".lf-page-map-dialog"),
     State("plan-card", "review-a-plan", card_by_pointer),
+    State("control-preview", "review-a-plan", control_preview),
     State("reaction-palette", "ship-review", reaction_palette),
     State("reaction-pressed", "ship-review", reaction_pressed),
     State(

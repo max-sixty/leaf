@@ -58,6 +58,7 @@ from render_harness import (
     FOLLOWER_MARK,
     LONG_PAGE,
     PANEL,
+    PREVIEW,
     RELEASE_FOCUS,
     REPLAYED_PAGE,
     SUBJECT_MARK,
@@ -1810,7 +1811,7 @@ def test_a_margin_label_covers_the_target_trace(browser, serve, monkeypatch):
         "aria-label", re.compile(r"^Still queued for \w+,")
     )
     marker.hover()
-    label = marker.locator(":scope > .lf-margin-entry-label")
+    label = page.locator(PREVIEW)
     traced = page.locator("#jobs")
     expect(label).to_be_visible()
     expect(traced).to_have_attribute("data-lf-traced", "")

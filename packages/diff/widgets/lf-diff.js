@@ -32,7 +32,6 @@
  * their authored nodes move into the stage, never copied into generated data rows. */
 import {
   DISCLOSE,
-  HOLDS_WORD,
   announce,
   beginWalk,
   failSoft,
@@ -304,18 +303,17 @@ function pathTemplate(path) {
     }<span class="lf-diff-base">${base}</span>`;
 }
 
-// While a file's row cuts its path short, the row wears `data-lf-path-cut`, which draws
-// the whole path for the keyboard and a held press (widget-shadow.css), and the path's
-// title holds it for a pointer resting there. A path the row shows whole has neither,
-// since each would repeat it. Whether the row cuts the path changes only with the width
+// While a file's row cuts its path short, the row's preview is the whole path, which a
+// resting pointer, the keyboard and a held press read (`lfPreview`, module-input.md,
+// "Previews"). A path the row shows whole previews nothing, since it would repeat it.
+// Whether the row cuts the path changes only with the width
 // of a part of it, the folders or the name (at a new window width, face or press beside
 // it), so each part's size is watched rather than polled. A part is cut where its words
 // run past its box, measured by a Range to the layout unit: `scrollWidth` rounds to
 // whole pixels, and the ellipsis is drawn for a fraction of one. A folder region too
 // small for this font's ellipsis is left blank: the browser otherwise paints a glyph
 // sliver. Its CSS measurement box supplies the native width. Opacity elides only paint,
-// leaving flex allocation and the full path for accessibility, title and held-word
-// intact.
+// leaving flex allocation and the full path for accessibility and the preview intact.
 //
 // One observer watches every file's row, so a delivery reads every row it names before
 // writing any. A summary's paint starts watching its path parts and moves that
@@ -340,6 +338,13 @@ const pathParts = (view) =>
     : [];
 /** @type {WeakMap<Element, {path: HTMLElement, header: HTMLElement}>} */
 const pathOwners = new WeakMap();
+// The whole path a row cuts short, by its row.
+/** @type {WeakMap<Element, string>} */
+const cutPaths = new WeakMap();
+/** @this {Element} */
+function cutPath() {
+  return cutPaths.get(this) ?? null;
+}
 const pathSizes = sizeObserver((entries) => {
   const owners = new Set(
     entries.flatMap(({ target }) => {
@@ -364,8 +369,8 @@ const pathSizes = sizeObserver((entries) => {
     };
   });
   for (const { path, header, cut, folders } of readings) {
-    header.toggleAttribute("data-lf-path-cut", cut);
-    keeps(path, "title", cut ? path.textContent : null);
+    if (cut) cutPaths.set(header, path.textContent ?? "");
+    else cutPaths.delete(header);
     for (const { part, hidden } of folders)
       part.toggleAttribute("data-lf-folder-hidden", hidden);
   }
@@ -379,13 +384,7 @@ function unwatchPathCut(view) {
 /** @param {FileSummary} record */
 function filePathTemplate({ path, previousPath }) {
   const name = path || "(unnamed file)";
-  // The held-word presentation uses generated content, so it needs a soft break
-  // after each slash alongside the visible path's <wbr> opportunities. A cut path
-  // is read whole on keyboard focus or a held press (`paintSummary`, held-word.js).
-  const displayPath = previousPath ? `${previousPath} → ${path}` : name;
-  return html`<span
-    class="lf-diff-path"
-    data-lf-path=${displayPath.replaceAll("/", "/\u200b")}
+  return html`<span class="lf-diff-path"
     >${
       previousPath
         ? html`<span class="lf-diff-source-path">${pathTemplate(previousPath)}</span
@@ -436,7 +435,8 @@ function summaryNode(record, open, verified = true) {
   details.className = "lf-diff-fold";
   details.open = open;
   const summary = document.createElement("summary");
-  summary.className = `lf-diff-head lf-disclosure-marker ${HOLDS_WORD}`;
+  summary.className = "lf-diff-head lf-disclosure-marker";
+  summary.lfPreview = cutPath;
   details.append(summary);
   /** @type {TextPresentation} */
   const view = { kind: "text", row: details, details, header: summary };

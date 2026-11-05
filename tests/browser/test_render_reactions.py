@@ -29,6 +29,7 @@ from render_cases_widgets import (
 )
 from render_harness import (
     PANEL,
+    PREVIEW,
     RELEASE_FOCUS,
     ROOT,
     accessible_details,
@@ -2197,14 +2198,20 @@ def test_a_held_reaction_says_its_word_and_the_release_decides(browser, serve):
             {"type": kind, "touchPoints": [point] if point else []},
         )
 
-    # What the choices read once the input so far has been delivered: Chromium hands
-    # touch moves over on a later frame, so a reading taken at once can be a move behind.
-    def reading():
-        rendered(page)
+    preview = page.locator(PREVIEW)
+
+    # Which choice a finger holds, and the word its preview says, once the preview the
+    # hold shows stands: [] where none does.
+    def reading(held=True):
+        if held:
+            expect(preview).to_be_visible()
+        else:
+            rendered(page)
+            expect(preview).to_be_hidden()
         return strip.evaluate("""strip => [...strip.querySelectorAll('.lf-react')]
-            .filter((chip) => chip.hasAttribute('data-lf-held-word'))
+            .filter((chip) => chip.hasAttribute('data-lf-held'))
             .map((chip) => [chip.dataset.lfToken,
-                            getComputedStyle(chip, '::after').content])""")
+                            document.getElementById('lf-preview').innerText])""")
 
     # What the log holds once everything the page has sent has come back, so a read that
     # expects no reaction is not merely early.
@@ -2217,14 +2224,15 @@ def test_a_held_reaction_says_its_word_and_the_release_decides(browser, serve):
         ]
 
     touch("touchStart", centre("keep"))
-    assert reading() == [["keep", '"keep"']]
+    assert reading() == [["keep", "keep"]]
     touch("touchMove", centre("change"))
-    assert reading() == [["change", '"change"']]
+    expect(preview).to_have_text("change")
+    assert reading() == [["change", "change"]]
     off = centre("change")
     touch("touchMove", {"x": off["x"], "y": off["y"] - 120})
-    assert reading() == []
+    assert reading(held=False) == []
     touch("touchEnd")
-    assert reading() == []
+    assert reading(held=False) == []
     assert tokens() == [], "a release off the list reacted"
 
     # A press with a modifier held is the platform's (ctrl-click is the Mac's context
@@ -2232,11 +2240,11 @@ def test_a_held_reaction_says_its_word_and_the_release_decides(browser, serve):
     page.keyboard.down("Control")
     page.mouse.move(**centre("keep"))
     page.mouse.down()
-    assert reading() == []
+    assert reading(held=False) == []
     page.mouse.move(**centre("change"))
     page.mouse.up()
     page.keyboard.up("Control")
-    assert reading() == []
+    assert reading(held=False) == []
     assert tokens() == [], "a modified press reacted on its release"
 
     # The page draws a reaction before its POST lands, so the log is read once the
@@ -2247,7 +2255,7 @@ def test_a_held_reaction_says_its_word_and_the_release_decides(browser, serve):
     expect(strip.locator('.lf-react[data-lf-token="clarify"]')).to_have_attribute(
         "aria-pressed", "true"
     )
-    assert reading() == []
+    assert reading(held=False) == []
     assert tokens() == ["clarify"]
 
     # The keyboard reads the word by focusing the choice: the list opened from its
@@ -2257,9 +2265,8 @@ def test_a_held_reaction_says_its_word_and_the_release_decides(browser, serve):
     page.keyboard.press("Enter")
     keep = strip.locator('.lf-react[data-lf-token="keep"]')
     expect(keep).to_be_focused()
-    assert keep.evaluate(
-        "c => [c.matches(':focus-visible'), getComputedStyle(c, '::after').content]"
-    ) == [True, '"keep"']
+    assert keep.evaluate("c => c.matches(':focus-visible')")
+    expect(preview).to_have_text("keep")
     with sending(page, "the keep reaction"):
         page.keyboard.press("Enter")
     expect(keep).to_have_attribute("aria-pressed", "true")

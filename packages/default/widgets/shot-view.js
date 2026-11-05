@@ -298,7 +298,6 @@ export class ShotView {
             }),
         )}
         data-lf-state=${state}
-        title=${label}
         aria-label=${frame ? nothing : `${label} — ${host.getAttribute("alt")}`}
         ?data-lf-shot-hidden=${
           !frame &&

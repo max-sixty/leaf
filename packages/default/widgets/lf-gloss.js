@@ -5,11 +5,15 @@
  * generated for the diff, but still page text a user can select and comment on. Paper
  * places those same words after the phrase.
  *
- * Hover is only the fastest route. The phrase is the visible affordance; a proxy at the
- * same place (control-faces.js, `proxy`) gives Tab, Enter, and Space their native route
- * without adding a second mark to the prose. Clicking the phrase pins the card for touch and
- * careful reading. An auto popover owns the top-layer lifecycle and light dismissal;
- * CSS anchors keep the card with its phrase. */
+ * Pointing reads; pressing acts. A pointer resting on the phrase, keyboard focus on it
+ * and a finger holding it read the explanation as the phrase's preview, in the popover
+ * face (`lfPreview`, module-input.md, "Previews"). A press pins the explanation's own
+ * card open, where its words can be selected and commented on, and a second press puts
+ * it away. The phrase is the visible affordance; a proxy at the same place
+ * (control-faces.js, `proxy`) gives Tab, Enter, and Space their native route without
+ * adding a second mark to the prose, and its description is the card, which a screen
+ * reader hears on focus. An auto popover owns the card's top-layer lifecycle and light
+ * dismissal; CSS anchors keep the card with its phrase. */
 import {
   keeps,
   showNativeLayer,
@@ -30,24 +34,20 @@ customElements.define(
   "lf-gloss",
   class extends HTMLElement {
     #bubble = document.createElement("span");
-    #dismissed = false;
-    #focused = false;
-    #hovered = false;
     #mark = offerAction("proxy", "lf-gloss-mark");
     #pinned = false;
-    #shown = false;
+    // A pinned card already shows the explanation, so the phrase previews nothing.
+    lfPreview = () =>
+      this.#pinned ? null : { popover: this.getAttribute("tip") ?? "" };
 
     connectedCallback() {
       if (!once(this)) return;
       this.#build();
       whileConnected(this, (/** @type {AbortSignal} */ signal) => {
-        this.#listen(signal);
+        this.addEventListener("click", (event) => this.#click(event), { signal });
         this.#sync();
         return () => {
-          this.#hovered = false;
-          this.#focused = false;
           this.#pinned = false;
-          this.#shown = false;
         };
       });
     }
@@ -76,71 +76,14 @@ customElements.define(
       this.append(this.#bubble, this.#mark);
       // A comment can rest on the x-says tip itself, and following it opens the tip as
       // Leaf opens any closed popover holding a destination. Opened by anyone but this
-      // module, the tip stays pinned open, as a click pins it.
+      // module, the tip stays pinned open, as a click pins it; a light dismissal unpins it.
       this.#bubble.addEventListener("beforetoggle", (event) => {
-        if (event.newState !== "open" || this.#shown) return;
-        this.#dismissed = false;
-        this.#pinned = true;
-        this.#shown = true;
-        this.#mark.setAttribute("aria-expanded", "true");
-        commandsChanged(this);
+        if (event.newState === "open" && !this.#pinned) this.#pin(true);
       });
       this.#bubble.addEventListener("toggle", (event) => {
-        if (event.newState !== "closed" || !this.#shown || isNativeLayer(this.#bubble))
-          return;
-        this.#shown = false;
-        this.#pinned = false;
-        this.#dismissed = true;
-        this.#mark.setAttribute("aria-expanded", "false");
-        commandsChanged(this);
+        if (event.newState === "closed" && this.#pinned && !isNativeLayer(this.#bubble))
+          this.#pin(false);
       });
-    }
-
-    /** @param {AbortSignal} signal */
-    #listen(signal) {
-      this.addEventListener(
-        "pointerenter",
-        (event) => {
-          // A tap synthesizes pointerenter too. Treating that as hover leaves a card
-          // permanently open after its click unpins it, so only a hovering mouse takes
-          // this route; touch reaches the same state through click.
-          if (event.pointerType !== "mouse") return;
-          this.#hovered = true;
-          this.#dismissed = false;
-          this.#sync();
-        },
-        { signal },
-      );
-      this.addEventListener(
-        "pointerleave",
-        (event) => {
-          if (event.pointerType !== "mouse") return;
-          this.#hovered = false;
-          this.#dismissed = false;
-          this.#sync();
-        },
-        { signal },
-      );
-      this.addEventListener(
-        "focusin",
-        () => {
-          this.#focused = true;
-          this.#dismissed = false;
-          this.#sync();
-        },
-        { signal },
-      );
-      this.addEventListener(
-        "focusout",
-        (event) => {
-          if (this.contains(/** @type {Node | null} */ (event.relatedTarget))) return;
-          this.#focused = false;
-          this.#dismissed = false;
-          this.#sync();
-        },
-        { signal },
-      );
-      this.addEventListener("click", (event) => this.#click(event), { signal });
     }
 
     /** @param {MouseEvent} event */
@@ -151,25 +94,22 @@ customElements.define(
       const nested = worksInside(target, this);
       if (nested && nested !== this.#mark) return;
       if (event.composedPath().includes(this.#bubble)) return;
-      this.#dismissed = false;
-      this.#pinned = !this.#pinned;
+      this.#pin(!this.#pinned);
       this.#sync();
+    }
+
+    /** @param {boolean} pinned */
+    #pin(pinned) {
+      this.#pinned = pinned;
+      keeps(this.#mark, "aria-expanded", pinned);
+      commandsChanged(this);
     }
 
     #sync() {
       if (!this.#bubble?.isConnected) return;
-      const show = !this.#dismissed && (this.#hovered || this.#focused || this.#pinned);
       const open = isNativeLayer(this.#bubble);
-      if (show === this.#shown && show === open) return;
-      this.#shown = show;
-      keeps(this.#mark, "aria-expanded", show);
-      commandsChanged(this);
-
-      if (show) {
-        showNativeLayer(this.#bubble);
-      } else {
-        if (isNativeLayer(this.#bubble)) closeNativeLayer(this.#bubble);
-      }
+      if (this.#pinned && !open) showNativeLayer(this.#bubble);
+      else if (!this.#pinned && open) closeNativeLayer(this.#bubble);
     }
   },
 );

@@ -66,7 +66,6 @@ import {
   mountMarginLayer,
   paintedBox,
   registerMarginRow,
-  scheduleMarginEntryLabels,
   standsFolded,
   standsWithheld,
   unregisterMarginRow,
@@ -1349,7 +1348,6 @@ export function createMarginProjection({
       rowsChanged = false;
       tick(drawnMargin);
       scheduleRoving();
-      scheduleMarginEntryLabels();
     }
     // The margin's keys have the map's existence as their capability; each row already
     // asks the narrower question of whether its press works from the current focus.
@@ -2133,23 +2131,15 @@ export function createMarginProjection({
       rowsChanged = true;
       accompanyShownRow();
       card.place();
-      scheduleMarginEntryLabels();
       // A new width or height moves where targets stand down the page, and so what their
       // markers' names say; whatever else moves a target renders the margin, which names
       // them anew. Measured against the column this pass read.
       if (column.width === spokenBasis?.width && height === spokenBasis?.height) return;
       nameMarkers(readSpokenPositions(pageInventory, column, height));
     });
-    document.addEventListener("pointerover", scheduleMarginEntryLabels, {
-      capture: true,
-    });
-    document.addEventListener("pointerout", scheduleMarginEntryLabels, {
-      capture: true,
-    });
     // A drop is the change's own to put right: the margin follows where the user is.
     onCurrentLocation((node, cause) => {
       if (cause === "drop") return;
-      scheduleMarginEntryLabels();
       queueMicrotask(followCurrentLocation);
     });
     // Ahead of the document, where a mode claims its presses before anyone else hears

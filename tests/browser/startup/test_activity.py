@@ -40,15 +40,15 @@ from leaf import state as cleanup_model
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
-# Where the leaf's peek says the status's whole sentence.
-PEEK = ".lf-fp-peek"
+# Where the folded leaf says the status's whole sentence: its preview (preview.js).
+PEEK = "#lf-preview"
 LEAF = ".lf-fp-leaf"
 
 
 def expect_status_says(page, words):
-    """Point at the leaf and read the status's whole sentence in its peek, which keeps
-    what it opened with for one exposure (floating-panel.js), so the pointer leaves
-    again and the next reading is a new exposure."""
+    """Point at the leaf and read the status's whole sentence in its preview, which
+    keeps what it opened with while it shows (preview.js), so the pointer leaves again
+    and the next reading is a new one."""
     page.locator(".lf-fp-leaf").hover()
     expect(page.locator(PEEK)).to_have_text(words)
     page.mouse.move(5, 5)

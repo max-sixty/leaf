@@ -31,6 +31,7 @@ from render_cases_widgets import PAGE_DECLARATION, PAGE_WIDGET
 from render_harness import (
     EDITOR_ROOTS,
     LONG_PAGE,
+    PREVIEW,
     close_panel_menu,
     consume_browser_errors,
     holding,
@@ -859,10 +860,11 @@ def test_clicking_into_the_field_moves_none_of_an_open_view_s_controls(browser, 
     assert panel_tab(page, "Threads").bounding_box() == tab
     page.keyboard.type("Could")
     expect(page.locator(".lf-fp-send")).to_be_visible()
-    # Each platform spells Shift its own way (keyboard/bindings.js, `spell`).
-    expect(page.locator(".lf-fp-send")).to_have_attribute(
-        "title", re.compile(r"^Send \(⏎\) · New line \((⇧|Shift\+)⏎\)$")
-    )
+    # Send's preview names the key that sends from the box (preview.js).
+    page.locator(".lf-fp-send").hover()
+    expect(page.locator("#lf-preview")).to_be_visible()
+    expect(page.locator("#lf-preview .lf-preview-word")).to_have_text("Send")
+    expect(page.locator("#lf-preview kbd")).to_have_text(["⏎"])
     settled(page)
     assert page.locator(".lf-fp-close").bounding_box() == close
     assert view.bounding_box() == stands
@@ -2871,7 +2873,7 @@ def test_floating_status_records_feedback_only_when_its_words_show(
             page.locator("h1").first.click()
         else:
             page.locator(".lf-fp-leaf").hover()
-            expect(page.locator(".lf-fp-peek")).to_contain_text(
+            expect(page.locator(PREVIEW)).to_contain_text(
                 "Reading the diagnostic transport"
             )
     rows = visible()
@@ -2903,7 +2905,8 @@ def test_a_folded_status_keeps_its_reading_until_the_next_exposure(
         identity={"agent": "Codex", "session": "codex-thread"},
     )
     told(page)
-    peek = page.locator(".lf-fp-peek")
+    # The folded leaf's status is its preview (preview.js).
+    peek = page.locator(PREVIEW)
     leaf = page.locator(".lf-fp-leaf")
     leaf.hover()
     expect(peek).to_contain_text("Reading the diagnostic transport.")
@@ -2943,12 +2946,15 @@ def test_a_folded_status_keeps_its_reading_until_the_next_exposure(
         ephemeral=True,
         identity={"agent": "Codex", "session": "codex-thread"},
     )
+    expect(peek).to_be_hidden()
     with page.expect_request("**/api/news"):
         page.evaluate("""() => {
           window.__lfTestVisibility = 'visible';
           document.dispatchEvent(new Event('visibilitychange'));
         }""")
     told(page)
+    page.mouse.move(5, 5)
+    leaf.hover()
     expect(peek).to_contain_text("Tracing the reply acknowledgements.")
     ticked(page)
     words = peek.inner_text()
@@ -2959,21 +2965,22 @@ def test_a_folded_status_keeps_its_reading_until_the_next_exposure(
     page.evaluate(
         "async () => (await window.__lfWidgetApi()).notice('Saved for later')"
     )
-    expect(peek).to_have_text("Saved for later")
+    expect(page.locator(".lf-fp-peek")).to_have_text("Saved for later")
 
 
 def test_only_the_folded_leaf_shows_a_status_peek(browser, serve):
     """The row's status and errors remain inline; its menu carries the full reading.
-    Hover and keyboard focus reveal status only when the leaf is folded."""
+    Hover and keyboard focus preview status only when the leaf is folded."""
     page = floating(browser, serve(LONG_PAGE))
-    peek = page.locator(".lf-fp-peek")
+    peek = page.locator(PREVIEW)
     leaf = page.locator(".lf-fp-leaf")
     seat = page.locator(".lf-fp-field")
     expect(field(page)).to_have_attribute("placeholder", re.compile(r"^Away\b"))
     assert seat.get_attribute("title") is None
     for target in (leaf, seat):
         target.hover()
-        assert not peek.evaluate("peek => peek.hasAttribute('data-lf-shown')")
+        rendered(page)
+        expect(peek).to_be_hidden()
 
     leaf.click()
     expect(page.locator(panel_view("menu"))).to_contain_text("Updates are saved.")
@@ -2985,7 +2992,8 @@ def test_only_the_folded_leaf_shows_a_status_peek(browser, serve):
     )
     expect(field(page)).to_have_attribute("data-lf-says", "error")
     seat.hover()
-    assert not peek.evaluate("peek => peek.hasAttribute('data-lf-shown')")
+    rendered(page)
+    expect(peek).to_be_hidden()
     page.locator("body").click(position={"x": 5, "y": 5})
     page.keyboard.press(".")
     leaf.hover()
@@ -2997,7 +3005,7 @@ def test_only_the_folded_leaf_shows_a_status_peek(browser, serve):
     page.keyboard.press("Tab")
     page.keyboard.press("Shift+Tab")
     expect(leaf).to_be_focused()
-    assert not peek.evaluate("peek => peek.hasAttribute('data-lf-shown')")
+    expect(peek).to_be_hidden()
 
 
 def test_floating_menu_tracks_stalled_detail_hidden_by_a_draft(browser, serve, request):
@@ -4678,7 +4686,7 @@ def test_each_view_s_list_is_one_tab_stop_its_keys_walk(browser, serve):
         panel_comment(serve.page_dir, text)
     page = floating(browser, url)
     on_mark = page.locator(".lf-fp-on-user")
-    expect(on_mark).to_have_attribute("title", "On me: 2")
+    expect(on_mark).to_have_attribute("aria-label", "On me: 2")
 
     on_mark.click()
     queue = page.locator(panel_view("queue"))

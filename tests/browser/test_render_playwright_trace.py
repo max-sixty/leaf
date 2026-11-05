@@ -9,9 +9,11 @@ from playwright.sync_api import expect
 from render_cases_layout import current_location_ring, ring_faults
 from render_cases_navigation import source_revision
 from render_harness import (
+    PREVIEW,
     holding,
     leaf_page,
     open_page,
+    preview_text,
     resized,
     told,
 )
@@ -149,14 +151,13 @@ def test_trace_parts_carry_the_recording_and_place_they_were_drawn_from(browser,
     ("engine", "width"),
     [("browser", 1400), ("browser", 320), ("firefox_browser", 320)],
 )
-def test_timeline_tooltips_keep_their_words_above_marks_inside_the_timeline(
+def test_timeline_marks_say_their_words_beside_them_inside_the_window(
     request, serve, engine, width
 ):
-    """Narrow timelines keep a complete hovered label inside their inline room.
-
-    The first lane's tooltip may extend above the timeline. Its horizontal fit must
-    still work there, including after zoom changes which marks stand at its edges.
-    Firefox also wraps a narrow label without letting its lower lines cover the mark.
+    """A narrow timeline's marks each say their whole words when pointed at, in a
+    preview beside the mark and inside the window (preview.js), including after zoom
+    changes which marks stand at its edges. Firefox also wraps a narrow preview without
+    letting its lines cover the mark.
     """
     browser = request.getfixturevalue(engine)
     record = json.loads(
@@ -184,7 +185,11 @@ def test_timeline_tooltips_keep_their_words_above_marks_inside_the_timeline(
         if zoom:
             widget.get_by_role("button", name="Zoom in", exact=True).click()
             rendered(page)
-        marks = timeline.locator("[data-lf-tip]")
+        # Every mark that says something when pointed at (preview.js).
+        timeline.evaluate("""node => [...node.querySelectorAll('*')]
+            .forEach((el) => el.toggleAttribute('data-test-tip',
+              typeof el.lfPreview === 'function'))""")
+        marks = timeline.locator("[data-test-tip]")
         visible = marks.evaluate_all("""nodes => nodes.map((node, index) => {
             const box = node.getBoundingClientRect();
             const band = node.closest('.lf-trace-scroller').getBoundingClientRect();
@@ -196,20 +201,22 @@ def test_timeline_tooltips_keep_their_words_above_marks_inside_the_timeline(
         for index in (visible[0], visible[-1]):
             mark = marks.nth(index)
             mark.hover()
-            tooltip = timeline.get_by_role("tooltip")
+            tooltip = page.locator(PREVIEW)
             expect(tooltip).to_be_visible()
             rendered(page)
-            host, target, tip = (
-                locator.bounding_box() for locator in (timeline, mark, tooltip)
-            )
-            assert tip["y"] + tip["height"] <= target["y"]
-            assert tip["x"] >= host["x"] - 1
-            assert tip["x"] + tip["width"] <= host["x"] + host["width"] + 1
-            assert tooltip.inner_text().replace("\u00a0", " ") == mark.get_attribute(
-                "data-lf-tip"
-            )
+            target, tip = (locator.bounding_box() for locator in (mark, tooltip))
+            # Beside its mark, whole inside the window.
+            assert (
+                tip["y"] >= target["y"] + target["height"]
+                or tip["y"] + tip["height"] <= target["y"]
+            ), (tip, target)
+            assert tip["x"] >= 0
+            assert tip["x"] + tip["width"] <= page.viewport_size["width"]
+            assert tooltip.text_content() == preview_text(mark)
+            page.mouse.move(0, 0)
+            expect(tooltip).to_be_hidden()
         page.get_by_role("heading", name="Inspect recorded input").hover()
-        expect(timeline.get_by_role("tooltip")).to_be_hidden()
+        expect(page.locator(PREVIEW)).to_be_hidden()
 
 
 def stop_time(record, checkpoint):
@@ -241,7 +248,9 @@ def navigate_to_phase(timeline, identity):
         if widget.locator(".lf-trace-phase").get_attribute("data-lf-datum") == identity:
             rendered(timeline.page)
             return
-        expect(widget.get_by_role("button", name="Next", exact=True)).to_be_enabled()
+        expect(
+            widget.get_by_role("button", name="Next capture", exact=True)
+        ).to_be_enabled()
         timeline.press("ArrowRight")
     raise AssertionError(f"Native phase not reached: {identity}")
 
@@ -272,7 +281,7 @@ def test_trace_arrows_step_the_way_the_time_scale_runs_in_right_to_left_text(
     widget = user.locator("#journey")
     call = widget.locator(f'.lf-trace-call-bar[data-lf-id="{setup["id"]}"]')
     expect(call.locator(".lf-trace-call-name")).to_have_text(setup["method"])
-    expect(call).to_have_attribute("data-lf-tip", re.compile(re.escape(setup["title"])))
+    assert setup["title"] in preview_text(call).replace("\u00a0", " ")
     timeline = widget.get_by_role("group", name="Recording timeline", exact=True)
     position = widget.locator(".lf-trace-position")
     playhead = widget.locator(".lf-trace-playhead")

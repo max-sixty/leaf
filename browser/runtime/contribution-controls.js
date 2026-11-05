@@ -5,7 +5,6 @@
 import { renderedUnder } from "./shadow-tree.js";
 import { html, render } from "/runtime/framework.js";
 import { iconTemplate } from "./icons.js";
-import { HOLDS_WORD } from "./held-word.js";
 import { progressFace, workflowWord } from "./thread/workflow.js";
 import { agentSays, saidBy, voiced } from "./voice.js";
 import { agentName } from "./semantic-state.js";
@@ -248,56 +247,47 @@ function paintAgentDescription(control) {
   const reading = agentWorkflowDescriptions.get(control);
   if (!reading) {
     control.removeAttribute("aria-description");
-    control.removeAttribute("title");
-    paintLabelMore(control, null);
     return;
   }
-  const record = records.get(control);
-  // What the title says beyond the label, which a margin entry's label says too, so a
-  // finger holding the entry reads all of it, each word said by whoever says it.
-  const more = [
-    reading.title !== record?.label && reading.title,
-    reading.stage && reading.word,
-    reading.stage && reading.detail && agentSays(reading.detail),
-  ]
-    .flatMap((part) => (part ? [part] : []))
-    .flatMap((part, index) => (index ? [" · ", part] : [part]));
-  paintLabelMore(control, more);
-  if (!reading.stage) {
-    for (const [attribute, value] of Object.entries({
-      "aria-description": reading.description,
-      title: reading.title,
-    })) {
-      keeps(control, attribute, value);
-    }
-    return;
-  }
-  const work = [reading.word?.text, reading.detail].filter(Boolean).join(" · ");
+  const work = reading.stage
+    ? [reading.word?.text, reading.detail].filter(Boolean).join(" · ")
+    : "";
   keeps(
     control,
     "aria-description",
-    [reading.description, work].filter(Boolean).join(" · "),
-  );
-  keeps(
-    control,
-    "title",
-    [
-      record?.title ?? record?.label,
-      reading.title !== (record?.title ?? record?.label) && reading.title,
-      work,
-    ]
-      .filter(Boolean)
-      .join(" · "),
+    [reading.description, work].filter(Boolean).join(" · ") || null,
   );
 }
 
-/** @param {Element} control @param {import("./voice.js").Words | null} more */
-function paintLabelMore(control, more) {
-  /** @type {HTMLElement | null} */
-  const line = control.querySelector(
-    ":scope > .lf-margin-entry-label > .lf-margin-entry-more",
-  );
-  if (line) render(voiced(more ?? []), line);
+// What an entry says when pointed at (preview.js): its label, the context its
+// projection gives it, and what its title says beyond the label, such as an agent's work
+// on it, each word said by whoever says it. A finger holding the entry reads the same.
+/** @this {Element} */
+function entryPreview() {
+  const record = records.get(this);
+  if (!record) return null;
+  const label = visibleContributionEntryLabel(record);
+  const reading = agentWorkflowDescriptions.get(this);
+  // A part the label already says, as a Delivered receipt's stage word does, is
+  // said once.
+  const more = [
+    reading?.title !== record.label && reading?.title,
+    reading?.stage && reading.word,
+    reading?.stage && reading.detail && agentSays(reading.detail),
+  ]
+    .flatMap((part) =>
+      part && (typeof part === "string" ? part : part.text) !== label ? [part] : [],
+    )
+    .flatMap((part, index) => (index ? [" · ", part] : [part]));
+  return html`<span class="lf-preview-word"
+      >${record.voice ? voiced(saidBy(record.voice, label)) : label}</span
+    >${
+      record.context
+        ? html`<span class="lf-preview-more">${voiced(record.context)}</span>`
+        : null
+    }${
+      more.length ? html`<span class="lf-preview-more">${voiced(more)}</span>` : null
+    }`;
 }
 
 /** @param {Element} control @param {string | null} description @param {string | null} title */
@@ -468,36 +458,21 @@ export function presentContributionEntry(control, offered, options = {}) {
   const record = presentContributionHost(control, offered, options);
   if (Object.hasOwn(options, "selected"))
     syncContributionSelection(control, options.selected);
-  // Its label shows to a resting pointer and the keyboard, and to a finger holding it.
+  // Its label is its preview, which a resting pointer, the keyboard and a finger
+  // holding it read (`entryPreview`).
   control.classList.toggle("lf-margin-entry", true);
-  control.classList.toggle(HOLDS_WORD, true);
-  const visibleLabel = visibleContributionEntryLabel(record);
+  control.lfPreview = entryPreview;
   const glyph = record.icon
     ? iconTemplate(record.icon)
     : html`<span class="lf-margin-entry-glyph" aria-hidden="true"
         >${record.glyph}</span
       >`;
   render(
-    html`${glyph}<span class="lf-margin-entry-space" aria-hidden="true"> </span
-      ><span class="lf-margin-entry-label" aria-hidden="true"
-        ><span class="lf-margin-entry-label-word"
-          >${
-            record.voice ? voiced(saidBy(record.voice, visibleLabel)) : visibleLabel
-          }</span
-        >${
-          record.context
-            ? html`<span class="lf-margin-entry-context"
-                >${voiced(record.context)}</span
-              >`
-            : null
-        }<span class="lf-margin-entry-more"></span></span
-      >${
-        record.count > 1
-          ? html`<span class="lf-margin-count" aria-hidden="true"
-              >${record.count}</span
-            >`
-          : null
-      }`,
+    html`${glyph}${
+      record.count > 1
+        ? html`<span class="lf-margin-count" aria-hidden="true">${record.count}</span>`
+        : null
+    }`,
     control,
   );
   paintAgentDescription(control);

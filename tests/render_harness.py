@@ -2757,6 +2757,39 @@ def fills_the_window(page, block, fills):
 LANDING_TOP = "(await window.__lfCheckApi()).landingBand(document.scrollingElement).top"
 
 
+# The one preview standing over the page (runtime/preview.js).
+PREVIEW = "#lf-preview"
+
+
+def preview_text(target):
+    """The words `target`'s declared preview says, read from its `lfPreview()` without
+    pointing at it (runtime/preview.js), as the preview's `textContent` would be."""
+    return target.evaluate(
+        """async (node) => {
+          const {render} = await window.__lfWidgetApi();
+          const box = document.createElement('div');
+          const said = node.lfPreview?.() ?? null;
+          render(said?.popover ?? said, box);
+          return box.textContent;
+        }"""
+    )
+
+
+def preview_parts(target):
+    """What `target`'s declared preview says, its word and then each line under it,
+    read from its `lfPreview()` without pointing at it (runtime/preview.js): what the
+    target says, apart from where and when the preview shows it."""
+    return target.evaluate(
+        """async (node) => {
+          const {render} = await window.__lfWidgetApi();
+          const box = document.createElement('div');
+          render(node.lfPreview?.() ?? null, box);
+          return [...box.querySelectorAll('.lf-preview-word, .lf-preview-more')]
+            .map((part) => part.textContent);
+        }"""
+    )
+
+
 def resized(page, width, height):
     """Resize and wait for the page's listeners and rendering update.
 

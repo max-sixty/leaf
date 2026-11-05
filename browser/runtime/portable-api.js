@@ -4,12 +4,13 @@
    (`layer_import_map` in revision_delivery.py), and runs none of Leaf's runtime. On a
    Leaf page the same widget gets Leaf's features through what Leaf reads from outside
    it, rather than through calls into Leaf: the events it dispatches (widget-upgrade.js),
-   the keys it declares as `lfCommands`, the words it asks a listener to hear
-   (`announce`), the inventory of Comment targets it registers (`registerVisualParts`,
-   visual-parts.js), and the parts it marks for Leaf to dress, a block's Copy control
-   (`data-lf-copy`, code-copy.js) and a quiet word (`data-lf-quiet`, declared-words.js).
-   A page without Leaf reads none of them, so there the widget binds no key, says
-   nothing aloud, offers no Comment target and shows no Leaf control.
+   the keys it declares as `lfCommands`, what pointing at an element reads
+   (`lfPreview`, preview.js), the words it asks a listener to hear (`announce`), the
+   inventory of Comment targets it registers (`registerVisualParts`, visual-parts.js),
+   and the parts it marks for Leaf to dress, a block's Copy control (`data-lf-copy`,
+   code-copy.js) and a quiet word (`data-lf-quiet`, declared-words.js).
+   A page without Leaf reads none of them, so there the widget binds no key, shows no
+   preview, says nothing aloud, offers no Comment target and shows no Leaf control.
 
    widget-api.js re-exports all of it, so these are the same helpers by either path.
    Each home re-exported here must load, and work, in a document Leaf did not compose:
@@ -110,6 +111,5 @@ export { atLayoutPrecision, keeps, keepsHidden, keepsText, layoutPx } from "./ke
 export { move } from "./dom-move.js";
 export { setChildLists, setChildren, setRenderedChildren } from "./dom-children.js";
 export { scrollBehavior } from "./motion.js";
-export { HOLDS_WORD } from "./held-word.js";
 export { DISCLOSE } from "./control-keys.js";
 export { langForPath } from "./language-paths.js";

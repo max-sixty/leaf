@@ -351,10 +351,14 @@ customElements.define(
         when: () => this.#movable(card) && !this.#resumeProjection,
         run: () => this.#grab(card, grip, rows),
       };
-      // The tooltip names the keys the row binds rather than a letter typed beside it: the
-      // grip answers Space too, and said Enter on every surface for as long as the word and
-      // the press were separate objects.
-      grip.title = `Drag to move — or ${labelOf(grab)} to grab`;
+      // The grip's description, which its preview says under its name, names the keys the
+      // row binds rather than a letter typed beside it: the grip answers Space too, and
+      // said Enter on every surface for as long as the word and the press were separate
+      // objects.
+      grip.setAttribute(
+        "aria-description",
+        `Drag to move — or ${labelOf(grab)} to grab`,
+      );
       /** @type {import("/runtime/keyboard/bindings.js").Command[]} */
       const rows = [
         grab,

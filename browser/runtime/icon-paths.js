@@ -212,36 +212,34 @@ const drawAction = (node, role, action) =>
 
 /**
  * The role constructors (`control-faces.js`, `ACTION_FACES`) with each symbol and mark
- * drawn from its action: `offerAction(role, className, label, {title, action})`, and
+ * drawn from its action: `offerAction(role, className, label, {action})`, and
  * `offerActionElement(node, …)` for a template's element. The runtime builds its own
  * from these (widget-elements.js).
  * @param {{
- * offerAction: (role: LeafActionRole, className?: string, label?: string, options?: {title?: string}) => HTMLButtonElement,
- * offerActionElement: <T extends Element>(node: T, role: LeafActionRole, className?: string, label?: string, options?: {title?: string}) => T
+ * offerAction: (role: LeafActionRole, className?: string, label?: string) => HTMLButtonElement,
+ * offerActionElement: <T extends Element>(node: T, role: LeafActionRole, className?: string, label?: string) => T
  * }} base
  */
 export function actionOffers(base) {
-  /** @param {string | undefined} title */
-  const titled = (title) => (title === undefined ? undefined : { title });
   return {
     /**
      * @param {LeafActionRole} role @param {string} [className] @param {string} [label]
-     * @param {{title?: string, action?: string}} [options]
+     * @param {{action?: string}} [options]
      */
-    offerAction(role, className, label, { title, action } = {}) {
+    offerAction(role, className, label, { action } = {}) {
       const face = actionFace(role, label, action);
-      const node = base.offerAction(role, className, face.label, titled(title));
+      const node = base.offerAction(role, className, face.label);
       if (face.action !== undefined) drawAction(node, role, face.action);
       return node;
     },
     /**
      * @template {Element} T
      * @param {T} node @param {LeafActionRole} role @param {string} [className]
-     * @param {string} [label] @param {{title?: string, action?: string}} [options]
+     * @param {string} [label] @param {{action?: string}} [options]
      */
-    offerActionElement(node, role, className, label, { title, action } = {}) {
+    offerActionElement(node, role, className, label, { action } = {}) {
       const face = actionFace(role, label, action);
-      base.offerActionElement(node, role, className, face.label, titled(title));
+      base.offerActionElement(node, role, className, face.label);
       if (face.action !== undefined) drawAction(node, role, face.action);
       return node;
     },

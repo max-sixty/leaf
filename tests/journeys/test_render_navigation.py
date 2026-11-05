@@ -29,6 +29,7 @@ from render_cases_navigation import (
 from render_harness import (
     FEATURE_GALLERY,
     PANEL,
+    PREVIEW,
     RELEASE_FOCUS,
     command_reference_rows,
     expect_obligations_answered,
@@ -44,6 +45,7 @@ from render_harness import (
     panel_says,
     panel_settled,
     panel_view,
+    preview_parts,
     resized,
     round_trip,
     scroll_settled,
@@ -933,11 +935,9 @@ def _the_atlas_shows_every_margin_entry_face_in_its_treatment(page):
     expect(count.locator(":scope > .lf-margin-count")).to_have_text("3")
     label = sample("label + context")
     label.hover()
-    expect(label.locator(".lf-margin-entry-label-word")).to_have_text(
-        "Label + context…"
-    )
-    expect(label.locator(".lf-margin-entry-context")).to_have_text("Patch ready")
-    expect(label.locator(".lf-margin-entry-label")).to_have_css("visibility", "visible")
+    preview = page.locator(PREVIEW)
+    expect(preview.locator(".lf-preview-word")).to_have_text("Label + context…")
+    expect(preview.locator(".lf-preview-more")).to_have_text("Patch ready")
     page.mouse.move(0, 0)
 
     resting = sample("resting")
@@ -1013,9 +1013,7 @@ def _the_atlas_shows_every_margin_entry_face_in_its_treatment(page):
     interactive.hover()
     expect(interactive).to_have_css("background-color", token_colour(page, "--chip"))
     expect(interactive).to_have_css("border-top-color", token_colour(page, "--accent"))
-    expect(interactive.locator(".lf-margin-entry-label")).to_have_css(
-        "visibility", "visible"
-    )
+    expect(page.locator(PREVIEW)).to_be_visible()
     page.mouse.move(0, 0)
     interactive.focus()
     page.keyboard.press("Tab")
@@ -1039,12 +1037,10 @@ def _the_atlas_shows_every_margin_entry_face_in_its_treatment(page):
     ).get_by_role("button", name="Inspect projection", exact=True)
     expect(projection).to_be_visible()
     projection.focus()
-    expect(projection.locator(".lf-margin-entry-label-word")).to_have_text(
-        "Inspect projection…"
-    )
-    expect(projection.locator(".lf-margin-entry-context")).to_have_text(
-        "Compact face · full row"
-    )
+    assert preview_parts(projection) == [
+        "Inspect projection…",
+        "Compact face · full row",
+    ]
     page.keyboard.press("g")
     page.keyboard.press("Shift+p")
     dialog = page.get_by_role("dialog", name="Page Map", exact=True)

@@ -28,8 +28,6 @@ import {
   whileConnected,
   layoutPx,
   keeps,
-  keepsHidden,
-  keepsText,
   pressIsKeyboardActivation,
   assignRows,
   axisTicks,
@@ -54,6 +52,16 @@ import {
 /** @typedef {{target: Element, clientX: number}} MarkPoint */
 
 const CLUSTER_WIDTH = 168;
+
+// What a mark says to a pointer resting on it or a finger holding it, as its preview
+// (`lfPreview`, module-input.md, "Previews"): one line per name a label lists, and a
+// time keeps its unit on its line.
+/** @param {string} text */
+const tip = (text) => () =>
+  html`${text
+    .replace(/(\d) s\b/g, "$1\u00a0s")
+    .split("\n")
+    .map((line, index) => (index ? html`<br />${line}` : line))}`;
 
 export class RecordingTimeline {
   #host;
@@ -84,8 +92,6 @@ export class RecordingTimeline {
   #callRows = 1;
   /** @type {Map<string, number>} */
   #callRowOf = new Map();
-  /** @type {Element | null} */
-  #tipAnchor = null;
 
   /**
    * `host` receives the timeline. `options`: `onSeek(time, final)`, `onPick(lane,
@@ -418,7 +424,7 @@ export class RecordingTimeline {
       html`<span
         class="lf-trace-word"
         data-lf-word=${item.id}
-        data-lf-tip=${item.title}
+        .lfPreview=${tip(item.title)}
         ?data-lf-current=${item.current}
         >${item.label}</span
       >`;
@@ -429,11 +435,11 @@ export class RecordingTimeline {
           class="lf-trace-more"
           data-lf-more
           ?data-lf-current=${cluster.items.slice(1).some((item) => item.current)}
-          data-lf-tip=${
+          .lfPreview=${tip(
             cluster.spread
               ? `${cluster.items.length - 1} more ${kind}: zoom to separate them`
-              : `${cluster.items.length - 1} more ${kind} at this time; ${kind === "moments" ? "the Moments list" : "Shift with Left and Right"} reaches each`
-          }
+              : `${cluster.items.length - 1} more ${kind} at this time; ${kind === "moments" ? "the Moments list" : "Shift with Left and Right"} reaches each`,
+          )}
           >+${cluster.items.length - 1}</span
         >`;
     return cluster.items.map((item, index) => html`${index ? " " : ""}${word(item)}`);
@@ -501,8 +507,6 @@ export class RecordingTimeline {
               }}
               @pointerdown=${(/** @type {PointerEvent} */ event) => this.#press(event)}
               @click=${(/** @type {PointerEvent} */ event) => this.#tap(event)}
-              @pointerover=${(/** @type {PointerEvent} */ event) => this.#hover(event)}
-              @pointerout=${(/** @type {PointerEvent} */ event) => this.#hover(event, true)}
             >
               <div class="lf-trace-ruler lf-axis-ruler"></div>
               <div class="lf-trace-grid lf-axis-grid" aria-hidden="true"></div>
@@ -517,7 +521,7 @@ export class RecordingTimeline {
                             data-lf-pick="moments"
                             data-lf-id=${cluster.items[0].id}
                             data-lf-cluster=${index}
-                            data-lf-tip=${cluster.items.map((item) => item.title).join("\n")}
+                            .lfPreview=${tip(cluster.items.map((item) => item.title).join("\n"))}
                             ?data-lf-current=${cluster.items.some((item) => item.current)}
                             style="--lf-axis-at: ${fraction(cluster.items[0].at)}; max-inline-size: ${this.#labelRoom(
                               this.#labels.moments,
@@ -543,7 +547,7 @@ export class RecordingTimeline {
                             data-lf-pick="input"
                             data-lf-id=${cluster.items[0].id}
                             data-lf-cluster=${index}
-                            data-lf-tip=${cluster.items.map((item) => item.title).join("\n")}
+                            .lfPreview=${tip(cluster.items.map((item) => item.title).join("\n"))}
                             style="--lf-axis-at: ${fraction(cluster.items[0].at)}; max-inline-size: ${this.#labelRoom(
                               this.#labels.input,
                               index,
@@ -560,7 +564,7 @@ export class RecordingTimeline {
                             class="lf-trace-input-send lf-on-axis"
                             data-lf-pick="input"
                             data-lf-id=${input.id}
-                            data-lf-tip=${input.title}
+                            .lfPreview=${tip(input.title)}
                             ?data-lf-current=${input.current}
                             style="--lf-axis-at: ${fraction(input.send)}"
                           ></span>`,
@@ -573,7 +577,7 @@ export class RecordingTimeline {
                             class="lf-trace-bar lf-trace-input-bar lf-on-axis"
                             data-lf-pick="input"
                             data-lf-id=${input.id}
-                            data-lf-tip=${input.title}
+                            .lfPreview=${tip(input.title)}
                             ?data-lf-current=${input.current}
                             ?data-lf-active=${input.active}
                             style="--lf-axis-at: ${fraction(input.start)}; --d: ${length(
@@ -599,7 +603,7 @@ export class RecordingTimeline {
                             class="lf-trace-bar lf-trace-call-bar lf-on-axis"
                             data-lf-pick="calls"
                             data-lf-id=${call.id}
-                            data-lf-tip=${call.title}
+                            .lfPreview=${tip(call.title)}
                             ?data-lf-current=${call.current}
                             ?data-lf-active=${call.active}
                             ?data-lf-error=${call.error}
@@ -642,8 +646,7 @@ export class RecordingTimeline {
         >
           <span class="lf-trace-overview-window"></span>
           <span class="lf-trace-overview-time"></span>
-        </div>
-        <div class="lf-trace-tip" role="tooltip" hidden></div>`,
+        </div>`,
       this.#host,
     );
     const track = this.#part(".lf-trace-track");
@@ -848,7 +851,6 @@ export class RecordingTimeline {
     if (!(track instanceof HTMLElement)) return;
     track.setPointerCapture(event.pointerId);
     this.#scrubbing = event.pointerId;
-    this.#hideTip();
     this.#options.onSeek(this.#eventTime(event), false);
     const move = (/** @type {PointerEvent} */ moved) => {
       if (moved.pointerId === this.#scrubbing)
@@ -913,35 +915,5 @@ export class RecordingTimeline {
       if (away < distance) [best, distance] = [mark, away];
     }
     return best;
-  }
-
-  /** @param {PointerEvent} event @param {boolean} [leaving] */
-  #hover(event, leaving = false) {
-    const target = event.target;
-    const pick = target instanceof Element ? target.closest("[data-lf-tip]") : null;
-    const text = pick?.getAttribute("data-lf-tip");
-    if (leaving || !pick || text == null || this.#scrubbing !== null) {
-      if (
-        !leaving ||
-        !(event.relatedTarget instanceof Node && pick?.contains(event.relatedTarget))
-      )
-        this.#hideTip();
-      return;
-    }
-    const tip = this.#part(".lf-trace-tip");
-    // A time keeps its unit on its line.
-    keepsText(tip, text.replace(/(\d) s\b/g, "$1\u00a0s"));
-    if (this.#tipAnchor !== pick) {
-      if (this.#tipAnchor) keeps(this.#tipAnchor, "data-lf-trace-tip-anchor", null);
-      this.#tipAnchor = pick;
-      keeps(pick, "data-lf-trace-tip-anchor", "");
-    }
-    keepsHidden(tip, false);
-  }
-  #hideTip() {
-    if (this.#tipAnchor) keeps(this.#tipAnchor, "data-lf-trace-tip-anchor", null);
-    this.#tipAnchor = null;
-    const tip = this.#part(".lf-trace-tip");
-    if (tip) keepsHidden(tip, true);
   }
 }

@@ -949,7 +949,7 @@ def test_a_margin_reply_grows_before_it_scrolls(browser, serve, comment_repeats)
     editor = preview.locator("leaf-text")
     rendered(page)
     transcript = preview.locator(".lf-thread-transcript")
-    if comment_repeats == 6:
+    if not comment_repeats:
         assert transcript.evaluate("list => list.scrollHeight <= list.clientHeight + 1")
     write(editor, "\n".join("A reply with several lines." for _ in range(5)))
     assert editor.evaluate(

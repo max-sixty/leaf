@@ -20,104 +20,100 @@ from leaf.render_gate.widget_quality import widget_findings
 from leaf.revision_artifact import read_artifact
 
 
-def test_package_imports_fail_at_the_browser_module_boundary(browser, serve):
+def test_a_package_reads_the_public_api_and_nothing_behind_it(browser, serve, subtests):
+    """On one package page: a name the public API doesn't export fails at the browser's
+    module boundary, formatted words follow rendered blocks and whitespace, and an
+    independent header adds its measured height to the room a landing leaves."""
     page = open_page(browser, serve(leaf_page("Public API", "<p>A package page.</p>")))
-    problem = page.evaluate("""async () => {
-      const module = new Blob([
-        `import { setRuntimeRootStyle } from ${JSON.stringify(new URL('/runtime/widget-api.js', location.href).href)};`
-      ], {type: 'text/javascript'});
-      const url = URL.createObjectURL(module);
-      try { await import(url); return null; }
-      catch (error) { return {name: error.name, message: error.message}; }
-      finally { URL.revokeObjectURL(url); }
-    }""")
-    assert problem["name"] == "SyntaxError"
-    assert "setRuntimeRootStyle" in problem["message"]
-
-
-def test_formatted_page_words_follow_rendered_blocks_and_whitespace(browser, serve):
-    page = open_page(
-        browser, serve(leaf_page("Formatted words", "<p>A package page.</p>"))
-    )
-    readings = page.evaluate("""async () => {
-      const {says} = await import('/runtime/widget-api.js');
-      return lfUnwatched(() => {
-        const cases = {
-          divs: '<div>Step one</div><div>Step two</div>',
-          indented: '<div>Step one</div>\\n  <div>Step two</div>',
-          pre: '<p>Apply:</p><pre>a: 1\\n  b: 2</pre>',
-          preWrap: '<div style="white-space:pre-wrap">a: 1\\n  b: 2</div>',
-          preLine: '<div style="white-space:pre-line">a:  1  \\n  b: 2</div>',
-          table: '<table><tr><td>a</td><td>b</td></tr><tr><td>c</td><td>d</td></tr></table>',
-          list: '<ul><li>Outer<ul><li>Inner</li></ul></li><li>Next</li></ul>',
-          inline: '<div>Use <span data-lf-gen="1" data-lf-said>cpu</span>.</div>',
-          br: 'Line one<br>Line two',
-          island: '<div>Intro <span data-lf-markdown-words><strong>bold</strong> tail</span> rest</div>',
-          inlineDiv: '<div style="display:inline">Alpha</div><div style="display:inline">beta</div>',
-          blockSpan: '<span style="display:block">Alpha</span><span style="display:block">beta</span>',
-          ruby: '<p>Use <ruby>漢<rt>kan</rt></ruby> here.</p>',
-          chrome: '<p>Apply <b>these settings</b><span class="lf-ui">1 comment</span>.</p>',
-        };
-        return Object.fromEntries(Object.entries(cases).map(([name, html]) => {
-          const root = document.createElement('section');
-          root.innerHTML = html;
-          document.body.append(root);
-          const lines = says(root, {format: 'lines'});
-          root.querySelectorAll('.lf-ui').forEach(node => node.remove());
-          const shown = root.innerText;
-          root.remove();
-          // Lines keeps boundaries, not the browser's extra paragraph spacing.
-          const normalize = text => text.replace(/\\n{2,}/g, '\\n');
-          return [name, {lines: normalize(lines), shown: normalize(shown)}];
-        }));
-      });
-    }""")
-    assert {name: value["lines"] for name, value in readings.items()} == {
-        name: value["shown"] for name, value in readings.items()
-    }
-
-
-def test_independent_document_headers_contribute_measured_landing_room(browser, serve):
-    page = open_page(browser, serve(leaf_page("Headers", "<p>A package page.</p>")))
-    initial = page.evaluate("""async () => {
-      const {landingInsets, registerRootHeader} = await window.__lfWidgetApi();
-      const before = landingInsets(document.documentElement).top;
-      const make = (id, height) => {
-        const header = document.createElement('div');
-        header.id = id;
-        header.style.cssText = `position:fixed; height:${height}px`;
-        document.querySelector('main').append(header);
-        return header;
-      };
-      const first = make('package-header-one', 19);
-      const second = make('package-header-two', 31);
-      window.headerStops = [registerRootHeader(first), registerRootHeader(second)];
-      return before;
-    }""")
-
-    def added():
-        rendered(page)
-        return (
-            page.evaluate("""async () => {
-          const {landingInsets} = await window.__lfWidgetApi();
-          return landingInsets(document.documentElement).top;
+    with subtests.test("import boundary"):
+        problem = page.evaluate("""async () => {
+          const module = new Blob([
+            `import { setRuntimeRootStyle } from ${JSON.stringify(new URL('/runtime/widget-api.js', location.href).href)};`
+          ], {type: 'text/javascript'});
+          const url = URL.createObjectURL(module);
+          try { await import(url); return null; }
+          catch (error) { return {name: error.name, message: error.message}; }
+          finally { URL.revokeObjectURL(url); }
         }""")
-            - initial
-        )
+        assert problem["name"] == "SyntaxError"
+        assert "setRuntimeRootStyle" in problem["message"]
+    with subtests.test("formatted words"):
+        readings = page.evaluate("""async () => {
+          const {says} = await import('/runtime/widget-api.js');
+          return lfUnwatched(() => {
+            const cases = {
+              divs: '<div>Step one</div><div>Step two</div>',
+              indented: '<div>Step one</div>\\n  <div>Step two</div>',
+              pre: '<p>Apply:</p><pre>a: 1\\n  b: 2</pre>',
+              preWrap: '<div style="white-space:pre-wrap">a: 1\\n  b: 2</div>',
+              preLine: '<div style="white-space:pre-line">a:  1  \\n  b: 2</div>',
+              table: '<table><tr><td>a</td><td>b</td></tr><tr><td>c</td><td>d</td></tr></table>',
+              list: '<ul><li>Outer<ul><li>Inner</li></ul></li><li>Next</li></ul>',
+              inline: '<div>Use <span data-lf-gen="1" data-lf-said>cpu</span>.</div>',
+              br: 'Line one<br>Line two',
+              island: '<div>Intro <span data-lf-markdown-words><strong>bold</strong> tail</span> rest</div>',
+              inlineDiv: '<div style="display:inline">Alpha</div><div style="display:inline">beta</div>',
+              blockSpan: '<span style="display:block">Alpha</span><span style="display:block">beta</span>',
+              ruby: '<p>Use <ruby>漢<rt>kan</rt></ruby> here.</p>',
+              chrome: '<p>Apply <b>these settings</b><span class="lf-ui">1 comment</span>.</p>',
+            };
+            return Object.fromEntries(Object.entries(cases).map(([name, html]) => {
+              const root = document.createElement('section');
+              root.innerHTML = html;
+              document.body.append(root);
+              const lines = says(root, {format: 'lines'});
+              root.querySelectorAll('.lf-ui').forEach(node => node.remove());
+              const shown = root.innerText;
+              root.remove();
+              // Lines keeps boundaries, not the browser's extra paragraph spacing.
+              const normalize = text => text.replace(/\\n{2,}/g, '\\n');
+              return [name, {lines: normalize(lines), shown: normalize(shown)}];
+            }));
+          });
+        }""")
+        assert {name: value["lines"] for name, value in readings.items()} == {
+            name: value["shown"] for name, value in readings.items()
+        }
+    with subtests.test("landing room"):
+        initial = page.evaluate("""async () => {
+          const {landingInsets, registerRootHeader} = await window.__lfWidgetApi();
+          const before = landingInsets(document.documentElement).top;
+          const make = (id, height) => {
+            const header = document.createElement('div');
+            header.id = id;
+            header.style.cssText = `position:fixed; height:${height}px`;
+            document.querySelector('main').append(header);
+            return header;
+          };
+          const first = make('package-header-one', 19);
+          const second = make('package-header-two', 31);
+          window.headerStops = [registerRootHeader(first), registerRootHeader(second)];
+          return before;
+        }""")
 
-    assert added() == pytest.approx(50)
-    page.locator("#package-header-one").evaluate("el => el.style.height = '43px'")
-    assert added() == pytest.approx(74)
-    page.locator("#package-header-two").evaluate(
-        "el => {window.detachedHeader=el; el.remove()}"
-    )
-    assert added() == pytest.approx(43)
-    page.evaluate("document.querySelector('main').append(window.detachedHeader)")
-    assert added() == pytest.approx(74)
-    page.evaluate("window.headerStops[0]()")
-    assert added() == pytest.approx(31)
-    page.evaluate("window.headerStops[1]()")
-    assert added() == pytest.approx(0)
+        def added():
+            rendered(page)
+            return (
+                page.evaluate("""async () => {
+              const {landingInsets} = await window.__lfWidgetApi();
+              return landingInsets(document.documentElement).top;
+            }""")
+                - initial
+            )
+
+        assert added() == pytest.approx(50)
+        page.locator("#package-header-one").evaluate("el => el.style.height = '43px'")
+        assert added() == pytest.approx(74)
+        page.locator("#package-header-two").evaluate(
+            "el => {window.detachedHeader=el; el.remove()}"
+        )
+        assert added() == pytest.approx(43)
+        page.evaluate("document.querySelector('main').append(window.detachedHeader)")
+        assert added() == pytest.approx(74)
+        page.evaluate("window.headerStops[0]()")
+        assert added() == pytest.approx(31)
+        page.evaluate("window.headerStops[1]()")
+        assert added() == pytest.approx(0)
 
 
 def output_package(path, value):

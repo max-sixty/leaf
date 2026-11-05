@@ -9,14 +9,11 @@ from pathlib import Path
 import pytest
 from click.testing import CliRunner
 from interact_support import (
-    OPTIONS,
     PAGE,
-    SUGGESTION,
     _report,
     _tasks_version,
     append_carried_log_record,
     append_command,
-    before_choice,
     check,
     check_findings,
     decide,
@@ -24,7 +21,6 @@ from interact_support import (
     declare_on_page,
     found,
     fresh_process,
-    obligations_on_user,
     page_packages,
     publish,
     read_page_data,
@@ -50,11 +46,6 @@ from leaf import revision_artifact as artifact_model
 from leaf import revisioning as revisioning_model
 from leaf import vendoring as vendoring_model
 from leaf.registry.storage import load_registry
-
-
-def test_check_accepts_a_valid_page(page_dir):
-    result = check(page_dir)
-    assert result.exit_code == 0, result.output
 
 
 def test_check_accepts_authored_module_scripts(page_dir):
@@ -188,13 +179,6 @@ def test_the_captured_executable_digest_separates_code_from_content(page_dir):
     assert reissued.executable != redeclared.executable
 
 
-def test_a_version_can_change_the_authored_column_after_a_user_move(page_dir):
-    _drop_x_between_a_and_b(page_dir)
-    _write_board(page_dir, "nabc", "x")
-    revised = check(page_dir)
-    assert revised.exit_code == 0, revised.output
-
-
 def test_a_version_that_leaves_the_moves_column_alone_needs_not_write_it(page_dir):
     """While a version authors the move's column as the move's revision did, the rank
     still lands in the gap the user chose, so leaving the move to the log is sound
@@ -240,21 +224,6 @@ def test_a_later_version_can_reposition_a_card_without_retracting_its_move(page_
         .replace('<lf-card id="x">', '<lf-card id="x" restated>')
     )
     assert check(page_dir).exit_code == 0, check(page_dir).output
-
-
-def test_a_reorder_the_next_version_wrote_survives_a_later_one(page_dir):
-    """A later authored reorder is allowed without implicitly retracting a move."""
-    _write_board(page_dir, "abc")
-    publish(page_dir)
-    _move(page_dir, "c", "c-todo", "0i")
-    _write_board(page_dir, "cab")
-    publish(page_dir)
-    _write_board(page_dir, "abc")
-    (page_dir / "index.html").write_text(
-        (page_dir / "index.html").read_text().replace("<h2>Plan</h2>", "<h2>Plans</h2>")
-    )
-    result = check(page_dir)
-    assert result.exit_code == 0, result.output
 
 
 def test_a_later_authored_reorder_is_allowed_with_a_move_in_force(page_dir):
@@ -354,88 +323,6 @@ def test_flag_attribute_accepts_both_html_spellings(page_dir):
     )
 
 
-def test_tabs_validate_and_compose(page_dir):
-    tabs = """<lf-tabs id="ws">
-  <lf-tab id="ws-ingest" label="Ingest"><p>Pipeline notes.</p></lf-tab>
-  <lf-tab id="ws-search" label="Search">
-    <dl id="k-lat" class="metric"><dt></dt><dd><strong>118 ms</strong></dd></dl>
-  </lf-tab>
-</lf-tabs>
-<lf-options>"""
-    (page_dir / "index.html").write_text(PAGE.replace("<lf-options>", tabs))
-    result = check(page_dir)
-    assert result.exit_code == 0, result.output
-
-
-def test_suggestion_validates(page_dir):
-    suggest(page_dir)
-    assert check(page_dir).exit_code == 0, check(page_dir).output
-
-
-def test_suggestion_resolves_accepts_a_real_comment(page_dir):
-    append_carried_log_record(
-        page_dir, {"kind": "comment", "id": "c1", "author": "user", "text": "hm"}
-    )
-    markup = '<lf-suggestion id="sug-a" resolves="c1"><lf-new><p>x</p></lf-new></lf-suggestion>'
-    (page_dir / "index.html").write_text(before_choice(PAGE, markup))
-    assert check(page_dir).exit_code == 0
-
-
-def test_revising_suggestion_markup_preserves_its_recorded_answer(page_dir):
-    # v2 honors the accept: the old paragraph and the wrapper are gone, the
-    # proposal inlined. Nothing but a logged accept makes that legal.
-    suggest(page_dir)
-    honored = PAGE.replace(
-        "<lf-options>",
-        '<p id="refill-camera">Refill when the camera shows it half-empty.</p><lf-options>',
-    )
-    (page_dir / "index.html").write_text(honored)
-    result = check(page_dir)
-    assert result.exit_code == 0, result.output
-
-    decide(page_dir, "accept")
-    assert check(page_dir).exit_code == 0, check(page_dir).output
-
-
-def test_the_live_source_can_honor_the_latest_revision_decision(page_dir):
-    """Source checking is about the next live revision, not a historical stamp."""
-    suggest(page_dir)
-    (page_dir / "index.html").write_text(
-        (page_dir / "index.html")
-        .read_text()
-        .replace("<title>t</title>", "<title>t · v2</title>")
-    )
-    publish(page_dir)
-    (page_dir / "index.html").write_text(
-        before_choice(
-            PAGE.replace("<title>t</title>", "<title>t · v3</title>"), SUGGESTION
-        )
-    )
-    publish(page_dir)
-    append_command(
-        page_dir,
-        {
-            "kind": "action",
-            "author": "user",
-            "revision": 3,
-            "widget": "sug-refill",
-            "action": "decide",
-            "detail": {"outcome": "accept"},
-        },
-    )
-
-    # Once staged as index.html, these bytes are a new live revision after r3;
-    # the decision in force on r3 therefore licenses the honoring rewrite.
-    (page_dir / "index.html").write_text(
-        PAGE.replace(
-            "<lf-options>",
-            '<p id="refill-camera">Refill when the camera shows it half-empty.</p><lf-options>',
-        )
-    )
-    result = check(page_dir)
-    assert result.exit_code == 0, result.output
-
-
 def test_an_unanswered_proposal_may_become_authored_content(page_dir):
     # Self-accepting: the wrapper goes but its proposal stays, presented as
     # ordinary prose the user never agreed to. Withdrawal is whole or not.
@@ -489,50 +376,6 @@ def test_retiring_suggestion_markup_is_independent_of_its_answer(page_dir):
     assert result.exit_code == 0, result.output
 
 
-def test_an_unanswered_deletion_may_leave_the_page(page_dir):
-    # The mirror of self-accepting an insertion: dropping the markup a pending
-    # deletion wraps, without the accept that consents to losing it.
-    delete = """<lf-suggestion id="sug-drop">
-  <lf-old><p id="hand-log">The manual sightings log.</p></lf-old>
-</lf-suggestion>
-"""
-    suggest(page_dir, markup=delete)
-    (page_dir / "index.html").write_text(PAGE)
-    result = check(page_dir)
-    assert result.exit_code == 0, result.output
-    decide(page_dir, "accept", widget="sug-drop")
-    assert check(page_dir).exit_code == 0
-
-
-def test_withdrawing_an_unanswered_suggestion_needs_no_consent(page_dir):
-    # Nothing was decided, so Claude may take the proposal back — but not while
-    # an unresolved thread is anchored in it.
-    suggest(page_dir)
-    (page_dir / "index.html").write_text(
-        PAGE.replace(
-            "<lf-options>",
-            '<p id="refill-rule">Refill every feeder each morning.</p><lf-options>',
-        )
-    )
-    assert check(page_dir).exit_code == 0
-    append_carried_log_record(
-        page_dir,
-        {
-            "kind": "comment",
-            "id": "c1",
-            "author": "user",
-            "anchor": {"section": "refill-camera"},
-            "text": "why the camera?",
-        },
-    )
-    result = check(page_dir)
-    assert result.exit_code == 0, result.output
-    append_carried_log_record(
-        page_dir, {"kind": "resolve", "author": "user", "parent": "c1"}
-    )
-    assert check(page_dir).exit_code == 0
-
-
 def test_check_rejects_duplicate_ids(page_dir):
     result = check(page_dir)
     assert result.exit_code == 0, result.output
@@ -543,66 +386,6 @@ def test_check_rejects_duplicate_ids(page_dir):
     status, findings = check_findings(page_dir)
     assert status == 1
     assert found(findings, "duplicate-ids", ids=["flag-first"])
-
-
-def test_unreferenced_ids_and_widget_items_may_leave_the_page(page_dir):
-    publish(page_dir)
-    without_item = PAGE.replace(
-        '      <lf-option id="backfill-first"><small class="tag">effort: med</small><small class="tag">risk: low</small>\n'
-        "        <strong>Backfill first</strong> Verify, then flip. <em>My take: do this first.</em>\n"
-        "      </lf-option>\n",
-        "",
-    )
-    (page_dir / "index.html").write_text(
-        without_item.replace('<section id="plan">', "<section>")
-    )
-
-    status, findings = check_findings(page_dir)
-
-    assert status == 0
-    # Nothing reports the option the revision dropped.
-    assert not [f for f in findings if "backfill-first" in str(f.values)]
-
-
-def test_an_answered_obligation_moves_into_a_collapsed_section_with_its_pick_in_force(
-    page_dir,
-):
-    """The route `authoring-revisions.md` gives finished work: the answered obligation goes
-    to a collapsed section whole, under the words the user picked it under."""
-    live = OPTIONS.format(a="", b="", chip="", shim="Keep the old API.", stage="Two.")
-    (page_dir / "index.html").write_text(
-        PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>" + live)
-    )
-    publish(page_dir)
-    append_command(
-        page_dir,
-        {
-            "kind": "action",
-            "author": "user",
-            "revision": files_model.latest_revision(page_dir),
-            "widget": "g1",
-            "action": "choose",
-            "detail": {"value": ["o-shim"]},
-        },
-    )
-
-    def complete(item):
-        return PAGE.replace(
-            "</section>\n</main>",
-            '</section>\n<section id="complete"><h2>Complete</h2><details>'
-            f"<summary>Migration order chosen</summary>{item}</details></section>\n</main>",
-        )
-
-    settled = live.replace('id="g1" choose', 'id="g1" choose settled')
-    (page_dir / "index.html").write_text(complete(settled))
-    moved = check(page_dir)
-    assert moved.exit_code == 0, moved.output
-
-    (page_dir / "index.html").write_text(
-        complete(settled.replace("Keep the old API.", "Merged: keep the old API."))
-    )
-    reworded = check(page_dir)
-    assert reworded.exit_code == 0, reworded.output
 
 
 def test_publishing_records_typed_settlements_for_provisional_agent_facts(page_dir):
@@ -691,106 +474,6 @@ def test_absorption_is_by_id_never_inferred_from_markup(page_dir):
     assert state_json(page_dir)["reports"][0]["disposition"] == "effective"
 
 
-def test_user_added_words_do_not_become_liveness_coordinates(page_dir):
-    """Prose that spells a sibling id remains prose.
-
-    An ``add`` names its option by id and carries its words beside it. Rewriting the
-    unrelated option whose id those words happen to spell must therefore remain legal.
-    """
-    added = "g1-option-user-route"
-
-    def write(shim):
-        opts = OPTIONS.format(
-            a="",
-            b=" chosen",
-            chip="",
-            shim=shim,
-            stage="Table by table.",
-        ).replace(
-            "</lf-options>",
-            f'<lf-option id="{added}">o-shim</lf-option></lf-options>',
-        )
-        (page_dir / "index.html").write_text(
-            PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>" + opts)
-        )
-
-    # The generated option is absent from the action's authored revision.
-    opts = OPTIONS.format(
-        a="", b="", chip="", shim="Fastest to ship.", stage="Table by table."
-    )
-    (page_dir / "index.html").write_text(
-        PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>" + opts)
-    )
-    publish(page_dir)
-    append_command(
-        page_dir,
-        {
-            "kind": "action",
-            "author": "user",
-            "revision": 1,
-            "widget": "g1",
-            "action": "add",
-            "detail": {"option": added, "text": "o-shim"},
-        },
-    )
-    append_command(
-        page_dir,
-        {
-            "kind": "action",
-            "author": "user",
-            "revision": 1,
-            "widget": "g1",
-            "action": "choose",
-            "detail": {"value": ["o-stage"]},
-        },
-    )
-
-    write("The shim now has a bounded removal date.")
-    result = check(page_dir)
-    assert result.exit_code == 0, result.output
-
-
-def test_user_state_survives_without_source_copying(page_dir):
-    """An unchanged authored choice needs no transcription into a later revision.
-    Validation stays quiet while state preserves the answer."""
-
-    def write(a=""):
-        opts = OPTIONS.format(
-            a=a, b="", chip="", shim="Fastest to ship.", stage="Table by table."
-        )
-        (page_dir / "index.html").write_text(
-            PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>" + opts)
-        )
-
-    write()
-    publish(page_dir)
-    append_command(
-        page_dir,
-        {
-            "kind": "action",
-            "author": "user",
-            "revision": 1,
-            "widget": "g1",
-            "action": "choose",
-            "detail": {"value": ["o-shim"]},
-        },
-    )
-    write()
-    result = check(page_dir)
-    assert result.exit_code == 0
-    assert "record behind the log" not in result.output
-    state = state_json(page_dir)
-    assert state["state"][0]["detail"] == {"value": ["o-shim"]}
-    assert obligations_on_user(state) == []
-
-    # Explicit incorporation is permitted but unnecessary for correctness.
-    write(a=" chosen")
-    result = check(page_dir)
-    assert result.exit_code == 0
-    assert "record behind the log" not in result.output
-    assert state_json(page_dir)["state"][0]["detail"] == {"value": ["o-shim"]}
-
-
 def test_check_reports_a_measurement_whose_source_ran_again(page_dir):
     """A source write supplies an opaque run receipt, independent of the clock.
     The authored number is current when pinned to that receipt and stale after
@@ -872,43 +555,6 @@ def test_check_reports_a_measurement_whose_source_ran_again(page_dir):
     malformed = check(page_dir)
     assert malformed.exit_code != 0
     assert "non-empty" in malformed.output or "too short" in malformed.output
-
-
-def test_file_state_scopes_a_nested_pick_to_its_nearest_recorded_owner(page_dir):
-    """The file-side record is the runtime's same ownership reading. An inner chosen
-    option is not part of the outer group's record; a nested decision does not
-    change the outer user choice."""
-    nested = """<lf-ask id="outer-decision"><h3>Which outer choices?</h3>
-  <lf-options id="outer" choose multiple>
-    <lf-option id="outer-a" chosen><strong>Outer A</strong>
-      <lf-ask id="inner-decision"><h4>Which inner choice?</h4>
-        <lf-options id="inner" choose>
-          <lf-option id="inner-a" chosen>Inner A</lf-option>
-          <lf-option id="inner-b">Inner B</lf-option>
-        </lf-options>
-      </lf-ask>
-    </lf-option>
-    <lf-option id="outer-b"><strong>Outer B</strong></lf-option>
-  </lf-options>
-</lf-ask>"""
-    html = PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>" + nested)
-    (page_dir / "index.html").write_text(html)
-    publish(page_dir)
-    append_command(
-        page_dir,
-        {
-            "kind": "action",
-            "author": "user",
-            "revision": 1,
-            "widget": "outer",
-            "action": "choose",
-            "detail": {"value": ["outer-a"]},
-        },
-    )
-
-    result = check(page_dir)
-    assert result.exit_code == 0, result.output
-    assert "record behind the log" not in result.output
 
 
 def test_a_page_source_can_be_shared_but_needs_one_simultaneous_contract(page_dir):

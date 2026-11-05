@@ -23,12 +23,22 @@
      just above the row they are on, which anchoring keeps still only where its anchor
      stands below the growth: a reading from outside the tab keeps it
      (`holdUserPlace`, below);
-   - the reading line, a quarter of the way down the window the page shows, where
-     growth starts below the box anchoring holds and above the line, as an edit growing
-     the first paragraph of the message whose second the user reads, with the reply box
-     they wrote in scrolled away (`holdUserPlace`, `readingAt`);
+   - for a reader whose focus is scrolled away, the reading line, a quarter of the way
+     down the window the page shows, where growth starts below the box anchoring holds
+     and above the line, as an edit growing the first paragraph of the message whose
+     second the user reads, with the reply box they wrote in scrolled away
+     (`holdUserPlace`, `readingAt`);
    - a place the change hides, as Skim folds the paragraph being read, where the node
-     standing for it takes its place (lf-dial.js).
+     standing for it takes its place: the paragraph's top, or the words read where
+     the paragraph began above the window (lf-dial.js).
+   A reader who focused nothing is anchoring's to keep, by the first block in view.
+   Rejected: holding the reading line for every reader, which kept a diff's line still
+   as five rows joined above it (100px on main) but moved what it left alone: words
+   above the line stood at -55px where anchoring left them at 45px, and a drag
+   selecting them ran on through the rows that joined; a pointer resting over a second
+   column made that column's line the place and moved the first column's words from
+   234px to 134px; and a press inside an embedded frame, which the page hears nothing
+   of, left the keep to move what it opened by 140px.
    `holdPlace(node, standIn)` reads where `node` stands and returns the step that,
    once the change has drawn, scrolls it, or what `standIn(node)` names once the change
    hid or removed it, back there. The change itself scrolls nothing. A forced layout

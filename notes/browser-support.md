@@ -324,7 +324,7 @@ Chrome 155 trimmed block-flow margins but left flex and grid item margins;
 a generated child could prevent trimming the authored paragraph. Playwright
 Chromium 153.0.8010.12 and Firefox 155 did not accept the property.
 Recheck wrapper and row behavior, not just parser support, against
-`test_frame_edges_pass_through_whatever_stands_at_them` and
+`test_block_margins_follow_density_frames_and_the_column_on_one_page` and
 `test_a_row_at_a_frame_edge_holds_the_trim_by_declaring_it` in
 `tests/browser/test_render_gate.py`.
 

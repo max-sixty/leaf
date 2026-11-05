@@ -201,6 +201,12 @@ def test_a_layer_is_left_the_same_way_however_it_was_reached(browser, serve):
     about: the Threads mark, the margin marker and the page mark are Leaf's own
     controls rather than places the user was reading, so none of them is a landing, and
     a user who reached one by Tab or by pointer is owed no return to it.
+
+    A margin marker stands in the document beside the words it marks, outside
+    `.lf-chrome`, so a floor reading that container wore the let-go of an obligation or a
+    heading on a marker reached by Tab. It asks `inUi`, the one reading of which layer a
+    node is in, and a marker backs out onto the page as the toggle does. A folded cluster
+    is the case: an unfolded one has the Page Map's own rung over it.
     """
     url = serve(
         INLINE_PAGE, anchored=[("p", "bold text"), ("p2", "neighbouring block")]
@@ -220,6 +226,14 @@ def test_a_layer_is_left_the_same_way_however_it_was_reached(browser, serve):
         page.locator(f'.lf-margin-preview .lf-page-thread[data-lf-thread="{root}"]')
         for root in roots
     ]
+
+    # Leaf's controls with no layer up: out onto the page.
+    expect(marker).to_be_visible()
+    for control in (toggle, marker):
+        control.focus()
+        expect(control).to_be_focused()
+        page.keyboard.press("Escape")
+        assert page.evaluate(on_body)
 
     # On me by pointer: out with the panel's view.
     toggle.click()
@@ -664,100 +678,104 @@ def test_a_popover_its_control_opens_hands_the_user_back_to_the_control(browser,
     expect(opener).to_have_attribute("aria-expanded", "false")
 
 
-def test_a_text_box_keeps_its_keys_from_the_widget_around_it(browser, serve):
-    """A widget scope may contain a text box, but its bare keys still type there.
+def test_a_native_control_keeps_its_keys_from_the_widget_around_it(
+    browser, serve, subtests
+):
+    """A widget scope may contain a native control, but the control's keys do what they
+    do and cannot also fire the containing widget's command.
 
-    The focused element's own rows remain nearer so a draft can keep its specific Escape
-    and a wired composer can send with Mod+Enter. The text-entry scope then claims the
-    characters and editing keys before an ancestor widget can see them."""
+    A text box's bare keys still type there. The focused element's own rows remain nearer
+    so a draft can keep its specific Escape and a wired composer can send with Mod+Enter.
+    The text-entry scope then claims the characters and editing keys before an ancestor
+    widget can see them. A radio's and a slider's navigation keys stay theirs inside a
+    modal too, until the control declares a row of its own."""
     url = serve(NOTED_PAGE)
     _publish(serve.page_dir, 2, NOTED_PAGE, "two")
     page = open_page(browser, url)
-    page.evaluate(
-        """async () => {
-          const { commandsChanged } = await window.__lfWidgetApi();
-          const host = document.createElement('section');
-          host.id = 'key-owning-widget';
-          const box = document.createElement('textarea');
-          host.append(box);
-          document.querySelector('main').append(host);
-          host.lfCommands = { title: 'Around a text box', rows: [
-            {id: 'test.widget',
-             keys: ['a', 'Enter', 'Shift+ArrowLeft', 'Mod+z', 'Escape'],
-             title: 'Work the widget', line: 'work widget',
-             runKey: (binding) => host.dataset.fired = binding},
-          ] };
-          commandsChanged(host);
-          box.focus();
-        }"""
-    )
 
-    page.keyboard.press("a")
-    page.keyboard.press("Enter")
-    expect(page.locator("#key-owning-widget textarea")).to_have_value("a\n")
-    assert page.locator("#key-owning-widget").get_attribute("data-fired") is None
-    page.keyboard.press("Shift+ArrowLeft")
-    page.keyboard.press("Control+z")
-    assert page.locator("#key-owning-widget").get_attribute("data-fired") is None
+    with subtests.test(control="text box"):
+        page.evaluate(
+            """async () => {
+              const { commandsChanged } = await window.__lfWidgetApi();
+              const host = document.createElement('section');
+              host.id = 'key-owning-widget';
+              const box = document.createElement('textarea');
+              host.append(box);
+              document.querySelector('main').append(host);
+              host.lfCommands = { title: 'Around a text box', rows: [
+                {id: 'test.widget',
+                 keys: ['a', 'Enter', 'Shift+ArrowLeft', 'Mod+z', 'Escape'],
+                 title: 'Work the widget', line: 'work widget',
+                 runKey: (binding) => host.dataset.fired = binding},
+              ] };
+              commandsChanged(host);
+              box.focus();
+            }"""
+        )
 
-    # The widget ancestor remains nearer for keys the text-entry shield does not
-    # claim; only editing stays native.
-    page.keyboard.press("Escape")
-    expect(page.locator("#key-owning-widget")).to_have_attribute("data-fired", "Escape")
+        page.keyboard.press("a")
+        page.keyboard.press("Enter")
+        expect(page.locator("#key-owning-widget textarea")).to_have_value("a\n")
+        assert page.locator("#key-owning-widget").get_attribute("data-fired") is None
+        page.keyboard.press("Shift+ArrowLeft")
+        page.keyboard.press("Control+z")
+        assert page.locator("#key-owning-widget").get_attribute("data-fired") is None
+
+        # The widget ancestor remains nearer for keys the text-entry shield does not
+        # claim; only editing stays native.
+        page.keyboard.press("Escape")
+        expect(page.locator("#key-owning-widget")).to_have_attribute(
+            "data-fired", "Escape"
+        )
+
+    with subtests.test(control="radio and slider"):
+        page.evaluate(
+            """async () => {
+              const { commandsChanged } = await window.__lfWidgetApi();
+              const dialog = document.createElement('dialog');
+              dialog.id = 'control-key-owner';
+              dialog.innerHTML = '<label>First<input type="radio" name="choice" value="one" checked></label>' +
+                '<label>Second<input type="radio" name="choice" value="two"></label>' +
+                '<label>Amount<input type="range" min="0" max="100" value="50"></label>';
+              document.querySelector('main').append(dialog);
+              dialog.lfCommands = { title: 'Around native controls', rows: [{id: 'test.ancestor',
+                keys: ['ArrowDown', 'Shift+ArrowRight', 'Home'],
+                title: 'Work the widget', line: 'work widget',
+                runKey: (binding) => dialog.dataset.fired = binding}] };
+              commandsChanged(dialog);
+              dialog.showModal();
+            }"""
+        )
+        host = page.locator("#control-key-owner")
+        first = host.get_by_role("radio", name="First")
+        first.focus()
+        page.keyboard.press("ArrowDown")
+        expect(host.get_by_role("radio", name="Second")).to_be_checked()
+        slider = host.get_by_role("slider", name="Amount")
+        slider.focus()
+        page.keyboard.press("Shift+ArrowRight")
+        expect(slider).to_have_value("51")
+        page.keyboard.press("Home")
+        expect(slider).to_have_value("0")
+        expect(host).not_to_have_attribute("data-fired")
+        page.evaluate(
+            """async () => {
+              const { commandsChanged } = await window.__lfWidgetApi();
+              const slider = document.querySelector('#control-key-owner input[type="range"]');
+              slider.lfCommands = { title: 'Exact control', rows: [{id: 'test.control', keys: ['ArrowDown'],
+                title: 'Work this control', line: 'work control',
+                run: () => slider.value = 75}] };
+              commandsChanged(slider);
+            }"""
+        )
+        page.keyboard.press("ArrowDown")
+        expect(slider).to_have_value("75")
+        expect(host).not_to_have_attribute("data-fired")
 
 
-def test_radio_and_slider_keys_stay_with_the_control_inside_a_modal(browser, serve):
-    """Control navigation cannot also fire a containing widget's command."""
-    page = open_page(browser, serve(NOTED_PAGE))
-    page.evaluate(
-        """async () => {
-          const { commandsChanged } = await window.__lfWidgetApi();
-          const dialog = document.createElement('dialog');
-          dialog.id = 'control-key-owner';
-          dialog.innerHTML = '<label>First<input type="radio" name="choice" value="one" checked></label>' +
-            '<label>Second<input type="radio" name="choice" value="two"></label>' +
-            '<label>Amount<input type="range" min="0" max="100" value="50"></label>';
-          document.querySelector('main').append(dialog);
-          dialog.lfCommands = { title: 'Around native controls', rows: [{id: 'test.ancestor',
-            keys: ['ArrowDown', 'Shift+ArrowRight', 'Home'],
-            title: 'Work the widget', line: 'work widget',
-            runKey: (binding) => dialog.dataset.fired = binding}] };
-          commandsChanged(dialog);
-          dialog.showModal();
-        }"""
-    )
-    host = page.locator("#control-key-owner")
-    first = host.get_by_role("radio", name="First")
-    first.focus()
-    page.keyboard.press("ArrowDown")
-    expect(host.get_by_role("radio", name="Second")).to_be_checked()
-    slider = host.get_by_role("slider", name="Amount")
-    slider.focus()
-    page.keyboard.press("Shift+ArrowRight")
-    expect(slider).to_have_value("51")
-    page.keyboard.press("Home")
-    expect(slider).to_have_value("0")
-    expect(host).not_to_have_attribute("data-fired")
-    page.evaluate(
-        """async () => {
-          const { commandsChanged } = await window.__lfWidgetApi();
-          const slider = document.querySelector('#control-key-owner input[type="range"]');
-          slider.lfCommands = { title: 'Exact control', rows: [{id: 'test.control', keys: ['ArrowDown'],
-            title: 'Work this control', line: 'work control',
-            run: () => slider.value = 75}] };
-          commandsChanged(slider);
-        }"""
-    )
-    page.keyboard.press("ArrowDown")
-    expect(slider).to_have_value("75")
-    expect(host).not_to_have_attribute("data-fired")
-
-
-@pytest.mark.parametrize("shadow", [False, True])
-def test_shared_image_viewer_survives_its_source_popover_removal(
-    browser, serve, shadow
-):
-    """A shared chrome dialog keeps its style and returns home when its seat leaves."""
+def test_shared_image_viewer_survives_its_source_popover_removal(browser, serve):
+    """A shared chrome dialog keeps its style and returns home when its seat leaves, here
+    from a popover in a shadow tree, whose seat also has to adopt the viewer's sheet."""
     page = open_page(
         browser,
         serve(NOTED_PAGE, media={SHOT_SRC[key]: data for key, data in SHOTS.items()}),
@@ -766,7 +784,7 @@ def test_shared_image_viewer_survives_its_source_popover_removal(
     held = []
     page.route("**/vendor/photoswipe.esm.js", lambda route: held.append(route))
     page.evaluate(
-        """async ({shadow, image}) => {
+        """async (image) => {
           const {shadowStage} = await window.__lfWidgetApi();
           const host = document.createElement('section');
           host.id = 'image-options-owner';
@@ -785,10 +803,9 @@ def test_shared_image_viewer_survives_its_source_popover_removal(
           popover.append(original);
           opener.popoverTargetElement = popover;
           document.querySelector('main').append(host, another);
-          if (shadow) shadowStage(host, [opener, popover]);
-          else host.append(opener, popover);
+          shadowStage(host, [opener, popover]);
         }""",
-        {"shadow": shadow, "image": SHOT_SRC["before"]},
+        SHOT_SRC["before"],
     )
     page.get_by_role("button", name="Image options", exact=True).click()
     original = page.get_by_role("link", name="Open original", exact=True)
@@ -1183,132 +1200,136 @@ def test_a_scope_cannot_give_one_live_key_two_meanings(browser, serve):
     )
 
 
-def test_a_partially_shadowed_row_keeps_each_other_live_binding(browser, serve):
-    """Shadowing is per binding, so one local `d` must not hide the page row's live `u`.
+def test_an_inner_scope_shadows_an_outer_one_binding_by_binding(
+    browser, serve, subtests
+):
+    """A scope nearer the focus owns the keys it declares and no others, one binding at
+    a time, and each case stands in elements of its own.
 
-    Multi-key rows keep related commands compact, but presentation cannot treat that visual
-    grouping as dispatch ownership. The effective row retains the unshadowed route, its own
-    direction word, and the same command identity the reference exposes."""
+    Shadowing is per binding, so one local `d` must not hide the page row's live `u`.
+    Multi-key rows keep related commands compact, but presentation cannot treat that
+    visual grouping as dispatch ownership. The effective row retains the unshadowed route,
+    its own direction word, and the same command identity the reference exposes.
+
+    A dead inner declaration suppresses an outer command, and undeclared keys fall out,
+    but a dead local Escape cannot strand a live unwind in an outer scope."""
     html = NOTED_PAGE.replace("</main>", '<div style="height: 2400px"></div></main>')
     page = open_page(browser, serve(html))
-    page.evaluate(
-        """async () => {
-          const { commandsChanged } = await window.__lfWidgetApi();
-          const target = document.createElement('button');
-          target.id = 'local-down';
-          target.textContent = 'Local down';
-          document.querySelector('main').prepend(target);
-          target.lfCommands = { title: 'On local down', rows: [{
-            id: 'test.local-down', keys: ['d'], title: 'Local down', line: 'local down',
-            run: () => { target.dataset.pressed = '1'; },
-          }] };
-          commandsChanged(target);
-          target.focus();
-        }"""
-    )
 
-    routes = offered_routes(page)
-    assert routes["page.up"] == ["u"], routes
-    assert "page.down" not in routes, routes
+    with subtests.test(case="a partly shadowed row keeps its other binding"):
+        page.evaluate(
+            """async () => {
+              const { commandsChanged } = await window.__lfWidgetApi();
+              const target = document.createElement('button');
+              target.id = 'local-down';
+              target.textContent = 'Local down';
+              document.querySelector('main').prepend(target);
+              target.lfCommands = { title: 'On local down', rows: [{
+                id: 'test.local-down', keys: ['d'], title: 'Local down', line: 'local down',
+                run: () => { target.dataset.pressed = '1'; },
+              }] };
+              commandsChanged(target);
+              target.focus();
+            }"""
+        )
 
-    before = page.evaluate("() => { scrollTo(0, 1000); return scrollY; }")
-    assert before > 0
-    page.keyboard.press("u")
-    page.wait_for_function("before => scrollY < before", arg=before)
-    assert page.locator("#local-down").get_attribute("data-pressed") is None
+        routes = offered_routes(page)
+        assert routes["page.up"] == ["u"], routes
+        assert "page.down" not in routes, routes
 
+        before = page.evaluate("() => { scrollTo(0, 1000); return scrollY; }")
+        assert before > 0
+        page.keyboard.press("u")
+        page.wait_for_function("before => scrollY < before", arg=before)
+        assert page.locator("#local-down").get_attribute("data-pressed") is None
 
-def test_a_focused_scope_owns_its_declared_key_while_the_command_is_unavailable(
-    browser, serve
-):
-    """A dead inner declaration suppresses an outer command; undeclared keys fall out."""
-    page = open_page(browser, serve(NOTED_PAGE))
-    page.evaluate(
-        """async () => {
-          const { commandsChanged } = await window.__lfWidgetApi();
-          const outer = document.createElement('div');
-          outer.id = 'outer-scope';
-          const inner = document.createElement('button');
-          inner.textContent = 'Inner scope';
-          outer.append(inner);
-          document.querySelector('main').prepend(outer);
-          outer.lfCommands = { title: 'Outer scope', rows: [
-            { id: 'test.outer-f2', keys: ['F2'], title: 'Run outer F2',
-              line: 'outer F2', run: () => { outer.dataset.f2 = '1'; } },
-            { id: 'test.outer-f3', keys: ['F3'], title: 'Run outer F3',
-              line: 'outer F3', run: () => { outer.dataset.f3 = '1'; } },
-          ] };
-          commandsChanged(outer);
-          inner.lfCommands = { title: 'Inner scope', rows: [
-            { id: 'test.inner-f2', keys: ['F2'], title: 'Run inner F2',
-              line: 'inner F2', when: () => false,
-              run: () => { inner.dataset.f2 = '1'; } },
-          ] };
-          commandsChanged(inner);
-          inner.focus();
-        }"""
-    )
+    with subtests.test(case="a dead inner Escape leaves the outer unwind"):
+        page.evaluate(
+            """async () => {
+              const { commandsChanged } = await window.__lfWidgetApi();
+              const outer = document.createElement('div');
+              outer.id = 'outer-escape-scope';
+              const inner = document.createElement('button');
+              inner.textContent = 'Inner escape scope';
+              outer.append(inner);
+              document.querySelector('main').prepend(outer);
+              outer.lfCommands = { title: 'Outer scope', rows: [
+                { id: 'test.outer-escape', keys: ['Escape'], title: 'Leave outer scope',
+                  line: 'leave outer scope', run: () => { outer.dataset.escaped = '1'; } },
+              ] };
+              commandsChanged(outer);
+              inner.lfCommands = { title: 'Inner scope', rows: [
+                { id: 'test.inner-escape', keys: ['Escape'], title: 'Leave inner scope',
+                  line: 'leave inner scope', when: () => false,
+                  run: () => { inner.dataset.escaped = '1'; } },
+              ] };
+              commandsChanged(inner);
+              inner.focus();
+            }"""
+        )
 
-    prevented = page.get_by_role("button", name="Inner scope").evaluate(
-        """inner => {
-          const event = new KeyboardEvent(
-            'keydown', {key: 'F2', bubbles: true, cancelable: true}
-          );
-          inner.dispatchEvent(event);
-          return event.defaultPrevented;
-        }"""
-    )
-    assert prevented is False
-    assert page.locator("#outer-scope").get_attribute("data-f2") is None
-    assert (
-        page.get_by_role("button", name="Inner scope").get_attribute("data-f2") is None
-    )
-    page.keyboard.press("?")
-    reference = page.locator(".lf-command-reference")
-    expect(reference.get_by_role("option", name="Run outer F2")).to_have_attribute(
-        "data-lf-available", "false"
-    )
-    expect(reference.get_by_role("option", name="Run outer F3")).to_have_attribute(
-        "data-lf-available", "true"
-    )
-    page.keyboard.press("Escape")
+        page.keyboard.press("Escape")
+        expect(page.locator("#outer-escape-scope")).to_have_attribute(
+            "data-escaped", "1"
+        )
+        expect(
+            page.get_by_role("button", name="Inner escape scope")
+        ).not_to_have_attribute("data-escaped", "1")
 
-    page.keyboard.press("F3")
-    expect(page.locator("#outer-scope")).to_have_attribute("data-f3", "1")
+    with subtests.test(case="a dead inner key suppresses the outer command"):
+        page.evaluate(
+            """async () => {
+              const { commandsChanged } = await window.__lfWidgetApi();
+              const outer = document.createElement('div');
+              outer.id = 'outer-scope';
+              const inner = document.createElement('button');
+              inner.textContent = 'Inner scope';
+              outer.append(inner);
+              document.querySelector('main').prepend(outer);
+              outer.lfCommands = { title: 'Outer scope', rows: [
+                { id: 'test.outer-f2', keys: ['F2'], title: 'Run outer F2',
+                  line: 'outer F2', run: () => { outer.dataset.f2 = '1'; } },
+                { id: 'test.outer-f3', keys: ['F3'], title: 'Run outer F3',
+                  line: 'outer F3', run: () => { outer.dataset.f3 = '1'; } },
+              ] };
+              commandsChanged(outer);
+              inner.lfCommands = { title: 'Inner scope', rows: [
+                { id: 'test.inner-f2', keys: ['F2'], title: 'Run inner F2',
+                  line: 'inner F2', when: () => false,
+                  run: () => { inner.dataset.f2 = '1'; } },
+              ] };
+              commandsChanged(inner);
+              inner.focus();
+            }"""
+        )
 
+        prevented = page.get_by_role("button", name="Inner scope").evaluate(
+            """inner => {
+              const event = new KeyboardEvent(
+                'keydown', {key: 'F2', bubbles: true, cancelable: true}
+              );
+              inner.dispatchEvent(event);
+              return event.defaultPrevented;
+            }"""
+        )
+        assert prevented is False
+        assert page.locator("#outer-scope").get_attribute("data-f2") is None
+        assert (
+            page.get_by_role("button", name="Inner scope").get_attribute("data-f2")
+            is None
+        )
+        page.keyboard.press("?")
+        reference = page.locator(".lf-command-reference")
+        expect(reference.get_by_role("option", name="Run outer F2")).to_have_attribute(
+            "data-lf-available", "false"
+        )
+        expect(reference.get_by_role("option", name="Run outer F3")).to_have_attribute(
+            "data-lf-available", "true"
+        )
+        page.keyboard.press("Escape")
 
-def test_an_unavailable_inner_escape_keeps_the_next_unwind_reachable(browser, serve):
-    """A dead local Escape cannot strand a live unwind in an outer scope."""
-    page = open_page(browser, serve(NOTED_PAGE))
-    page.evaluate(
-        """async () => {
-          const { commandsChanged } = await window.__lfWidgetApi();
-          const outer = document.createElement('div');
-          outer.id = 'outer-escape-scope';
-          const inner = document.createElement('button');
-          inner.textContent = 'Inner escape scope';
-          outer.append(inner);
-          document.querySelector('main').prepend(outer);
-          outer.lfCommands = { title: 'Outer scope', rows: [
-            { id: 'test.outer-escape', keys: ['Escape'], title: 'Leave outer scope',
-              line: 'leave outer scope', run: () => { outer.dataset.escaped = '1'; } },
-          ] };
-          commandsChanged(outer);
-          inner.lfCommands = { title: 'Inner scope', rows: [
-            { id: 'test.inner-escape', keys: ['Escape'], title: 'Leave inner scope',
-              line: 'leave inner scope', when: () => false,
-              run: () => { inner.dataset.escaped = '1'; } },
-          ] };
-          commandsChanged(inner);
-          inner.focus();
-        }"""
-    )
-
-    page.keyboard.press("Escape")
-    expect(page.locator("#outer-escape-scope")).to_have_attribute("data-escaped", "1")
-    expect(page.get_by_role("button", name="Inner escape scope")).not_to_have_attribute(
-        "data-escaped", "1"
-    )
+        page.keyboard.press("F3")
+        expect(page.locator("#outer-scope")).to_have_attribute("data-f3", "1")
 
 
 def test_native_controls_need_no_generic_space_binding(browser, serve):
@@ -1373,59 +1394,6 @@ def test_holding_a_key_repeats_only_where_the_press_is_a_walk(
     expect(leaves).to_be_visible()
 
 
-def test_a_select_keeps_its_native_typeahead_letters(browser, serve):
-    html = NOTED_PAGE.replace(
-        "</main>",
-        '<select id="pick"><option>dog</option><option>cat</option></select></main>',
-    )
-    page = open_page(browser, serve(html))
-
-    pick = page.locator("#pick")
-    pick.focus()
-    page.keyboard.press("c")
-
-    expect(pick).to_have_value("cat")
-    expect(page.locator(".lf-composer")).to_be_hidden()
-
-
-def test_escape_backs_out_from_a_control_nothing_is_typed_into(browser, serve):
-    """A scope takes the keys it uses, so a control that has no Escape of its own
-    leaves the rung standing behind it. The old banner's version picker swallowed it,
-    so the panel could not be closed by key right after the user worked it; the
-    fix's first attempt was a two-item denylist, which an authored slider walked
-    straight past. The picker is a button now, so what holds the rule is the
-    page's own controls — which is where it always mattered, a page being free to
-    author any of them.
-
-    A slider and a select answer here for the two sides of the claim. The slider
-    types nothing, so the typing scope never stands over it at all; the select's
-    letters jump its options, so it stands and takes them — and takes only them,
-    which is what leaves this press to the page. Reaching the rung used to be a
-    branch inside the typing scope's own row, restating another scope's word.
-
-    Which rung the press reaches is the ladder's own business, and it unwinds from
-    where the user is: located out on the page, the first thing they are in is
-    the control they are located on, and the panel behind them is a layer they are
-    not in. So the press takes two — and the panel closing on the second is the
-    whole of what this test is about, the control having had every chance to
-    swallow the first."""
-    html = NOTED_PAGE.replace(
-        "</main>",
-        '<input id="zoom" type="range">'
-        '<select id="pick"><option>one</option><option>two</option></select></main>',
-    )
-    page = open_page(browser, serve(html))
-    # The mouse opens between rounds because c is the select's own letter, and the
-    # press has to be made the same way on both to be comparing anything.
-    for control in ("#zoom", "#pick"):
-        open_threads(page)
-        page.locator(control).focus()
-        page.keyboard.press("Escape")
-        assert page.evaluate("() => document.activeElement === document.body")
-        page.keyboard.press("Escape")
-        panel_settled(page, open=False)
-
-
 # The browser's own back: a close watcher standing before any of the page's, which
 # hears a close request only where the page holds none of its own.
 BROWSER_BACK = """() => {
@@ -1476,66 +1444,71 @@ def test_a_back_gesture_takes_the_step_escape_would(browser, serve):
     page.wait_for_function("window.browserBack === 1")
 
 
-def test_escape_takes_one_step_where_a_back_gesture_would_take_it(browser, serve):
-    """The page's watcher stands while Escape has a step to take, and a press the
-    dispatcher answers is spent before it reaches the watcher, so the key still takes
-    one step: the view goes, the selection beside it stays for the next."""
+def test_a_close_request_takes_one_step_at_a_time(browser, serve, subtests):
+    """Escape and a back gesture take the same steps, one each.
+
+    A modal dialog opened over a view holds a newer watcher than the page's, so back
+    closed the dialog where Escape took the step a command inside it declares. The page's
+    watcher is made again above the dialog: back takes the inner step, the next closes the
+    dialog as the browser does, and the one after that the view.
+
+    The page's watcher stands while Escape has a step to take, and a press the dispatcher
+    answers is spent before it reaches the watcher, so the key still takes one step: the
+    view goes, the selection beside it stays for the next. With nothing left to take, the
+    gesture is the browser's."""
     page = open_page(browser, serve(INLINE_PAGE))
     page.evaluate(BROWSER_BACK)
-    select_words(page, "#p")
-    open_threads(page)
 
-    page.keyboard.press("Escape")
-    panel_settled(page, open=False)
-    assert page.evaluate("getSelection().toString()")
+    with subtests.test(case="a step inside a modal before the modal"):
+        open_threads(page)
+        page.evaluate(
+            """async () => {
+              const { commandsChanged } = await window.__lfWidgetApi();
+              const dialog = document.createElement('dialog');
+              dialog.id = 'inner-step';
+              const button = document.createElement('button');
+              button.textContent = 'Inside';
+              dialog.append(button);
+              document.querySelector('main').append(dialog);
+              button.lfCommands = { title: 'Inside the dialog', rows: [{id: 'test.inner', keys: ['Escape'],
+                title: 'Take the inner step', when: () => !button.dataset.fired,
+                run: () => (button.dataset.fired = 'Escape')}] };
+              commandsChanged(button);
+              dialog.showModal();
+              button.focus();
+            }"""
+        )
+        dialog = page.locator("#inner-step")
 
-    back_gesture(page)
-    page.wait_for_function("!getSelection().toString() || window.browserBack")
-    assert page.evaluate("window.browserBack") == 0
-    back_gesture(page)
-    page.wait_for_function("window.browserBack === 1")
+        back_gesture(page)
+        expect(dialog.get_by_role("button", name="Inside")).to_have_attribute(
+            "data-fired", "Escape"
+        )
+        expect(dialog).to_have_attribute("open", "")
 
+        back_gesture(page)
+        expect(dialog).not_to_have_attribute("open", "")
+        panel_settled(page, view="threads")
 
-def test_a_back_gesture_takes_a_step_inside_a_modal_before_the_modal(browser, serve):
-    """A modal dialog opened over a view holds a newer watcher than the page's, so back
-    closed the dialog where Escape took the step a command inside it declares. The
-    page's watcher is made again above the dialog: back takes the inner step, the next
-    closes the dialog as the browser does, and the one after that the view."""
-    page = open_page(browser, serve(INLINE_PAGE))
-    page.evaluate(BROWSER_BACK)
-    open_threads(page)
-    page.evaluate(
-        """async () => {
-          const { commandsChanged } = await window.__lfWidgetApi();
-          const dialog = document.createElement('dialog');
-          dialog.id = 'inner-step';
-          const button = document.createElement('button');
-          button.textContent = 'Inside';
-          dialog.append(button);
-          document.querySelector('main').append(dialog);
-          button.lfCommands = { title: 'Inside the dialog', rows: [{id: 'test.inner', keys: ['Escape'],
-            title: 'Take the inner step', when: () => !button.dataset.fired,
-            run: () => (button.dataset.fired = 'Escape')}] };
-          commandsChanged(button);
-          dialog.showModal();
-          button.focus();
-        }"""
-    )
-    dialog = page.locator("#inner-step")
+        back_gesture(page)
+        panel_settled(page, open=False)
+        assert page.evaluate("window.browserBack") == 0
+    # A failed case can leave the modal up, over the words the next case selects.
+    page.evaluate("() => document.getElementById('inner-step')?.close()")
 
-    back_gesture(page)
-    expect(dialog.get_by_role("button", name="Inside")).to_have_attribute(
-        "data-fired", "Escape"
-    )
-    expect(dialog).to_have_attribute("open", "")
+    with subtests.test(case="Escape takes the view and leaves the selection to back"):
+        select_words(page, "#p")
+        open_threads(page)
 
-    back_gesture(page)
-    expect(dialog).not_to_have_attribute("open", "")
-    panel_settled(page, view="threads")
+        page.keyboard.press("Escape")
+        panel_settled(page, open=False)
+        assert page.evaluate("getSelection().toString()")
 
-    back_gesture(page)
-    panel_settled(page, open=False)
-    assert page.evaluate("window.browserBack") == 0
+        back_gesture(page)
+        page.wait_for_function("!getSelection().toString() || window.browserBack")
+        assert page.evaluate("window.browserBack") == 0
+        back_gesture(page)
+        page.wait_for_function("window.browserBack === 1")
 
 
 @pytest.mark.parametrize("owner", ["draft", "rewrite"])
@@ -1621,28 +1594,6 @@ def test_a_back_gesture_never_throws_away_unsent_words(browser, serve, owner):
     expect(kept).not_to_be_visible()
 
 
-def test_a_margin_marker_backs_out_onto_the_page_like_the_toggle(browser, serve):
-    """A margin marker is placed in the document beside the words it marks, outside
-    `.lf-chrome`, and the current-location floor used to read that container to tell a
-    destination from a control. So a marker reached by Tab wore the let-go of an obligation
-    or a heading — "let go" — where the Threads toggle beside it, which is a control
-    of the same current location, backs out onto the page. The floor asks `inUi` now, the one
-    reading of which layer a node is in, and a marker gets the same word as the toggle.
-    A folded cluster is the case: an unfolded one has the Page Map's own rung over it,
-    which answered before either word."""
-    url = serve(INLINE_PAGE, anchored=[("p", "bold text")])
-    page = open_page(browser, url)
-    page.set_viewport_size({"width": 1200, "height": 844})
-    marker = page.locator('[data-lf-margin-for="p"] > .lf-margin-marker')
-    expect(marker).to_be_visible()
-
-    for control in (page.locator(".lf-fp-on-user"), marker):
-        control.focus()
-        expect(control).to_be_focused()
-        page.keyboard.press("Escape")
-        assert page.evaluate("() => document.activeElement === document.body")
-
-
 def test_an_obligations_pick_stays_a_place_to_stand_after_the_answer(browser, serve):
     """A pick inside an obligation wears the chrome face, as a margin marker does, and is not
     a control of Leaf's for all that: it is inside a destination, so Escape lets go of
@@ -1663,63 +1614,98 @@ def test_an_obligations_pick_stays_a_place_to_stand_after_the_answer(browser, se
     assert page.evaluate("() => document.activeElement === document.body")
 
 
-def test_a_control_that_types_nothing_keeps_the_pages_keyboard(browser, serve):
-    """A scope claims the keys it uses and leaves the rest in place. This one used to
-    claim the lot: the typing scope stood wherever focus was in a form control, on the
-    reading that a letter is a keystroke there — true of a text box, false of a radio, a
-    checkbox and a slider, none of which the platform ever hands a letter. So a user
-    focusing a screenshot's before/after switch lost c, the walks, the version keys and
-    the reference itself, and the line went blank rather than wrong, which is how it
-    reaches its author as "the keyboard stopped working".
-
-    One key had already been rescued from that swallow by hand, in a branch inside the
-    typing scope's own row. Every other key it took stayed taken, and that is what says the
-    swallow was the wrong shape rather than one key short.
+def test_a_control_takes_only_the_keys_it_uses_and_leaves_the_page_the_rest(
+    browser, serve, subtests
+):
+    """A scope claims the keys it uses and leaves the rest in place. The typing scope once
+    stood wherever focus was in a form control, on the reading that a letter is a
+    keystroke there: true of a text box, false of a radio, a checkbox and a slider, none
+    of which the platform ever hands a letter. So a user focusing a screenshot's
+    before/after switch lost c, the walks, the version keys and the reference itself, and
+    the line went blank rather than wrong, which is how it reaches its author as "the
+    keyboard stopped working".
 
     The claim has to hold in both directions or it has bought nothing, so the control's
     own key is asserted beside the page's: a page whose keyboard stands over a radio must
-    not be taking Space off it."""
+    not be taking Space off it, and a select keeps its native typeahead letters.
+
+    Escape backs out from a control nothing is typed into. A slider and a select answer
+    for the two sides: the slider types nothing, so the typing scope never stands over it;
+    the select's letters jump its options, so it stands and takes them, and takes only
+    them, which leaves this press to the page. Which rung the press reaches unwinds from
+    where the user is: located on the page, the first thing they are in is the control,
+    and the panel behind them is a layer they are not in. So the press takes two, and the
+    panel closing on the second is the point, the control having had every chance to
+    swallow the first."""
     html = NOTED_PAGE.replace(
         "</main>",
         '<label><input id="flip" type="radio" name="frame"> after</label>'
-        '<input id="note" type="text"></main>',
+        '<input id="note" type="text">'
+        '<input id="zoom" type="range">'
+        '<select id="pick"><option>dog</option><option>cat</option></select></main>',
     )
     page = open_page(browser, serve(html))
-    # Two page rows, because the claim is the whole keyboard rather than one key: `c`,
-    # and the movement row. A scope that swallowed the page would take both, and the box
-    # below is where both go.
-    page.locator("#flip").focus()
-    routes = offered_routes(page)
-    assert {"comment.create", "page.down", "page.up"} <= routes.keys(), routes
-    page.keyboard.press("?")
-    expect(page.locator(".lf-command-reference")).to_be_visible()
-    page.keyboard.press("Escape")
-    expect(page.locator("#flip")).to_be_focused()
-    page.keyboard.press("Space")
-    expect(page.locator("#flip")).to_be_checked()
-    # The letter reaches the page, which is the whole claim; where it then goes is the
-    # the current location's business — a user on the radio is focused on it, so the box that
-    # opens is about it rather than about the page. Named in full, because "comment on
-    # the" matches every destination this key has and would assert nothing about which.
-    # The box names the radio by its label, as a screen reader does.
-    page.keyboard.press("c")
-    expect(page.locator(".lf-composer")).to_be_visible()
-    expect(page.locator(".lf-composer")).to_contain_text("control · after")
-    page.keyboard.press("Escape")
-    expect(page.locator(".lf-composer")).to_be_hidden()
-    expect(page.locator("#flip")).to_be_focused()
 
-    # The box beside it, where every one of those letters is the user's. The line
-    # names none of them, which is the same register saying so.
-    page.locator("#note").focus()
-    routes = offered_routes(page)
-    assert not {"comment.create", "page.down"} & routes.keys(), routes
-    page.keyboard.press("c")
-    expect(page.locator("#note")).to_have_value("c")
-    expect(page.locator(".lf-command-reference")).to_be_hidden()
-    page.keyboard.press("?")
-    expect(page.locator("#note")).to_have_value("c?")
-    expect(page.locator(".lf-command-reference")).to_be_hidden()
+    with subtests.test(case="a select's letters"):
+        pick = page.locator("#pick")
+        pick.focus()
+        page.keyboard.press("c")
+        expect(pick).to_have_value("cat")
+        expect(page.locator(".lf-composer")).to_be_hidden()
+    # A letter that fell through to the page opened a box the next case must not meet.
+    page.keyboard.press("Escape")
+
+    # The mouse opens between rounds because c is the select's own letter, and the
+    # press has to be made the same way on both to be comparing anything.
+    for control in ("#zoom", "#pick"):
+        with subtests.test(case="Escape backs out", control=control):
+            open_threads(page)
+            page.locator(control).focus()
+            page.keyboard.press("Escape")
+            assert page.evaluate("() => document.activeElement === document.body")
+            page.keyboard.press("Escape")
+            panel_settled(page, open=False)
+        # What a failed round left up goes before the next round.
+        page.keyboard.press("Escape")
+        page.keyboard.press("Escape")
+
+    with subtests.test(case="a radio keeps the page's keyboard"):
+        # Two page rows, because the claim is the whole keyboard rather than one key: `c`,
+        # and the movement row. A scope that swallowed the page would take both, and the
+        # box below is where both go.
+        page.locator("#flip").focus()
+        routes = offered_routes(page)
+        assert {"comment.create", "page.down", "page.up"} <= routes.keys(), routes
+        page.keyboard.press("?")
+        expect(page.locator(".lf-command-reference")).to_be_visible()
+        page.keyboard.press("Escape")
+        expect(page.locator("#flip")).to_be_focused()
+        page.keyboard.press("Space")
+        expect(page.locator("#flip")).to_be_checked()
+        # The letter reaches the page, which is the whole claim; where it then goes is the
+        # current location's business: a user on the radio is focused on it, so the box
+        # that opens is about it rather than about the page. Named in full, because
+        # "comment on the" matches every destination this key has and would assert nothing
+        # about which. The box names the radio by its label, as a screen reader does.
+        page.keyboard.press("c")
+        expect(page.locator(".lf-composer")).to_be_visible()
+        expect(page.locator(".lf-composer")).to_contain_text("control · after")
+        page.keyboard.press("Escape")
+        expect(page.locator(".lf-composer")).to_be_hidden()
+        expect(page.locator("#flip")).to_be_focused()
+
+    with subtests.test(case="a text box takes every letter"):
+        # Where every one of those letters is the user's. The line names none of them,
+        # which is the same register saying so.
+        page.locator("#note").focus()
+        routes = offered_routes(page)
+        assert not {"comment.create", "page.down"} & routes.keys(), routes
+        page.keyboard.press("c")
+        expect(page.locator("#note")).to_have_value("c")
+        expect(page.locator(".lf-command-reference")).to_be_hidden()
+        page.keyboard.press("?")
+        expect(page.locator("#note")).to_have_value("c?")
+        expect(page.locator(".lf-command-reference")).to_be_hidden()
 
 
 def test_a_label_press_keeps_the_controls_current_keyboard_location(browser, serve):
@@ -1913,28 +1899,35 @@ def test_escape_on_a_declaring_control_does_exactly_what_it_says(browser, serve)
     expect(page.locator(PANEL)).to_have_attribute("data-lf-open", "threads")
 
 
-@pytest.mark.parametrize("entry", ["walk", "option", "aim"])
-def test_comment_escape_returns_to_its_authored_parent(browser, serve, entry):
+def test_comment_escape_returns_to_its_authored_parent(browser, serve, subtests):
     """Closing a comment removes one layer: composer, then its authored subject.
     The same obligation is the parent when walking, focusing an option, or aiming at
-    its heading; entry history cannot change its Escape route."""
+    its heading; entry history cannot change its Escape route. Each case closes what it
+    opened, so the cases share one page."""
     page = open_page(browser, serve(WHERE_I_STAND_PAGE))
     item = page.locator("#shape-decision")
-    if entry == "walk":
+
+    def walk():
         page.keyboard.press("m")
         expect(item).to_be_focused()
         page.keyboard.press("c")
-    elif entry == "option":
+
+    def option():
         item.locator(".lf-pick").first.focus()
         page.keyboard.press("c")
-    else:
+
+    def aim():
         item.locator("h2").click(modifiers=["Alt"])
-    expect(page.locator(".lf-composer")).to_be_visible()
-    page.keyboard.press("Escape")
-    expect(page.locator(".lf-composer")).to_be_hidden()
-    expect(item).to_be_focused()
-    page.keyboard.press("Escape")
-    assert page.evaluate("document.activeElement === document.body")
+
+    for enter in (walk, option, aim):
+        with subtests.test(entry=enter.__name__):
+            enter()
+            expect(page.locator(".lf-composer")).to_be_visible()
+            page.keyboard.press("Escape")
+            expect(page.locator(".lf-composer")).to_be_hidden()
+            expect(item).to_be_focused()
+            page.keyboard.press("Escape")
+            assert page.evaluate("document.activeElement === document.body")
 
 
 def test_a_page_element_named_host_leaves_the_keyboard_climb_at_the_document(

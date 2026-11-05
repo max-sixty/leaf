@@ -171,7 +171,23 @@ def test_a_restated_obligation_returns_a_user_to_the_question_not_to_a_control(
     expect(page.locator("#lk-two")).to_have_attribute("chosen", "")
 
 
-def test_a_revision_gives_back_the_apparatus_the_user_was_working_with(browser, serve):
+def test_a_withdrawn_obligation_leaves_the_user_on_the_page(browser, serve):
+    """A revision that takes the question away has nowhere to put the user back."""
+    version_url = serve(LIVE_KEYS_V1)
+    page = open_page(browser, live_url(version_url))
+    mark = page.locator("#lk-two .lf-pick")
+    mark.focus()
+    expect(mark).to_be_focused()
+
+    (serve.page_dir / "index.html").write_text(LIVE_KEYS_OBLIGATION_WITHDRAWN)
+    told(page)
+    expect(page).to_have_title("Live keys without it")
+    expect(page.locator("body")).to_be_focused()
+
+
+def test_a_revision_gives_back_what_the_user_moved_and_nothing_they_left(
+    browser, serve
+):
     """What the author named survives the widget the revision replaced whole.
 
     A patch keeps the nodes a revision did not rewrite, and a widget is never one of
@@ -180,38 +196,8 @@ def test_a_revision_gives_back_the_apparatus_the_user_was_working_with(browser, 
     None of that is in the log, so no projection puts it back. The authored id is what
     makes it recoverable — the same identity the patch matches nodes on — so the carry
     is a lookup, and an element the author left unnamed still keeps nothing.
-    """
-    version_url = serve(LIVE_KEYS_APPARATUS)
-    page = open_page(browser, live_url(version_url))
-    note = page.locator("#lk-note")
-    note.click()
-    note.type("half a thought")
-    page.locator("#lk-why").evaluate("el => { el.open = true; }")
-    page.locator("#lk-evidence").evaluate("el => { el.scrollTop = 40; }")
-    # Put the caret back inside the words rather than at their end, so a restore that
-    # merely refills the field is not mistaken for one that puts the user back in it.
-    note.evaluate("el => el.setSelectionRange(4, 4)")
-    expect(note).to_be_focused()
 
-    (serve.page_dir / "index.html").write_text(LIVE_KEYS_APPARATUS_REWRITTEN)
-    told(page)
-    expect(page).to_have_title("Live keys rewritten")
-    # The widget did go whole: the heading is the revision's.
-    expect(page.locator("#lk-decision h2")).to_have_text(
-        "Which one, now the costs are in?"
-    )
-    expect(page.locator("#lk-note")).to_have_value("half a thought")
-    expect(page.locator("#lk-note")).to_be_focused()
-    assert page.locator("#lk-note").evaluate("el => el.selectionStart") == 4
-    assert page.locator("#lk-why").evaluate("el => el.open") is True
-    assert page.locator("#lk-evidence").evaluate("el => el.scrollTop") == 40
-    # Located in the obligation is where the user already is, so the obligation restore has nothing
-    # to do and does not pull them out of the field onto the question.
-    assert page.locator("#lk-note").evaluate("el => el === document.activeElement")
-
-
-def test_a_revision_gives_values_to_controls_the_user_never_touched(browser, serve):
-    """An untouched control is the author's to set, whatever kind of control it is.
+    An untouched control is the author's to set, whatever kind of control it is.
 
     A tick the author gave no value of its own answers `"on"`, and a range answers its
     midpoint, both against a `defaultValue` the author left empty. Ask the platform's
@@ -234,6 +220,7 @@ def test_a_revision_gives_values_to_controls_the_user_never_touched(browser, ser
     moved = (
         ' <label for="lk-moved">How far</label>'
         ' <input id="lk-moved" name="lk-moved" type="range"></p>'
+        '<details id="lk-opened"><summary>More</summary><p>More words.</p></details>'
     )
     unvalued = (
         '<p><label for="lk-tick">Also</label>'
@@ -264,13 +251,19 @@ def test_a_revision_gives_values_to_controls_the_user_never_touched(browser, ser
         "50",
         "",
     ]
-    # The user works the field and one range, and leaves the other two alone.
-    note = page.locator("#lk-note")
-    note.click()
-    note.type("half a thought")
+    # The user works one range, a box and the field, and leaves the other two alone.
     page.locator("#lk-moved").fill("17")
     assert page.locator("#lk-moved").evaluate("el => el.value") == "17"
     assert page.locator("#lk-why").evaluate("el => el.open") is False
+    page.locator("#lk-opened").evaluate("el => { el.open = true; }")
+    page.locator("#lk-evidence").evaluate("el => { el.scrollTop = 40; }")
+    note = page.locator("#lk-note")
+    note.click()
+    note.type("half a thought")
+    # Put the caret back inside the words rather than at their end, so a restore that
+    # merely refills the field is not mistaken for one that puts the user back in it.
+    note.evaluate("el => el.setSelectionRange(4, 4)")
+    expect(note).to_be_focused()
 
     (serve.page_dir / "index.html").write_text(second)
     told(page)
@@ -286,6 +279,13 @@ def test_a_revision_gives_values_to_controls_the_user_never_touched(browser, ser
     expect(page.locator("#lk-note")).to_have_value("half a thought")
     assert page.locator("#lk-moved").evaluate("el => el.value") == "17"
     assert page.locator("#lk-why").evaluate("el => el.open") is True
+    assert page.locator("#lk-opened").evaluate("el => el.open") is True
+    expect(page.locator("#lk-note")).to_be_focused()
+    assert page.locator("#lk-note").evaluate("el => el.selectionStart") == 4
+    assert page.locator("#lk-evidence").evaluate("el => el.scrollTop") == 40
+    # Located in the obligation is where the user already is, so the obligation restore has nothing
+    # to do and does not pull them out of the field onto the question.
+    assert page.locator("#lk-note").evaluate("el => el === document.activeElement")
 
 
 def test_a_revision_that_rewrites_a_draft_leaves_the_user_where_they_stand(
@@ -298,6 +298,9 @@ def test_a_revision_that_rewrites_a_draft_leaves_the_user_where_they_stand(
     is right. The editor taking the focus is not, when the user had left the editor
     open and gone to stand on something else: the revision is news, and news with no
     gesture behind it moves nobody.
+
+    The revision's body replaces the draft's beneath the open editor, and a draft a
+    stamped version inserts draws beside it, once the arriving document is complete.
     """
     draft = '<lf-draft id="plan"><pre>Ship it.</pre></lf-draft>'
     first = LIVE_KEYS_V1.replace('<p id="lk-para">', draft + '\n<p id="lk-para">')
@@ -306,6 +309,7 @@ def test_a_revision_that_rewrites_a_draft_leaves_the_user_where_they_stand(
     ).replace("<pre>Ship it.</pre>", "<pre>Ship it on Friday.</pre>")
 
     page = open_page(browser, live_url(serve(first)))
+    expect(page.locator("#plan .lf-draft-body")).to_have_text("Ship it.")
     draft_control(page, "edit", "plan").click()
     editor = page.locator("lf-draft leaf-text")
     expect(editor).to_be_focused()
@@ -321,6 +325,21 @@ def test_a_revision_that_rewrites_a_draft_leaves_the_user_where_they_stand(
     # The rewritten draft has connected and read its edit back: the words are kept.
     expect(editor).to_have_js_property("value", "Ship it, but louder.")
     expect(pick).to_be_focused()
+
+    stamp_page(
+        serve.page_dir,
+        second.replace("Ship it on Friday.", "Ship it on Monday.").replace(
+            '<p id="lk-para">',
+            '<lf-draft id="arriving"><pre>Newly inserted.</pre></lf-draft>\n'
+            '<p id="lk-para">',
+        ),
+        "replace and insert drafts",
+    )
+    wait_for_revision(page, 2)
+    expect(page.locator("#plan .lf-draft-body")).to_have_text("Ship it on Monday.")
+    expect(page.locator("#arriving .lf-draft-body")).to_have_text("Newly inserted.")
+    expect(editor).to_have_js_property("value", "Ship it, but louder.")
+    assert take_browser_errors(page) == []
 
 
 def test_the_replacing_install_gives_back_the_same_apparatus(browser, serve):
@@ -450,20 +469,6 @@ def test_replacing_document_keeps_typing_while_presentation_is_held(browser, ser
     wait_until_ready(page)
     expect(note).to_have_value("half a thought continued")
     expect(note).to_be_focused()
-
-
-def test_a_withdrawn_obligation_leaves_the_user_on_the_page(browser, serve):
-    """A revision that takes the question away has nowhere to put the user back."""
-    version_url = serve(LIVE_KEYS_V1)
-    page = open_page(browser, live_url(version_url))
-    mark = page.locator("#lk-two .lf-pick")
-    mark.focus()
-    expect(mark).to_be_focused()
-
-    (serve.page_dir / "index.html").write_text(LIVE_KEYS_OBLIGATION_WITHDRAWN)
-    told(page)
-    expect(page).to_have_title("Live keys without it")
-    expect(page.locator("body")).to_be_focused()
 
 
 def test_a_user_working_an_obligation_keeps_it_across_a_replacing_document(
@@ -772,12 +777,34 @@ def test_a_thread_about_an_ask_stands_at_the_ask_from_the_panel(browser, serve):
     """Open and resolved panel threads stand at their ask: its ring stays on and
     digits answer it from the view. Opening either thread focuses its reply; Escape
     leaves the reply for the view. A digit typed in the reply stays reply text.
+
+    A thread the keyboard opens from Threads shows in the panel alone, and Escape from
+    its reply leaves it so. Its view stands at the ask the thread is about, and the
+    margin read the keyboard arriving there as an arrival at the ask, so it opened the
+    thread's card beside the ask as well: the same thread twice, the card left standing
+    after the panel closed.
     """
     url = serve(STORE_ASK_PAGE)
     seed_thread_about_the_ask(serve.page_dir, "t-done", resolved=True)
     seed_thread_about_the_ask(serve.page_dir, "t-open")
     page = open_page(browser, url)
+    resized(page, 1400, 900)
     ask = page.locator("#store-ask")
+    card = page.locator(".lf-margin-preview")
+
+    row = thread_row(page, "t-open")
+    row.focus()
+    page.keyboard.press("Enter")
+    panel_settled(page, view="thread")
+    expect(page.locator(PANEL_REPLY)).to_be_focused()
+    expect(ask).to_have_attribute("data-lf-obligation", "1")
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-fp-view[data-lf-thread='t-open']")).to_be_focused()
+    rendered(page)
+    expect(card).to_be_hidden()
+    page.keyboard.press("Escape")
+    panel_settled(page, open=False)
+    expect(card).to_be_hidden()
 
     view = open_panel_thread(page, "t-done")
     expect(page.locator(PANEL_REPLY)).to_be_focused()
@@ -802,35 +829,6 @@ def test_a_thread_about_an_ask_stands_at_the_ask_from_the_panel(browser, serve):
     rendered(page)
     page.keyboard.press("3")
     expect(page.locator("#store-db")).to_have_attribute("chosen", "")
-
-
-def test_a_thread_opened_in_the_panel_by_the_keyboard_opens_no_card_beside_it(
-    browser, serve
-):
-    """A thread the keyboard opens from Threads shows in the panel alone, and Escape
-    from its reply leaves it so. Its view stands at the ask the thread is about, and the
-    margin read the keyboard arriving there as an arrival at the ask, so it opened the
-    thread's card beside the ask as well: the same thread twice, the card left standing
-    after the panel closed."""
-    url = serve(STORE_ASK_PAGE)
-    seed_thread_about_the_ask(serve.page_dir, "t-open")
-    page = open_page(browser, url)
-    resized(page, 1400, 900)
-    card = page.locator(".lf-margin-preview")
-
-    row = thread_row(page, "t-open")
-    row.focus()
-    page.keyboard.press("Enter")
-    panel_settled(page, view="thread")
-    expect(page.locator(PANEL_REPLY)).to_be_focused()
-    expect(page.locator("#store-ask")).to_have_attribute("data-lf-obligation", "1")
-    page.keyboard.press("Escape")
-    expect(page.locator(".lf-fp-view[data-lf-thread='t-open']")).to_be_focused()
-    rendered(page)
-    expect(card).to_be_hidden()
-    page.keyboard.press("Escape")
-    panel_settled(page, open=False)
-    expect(card).to_be_hidden()
 
 
 def test_a_finger_opening_a_thread_about_an_ask_stands_in_its_view(browser, serve):
@@ -974,52 +972,3 @@ def test_the_obligation_walk_follows_registry_declarations(browser, serve):
         expect(page.locator(f"#{expected}")).to_have_attribute(
             "data-lf-obligation", "1"
         )
-
-
-def test_live_revision_drafts_wait_for_the_complete_controller_publication(
-    browser, serve
-):
-    """Replacement drafts recover only after the arriving document is complete."""
-    first = leaf_page(
-        "Drafts first",
-        """<h1>Drafts</h1>
-<lf-draft id="revised-draft"><pre>
-The first revision's existing body.
-</pre></lf-draft>""",
-    )
-    second = leaf_page(
-        "Drafts second",
-        """<h1>Drafts</h1>
-<lf-draft id="revised-draft"><pre>
-The second revision's replacement body.
-</pre></lf-draft>
-<lf-draft id="arriving-draft"><pre>
-The second revision's newly inserted body.
-</pre></lf-draft>""",
-    )
-    page = open_page(browser, live_url(serve(first)))
-    revised = page.locator("#revised-draft")
-    expect(revised.locator(".lf-draft-body")).to_have_text(
-        "The first revision's existing body."
-    )
-    revised.locator(".lf-draft-body").click()
-    editor = revised.locator("leaf-text")
-    write(editor, "The user's unsent replacement.\n")
-    # The editor stays open with the focus elsewhere; a press away would save it.
-    editor.blur()
-    expect(editor).not_to_be_focused()
-    assert take_browser_errors(page) == []
-
-    stamp_page(serve.page_dir, second, "replace and insert drafts")
-    wait_for_revision(page, 2)
-
-    expect(revised.locator(".lf-draft-body")).to_have_text(
-        "The second revision's replacement body."
-    )
-    expect(page.locator("#arriving-draft .lf-draft-body")).to_have_text(
-        "The second revision's newly inserted body."
-    )
-    expect(revised.locator("leaf-text")).to_have_js_property(
-        "value", "The user's unsent replacement.\n"
-    )
-    assert take_browser_errors(page) == []

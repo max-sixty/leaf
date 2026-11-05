@@ -3,6 +3,7 @@ capturing a page's input, offering it through `codex queue`, the desktop app, an
 Server turn, or a tool or Stop hook, receipting it on each page, recovering after a
 restart, and the adapter process's lifetime."""
 
+import itertools
 import json
 import os
 import select
@@ -14,7 +15,7 @@ import sys
 import tempfile
 import threading
 from contextlib import ExitStack, contextmanager
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -1980,7 +1981,8 @@ STARTED = {
 def idle_desktop_chat(page_dir, codex_loop, monkeypatch, tmp_path):
     """A desktop chat holding one offered update, its turn over, and its transcript.
     Its `transcript(kind, at=None, **payload)` appends a record there, written now
-    or at the time `at` names. It also gathers what the
+    or at the datetime `at`, and `tool_output(turn, output)` appends the record of a
+    `leaf_delivery` tool output entering `turn`. It also gathers what the
     two older routes would have done: messages `queued` and deep links `opened`."""
     codex_loop(page_dir)
     cleanup_model.prompt_turn("codex-thread", "user-turn")
@@ -1992,15 +1994,42 @@ def idle_desktop_chat(page_dir, codex_loop, monkeypatch, tmp_path):
     )
     cleanup_model.close_session_turn("codex-thread", "user-turn")
     source = tmp_path / "rollout.jsonl"
+    ordinals = itertools.count()
 
     def transcript(kind, at=None, **payload):
+        # Codex stamps each record in UTC to the millisecond, with a `Z`.
+        written = (at or datetime.now(UTC)).astimezone(UTC)
         record = {
-            "timestamp": at or cleanup_model.now_iso(),
+            "timestamp": written.isoformat(timespec="milliseconds").replace(
+                "+00:00", "Z"
+            ),
+            "ordinal": next(ordinals),
             "type": kind,
             "payload": payload,
         }
         with source.open("a") as stream:
             stream.write(json.dumps(record) + "\n")
+
+    def tool_output(turn, output):
+        # The fields of the record the app's bundled Codex wrote for a tool output,
+        # which `notes/codex-integration.md` holds.
+        written = datetime.now(UTC)
+        at_ms = int(written.timestamp() * 1000)
+        transcript(
+            "event_msg",
+            at=written,
+            type="item_completed",
+            thread_id="codex-thread",
+            turn_id=turn,
+            item={
+                "type": "FunctionCallOutput",
+                "id": f"fco_{turn}",
+                "name": "leaf_delivery",
+                "output": output,
+            },
+            started_at_ms=at_ms,
+            completed_at_ms=at_ms,
+        )
 
     transcript("session_meta", id="codex-thread")
     transcript("event_msg", type="task_started", turn_id="user-turn")
@@ -2008,7 +2037,9 @@ def idle_desktop_chat(page_dir, codex_loop, monkeypatch, tmp_path):
     session = cleanup_model.session_record("codex-thread")
     assert session is not None
     cleanup_model.write_session({**session, "transcript_path": str(source)})
-    chat = SimpleNamespace(queued=[], opened=[], transcript=transcript)
+    chat = SimpleNamespace(
+        queued=[], opened=[], transcript=transcript, tool_output=tool_output
+    )
     monkeypatch.setattr(
         codex_adapter_model, "queue_delivery", lambda *args: chat.queued.append(args)
     )
@@ -2185,28 +2216,14 @@ def test_a_desktop_start_the_app_may_have_run_is_settled_from_the_transcript(
     # delivery's tool output doesn't settle it.
     assert not codex_adapter_model._offer_queued_delivery("codex", "codex-thread", None)
     chat.transcript("event_msg", type="task_started", turn_id="other-turn")
-    chat.transcript(
-        "event_msg",
-        type="item_completed",
-        turn_id="other-turn",
-        item={
-            "type": "FunctionCallOutput",
-            "name": "leaf_delivery",
-            "output": json.dumps({**json.loads(output), "id": "0badc0de"}),
-        },
-    )
+    chat.tool_output("other-turn", json.dumps({**json.loads(output), "id": "0badc0de"}))
     chat.transcript("event_msg", type="task_complete", turn_id="other-turn")
     assert not codex_adapter_model._offer_queued_delivery("codex", "codex-thread", None)
     assert [record["state"] for _, record in codex_records("codex-thread")] == [
         "starting"
     ]
     chat.transcript("event_msg", type="task_started", turn_id="desktop-turn")
-    chat.transcript(
-        "event_msg",
-        type="item_completed",
-        turn_id="desktop-turn",
-        item={"type": "FunctionCallOutput", "name": "leaf_delivery", "output": output},
-    )
+    chat.tool_output("desktop-turn", output)
     assert not codex_adapter_model._offer_queued_delivery("codex", "codex-thread", None)
     assert chat.queued == [] and chat.opened == []
     assert desktop_pickups(page_dir) == [("opened", "desktop-turn", None)]
@@ -2239,7 +2256,7 @@ def test_a_desktop_start_the_transcript_never_shows_is_abandoned_once_idle(
         started = datetime.now().astimezone() - timedelta(seconds=last_turn)
         chat.transcript(
             "event_msg",
-            at=started.isoformat(timespec="milliseconds"),
+            at=started,
             type="task_started",
             turn_id="later-turn",
         )
@@ -2298,12 +2315,7 @@ def test_an_adapter_stopped_after_the_apps_answer_sends_no_second_start(
     # The router is gone, so a second start would show as a queued message.
     assert not codex_adapter_model._offer_queued_delivery("codex", "codex-thread", None)
     chat.transcript("event_msg", type="task_started", turn_id="desktop-turn")
-    chat.transcript(
-        "event_msg",
-        type="item_completed",
-        turn_id="desktop-turn",
-        item={"type": "FunctionCallOutput", "name": "leaf_delivery", "output": output},
-    )
+    chat.tool_output("desktop-turn", output)
     assert not codex_adapter_model._offer_queued_delivery("codex", "codex-thread", None)
     assert chat.queued == []
     assert desktop_pickups(page_dir) == [("opened", "desktop-turn", None)]

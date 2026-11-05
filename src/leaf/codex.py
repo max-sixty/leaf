@@ -505,10 +505,14 @@ def transcript_delivery_turn(path: Path, delivery_id: str, since: float) -> str 
     output in the native Codex transcript at `path`, or None where none did.
 
     The transcript records each item as it completes, `{"type": "event_msg",
-    "payload": {"type": "item_completed", "turn_id", "item"}}`, with the item in
-    App Server's fields under a capitalized type. It reads back from the end only to
-    the first record written before `since`, the time the delivery was captured,
-    since no turn written earlier can hold it.
+    "payload": {"type": "item_completed", "turn_id", "item"}}`. A tool output's item
+    holds App Server's `functionCallOutput` fields (`id`, `name`, `output`) under the
+    type `FunctionCallOutput`, with `output` the string the start sent. This reads
+    back from the end and stops at the first record stamped before `since`, the time
+    the delivery was captured. Codex writes records in timestamp order, so no record
+    before that one can hold the delivery. `notes/codex-integration.md`, "Delivery
+    without user messages", holds a record the app's bundled Codex wrote and how to
+    capture another.
     """
     try:
         stream = path.open("rb")

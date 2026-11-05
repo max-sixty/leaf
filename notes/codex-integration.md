@@ -200,6 +200,42 @@ manifest to point into its own home. Afterwards, put each `path` back to the
 `extensionHostPath` in `~/.codex/chrome-native-hosts-v2.json`, or ChatGPT for Chrome
 stops reaching the user's app.
 
+When Leaf can't read the app's answer to a start, it settles the start from the
+chat's transcript, the rollout file under `$CODEX_HOME/sessions/`, by finding the
+record of the turn's `leaf_delivery` tool output (`codex.transcript_delivery_turn`).
+The app's bundled Codex 0.166.0-alpha.6, from app 26.1029.61003, wrote this record at
+06:37 UTC on 5 November 2026. It was in a scratch chat that a probe client drove
+through that binary's App Server, so the rollout's `session_meta` names the originator
+`leaf-probe`, and the output is the probe's own text rather than a Leaf envelope:
+
+```text
+{"timestamp":"2026-11-05T06:37:47.820Z","ordinal":24,"type":"event_msg","payload":{"type":"item_completed","thread_id":"01a1aa6d-7a33-7b10-bfa5-4abf3d94c58c","turn_id":"01a1aa6d-8980-78a3-a770-578d863dcacd","item":{"type":"FunctionCallOutput","id":"fco_01a1aa6d-8980-78a3-a770-579bc2e71e00","name":"leaf_delivery","output":"{\"id\": \"probe0001\", \"note\": \"Leaf probe baseline. Reply with exactly the word: baseline\"}"},"started_at_ms":1793860667820,"completed_at_ms":1793860667820}}
+```
+
+The app runs the same binary as its chats' App Server
+(`Contents/Resources/codex-cli/CodexCLI.app/Contents/MacOS/codex app-server`), and
+the rollouts of its own chats record every completed item in the same `item_completed`
+envelope. No record was captured from a turn a window of the app started. Through
+the same binary, Leaf envelopes of 55 bytes, 60 KB and 400 KB were each stored
+verbatim, and `transcript_delivery_turn` returned the turn `turn/start` had answered.
+In 711 transcripts from late October and early November, Codex wrote every record in
+timestamp order, which lets the reader stop at the first record older than the
+delivery.
+
+To capture the record again, run the app's binary as `app-server` on stdio with
+`CODEX_HOME` set to an empty directory. Send `initialize`, `initialized`,
+`thread/start` and a `turn/start` built by `codex.app_server_turn_start_params`, then
+read the record back:
+
+```bash
+jq -c 'select(.type == "event_msg" and .payload.type == "item_completed"
+  and .payload.item.type == "FunctionCallOutput")' \
+  "$CODEX_HOME"/sessions/*/*/*/rollout-*.jsonl
+```
+
+The home needs no login. Codex writes the tool output's record before it calls the
+model, and the turn then retries the model's `401`; `turn/interrupt` ends it.
+
 The app's transcript also hides or restyles a user message by its shape, which could
 quiet the queue route: a text that parses as `<external_event …>` draws as an activity
 row, and one whose `text_elements` carry the placeholder `aeon-continuation` isn't

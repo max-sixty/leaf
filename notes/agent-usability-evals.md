@@ -781,9 +781,13 @@ revision. Every workspace dashboard then drew a judge defect at 900×600: one
 author's "Log and checks" pane was 224×173px and held 6.5 of its own heights,
 while at 1600×1000 the same page's rollout pane was 65% empty. The 900×600
 defects on dashboards that stayed sidebar pages were about the write-up's width or
-what the arrival view left out, not cramped panes. This is the likeliest next
-target ([#4098](https://github.com/max-sixty/leaf/issues/4098)), and it needs its
-own before/after.
+what the arrival view left out, not cramped panes. On 2026-11-05 this no longer
+reproduced: 0 of 10 `dashboard/write-up` authors on main, on both harnesses, made a
+workspace after the preference, and neither did 4 with the 24 October bullet restored
+nor 4 with `skills/leaf` as of f00911ed1, so a runtime change rather than the text
+likely removed it ([#4098](https://github.com/max-sixty/leaf/issues/4098)). Since
+#5268, `--viewport desktop` opens 1280×800, so the commands above need
+`--viewport large` to reach these windows again.
 
 ### The cold dashboard
 

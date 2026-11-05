@@ -1825,7 +1825,9 @@ flowchart TD
               <summary>Scrolling keys follow the focused reading region</summary>
               <p id="navigation-scroller-rule">
                 <kbd>j</kbd> / <kbd>k</kbd> and <kbd>d</kbd> / <kbd>u</kbd> scroll the
-                focused reading region: the page, a pane, or the panel’s view. The
+                reading region the user last focused or pressed in: the page, a pane, or
+                the panel’s view. Until the user chooses one, a step the page can’t take
+                scrolls the pane with the most to scroll. The
                 <a href="#navigation-go-to">Go-to map</a> covers page edges, first
                 unread message and item alignment.
               </p>

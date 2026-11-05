@@ -307,6 +307,103 @@ def test_a_wheel_or_a_press_on_words_gives_a_pane_the_reading_keys_and_the_walk(
     assert top(detail) == at
 
 
+def test_a_step_the_page_cant_take_moves_the_pane_with_the_most_to_scroll(
+    browser, serve
+):
+    """With no pane named, a workspace's reading keys ran out on the page: it has nothing
+    to scroll, or here only a footer's height beside `main`. A step the page can't take
+    goes to the pane with the most to scroll, which of two the same size is not the first
+    and not the shorter. The step names it, so a walk goes on from where the steps
+    reached rather than from the top of the page."""
+    short = "#short > :not(header, footer)"
+    long = "#long > :not(header, footer)"
+
+    def ask(name):
+        return (
+            f'<lf-ask id="{name}"><h3>Decide {name}</h3><lf-options id="{name}-o" choose>'
+            f'<lf-option id="{name}-a">Yes</lf-option>'
+            f'<lf-option id="{name}-b">No</lf-option></lf-options></lf-ask>'
+        )
+
+    words = "".join(
+        f'<p style="min-height: 200px">Paragraph {n} between the decisions.</p>'
+        for n in range(7)
+    )
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "two panes and a footer",
+                '<header><h1>Queue</h1></header><div id="regions">'
+                '<lf-pane id="short" label="Short"><div><a href="#long">Long</a>'
+                '<p style="min-height: 1200px">The words of the short pane.</p></div>'
+                '</lf-pane><lf-pane id="long" label="Long"><div>'
+                f"{ask('first')}{words}{ask('second')}"
+                "<div style='height: 1400px'></div></div></lf-pane></div>",
+                head=regions_side_by_side("regions"),
+                layout="workspace",
+            ).replace("</main>", "</main><footer><p>A site footer.</p></footer>")
+        ),
+    )
+    resized(page, 1440, 900)
+    pane_scroll_behavior(page, page.locator("#long"), "bounded")
+
+    def top(selector):
+        return page.locator(selector).evaluate("el => el.scrollTop")
+
+    def stepped(key, selector):
+        before = top(selector)
+        page.keyboard.press(key)
+        page.wait_for_function(
+            f"() => document.querySelector('{selector}').scrollTop > {before}"
+        )
+        scroll_settled(page, selector)
+
+    assert page.locator(short).bounding_box()["width"] == pytest.approx(
+        page.locator(long).bounding_box()["width"], abs=1
+    )
+    assert top("html") == 0
+    stepped("d", "html")
+    at_end = top("html")
+    assert page.evaluate(f"""() => {{
+      const root = document.scrollingElement;
+      return root.scrollHeight - root.clientHeight - {at_end} <= 2;
+    }}""")
+    assert top(long) == 0
+
+    stepped("d", long)
+    stepped("d", long)
+    assert top(short) == 0
+    assert top("html") == at_end
+    first = page.locator("#first").bounding_box()
+    assert first["y"] + first["height"] <= page.locator(long).bounding_box()["y"]
+    page.keyboard.press("m")
+    expect(page.locator("#second")).to_be_focused()
+
+
+def test_the_page_keeps_the_reading_keys_while_it_can_scroll(browser, serve):
+    """A region the user hasn't named takes only a step the page can't: on a long page
+    the keys read the page, and a bounded block in view stays put."""
+    entries = "".join(f"<p>Entry {n}: a line of the deploy.</p>" for n in range(60))
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "a log atop a long page",
+                f'<h1>Deploy</h1><div id="log" data-bound="start">{entries}</div>'
+                f"{BOUNDED_LOG_FILLER}",
+            )
+        ),
+    )
+    log = page.locator("#log")
+    expect(log).to_be_in_viewport()
+    assert log.evaluate("log => log.scrollHeight > log.clientHeight")
+    page.keyboard.press("j")
+    page.wait_for_function("document.scrollingElement.scrollTop > 0")
+    scroll_settled(page)
+    assert log.evaluate("log => log.scrollTop") == 0
+
+
 def test_a_closed_threads_panel_hands_the_page_back_where_the_user_was_reading(
     browser, serve
 ):

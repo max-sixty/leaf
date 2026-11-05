@@ -11,13 +11,19 @@ import {
   afterBrowserScroll,
   atScrollEnd,
   glideTo,
+  pageScroller,
   scrollGoal,
+  scrollLimit,
   stopGlide,
 } from "./scrolling.js";
 import { landingBand, shownRect } from "./geometry.js";
 import { intersect } from "./rect.js";
 import {
+  actedIn,
   effectiveScroller,
+  regionScrollBehavior,
+  shownRegionBounds,
+  unconcealedReadingRegions,
   userReadingRegion,
   readingRegionFor,
   scrollChainOf,
@@ -33,14 +39,14 @@ import {
 } from "./current-target.js";
 import { focused } from "./focus.js";
 import { pageSelection } from "./composing/capture.js";
-import { blockAt, closestAcross } from "./passages.js";
+import { blockAt, closestAcross, inPage } from "./passages.js";
 import { readingBlock } from "./reading-place.js";
 import { scrollIntoView } from "./landing-scroll.js";
 import { drawnThreadId, THREAD } from "./thread/selectors.js";
 import { threadIn } from "./thread/focus.js";
 import { threadList } from "./thread/state.js";
 import { inPageOrder } from "./thread/placement.js";
-import { under } from "./shadow.js";
+import { renderedOrder, under } from "./shadow.js";
 import { retainUserIntent } from "./user-intent.js";
 import { announce } from "./notifications.js";
 import { beginWalk, listWalkPosition, walkPositionLabel } from "./walk-position.js";
@@ -171,6 +177,18 @@ export function placeThreadEdge(thread, edge) {
 // walks that box's scroll chain (`stepAlong`), where a box outside the visible band
 // passes it on as a spent one does, so a floating thread scrolled off screen still
 // pages its document. Neither changes which region the user is reading.
+//
+// With no region named the page takes the step, and a step the page can't take goes to
+// the region with the most to scroll (`regionForStep`). A full-height workspace keeps the
+// page still, or gives it only the height of a header or footer beside `main`, so on a
+// fresh load the keys would otherwise run out on the page while its panes held everything
+// to read. The most to scroll rather than the largest box, since panes of one size are
+// common and the shorter of them is soon spent; the first in reading order of two that
+// tie, so the answer depends on the page rather than on which registered first. Vimium
+// makes the same hand-off on a page whose scrolling element doesn't scroll, though it
+// ranks by visible area. The step names the region it chose, so later keys and a walk go
+// on from there. Choosing reads every region, and only a step with no region named that
+// the page can't take pays for it.
 /** @param {Element} box @param {import("./geometry.js").ClipCache} clips */
 const readingStep = (box, clips) => {
   const shown = shownRect(box, clips);
@@ -179,8 +197,8 @@ const readingStep = (box, clips) => {
   const { top, bottom } = intersect(shown, band, { y: true });
   return bottom > top ? { box, height: bottom - top } : null;
 };
-const stepStart = () => {
-  const region = userReadingRegion();
+/** @param {ReturnType<typeof userReadingRegion>} region */
+const stepStart = (region) => {
   const at = focused();
   if (region && under(at, region.host) && !under(at, region.body)) {
     const containing = scrollersOf(at).next().value;
@@ -194,8 +212,41 @@ const stepStart = () => {
   }
   return effectiveScroller(region);
 };
+// Whether a box has room the way a step goes, from where it is headed.
+/** @param {Element} box @param {number} amount */
+const takesStep = (box, amount) => {
+  const goal = scrollGoal(box);
+  return amount > 0 ? !atScrollEnd(box, goal) : goal > 0;
+};
+/** @param {number} amount */
+const regionForStep = (amount) => {
+  /** @type {ReturnType<typeof userReadingRegion>} */
+  let most;
+  for (const region of unconcealedReadingRegions()) {
+    const { host, body } = region;
+    if (
+      !inPage(host) ||
+      regionScrollBehavior(region) !== "bounded" ||
+      !takesStep(body, amount) ||
+      !nativeModalAdmits(body) ||
+      !shownRegionBounds(region)
+    )
+      continue;
+    const ahead = most
+      ? scrollLimit(body) - scrollLimit(most.body) || renderedOrder(most.host, host)
+      : 1;
+    if (ahead > 0) most = region;
+  }
+  return most;
+};
 /** @param {number} amount @param {"page" | "pixel"} unit */
-const stepReading = (amount, unit) => stepAlong(stepStart(), amount, unit);
+const stepReading = (amount, unit) => {
+  const named = userReadingRegion();
+  const region =
+    named ?? (takesStep(pageScroller, amount) ? undefined : regionForStep(amount));
+  if (region && !named) actedIn(region);
+  stepAlong(stepStart(region), amount, unit);
+};
 // The step walks the chain from `from` to the first box that shows and can take it. A
 // box that contains its overscroll, or one an open modal leaves outside, ends the walk.
 // A sample's chain runs on past its document into the containing page, as the wheel's
@@ -209,10 +260,8 @@ function stepAlong(from, amount, unit) {
     if (!nativeModalAdmits(box)) return;
     if (afterBrowserScroll(box, () => stepAlong(from, amount, unit))) return;
     const step = readingStep(box, clips);
-    const goal = scrollGoal(box);
-    const canMove = amount > 0 ? !atScrollEnd(box, goal) : goal > 0;
-    if (step && canMove) {
-      glideTo(box, goal + (unit === "page" ? amount * step.height : amount));
+    if (step && takesStep(box, amount)) {
+      glideTo(box, scrollGoal(box) + (unit === "page" ? amount * step.height : amount));
       return;
     }
     if (getComputedStyle(box).overscrollBehaviorY !== "auto") return;

@@ -308,6 +308,10 @@ onCurrentLocation((node) => {
   if (node) actedAt(node, true);
 });
 export const recentReadingRegion = () => readingRegion(recentRegionId);
+// A step the reading keys chose this region for names it, as a wheel turned there does
+// (navigation.js, `regionForStep`).
+/** @param {ReadingRegion} region */
+export const actedIn = (region) => actedAt(region.host, false);
 // A region hidden from layout — a closed panel's list, a pane in a tab not shown — is not
 // where the user reads. One scrolled out of the window still is.
 /** @param {ReadingRegion | undefined} region */

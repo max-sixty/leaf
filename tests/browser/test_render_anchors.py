@@ -4757,15 +4757,34 @@ def test_a_failed_deferred_hydration_waits_for_a_user_retry(browser, serve):
         route.fulfill(status=500, json={"error": "the patch is unavailable"})
 
     context = browser.new_context()
+    # A retry would wait on the page's clock, which the test runs forward.
+    context.clock.install()
     context.route("**/api/deferred*", refuse)
+    # The page counts its own loads: the route handler's count follows the request by
+    # a hop the driver doesn't order against the page.
+    context.add_init_script(
+        """
+        window.__lfDeferredLoads = 0;
+        const nativeFetch = window.fetch.bind(window);
+        window.fetch = (...args) => {
+          if (String(args[0]).includes("/api/deferred")) window.__lfDeferredLoads += 1;
+          return nativeFetch(...args);
+        };
+        """
+    )
     page = open_page(browser, url, context=context)
     thread_head(page, comment_ids(serve.page_dir)[0])
     show_on_page(page)
     expect(page.locator("lf-diff .lf-error")).to_contain_text(
         "the patch is unavailable"
     )
-    page.wait_for_timeout(250)
-    assert len(requests) == 1, "thread hydration retried without another user gesture"
+    # A minute of the page's clock, past any backoff a retry would wait out, then every
+    # update the failure queued, and with it any reload it asked for.
+    context.clock.run_for(60_000)
+    rendered(page)
+    assert page.evaluate("window.__lfDeferredLoads") == 1, (
+        "thread hydration retried without another user gesture"
+    )
     consume_browser_errors(page, http_error_console(500))
 
     summary = page.locator("lf-diff summary")

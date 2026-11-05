@@ -707,10 +707,17 @@ def test_the_stop_hook_watch_wakes_the_session_only_for_input(
     monkeypatch.setattr(harness_model, "process_argv", launched)
 
     initialized = threading.Event()
+    passes = []
+    # Set, each pass waits for no news, so the watch reconsiders its input as fast as it
+    # can rather than once per `REVIVAL_CHECK_S` (tests/AGENTS.md, "Absences").
+    brisk = threading.Event()
     await_news = session_model.Watch.await_news
 
     def after_first_pass(watch, mark, *args, **kwargs):
         initialized.set()
+        passes.append(mark)
+        if brisk.is_set():
+            return await_news(watch, mark, timeout=0)
         return await_news(watch, mark, *args, **kwargs)
 
     monkeypatch.setattr(session_model.Watch, "await_news", after_first_pass)
@@ -748,7 +755,15 @@ def test_the_stop_hook_watch_wakes_the_session_only_for_input(
     )
     outcome = []
     watch = watching(outcome)
-    time.sleep(session_model.REVIVAL_CHECK_S / 5)
+    # Two more passes reconsider the pending input, and neither wakes for it.
+    brisk.set()
+    since = len(passes)
+    wait_for(
+        lambda: (len(passes), watch.is_alive()),
+        lambda now: now[0] >= since + 2 or not now[1],
+        failure="the watch made no further pass",
+    )
+    brisk.clear()
     assert outcome == []
     cleanup_model.close_session_turn("s1")
     watch.join(timeout=STATED_TIMEOUT)

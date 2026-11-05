@@ -147,11 +147,9 @@ export function shownWindow({
   const right = Math.min(offsetLeft + width, within?.right ?? Infinity) - gap;
   let top = Math.max(offsetTop, within?.top ?? -Infinity);
   let bottom = Math.min(offsetTop + height, within?.bottom ?? Infinity);
-  const middle = offsetTop + height / 2;
   for (const box of coverBoxes(item)) {
     if (!overlapsAcross(box, across ?? { left, right })) continue;
-    if (box.top + box.bottom < 2 * middle) top = Math.max(top, box.bottom);
-    else bottom = Math.min(bottom, box.top);
+    ({ top, bottom } = coverCut(box, top, bottom, { offsetTop, height }));
   }
   top += gap;
   bottom -= gap;
@@ -657,9 +655,9 @@ export function shownRect(item, clips) {
 }
 // What of an item the user sees: what every box over it lets through, within the visible
 // viewport's height, less the boxes the chrome covers (`coverBoxes`), or null when none
-// of it shows. A cover reaching into the item's columns takes the band it stands in, and
-// the item keeps the larger of its parts above and below that band, so what is left is
-// one box the user sees whole; a cover beside the item takes nothing. The viewport cuts
+// of it shows. A cover reaching into the item's columns takes the item from the cover to
+// the window's edge it stands nearer (`coverCut`), so what is left is one box the user
+// sees whole; a cover beside the item takes nothing. The viewport cuts
 // only the item's top and foot; its sides stay the clip walk's, the layout viewport's,
 // since a pinch zoom's visual viewport is a pan across the page and not a clip, and read
 // with its sides a message wider than the zoomed view was never seen whole across, and
@@ -689,29 +687,50 @@ export function inFront(box, item) {
     item,
   );
 }
+// The span `top` to `bottom` less what a cover in its columns takes: everything from the
+// cover to the edge of `viewport` it stands nearer, the visible viewport unless the
+// caller reads another, as the floating panel at the window's foot leaves no room under
+// it. The page the gap between it and that edge shows is no room to read in, and
+// counting a box seen there would leave a landing short of a message the panel hides.
+// A span wholly past that edge keeps all of itself, as a seat scrolled below the window
+// is under no cover there. `shownWindow` cuts by it in the viewport it reads, `uncovered`
+// in the visible one.
+/** @param {Box} over @param {number} top @param {number} bottom
+ * @param {{offsetTop: number, height: number}} [viewport] */
+function coverCut(over, top, bottom, { offsetTop, height } = visualViewport) {
+  if (over.top + over.bottom < 2 * offsetTop + height)
+    return bottom <= offsetTop
+      ? { top, bottom }
+      : { top: Math.max(top, over.bottom), bottom };
+  return top >= offsetTop + height
+    ? { top, bottom }
+    : { top, bottom: Math.min(bottom, over.top) };
+}
 // What of `box` the boxes the chrome covers leave (`coverBoxes`), but for one holding
 // `item`, or null where they leave none of it: a cover reaching into the box's columns
-// takes the band it stands in, and the box keeps the larger of its parts above and below
-// that band. `seenRect` and paint stacked above the chrome (`paintClips`) cut by it.
+// takes it from the cover to the window's edge it stands nearer (`coverCut`). `seenRect`
+// and paint stacked above the chrome (`paintClips`) cut by it.
 /** @param {Box} box @param {Node} item @param {boolean} [rest] */
 function uncovered({ left, top, right, bottom }, item, rest = false) {
   for (const over of coverBoxes(item, { rest })) {
-    if (over.left >= right || over.right <= left) continue;
-    if (over.top >= bottom || over.bottom <= top) continue;
-    if (over.top - top >= bottom - over.bottom) bottom = over.top;
-    else top = over.bottom;
+    if (!overlapsAcross(over, { left, right })) continue;
+    ({ top, bottom } = coverCut(over, top, bottom));
   }
   return bottom > top ? { left, top, right, bottom } : null;
 }
 // Whether the boxes the chrome covers will stand over any of `box` for `item`, by the
 // rule `seenRect` cuts with, read where each comes to rest: a surface asks it before
 // giving way to a place a landing is about to show (floating-panel.js, `clearFor`), and
-// a view still opening will cover what its drawn box doesn't reach yet.
+// a view still opening will cover what its drawn box doesn't reach yet. A cover's cut
+// answers, not whether anything is left, so an empty box, such as a seat with nothing
+// in it yet, is covered only where a cover stands over it.
 /** @param {Box} box @param {Node} item */
-export function covered(box, item) {
-  const left = uncovered(box, item, true);
-  return !left || left.top > box.top || left.bottom < box.bottom;
-}
+export const covered = (box, item) =>
+  coverBoxes(item, { rest: true }).some((over) => {
+    if (!overlapsAcross(over, box)) return false;
+    const left = coverCut(over, box.top, box.bottom);
+    return left.top > box.top || left.bottom < box.bottom;
+  });
 // Whether the page draws `node` with what it holds: rendered (`checkVisibility`, with its
 // `options`) and not hidden until found. An element `hidden="until-found"` keeps a box
 // of its own while the browser skips its contents, until find-in-page or `reveal`

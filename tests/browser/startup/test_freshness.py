@@ -193,19 +193,48 @@ def test_a_presence_read_crossing_freshness_returns_to_the_current_lease(
         page.unroute_all(behavior="wait")
 
 
+# Counts, in the page, each freshness look and each state read it asks, so a count is
+# current when an ordered event has come and gone: Playwright hands a request or a
+# route to Python on its own schedule, after the page's call.
+COUNT_ASKS = """
+window.__lfAsked = {news: 0, state: 0};
+const nativeFetch = window.fetch.bind(window);
+window.fetch = (...args) => {
+  const url = String(args[0] instanceof Request ? args[0].url : args[0]);
+  if (url.includes("api/news")) window.__lfAsked.news += 1;
+  else if (url.includes("api/state")) window.__lfAsked.state += 1;
+  return nativeFetch(...args);
+};
+"""
+
+
+def looked_since(page):
+    """Wait until the page has handled a freshness look asked after this call.
+
+    The page asks each look only once it has handled the one before, so the second look
+    asked after this call starts once the first has been handled."""
+    since = page.evaluate("window.__lfAsked.news")
+    page.wait_for_function("since => window.__lfAsked.news >= since + 2", arg=since)
+
+
 def test_status_changes_coalesce_behind_one_state_read(browser, serve):
     """Rapid starts do not build a queue of state requests.
 
     Freshness looks may announce several new readings while the container is still
     answering one. They collapse into one trailing read, which takes the newest state.
     """
-    page = open_page(browser, serve(LONG_PAGE))
+    page = open_page(browser, serve(LONG_PAGE), init_script=COUNT_ASKS)
     d = serve.page_dir
     status = panel_field(page)
 
     def declare(detail):
         declare_work(d, detail)
 
+    def reads():
+        return page.evaluate("window.__lfAsked.state")
+
+    # The state reads the page has asked so far, the startup read among them.
+    before = reads()
     # Every ask is held; the test answers each admitted read by hand.
     held = []
     page.route("**/api/state*", lambda route: held.append(route))
@@ -218,8 +247,8 @@ def test_status_changes_coalesce_behind_one_state_read(browser, serve):
     older = first.fetch().json()
     declare("second")
     declare("third")
-    page.wait_for_timeout(500)
-    assert len(held) == 1
+    looked_since(page)
+    assert reads() == before + 1
 
     # The news the answer doesn't name earns exactly one follow-up read, not one read
     # per status write.
@@ -232,8 +261,8 @@ def test_status_changes_coalesce_behind_one_state_read(browser, serve):
     trailing = held[1]
     trailing.fulfill(json=trailing.fetch().json())
     expect(status).to_have_attribute("placeholder", re.compile(r"third"))
-    page.wait_for_timeout(500)
-    assert len(held) == 2
+    looked_since(page)
+    assert reads() == before + 2
 
 
 def test_a_state_read_timing_out_during_its_body_is_offline(browser, serve):

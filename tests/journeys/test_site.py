@@ -1537,7 +1537,7 @@ def test_a_shipped_log_opens_its_example_on_its_thread(served_example, browser):
     row.click()
     thread = page.locator(PANEL_THREAD)
     expect(thread.locator(".lf-thread-quote")).to_have_text("One reconnect in about 40")
-    assert thread.locator(".lf-thread-quote[data-lf-detached]").count() == 0, (
+    assert thread.locator(".lf-thread-quote-head[data-lf-detached]").count() == 0, (
         "the shipped anchor found nothing on the page it was captured from"
     )
     # Painted, not merely resolved: the mark is what puts the user at the passage.

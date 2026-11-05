@@ -126,10 +126,10 @@ def test_a_comment_on_external_data_stays_with_the_revision_the_user_saw(
         "revision": replaced,
         "path": [1, "value"],
     }, "the source coordinate must follow construction order, not the datum key"
-    quote = open_panel_thread(page, comment["id"]).locator(".lf-thread-quote")
-    expect(quote).to_contain_text("Ready")
-    expect(quote.locator(".lf-anchor-status")).to_have_text("Earlier data")
-    expect(quote).not_to_have_attribute("data-lf-detached", "")
+    head = open_panel_thread(page, comment["id"]).locator(".lf-thread-quote-head")
+    expect(head).to_contain_text("Ready")
+    expect(head.locator(".lf-anchor-status")).to_have_text("Earlier data")
+    expect(head).not_to_have_attribute("data-lf-detached", "")
 
 
 def test_a_comment_on_an_identified_datum_follows_the_subject_across_replacements(
@@ -507,9 +507,9 @@ customElements.define('lf-derived', class extends LeafElement {
         re.compile(r"\blf-mark-el\b")
     )
     assert page.evaluate("() => CSS.highlights.get('lf-mark')?.size ?? 0") == 0
-    quote = open_panel_thread(page, comment["id"]).locator(".lf-thread-quote")
-    expect(quote).to_contain_text("Ready")
-    expect(quote.locator(".lf-anchor-status")).to_have_text("Changed")
+    head = open_panel_thread(page, comment["id"]).locator(".lf-thread-quote-head")
+    expect(head).to_contain_text("Ready")
+    expect(head.locator(".lf-anchor-status")).to_have_text("Changed")
 
 
 def test_a_text_document_is_never_drawn_before_its_text_arrives(browser, serve):

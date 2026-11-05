@@ -39,7 +39,7 @@ from render_harness import (
 )
 
 from browser.widgets import PLAYGROUND_PAGE
-from journeys import first_thread_quote
+from journeys import first_thread_head
 from leaf import data as data_model
 from leaf import delivery as delivery_model
 from leaf import event_log as events_model
@@ -387,7 +387,7 @@ def test_pr_walkthrough_moves_from_semantic_call_to_exact_patch_comment(
     )
     page.keyboard.press("ControlOrMeta+Enter")
     round_trip(page)
-    expect(first_thread_quote(page, serve.page_dir)).to_contain_text("src/summary.rs")
+    expect(first_thread_head(page, serve.page_dir)).to_contain_text("src/summary.rs")
     comments = [
         event
         for event in events_model.read_events(serve.page_dir)

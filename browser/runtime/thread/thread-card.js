@@ -130,7 +130,7 @@ import {
   workflowWord,
   hasWorkflowLine,
 } from "./workflow.js";
-import { leafSays } from "../voice.js";
+import { leafSays, voiced } from "../voice.js";
 import { agentName, documentChanged } from "../semantic-state.js";
 import { growthIsSeen, shownRect } from "../geometry.js";
 import { ago, shortAgo } from "../presence.js";
@@ -157,50 +157,42 @@ import { Transcript } from "./transcript.js";
  * messages: readonly MessageReading[], working: WorkingMessage | null,
  * source: ThreadRecord, reread: (held: ThreadRecord) => ThreadReading}} ThreadReading */
 
-// What a thread says of the words it is about: where they stand, the words, whether they
-// still stand on the page, and its hover. A thread draws it where its container asks
-// (`ThreadOutlets`, `quote`), as the floating panel's view does.
+// What a thread says of the words it is about: where they stand, the words, how they
+// stand now, and, where the page no longer shows them, why. A thread draws it where its
+// container asks (`ThreadOutlets`, `quote`), as the floating panel's view does.
 /** @param {ThreadRecord} thread
  * @param {Pick<ReturnType<typeof import("../anchor-placement.js").createAnchorPlacement>, "placedAt">} anchors */
 function quoteReading(thread, anchors) {
   const placement = anchors.placedAt(thread.id);
-  // A version that rewrote the quoted words left the thread on their section
-  // (`rewritten_from`, events.md); the head still names those words, marked as changed.
-  const rewritten = thread.rewritten_from;
   const quoted = threadPassage(thread);
   const place = anchorPlace(quoted, thread.root.about);
   const words = quoted?.quote ?? "";
   if (!place && !words) return null;
   const anchored = Boolean(thread.anchor) || Boolean(thread.detached_from);
   const found = !thread.detached_from && placement != null;
-  const outdated = anchored && placement?.status === "outdated";
-  const changed =
-    Boolean(rewritten) ||
-    Boolean(quoted?.quote && placement?.datumElement && !placement.exact);
   return Object.freeze({
     place,
     words,
-    anchored,
-    found,
-    outdated,
-    changed,
-    // A surviving element can still be a destination after its quoted words
-    // have gone (rewritten text, replaced data or a virtual datum). Only a
-    // resolved passage can supply the original quote's complete reading.
-    localReading: Boolean(quoted?.quote) && placement?.kind !== "passage",
-    title: !anchored
-      ? null
-      : found
-        ? outdated
-          ? "This comment refers to an earlier data revision"
-          : changed
-            ? "These words have changed since; jump to their current item"
-            : quoted?.quote && placement.kind !== "passage"
-              ? "Jump to the quoted item's current location"
-              : "Jump to this passage"
+    // A version that rewrote the quoted words left the thread on their section
+    // (`rewritten_from`, events.md); the head still names those words, marked as
+    // changed. The mark is Leaf's word about them, so it is said in Leaf's voice.
+    status:
+      anchored && placement?.status === "outdated"
+        ? leafSays("Earlier data")
+        : thread.rewritten_from ||
+            (words && placement?.datumElement && !placement.exact)
+          ? leafSays("Changed")
+          : null,
+    lost:
+      !anchored || found
+        ? ""
         : thread.detached_from
           ? "This passage is no longer in the version shown"
           : "This passage can't be identified in the version shown",
+    // A surviving element can still be a destination after its quoted words
+    // have gone (rewritten text, replaced data or a virtual datum). Only a
+    // resolved passage can supply the original quote's complete reading.
+    localReading: Boolean(words) && placement?.kind !== "passage",
   });
 }
 
@@ -1282,6 +1274,8 @@ export class ThreadView {
       const expanded = this.#quoteExpanded.value;
       untracked(() => {
         keepsHidden(this.#quoteHead, !quote);
+        keeps(this.#quoteHead, "data-lf-detached", quote?.lost ? "" : null);
+        keeps(this.#quoteHead, "title", quote?.lost || null);
         render(this.#quoteTemplate(quote, expanded), this.#quoteHead);
       });
     });
@@ -1291,44 +1285,42 @@ export class ThreadView {
   /** @param {ReturnType<typeof quoteReading>} quote @param {boolean} expanded */
   #quoteTemplate(quote, expanded) {
     if (!quote) return nothing;
-    const place = quote.place && quote.words ? `${quote.place} · ` : quote.place;
-    return html`${
-        quote.localReading
-          ? html`<button
-              type="button"
-              ${offeredAction(
-                "inline",
-                "lf-thread-disclosure lf-quote-expand lf-disclosure-marker",
-              )}
-              aria-label="Full quote"
-              hidden
-              aria-expanded=${String(expanded)}
-              aria-controls=${this.#quoteId}
-              @click=${() => {
-                this.#quoteExpanded.value = !this.#quoteExpanded.peek();
-              }}
-            >
-              Full quote
-            </button>`
-          : nothing
-      }
+    const status = quote.status
+      ? html`<span class="lf-anchor-status">${voiced(quote.status)}</span>`
+      : nothing;
+    const label =
+      quote.place || quote.status
+        ? html`<p class="lf-quote-label">
+            ${quote.place}${quote.place && quote.status ? " · " : ""}${status}
+          </p>`
+        : nothing;
+    if (!quote.words) return label;
+    const press = quote.localReading
+      ? html`<button
+          type="button"
+          ${offeredAction(
+            "inline",
+            "lf-thread-disclosure lf-quote-expand lf-disclosure-marker",
+          )}
+          aria-label="Full quote"
+          hidden
+          aria-expanded=${String(expanded)}
+          aria-controls=${this.#quoteId}
+          @click=${() => {
+            this.#quoteExpanded.value = !this.#quoteExpanded.peek();
+          }}
+        >
+          Full quote
+        </button>`
+      : nothing;
+    return html`${label}${press}
       <blockquote
         ${ref(this.#watchQuote)}
         id=${this.#quoteId}
         class="lf-thread-quote"
-        ?data-lf-detached=${quote.anchored && !quote.found}
         data-lf-expanded=${String(quote.localReading && expanded)}
-        title=${(quote.anchored && !quote.found && quote.title) || nothing}
       >
-        <span class="lf-quote-label"
-          ><span class="lf-quote-place">${place}</span>${quote.words}</span
-        >${
-          quote.outdated
-            ? html`<span class="lf-anchor-status">Earlier data</span>`
-            : quote.changed
-              ? html`<span class="lf-anchor-status">Changed</span>`
-              : nothing
-        }
+        ${quote.words}
       </blockquote>`;
   }
 

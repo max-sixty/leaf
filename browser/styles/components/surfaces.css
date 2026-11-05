@@ -1296,25 +1296,23 @@ button.lf-thread-news {
 /* A quote of the words a thread is about, where its container asks for one, as the
    floating panel's view does (thread-card.js, `#drawQuote`). The panel stands in the
    chrome and a thread drawn by a package's reader stands in the page, so the face is
-   stated here, where every surface reads it. The rule and the quiet ink say its words
-   are quoted, so they take no marks. Where they stand (`anchorPlace`,
-   thread/messages.js) comes first, in the face of the quote's status, Changed, since
-   both are Leaf's words about the quotation. The quote stands over the thread's
-   messages in three lines, the whole on Full quote, its press above the words it
-   grows. It only says what the thread is about, since the container's way to the
-   words, as the panel's Show on page, goes there: it takes no press, no aim's room and
-   no title naming a jump, though a detached quote's title still says where its words
-   went. Its words start on the thread's edge, the 1px rule before them included. */
+   stated here, where every surface reads it. Only the quoted words stand behind the
+   rule, which with the quiet ink says they are quoted, so they take no marks. Leaf's
+   words about them, where they stand (`anchorPlace`, thread/messages.js) and how they
+   stand now, form a label over the rule in the status face, the mark of how they stand,
+   as Changed, in Leaf's italic (voice.js); a thread on a place with no quoted words
+   draws the label alone. The words stand over the
+   thread's messages in three lines, the whole on Full quote, its press above the words
+   it grows. The head only says what the thread is about, since the container's way to
+   the words, as the panel's Show on page, goes there: it takes no press, no aim's room
+   and no title naming a jump, though a detached head's title still says where its words
+   went. The rule stands on the thread's edge and the words and label on its text. */
 .lf-quote-label {
-  min-width: 0;
-}
-.lf-quote-place,
-.lf-anchor-status {
-  font: var(--font-status);
-}
-.lf-anchor-status {
-  margin-inline-start: 7px;
+  margin: 0;
+  padding-inline: var(--lf-thread-text-inset) 8px;
   color: var(--muted);
+  font: var(--font-status);
+  overflow-wrap: anywhere;
 }
 .lf-thread-quote-head:not([hidden]) {
   display: grid;

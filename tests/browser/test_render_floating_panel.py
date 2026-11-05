@@ -5128,7 +5128,9 @@ def test_a_thread_whose_words_are_gone_keeps_its_quotation_in_the_panel(browser,
     expect(view.locator(".lf-msg")).to_contain_text("Does this still apply?")
     quote = view.locator(".lf-thread-quote")
     expect(quote).to_contain_text("FINAL WORDS")
-    expect(quote).to_have_attribute("data-lf-detached", "")
+    expect(view.locator(".lf-thread-quote-head")).to_have_attribute(
+        "data-lf-detached", ""
+    )
     assert quote.evaluate("el => el.scrollHeight > el.clientHeight")
     disclosure = view.get_by_role("button", name="Full quote", exact=True)
     expect(disclosure).to_be_visible()

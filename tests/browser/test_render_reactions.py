@@ -2138,6 +2138,8 @@ def test_a_margin_card_offers_a_reply_s_reactions(browser, serve):
     message = card.locator(f'.lf-msg[data-lf-message="{reply}"]')
     strip = message.locator(":scope > .lf-react-strip")
     palette = strip.locator(".lf-react-palette:popover-open")
+    expect(card.locator("leaf-text")).to_be_focused()
+    page.keyboard.press("Escape")
     expect(card).to_be_focused()
     page.keyboard.press("e")
     expect(palette).to_have_count(1)

@@ -893,11 +893,19 @@ def test_revision_restoration_yields_to_input_while_a_diagram_loads(
             page.wait_for_function(
                 "() => document.querySelector('#left-reading > :not(header, footer)').scrollTop > 150"
             )
+            if install == "patch":
+                page.wait_for_function(
+                    "() => document.querySelector('#left-reading > :not(header, footer)').scrollTop > 300"
+                )
+                scroll_settled(page, "#left-reading > :not(header, footer)")
         elif gesture == "focus":
             page.locator("#right-head").click()
         elif gesture == "reveal":
             page.get_by_role("tab", name="Second", exact=True).click()
         scroll = left.evaluate("el => el.scrollTop")
+        wheeled = page.locator("#left-landmark").evaluate(
+            "el => el.getBoundingClientRect().top"
+        )
         held.pop().continue_()
         wait_for_revision(page, 2)
         expect(page.locator("#late-diagram svg")).to_have_count(1)
@@ -907,7 +915,13 @@ def test_revision_restoration_yields_to_input_while_a_diagram_loads(
                 "tab", name="Second" if gesture == "reveal" else "First", exact=True
             )
         ).to_have_attribute("aria-selected", "true")
-        if gesture == "wheel":
+        if gesture == "wheel" and install == "patch":
+            # A patch edits inside the pane, so the browser's scroll anchoring keeps
+            # what the wheel brought into view where it stood as context arrives above.
+            assert page.locator("#left-landmark").evaluate(
+                "el => el.getBoundingClientRect().top"
+            ) == pytest.approx(wheeled, abs=2)
+        elif gesture == "wheel":
             assert left.evaluate("el => el.scrollTop") == pytest.approx(scroll, abs=1)
         elif gesture == "focus":
             expect(page.locator("#right-head")).to_be_focused()

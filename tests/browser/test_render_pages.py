@@ -768,7 +768,7 @@ def test_a_screenshot_comment_contour_paints_above_its_edge_to_edge_frame(
     example = named_source("release-notes")
     page = open_page(browser, serve(example))
     shot = page.locator("#rn-console-shot")
-    shot.get_by_role("button", name="Slider", exact=True).click()
+    shot.get_by_role("radio", name="Slider", exact=True).click()
     shot.scroll_into_view_if_needed()
     box = shot.bounding_box()
     clip = {
@@ -894,7 +894,7 @@ def test_a_screenshot_margin_trace_paints_both_quiet_brackets(browser, serve):
     assert not missing, (
         f"the screenshot frame covered the trace's {missing} edge: {changed} ink pixels"
     )
-    shot.get_by_role("button", name="Pair", exact=True).click()
+    shot.get_by_role("radio", name="Pair", exact=True).click()
     expect(shot.locator('.lf-shotframe[data-lf-state="after"]')).to_be_visible()
 
 
@@ -1742,6 +1742,30 @@ def test_a_scrolling_breakout_table_keeps_its_caption_in_its_scrollport(
                 assert at["caption"][0] >= at["box"][0] - 1, (end, at)
                 assert at["caption"][1] <= at["box"][1] + 1, (end, at)
     assert root_overflow(page) == 0
+
+
+def test_a_table_caption_reads_at_its_tables_size_and_colour(browser, serve):
+    """A caption names what its table covers, such as which case a table among
+    several shows, so it reads at least at the size and in the colour of the cells
+    it names. Set as apparatus, at the chip size in the muted colour, it was the
+    faintest text around the table, and a reader took three tables for one (#5403)."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Captions",
+                "<h1>Captions</h1><table><caption>Agents that set no working "
+                "directory</caption><thead><tr><th>Agent</th><th>Result</th></tr>"
+                "</thead><tbody><tr><td>Codex</td><td>Refused</td></tr></tbody>"
+                "</table>",
+            )
+        ),
+    )
+    face = "el => { const s = getComputedStyle(el); return [s.fontSize, s.color]; }"
+    caption_size, caption_colour = page.locator("caption").evaluate(face)
+    cell_size, cell_colour = page.locator("td").first.evaluate(face)
+    assert float(caption_size[:-2]) >= float(cell_size[:-2]), (caption_size, cell_size)
+    assert caption_colour == cell_colour
 
 
 @pytest.mark.parametrize("direction", ["ltr", "rtl"])

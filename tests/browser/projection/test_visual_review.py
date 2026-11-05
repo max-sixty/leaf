@@ -201,7 +201,7 @@ def test_visual_review_keeps_the_dashboard_stable_while_inspecting(
     with subtests.test("capture reading"):
         resized(page, 1366, 700)
         buttons.first.click()
-        case.get_by_role("button", name="Pair", exact=True).click()
+        case.get_by_role("radio", name="Pair", exact=True).click()
         case.get_by_role("button", name="Image options").click()
         case.get_by_role("checkbox", name="Full frame").check()
         page.keyboard.press("Escape")

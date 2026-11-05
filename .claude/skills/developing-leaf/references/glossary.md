@@ -28,7 +28,7 @@ implementation terms keep their exact spelling where the reader needs them.
 | **Reply** | A message in a conversation, including an answer or an unprompted message |
 | **Delivery** | How far an update has got toward the agent: **Queued for Claude** until a harness has queued it (**Up next**, stage `queued`) or handed it into the agent's turn (**Delivered**, stage `picked_up`), all in Leaf's italic voice. Delivered doesn't mean work has begun |
 | **Queued for Claude** | An update no harness has queued or opened into a turn (stages `sending` and `sent`), whether or not the log has accepted it, in Leaf's italic voice with the agent's name; past the pickup grace it reads **Still queued for Claude** |
-| **On it** | The agent has explicitly started this update or to-do (stage `working`); page activity alone doesn't mean it has |
+| **On it** | The agent has explicitly started this update or to-do (stage `working`), or a fork of its conversation has taken the update on (`at_work`); page activity alone doesn't mean it has |
 | **Undo** | Taking back the user's latest update that can be taken back, leaving the user at what it changed (`undo.js`) |
 | **Threads** | The mark in Leaf's panel and the view it opens, listing conversations. A **thread** is one conversation; a **comment box** is the field where the user writes a comment or reply |
 | **Version** | A stamped page the user can revisit: **Showing v4** in the version picker, or **Showing Draft** for the live unstamped source |
@@ -41,7 +41,7 @@ as a script sets a stage direction apart from the lines. A surface sets only the
 which ranks them among its other words. The agent says what it wrote: its status line
 (“running the browser suite”), its messages and a to-do's title. Leaf also speaks in
 the agent's voice where what the agent would say is reliable, because the agent's own
-command or its reply's stream shows it: **On it** once it started an update,
+command or its reply's stream shows it: **On it** once it or a fork of it took an update on,
 **Replying** while its reply streams in, **Your turn** once it asked, **Still to do**
 for a to-do it opened, **Answered**, **Replied** or **Edited** once it did, and how it
 ended a to-do of its own (**Done**, **Dropped**). Everything else is Leaf's: what it

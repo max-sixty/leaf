@@ -79,7 +79,8 @@ disconnected client proves that a job failed.
 unsettled update's workflow, whose `stage` reports its delivery, and each owed update's
 obligation record, which says who owes it a move. Its header says when each settles.
 The served list names each workflow's `thread` and whether the agent is `at_work` on
-it, strongest first (`served_state.work.served_workflows`).
+it, which a fork of its conversation taking the update on sets before the stage moves
+(`forks.forked`), strongest first (`served_state.work.served_workflows`).
 
 `activity` adds a `condition` where evidence shows a stage has stopped, and keeps the
 durable stage:

@@ -935,30 +935,48 @@ def test_a_pin_in_a_pane_takes_one_seat_at_every_scroll(browser, serve):
     ), (far, top)
 
 
-STICKY_HEADER_PAGE = leaf_page(
-    "a pin on a block with a sticky header",
-    '<h1 id="t">Sticky header</h1>'
-    '<section id="sticky-target"><div id="sticky-head">'
-    "<button>Fit the evidence to the window</button></div>"
-    + _PARAGRAPH * 12
-    + "</section>"
-    + _PARAGRAPH * 6,
-    head="<style>#sticky-head { position: sticky; top: 0; display: flex;"
-    " gap: var(--sp-2); background: var(--paper); }"
-    " #sticky-head button { flex: 1; } #sticky-target { padding-right: 48px; }"
-    " #sticky-head { margin-right: -48px; }</style>",
+def sticky_header_page(nested):
+    """A section whose sticky header's control spans its right strip; `nested` sticks
+    the control in a box of its own inside the header too."""
+    control = "<button>Fit the evidence to the window</button>"
+    if nested:
+        control = f'<div id="sticky-inner">{control}</div>'
+    return leaf_page(
+        "a pin on a block with a sticky header",
+        '<h1 id="t">Sticky header</h1>'
+        f'<section id="sticky-target"><div id="sticky-head">{control}</div>'
+        + _PARAGRAPH * 12
+        + "</section>"
+        + _PARAGRAPH * 6,
+        head="<style>#sticky-head { position: sticky; top: 0; display: flex;"
+        " gap: var(--sp-2); background: var(--paper); }"
+        " #sticky-head button, #sticky-inner { flex: 1; display: flex; }"
+        " #sticky-inner { position: sticky; top: 0; }"
+        " #sticky-inner button { flex: 1; } #sticky-target { padding-right: 48px; }"
+        " #sticky-head { margin-right: -48px; }</style>",
+    )
+
+
+# Firefox has no `ViewTimeline` to read a sticky box's own place with
+# (notes/browser-support.md, "Sticky boxes' own place").
+@pytest.mark.parametrize(
+    ("engine", "nested"),
+    [("browser", False), ("webkit_browser", False), ("browser", True)],
 )
-
-
-def test_a_pin_by_a_sticky_header_takes_one_seat_at_every_scroll(browser, serve):
+def test_a_pin_by_a_sticky_header_takes_one_seat_at_every_scroll(
+    request, serve, engine, nested
+):
     """A pin's seat is read once against the target's room, so the document's scroll
     never moves it (margin-layout.js: remeasuring after a scroll writes the same
-    insets). A sticky header inside the target stands where its scroll holds it, so read
-    as cover where it stands, a pass made while the header stuck far down the target left
-    the seat by its top clear, and the next unrelated pass after scrolling back found
-    the header's control there and moved the pin, with no input (#5165)."""
+    insets). A sticky header inside the target is drawn wherever the scroll sticks it,
+    so it is read at its own place in the target: read where it was drawn, a pass made
+    while the header stuck far down the target left the seat by its top clear, and the
+    next unrelated pass after scrolling back found the header's control there and moved
+    the pin, with no input (#5165). A sticky box inside the header moves with the
+    header's offset as well as its own, which is counted once."""
     page = open_page(
-        browser, serve(STICKY_HEADER_PAGE, events=[_comment_on("sticky-target")])
+        request.getfixturevalue(engine),
+        serve(sticky_header_page(nested), events=[_comment_on("sticky-target")]),
     )
     resized(page, 700, 600)
     row = page.locator('[data-lf-margin-for="sticky-target"]')

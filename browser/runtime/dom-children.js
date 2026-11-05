@@ -93,12 +93,15 @@ export function orderChildren(parent, nodes) {
 // Replace a renderer-owned subtree using the same matching and text edits as an
 // authored revision. The caller owns every descendant's attributes and contents;
 // controls with independent state belong outside it. Current nodes pair to themselves,
-// so unchanged text and native Ranges stay in place without a source mirror.
+// so unchanged text and native Ranges stay in place without a source mirror. A list
+// whose diff would cost more than `RENDERED_DIFF_WORK` is replaced instead, as setting
+// `innerHTML` would, so an edit rewriting every paragraph costs the list's length.
 /** @param {Node & ParentNode} parent @param {Iterable<Node>} nodes */
 export function setRenderedChildren(parent, nodes) {
   const after = document.createDocumentFragment();
   after.append(...nodes);
   patchChildren(parent, parent, after, {
+    diffWork: RENDERED_DIFF_WORK,
     pairs: selfPairs(parent),
     arrive: (node) => node,
     sameValue: (held, wanted) => held === wanted,
@@ -229,6 +232,9 @@ function staying(parent, nodes) {
      other than a controller has taken, or a widget owns.
    - `generated(node)`: the live node is the runtime's own. Only placement asks, because
      only placement walks live children; nothing here matches or removes on it.
+   - `diffWork`: the most one sibling diff may cost, its lists' length times the edits
+     between them, before it pairs nothing in that list and the patch replaces it. A
+     revision's is unbounded, since its nodes carry the user's state.
 
    Matching runs in three passes, narrowest first, and each pass only sees what the one
    before it left. An id is a name the author gave, so it wins outright. Then the siblings
@@ -239,7 +245,8 @@ function staying(parent, nodes) {
 /** @typedef {{pairs: SourcePairs, contains: (target: Node, owner: Node | null | undefined) => boolean,
  * declared: (element: Element) => boolean, body: (element: Element) => Element | null,
  * reaches: (before: Element, after: Element) => boolean,
- * same: (before: Element, after: Element) => boolean, sameValue: (before: string, after: string) => boolean}} RetentionRules */
+ * same: (before: Element, after: Element) => boolean, sameValue: (before: string, after: string) => boolean,
+ * diffWork: number}} RetentionRules */
 /** @typedef {RetentionRules & {arrive: (node: Node, parent: Node) => Node,
  * touched: (element: Element) => void, generated: (node: Node) => boolean}} PatchRules */
 /** @param {Element} before @param {Element} after @param {PatchRules} rules */
@@ -291,7 +298,7 @@ function retainedWithin(before, after, target, rules) {
     return false;
   const children = [...tree(before).childNodes];
   const arriving = [...tree(after).childNodes];
-  const forward = matchNodes(children, arriving);
+  const forward = matchNodes(children, arriving, rules.diffWork);
   const matches = new SourcePairs();
   for (const wanted of arriving) {
     const held = forward.get(wanted);
@@ -441,7 +448,7 @@ function* sourceNodes(node) {
 function patchChildren(liveParent, beforeParent, afterParent, rules) {
   const held = [...beforeParent.childNodes];
   const wanted = [...afterParent.childNodes];
-  const matches = matchNodes(held, wanted);
+  const matches = matchNodes(held, wanted, rules.diffWork);
   const matched = new Set(wanted.map((node) => matches.get(node)));
   for (const node of held) {
     if (!matched.has(node)) evict(node, rules.pairs.require(node), rules);
@@ -531,8 +538,8 @@ const atomic = (before, after, live, rules) =>
     (node) => rules.pairs.get(node)?.parentNode !== holder(live, rules),
   );
 
-/** @param {readonly Node[]} held @param {readonly Node[]} wanted */
-function matchNodes(held, wanted) {
+/** @param {readonly Node[]} held @param {readonly Node[]} wanted @param {number} work */
+function matchNodes(held, wanted, work) {
   const matches = new SourcePairs();
   /** @type {Set<Node>} */
   const matched = new Set();
@@ -552,9 +559,17 @@ function matchNodes(held, wanted) {
     held.filter((node) => !matched.has(node)),
     wanted.filter((node) => !matches.has(node)),
     matches,
+    work,
   );
   return matches;
 }
+
+// A sibling diff costs the lists' length times the edits between them: an edit that
+// rewrote every paragraph cost the square of the list's length.
+const RENDERED_DIFF_WORK = 2 ** 18;
+/** @param {readonly unknown[]} held @param {readonly unknown[]} wanted @param {number} work */
+const editBudget = (held, wanted, work) =>
+  Math.max(1, Math.floor(work / (held.length + wanted.length + 1)));
 
 /** jsdiff's unchanged runs pair these two source positions.
  * @param {readonly Node[]} nodes @param {number} index */
@@ -578,97 +593,35 @@ const signature = (node) => {
   return `1:${node.localName}#${node.id}:${words.replace(COLLAPSE, " ").trim()}`;
 };
 
-// A diff costs the lists' length times the edits between them, so one that rewrote
-// every paragraph of a long section or message cost the square of its length. Each diff
-// stops past this much work, so a list of any length costs a bounded diff.
-const DIFF_WORK = 2 ** 18;
-/** @param {readonly unknown[]} held @param {readonly unknown[]} wanted */
-const editBudget = (held, wanted) =>
-  Math.max(1, Math.floor(DIFF_WORK / (held.length + wanted.length + 1)));
-
-// Pin the unchanged siblings, then pair the gaps between pins by kind. The diff pins
-// every sibling whose signature it can keep in order. Past its budget the pins are the
-// signatures each side holds once, in the longest run both orders keep (patience
-// diff), found with a sort per sibling whatever the edits: the paragraph a reader is
-// in keeps its node when a long revision rewrites around it.
-/** @param {readonly Node[]} held @param {readonly Node[]} wanted @param {SourcePairs} matches */
-function alignRest(held, wanted, matches) {
-  const heldSigns = held.map(signature);
-  const wantedSigns = wanted.map(signature);
-  const runs = diffArrays(heldSigns, wantedSigns, {
-    maxEditLength: editBudget(held, wanted),
+/** @param {readonly Node[]} held @param {readonly Node[]} wanted @param {SourcePairs} matches @param {number} work */
+function alignRest(held, wanted, matches, work) {
+  let heldAt = 0;
+  let wantedAt = 0;
+  /** @type {Node[]} */
+  let gapHeld = [];
+  /** @type {Node[]} */
+  let gapWanted = [];
+  const closeGap = () => {
+    pairInGap(gapHeld, gapWanted, matches, work);
+    gapHeld = [];
+    gapWanted = [];
+  };
+  const runs = diffArrays(held.map(signature), wanted.map(signature), {
+    maxEditLength: editBudget(held, wanted, work),
   });
-  const pins = runs ? diffPins(runs) : uniquePins(heldSigns, wantedSigns);
-  pins.push([wanted.length, held.length]);
-  let heldAt = 0;
-  let wantedAt = 0;
-  for (const [wantedPin, heldPin] of pins) {
-    pairInGap(held.slice(heldAt, heldPin), wanted.slice(wantedAt, wantedPin), matches);
-    if (wantedPin < wanted.length)
-      matches.pair(diffNode(wanted, wantedPin), diffNode(held, heldPin));
-    heldAt = heldPin + 1;
-    wantedAt = wantedPin + 1;
-  }
-}
-
-/** @param {readonly {added?: boolean, removed?: boolean, value: readonly string[]}[]} runs @returns {[number, number][]} */
-function diffPins(runs) {
-  /** @type {[number, number][]} */
-  const pins = [];
-  let heldAt = 0;
-  let wantedAt = 0;
-  for (const run of runs) {
+  for (const run of runs ?? []) {
     const count = run.value.length;
-    if (run.added) wantedAt += count;
-    else if (run.removed) heldAt += count;
-    else for (let at = 0; at < count; at++) pins.push([wantedAt++, heldAt++]);
-  }
-  return pins;
-}
-
-/** @param {readonly string[]} held @param {readonly string[]} wanted @returns {[number, number][]} */
-function uniquePins(held, wanted) {
-  /** @type {Map<string, {held: number, at: number, wanted: number}>} */
-  const counts = new Map();
-  held.forEach((sign, at) => {
-    const count = counts.get(sign);
-    if (count) count.held++;
-    else counts.set(sign, { held: 1, at, wanted: 0 });
-  });
-  for (const sign of wanted) {
-    const count = counts.get(sign);
-    if (count) count.wanted++;
-  }
-  // In the wanted order, each sibling held once on each side, then the longest run of
-  // them whose held positions rise: `tails[n]` ends the best run of length n + 1.
-  /** @type {[number, number][]} */
-  const once = [];
-  wanted.forEach((sign, at) => {
-    const count = counts.get(sign);
-    if (count?.held === 1 && count.wanted === 1) once.push([at, count.at]);
-  });
-  /** @type {number[]} */
-  const tails = [];
-  /** @type {number[]} */
-  const before = [];
-  once.forEach(([, heldAt], index) => {
-    let low = 0;
-    let high = tails.length;
-    while (low < high) {
-      const middle = (low + high) >> 1;
-      if ((once[tails[middle] ?? 0]?.[1] ?? 0) < heldAt) low = middle + 1;
-      else high = middle;
+    if (run.added) gapWanted.push(...wanted.slice(wantedAt, (wantedAt += count)));
+    else if (run.removed) gapHeld.push(...held.slice(heldAt, (heldAt += count)));
+    else {
+      closeGap();
+      for (let at = 0; at < count; at++)
+        matches.pair(diffNode(wanted, wantedAt + at), diffNode(held, heldAt + at));
+      heldAt += count;
+      wantedAt += count;
     }
-    before[index] = low ? (tails[low - 1] ?? -1) : -1;
-    tails[low] = index;
-  });
-  /** @type {[number, number][]} */
-  const pins = [];
-  for (let index = tails.at(-1) ?? -1; index >= 0; index = before[index] ?? -1) {
-    const pin = once[index];
-    if (pin) pins.push(pin);
   }
-  return pins.reverse();
+  closeGap();
 }
 
 // Inside one edited stretch: these are the siblings the revision rewrote, and a rewrite
@@ -684,15 +637,13 @@ function uniquePins(held, wanted) {
 // that name being given or taken away, which is a thing to do to an element. A key can
 // state the first or the second and not both — `p#a` would have to equal `p` while `p#a`
 // differs from `p#b` — so the rule travels as the comparator it is.
-/** @param {readonly Node[]} held @param {readonly Node[]} wanted @param {SourcePairs} matches */
-function pairInGap(held, wanted, matches) {
-  if (!held.length || !wanted.length) return;
+/** @param {Node[]} held @param {Node[]} wanted @param {SourcePairs} matches @param {number} work */
+function pairInGap(held, wanted, matches, work) {
   let heldAt = 0;
   let wantedAt = 0;
-  // A long gap whose kinds disagree past the budget pairs nothing, and is replaced.
-  const runs = diffArrays([...held], [...wanted], {
+  const runs = diffArrays(held, wanted, {
     comparator: interchangeable,
-    maxEditLength: editBudget(held, wanted),
+    maxEditLength: editBudget(held, wanted, work),
   });
   for (const run of runs ?? []) {
     const count = run.value.length;

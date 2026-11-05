@@ -62,15 +62,24 @@ each case it misses shows the wrong state until the reading arrives. Where the
 reading takes longer than 100 ms, make that path faster.
 
 These times hold on a large page too. A page's size is how much it holds:
-elements, widgets, headings, obligations, threads, events and revisions. The work
-an input does, such as a keystroke, a click or a wheel step, depends on what the
-input changes, and never grows faster than the page. Loading a page, and computing
-or applying a reading of it, grow no faster than the page times the logarithm of
-its size. A step that walks one of those collections for each member of another,
-as finding each obligation's heading by reading every heading did, grows with the
-square of the page. So does a style or layout pass forced once per element, since
-each pass can cover the whole page (`browser/AGENTS.md`, "Runtime ownership").
-`leaf-dev scaling` measures how each cost grows with the page.
+elements, widgets, headings, obligations, threads, events and revisions. An
+input's work depends on what it changes and on what the window shows, not on how
+much the page holds. A keystroke, a wheel step or a hover costs the same on a page
+of ten sections as of five hundred. So work that a pass would redo for the whole
+page, such as a layout, a scan of the page's controls or a derivation of every
+record, runs only for the change that makes it necessary, which its owner records
+when the change happens. Neither an input's work in the browser nor the bytes it
+moves grows with how long the session has run. Loading a page, and computing or
+applying a reading of it, grow no faster than the page times the logarithm of its
+size. The server admits each event against such a reading, so its work per event
+may grow with the events the log holds. On the largest page `leaf-dev scaling`
+generates, a keystroke and a wheel step each fit in 8 ms of main-thread time, and a
+click shows the server's reading within 100 ms. A step that walks one of those
+collections for each member of another, as finding each obligation's heading by
+reading every heading did, grows with the square of the page. So does a style or
+layout pass forced once per element, since each pass can cover the whole page
+(`browser/AGENTS.md`, "Runtime ownership"). `leaf-dev scaling` measures how each
+cost grows with the page.
 
 ## Pages across Leaf updates
 

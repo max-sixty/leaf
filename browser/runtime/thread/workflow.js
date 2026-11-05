@@ -6,10 +6,11 @@
    thread's attention from the records open in it. It also serves which thread each
    workflow stands in (`thread`) and the workflows strongest first (`served_workflows`).
    The application publisher adds the unresolved local send after the served ones; only
-   a thread the user opened takes its attention from it. Every message, compact thread row and margin entry reads
-   these values; none reclassifies receipts, streams, turn ownership, whose turn a
-   thread is, or which workflow is stronger. Whether the agent is at work on one is
-   its `at_work`, which a fork's taking it on sets before its stage moves. `strongestWorkflow` only places this tab's
+   a thread the user opened takes its attention from it. Every message, compact thread
+   row and margin entry reads these values; none reclassifies receipts, streams, turn
+   ownership, whose turn a thread is, or which workflow is stronger. Whether the agent
+   is at work on one is its `at_work`, which a fork's taking it on sets before its
+   stage moves. `strongestWorkflow` only places this tab's
    own sends against the served order. A workflow's word is `workflowWord`, its last
    step's line `workflowStep`, and its face on a control `progressFace`, on every
    surface; a thread's word is `threadAttention`'s, which Threads states as its status

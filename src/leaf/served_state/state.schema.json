@@ -960,6 +960,11 @@
           "description": "Each version's note, by version.",
           "type": "object",
           "additionalProperties": { "type": "string" }
+        },
+        "revision_answers": {
+          "description": "By revision, for each revision that answered the user's messages or came while one waited for an answer: those messages and whether the agent has answered them (`provenance.revision_answers`). A revision absent answered none.",
+          "type": "object",
+          "additionalProperties": { "$ref": "#/$defs/RevisionAnswers" }
         }
       },
       "required": [
@@ -968,7 +973,8 @@
         "todos",
         "plan",
         "thread_memberships",
-        "version_notes"
+        "version_notes",
+        "revision_answers"
       ],
       "additionalProperties": false
     },
@@ -1663,11 +1669,43 @@
       "description": "How far an update has reached the agent; `answered` is only ever a retained failed response.",
       "enum": ["sent", "queued", "picked_up", "working", "replying", "answered"]
     },
+    "RevisionAnswers": {
+      "description": "The user's messages one revision answered, or came while they waited for an answer (`provenance.revision_answers`).",
+      "type": "object",
+      "properties": {
+        "messages": {
+          "description": "Each message, by its thread and its id, in the order the user sent them.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "thread": { "type": "string" },
+              "message": { "type": "string" }
+            },
+            "required": ["thread", "message"],
+            "additionalProperties": false
+          }
+        },
+        "answered": {
+          "description": "Whether the agent has answered them; false while they wait for an answer.",
+          "type": "boolean"
+        }
+      },
+      "required": ["messages", "answered"],
+      "additionalProperties": false
+    },
     "ViewAnswer": {
       "description": "The answer `GET /api/view` gives (`served_state.service.PageStateService.page_browser_view`): one revision's browser reading at an exact log boundary, which version comparison folds.",
       "type": "object",
-      "properties": { "browser": { "$ref": "#/$defs/Browser" } },
-      "required": ["browser"],
+      "properties": {
+        "browser": { "$ref": "#/$defs/Browser" },
+        "changed": {
+          "description": "By revision, for each revision after the one viewed: the ids of the elements whose own words it changed from the revision before it, `\"\"` naming the words in no element with an id (`provenance.revision_changes`).",
+          "type": "object",
+          "additionalProperties": { "type": "array", "items": { "type": "string" } }
+        }
+      },
+      "required": ["browser", "changed"],
       "additionalProperties": false
     },
     "Tail": {

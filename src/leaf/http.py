@@ -554,7 +554,8 @@ class PageEndpoint:
         return {**answer, "events": scope_page_urls(answer["events"], self.page_root)}
 
     def page_browser_view(self, view_revision: int, through_seq: int) -> dict:
-        """One revision projected at an exact already-observed log boundary."""
+        """The `/api/view` answer: one revision projected at an exact already-observed
+        log boundary, with what each later revision changed."""
         return self._state_service().page_browser_view(view_revision, through_seq)
 
     def requested_view_revision(self) -> int | None:
@@ -1189,10 +1190,10 @@ class PageEndpoint:
                 if revision is None:
                     raise ValueError("view revision is required")
                 sequence = self.requested_view_sequence()
-                browser = self.page_browser_view(revision, sequence)
+                view = self.page_browser_view(revision, sequence)
             except ValueError as error:
                 return self._json({"error": str(error)}, 400)
-            return self._json({"browser": browser})
+            return self._json(view)
         if path == "/api/inspect":
             from .page_inspection import inspect_artifact, inspection_views
 

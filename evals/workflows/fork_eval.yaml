@@ -72,9 +72,9 @@ rubrics:
       as the agent's working line while it handed the message to the agent, which
       reads "(no line)" when it posted none, which fails. Pass only if the line says
       in a few plain words what the agent will do about the message, in the way the
-      conversation makes likely, as an agent says it before starting; claims no
-      result, answer or finished work; and, where a tool call is running, says the
-      work follows it.
+      conversation makes likely, as the agent says it before starting; claims no
+      result, answer or finished work; and says nothing of a fork, a main session or
+      a hand-over, which the user never sees.
 
 # The words a guardrail and its positive case share.
 words:

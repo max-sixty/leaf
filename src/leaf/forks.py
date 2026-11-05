@@ -420,21 +420,10 @@ Answer the user yourself only when the conversation above already holds the answ
 
 Write a reply as the agent would answer in the thread: Markdown for a narrow column, short paragraphs, plain words, answering the message directly.
 
-When you hand the thread over, Leaf posts one line of yours in it at once as the agent's working line, until the main session's own words replace it. Say in that line what the agent will do about the message, in a few of the user's words, as the agent would before starting ("reading the reconnect traces"; "recording your choice and making that change").{_waiting_clause(running)}
+When you hand the thread over, Leaf posts one line of yours in it at once as the agent's working line, until the main session's own words replace it. Say in that line what the agent will do about the message, in a few of the user's words, as the agent would before starting ("reading the reconnect traces"; "recording your choice and making that change").
 
 Reply with only one JSON object, no code fence: {{"reply": "<the reply, in Markdown>"}} to answer, or {{"hand_over": "<the working line>"}} to hand the thread to the main session.
 </leaf-fork-reply>"""
-
-
-def _waiting_clause(running: list[dict]) -> str:
-    """What the working line says of the session's running call, which it finishes
-    before it reads the message."""
-    if not running:
-        return ""
-    return (
-        " The session reads the message only once its running tool call returns, so "
-        'open the line with that wait ("once this command finishes, …").'
-    )
 
 
 def take(
@@ -465,6 +454,9 @@ def take(
             refused = str(error)
             outcome = _hand_over(session_id, basis, refused)
         else:
+            # TODO: where the message is self-contained, the fork could do the work
+            # itself rather than hand it over ("A fork that takes the work" in
+            # notes/fork-replies.md).
             outcome = (
                 _post(session_id, basis, decided["reply"])
                 if "reply" in decided

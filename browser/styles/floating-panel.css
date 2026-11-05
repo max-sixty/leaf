@@ -473,7 +473,7 @@
     outline: none;
   }
   /* The empty field's words read dimmer than anything written in it: the agent's
-     status, whose turn a thread is, and, once the caret is in, where the words go. A passing
+     status, whose turn a thread is, and, once the caret is in, the field's word. A passing
      notice is news, so it reads a step brighter until it passes. While the agent works,
      its status carries the sheen that marks work under way (surfaces.css), from its own
      dim face to ink and back. The face is the field's placeholder part, so it holds
@@ -483,33 +483,41 @@
      for a frame, as the notice's weight once did over the status, carrying it sideways.
 
      A press the field offers, an open thread's Reply or the words selected on the page,
-     reads instead in ink with the key that makes it, so the next action stands apart
-     from the agent's words; words standing before it keep the dim face (`offers`, and
-     composing/input.js, `hintLead`). The ink is the panel's alone: the user kept a
-     card's reply box dim on 27 October, since in a box that says nothing but its own
-     hint, an ink Reply read as words already typed. Once the caret is in, where the
-     words go stands dim with the key that sends them and the key for a new line, as in
-     every box that holds lines (response.css).
+     stands with the key that makes it, dim as every comment box's word is (`offers`,
+     and composing/input.js, `hintLead`). The user chose dim in every box on 5 November
+     2026 over the ink the panel's Reply had worn since 27 October to stand apart from
+     the agent's words, the one box whose word was inked. Once the caret is in, the
+     field's word stands dim with the key that sends them and the key for a new line, as
+     in every box that holds lines (response.css).
 
-     Any other reading keeps its words and shows the key alone at the field's end while
-     c enters the field (composing/surface.js, `commentHint`), so the row says that c
-     goes here and, by losing the key, that it goes elsewhere. The user chose this on 4
-     November 2026 for what the row shows, over worded `Comment c` in either face and
-     over nothing, the row's rest since 13 October, when a reader couldn't tell where c
-     would go. */
+     Any other reading keeps its words and ends in Comment and its key while c enters
+     the field (composing/surface.js, `commentHint`; composing/input.js, `enters`), so
+     the row says that c goes here and, by losing them, that it goes elsewhere. The user
+     chose the word on 5 November 2026, so every key in a box stands with its word, over
+     the key alone they had chosen the day before, which a reader took for the inbox's
+     shortcut beside it. */
   .lf-fp-field leaf-text::part(placeholder) {
     color: var(--lf-fp-quiet);
   }
-  .lf-fp-field leaf-text[data-lf-offers]::part(placeholder) {
-    color: var(--ink);
+  /* A notice offering a press stands in the empty words' place, the one press the row
+     offers while it passes (floating-panel.js, `rowNotice`). */
+  .lf-fp-field
+    leaf-text[data-lf-says="notice"]
+    .lf-compose-placeholder-words:empty
+    ~ kbd {
+    display: none;
   }
-  .lf-fp-field leaf-text[data-lf-offers] .lf-compose-placeholder-lead {
+  /* The word naming what entering the field does, after the agent's or Leaf's words
+     (composing/input.js, `enters`), in the interface's own face whatever theirs is. */
+  .lf-fp-field .lf-compose-placeholder-enters {
     color: var(--lf-fp-quiet);
+    font-style: normal;
   }
   .lf-fp-field
     leaf-text:not([data-lf-offers], [data-lf-says="destination"])
     .lf-compose-placeholder
-    > kbd {
+    > .lf-compose-placeholder-enters:empty
+    + kbd {
     margin-inline-start: auto;
   }
   .lf-fp-field
@@ -1357,7 +1365,7 @@
      own at the row's end. The title and what the agent is doing stand on one baseline,
      as a row's name and end do (controls.css, `.lf-row`); centred each in its own
      box, the smaller words stood higher. Their line stands centred in the row, and the
-     leaf and the mark centred on it. */
+     leaf centred on it. */
   .lf-fp-page {
     display: grid;
     grid-template-columns: auto minmax(0, max-content) minmax(6em, 1fr) 0.75em;
@@ -1370,17 +1378,13 @@
   .lf-fp-page .lf-dot {
     --lf-mark-w: 14px;
   }
-  .lf-fp-page > :is(.lf-dot, .lf-external-mark) {
+  .lf-fp-page > .lf-dot {
     align-self: center;
   }
   .lf-fp-page .lf-fp-value {
     overflow: hidden;
     text-overflow: ellipsis;
     text-align: end;
-  }
-  .lf-fp-page > .lf-external-mark {
-    margin: 0;
-    color: var(--muted);
   }
   a.lf-fp-page {
     padding-inline-start: 6px;
@@ -1411,6 +1415,48 @@
     white-space: nowrap;
     font-weight: 500;
     font-variant-numeric: tabular-nums;
+  }
+  /* A row cuts its words to the panel's width, and a title says them whole on hover. A
+     pointer that can't hover never reads that title, so under one a row says its words
+     whole at rest: a menu row's, a version's note on the lines under its name, and a
+     page's title, what its agent is doing and the rest of its account in All pages. On
+     me's answers keep their two lines, whose whole words Show reaches. */
+  .lf-fp-page-rest {
+    display: none;
+  }
+  @media (pointer: coarse), (hover: none) {
+    .lf-fp-item > .lf-fp-label,
+    .lf-fp-version > .lf-fp-item > .lf-fp-label {
+      display: block;
+      white-space: normal;
+    }
+    .lf-fp-item > .lf-fp-label > .lf-fp-note {
+      display: block;
+      margin-inline-start: 0;
+    }
+    .lf-fp-page {
+      grid-template-columns: auto minmax(0, 1fr) 0.75em;
+      row-gap: 2px;
+    }
+    .lf-fp-page > .lf-dot {
+      grid-row: 1;
+      align-self: baseline;
+    }
+    a.lf-fp-page::after {
+      grid-area: 1 / 3;
+    }
+    .lf-fp-page > :is(.lf-fp-label, .lf-fp-value, .lf-fp-page-rest) {
+      grid-column: 2;
+      overflow-wrap: anywhere;
+      white-space: normal;
+      text-align: start;
+    }
+    .lf-fp-page > .lf-fp-page-rest {
+      display: block;
+      color: var(--muted);
+      font: var(--font-small);
+      white-space: pre-line;
+    }
   }
   .lf-fp-version > :is(.lf-fp-compare, .lf-fp-showing) {
     grid-area: 1 / end;

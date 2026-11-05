@@ -485,8 +485,12 @@ a[data-lf-external]::after,
    with it, the top of its ring cut off under the pane's header rule. On every side,
    since the ring is: a link Tab brought in from a wide table's end stood flush with it.
    `:focus` makes that room available to the landing before the focus mark paints
-   after the script. At no weight, like the ring. */
-:where(:focus, [data-lf-focus]) {
+   after the script. At no weight, like the ring. A vendor control holds focus on a node
+   in its own tree, which those selectors don't reach, so the mark's part (focus.js,
+   `markFocus`) brings it there, at a pseudo-element's weight: a diff's file filter
+   stood past its pane's foot, and a code block's Copy past its top. */
+:where(:focus, [data-lf-focus]),
+::part(lf-focus) {
   scroll-margin: var(--focus-ring-landing);
 }
 /* A control in a stuck sticky header stands where the header sticks, which its
@@ -504,7 +508,8 @@ a[data-lf-external]::after,
    counts as shown; anywhere else the margin keeps the focus ring's landing room. A page tab
    strip, which the band covers whole, comes out negative by its height, so its names
    count as shown too. */
-:where(:focus, [data-lf-focus]) {
+:where(:focus, [data-lf-focus]),
+::part(lf-focus) {
   scroll-margin-top: calc(
     var(--lf-top) - var(--lf-top-covered, var(--lf-top)) +
       var(
@@ -1296,20 +1301,27 @@ button.lf-thread-news {
 /* A quote of the words a thread is about, where its container asks for one, as the
    floating panel's view does (thread-card.js, `#drawQuote`). The panel stands in the
    chrome and a thread drawn by a package's reader stands in the page, so the face is
-   stated here, where every surface reads it. The rule and the quiet ink say a line
-   holding only words is quoted, so those words take no marks (`anchorQuote`,
-   thread/messages.js). It stands over the thread's messages in three lines, the whole
-   on Full quote, its press above the words it grows. It only says what the thread is about, since the container's way to
-   the words, as the panel's Show on page, goes there: it takes no press, no aim's room
-   and no title naming a jump, though a detached quote's title still says where its
-   words went. Its words start on the thread's edge, the 1px rule before them included. */
+   stated here, where every surface reads it. The rule and the quiet ink say its words
+   are quoted, so they take no marks. A status word leads them where the page no longer
+   reads as the quote does, such as a passage a revision took out of the latest
+   version, so the three lines never cut it and a finger reads it as a pointer does
+   (`quoteReading`). Where they stand (`anchorPlace`, thread/messages.js) comes next, in
+   the status's face, since both are Leaf's words about the quotation. The quote stands
+   over the thread's messages in three lines, the whole on Full quote, its press above
+   the words it grows. It only says what the thread is about, since the container's way
+   to the words, as the panel's Show on page, goes there: it takes no press, no aim's
+   room and no title. Its words start on the thread's edge, the 1px rule before them
+   included. */
 .lf-quote-label {
   min-width: 0;
 }
+.lf-quote-place,
 .lf-anchor-status {
-  margin-inline-start: 7px;
-  color: var(--muted);
   font: var(--font-status);
+}
+.lf-anchor-status {
+  margin-inline-end: 3px;
+  color: var(--muted);
 }
 .lf-thread-quote-head:not([hidden]) {
   display: grid;

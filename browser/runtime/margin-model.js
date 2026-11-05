@@ -1,8 +1,8 @@
 /* What each margin cluster shows, chosen from values the browser captured.
 
-   `marginInventory` takes each target's margin contributions and the readings Leaf
-   generated for it (threads, reactions, notices), in document order, and fixes the
-   target's controls, reading choices and state once. `clusterProjection` then picks
+   `marginEntry` takes a target's margin contributions and the readings Leaf generated
+   for it (threads, reactions, notices), and fixes its controls, reading choices and
+   state once, from those alone. `clusterProjection` then picks
    what its cluster shows. At rest that is a primary control and one more: the single
    peer, or More when there are several. Expanded, it is up to six controls, the last
    of them a route to the Page Map when more remain. A failure, work in flight or an
@@ -44,7 +44,8 @@ import { leafSays, wordsText } from "./voice.js";
  * represents?: boolean, workflowFace?: KindFace & {state?: State}, workflowReceipt?: Workflow | null,
  * carriesWorkflow?: boolean, state?: State, label?: string | null,
  * userAttention?: UserAttention | null, unread?: number, context?: import("./voice.js").Words | null,
- * mapContext?: import("./voice.js").Words | null, words?: import("./voice.js").Words, atWork?: boolean}} AnnotationBase
+ * mapContext?: import("./voice.js").Words | null, words?: import("./voice.js").Words, atWork?: boolean,
+ * cardOpen?: boolean}} AnnotationBase
  * @typedef {AnnotationBase & {kind: "comment", marker?: true, thread: import("./thread/workflow.js").ThreadRecord}} ThreadItem
  * @typedef {ThreadItem | (AnnotationBase & {kind: Exclude<Kind, "comment">, thread?: never}) | (AnnotationBase & {kind: "comment", marker: false, owner: string, thread?: never})} AnnotationItem
  */
@@ -510,74 +511,68 @@ export function clusterProjection(
   });
 }
 
-// Inputs are captured in composed document order by the browser adapter. DOM targets,
-// registrations, and activation callbacks stay there; this inventory owns only values.
-/** @template {Offer} O @param {readonly MarginGroup<O>[]} groups @returns {readonly Readonly<MarginEntry<O>>[]} */
-export function marginInventory(groups) {
-  return Object.freeze(
-    groups.map((group) => {
-      const represented = new Set(
-        group.items
-          .filter((item) => item.marker === false && item.represents)
-          .map((item) => item.kind),
-      );
-      let items = group.items
-        .filter(
-          (item) =>
-            item.marker === false || item.workflowFace || !represented.has(item.kind),
-        )
-        .sort(
-          (left, right) =>
-            KINDS[left.kind].priority - KINDS[right.kind].priority ||
-            (left.kind === "comment" ? 0 : left.id.localeCompare(right.id)),
-        );
-      const direct = group.offers.filter(
-        (offered) => offered.reading.side === "before" || offered.reading.hasReadings,
-      );
-      const after = group.offers
-        .filter(
-          (offered) => offered.reading.side === "after" && !offered.reading.hasReadings,
-        )
-        .sort(compareContributions);
-      const directRecords = visibleRecords(direct).sort(
-        compareContributionEntryRecords,
-      );
-      const primary = directRecords[0];
-      const receipt = group.workflowReceipt;
-      const workflowCarrier =
-        primary && receipt
-          ? Object.freeze({
-              key: primary.record.key,
-              owner: primary.record.owner,
-              receipt,
-            })
-          : null;
-      /** @param {{offered: O, record: RecordEntry}[]} records */
-      const controlsFrom = (records) =>
-        records.map(({ offered, record }) =>
-          contributionItem(offered, record, workflowCarrier),
-        );
-      const controls = Object.freeze(controlsFrom(directRecords));
-      const afterControls = Object.freeze(
-        after.flatMap((offered) =>
-          controlsFrom(visibleRecords([offered]).sort(compareContributionEntryRecords)),
-        ),
-      );
-      if (workflowCarrier)
-        items = items.filter((item) => !(item.workflowFace && item.carriesWorkflow));
-      return Object.freeze({
-        ...group,
-        items: Object.freeze(items),
-        controls,
-        afterControls,
-        choices: deriveReadingChoices(items),
-        state: deriveEntryState({ offers: group.offers, items }),
-        hasMarginHost:
-          controls.length > 0 ||
-          afterControls.length > 0 ||
-          items.some((item) => item.marker !== false),
-        workflowCarrier,
-      });
-    }),
+// Inputs are captured by the browser adapter. DOM targets, registrations, and activation
+// callbacks stay there; an entry owns only values.
+/** @template {Offer} O @param {MarginGroup<O>} group @returns {Readonly<MarginEntry<O>>} */
+export function marginEntry(group) {
+  const represented = new Set(
+    group.items
+      .filter((item) => item.marker === false && item.represents)
+      .map((item) => item.kind),
   );
+  let items = group.items
+    .filter(
+      (item) =>
+        item.marker === false || item.workflowFace || !represented.has(item.kind),
+    )
+    .sort(
+      (left, right) =>
+        KINDS[left.kind].priority - KINDS[right.kind].priority ||
+        (left.kind === "comment" ? 0 : left.id.localeCompare(right.id)),
+    );
+  const direct = group.offers.filter(
+    (offered) => offered.reading.side === "before" || offered.reading.hasReadings,
+  );
+  const after = group.offers
+    .filter(
+      (offered) => offered.reading.side === "after" && !offered.reading.hasReadings,
+    )
+    .sort(compareContributions);
+  const directRecords = visibleRecords(direct).sort(compareContributionEntryRecords);
+  const primary = directRecords[0];
+  const receipt = group.workflowReceipt;
+  const workflowCarrier =
+    primary && receipt
+      ? Object.freeze({
+          key: primary.record.key,
+          owner: primary.record.owner,
+          receipt,
+        })
+      : null;
+  /** @param {{offered: O, record: RecordEntry}[]} records */
+  const controlsFrom = (records) =>
+    records.map(({ offered, record }) =>
+      contributionItem(offered, record, workflowCarrier),
+    );
+  const controls = Object.freeze(controlsFrom(directRecords));
+  const afterControls = Object.freeze(
+    after.flatMap((offered) =>
+      controlsFrom(visibleRecords([offered]).sort(compareContributionEntryRecords)),
+    ),
+  );
+  if (workflowCarrier)
+    items = items.filter((item) => !(item.workflowFace && item.carriesWorkflow));
+  return Object.freeze({
+    ...group,
+    items: Object.freeze(items),
+    controls,
+    afterControls,
+    choices: deriveReadingChoices(items),
+    state: deriveEntryState({ offers: group.offers, items }),
+    hasMarginHost:
+      controls.length > 0 ||
+      afterControls.length > 0 ||
+      items.some((item) => item.marker !== false),
+    workflowCarrier,
+  });
 }

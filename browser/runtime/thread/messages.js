@@ -845,25 +845,21 @@ function coordinatePlace(anchor, about) {
 export const threadPassage = (thread) =>
   thread.rewritten_from ?? thread.detached_from ?? thread.anchor;
 
-// A named control part belongs to the coordinate in every reading, not just Design.
-/** @param {import("../../types/domain.js").Anchor | null | undefined} anchor @param {string | null | undefined} about */
-const anchorPlace = (anchor, about) =>
+// Where an anchor stands, apart from the words it quotes: "design · heading · t", or
+// "" for a passage, which its words name alone. A named control part belongs to the
+// place in every reading, not just Design.
+/** @param {import("../../types/domain.js").Anchor | null | undefined} anchor @param {string | null | undefined} [about] */
+export const anchorPlace = (anchor, about) =>
   [about === "design" && "design", anchor?.part, coordinatePlace(anchor, about)]
     .filter(Boolean)
     .join(" · ");
 
-// An anchor in words: its place, then the words it quotes. In running text, such as an
-// accessible name or a feed's line, only the marks set those words off from the words
-// around them.
+// An anchor in running text, such as an accessible name or a feed's line: its place,
+// then the words it quotes, which only the marks set off from the words around them. A
+// surface that draws the two apart, as a thread's quote does (thread-card.js,
+// `quoteReading`), reads `anchorPlace` and the quote instead.
 /** @param {import("../../types/domain.js").Anchor | null | undefined} anchor @param {string | null | undefined} [about] */
 export const anchorLabel = (anchor, about) =>
   [anchorPlace(anchor, about), anchor?.quote && `“${anchor.quote}”`]
     .filter(Boolean)
     .join(" · ");
-
-// An anchor as a thread's quote draws it (`.lf-thread-quote`). The quote's face says a
-// line holding only words is quoted, so those words take no marks. Beside a place, the
-// marks still say which part of the line is the quotation.
-/** @param {import("../../types/domain.js").Anchor | null | undefined} anchor @param {string | null | undefined} [about] */
-export const anchorQuote = (anchor, about) =>
-  anchorPlace(anchor, about) ? anchorLabel(anchor, about) : (anchor?.quote ?? "");

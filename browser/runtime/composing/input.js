@@ -82,6 +82,7 @@ import { offeredAction } from "../widget-elements.js";
  * @property {import("../keyboard/bindings.js").Cell<string>} hint
  * @property {(() => unknown) | null} [hintParts]
  * @property {() => unknown} [hintLead]
+ * @property {() => string} [enters]
  * @property {import("../keyboard/bindings.js").Cell<string> | null} [accessibleName]
  * @property {(value: string) => unknown} save
  * @property {Sender} send
@@ -291,6 +292,11 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       // send the hint and its key to the empty box's far end and move none of its
       // controls as they come and go.
       hintLead = () => "",
+      // What entering the box does, said with the key that enters it, where the box's
+      // own words at rest say something else, as the panel's status does. Those words
+      // stay first, and this word and its key stand after them, in a part of its own,
+      // so the words never move between parts as focus comes and goes.
+      enters = () => "",
       accessibleName = null,
       save,
       send,
@@ -527,9 +533,10 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       const lineKey =
         sendKeys === spell("Enter") && !oneLine ? spell("Shift+Enter") : "";
       const lineHint = focusedHere.value && !status ? lineKey : "";
+      const entering = suffix && !focusedHere.value && !status ? enters() : "";
       const placeholder =
         suffix && !status
-          ? `${word} ${suffix}${lineHint ? ` · ${NEW_LINE} ${lineHint}` : ""}`
+          ? `${word}${entering ? ` · ${entering}` : ""} ${suffix}${lineHint ? ` · ${NEW_LINE} ${lineHint}` : ""}`
           : word;
       if (ta.placeholder !== placeholder) ta.placeholder = placeholder;
       const ariaLabel = name();
@@ -542,6 +549,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
           ? html` <span class="lf-compose-placeholder" slot="placeholder">
               <span class="lf-compose-placeholder-lead">${lead}</span
               ><span class="lf-compose-placeholder-words">${parts ?? word}</span
+              ><span class="lf-compose-placeholder-enters">${entering}</span
               ><kbd class="lf-key-badge">${suffix}</kbd>${
                 lineHint
                   ? html`<span class="lf-compose-placeholder-line"

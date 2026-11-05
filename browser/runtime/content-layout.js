@@ -31,7 +31,9 @@ function readDocumentLayout() {
   // the one is never read as the other (root-headers.js).
   readPageHead();
   syncLayoutRegion();
-  const header = layoutBox()?.querySelector(":scope > header") ?? null;
+  const header =
+    [...(layoutBox()?.children ?? [])].find((child) => child.localName === "header") ??
+    null;
   if (header !== watchedHead) {
     headSizes ??= sizeObserver(scheduleDocumentLayout);
     if (watchedHead) headSizes.unobserve(watchedHead);

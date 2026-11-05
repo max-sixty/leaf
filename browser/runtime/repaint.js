@@ -70,6 +70,7 @@ function requestFrame() {
     if (shiftPage) p.pageShifted?.();
     // Contextual entry hints read the destination after chrome layout. Lit fields
     // follow this reading; their committed controls invalidate the key projection.
+    // The resting box shows the comment key this hint has just read.
     p.publishInputHint?.();
     p.restFab?.();
     // The chips are where the user can go, beside the ring saying where they are and the

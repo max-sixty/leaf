@@ -109,6 +109,9 @@
       "/vendor/webawesome-chrome.js": [
         "../../build/entries/webawesome/chrome.mjs"
       ],
+      "/vendor/webawesome-views.js": [
+        "../../build/entries/webawesome/views.mjs"
+      ],
       "/vendor/*": [
         "../vendor/*",
         "../../packages/code-review/vendor/*",

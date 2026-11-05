@@ -330,10 +330,14 @@ dl:is(.facts, .lf-facts) dd {
       background: none;
       font-size: 0.9em;
     }
+    /* A caption says what its table covers, such as which case each of several tables
+       shows, so it is the table's title rather than apparatus: it takes the table's
+       face, size and ink, and the weight its column headings wear. Set at the chip size
+       in the muted colour, it was the faintest text around the table, and a reader
+       skipped it and took a run of tables for one. */
     caption {
       text-align: start;
-      font-size: var(--t-6);
-      color: var(--muted);
+      font-weight: 600;
       margin-bottom: 6px;
     }
     :is(th, td) {
@@ -553,7 +557,7 @@ dl:is(.facts, .lf-facts) dd {
     dd {
       margin: 0 0 8px 0;
     }
-    /* The apparatus face, said once per layer. Every label, caption, chip, badge,
+    /* The apparatus face, said once per layer. Every label, figure caption, chip, badge,
      * disclosure summary and column heading on the page is the page pointing at its own
      * content rather than saying something — so it takes the UI sans at a small size,
      * usually tracked, and
@@ -591,7 +595,6 @@ dl:is(.facts, .lf-facts) dd {
      * without it, and stating it there would be a declaration that could never be
      * wrong and never do anything. */
     figcaption,
-    caption,
     th:not([scope="row"]),
     summary {
       font-family: var(--sans);

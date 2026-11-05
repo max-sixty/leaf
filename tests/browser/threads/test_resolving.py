@@ -802,7 +802,7 @@ def test_taking_back_a_resolve_is_the_users_own_gesture(browser, serve):
     page = open_page(browser, url)
     open_panel_thread(page, root)
     with sending(page, "the resolve"):
-        page.locator(".lf-fp-settle").click()
+        page.locator(".lf-fp-thread-controls :is(.lf-resolve, .lf-reopen)").click()
     expect_open_threads(page, 0)
     undo(page)
     told(page)
@@ -822,10 +822,10 @@ def test_a_resolved_thread_can_be_reopened(browser, serve):
     )
     open_panel_thread(page, comment)
     with sending(page, "the resolve"):
-        page.locator(".lf-fp-settle").click()
+        page.locator(".lf-fp-thread-controls :is(.lf-resolve, .lf-reopen)").click()
     expect_open_threads(page, 17)
     view = open_panel_thread(page, comment)
-    settle = page.locator(".lf-fp-settle")
+    settle = page.locator(".lf-fp-thread-controls :is(.lf-resolve, .lf-reopen)")
     expect(settle).to_have_accessible_name("Reopen")
     with sending(page, "the reopen"):
         settle.click()
@@ -854,13 +854,17 @@ def test_a_reply_in_a_resolved_thread_reopens_it(browser, serve):
     page = open_page(browser, url)
     expect_open_threads(page, 0)
     open_panel_thread(page, root)
-    expect(page.locator(".lf-fp-settle")).to_have_accessible_name("Reopen")
+    expect(
+        page.locator(".lf-fp-thread-controls :is(.lf-resolve, .lf-reopen)")
+    ).to_have_accessible_name("Reopen")
     reply = page.locator(PANEL_REPLY)
     reply.click()
     page.keyboard.type("One more thing.")
     with sending(page, "the reply"):
         page.keyboard.press("Enter")
-    expect(page.locator(".lf-fp-settle")).to_have_accessible_name("Resolve thread")
+    expect(
+        page.locator(".lf-fp-thread-controls :is(.lf-resolve, .lf-reopen)")
+    ).to_have_accessible_name("Resolve thread")
     expect_open_threads(page, 1)
     assert events_model.read_events(serve.page_dir)[-1]["kind"] == "reply"
 
@@ -935,7 +939,9 @@ def test_a_late_reply_reopens_its_resolved_thread(browser, serve):
     expect_open_threads(page, 1)
     view = open_panel_thread(page, root["id"])
     expect(view.locator(".lf-msg[data-lf-author=agent]")).to_be_visible()
-    expect(page.locator(".lf-fp-settle")).to_have_accessible_name("Resolve thread")
+    expect(
+        page.locator(".lf-fp-thread-controls :is(.lf-resolve, .lf-reopen)")
+    ).to_have_accessible_name("Resolve thread")
     page.reload()
     told(page)
     expect_open_threads(page, 1)

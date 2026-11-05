@@ -20,7 +20,7 @@
    is a choice whatever the opening did to the layout. An end that leaves the box where
    its last one did, as Firefox sends after a layout move, chose nothing. A place
    keeper's write returns the reader to a place they already had (reading-place.js,
-   `restorePlace`; user-place.js, `placeKeeper`; continuity's move of the page with its
+   `restorePlace`; user-place.js, `holdPlace`; continuity's move of the page with its
    band), so it says where it left each box (`placeKept`), and a sequence ending there
    is the keeper's. An explicit landing counts from its start (`startScroll`), even
    when instant, since layout it caused can be announced before its sequence ends.
@@ -439,6 +439,13 @@ const holding = (box) => {
 /** @param {Element} box */
 export const scrollGoal = (box) =>
   Math.max(0, Math.min(scrollLimit(box), holding(box)?.goal ?? box.scrollTop));
+// Whether `box` stands at its end with no glide taking it away. A glide a press has just
+// started may not have moved the box yet, since its first frame can write where the box
+// already stands. A keeper that read that box as following its end would put it back
+// there and stop the glide, and the press would do nothing.
+/** @param {Element} box */
+export const followsEnd = (box) =>
+  atScrollEnd(box) && atScrollEnd(box, scrollGoal(box));
 // Run `then` once the scroll a key has the browser drive in `box`, as Space's and
 // PageDown's are, has ended, and say whether it waits. A step pressed while others wait
 // on the box joins them, so they run in the order pressed, and none of them runs if Leaf

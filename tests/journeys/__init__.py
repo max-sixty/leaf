@@ -36,7 +36,7 @@ def detached_threads(page, thread_ids):
     for thread_id in thread_ids:
         view = open_panel_thread(page, thread_id)
         expect(view).to_be_visible()
-        if view.locator(".lf-fp-quote[data-lf-detached]").count():
+        if view.locator(".lf-thread-quote[data-lf-detached]").count():
             detached.add(thread_id)
     if page.locator(PANEL).get_attribute("data-lf-open") is not None:
         page.locator(".lf-fp-close").click()
@@ -51,7 +51,7 @@ def first_thread_quote(page, page_dir):
         for event in events_model.read_events(page_dir)
         if event["kind"] == "comment"
     )
-    return open_panel_thread(page, first).locator(".lf-fp-quote")
+    return open_panel_thread(page, first).locator(".lf-thread-quote")
 
 
 def expect_showing(page, version):

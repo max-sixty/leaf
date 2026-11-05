@@ -160,13 +160,20 @@ def test_a_pin_in_a_pane_scrolls_with_it_and_leaves_with_its_target(browser, ser
     pin follows the pane's scroll through the anchor that carries it, with no layout pass
     to wait for, and once its target has scrolled out of the pane the row is withheld:
     out of the tab order, and nothing of it drawn over the pane's header or its
-    neighbour."""
-    page = open_page(browser, serve(PANE_PIN_PAGE, events=[_comment_on("pane-top")]))
+    neighbour. A row whose target starts below the fold is withheld and anchored all the
+    same: once the pane scrolls its target in, the row stands on it rather than at the
+    off-screen place an unanchored row would wait in."""
+    page = open_page(
+        browser,
+        serve(PANE_PIN_PAGE, events=[_comment_on("pane-top"), _comment_on("pane-end")]),
+    )
     resized(page, 1280, 720)
     pane_scroll_behavior(page, page.locator("#pin-pane"), "bounded")
     margins_laid_out(page)
     row = page.locator('.lf-margin-lane [data-lf-margin-for="pane-top"]')
     expect(row).to_have_attribute("data-lf-place", "pin")
+    below = page.locator('.lf-margin-cluster[data-lf-margin-for="pane-end"]')
+    expect(below).to_have_class(re.compile(r"\blf-withheld\b"))
     moved = page.evaluate(
         """async () => {
           const row = document.querySelector('[data-lf-margin-for="pane-top"]');
@@ -190,6 +197,19 @@ def test_a_pin_in_a_pane_scrolls_with_it_and_leaves_with_its_target(browser, ser
     expect(row).to_have_class(re.compile(r"\blf-withheld\b"))
     page.locator("#pin-pane > div").evaluate("body => { body.scrollTop = 0; }")
     expect(row).not_to_have_class(re.compile(r"\blf-withheld\b"))
+
+    page.locator("#pin-pane > div").evaluate(
+        "body => { body.scrollTop = body.scrollHeight; }"
+    )
+    expect(below).not_to_have_class(re.compile(r"\blf-withheld\b"))
+    stands = below.evaluate(
+        """row => {
+          const r = row.getBoundingClientRect();
+          const t = document.getElementById('pane-end').getBoundingClientRect();
+          return Math.abs(r.top - t.top) < 2 && r.left < t.right + 40;
+        }"""
+    )
+    assert stands
 
 
 @pytest.mark.parametrize("engine", ["firefox_browser", "webkit_browser"])
@@ -740,35 +760,41 @@ def test_a_pin_in_a_pane_paints_in_the_frame_its_target_scrolls(browser, serve):
     assert_follows_in_every_frame(page, "#pin-pane > div")
 
 
-@pytest.mark.parametrize(
-    "wrapper", ["overflow: hidden; border-radius: 8px", "overflow-x: auto"]
-)
 def test_a_pin_in_a_pane_rides_an_anchored_carrier_through_boxes_that_scroll_nothing(
-    browser, serve, wrapper
+    browser, serve, subtests
 ):
     """A pin whose target stands in a pane stands in a carrier anchored to what the
     pane's scroll carries, rather than a scroll-driven layer, which can paint a frame
     off its scroll. A box between the target and the pane that clips but scrolls
     nothing, as a rounded wrapper or a table wrapper that fits, leaves it there."""
+    wrappers = {
+        "rounded": "overflow: hidden; border-radius: 8px",
+        "table": "overflow-x: auto",
+    }
     source = PANE_PIN_PAGE.replace(
         '<p id="pane-top">The first finding, commented on.</p>',
-        f'<div style="{wrapper}"><p id="pane-top">The first finding, commented on.</p>'
-        "</div>",
+        "".join(
+            f'<div style="{wrapper}"><p id="{name}">A finding, commented on.</p></div>'
+            for name, wrapper in wrappers.items()
+        ),
     )
-    page = open_page(browser, serve(source, events=[_comment_on("pane-top")]))
+    page = open_page(
+        browser, serve(source, events=[_comment_on(name) for name in wrappers])
+    )
     resized(page, 1280, 720)
     pane_scroll_behavior(page, page.locator("#pin-pane"), "bounded")
     margins_laid_out(page)
-    row = page.locator('[data-lf-margin-for="pane-top"]')
-    expect(row).to_have_attribute("data-lf-place", "pin")
-    assert row.evaluate(
-        "row => row.parentElement.classList.contains('lf-margin-carrier')"
-    ), wrapper
+    for name, wrapper in wrappers.items():
+        with subtests.test(wrapper=name):
+            row = page.locator(f'[data-lf-margin-for="{name}"]')
+            expect(row).to_have_attribute("data-lf-place", "pin")
+            assert row.evaluate(
+                "row => row.parentElement.classList.contains('lf-margin-carrier')"
+            ), wrapper
 
 
-@pytest.mark.parametrize("change", ["size", "layout"])
 def test_a_bounded_region_reflows_its_margin_without_resizing_the_page(
-    browser, serve, change
+    browser, serve, subtests
 ):
     """A fixed-size pane can move its target through a sibling's resize or a
     same-size view rearrangement. The geometry owner hears the size owner and the
@@ -792,35 +818,37 @@ def test_a_bounded_region_reflows_its_margin_without_resizing_the_page(
         hit: row.contains(document.elementFromPoint(r.left + r.width / 2,
                                                    r.top + r.height / 2))};
     }"""
-    before = page.evaluate(reading)
-    page.evaluate(
-        """async change => {
-          const target = document.getElementById('pane-top');
-          if (change === 'size') target.previousElementSibling.style.height = '224px';
-          else {
-            target.setAttribute('data-offset', '');
-            const {layoutChanged} = await window.__lfWidgetApi();
-            await layoutChanged(target);
-          }
-        }""",
-        change,
-    )
-    rendered(page)
-    after = page.evaluate(reading)
-    assert after["height"] == before["height"]
-    if change == "size":
-        assert after["top"] - before["top"] == pytest.approx(24, abs=1)
-        assert after["offset"] == pytest.approx(before["offset"], abs=1)
-    else:
-        # Moving only the paragraph can change the clear seat around it. The layout
-        # notification must settle that seat as a full geometry reading would.
-        assert after["top"] != before["top"]
-        page.evaluate("""async () => {
-          const {layoutChanged} = await window.__lfWidgetApi();
-          layoutChanged(document.body);
-        }""")
-        assert page.evaluate(reading) == after
-    assert after["hit"]
+    for change in ("size", "layout"):
+        with subtests.test(change=change):
+            before = page.evaluate(reading)
+            page.evaluate(
+                """async change => {
+                  const target = document.getElementById('pane-top');
+                  if (change === 'size') target.previousElementSibling.style.height = '224px';
+                  else {
+                    target.setAttribute('data-offset', '');
+                    const {layoutChanged} = await window.__lfWidgetApi();
+                    await layoutChanged(target);
+                  }
+                }""",
+                change,
+            )
+            rendered(page)
+            after = page.evaluate(reading)
+            assert after["height"] == before["height"]
+            if change == "size":
+                assert after["top"] - before["top"] == pytest.approx(24, abs=1)
+                assert after["offset"] == pytest.approx(before["offset"], abs=1)
+            else:
+                # Moving only the paragraph can change the clear seat around it. The layout
+                # notification must settle that seat as a full geometry reading would.
+                assert after["top"] != before["top"]
+                page.evaluate("""async () => {
+                  const {layoutChanged} = await window.__lfWidgetApi();
+                  layoutChanged(document.body);
+                }""")
+                assert page.evaluate(reading) == after
+            assert after["hit"]
 
 
 _PARAGRAPH = (
@@ -1317,30 +1345,6 @@ def test_a_pin_and_copy_pass_under_a_stuck_tab_strip(browser, serve):
     copy = page.evaluate(under, ".lf-code-copy")
     assert copy["strip"][0] < copy["top"] < copy["strip"][1], copy
     assert copy["hitStrip"], copy
-
-
-def test_a_pane_row_withheld_at_load_stands_once_its_target_scrolls_in(browser, serve):
-    """A row whose target starts below its pane's fold is withheld, and it is anchored
-    all the same: once the pane scrolls its target in, the row stands on it rather than
-    at the off-screen place an unanchored row would wait in."""
-    page = open_page(browser, serve(PANE_PIN_PAGE, events=[_comment_on("pane-end")]))
-    resized(page, 1280, 720)
-    pane_scroll_behavior(page, page.locator("#pin-pane"), "bounded")
-    margins_laid_out(page)
-    row = page.locator('.lf-margin-cluster[data-lf-margin-for="pane-end"]')
-    expect(row).to_have_class(re.compile(r"\blf-withheld\b"))
-    page.locator("#pin-pane > div").evaluate(
-        "body => { body.scrollTop = body.scrollHeight; }"
-    )
-    expect(row).not_to_have_class(re.compile(r"\blf-withheld\b"))
-    stands = row.evaluate(
-        """row => {
-          const r = row.getBoundingClientRect();
-          const t = document.getElementById('pane-end').getBoundingClientRect();
-          return Math.abs(r.top - t.top) < 2 && r.left < t.right + 40;
-        }"""
-    )
-    assert stands
 
 
 def test_a_row_in_content_skipped_until_near_stands_once_the_page_scrolls_to_it(

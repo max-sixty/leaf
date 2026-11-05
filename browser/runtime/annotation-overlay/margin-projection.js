@@ -148,7 +148,7 @@ import { outlineChange } from "../margin-bars.js";
 import { threadNamed } from "../thread/state.js";
 import { carryingThreadPlace, currentLocationThreadId } from "../thread/focus.js";
 
-import { claimed, revealHeld } from "../thread/surfaces.js";
+import { claimed } from "../thread/surfaces.js";
 import { pageSeatThread } from "../thread/inline.js";
 import { releaseReplies } from "../thread/replies.js";
 
@@ -1665,22 +1665,6 @@ export function createMarginProjection({
     if (!choice) return;
     if (expandedOptionsKey && expandedOptionsKey !== entry.key)
       setOptionsOpen(entry, false);
-    // A thread a widget holds out of its flow, so as to move nothing the user reads,
-    // has this marker for its notice: pressing it shows the thread where the widget
-    // draws it, and lands the user there (thread/held-news.js).
-    const intent = retainUserIntent();
-    const held = revealHeld(choice.items.map((item) => item.thread.id));
-    if (held) {
-      intent.handoff(closePreview);
-      void held.presented.then(() =>
-        openPageThread(held.id, {
-          part: "thread",
-          travel: false,
-          intent,
-        }),
-      );
-      return;
-    }
     togglePinned(entry, choice, button);
   }
 

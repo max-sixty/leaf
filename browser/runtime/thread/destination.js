@@ -6,9 +6,9 @@
    goes there even where it declines (messages.js, `authoredHolders`). A part the
    primary declined uses the page's nearest drawing of its thread: the exact outlet, or
    the seat an `x-thread-seat` widget holds it in (surfaces.js, `surfaceFocusTarget`),
-   whose Resolved disclosure opens for a resolved thread; then a page preview; then a
-   deliberately revealed widget seat. A message part lands on its message there. Where
-   none of those shows it, the primary is asked again with `request.last` set, which says
+   whose Resolved disclosure opens for a resolved thread; then a page preview. A message
+   part lands on its message there. Where neither shows it, the primary is asked again
+   with `request.last` set, which says
    nothing else will show the thread, so the floating panel takes any thread then; a
    second refusal leaves the thread unopened. That is every thread about a passage on a
    window with no room for the rail, where no margin card stands (margin-projection.js,
@@ -31,7 +31,6 @@
    thread as it declines (floating-panel.js, `reveal`), so the reply the field holds
    and a walk's position name the thread the user arrived at. The user chose this on
    23 October 2026, after a `t` walk left the panel's thread open under a card.
-   A compact preview keeps held widget arrivals held until its own release gesture.
    The optional preview supplies physical
    opening, placement proof, current focus node and target accompaniment; it owns
    no destination policy. A command retains its original intent through placement
@@ -65,10 +64,10 @@ import { focusDestination, focused, onCurrentLocation } from "../focus.js";
 import { presented } from "../geometry.js";
 import { restrictUserIntent, retainUserIntent } from "../user-intent.js";
 import { replyThreadKey } from "./replies.js";
-import { threadIdNamed, threadNamed } from "./state.js";
+import { threadNamed } from "./state.js";
 import { heldThread, threadIn } from "./focus.js";
-import { showHeld, showHeldThread } from "./held-news.js";
-import { revealHeld, surfaceFocusTarget } from "./surfaces.js";
+import { showHeld } from "./held-news.js";
+import { surfaceFocusTarget } from "./surfaces.js";
 import { reveal } from "../widget-elements.js";
 import { visibleTargetParts } from "../visible-target-parts.js";
 import { closestAcross } from "../passages.js";
@@ -322,7 +321,7 @@ export function createThreadDestinations({
         return reached ? selected.reader.destination(thread.key, request) : null;
       }
     }
-    // The page's own drawings of the thread: its outlet or seat, a held seat, a preview.
+    // The page's own drawings of the thread: its outlet or seat, a preview.
     async function onPage() {
       const mayPresent = () => (focus === false ? intent.available() : intent());
       const localPart = part ?? "reply";
@@ -367,9 +366,6 @@ export function createThreadDestinations({
         return surfaceFocusTarget(id, { part: localPart });
       };
       if (surfaceFocusTarget(id, { part: localPart })) return openSurface();
-      // A thread a seat holds whole has no node until the seat shows it (held-news.js).
-      if (showHeldThread(id) && surfaceFocusTarget(id, { part: localPart }))
-        return openSurface();
       // A card stands beside its passage while the passage is drawn
       // (`commentAttachment`), and a card with nowhere to stand never places. A navigation step
       // reveals the passage as it arrives. A thread opened where the user is reveals
@@ -422,12 +418,6 @@ export function createThreadDestinations({
         }
         return threadFocusTarget(id, { part, page });
       }
-      const held = revealHeld([threadIdNamed(id)]);
-      if (held) {
-        await held.presented;
-        if (!mayPresent()) return null;
-      }
-      if (surfaceFocusTarget(id, { part: localPart })) return openSurface();
       return DECLINED;
     }
 

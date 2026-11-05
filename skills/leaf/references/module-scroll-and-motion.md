@@ -80,13 +80,19 @@ otherwise it waits until the growth is out of view or the reading is interrupted
 The returned function cancels the pending change. When a user's own gesture requests
 that change, cancel the hold and apply the change in that gesture.
 
-When a widget redraws or resizes content where the user is reading, keep their place
-with `placeKeeper(scroller, {items, identity})` rather than restoring `scrollTop`.
-`items` selects the nodes that can mark a place, and `identity(node)` returns the key
-each is drawn under, so a keyed redraw hands the place to the replacement. Wrap one
-synchronous change, which must not scroll anything itself, in `around(mutate)`. For a
-change spanning tasks, call `const hold = take()` before and `finish(hold, following)`
-after; the keeper holds the place frame by frame while `following()` is true.
+When a widget redraws or resizes content where the user is reading, the browser's
+scroll anchoring keeps their place: don't restore `scrollTop` or set
+`overflow-anchor: none`. Redraw by keeping the nodes the change leaves as they were,
+as `setRenderedChildren` does for a subtree the module renders whole
+([module-authoring.md](module-authoring.md), "Retained nodes"), since a node that replaces
+the one anchoring holds loses the place. Where a change
+hides what the reader is reading, as folding it does, anchoring can't hold it: read
+`const hold = holdPlace(node, standIn)` before the change and call `hold()` after it,
+in the same task, and `node`, or the node `standIn` names for it once the change hid
+or removed it, lands where `node` stood. `readingAt(column)` is what stands at the reading line, a
+quarter of the way down the window, in `column`'s middle: a range over the words there,
+which `holdPlace` takes too, else the element drawn there. The change itself scrolls
+nothing.
 
 A widget that hides a view and shows it again later keeps the place as
 `capturePlace()`, a landmark in the page's words, and returns to it with
@@ -184,6 +190,14 @@ disconnecting and reconnecting the element update the total. Call its returned s
 when the header becomes local navigation. Only a header over the document belongs
 here: a nested scroller uses the local sticky and landing inputs above. Packages own
 where their headers are positioned; Leaf owns the aggregate root landing inset.
+
+A header the page itself fixes at the window's top, or makes sticky ahead of the
+page's content, in `body` or a box around `main` before it or at the start of `main`,
+such as a site header, is one of the page's heads, which Leaf finds without a
+declaration. How far down the window they
+reach starts the sticky-header slot below them for everything in the page but the
+heads, so a package's header sticking at `var(--lf-top)` sticks below them, and the
+margin every box reads from the slot clears them.
 
 ### Sideways scrollers and container queries
 

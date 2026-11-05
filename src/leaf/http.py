@@ -268,7 +268,11 @@ class PageEndpoint:
 
     # Every answer that isn't an immutable revision resource may be stored but is asked
     # for again before each reuse. Document and state answers carry no validator, so
-    # every load, Back included, shows the page as it is now. Storing is what lets
+    # a load asks again and shows the page as it is now. A document Chrome loads from
+    # its history, as on Back without the back/forward cache or on restoring tabs,
+    # reuses stored answers without asking, so a state answer names by `Vary` the
+    # request headers its body turns on: else that document, which holds no reading,
+    # would be handed a tail of a reading an earlier document held. Storing is what lets
     # the browser keep the whole page in its back/forward cache, so Back restores it at
     # once and the runtime catches up from there. Chrome keeps no page whose document or
     # fetches said `no-store`, nor Firefox one whose document did. The disk copy holds
@@ -1160,7 +1164,13 @@ class PageEndpoint:
             if revision is None and state["active"] is not None:
                 revision = state["active"]["revision"]
             self.response_layer = self._revision_layer(revision)
-            return self._json_body(self.sent(state))
+            answer = self._json_body(self.sent(state))
+            # What the answer holds turns on the reading, data and revision the tab
+            # names (`cache_control`).
+            answer.headers["Vary"] = (
+                "Leaf-Held-Basis, Leaf-Data-Version, Leaf-View-Revision"
+            )
+            return answer
         if path == "/api/deferred":
             try:
                 deferred = self.deferred_value()

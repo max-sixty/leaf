@@ -102,7 +102,7 @@ import {
   scrollIntoView,
   focused,
   onPressAway,
-  PRESSABLE,
+  worksInside,
   commandsChanged,
 } from "/runtime/widget-api.js";
 
@@ -219,16 +219,16 @@ customElements.define(
         { capture: true },
       );
 
-      // A click opens the exact source at its rendered caret. Presses, links and
-      // completed word selections own their own gestures; Leaf's generated chrome that
-      // is no press, such as the thread message a reply's draft stands in, does not.
+      // A click opens the exact source at its rendered caret. A control or link inside
+      // the draft (`worksInside`) and a completed word selection own their own gestures;
+      // what the draft stands in, such as a reply's thread message, does not.
       this.addEventListener("click", (ev) => {
         // A keyboard activation carries no place, and the keyboard's door is the ✎. The
         // primary button only: a middle- or right-press is not the gesture this is for.
         if (
           pressIsKeyboardActivation(ev) ||
           ev.button !== 0 ||
-          (ev.target instanceof Element && ev.target.closest(`${PRESSABLE}, a, button`))
+          (ev.target instanceof Element && worksInside(ev.target, this))
         )
           return;
         if (reachedForWords(this)) return;

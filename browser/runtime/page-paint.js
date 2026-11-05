@@ -22,6 +22,9 @@ export const RUNTIME_PAINT_ATTRIBUTE = Object.freeze({
   dataVersion: "data-lf-data-version",
   source: "data-lf-source",
   sourceRevision: "data-lf-source-revision",
+  // A data widget that has reported a draw (projection/data.js, `projectMarked`), so
+  // its source stamps say which revision it shows (anchor-resolution.js).
+  drawReported: "data-lf-draw-reported",
   userOverride: "data-lf-user-override",
   presented: "data-lf-presented",
   reported: "data-lf-reported",
@@ -41,6 +44,8 @@ export const RUNTIME_PAINT_ATTRIBUTE = Object.freeze({
   traffic: "data-lf-traffic",
   // A recording playing through the runtime's controls (video-controls.js).
   player: "data-lf-player",
+  // One of the page's own headers over the document (root-headers.js, `pageHeads`).
+  pageHead: "data-lf-page-head",
   // The marks the runtime draws round a box as its outline (target-paint.js,
   // surfaces.css): the aim, the trace a margin entry draws on what it concerns, the proxy
   // ring and the location ring. Attributes rather than classes, so an observer of the

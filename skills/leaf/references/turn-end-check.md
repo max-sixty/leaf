@@ -27,8 +27,10 @@ the agent takes the user's reply or withdraws the ask. For each, give:
   it arises and what each answer leads to, naming things as the page does, and end
   with the question. For a step the user takes, such as running a command or trying
   a build, say what to do and ask them to reply once it is done, with what they saw.
-  It shows in a narrow card, so keep it to at most four short sentences of Markdown,
-  and link a pull request or commit by its URL where the conversation gives one.
+  It shows in a narrow card, where one unbroken block is hard to take in, so keep it
+  to at most four short sentences of Markdown, with each point in a paragraph of its
+  own and the question alone on the last line, and link a pull request or commit by
+  its URL where the conversation gives one.
 - `passage`: where the ask concerns one passage of the page, a few of its words,
   exactly as the page shows them and found nowhere else on it, which the ask then
   stands on; otherwise empty, and it stands on the page as a whole.

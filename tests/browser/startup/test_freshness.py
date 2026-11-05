@@ -149,9 +149,9 @@ def test_a_presence_read_crossing_freshness_returns_to_the_current_lease(
 ):
     """A short-lived real wait lease inside a state read cannot strand its answer.
 
-    Presence may return to the same cached freshness token after state captured a
-    different live lock observation. The shared recovery clock must reconcile the
-    mismatch even though no page file or subsequent token changes.
+    The state read sees the lease held, and once it is released the page comes back
+    to the current lease. This page is unclaimed, so its wait lease is a file in the
+    page directory: taking it moves the news token, and the look asks again.
     """
     url = live_url(serve(LONG_PAGE))
     lease_path = waiter_lease_path(serve.page_dir, None)
@@ -170,8 +170,15 @@ def test_a_presence_read_crossing_freshness_returns_to_the_current_lease(
                 route.continue_()
                 return
             assert lease_path is not None
+            # Ask for a whole answer, which says whether the lease was held, rather
+            # than a patch from the reading the tab holds (`served_state.tail`).
+            headers = {
+                name: value
+                for name, value in route.request.headers.items()
+                if name != "leaf-held-basis"
+            }
             with take_wait_lease(lease_path):
-                response = route.fetch()
+                response = route.fetch(headers=headers)
                 assert response.json()["listening"] is True
             crossed.append(response.json()["reading"])
             route.fulfill(response=response)
@@ -186,45 +193,76 @@ def test_a_presence_read_crossing_freshness_returns_to_the_current_lease(
         page.unroute_all(behavior="wait")
 
 
+# Counts, in the page, each freshness look and each state read it asks, so a count is
+# current when an ordered event has come and gone: Playwright hands a request or a
+# route to Python on its own schedule, after the page's call.
+COUNT_ASKS = """
+window.__lfAsked = {news: 0, state: 0};
+const nativeFetch = window.fetch.bind(window);
+window.fetch = (...args) => {
+  const url = String(args[0] instanceof Request ? args[0].url : args[0]);
+  if (url.includes("api/news")) window.__lfAsked.news += 1;
+  else if (url.includes("api/state")) window.__lfAsked.state += 1;
+  return nativeFetch(...args);
+};
+"""
+
+
+def looked_since(page):
+    """Wait until the page has handled a freshness look asked after this call.
+
+    The page asks each look only once it has handled the one before, so the second look
+    asked after this call starts once the first has been handled."""
+    since = page.evaluate("window.__lfAsked.news")
+    page.wait_for_function("since => window.__lfAsked.news >= since + 2", arg=since)
+
+
 def test_status_changes_coalesce_behind_one_state_read(browser, serve):
     """Rapid starts do not build a queue of state requests.
 
     Freshness looks may announce several new readings while the container is still
     answering one. They collapse into one trailing read, which takes the newest state.
     """
-    page = open_page(browser, serve(LONG_PAGE))
+    page = open_page(browser, serve(LONG_PAGE), init_script=COUNT_ASKS)
     d = serve.page_dir
     status = panel_field(page)
 
     def declare(detail):
         declare_work(d, detail)
 
+    def reads():
+        return page.evaluate("window.__lfAsked.state")
+
+    # The state reads the page has asked so far, the startup read among them.
+    before = reads()
     # Every ask is held; the test answers each admitted read by hand.
     held = []
     page.route("**/api/state*", lambda route: held.append(route))
     with page.expect_request("**/api/state*"):
         declare("first")
-    declare("second")
-    page.wait_for_timeout(500)
-    assert len(held) == 1
-
-    # The admitted read sees the latest file state. The queued news then earns exactly
-    # one follow-up read, not one read per status write.
+    while not held:
+        page.wait_for_timeout(20)
     first = held[0]
-    second = first.fetch().json()
-    with page.expect_request("**/api/state*"):
-        first.fulfill(json=second)
-    expect(status).to_have_attribute("placeholder", re.compile(r"second"))
-    assert len(held) == 2
-
-    trailing = held[1]
+    # An answer taken before the writes the looks hear next.
+    older = first.fetch().json()
+    declare("second")
     declare("third")
-    page.wait_for_timeout(500)
-    assert len(held) == 2
-    third = trailing.fetch().json()
-    trailing.fulfill(json=third)
-    told(page)
+    looked_since(page)
+    assert reads() == before + 1
+
+    # The news the answer doesn't name earns exactly one follow-up read, not one read
+    # per status write.
+    with page.expect_request("**/api/state*"):
+        first.fulfill(json=older)
+    while len(held) < 2:
+        page.wait_for_timeout(20)
+
+    # That read takes the latest file state, so the page has nothing left to ask for.
+    trailing = held[1]
+    trailing.fulfill(json=trailing.fetch().json())
     expect(status).to_have_attribute("placeholder", re.compile(r"third"))
+    looked_since(page)
+    assert reads() == before + 2
 
 
 def test_a_state_read_timing_out_during_its_body_is_offline(browser, serve):

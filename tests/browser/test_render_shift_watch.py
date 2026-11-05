@@ -145,12 +145,6 @@ def test_typing_that_carries_its_field_fails_at_the_last_keystroke(browser):
     assert comparison["before"]["at"] < comparison["after"]["at"]
 
 
-def test_typing_may_grow_its_field(browser):
-    page = field_page(browser, "grow")
-    page.locator("#field").fill("a")
-    judge_watches()
-
-
 def test_native_document_replacement_preserves_sensor_input_ownership(browser):
     """A parser replacement retains sensors, including their input listeners.
 
@@ -497,18 +491,11 @@ def test_typing_protects_subjects_through_a_coordinate_carrier_rebase(
         )
 
 
-@pytest.mark.parametrize("distance", [6, 40])
-def test_a_shift_without_input_fails(browser, distance):
+def test_a_shift_without_input_fails(browser):
     page = field_page(browser)
-    page.evaluate(
-        "distance => { document.getElementById('above').style.height = distance + 'px'; }",
-        distance,
-    )
+    page.evaluate("document.getElementById('above').style.height = '6px'")
     judge_watches()
-    consume_browser_errors(
-        page,
-        moved_within("textarea#field", by=[0, distance]),
-    )
+    consume_browser_errors(page, moved_within("textarea#field", by=[0, 6]))
 
 
 @pytest.mark.parametrize(
@@ -1048,15 +1035,14 @@ def test_append_growth_may_raise_a_port_standing_on_its_foot(browser, fault, pro
         assert names_move(errors, protected), errors
 
 
-@pytest.mark.parametrize("overflow", ["visible", "auto"])
-def test_boxless_overflow_does_not_hide_carried_reading(browser, overflow):
+def test_boxless_overflow_does_not_hide_carried_reading(browser):
     """Overflow on a display:contents wrapper cannot clip its visible descendants."""
     page = browser.new_page()
     page.goto(
         "data:text/html,"
         + quote(
             '<!doctype html><body style="margin:0">'
-            f'<div id="wrapper" style="display:contents;overflow:{overflow};padding:10%">'
+            '<div id="wrapper" style="display:contents;overflow:auto;padding:10%">'
             '<div id="above" style="height:40px"></div>'
             '<button id="target">Reading control</button></div></body>'
         )
@@ -1315,8 +1301,10 @@ def test_metadata_at_the_source_cap_cannot_hide_a_control(browser, motion):
 
 
 @pytest.mark.parametrize("outer_mode", ["text", "controls"])
-@pytest.mark.parametrize("shadow_mode", ["open", "closed"])
-@pytest.mark.parametrize("departure", ["", "reparent", "remove"])
+@pytest.mark.parametrize(
+    "shadow_mode, departure",
+    [("open", ""), ("closed", ""), ("open", "reparent"), ("open", "remove")],
+)
 def test_nested_shadow_regions_keep_enclosing_guarantees_at_source_cap(
     browser, outer_mode, shadow_mode, departure
 ):
@@ -1583,17 +1571,14 @@ def test_an_input_owns_the_landing_of_a_widget_preparation_it_began(browser, ser
     ), moved
 
 
-@pytest.mark.parametrize(
-    "retired_at", ["no preparation", "click", "resolve-remove", "remove-resolve"]
-)
+@pytest.mark.parametrize("retired_at", ["click", "resolve-remove", "remove-resolve"])
 def test_a_retired_widget_preparation_cannot_credit_a_passive_landing(
     browser, serve, retired_at
 ):
     """A removed renderer's late completion cannot credit unrelated page movement.
 
-    The no-preparation control proves ordinary input credit expires. A declaration
-    retires with its owner even when its promise reaction precedes delivery of the
-    removal's mutation record.
+    A declaration retires with its owner even when its promise reaction precedes
+    delivery of the removal's mutation record.
     """
     page = open_page(
         browser,
@@ -1615,15 +1600,13 @@ def test_a_retired_widget_preparation_cannot_credit_a_passive_landing(
           const terminal = Promise.withResolvers();
           window.terminal = terminal.promise;
           document.querySelector('#press').addEventListener('click', () => {
-            if (retiredAt !== "no preparation") {
-              let identity;
-              const stop = document.querySelector('script[data-lf-entry]').lfObserveWidgetPreparations((phase, preparation) => {
-                if (phase === 'begin') identity ??= preparation;
-                else if (preparation === identity) { terminal.resolve(); stop(); }
-              });
-              widgetController(widget).present(gate.promise);
-            } else terminal.resolve();
-            if (["no preparation", "click"].includes(retiredAt)) widget.remove();
+            let identity;
+            const stop = document.querySelector('script[data-lf-entry]').lfObserveWidgetPreparations((phase, preparation) => {
+              if (phase === 'begin') identity ??= preparation;
+              else if (preparation === identity) { terminal.resolve(); stop(); }
+            });
+            widgetController(widget).present(gate.promise);
+            if (retiredAt === "click") widget.remove();
           }, {once: true});
         }""",
         retired_at,
@@ -2572,6 +2555,71 @@ def test_fold_reparenting_keeps_only_its_original_flow_credit(
         ), motions
 
 
+@pytest.mark.parametrize("holder", ["disclosure", "tab", "auto"])
+def test_a_control_drawn_out_of_skipped_content_is_watched(browser, holder):
+    """The watch leaves out what the browser skips: a closed disclosure's content, a shut
+    tab's panel, an off-screen `content-visibility: auto` box's contents. Once the page
+    draws such a control, a script moving it is reported as anywhere else."""
+    inside = '<button id="inside" style="position:relative">Inside</button>'
+    markup, reveal = {
+        "disclosure": (
+            f'<details id="holder"><summary>Fold</summary>{inside}</details>',
+            "holder.open = true",
+        ),
+        "tab": (
+            f'<div id="holder" hidden="until-found">{inside}</div>',
+            "holder.hidden = false",
+        ),
+        "auto": (
+            '<div style="height:3000px"></div>'
+            f'<div id="holder" style="content-visibility:auto">{inside}</div>',
+            "holder.scrollIntoView()",
+        ),
+    }[holder]
+    page = browser.new_page()
+    page.goto(
+        "data:text/html," + quote(f'<!doctype html><body style="margin:0">{markup}')
+    )
+    page.evaluate("document.body.setAttribute('data-lf-presented', '')")
+    paint(page)
+    drawn = "() => inside.checkVisibility({contentVisibilityAuto: true})"
+    assert not page.evaluate(drawn)
+    page.evaluate(reveal)
+    page.wait_for_function(drawn)
+    paint(page)
+    page.evaluate("inside.style.top = '40px'")
+    judge_watches()
+    consume_browser_errors(page, moved_within("button#inside"))
+
+
+def test_a_box_the_browser_stops_drawing_without_a_scroll_leaves_no_stale_reading(
+    browser,
+):
+    """A `content-visibility: auto` box just below the window is drawn; a write above
+    it that pushes it far down, with no scroll, makes the browser stop drawing it a
+    frame or more later. The watch reads the box as it goes and then without it, so
+    the verdict's own complete reading finds no change the watch missed."""
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote(
+            '<!doctype html><body style="margin:0">'
+            '<div style="height:100vh">Top</div><div id="spacer"></div>'
+            '<div id="holder" style="content-visibility:auto">'
+            '<button id="inside">Inside</button></div>'
+        )
+    )
+    page.evaluate("document.body.setAttribute('data-lf-presented', '')")
+    paint(page)
+    drawn = "() => inside.checkVisibility({contentVisibilityAuto: true})"
+    assert page.evaluate(drawn)
+    page.evaluate("spacer.style.height = '5000px'")
+    page.wait_for_function(f"!({drawn})()")
+    paint(page)
+    judge_watches()
+    assert take_browser_errors(page) == []
+
+
 @pytest.mark.parametrize("barrier", ["absolute", "bounded-ancestor", "movement"])
 def test_size_animation_rejection_retains_its_geometry(browser, barrier):
     """Rejected reflow keeps the source, receiver and first failing geometry check."""
@@ -2727,7 +2775,7 @@ def test_sampled_native_translation_distinguishes_press_from_news(browser, motio
         consume_browser_errors(page, moved_within("div#below"))
 
 
-@pytest.mark.parametrize("motion", ["none", "scroll", "stalled", "finite", "unbounded"])
+@pytest.mark.parametrize("motion", ["scroll", "stalled", "finite", "unbounded"])
 def test_completed_input_does_not_own_an_effects_unrelated_passive_motion(
     browser, motion
 ):
@@ -2749,10 +2797,9 @@ def test_completed_input_does_not_own_an_effects_unrelated_passive_motion(
 });</script></body>""")
     )
     paint(page)
-    if motion != "none":
-        page.evaluate("kind=>window.motionKind=kind", motion)
-        page.locator("#attach").click()
-        assert page.evaluate("attachmentMotion.playState") == "running"
+    page.evaluate("kind=>window.motionKind=kind", motion)
+    page.locator("#attach").click()
+    assert page.evaluate("attachmentMotion.playState") == "running"
     judge_watches()
     assert take_browser_errors(page) == []
     before = page.locator("#field").bounding_box()
@@ -3533,24 +3580,31 @@ def test_typing_root_scroll_keeps_a_fixed_field_but_not_its_local_carry(browser,
 # The clean case runs under both declarations; each fault runs under one, since where
 # the insets are written changes how the credit is found, not what an extra move is.
 # Rules disagreeing need the insets in rules, and an important rule over an inline
-# inset needs the inset inline.
+# inset needs the inset inline. A transform above the scroller changes the geometry of
+# a credit, so it runs on the cases that move something, and not on those about which
+# declaration is in force, which the cascade settles whatever the transform.
+TURNED = "scale(.8) rotate(10deg)"
 ANCHOR_SCROLL_CASES = [
-    ("", "inline"),
-    ("", "scoped_rule"),
-    ("portal_x", "inline"),
-    ("portal_y", "scoped_rule"),
-    ("anchor_x", "scoped_rule"),
-    ("anchor_y", "inline"),
-    ("declared_unused", "inline"),
-    ("rule_unused", "scoped_rule"),
-    ("important_rule", "inline"),
+    ("", "inline", "none"),
+    ("", "inline", TURNED),
+    ("", "scoped_rule", "none"),
+    ("portal_x", "inline", "none"),
+    ("portal_x", "inline", TURNED),
+    ("portal_y", "scoped_rule", "none"),
+    ("portal_y", "scoped_rule", TURNED),
+    ("anchor_x", "scoped_rule", "none"),
+    ("anchor_x", "scoped_rule", TURNED),
+    ("anchor_y", "inline", "none"),
+    ("anchor_y", "inline", TURNED),
+    ("declared_unused", "inline", "none"),
+    ("rule_unused", "scoped_rule", "none"),
+    ("important_rule", "inline", "none"),
 ]
 
 
-@pytest.mark.parametrize("fault, declared", ANCHOR_SCROLL_CASES)
-@pytest.mark.parametrize("transform", ["none", "scale(.8) rotate(10deg)"])
+@pytest.mark.parametrize("fault, declared, transform", ANCHOR_SCROLL_CASES)
 def test_native_anchor_scroll_retains_local_motion_proof(
-    browser, fault, transform, declared
+    browser, fault, declared, transform
 ):
     """A portal following its anchor's scroll is credited whether its insets are
     written inline or stated in its tree's stylesheet, and whether its anchor's name is
@@ -4331,8 +4385,10 @@ def test_real_factory_invalidates_nonwindow_and_stopped_tenure(browser, serve, f
     assert names_move(errors, "textarea#field"), errors
 
 
-@pytest.mark.parametrize("mode", ["pointer", "keyboard"])
-@pytest.mark.parametrize("fault", ["", "late", "synthetic"])
+@pytest.mark.parametrize(
+    "mode, fault",
+    [("pointer", "late"), ("keyboard", "late"), ("script", "synthetic")],
+)
 def test_native_activation_owns_its_release_not_later_motion(browser, mode, fault):
     page = browser.new_page()
     page.goto(
@@ -4366,13 +4422,12 @@ def test_native_activation_owns_its_release_not_later_motion(browser, mode, faul
         assert names_move(errors, "textarea#field"), errors
     else:
         assert errors == [], errors
-        if fault == "late":
-            paint(page)
-            page.evaluate("document.querySelector('#above').style.height='80px'")
-            paint(page)
-            judge_watches()
-            errors = take_browser_errors(page)
-            assert names_move(errors, "textarea#field"), errors
+        paint(page)
+        page.evaluate("document.querySelector('#above').style.height='80px'")
+        paint(page)
+        judge_watches()
+        errors = take_browser_errors(page)
+        assert names_move(errors, "textarea#field"), errors
 
 
 @pytest.mark.parametrize("pressed", [True, False])

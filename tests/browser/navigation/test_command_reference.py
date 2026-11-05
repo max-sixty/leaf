@@ -552,47 +552,55 @@ def test_a_command_reference_versions_press_enters_the_menu_from_the_leaf(
     expect(versions).to_be_focused()
 
 
-@pytest.mark.parametrize("viewport", [(1280, 800), (390, 800), (800, 320)])
 def test_the_reference_keeps_its_top_and_search_still_when_filtering(
-    browser, serve, viewport
+    browser, serve, subtests
 ):
     """Results shrink below the search field, including an empty result set."""
     page = open_page(browser, serve(NOTED_PAGE))
-    resized(page, *viewport)
-    page.keyboard.press("?")
     reference = page.locator(".lf-command-reference")
     search = page.get_by_role("combobox", name="Search commands")
-    expect(search).to_be_focused()
-    initial_dialog = reference.bounding_box()
-    search_field = reference.locator(".lf-command-reference-search")
-    initial_search = search_field.bounding_box()
-    commands = reference.locator(".lf-command-reference-command:visible")
-    initial_count = commands.count()
+    for viewport in [(1280, 800), (390, 800), (800, 320)]:
+        with subtests.test(viewport=viewport):
+            resized(page, *viewport)
+            page.keyboard.press("?")
+            expect(search).to_be_focused()
+            initial_dialog = reference.bounding_box()
+            search_field = reference.locator(".lf-command-reference-search")
+            initial_search = search_field.bounding_box()
+            commands = reference.locator(".lf-command-reference-command:visible")
+            initial_count = commands.count()
 
-    for query in ("page.search.open", "no command has these words", ""):
-        if query:
-            search.fill(query)
-        else:
-            search_field.get_by_role("button", name="Clear entry").click()
-            expect(search).to_have_value("")
-            expect(commands).to_have_count(initial_count)
-        if query == "page.search.open":
-            expect(
-                reference.locator(".lf-command-reference-command:visible")
-            ).to_have_count(1)
-        if query == "no command has these words":
-            expect(reference.locator(".lf-rows-empty")).to_be_visible()
-            # At the shortest viewport both states can meet the same height limit.
-            assert reference.bounding_box()["height"] <= initial_dialog["height"]
-            if viewport[1] > 320:
-                assert reference.bounding_box()["height"] < initial_dialog["height"]
-        expect(search).to_be_focused()
-        dialog = reference.bounding_box()
-        field = search_field.bounding_box()
-        assert dialog["y"] == pytest.approx(initial_dialog["y"], abs=0.5)
-        for axis in ("x", "y", "width", "height"):
-            assert field[axis] == pytest.approx(initial_search[axis], abs=0.5)
-        assert dialog["y"] + dialog["height"] <= viewport[1] - 16
+            for query in ("page.search.open", "no command has these words", ""):
+                if query:
+                    search.fill(query)
+                else:
+                    search_field.get_by_role("button", name="Clear entry").click()
+                    expect(search).to_have_value("")
+                    expect(commands).to_have_count(initial_count)
+                if query == "page.search.open":
+                    expect(
+                        reference.locator(".lf-command-reference-command:visible")
+                    ).to_have_count(1)
+                if query == "no command has these words":
+                    expect(reference.locator(".lf-rows-empty")).to_be_visible()
+                    # At the shortest viewport both states can meet the same height limit.
+                    assert (
+                        reference.bounding_box()["height"] <= initial_dialog["height"]
+                    )
+                    if viewport[1] > 320:
+                        assert (
+                            reference.bounding_box()["height"]
+                            < initial_dialog["height"]
+                        )
+                expect(search).to_be_focused()
+                dialog = reference.bounding_box()
+                field = search_field.bounding_box()
+                assert dialog["y"] == pytest.approx(initial_dialog["y"], abs=0.5)
+                for axis in ("x", "y", "width", "height"):
+                    assert field[axis] == pytest.approx(initial_search[axis], abs=0.5)
+                assert dialog["y"] + dialog["height"] <= viewport[1] - 16
+            page.keyboard.press("Escape")
+            expect(reference).to_be_hidden()
 
 
 def test_the_reference_keeps_local_search_state_on_one_lit_surface(browser, serve):

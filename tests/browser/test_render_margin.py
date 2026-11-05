@@ -296,113 +296,6 @@ def test_margin_target_hover_requires_pointer_movement(browser, serve):
     expect(target).to_have_attribute("data-lf-traced", "")
 
 
-def test_a_thread_uses_a_free_margin_and_tracks_its_source(browser, serve):
-    """A readable free margin outranks an overlay and follows the selected cluster."""
-    url = serve(THREAD_CARD_PAGE)
-    text_thread, _ = _seed_card_threads(serve.page_dir)
-    page = open_page(browser, url)
-    page.emulate_media(reduced_motion="reduce")
-    resized(page, 2672, 900)
-    page.evaluate(RELEASE_FOCUS)
-    _open_thread(page, "thread-text", text_thread)
-    expect(page.locator("#thread-text")).to_be_in_viewport()
-    expect(page.locator(".lf-margin-preview")).to_be_visible()
-
-    geometry = page.evaluate(
-        """() => {
-          const cardNode = document.querySelector('.lf-margin-preview');
-          const controlsNode = document.querySelector(
-            '[data-lf-margin-for="thread-text"]');
-          const rect = node => node.getBoundingClientRect();
-          const card = rect(cardNode);
-          const controls = rect(controlsNode);
-          const target = rect(document.querySelector('#thread-text'));
-          const overlaps = (one, other) => one.left < other.right
-            && other.left < one.right && one.top < other.bottom
-            && other.top < one.bottom;
-          const coveredControls = [...document.querySelectorAll('[data-lf-margin-for]')]
-            .filter(node => node !== controlsNode && node.checkVisibility())
-            .map(rect)
-            .filter(other => other.width && other.height && overlaps(card, other)).length;
-          return {placement: cardNode.dataset.lfThreadPlacement,
-                  controlsRight: controls.right, targetRight: target.right,
-                  controlsTop: controls.top, cardLeft: card.left,
-                  cardTop: card.top, cardWidth: card.width, coveredControls,
-                  targetTop: target.top, targetBottom: target.bottom,
-                  preferred: parseFloat(getComputedStyle(cardNode)
-                    .getPropertyValue('--thread-card'))};
-        }"""
-    )
-    # With room for its whole measure, the card clears both its words and its cluster,
-    # which here is a pin standing on the block the thread is about and reaching past it.
-    assert geometry["placement"] == "right", geometry
-    assert (
-        geometry["cardLeft"]
-        >= max(geometry["controlsRight"], geometry["targetRight"]) + 8 - 0.5
-    ), geometry
-    assert geometry["cardWidth"] == pytest.approx(geometry["preferred"], abs=0.5), (
-        geometry
-    )
-    assert geometry["coveredControls"] == 0, geometry
-    assert geometry["targetTop"] >= 0, geometry
-    assert geometry["targetBottom"] <= 900, geometry
-
-    # The card's top edge stands a gap over its words' first line while the whole card
-    # fits under it, as the comment box's does (comment-placement.js), and it holds at
-    # the window's foot once the words scroll lower than that. The panel stands beside
-    # this margin, so it takes none of the card's height. Read each scroll after rendering
-    # settles, including the layout observers that can queue another placement.
-    positions = """() => {
-        const card = document.querySelector('.lf-margin-preview').getBoundingClientRect();
-        const panel = document.querySelector('.lf-fp-card').getBoundingClientRect();
-        return {
-          card: card.top, cardBottom: card.bottom, foot: innerHeight,
-          besidePanel: card.left >= panel.right || card.right <= panel.left,
-          // The words the thread quotes start the paragraph's first line.
-          controls: (() => {
-            const range = document.createRange();
-            range.selectNodeContents(document.querySelector('#thread-text'));
-            return range.getClientRects()[0].top - 8;
-          })(),
-          scrollY,
-        };
-    }"""
-    moved = {}
-    # Keep the first two positions below the window's 8px boundary, so these
-    # readings exercise following the words rather than clamping.
-    for name, distance in (("high", 180), ("higher", 40), ("low", -450)):
-        page.evaluate("distance => scrollBy(0, distance)", distance)
-        rendered(page)
-        moved[name] = page.evaluate(positions)
-    assert moved["high"]["card"] == pytest.approx(moved["high"]["controls"], abs=0.5)
-    assert moved["higher"]["scrollY"] - moved["high"]["scrollY"] >= 39
-    assert moved["higher"]["card"] - moved["higher"]["controls"] == pytest.approx(
-        moved["high"]["card"] - moved["high"]["controls"], abs=0.5
-    ), moved
-    assert moved["low"]["controls"] > moved["low"]["card"], moved
-    assert moved["low"]["besidePanel"], moved
-    assert moved["low"]["cardBottom"] == pytest.approx(
-        moved["low"]["foot"] - 8, abs=0.5
-    ), moved
-    expect(page.locator(".lf-margin-preview")).to_be_visible()
-    # Scrolled a window further, the words have left over the top, and the card leaves
-    # with them, its top on their line.
-    page.evaluate("scrollBy(0, innerHeight)")
-    rendered(page)
-    gone = page.evaluate(
-        """() => {
-          const range = document.createRange();
-          range.selectNodeContents(document.querySelector('#thread-text'));
-          return {
-            card: document.querySelector('.lf-margin-preview').getBoundingClientRect().top,
-            controls: range.getClientRects()[0].top,
-          };
-        }"""
-    )
-    assert gone["controls"] < 0, gone
-    assert gone["card"] == pytest.approx(gone["controls"], abs=0.5), gone
-
-
 def test_a_forced_inline_thread_keeps_its_control_reachable_on_a_crowded_cluster(
     browser, serve
 ):
@@ -473,87 +366,191 @@ def test_a_forced_inline_thread_keeps_its_control_reachable_on_a_crowded_cluster
     expect(reply).to_have_js_property("value", "The covered terrace is easier to find.")
 
 
-def test_a_thread_in_a_short_rail_stands_on_the_side_with_room(browser, serve):
-    """A rail short of the card's minimum puts the card on the side of its words that
-    holds it, here the left, as it would the comment box (comment-placement.js), at its
-    full height and level with the words."""
+def test_a_thread_card_takes_the_room_its_window_gives_it(browser, serve, subtests):
+    """A readable free margin outranks an overlay and follows the selected cluster. A
+    middle-width margin gives marker clearance to the message's width. A rail short of
+    the card's minimum puts the card on the side of its words that holds it, here the
+    left, as it would the comment box (comment-placement.js), at its full height and
+    level with the words. The widest window's scrolling comes first, while nothing has
+    moved the words from the middle of the window."""
     url = serve(THREAD_CARD_PAGE)
     text_thread, _ = _seed_card_threads(serve.page_dir)
     page = open_page(browser, url)
     page.emulate_media(reduced_motion="reduce")
-    resized(page, 1024, 900)
-    page.evaluate(RELEASE_FOCUS)
-    _open_thread(page, "thread-text", text_thread)
-    geometry = page.evaluate(
-        """() => {
-          const cardNode = document.querySelector('.lf-margin-preview');
-          const card = cardNode.getBoundingClientRect();
-          const words = document.querySelector('#thread-text').getBoundingClientRect();
-          const style = getComputedStyle(cardNode);
-          const list = cardNode.querySelector('.lf-thread-transcript');
-          return {placement: cardNode.dataset.lfThreadPlacement,
-                  cardLeft: card.left, cardRight: card.right, cardWidth: card.width,
-                  clipped: list.scrollHeight - list.clientHeight,
-                  wordsLeft: words.left, viewport: innerWidth,
-                  minimum: parseFloat(style.getPropertyValue('--thread-card-min'))};
+
+    def opened_at(width):
+        resized(page, width, 900)
+        page.evaluate(RELEASE_FOCUS)
+        _open_thread(page, "thread-text", text_thread)
+
+    def close():
+        page.keyboard.press("Escape")
+        expect(page.locator(".lf-margin-preview")).to_be_hidden()
+
+    with subtests.test(width=2672):
+        opened_at(2672)
+        expect(page.locator("#thread-text")).to_be_in_viewport()
+        expect(page.locator(".lf-margin-preview")).to_be_visible()
+
+        geometry = page.evaluate(
+            """() => {
+              const cardNode = document.querySelector('.lf-margin-preview');
+              const controlsNode = document.querySelector(
+                '[data-lf-margin-for="thread-text"]');
+              const rect = node => node.getBoundingClientRect();
+              const card = rect(cardNode);
+              const controls = rect(controlsNode);
+              const target = rect(document.querySelector('#thread-text'));
+              const overlaps = (one, other) => one.left < other.right
+                && other.left < one.right && one.top < other.bottom
+                && other.top < one.bottom;
+              const coveredControls = [...document.querySelectorAll('[data-lf-margin-for]')]
+                .filter(node => node !== controlsNode && node.checkVisibility())
+                .map(rect)
+                .filter(other => other.width && other.height && overlaps(card, other)).length;
+              return {placement: cardNode.dataset.lfThreadPlacement,
+                      controlsRight: controls.right, targetRight: target.right,
+                      controlsTop: controls.top, cardLeft: card.left,
+                      cardTop: card.top, cardWidth: card.width, coveredControls,
+                      targetTop: target.top, targetBottom: target.bottom,
+                      preferred: parseFloat(getComputedStyle(cardNode)
+                        .getPropertyValue('--thread-card'))};
+            }"""
+        )
+        # With room for its whole measure, the card clears both its words and its cluster,
+        # which here is a pin standing on the block the thread is about and reaching past it.
+        assert geometry["placement"] == "right", geometry
+        assert (
+            geometry["cardLeft"]
+            >= max(geometry["controlsRight"], geometry["targetRight"]) + 8 - 0.5
+        ), geometry
+        assert geometry["cardWidth"] == pytest.approx(geometry["preferred"], abs=0.5), (
+            geometry
+        )
+        assert geometry["coveredControls"] == 0, geometry
+        assert geometry["targetTop"] >= 0, geometry
+        assert geometry["targetBottom"] <= 900, geometry
+
+        # The card's top edge stands a gap over its words' first line while the whole card
+        # fits under it, as the comment box's does (comment-placement.js), and it holds at
+        # the window's foot once the words scroll lower than that. The panel stands beside
+        # this margin, so it takes none of the card's height. Read each scroll after rendering
+        # settles, including the layout observers that can queue another placement.
+        positions = """() => {
+            const card = document.querySelector('.lf-margin-preview').getBoundingClientRect();
+            const panel = document.querySelector('.lf-fp-card').getBoundingClientRect();
+            return {
+              card: card.top, cardBottom: card.bottom, foot: innerHeight,
+              besidePanel: card.left >= panel.right || card.right <= panel.left,
+              // The words the thread quotes start the paragraph's first line.
+              controls: (() => {
+                const range = document.createRange();
+                range.selectNodeContents(document.querySelector('#thread-text'));
+                return range.getClientRects()[0].top - 8;
+              })(),
+              scrollY,
+            };
         }"""
-    )
-    words = page.evaluate(WORDS_RIGHT)
-    assert geometry["viewport"] - 8 - (words + 8) < geometry["minimum"], geometry
-    assert geometry["wordsLeft"] - 16 >= geometry["minimum"], geometry
-    assert geometry["placement"] == "left", geometry
-    assert geometry["cardRight"] == pytest.approx(geometry["wordsLeft"] - 8, abs=0.5), (
-        geometry
-    )
-    assert geometry["cardLeft"] >= 7.5, geometry
-    assert geometry["cardWidth"] >= geometry["minimum"] - 0.5, geometry
-    assert geometry["clipped"] <= 0, geometry
+        moved = {}
+        # Keep the first two positions below the window's 8px boundary, so these
+        # readings exercise following the words rather than clamping.
+        for name, distance in (("high", 180), ("higher", 40), ("low", -450)):
+            page.evaluate("distance => scrollBy(0, distance)", distance)
+            rendered(page)
+            moved[name] = page.evaluate(positions)
+        assert moved["high"]["card"] == pytest.approx(
+            moved["high"]["controls"], abs=0.5
+        )
+        assert moved["higher"]["scrollY"] - moved["high"]["scrollY"] >= 39
+        assert moved["higher"]["card"] - moved["higher"]["controls"] == pytest.approx(
+            moved["high"]["card"] - moved["high"]["controls"], abs=0.5
+        ), moved
+        assert moved["low"]["controls"] > moved["low"]["card"], moved
+        assert moved["low"]["besidePanel"], moved
+        assert moved["low"]["cardBottom"] == pytest.approx(
+            moved["low"]["foot"] - 8, abs=0.5
+        ), moved
+        expect(page.locator(".lf-margin-preview")).to_be_visible()
+        # Scrolled a window further, the words have left over the top, and the card leaves
+        # with them, its top on their line.
+        page.evaluate("scrollBy(0, innerHeight)")
+        rendered(page)
+        gone = page.evaluate(
+            """() => {
+              const range = document.createRange();
+              range.selectNodeContents(document.querySelector('#thread-text'));
+              return {
+                card: document.querySelector('.lf-margin-preview').getBoundingClientRect().top,
+                controls: range.getClientRects()[0].top,
+              };
+            }"""
+        )
+        assert gone["controls"] < 0, gone
+        assert gone["card"] == pytest.approx(gone["controls"], abs=0.5), gone
+        close()
 
+    with subtests.test(width=1600):
+        opened_at(1600)
+        geometry = page.evaluate(
+            """() => {
+              const cardNode = document.querySelector('.lf-margin-preview');
+              const list = cardNode.querySelector('.lf-thread-transcript');
+              const card = cardNode.getBoundingClientRect();
+              const words = document.querySelector('#thread-text').getBoundingClientRect();
+              const pin = document.querySelector('[data-lf-margin-for="thread-text"]')
+                .getBoundingClientRect();
+              const style = getComputedStyle(cardNode);
+              return {placement: cardNode.dataset.lfThreadPlacement,
+                      cardLeft: card.left, cardRight: card.right, cardWidth: card.width,
+                      wordsRight: words.right, pinRight: pin.right, viewport: innerWidth,
+                      minimum: parseFloat(style.getPropertyValue('--thread-card-min')),
+                      preferred: parseFloat(style.getPropertyValue('--thread-card')),
+                      clipped: list.scrollHeight - list.clientHeight};
+            }"""
+        )
+        room_past_pin = geometry["viewport"] - 8 - (geometry["pinRight"] + 8)
+        assert geometry["wordsRight"] < geometry["pinRight"], geometry
+        assert geometry["minimum"] <= room_past_pin < geometry["preferred"], geometry
+        assert geometry["placement"] == "right", geometry
+        assert geometry["cardLeft"] == pytest.approx(
+            geometry["wordsRight"] + 8, abs=0.5
+        ), geometry
+        # A compact marker can end inside the gap beside the words, especially with
+        # Linux's narrower fonts. Width priority removes the marker's clearance; it
+        # need not cover that marker's painted pixels.
+        assert geometry["cardWidth"] > room_past_pin, geometry
+        assert geometry["cardRight"] == pytest.approx(
+            geometry["viewport"] - 8, abs=0.5
+        ), geometry
+        assert geometry["minimum"] <= geometry["cardWidth"] < geometry["preferred"], (
+            geometry
+        )
+        assert geometry["clipped"] <= 0, geometry
+        close()
 
-def test_a_thread_beside_its_words_takes_the_room_to_the_visible_edge(browser, serve):
-    """A middle-width margin gives marker clearance to the message's width."""
-    url = serve(THREAD_CARD_PAGE)
-    text_thread, _ = _seed_card_threads(serve.page_dir)
-    page = open_page(browser, url)
-    page.emulate_media(reduced_motion="reduce")
-    resized(page, 1600, 900)
-    page.evaluate(RELEASE_FOCUS)
-    _open_thread(page, "thread-text", text_thread)
-    geometry = page.evaluate(
-        """() => {
-          const cardNode = document.querySelector('.lf-margin-preview');
-          const list = cardNode.querySelector('.lf-thread-transcript');
-          const card = cardNode.getBoundingClientRect();
-          const words = document.querySelector('#thread-text').getBoundingClientRect();
-          const pin = document.querySelector('[data-lf-margin-for="thread-text"]')
-            .getBoundingClientRect();
-          const style = getComputedStyle(cardNode);
-          return {placement: cardNode.dataset.lfThreadPlacement,
-                  cardLeft: card.left, cardRight: card.right, cardWidth: card.width,
-                  wordsRight: words.right, pinRight: pin.right, viewport: innerWidth,
-                  minimum: parseFloat(style.getPropertyValue('--thread-card-min')),
-                  preferred: parseFloat(style.getPropertyValue('--thread-card')),
-                  clipped: list.scrollHeight - list.clientHeight};
-        }"""
-    )
-    room_past_pin = geometry["viewport"] - 8 - (geometry["pinRight"] + 8)
-    assert geometry["wordsRight"] < geometry["pinRight"], geometry
-    assert geometry["minimum"] <= room_past_pin < geometry["preferred"], geometry
-    assert geometry["placement"] == "right", geometry
-    assert geometry["cardLeft"] == pytest.approx(geometry["wordsRight"] + 8, abs=0.5), (
-        geometry
-    )
-    # A compact marker can end inside the gap beside the words, especially with
-    # Linux's narrower fonts. Width priority removes the marker's clearance; it
-    # need not cover that marker's painted pixels.
-    assert geometry["cardWidth"] > room_past_pin, geometry
-    assert geometry["cardRight"] == pytest.approx(geometry["viewport"] - 8, abs=0.5), (
-        geometry
-    )
-    assert geometry["minimum"] <= geometry["cardWidth"] < geometry["preferred"], (
-        geometry
-    )
-    assert geometry["clipped"] <= 0, geometry
-
-
-import pytest
+    with subtests.test(width=1024):
+        opened_at(1024)
+        geometry = page.evaluate(
+            """() => {
+              const cardNode = document.querySelector('.lf-margin-preview');
+              const card = cardNode.getBoundingClientRect();
+              const words = document.querySelector('#thread-text').getBoundingClientRect();
+              const style = getComputedStyle(cardNode);
+              const list = cardNode.querySelector('.lf-thread-transcript');
+              return {placement: cardNode.dataset.lfThreadPlacement,
+                      cardLeft: card.left, cardRight: card.right, cardWidth: card.width,
+                      clipped: list.scrollHeight - list.clientHeight,
+                      wordsLeft: words.left, viewport: innerWidth,
+                      minimum: parseFloat(style.getPropertyValue('--thread-card-min'))};
+            }"""
+        )
+        words = page.evaluate(WORDS_RIGHT)
+        assert geometry["viewport"] - 8 - (words + 8) < geometry["minimum"], geometry
+        assert geometry["wordsLeft"] - 16 >= geometry["minimum"], geometry
+        assert geometry["placement"] == "left", geometry
+        assert geometry["cardRight"] == pytest.approx(
+            geometry["wordsLeft"] - 8, abs=0.5
+        ), geometry
+        assert geometry["cardLeft"] >= 7.5, geometry
+        assert geometry["cardWidth"] >= geometry["minimum"] - 0.5, geometry
+        assert geometry["clipped"] <= 0, geometry

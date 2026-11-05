@@ -356,7 +356,14 @@ def test_contextual_messages_share_text_spacing_through_send_and_reopen(
                 body.evaluate("(node, key) => getComputedStyle(node)[key]", property),
             )
     rendered(page)
-    preview.locator(".lf-thread-transcript").evaluate("node => { node.scrollTop = 0; }")
+    # The user scrolls back to the first message, which ends the send's hold on the
+    # transcript's end (thread/reply-landing.js, `keepThreadLanding`).
+    transcript = preview.locator(".lf-thread-transcript")
+    transcript.hover()
+    page.mouse.wheel(0, -2000)
+    page.wait_for_function(
+        "node => node.scrollTop === 0", arg=transcript.element_handle()
+    )
     scroll_settled(page, ".lf-margin-preview .lf-thread-transcript")
     measure_gaps = """messages => messages.map(message => {
       const name = message.querySelector('.lf-msg-head b').getBoundingClientRect();
@@ -554,22 +561,6 @@ def test_a_pointer_send_finishes_the_words_an_input_method_holds(browser, serve)
     assert any(event.get("text") == "Sent from the box.にほ" for event in sent), sent
     # The page comment's box the send emptied stays empty.
     expect(page_comment(page)).to_have_js_property("value", "")
-
-
-def test_a_seat_send_puts_the_user_on_the_thread_it_started(browser, serve):
-    """A seat that gives its box up to the thread its first message starts took the
-    focus with it, dropping the user on the page. They stand on the thread instead,
-    where any send leaves them."""
-    url, host = seated_page(serve, "verdict")
-    page = open_page(browser, url)
-    box = page.locator(f"{host} > .lf-thread-seat > .lf-say leaf-text")
-    box.scroll_into_view_if_needed()
-    write(box, "First thought.")
-    with sending(page, "the first message"):
-        page.keyboard.press("Enter")
-    thread = page.locator(f"{host} > .lf-thread-seat > .lf-page-thread")
-    expect(thread).to_have_count(1)
-    expect(thread).to_be_focused()
 
 
 @pytest.mark.parametrize("kind", ["task", "verdict"])

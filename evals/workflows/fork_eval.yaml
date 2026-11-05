@@ -9,8 +9,8 @@
 # leave out, each by `kind` and the `words` (any of them) it rests on; a guardrail
 # shares its words with its positive case. A stale label's `edit` is the words its
 # fix must remove, or null where the turn-end check's prompt asks for no edit
-# (skills/leaf/references/turn-end-check.md). A reply case's `decision` is `reply`
-# or `hand_over`.
+# (skills/leaf/references/turn-end-check.md). A reply case judges the working line
+# the fork posted as it handed the message to the session.
 
 # When each conversation starts; its records follow seven seconds apart.
 start: "2026-11-03T09:00:00+00:00"
@@ -44,22 +44,21 @@ rubrics:
       page, if an On me item already holds it, if the user has since answered it, if
       it concerns a server, watcher or wait loop serving only the agent's own checks,
       or if it repeats another item.
-  reply: &reply
+  line: &line
     type: llm-rubric
-    metric: reply-right
-    transform: context.metadata.texts?.reply || 'The fork gave no usable answer.'
+    metric: line-right
+    transform: context.metadata.texts?.line || 'The fork gave no usable answer.'
     value: >-
       The input is the line "The fork gave no usable answer.", which fails, or a
-      conversation between a user and a coding agent, the user's
-      message in a thread on the agent's page, and the reply a fork of the
-      conversation posted in the thread as the agent's. Pass only if the reply answers
-      the message directly and correctly, and promises no work. Every observation it
-      states must be in the conversation: a count, an error message, a result, a
-      command that ran or what a file contains. Fail a reply that states one the
-      conversation lacks, such as all of several failures having one error when the
-      output shows one. An explanation the reply offers passes where it is
-      consistent with what the conversation shows, even if the conversation never
-      states it.
+      conversation between a user and a coding agent, the tool call the agent is
+      running now (an empty list when none), the user's message in a thread on the
+      agent's page, and the one line a fork of the conversation posted in the thread
+      as the agent's working line while it handed the message to the agent, which
+      reads "(no line)" when it posted none, which fails. Pass only if the line says
+      in a few plain words what the agent will do about the message, in the way the
+      conversation makes likely, as the agent says it before starting; gives no
+      answer, result or finished work, even one the conversation holds; and says
+      nothing of a fork, a main session or a hand-over, which the user never sees.
 
 # The words a guardrail and its positive case share.
 words:
@@ -582,9 +581,8 @@ cases:
         anchor:
           section: ft-lede
           quote: fails in about 1 run in 30 on CI and never on a laptop
-    decision: reply
     assert:
-      - *reply
+      - *line
   meaning:
     fork: reply
     page: fork-reply/pages/flaky-test.html
@@ -601,9 +599,8 @@ cases:
         anchor:
           section: ft-cause-body
           quote: launches the warmup as a background task
-    decision: reply
     assert:
-      - *reply
+      - *line
   work-request:
     fork: reply
     page: fork-reply/pages/flaky-test.html
@@ -620,8 +617,8 @@ cases:
         anchor:
           section: ft-cause
           quote: Cause
-    decision: hand_over
-    assert: []
+    assert:
+      - *line
   user-decides:
     fork: reply
     page: fork-reply/pages/flaky-test.html
@@ -660,8 +657,8 @@ cases:
         parent: q1
         id: w1
         text: Await it. 200 ms at startup doesn't matter for us.
-    decision: hand_over
-    assert: []
+    assert:
+      - *line
   still-running:
     fork: reply
     page: fork-reply/pages/flaky-test.html
@@ -690,8 +687,8 @@ cases:
         anchor:
           section: ft-fix-await
           quote: Await the warmup in
-    decision: hand_over
-    assert: []
+    assert:
+      - *line
   work-out:
     fork: reply
     page: fork-reply/pages/flaky-test.html
@@ -708,8 +705,8 @@ cases:
         anchor:
           section: ft-cause-body
           quote: the first request can arrive before the cache is filled
-    decision: hand_over
-    assert: []
+    assert:
+      - *line
   still-deciding:
     fork: reply
     page: fork-reply/pages/flaky-test.html
@@ -731,5 +728,5 @@ cases:
         anchor:
           section: ft-fixes
           quote: Two fixes
-    decision: hand_over
-    assert: []
+    assert:
+      - *line

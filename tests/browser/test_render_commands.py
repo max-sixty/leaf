@@ -135,7 +135,7 @@ def test_shot_controls_have_disjoint_targets_and_labels_stay_passive(
     controls = toolbar.get_by_role("button").or_(toolbar.get_by_role("radio")).all()
     controls = [control for control in controls if control.is_visible()]
     boxes = [control.bounding_box() for control in controls]
-    assert len(boxes) == 5
+    assert len(boxes) == 4
     floor = 44 if touch else 24
     for index, box in enumerate(boxes):
         assert box["width"] >= floor - 0.5, box
@@ -479,7 +479,8 @@ def test_a_shot_compares_pixels_inside_an_opaque_live_sample(browser, serve):
     shot = child.locator("#sample-shot")
     reading = shot.evaluate("async shot => await shot.difference")
     assert reading["regions"]
-    shot.get_by_role("button", name="Outline changes", exact=True).click()
+    shot.get_by_role("button", name="Image options").click()
+    shot.get_by_role("checkbox", name="Outline changes", exact=True).check()
     expect(shot.locator(".lf-shotdiff > span").first).to_be_visible()
 
 
@@ -749,7 +750,7 @@ def test_a_pressed_shot_gets_its_mask_ahead_of_the_other_shots_readings(browser,
               if (!shot.querySelector('.lf-shot-pixel-mask')?.style.length) return;
               mask.disconnect();
               window.lfOthersRead = document.querySelectorAll(
-                'lf-shot:not(#pair-3) .lf-shot-outline[aria-description]').length;
+                'lf-shot:not(#pair-3) .lf-shotstage[aria-description]').length;
             });
             mask.observe(shot, {subtree: true, childList: true, attributeFilter: ['style']});
             shot.querySelector('.lf-shot-views [value="pixels"]').click();
@@ -921,7 +922,6 @@ def test_a_shot_fits_both_wide_captures_and_retains_actual_scale_across_views(
             "Slider",
             "Pixels",
             "Image options",
-            "Outline changes",
         )
     ]
     control_boxes = [control.bounding_box() for control in controls]
@@ -1043,8 +1043,11 @@ def test_a_shot_outlines_and_explains_its_pixel_difference(browser, serve):
     pixels = views.get_by_role("radio", name="Pixels", exact=True)
     expect(slider).to_have_attribute("aria-checked", "true")
     pair.click()
-    outlines = patch.get_by_role("button", name="Outline changes", exact=True)
-    outlines.click()
+    outlines = patch.locator(".lf-shot-outline")
+    options_button = patch.get_by_role("button", name="Image options")
+    options_button.click()
+    outlines.check()
+    page.keyboard.press("Escape")
     expect(patch.locator(".lf-shotdiff > span").first).to_be_visible()
     for mark in patch.locator(".lf-shotdiff > span").all():
         expect(mark).to_have_css("background-color", "rgba(0, 0, 0, 0)")
@@ -1062,10 +1065,10 @@ def test_a_shot_outlines_and_explains_its_pixel_difference(browser, serve):
     [(left, top, right, bottom)] = marks["after"]
     assert left < 420 and right > 480 and top < 200 and bottom > 240
     assert right - left < 80 and bottom - top < 60
-    expect(page.locator("#shot-same .lf-shot-outline")).to_have_attribute(
+    expect(page.locator("#shot-same .lf-shotstage")).to_have_attribute(
         "aria-description", "identical"
     )
-    expect(page.locator("#shot-tint .lf-shot-outline")).to_have_attribute(
+    expect(page.locator("#shot-tint .lf-shotstage")).to_have_attribute(
         "aria-description", "only slight changes"
     )
     expect(page.locator("#shot-same .lf-shotdiff > span")).to_have_count(0)
@@ -1082,7 +1085,7 @@ def test_a_shot_outlines_and_explains_its_pixel_difference(browser, serve):
     expect(pixels).to_be_focused()
     expect(pixels).to_have_attribute("aria-checked", "true")
     expect(outlines).to_be_disabled()
-    expect(outlines).to_have_attribute("aria-pressed", "true")
+    expect(outlines).to_be_checked()
     expect(patch.locator(".lf-shotpixels")).to_be_visible()
     colors = patch.locator(".lf-shotpixels .lf-shotplane > span").evaluate_all(
         "nodes => nodes.map(node => getComputedStyle(node).backgroundColor)"
@@ -1090,7 +1093,7 @@ def test_a_shot_outlines_and_explains_its_pixel_difference(browser, serve):
     assert len(colors) == 1
     options = patch.get_by_role("group", name="Image options", exact=True)
     expect(options).not_to_be_visible()
-    patch.get_by_role("button", name="Image options").click()
+    options_button.click()
     expect(options.locator(".lf-shot-pixel-key")).to_have_text("Changed pixels")
     expect(options.locator(".lf-shot-key-swatch")).to_have_css(
         "background-color", colors[0]
@@ -1106,10 +1109,52 @@ def test_a_shot_outlines_and_explains_its_pixel_difference(browser, serve):
     pair.click()
     expect(pair).to_have_attribute("aria-checked", "true")
     expect(outlines).to_be_enabled()
-    expect(outlines).to_have_attribute("aria-pressed", "true")
+    expect(outlines).to_be_checked()
     expect(patch.locator(".lf-shotdiff > span").first).to_be_visible()
-    outlines.click()
+    options_button.click()
+    outlines.uncheck()
     expect(patch.locator(".lf-shotdiff").last).to_be_hidden()
+
+
+def test_pixels_fade_a_shot_toward_its_own_paper(browser, serve):
+    """A light capture on a dark page stays a pale sheet in Pixels, in the amber that
+    reads on it, and a dark capture on a light page the reverse: fading either toward
+    the page's own ground turned it a muddy grey."""
+    light = solid_png(600, 300, (250, 248, 240))
+    light_changed = solid_png(
+        600, 300, (250, 248, 240), patch=(120, 70, 40, 30, (30, 30, 30))
+    )
+    dark = solid_png(600, 300, (24, 26, 30))
+    dark_changed = solid_png(
+        600, 300, (24, 26, 30), patch=(120, 70, 40, 30, (230, 230, 230))
+    )
+    media = {
+        f"/media/{hashlib.sha256(data).hexdigest()[:16]}.png": data
+        for data in (light, light_changed, dark, dark_changed)
+    }
+    name = {data: path for path, data in media.items()}
+    source = leaf_page(
+        "Pixels on paper",
+        "<h1>Pixels on paper</h1>"
+        f'<lf-shot id="pale" alt="a light capture" before="{name[light]}" after="{name[light_changed]}"></lf-shot>'
+        f'<lf-shot id="deep" alt="a dark capture" before="{name[dark]}" after="{name[dark_changed]}"></lf-shot>',
+    )
+    for scheme, shot_id, paper, ink_scheme in (
+        ("dark", "pale", "rgb(250, 248, 240)", "light"),
+        ("light", "deep", "rgb(24, 26, 30)", "dark"),
+    ):
+        page = open_page(browser, serve(source, media=media), color_scheme=scheme)
+        shot = page.locator(f"#{shot_id}")
+        shot.locator(".lf-shot-views").get_by_role(
+            "radio", name="Pixels", exact=True
+        ).click()
+        expect(shot.locator(".lf-shotpixels .lf-shotplane")).to_have_css(
+            "background-color", paper
+        )
+        expect(shot.locator(".lf-shotpixels .lf-shotplane")).to_have_css(
+            "color-scheme", ink_scheme
+        )
+        page.context.close()
 
 
 def stage_reach_cases(page):

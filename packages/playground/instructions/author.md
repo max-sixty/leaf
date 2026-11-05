@@ -137,6 +137,10 @@ the comparison needs a particular arrangement of either, such as short labels in
 set `--playground-choice-columns` on the authored choice control or its parent to a
 grid's columns, such as `repeat(2, minmax(0, 1fr))`.
 
+Give each control, choice and preset an `id` that names it, such as `format-banner`.
+When the user comments on one of them, the comment records its id, which tells you
+which one they mean.
+
 ```html
 <lf-ask id="notification-ask">
   <h2>Which deployment notification should we build?</h2>
@@ -146,6 +150,7 @@ grid's columns, such as `repeat(2, minmax(0, 1fr))`.
     data-width="available"
   >
     <lf-playground-control
+      id="radius"
       name="radius"
       label="Corner radius"
       kind="range"
@@ -156,29 +161,35 @@ grid's columns, such as `repeat(2, minmax(0, 1fr))`.
       unit="px"
     ></lf-playground-control>
     <lf-playground-control
+      id="compact"
       name="compact"
       label="Compact spacing"
       kind="toggle"
       value="false"
     ></lf-playground-control>
-    <lf-playground-preset label="Compact">
+    <lf-playground-preset id="preset-compact" label="Compact">
       <lf-playground-setting for="radius" value="4"></lf-playground-setting>
       <lf-playground-setting for="compact" value="true"></lf-playground-setting>
     </lf-playground-preset>
     <lf-playground-preview>
       <lf-playground-control
+        id="format"
         name="format"
         label="Notification"
         kind="choice"
         value="banner"
       >
-        <lf-playground-choice value="banner" label="Banner">
+        <lf-playground-choice id="format-banner" value="banner" label="Banner">
           <article class="notification-candidate">
             <h3>Checkout deployed</h3>
             <p>Review the deployment run.</p>
           </article>
         </lf-playground-choice>
-        <lf-playground-choice value="status strip" label="Status strip">
+        <lf-playground-choice
+          id="format-status-strip"
+          value="status strip"
+          label="Status strip"
+        >
           <article class="notification-candidate">
             Checkout · deployed · 18 checks passed
           </article>

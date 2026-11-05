@@ -535,13 +535,23 @@ def test_the_add_field_says_its_whole_hint_on_a_phone(browser, serve):
 
 def test_a_closed_group_answers_only_from_its_options(browser, serve):
     """`closed` leaves out the field for an unlisted answer, so a page that draws its
-    own choice ends at its own options; the listed options still answer."""
+    own choice ends at its own options, holding no room for the field; the listed
+    options still answer."""
     page = open_page(
         browser, serve(OBLIGATION_PAGE.replace('id="jobs"', 'id="jobs" closed'))
     )
 
     expect(page.locator("#jobs > lf-option").first).to_be_visible()
     expect(page.locator("#jobs > .lf-another")).to_have_count(0)
+    expect(page.locator("#jobs > lf-options-done")).to_be_visible()
+    below_last_cell = page.locator("#jobs").evaluate(
+        """group => group.getBoundingClientRect().bottom - Math.max(
+          ...[...group.children].map((cell) => cell.getBoundingClientRect().bottom))"""
+    )
+    assert below_last_cell <= 2, below_last_cell
+    # Nor does it keep the field's number: Done takes the one after the last option.
+    page.keyboard.press("m")
+    expect(page.locator("#jobs > lf-options-done .lf-key-badge")).to_have_text("4")
 
 
 def test_another_option_becomes_a_real_option_without_starting_a_thread(browser, serve):
@@ -563,7 +573,7 @@ def test_another_option_becomes_a_real_option_without_starting_a_thread(browser,
         f"group={page.locator('#jobs').inner_html()}"
     )
     field = added.get_by_role("textbox", name="Another option", exact=True)
-    expect(field).to_have_attribute("placeholder", "Add another option")
+    expect(field).to_have_attribute("placeholder", "Add another option…")
     write(field, "Insulate the camera battery")
     add = added.get_by_role("button", name="Add and select option", exact=True)
     add.focus()

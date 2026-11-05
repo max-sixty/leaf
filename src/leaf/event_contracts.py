@@ -24,6 +24,7 @@ from leaf.findings import Finding
 from leaf.harness import message_identity
 from leaf.layer import incompatible_layer
 from leaf.obligations import (
+    question_ids,
     quoted_in,
     response_address,
 )
@@ -56,6 +57,7 @@ from leaf.registry.reactions import reaction_tokens
 from leaf.registry.schema import schema_complaint
 from leaf.registry.storage import IncompatibleLayer, layer_record
 from leaf.shown_answers import shown_widget
+from leaf.thread_context import thread_names
 from leaf.todos import todo_error
 from leaf.validation.instances import attribute_slot_errors
 from leaf.work import widget_seat_error
@@ -601,6 +603,26 @@ def _parent_error(event: dict, events: list) -> Finding | None:
     return None
 
 
+def _named_question_error(event: dict, events: list) -> Finding | None:
+    """A message's `obligation` names questions its own thread asks in words, each by
+    the id it keeps (`obligations.question_ids`). An event naming any other would put
+    nothing back on On me."""
+    if not isinstance(event.get("obligation"), list):
+        return None
+    threads = thread_names(events)
+    thread = threads[event["parent"]]
+    asked = {
+        question
+        for logged in events
+        if logged.get("obligation") and threads[logged["id"]] == thread
+        for question in question_ids(logged)
+    }
+    for question in event["obligation"]:
+        if question not in asked:
+            return Finding("unasked-obligation", values={"question": question})
+    return None
+
+
 def _edit_error(event: dict, events: list) -> Finding | None:
     """An edit revises the words of a message its own author wrote: the user's own,
     or an agent's, whichever session posted it, so a successor can correct what a
@@ -708,6 +730,7 @@ def admission_error(
         or _reaction_error(event, registry)
         or _anchored_comment_error(view, event, registry)
         or _parent_error(event, events)
+        or _named_question_error(event, events)
         or _edit_error(event, events)
         or _thread_presentation_error(view, event, events)
         or _reanchor_error(view, event, events)

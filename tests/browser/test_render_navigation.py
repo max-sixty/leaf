@@ -252,14 +252,26 @@ def test_a_thread_walk_card_leaves_and_returns_with_its_anchor(browser, serve):
       const card = document.querySelector('.lf-margin-preview').getBoundingClientRect();
       return card.top >= 0 && card.bottom <= innerHeight;
     }"""
-    # A page command that lands in a card scrolled away brings its cluster, and the
-    # card, back.
+    # The `g` that opened Go-to let go of the card it was pressed in, scrolled away
+    # there, so a page command acts from what the user sees: `c` opens the page's own
+    # field rather than the card's reply, and the card stays where the page took it.
     page.keyboard.press("c")
     reply = card.get_by_role("textbox", name="Reply", exact=True)
+    expect(page.locator(".lf-fp-field leaf-text")).to_be_focused()
+    rendered(page)
+    assert page.evaluate("() => document.scrollingElement.scrollTop") == foot
+    assert not page.evaluate(shown)
+    page.keyboard.press("Escape")
+    # Back at the card, a click on its words puts the user in it again, and `c` replies
+    # there.
+    page.evaluate("top => scrollTo(0, top)", before)
+    rendered(page)
+    card.locator(".lf-page-thread .lf-msg-body").first.click()
+    page.keyboard.press("c")
     expect(reply).to_be_focused()
     page.wait_for_function(shown)
-    # So does moving on from one of its controls to the next, as the browser reveals
-    # the control a Tab reaches.
+    # A field keeps its keys scrolled away, since typing brings its box back, so Tab
+    # moves on from the reply to the card's next control, which the browser reveals.
     page.evaluate("() => scrollTo(0, document.scrollingElement.scrollHeight)")
     rendered(page)
     assert not page.evaluate(shown)

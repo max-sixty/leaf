@@ -67,7 +67,7 @@ export const inPageOrder = (threads, placedAt) =>
 // It is a reading of the page's own nodes, so it stands until the page reading moves
 // (passages.js, `pageReadingVersion`) or a caller says the document changed
 // (`presentDocument`): a thread pass over an unchanged page reads the outline it read.
-/** @typedef {{key: readonly [ReturnType<typeof pageReadingVersion>, ReturnType<typeof documentChanged>], outline: readonly Element[], heads: Map<Element | null, Element[]>}} Outlined */
+/** @typedef {{key: readonly [ReturnType<typeof pageReadingVersion>, ReturnType<typeof documentChanged>], outline: readonly Element[], heads: Map<Element | null, Element[]>, above: Map<Element, Element | null>}} Outlined */
 /** @type {Outlined | null} */
 let outlined = null;
 /** @returns {Outlined} */
@@ -81,16 +81,30 @@ function readOutline() {
       /** @param {Element} heading */ (heading) => heading,
     ),
   );
-  // Each container's headings, in the outline's order, for `partOver`.
+  // Each container's headings, in the outline's order, for `partOver`; and each
+  // heading's nearest heading of a higher rank before it in the same container, for
+  // `partTrail`, as a reader takes a flow of h2s to stand under the h1 over them.
   /** @type {Map<Element | null, Element[]>} */
   const heads = new Map();
+  /** @type {Map<Element, Element | null>} */
+  const above = new Map();
+  // Each container's headings still open to a later one of a lower rank, highest first.
+  /** @type {Map<Element | null, Element[]>} */
+  const open = new Map();
+  const rank = (/** @type {Element} */ heading) => Number(heading.localName.slice(1));
   for (const heading of outline) {
     const container = headed(heading);
     const held = heads.get(container);
     if (held) held.push(heading);
     else heads.set(container, [heading]);
+    const ranks = open.get(container) ?? [];
+    while (ranks.length && rank(/** @type {Element} */ (ranks.at(-1))) >= rank(heading))
+      ranks.pop();
+    above.set(heading, ranks.at(-1) ?? null);
+    ranks.push(heading);
+    open.set(container, ranks);
   }
-  outlined = { key, outline, heads };
+  outlined = { key, outline, heads, above };
   return outlined;
 }
 export const pageOutline = () => readOutline().outline;
@@ -133,6 +147,26 @@ export function partOver(node) {
   }
   return null;
 }
+// Every part of the page a node stands in, outermost first: the part over it
+// (`partOver`), then the heading of a higher rank over each heading, else the part over
+// its container, as a reader of the page passes through them to reach the node. A
+// heading's own trail leaves it out. Each step costs what `partOver` does, so a trail
+// costs its length times that.
+/** @param {Element} node @returns {Element[]} */
+export function partTrail(node) {
+  const { above } = readOutline();
+  /** @param {Element} at @returns {Element | null} */
+  const over = (at) => {
+    if (!above.has(at)) return partOver(at);
+    const container = headed(at);
+    return above.get(at) ?? (container ? partOver(container) : null);
+  };
+  /** @type {Element[]} */
+  const trail = [];
+  for (let part = over(node); part; part = over(part)) trail.unshift(part);
+  return trail;
+}
+
 // The last of `headings`, in rendered order, that the reader reaches before `node`.
 /** @param {readonly Element[] | undefined} headings @param {Element} node */
 function lastBefore(headings, node) {

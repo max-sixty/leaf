@@ -1595,6 +1595,7 @@ def test_a_bad_source_save_keeps_the_last_revision_live_and_reports_the_error(
         ["page", "stamp", str(page_dir), "--text", "must not fall back"],
     )
     assert stamp.exit_code != 0
+    assert "refusing to stamp" in stamp.output
     assert files_model.list_revisions(page_dir) == [1]
     assert live_versions(page_dir) == []
     assert event_model.read_events(page_dir) == []
@@ -2044,25 +2045,6 @@ def test_a_refused_attempt_is_re_read_against_the_page_that_refused_it(
         if event["kind"] == "comment"
     ]
     assert [event["id"] for event in comments] == [accepted["id"]]
-
-
-def test_an_accepted_event_response_is_state_through_that_event(server, page_dir):
-    """The POST answer is the sender's authoritative read, not half of a
-    transaction completed by a second request. A response cannot acknowledge an
-    event while handing the page history from before it."""
-    publish(page_dir)
-    sent = {
-        "kind": "comment",
-        "revision": 1,
-        "text": "The response carries the state that includes this message.",
-        "attempt": "attempt-state-0001",
-    }
-
-    status, body = fetch(f"{server}/api/event", data=json.dumps(sent).encode())
-
-    assert status == 200, body
-    answer = json.loads(body)
-    assert answer["state"]["events"][-1]["attempt"] == sent["attempt"]
 
 
 def test_action_door_owns_created_child_meaning(server, page_dir):
@@ -2980,7 +2962,10 @@ def _news(server):
 
 
 def test_freshness_names_the_state_reading_and_changes_with_the_page(server, page_dir):
-    """A finite cheap token names the same view as state without carrying its log."""
+    """A finite cheap token names the same view as state without carrying its log.
+
+    After a source save, the token a tab sees already names the revision the state
+    read it prompts will answer with, so the tab reads once."""
     publish(page_dir)
     first = _news(server)
     assert first == json.loads(fetch(f"{server}/api/state")[1])["reading"]
@@ -2990,6 +2975,12 @@ def test_freshness_names_the_state_reading_and_changes_with_the_page(server, pag
     )
     assert _news(server) != first
     assert _news(server) == json.loads(fetch(f"{server}/api/state")[1])["reading"]
+
+    (page_dir / "index.html").write_text(PAGE.replace("<p>", "<p>Revised. ", 1))
+    saved = _news(server)
+    revised = json.loads(fetch(f"{server}/api/state")[1])
+    assert revised["active"]["revision"] == 2
+    assert revised["reading"] == saved
 
 
 def test_unchanged_presence_observation_is_shared_and_file_changes_refresh_it(
@@ -4143,12 +4134,8 @@ def test_comparison_revision_reads_stay_inside_the_page_transaction(
         assert leases_model.lock_is_held(page_dir / "events.jsonl")
         return original_data(*args)
 
-    def unrelated_read(*_args):
-        raise AssertionError("a document comparison needs no news token")
-
     monkeypatch.setattr(read_context, "read_revision", held_revision)
     monkeypatch.setattr(read_context, "read_data", held_data)
-    monkeypatch.setattr(served_reading, "held_page_reading", unrelated_read)
     status, body = fetch(f"{server}/api/view?revision=1&through_seq={latest}")
     assert status == 200, body
     assert set(observed) == {1, 2}

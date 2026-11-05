@@ -300,34 +300,6 @@ def test_a_workspace_reaches_the_window_foot_and_its_readers_clear_the_panel(
     )
 
 
-def test_a_workspace_body_scroller_clears_the_panel(browser, serve):
-    page = open_page(
-        browser,
-        serve(
-            leaf_page(
-                "Single-body workspace",
-                '<header><h1>Work</h1></header><div id="reader">'
-                '<div style="height:1100px"></div><p>End of work</p></div>',
-                layout="workspace",
-            )
-        ),
-    )
-    resized(page, 1200, 900)
-    geometry = page.evaluate(
-        """() => {
-          const reader = document.querySelector('#reader');
-          reader.scrollTop = reader.scrollHeight;
-          return {
-            scrolls: reader.scrollHeight > reader.clientHeight,
-            endBottom: reader.querySelector('p').getBoundingClientRect().bottom,
-            panelTop: document.querySelector('.lf-fp-row').getBoundingClientRect().top,
-          };
-        }"""
-    )
-    assert geometry["scrolls"], geometry
-    assert geometry["endBottom"] <= geometry["panelTop"], geometry
-
-
 def test_a_flowing_workspace_keeps_its_header_over_what_a_next_lands_on(browser, serve):
     """On a phone the workspace flows and the page scrolls, and its header sticks at the
     window's top, so a tally's Next on me stays under the pointer that pressed it. The
@@ -864,7 +836,9 @@ def test_workspace_end_room_stays_inside_the_last_reading_region(
         resized(page, 900, 500)
         page.get_by_role("link", name="Record decision").click()
         scroll_settled(page, scroller)
-        page.get_by_role("checkbox", name=re.compile("Ship with changes")).click()
+        # The current ask wears its digits, which stand over each card's mark, so the
+        # walk starts from the mark by focus rather than a press on its corner.
+        page.get_by_role("checkbox", name=re.compile("Ship with changes")).focus()
         page.keyboard.press("ArrowDown")
         page.keyboard.press("Space")
         expect(

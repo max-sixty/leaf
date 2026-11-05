@@ -28,7 +28,7 @@ implementation terms keep their exact spelling where the reader needs them.
 | **Reply** | A message in a conversation, including an answer or an unprompted message |
 | **Delivery** | How far an update has got toward the agent: **Queued for Claude** until a harness has queued it (**Up next**, stage `queued`) or handed it into the agent's turn (**Delivered**, stage `picked_up`), all in Leaf's italic voice. Delivered doesn't mean work has begun |
 | **Queued for Claude** | An update no harness has queued or opened into a turn (stages `sending` and `sent`), whether or not the log has accepted it, in Leaf's italic voice with the agent's name; past the pickup grace it reads **Still queued for Claude** |
-| **On it** | The agent has explicitly started this update or to-do (stage `working`); page activity alone doesn't mean it has |
+| **On it** | The agent has explicitly started this update or to-do (stage `working`), or a fork of its conversation has taken the update on (`at_work`); page activity alone doesn't mean it has |
 | **Undo** | Taking back the user's latest update that can be taken back, leaving the user at what it changed (`undo.js`) |
 | **Threads** | The mark in Leaf's panel and the view it opens, listing conversations. A **thread** is one conversation; a **comment box** is the field where the user writes a comment or reply |
 | **Version** | A stamped page the user can revisit: **Showing v4** in the version picker, or **Showing Draft** for the live unstamped source |
@@ -41,7 +41,7 @@ as a script sets a stage direction apart from the lines. A surface sets only the
 which ranks them among its other words. The agent says what it wrote: its status line
 (“running the browser suite”), its messages and a to-do's title. Leaf also speaks in
 the agent's voice where what the agent would say is reliable, because the agent's own
-command or its reply's stream shows it: **On it** once it started an update,
+command or its reply's stream shows it: **On it** once it or a fork of it took an update on,
 **Replying** while its reply streams in, **Your turn** once it asked, **Still to do**
 for a to-do it opened, **Answered**, **Replied** or **Edited** once it did, and how it
 ended a to-do of its own (**Done**, **Dropped**). Everything else is Leaf's: what it
@@ -59,9 +59,11 @@ a working page shows its leaf in the working tone and no words until the agent w
 a line. Rejected, on 28 and 30 October 2026: Leaf's inferences set in the agent's voice
 (“Got your comment”, “Working on it”, “Got it”), which put Leaf's words in its mouth.
 
-Words nobody says are the interface's, in its ordinary face: the name of a control,
-list or thing (“On me”, “Threads”, a thread's title, Draw mode), an offer of a press
-(“Reply”, “Comment on the page”), and where the user stands (“3 of 11”, a time).
+An empty box's words are Leaf's too, since the agent didn't write them, and each ends
+in an ellipsis: a comment box's (“Reply…”, “Comment…”) and a search's prompt (“Find
+text…”, “Filter files…”). Words nobody says are the interface's, in its ordinary face: the
+name of a control, list or thing (“On me”, “Threads”, a thread's title, Draw mode), and
+where the user stands (“3 of 11”, a time).
 Neither they nor Leaf's italic words narrate the agent from outside (“Claude is
 working”, “Waiting for Claude”), which puts a third party between the user and the
 agent; Leaf names the agent only where the agent isn't the one acting, as in “Queued
@@ -169,7 +171,9 @@ behavior. A compound widget may own reading regions without being a pane.
 A view takes no width from the page and leaves it live. A thread about a passage opens
 as a **thread card** beside its words, and in the panel where nothing on the page
 draws it or the user moves it there with the card's **Open in panel**. A comment on selected words is written in the **anchored comment box**, which
-opens beside them and becomes their thread card on Send.
+opens beside them and becomes their thread card on Send. It also opens beside the
+target focus stands on, where it **rests** beforehand, empty, wearing the key that
+opens it.
 
 ## Page Map and the margin
 

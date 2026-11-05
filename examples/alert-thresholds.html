@@ -391,6 +391,7 @@
             max="30"
           ></lf-playground-control>
           <lf-playground-control
+            id="finance-counts"
             name="finance-counts"
             label="Count finance-ops pages in the budget"
             kind="toggle"
@@ -478,12 +479,14 @@
                   aria-label="payments-5xx-rate settings"
                 >
                   <lf-playground-control
+                    id="rate-threshold"
                     name="rate-threshold"
                     label="Threshold"
                     kind="choice"
                     value="1%"
                   >
                     <lf-playground-choice
+                      id="rate-threshold-0-5"
                       value="0.5%"
                       label="over 0.5%"
                     ></lf-playground-choice>
@@ -493,29 +496,35 @@
                       label="over 1%"
                     ></lf-playground-choice>
                     <lf-playground-choice
+                      id="rate-threshold-2"
                       value="2%"
                       label="over 2%"
                     ></lf-playground-choice>
                     <lf-playground-choice
+                      id="rate-threshold-5"
                       value="5%"
                       label="over 5%"
                     ></lf-playground-choice>
                   </lf-playground-control>
                   <lf-playground-control
+                    id="rate-route"
                     name="rate-route"
                     label="Route"
                     kind="choice"
                     value="page"
                   >
                     <lf-playground-choice
+                      id="rate-route-page"
                       value="page"
                       label="Page"
                     ></lf-playground-choice>
                     <lf-playground-choice
+                      id="rate-route-ticket"
                       value="ticket"
                       label="Ticket"
                     ></lf-playground-choice>
                     <lf-playground-choice
+                      id="rate-route-off"
                       value="off"
                       label="Off"
                     ></lf-playground-choice>
@@ -570,43 +579,52 @@
                   aria-label="payments-p99-latency settings"
                 >
                   <lf-playground-control
+                    id="latency-threshold"
                     name="latency-threshold"
                     label="Threshold"
                     kind="choice"
                     value="800ms"
                   >
                     <lf-playground-choice
+                      id="latency-threshold-600ms"
                       value="600ms"
                       label="over 600 ms"
                     ></lf-playground-choice>
                     <lf-playground-choice
+                      id="latency-threshold-800ms"
                       value="800ms"
                       label="over 800 ms"
                     ></lf-playground-choice>
                     <lf-playground-choice
+                      id="latency-threshold-1200ms"
                       value="1200ms"
                       label="over 1,200 ms"
                     ></lf-playground-choice>
                     <lf-playground-choice
+                      id="latency-threshold-2000ms"
                       value="2000ms"
                       label="over 2,000 ms"
                     ></lf-playground-choice>
                   </lf-playground-control>
                   <lf-playground-control
+                    id="latency-route"
                     name="latency-route"
                     label="Route"
                     kind="choice"
                     value="page"
                   >
                     <lf-playground-choice
+                      id="latency-route-page"
                       value="page"
                       label="Page"
                     ></lf-playground-choice>
                     <lf-playground-choice
+                      id="latency-route-ticket"
                       value="ticket"
                       label="Ticket"
                     ></lf-playground-choice>
                     <lf-playground-choice
+                      id="latency-route-off"
                       value="off"
                       label="Off"
                     ></lf-playground-choice>
@@ -659,39 +677,47 @@
                   aria-label="card-auth-decline-spike settings"
                 >
                   <lf-playground-control
+                    id="declines-threshold"
                     name="declines-threshold"
                     label="Threshold"
                     kind="choice"
                     value="2x"
                   >
                     <lf-playground-choice
+                      id="declines-threshold-1-5x"
                       value="1.5x"
                       label="over 1.5×"
                     ></lf-playground-choice>
                     <lf-playground-choice
+                      id="declines-threshold-2x"
                       value="2x"
                       label="over 2×"
                     ></lf-playground-choice>
                     <lf-playground-choice
+                      id="declines-threshold-3x"
                       value="3x"
                       label="over 3×"
                     ></lf-playground-choice>
                   </lf-playground-control>
                   <lf-playground-control
+                    id="declines-route"
                     name="declines-route"
                     label="Route"
                     kind="choice"
                     value="ticket"
                   >
                     <lf-playground-choice
+                      id="declines-route-page"
                       value="page"
                       label="Page"
                     ></lf-playground-choice>
                     <lf-playground-choice
+                      id="declines-route-ticket"
                       value="ticket"
                       label="Ticket"
                     ></lf-playground-choice>
                     <lf-playground-choice
+                      id="declines-route-off"
                       value="off"
                       label="Off"
                     ></lf-playground-choice>
@@ -741,39 +767,47 @@
                   aria-label="webhook-backlog settings"
                 >
                   <lf-playground-control
+                    id="webhooks-threshold"
                     name="webhooks-threshold"
                     label="Threshold"
                     kind="choice"
                     value="5000"
                   >
                     <lf-playground-choice
+                      id="webhooks-threshold-1000"
                       value="1000"
                       label="over 1,000"
                     ></lf-playground-choice>
                     <lf-playground-choice
+                      id="webhooks-threshold-5000"
                       value="5000"
                       label="over 5,000"
                     ></lf-playground-choice>
                     <lf-playground-choice
+                      id="webhooks-threshold-20000"
                       value="20000"
                       label="over 20,000"
                     ></lf-playground-choice>
                   </lf-playground-control>
                   <lf-playground-control
+                    id="webhooks-route"
                     name="webhooks-route"
                     label="Route"
                     kind="choice"
                     value="page"
                   >
                     <lf-playground-choice
+                      id="webhooks-route-page"
                       value="page"
                       label="Page"
                     ></lf-playground-choice>
                     <lf-playground-choice
+                      id="webhooks-route-ticket"
                       value="ticket"
                       label="Ticket"
                     ></lf-playground-choice>
                     <lf-playground-choice
+                      id="webhooks-route-off"
                       value="off"
                       label="Off"
                     ></lf-playground-choice>
@@ -830,39 +864,47 @@
                   aria-label="ledger-reconciliation-lag settings"
                 >
                   <lf-playground-control
+                    id="ledger-threshold"
                     name="ledger-threshold"
                     label="Threshold"
                     kind="choice"
                     value="90min"
                   >
                     <lf-playground-choice
+                      id="ledger-threshold-60min"
                       value="60min"
                       label="over 60 min"
                     ></lf-playground-choice>
                     <lf-playground-choice
+                      id="ledger-threshold-90min"
                       value="90min"
                       label="over 90 min"
                     ></lf-playground-choice>
                     <lf-playground-choice
+                      id="ledger-threshold-180min"
                       value="180min"
                       label="over 180 min"
                     ></lf-playground-choice>
                   </lf-playground-control>
                   <lf-playground-control
+                    id="ledger-route"
                     name="ledger-route"
                     label="Route"
                     kind="choice"
                     value="off"
                   >
                     <lf-playground-choice
+                      id="ledger-route-page"
                       value="page"
                       label="Page"
                     ></lf-playground-choice>
                     <lf-playground-choice
+                      id="ledger-route-ticket"
                       value="ticket"
                       label="Ticket"
                     ></lf-playground-choice>
                     <lf-playground-choice
+                      id="ledger-route-off"
                       value="off"
                       label="Off"
                     ></lf-playground-choice>
@@ -926,39 +968,47 @@
                   aria-label="gateway-cert-expiry settings"
                 >
                   <lf-playground-control
+                    id="cert-threshold"
                     name="cert-threshold"
                     label="Threshold"
                     kind="choice"
                     value="14d"
                   >
                     <lf-playground-choice
+                      id="cert-threshold-30d"
                       value="30d"
                       label="under 30 days"
                     ></lf-playground-choice>
                     <lf-playground-choice
+                      id="cert-threshold-14d"
                       value="14d"
                       label="under 14 days"
                     ></lf-playground-choice>
                     <lf-playground-choice
+                      id="cert-threshold-7d"
                       value="7d"
                       label="under 7 days"
                     ></lf-playground-choice>
                   </lf-playground-control>
                   <lf-playground-control
+                    id="cert-route"
                     name="cert-route"
                     label="Route"
                     kind="choice"
                     value="ticket"
                   >
                     <lf-playground-choice
+                      id="cert-route-page"
                       value="page"
                       label="Page"
                     ></lf-playground-choice>
                     <lf-playground-choice
+                      id="cert-route-ticket"
                       value="ticket"
                       label="Ticket"
                     ></lf-playground-choice>
                     <lf-playground-choice
+                      id="cert-route-off"
                       value="off"
                       label="Off"
                     ></lf-playground-choice>

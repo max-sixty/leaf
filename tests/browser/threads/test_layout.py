@@ -192,36 +192,6 @@ RECEIPT_BESIDE_CONTROLS = """message => {
 }"""
 
 
-def test_a_head_s_words_take_its_controls_room_while_they_hide(browser, serve):
-    """A message's Edit and Copy show only under the pointer or focus, and its head
-    lends their room to its words while they hide: a card's head that held it read
-    "Me just now · Qu…" beside room for controls nobody could see. At rest the user's
-    queued message says its whole receipt; under the pointer the controls stand over
-    the receipt's end, which neither moves nor changes its size."""
-    url = serve(PANEL_PAGE)
-    panel_comment(serve.page_dir, "Can it wait?", {"section": "lede"})
-    # The margin at this width caps the card short of the head's words and controls.
-    context = browser.new_context(viewport={"width": 1440, "height": 900})
-    page = open_page(browser, url, context=context)
-    page.locator(".lf-margin-marker").first.click()
-    message = page.locator(".lf-margin-preview .lf-msg[data-lf-author=user]").first
-    expect(message.locator(".lf-msg-sending")).to_contain_text("Queued")
-    page.mouse.move(0, 0)
-    rendered(page)
-    rest = message.evaluate(RECEIPT_BESIDE_CONTROLS)
-    assert rest["whole"] and rest["controls"] is None, rest
-    message.locator(".lf-msg-text").hover()
-    rendered(page)
-    offered = message.evaluate(RECEIPT_BESIDE_CONTROLS)
-    assert offered["whole"], offered
-    assert (offered["left"], offered["end"]) == (rest["left"], rest["end"]), (
-        rest,
-        offered,
-    )
-    assert offered["controls"] < offered["end"], offered
-    assert offered["receiptSeen"] is False, offered
-
-
 # A head's parts, in the order their shrink weights give, each one's least width (its
 # minimum, or its padding and border where it sizes its border box), and each one's
 # width as the head narrows from far wider than its words to nothing.
@@ -248,31 +218,56 @@ SQUEEZED_HEAD = """head => {
 }"""
 
 
-def test_a_squeezed_head_gives_up_one_part_at_a_time(browser, serve):
-    """A head too narrow for its words gives up its parts one at a time, in the order
-    the user chose (surfaces.css): its controls' room, its receipt, its time and its
-    name. No part is cut while one before it still has room to give, so a squeezed head
-    never reads "Me ju… · Que…", and each gives all it can before the head reaches
-    nothing. The user's queued message holds each part."""
+def test_a_head_s_words_take_its_controls_room_while_they_hide(
+    browser, serve, subtests
+):
+    """A message's Edit and Copy show only under the pointer or focus, and its head
+    lends their room to its words while they hide: a card's head that held it read
+    "Me just now · Qu…" beside room for controls nobody could see. At rest the user's
+    queued message says its whole receipt; under the pointer the controls stand over
+    the receipt's end, which neither moves nor changes its size. A head too narrow for
+    its words gives up its parts one at a time, in the order the user chose
+    (surfaces.css): its controls' room, its receipt, its time and its name. No part is
+    cut while one before it still has room to give, so a squeezed head never reads
+    "Me ju… · Que…", and each gives all it can before the head reaches nothing. The
+    user's queued message holds each part."""
     url = serve(PANEL_PAGE)
     panel_comment(serve.page_dir, "Can it wait?", {"section": "lede"})
+    # The margin at this width caps the card short of the head's words and controls.
     context = browser.new_context(viewport={"width": 1440, "height": 900})
     page = open_page(browser, url, context=context)
     page.locator(".lf-margin-marker").first.click()
-    head = page.locator(
-        ".lf-margin-preview .lf-msg[data-lf-author=user] > .lf-msg-head"
-    ).first
-    expect(head.locator(".lf-msg-sending")).to_contain_text("Queued")
-    squeeze = head.evaluate(SQUEEZED_HEAD)
-    parts, least, steps = squeeze["parts"], squeeze["least"], squeeze["steps"]
-    assert parts == ["lf-msg-control-room", "lf-msg-sending", "time", "b"], parts
-    whole = steps[0]
-    assert steps[-1] == pytest.approx(least, abs=0.05), (parts, least, steps[-1])
-    for widths in steps:
-        for at in range(len(parts)):
-            if widths[at] < whole[at] - 0.05:
-                given = [widths[part] <= least[part] + 0.05 for part in range(at)]
-                assert all(given), (parts, widths)
+    message = page.locator(".lf-margin-preview .lf-msg[data-lf-author=user]").first
+    expect(message.locator(".lf-msg-sending")).to_contain_text("Queued")
+    with subtests.test("the controls hide"):
+        page.mouse.move(0, 0)
+        rendered(page)
+        rest = message.evaluate(RECEIPT_BESIDE_CONTROLS)
+        assert rest["whole"] and rest["controls"] is None, rest
+        message.locator(".lf-msg-text").hover()
+        rendered(page)
+        offered = message.evaluate(RECEIPT_BESIDE_CONTROLS)
+        assert offered["whole"], offered
+        assert (offered["left"], offered["end"]) == (rest["left"], rest["end"]), (
+            rest,
+            offered,
+        )
+        assert offered["controls"] < offered["end"], offered
+        assert offered["receiptSeen"] is False, offered
+    # The squeeze narrows the head for good, so it reads last, with the pointer away.
+    with subtests.test("the head squeezed"):
+        page.mouse.move(0, 0)
+        rendered(page)
+        squeeze = message.locator(":scope > .lf-msg-head").evaluate(SQUEEZED_HEAD)
+        parts, least, steps = squeeze["parts"], squeeze["least"], squeeze["steps"]
+        assert parts == ["lf-msg-control-room", "lf-msg-sending", "time", "b"], parts
+        whole = steps[0]
+        assert steps[-1] == pytest.approx(least, abs=0.05), (parts, least, steps[-1])
+        for widths in steps:
+            for at in range(len(parts)):
+                if widths[at] < whole[at] - 0.05:
+                    given = [widths[part] <= least[part] + 0.05 for part in range(at)]
+                    assert all(given), (parts, widths)
 
 
 def test_a_margin_message_copy_keeps_its_edge_when_send_motion_ends(browser, serve):
@@ -321,8 +316,7 @@ def test_a_margin_message_copy_keeps_its_edge_when_send_motion_ends(browser, ser
         page.context.close()
 
 
-@pytest.mark.parametrize("surface", ["panel", "margin"])
-def test_a_message_says_its_age_only_where_it_changes(browser, serve, surface):
+def test_a_message_says_its_age_only_where_it_changes(browser, serve):
     """A thread says each message's age only where that age, as displayed, differs
     from the message above, the first always saying it: three messages written on one
     day three days ago read one age, and a reply written now reads its own."""
@@ -336,7 +330,7 @@ def test_a_message_says_its_age_only_where_it_changes(browser, serve, surface):
             "revision": 1,
             "text": "Is the retry bounded?",
             "ts": then.isoformat(),
-            **({"anchor": {"section": "lede"}} if surface == "margin" else {}),
+            "anchor": {"section": "lede"},
         },
     )["id"]
     for at, (author, text) in enumerate(
@@ -356,12 +350,9 @@ def test_a_message_says_its_age_only_where_it_changes(browser, serve, surface):
         )
     append_agent_reply(serve.page_dir, root, "Parked after the third.")
     page = open_page(browser, url)
-    if surface == "panel":
-        card = open_panel_thread(page, root)
-    else:
-        page.locator(".lf-margin-marker").first.click()
-        card = page.locator(".lf-margin-preview .lf-page-thread")
-        expect(card).to_be_visible()
+    page.locator(".lf-margin-marker").first.click()
+    card = page.locator(".lf-margin-preview .lf-page-thread")
+    expect(card).to_be_visible()
     ages = card.locator(".lf-msg-head")
     expect(ages).to_have_count(4)
     assert ages.evaluate_all(
@@ -1239,14 +1230,17 @@ def test_a_short_window_keeps_media_choices_and_send_around_the_scrolling_draft(
     browser, serve, scaled
 ):
     """A whole-frame cap reserves the choices and Send before text scrolls; the attached
-    image hangs outside the frame (annotation-chrome.css)."""
+    image hangs outside the frame (annotation-chrome.css).
+
+    Scaled, the bar's containing block is a transformed box the window's size, which
+    the chrome's root is made into here, since its own box is empty (base.css)."""
     source = LONG_PAGE
     if scaled:
         source = source.replace(
             "</head>",
             """<style>
-              div.lf-chrome { position:fixed; inset:0; pointer-events:none;
-                transform:scale(1.2); transform-origin:0 0; }
+              div.lf-chrome { position:fixed; inset:0; width:auto; height:auto;
+                pointer-events:none; transform:scale(1.2); transform-origin:0 0; }
               .lf-fab-bar, .lf-margin-preview { zoom:1.2; }
             </style></head>""",
         )

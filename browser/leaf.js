@@ -498,8 +498,6 @@ async function boot() {
   floatingPanel = createFloatingPanel({
     wireInput: inputs.wireInput,
     observeFeedback: app.read.observeFeedback,
-    firstUnread: app.read.firstUnread,
-    afterReadingPass: app.read.afterPass,
     threadActions: app.threadActions,
     registerChromeThreadPresentation: app.registerChromeThreadPresentation,
     obligations: { choicesOf: items.choicesOf },
@@ -696,6 +694,7 @@ async function boot() {
     paintCommandHints: commandHints.paint,
     paintCoreControls,
     publishInputHint: inputs.publishInputHint,
+    restFab: responseSurface.restFab,
   };
 
   if (!offlineInteractive) {

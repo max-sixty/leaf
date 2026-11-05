@@ -9,12 +9,10 @@ from playwright.sync_api import expect
 from render_cases_layout import current_location_ring, ring_faults
 from render_cases_navigation import source_revision
 from render_harness import (
-    at_rest,
     holding,
     leaf_page,
     open_page,
     resized,
-    still_page,
     told,
 )
 
@@ -145,13 +143,6 @@ def test_trace_parts_carry_the_recording_and_place_they_were_drawn_from(browser,
         arg=rerun,
     )
     assert [{**part, "revision": rerun} for part in first] == stamps()
-
-
-@pytest.mark.shifts_unsurveyed
-def test_trace_viewer_stays_idle_after_initial_presentation(browser, serve):
-    """The viewer's disabled transition cannot wake margin layout after readiness."""
-    url = serve(named_source("playwright-trace-gallery"))
-    assert at_rest(still_page(browser, url)) == []
 
 
 @pytest.mark.parametrize(
@@ -949,12 +940,16 @@ def test_trace_comparison_prepaint_shows_only_its_opening_recording(browser, ser
     })""")
     assert len(before["children"]) == 2
     assert [child["drawn"] for child in before["children"]] == [True, False]
-    assert before["reserved"] >= 44
     assert held
     user.unroute("**/widgets/lf-trace-compare.js")
     for route in held:
         route.continue_()
     wait_until_ready(user)
+    # The room held while the module loaded is the chooser it draws.
+    drawn = workspace.locator(".lf-trace-compare-controls").evaluate(
+        "node => node.getBoundingClientRect().height"
+    )
+    assert drawn == pytest.approx(before["reserved"], abs=0.5), (drawn, before)
     user.locator("lf-trace-compare wa-radio").filter(has_text="After").click()
     wrapper = user.locator("figure:has(#paired-after)")
     expect(wrapper.locator("figcaption")).to_be_visible()

@@ -4,7 +4,8 @@ takes at its terminal.
     uv run leaf-dev journey pi
 
 The suite drives Leaf's Pi extension (`hooks/pi.ts`) with a stand-in for Pi
-(`tests/pi_driver.mjs`); this drives it with Pi itself, the version `dev/pi/` pins.
+(`tests/pi_driver.mjs`); this drives it with Pi itself, the version the root
+`package.json` pins.
 It installs this working tree's payload as a Pi package into a throwaway Pi home
 (`pi_home`), whose only login is the host's Codex login, and runs Pi in RPC mode.
 The journey is then the terminal: it types the user's turns on Pi's stdin, presses
@@ -54,7 +55,7 @@ from leaf_dev.commands.journey import (
 )
 from leaf_dev.review_scenario import SLEEP, USER_TURN, picked_up, prepare, require
 
-PI_PROJECT = ROOT / "dev" / "pi"
+PI = ROOT / "node_modules" / ".bin" / "pi"
 # Pi's provider for a ChatGPT login, running the model the Codex evals run.
 MODEL = f"openai-codex/{MODELS['codex']}"
 
@@ -270,18 +271,6 @@ def steps(pi: Pi, user: User, page: Path) -> None:
 def answering(browser) -> Generator[tuple[User, Callable]]:
     """The user at the page a Pi session serves, once it has, and the steps that
     follow."""
-    subprocess.run(
-        [
-            "pnpm",
-            "--dir",
-            str(PI_PROJECT),
-            "install",
-            "--frozen-lockfile",
-            "--silent",
-        ],
-        check=True,
-    )
-    executable = PI_PROJECT / "node_modules" / ".bin" / "pi"
 
     def isolated_environment(place: Isolation) -> dict[str, str]:
         env = environment(
@@ -291,14 +280,14 @@ def answering(browser) -> Generator[tuple[User, Callable]]:
             PI_TELEMETRY="0",
         )
         # The page server titles a thread through the `pi` on PATH.
-        return {**env, "PATH": f"{executable.parent}{os.pathsep}{env['PATH']}"}
+        return {**env, "PATH": f"{PI.parent}{os.pathsep}{env['PATH']}"}
 
     with isolated("pi", isolated_environment) as place:
         prepare(ROOT, place.state, place.page)
         subprocess.run(
-            [executable, "install", str(place.payload)], check=True, capture_output=True
+            [PI, "install", str(place.payload)], check=True, capture_output=True
         )
-        pi = Pi(executable, place.work, place.evidence / "pi.log")
+        pi = Pi(PI, place.work, place.evidence / "pi.log")
         try:
             started = time.monotonic()
             pi.setup(place.page)

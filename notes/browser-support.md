@@ -150,6 +150,24 @@ Revisit the fallback when supported engines provide it.
 `tests/browser/widgets/test_contents_and_glosses.py` checks the fallback against
 the native timeline with the API removed.
 
+### Sticky boxes' own place
+
+A margin pin's seat is read against the room around its target, with a sticky box
+counted at its own place, where it stands before sticking (`stuckShift` in
+`browser/runtime/geometry.js`). Only a view timeline reads that place without
+writing to the page. Installed Playwright Firefox 157.0, build 1555, had no
+`ViewTimeline` on 2026-11-05. Release Firefox 159.0 on macOS builds a `ViewTimeline` the
+same day but throws NotSupportedError on reading its `startOffset` or `endOffset`, which
+stopped each margin layout pass whose pin passed a sticky box; `stuckShift` now asks for an
+offset once and reads nothing further from timelines where it throws. In both, a sticky
+box counts where it is drawn. A pass
+made while a header inside the target is stuck down the page can then seat the pin
+where the header stands once the user scrolls back, and a later unrelated pass moves
+the pin with no input. Playwright Chromium 156.0.8078.4 (build 1248) and WebKit 27.2
+(build 2370) read the place the same way. Recheck by adding `firefox_browser` to
+`test_a_pin_by_a_sticky_header_takes_one_seat_at_every_scroll` in
+`tests/browser/margin/test_scrollers.py`.
+
 ### Highlight style inheritance
 
 Playwright Firefox 155 accepted `:root::highlight()` and `:host::highlight()`
@@ -324,7 +342,7 @@ Chrome 155 trimmed block-flow margins but left flex and grid item margins;
 a generated child could prevent trimming the authored paragraph. Playwright
 Chromium 153.0.8010.12 and Firefox 155 did not accept the property.
 Recheck wrapper and row behavior, not just parser support, against
-`test_frame_edges_pass_through_whatever_stands_at_them` and
+`test_block_margins_follow_density_frames_and_the_column_on_one_page` and
 `test_a_row_at_a_frame_edge_holds_the_trim_by_declaring_it` in
 `tests/browser/test_render_gate.py`.
 
@@ -452,10 +470,26 @@ types, so nothing marks the card the thread keys act on. Playwright Chromium
 156.0.8078.4 matched `:focus-visible` on the clicked thread at the next key, Shift
 included; Playwright Firefox 157.0 never did, on 2026-11-02. `focus.js`
 (`visibleFocus`) follows the browser's answer, and the open card is the only thread
-keys reach, and only while the user hasn't scrolled it away (`keyboard/dispatch.js`).
+keys reach; a key pressed after scrolling it away lets go of it
+(`keyboard/controller.js`).
 Recheck with a probe on
 `review-a-plan`: click the first margin marker, press Shift, and read whether the
 card's `.lf-page-thread` matches `:focus-visible`.
+
+### A control's own arrows after focus leaves it in Chromium
+
+A key pressed at a control the user has scrolled away from lets go of it first
+(`keyboard/controller.js`), and Chromium still applies a radio's, slider's or
+select's own arrows at the control the key was aimed at: a radio's ArrowDown checked
+the next radio and scrolled the page back to it, a slider's ArrowRight stepped its
+value, and a closed select's ArrowDown kept focus and scrolled the page back to it.
+Playwright Chromium 156.0.8078.4 did each of these, and Playwright Firefox 157.0 did
+none, scrolling the page by the arrow from where focus had gone, on 2026-11-04. The
+controller withholds those arrows in every engine (focus.js,
+`controlNavigationKeys`), so the arrow that lets go scrolls nothing. Recheck on a
+plain page holding two radios of one name, the first checked and focused, whose
+capturing `keydown` listener on the document blurs the focused element: the gap is
+closed when ArrowDown leaves the first radio checked.
 
 ### A stuck sticky anchor in Firefox
 

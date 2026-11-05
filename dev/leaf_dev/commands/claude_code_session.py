@@ -27,12 +27,11 @@ import click
 
 from leaf.server import running_server
 from leaf_dev import ROOT
+from leaf_dev.arms import MODELS
 from leaf_dev.commands.journey import Isolation, stop_left_running
 from leaf_dev.journey_claude_code import ClaudeCode, claude_code_environment
 from leaf_dev.review_scenario import prepare
 
-# The model answers only setup and the developer's turns, so a fast one does.
-MODEL = "claude-sonnet-5-5"
 # Where the running session is recorded, for the next run and `--stop`.
 RECORD = ROOT / ".tmp" / "claude-code-session.json"
 
@@ -65,7 +64,7 @@ def claude_code_session(stopping: bool) -> None:
     os.environ.clear()
     os.environ.update(env)
     prepare(ROOT, place.state, place.page)
-    cc = ClaudeCode(place, env, model=MODEL)
+    cc = ClaudeCode(place, env, model=MODELS["claude-code-session"])
     RECORD.parent.mkdir(exist_ok=True)
     RECORD.write_text(
         json.dumps({"pane": cc.pane, "root": str(root), "state": str(place.state)})

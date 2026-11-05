@@ -3,6 +3,8 @@ focus goes, the fold that gives a resolved thread's room back, and resolutions m
 elsewhere."""
 
 import re
+from collections.abc import Callable
+from typing import NamedTuple
 
 import pytest
 from interact_support import append_carried_log_record
@@ -14,10 +16,13 @@ from render_cases_interaction import (
     SEATED_OBLIGATION_PAGE,
     SEATED_OBLIGATION_WIDGETS,
     answered_comment,
+    package_workspace,
     panel_comment,
 )
 from render_harness import (
+    AVAILABLE_COMMANDS,
     LONG_PAGE,
+    OPEN_THREAD_COUNT,
     PANEL,
     expect_open_threads,
     holding,
@@ -280,40 +285,159 @@ def test_resolve_acknowledges_the_press_and_recovers_a_refusal(held_events, serv
     expect(page.locator("#bracket")).to_be_focused()
 
 
-def test_z_puts_the_user_back_in_the_thread_they_resolved(browser, serve):
-    """Resolving takes the thread off the user's screen: the margin card closes. The log's state keeps no memory of where the thread was
-    shown, so taking the resolve back reopens it where nobody is looking unless the
-    withdrawal itself returns the user to it, by the route a refusal takes."""
-    comment = {
-        "kind": "comment",
-        "author": "user",
-        "revision": 1,
-        "text": "Check whether these jobs can share one visit.",
-        "anchor": {"section": "bracket"},
-    }
-    page = open_page(browser, serve(OBLIGATION_PAGE, events=[comment]))
+# Where focus stands, followed into shadow roots: inside `node`, or on it.
+FOCUS_IN = """node => {
+  let active = document.activeElement;
+  while (active?.shadowRoot?.activeElement) active = active.shadowRoot.activeElement;
+  for (let at = active; at; at = at.parentNode ?? at.host) if (at === node) return true;
+  return false;
+}"""
+
+
+def expect_focus_in(page, locator):
+    page.wait_for_function(FOCUS_IN, arg=locator.element_handle())
+
+
+# The ways back from a settlement (undo.js header; folding.js): `z` taking it at once
+# after its landing; `z` taking it where its place is in view after the user did
+# something else; the notice's Undo; the log refusing it; and `z` showing it first,
+# where the user has left its place, and taking it on the second press. "shown" runs
+# last on a shared page, since it leaves the page scrolled and a disclosure open.
+WAYS_BACK = ("landing", "seen", "notice", "refusal", "shown")
+
+
+class Surface(NamedTuple):
+    """A place a thread is settled on, with the user's moves around it."""
+
+    page: object
+    # Puts the user on the thread there, where the settlement is made.
+    enter: Callable[[], None]
+    # The press that resolves or reopens the thread.
+    settle: Callable[[], None]
+    # An input that leaves the thread's place in view.
+    aside: Callable[[], None]
+    # Inputs that take the thread's place out of view.
+    away: Callable[[], None]
+    # The thread shown again, and the user on it, by a `z` that shows before it takes.
+    shown: Callable[[], None]
+    # The user back on the thread there, with no other surface showing it.
+    returned: Callable[[], None]
+    # The ways back the settlement leaves the user no route to.
+    unreachable: frozenset = frozenset()
+
+
+# A Reopen lands the caret in the thread's reply, where `z` is a letter typed; leaving
+# the box ends the landing's arm.
+REOPENED_IN_THE_BOX = frozenset({"landing"})
+
+FILLER = "".join(
+    f"<p id='f{i}'>Filler {i}. " + "Words. " * 30 + "</p>" for i in range(30)
+)
+
+
+def anchored_long_page(serve, gesture):
+    url = serve(LONG_PAGE, anchored=(("p55", "Paragraph 55."),))
+    root = next(
+        event["id"]
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "comment"
+    )
+    if gesture == "reopen":
+        append_carried_log_record(
+            serve.page_dir, {"kind": "resolve", "author": "user", "parent": root}
+        )
+    return url, root
+
+
+def press_r(page):
+    return lambda: page.keyboard.press("r")
+
+
+def card_surface(browser, serve, gesture):
+    """A margin card beside the thread's passage. No card draws a resolved thread, so
+    only a Resolve is made there, and a `z` that shows it shows its passage."""
+    url, root = anchored_long_page(serve, gesture)
+    page = open_page(browser, url)
     resized(page, 1440, 900)
-    page.keyboard.press("Shift+t")
-    landed = page.locator(".lf-margin-thread .lf-page-thread")
-    expect(landed).to_be_focused()
-    with sending(page, "the resolve"):
-        page.keyboard.press("r")
-    round_trip(page)
-    expect_open_threads(page, 0)
-    expect(landed).not_to_be_focused()
+    card = page.locator(f'.lf-margin-thread .lf-page-thread[data-lf-thread="{root}"]')
+    passage = page.locator("#p55")
 
-    undo(page)
-    round_trip(page)
-    expect_open_threads(page, 1)
-    expect(landed).to_be_focused()
-    expect(landed).to_be_in_viewport()
+    def enter():
+        if not (card.count() and page.evaluate(FOCUS_IN, card.element_handle())):
+            page.keyboard.press("Shift+t")
+        expect(card).to_be_focused()
+        # The card takes focus before the page has scrolled to it.
+        expect(passage).to_be_in_viewport()
+        scroll_settled(page)
+
+    def away():
+        page.keyboard.press("Home")
+        scroll_settled(page)
+        expect(passage).not_to_be_in_viewport()
+
+    def shown():
+        # No card or margin control draws a resolved thread, so the user lands on its
+        # passage.
+        expect(passage).to_be_focused()
+        expect(passage).to_be_in_viewport()
+        expect(page.locator(PANEL_THREAD)).to_have_count(0)
+
+    def returned():
+        expect(card).to_be_focused()
+        expect(page.locator(PANEL_THREAD)).to_have_count(0)
+
+    return Surface(
+        page,
+        enter,
+        press_r(page),
+        lambda: page.locator("#p54").click(),
+        away,
+        shown,
+        returned,
+    )
 
 
-def test_z_leaves_the_user_in_a_seated_thread_they_resolved(browser, serve):
-    """A thread seated on the page folds where it stands when resolved, so the user
-    never left it, and taking the resolve back moves them nowhere either: not to
-    Threads, and not to a margin card for the same thread."""
-    url = serve(SEATED_OBLIGATION_PAGE)
+def panel_surface(browser, serve, gesture):
+    """The floating panel's view of a thread about a passage, which a route to the
+    thread would open in a card beside it. A Reopen there lands in the panel's field,
+    which keeps the notice out of sight while the caret stands in it."""
+    url, root = anchored_long_page(serve, gesture)
+    page = open_page(browser, url)
+    resized(page, 1440, 900)
+    view = page.locator(f'{PANEL_THREAD}[data-lf-thread="{root}"]')
+
+    def aside():
+        page.locator("#p55").scroll_into_view_if_needed()
+        page.locator("#p54").click()
+
+    def away():
+        page.locator(".lf-fp-close").click()
+        panel_settled(page, open=False)
+        page.locator("h1").first.click()
+        expect(page.locator("#p55")).not_to_be_in_viewport()
+
+    def returned():
+        expect(view).to_be_visible()
+        expect_focus_in(page, view)
+        expect(page.locator(".lf-margin-preview")).to_be_hidden()
+
+    return Surface(
+        page,
+        lambda: open_panel_thread(page, root).focus(),
+        press_r(page),
+        aside,
+        away,
+        returned,
+        returned,
+        REOPENED_IN_THE_BOX | {"notice"} if gesture == "reopen" else frozenset(),
+    )
+
+
+def seat_surface(browser, serve, gesture):
+    """A widget's seat on the page, which folds a resolved thread into its Resolved
+    disclosure, and the user with it onto the disclosure's summary, unless the user
+    is writing in the thread."""
+    url = serve(SEATED_OBLIGATION_PAGE.replace("</main>", FILLER + "</main>"))
     root = append_carried_log_record(
         serve.page_dir,
         {
@@ -324,128 +448,187 @@ def test_z_leaves_the_user_in_a_seated_thread_they_resolved(browser, serve):
             "text": "These jobs can share one visit.",
         },
     )["id"]
-    page = open_page(browser, url)
-    resized(page, 1920, 900)
-    seated = page.locator(f'#jobs .lf-page-thread[data-lf-thread="{root}"]')
-    seated.get_by_role("button", name="Resolve thread", exact=True).focus()
-    with sending(page, "the resolve"):
-        page.keyboard.press("Enter")
-    round_trip(page)
-    expect_open_threads(page, 0)
-
-    undo(page)
-    round_trip(page)
-    expect_open_threads(page, 1)
-    assert seated.evaluate("node => node.contains(document.activeElement)")
-    expect(page.locator(PANEL)).not_to_have_attribute("data-lf-open", re.compile("."))
-    expect(page.locator(".lf-margin-preview")).to_be_hidden()
-
-
-@pytest.mark.parametrize("gesture", ["resolve", "reopen"])
-def test_z_shows_a_settlement_the_user_left_before_taking_it(browser, serve, gesture):
-    """A settlement's landing arms `z` to take it back in one press only until the
-    user acts. With the panel closed since and a press on the page, the thread is
-    out of view like any other gesture's place: the first `z` opens it and takes
-    nothing, and the second takes the gesture back there."""
-    url = serve(LONG_PAGE)
-    root = panel_comment(serve.page_dir, "Settle this one, then think better of it.")
     if gesture == "reopen":
         append_carried_log_record(
             serve.page_dir, {"kind": "resolve", "author": "user", "parent": root}
         )
     page = open_page(browser, url)
-    open_panel_thread(page, root).focus()
-    with sending(page, f"the {gesture}"):
-        page.keyboard.press("r")
-    round_trip(page)
-    page.locator(".lf-fp-close").click()
-    panel_settled(page, open=False)
-    page.locator("h1").first.click()
+    resized(page, 1920, 900)
+    seat = page.locator("#jobs > .lf-thread-seat")
+    seated = seat.locator(f'.lf-page-thread[data-lf-thread="{root}"]')
+    reopen = seated.get_by_role("button", name="Reopen", exact=True)
 
-    page.keyboard.press("z")
-    expect(page.locator(PANEL_THREAD)).to_have_attribute("data-lf-thread", root)
-    expect(page.locator(".lf-live")).to_contain_text("Press again to undo")
-    undo(page)
-    round_trip(page)
-    expect_open_threads(page, 1 if gesture == "resolve" else 0)
-    expect(page.locator(PANEL_THREAD)).to_have_attribute("data-lf-thread", root)
+    def enter():
+        if gesture == "resolve":
+            # A walk to the thread lands in its seat, not in a card beside it.
+            if not page.evaluate(FOCUS_IN, seated.element_handle()):
+                page.keyboard.press("Shift+t")
+            expect(seated).to_be_focused()
+        else:
+            # Reopen still shows while the way back before folds the thread into the
+            # closed disclosure, so it is read once the seat's motion has ended.
+            page.wait_for_function(
+                "seat => document.getAnimations()"
+                ".every((motion) => !seat.contains(motion.effect?.target ?? null))",
+                arg=seat.element_handle(),
+            )
+            if not reopen.is_visible():
+                seat.locator(".lf-resolved-summary").click()
+
+    def settle():
+        if gesture == "resolve":
+            page.keyboard.press("r")
+        else:
+            reopen.click()
+
+    def away():
+        page.locator("#f20").click()
+        # End rather than a wheel: a wheel's glide aimed past the page's end runs on
+        # while the page stands at its end, which reads as settled, and takes back the
+        # scroll the next landing makes.
+        page.keyboard.press("End")
+        page.wait_for_function("() => scrollY > 1500")
+        scroll_settled(page)
+        expect(seat).not_to_be_in_viewport()
+
+    def returned():
+        expect_focus_in(page, seated if gesture == "resolve" else seat)
+        expect(page.locator(PANEL_THREAD)).to_have_count(0)
+        expect(page.locator(".lf-margin-preview")).to_be_hidden()
+
+    def shown():
+        # The element the seat stands in fits the window, so it lands whole.
+        expect(page.locator("#jobs")).to_be_in_viewport(ratio=1)
+        returned()
+
+    return Surface(
+        page,
+        enter,
+        settle,
+        lambda: page.locator("#h").click(),
+        away,
+        shown,
+        returned,
+        REOPENED_IN_THE_BOX if gesture == "reopen" else frozenset(),
+    )
 
 
-def test_a_thread_resolved_in_the_panel_comes_back_to_the_panel(browser, serve):
-    """A thread about a passage opens in a card beside it, but the user read this one
-    in the panel's view and resolved it there, so that view is what `z` and a refusal
-    give back. A route to the thread chose for it as it stood, and put it in a card."""
-    comment = {
-        "kind": "comment",
-        "author": "user",
-        "revision": 1,
-        "text": "Check whether these jobs can share one visit.",
-        "anchor": {"section": "bracket"},
-    }
-    page = open_page(browser, serve(OBLIGATION_PAGE, events=[comment]))
-    root = events_model.read_events(serve.page_dir)[0]["id"]
+def reader_surface(browser, serve, gesture):
+    """A package's primary reader, which draws the thread as a seat does."""
+    url = package_workspace(serve, before_reader=FILLER)
+    if gesture == "reopen":
+        append_carried_log_record(
+            serve.page_dir, {"kind": "resolve", "author": "user", "parent": "opening"}
+        )
+    page = open_page(browser, url)
     resized(page, 1440, 900)
-    open_panel_thread(page, root).focus()
-    with sending(page, "the resolve"):
-        page.keyboard.press("r")
-    round_trip(page)
-    expect_open_threads(page, 0)
-    undo(page)
-    round_trip(page)
-    expect_open_threads(page, 1)
-    expect(page.locator(PANEL_THREAD)).to_have_attribute("data-lf-thread", root)
-    expect(page.locator(".lf-margin-preview")).to_be_hidden()
+    workspace = page.locator("#workspace")
+    workspace.get_by_role("button", name="Keep it concise.", exact=True).click()
+    thread = workspace.locator('.lf-page-thread[data-lf-thread="opening"]')
+    expect(thread).to_be_visible()
 
+    def settle():
+        name = "Resolve thread" if gesture == "resolve" else "Reopen"
+        thread.get_by_role("button", name=name, exact=True).focus()
+        page.keyboard.press("Enter")
+
+    def away():
+        page.locator("h1").first.click()
+        page.keyboard.press("Home")
+        page.wait_for_function("() => scrollY === 0")
+        scroll_settled(page)
+        expect(workspace).not_to_be_in_viewport()
+
+    def returned():
+        expect(thread).to_have_attribute(
+            "data-lf-resolved", "false" if gesture == "resolve" else "true"
+        )
+        expect_focus_in(page, thread)
+        expect(page.locator(PANEL_THREAD)).to_have_count(0)
+
+    def shown():
+        expect(thread).to_be_in_viewport()
+        expect_focus_in(page, thread)
+
+    return Surface(
+        page,
+        lambda: None,
+        settle,
+        lambda: workspace.locator("h4").first.click(),
+        away,
+        shown,
+        returned,
+        REOPENED_IN_THE_BOX if gesture == "reopen" else frozenset(),
+    )
+
+
+@pytest.mark.parametrize(
+    ("surface", "gesture"),
+    [
+        (card_surface, "resolve"),
+        (panel_surface, "resolve"),
+        (panel_surface, "reopen"),
+        (seat_surface, "resolve"),
+        (seat_surface, "reopen"),
+        (reader_surface, "resolve"),
+        (reader_surface, "reopen"),
+    ],
+    ids=lambda value: getattr(value, "__name__", value),
+)
+def test_every_way_back_from_a_settlement_returns_the_user_where_they_made_it(
+    browser, serve, subtests, surface, gesture
+):
+    """A settlement takes the user's view of its thread away, and every way back gives
+    that view back on the surface the user had it on: `z` by each of its three ways,
+    the notice's Undo and the log's refusal (undo.js, folding.js). A route left to
+    choose chose for the thread as it stood at the way back: it put a thread resolved
+    in its card in the panel, where resolved threads open, one resolved in the panel's
+    view in a card, and one resolved in a seat in the panel, then a card."""
+    s = surface(browser, serve, gesture)
+    page = s.page
+    page.evaluate(OPEN_THREAD_COUNT)
+    before = page.evaluate("() => window.__lfOpenThreads()")
+    after = before - 1 if gesture == "resolve" else before + 1
     held = []
-    page.route("**/api/event", lambda route: held.append(route))
-    page.keyboard.press("r")
-    holding(page, held, 1, "the resolve")
-    expect_open_threads(page, 0)
-    held.pop().fulfill(json={"ok": False, "final": True, "error": "Please retry."})
-    expect_open_threads(page, 1)
-    expect(page.locator(PANEL_THREAD)).to_have_attribute("data-lf-thread", root)
-    expect(page.locator(".lf-margin-preview")).to_be_hidden()
-
-    # The refusal's error stands in the field, and the next Resolve closes the view whose
-    # reply editor stood there: the leaf's error dot stays as it was, unwritten.
-    page.unroute_all(behavior="wait")
-    with sending(page, "the resolve again"):
-        page.keyboard.press("r")
-    round_trip(page)
-    expect_open_threads(page, 0)
-
-
-def test_z_shows_a_thread_resolved_in_its_card_by_its_passage(browser, serve):
-    """No card draws a resolved thread, so a route to one opens the panel's view. The
-    user resolved this one in its card and went back to the top, so `z` shows it first:
-    by its passage, where they had it, and the press that takes the Resolve back opens
-    the card there again, with no turn through the panel."""
-    page = open_page(browser, serve(LONG_PAGE, anchored=(("p55", "Paragraph 55."),)))
-    resized(page, 1440, 900)
-    page.keyboard.press("Shift+t")
-    card = page.locator(".lf-margin-thread .lf-page-thread")
-    expect(card).to_be_focused()
-    # The card takes focus before the page has scrolled to it; a Home pressed while
-    # that scroll runs can lose to it.
-    expect(page.locator("#p55")).to_be_in_viewport()
-    scroll_settled(page)
-    with sending(page, "the resolve"):
-        page.keyboard.press("r")
-    round_trip(page)
-    expect_open_threads(page, 0)
-    page.keyboard.press("Home")
-    scroll_settled(page)
-    expect(page.locator("#p55")).not_to_be_in_viewport()
-
-    page.keyboard.press("z")
-    expect(page.locator(".lf-live")).to_contain_text("Press again to undo")
-    expect(page.locator("#p55")).to_be_in_viewport()
-    expect(page.locator(PANEL_THREAD)).to_have_count(0)
-    undo(page)
-    round_trip(page)
-    expect_open_threads(page, 1)
-    expect(card).to_be_focused()
-    expect(page.locator(PANEL_THREAD)).to_have_count(0)
+    for way in WAYS_BACK:
+        if way in s.unreachable:
+            continue
+        with subtests.test(way=way):
+            s.enter()
+            if way == "refusal":
+                page.route("**/api/event", lambda route: held.append(route))
+                s.settle()
+                holding(page, held, 1, f"the {gesture}")
+                held.pop().fulfill(
+                    json={"ok": False, "final": True, "error": "Please retry."}
+                )
+                page.unroute("**/api/event")
+            else:
+                with sending(page, f"the {gesture}"):
+                    s.settle()
+                expect_open_threads(page, after)
+                if way == "seen":
+                    s.aside()
+                elif way == "shown":
+                    s.away()
+                    page.evaluate(AVAILABLE_COMMANDS)
+                    page.wait_for_function(
+                        "() => window.__lfAvailableCommands()['history.undo']"
+                        "?.includes('z') ?? false"
+                    )
+                    page.keyboard.press("z")
+                    expect(page.locator(".lf-live")).to_contain_text(
+                        "Press again to undo"
+                    )
+                    s.shown()
+                if way == "notice":
+                    with sending(page, "the notice's Undo"):
+                        page.locator(".lf-fp-row-notice-press").click()
+                else:
+                    undo(page)
+            round_trip(page)
+            expect_open_threads(page, before)
+            s.returned()
 
 
 def test_resolving_one_of_two_threads_leaves_the_user_in_the_card(browser, serve):
@@ -496,6 +679,64 @@ def test_resolving_one_of_two_threads_leaves_the_user_in_the_card(browser, serve
     assert focus["inCard"], (
         f"resolving a thread the card outlives left focus on {focus}"
     )
+
+
+def test_resolve_in_a_card_moves_on_to_the_next_thread_at_its_passage(browser, serve):
+    """Resolve in a card shows the thread after the resolved one at the same passage,
+    else the one before, standing the user on it, and the page doesn't move; `z` brings
+    the thread back where it was resolved (thread-preview.js, the user's choice of 4
+    November 2026)."""
+    comment = {
+        "kind": "comment",
+        "author": "user",
+        "revision": 1,
+        "anchor": {"section": "bracket"},
+    }
+    said = (
+        "First: can these jobs share one visit?",
+        "Second: does the second visit need a permit?",
+        "Third: who holds the keys?",
+    )
+    page = open_page(
+        browser,
+        serve(OBLIGATION_PAGE, events=[{**comment, "text": text} for text in said]),
+    )
+    resized(page, 1440, 900)
+    card = page.locator(".lf-margin-preview")
+    position = card.locator(".lf-margin-preview-position")
+    thread = card.locator(".lf-page-thread")
+    marker = page.locator('.lf-margin-marker[data-lf-kinds="comment"]')
+    marker.focus()
+    page.keyboard.press("Enter")
+    expect(thread).to_be_focused()
+    card.get_by_role("button", name="Next thread").focus()
+    page.keyboard.press("Enter")
+    expect(position).to_have_text("2/3")
+    expect(thread).to_be_focused()
+    scroll_settled(page)
+    scrolled = page.evaluate("scrollY")
+
+    with sending(page, "the resolve"):
+        page.keyboard.press("r")
+    expect(position).to_have_text("2/2")
+    expect(card).to_contain_text(said[2])
+    expect(thread).to_be_focused()
+    assert page.evaluate("scrollY") == scrolled
+
+    undo(page)
+    expect(position).to_have_text("2/3")
+    expect(card).to_contain_text(said[1])
+    expect(thread).to_be_focused()
+
+    # The last thread's place goes to the one before it, by a pointer's Resolve too.
+    card.get_by_role("button", name="Next thread").click()
+    expect(position).to_have_text("3/3")
+    with sending(page, "the second resolve"):
+        card.get_by_role("button", name="Resolve thread", exact=True).click()
+    expect(position).to_have_text("2/2")
+    expect(card).to_contain_text(said[1])
+    expect(thread).to_be_focused()
+    assert page.evaluate("scrollY") == scrolled
 
 
 def test_a_card_repaint_keeps_the_user_on_the_control_they_reached(browser, serve):
@@ -837,8 +1078,9 @@ def test_r_settles_the_thread_shown_for_the_element_the_user_stands_on(
 
 
 def test_r_leaves_a_thread_the_user_scrolled_away_from(browser, serve):
-    """Focus stays in a card the user has scrolled off screen, but keys act there only
-    while they can see it, so `r` settles nothing until the card is back in view."""
+    """Focus stays in a card the user has scrolled off screen, but a key pressed there
+    lets go of it first, so `r` settles nothing and the card stays open. Back in view,
+    the open card is the conversation the user sees from the page, so `r` resolves it."""
     comment = {
         "kind": "comment",
         "author": "user",
@@ -851,6 +1093,8 @@ def test_r_leaves_a_thread_the_user_scrolled_away_from(browser, serve):
     page.locator('.lf-margin-marker[data-lf-kinds="comment"]').click()
     card = page.locator(".lf-margin-preview")
     thread = card.locator(".lf-page-thread")
+    expect(card.locator("leaf-text")).to_be_focused()
+    page.keyboard.press("Escape")
     expect(thread).to_be_focused()
 
     def scroll(down):
@@ -868,7 +1112,7 @@ def test_r_leaves_a_thread_the_user_scrolled_away_from(browser, serve):
     rendered(page)
     expect(card).to_be_attached()
     expect(card).not_to_have_attribute("hidden", "")
-    expect(thread).to_be_focused()
+    expect(thread).not_to_be_focused()
     assert events_model.read_events(serve.page_dir)[-1]["kind"] != "resolve"
 
     scroll(down=False)

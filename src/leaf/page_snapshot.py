@@ -103,9 +103,7 @@ class PageSnapshot:
         return list(self.others)
 
     @contextmanager
-    def state_read(
-        self, *, with_token: bool = False
-    ) -> Generator[tuple[PageRead, str | None, str | None]]:
+    def state_read(self) -> Generator[tuple[PageRead, str, str | None]]:
         yield self.context, self.reading, self.source_error
 
     def state_reading(self, reading: str, state: dict) -> str:

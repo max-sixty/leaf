@@ -24,7 +24,7 @@ import {
   render,
 } from "/runtime/framework.js";
 import { setRenderedChildren } from "../dom-children.js";
-import { generatedElement, offeredAction } from "../widget-elements.js";
+import { generatedElement, offeredAction, worksInside } from "../widget-elements.js";
 import {
   loadMarkdown,
   markdownReady,
@@ -494,7 +494,8 @@ export class MessageView {
       this.node.addEventListener("dblclick", (event) => {
         if (
           event.target instanceof Element &&
-          event.target.closest(".lf-msg-editor, .lf-msg-controls, a[href]")
+          (event.target.closest(".lf-msg-editor, .lf-msg-controls") ||
+            worksInside(event.target, this.node))
         )
           return;
         if (!this.#model?.editable) return;
@@ -818,17 +819,17 @@ export function messageHolding(id) {
 /** @param {string} id */
 const addressableAt = (id) => elementById(id) ?? messageHolding(id)?.element ?? null;
 
+// What a coordinate names besides any words it quotes: a design subject, a datum, a
+// drawing's part or a section. A passage is named by its words alone.
 /** @param {import("../../types/domain.js").Anchor | null | undefined} anchor @param {string | null | undefined} about */
-function coordinateLabel(anchor, about) {
+function coordinatePlace(anchor, about) {
   if (about === "design") {
     const addressable = anchor?.section ? addressableAt(anchor.section) : null;
-    const name = addressable ? designName(addressable) : anchor?.section || "the page";
-    return anchor?.quote ? `${name} · “${anchor.quote}”` : name;
+    return addressable ? designName(addressable) : anchor?.section || "the page";
   }
   const datum = datumLabel(anchor);
-  if (datum) return anchor?.quote ? `${datum} · “${anchor.quote}”` : `§ ${datum}`;
-  if (anchor?.quote) return `“${anchor.quote}”`;
-  if (!anchor?.section) return "";
+  if (datum) return anchor?.quote ? datum : `§ ${datum}`;
+  if (anchor?.quote || !anchor?.section) return "";
   const addressable = addressableAt(anchor.section);
   if (anchor.visual) {
     const part = visualPartLabel(addressable, anchor.visual) ?? anchor.visual;
@@ -844,11 +845,21 @@ function coordinateLabel(anchor, about) {
 export const threadPassage = (thread) =>
   thread.rewritten_from ?? thread.detached_from ?? thread.anchor;
 
-// A named control part belongs to the coordinate in every reading, not just Design.
+// Where an anchor stands, apart from the words it quotes: "design · heading · t", or
+// "" for a passage, which its words name alone. A named control part belongs to the
+// place in every reading, not just Design.
 /** @param {import("../../types/domain.js").Anchor | null | undefined} anchor @param {string | null | undefined} [about] */
-export function anchorLabel(anchor, about) {
-  const label = coordinateLabel(anchor, about);
-  return [about === "design" && "design", anchor?.part, label]
+export const anchorPlace = (anchor, about) =>
+  [about === "design" && "design", anchor?.part, coordinatePlace(anchor, about)]
     .filter(Boolean)
     .join(" · ");
-}
+
+// An anchor in running text, such as an accessible name or a feed's line: its place,
+// then the words it quotes, which only the marks set off from the words around them. A
+// surface that draws the two apart, as a thread's quote does (thread-card.js,
+// `quoteReading`), reads `anchorPlace` and the quote instead.
+/** @param {import("../../types/domain.js").Anchor | null | undefined} anchor @param {string | null | undefined} [about] */
+export const anchorLabel = (anchor, about) =>
+  [anchorPlace(anchor, about), anchor?.quote && `“${anchor.quote}”`]
+    .filter(Boolean)
+    .join(" · ");

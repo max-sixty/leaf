@@ -53,6 +53,12 @@ def test_linked_images_zoom_and_return_to_the_report(browser, serve, tmp_path, o
         page.locator("#screenshot a").click()
         holding(page, held, 1, "the image tools")
         expect(viewer.locator("img:visible")).to_have_count(0)
+        # A reader outside the page waits for the image, not the empty viewer.
+        rendered(page, facts=("updatesSettled",))
+        assert not page.evaluate(
+            "document.querySelector('script[data-lf-entry]')"
+            ".lfRenderingState().preparationsSettled"
+        )
         held.pop().continue_()
         fitted = viewer.locator("img.pswp__img")
         expect(fitted).to_be_visible()

@@ -71,7 +71,7 @@
         "unsent": true
       }
     },
-    "x-example": "<lf-ask id=\"notification-ask\"> <h2>Which deployment notification should we build?</h2> <lf-playground id=\"notification-playground\" submit-label=\"Create notification\" data-width=\"available\" > <lf-playground-control name=\"radius\" label=\"Corner radius\" kind=\"range\" value=\"10\" min=\"0\" max=\"24\" step=\"1\" unit=\"px\" ></lf-playground-control> <lf-playground-control name=\"compact\" label=\"Compact spacing\" kind=\"toggle\" value=\"false\" ></lf-playground-control> <lf-playground-preset label=\"Compact\"> <lf-playground-setting for=\"radius\" value=\"4\"></lf-playground-setting> <lf-playground-setting for=\"compact\" value=\"true\"></lf-playground-setting> </lf-playground-preset> <lf-playground-preview> <lf-playground-control name=\"format\" label=\"Notification\" kind=\"choice\" value=\"banner\" > <lf-playground-choice value=\"banner\" label=\"Banner\"> <article class=\"notification-candidate\"> <h3>Checkout deployed</h3> <p>Review the deployment run.</p> </article> </lf-playground-choice> <lf-playground-choice value=\"status strip\" label=\"Status strip\"> <article class=\"notification-candidate\"> Checkout \u00b7 deployed \u00b7 18 checks passed </article> </lf-playground-choice> </lf-playground-control> </lf-playground-preview> <lf-playground-output> Build the <lf-playground-value for=\"format\"></lf-playground-value> notification with <lf-playground-value for=\"radius\"></lf-playground-value> corners and compact spacing set to <lf-playground-value for=\"compact\"></lf-playground-value>. Replace the notification component and show me its browser test. </lf-playground-output> </lf-playground> </lf-ask>"
+    "x-example": "<lf-ask id=\"notification-ask\"> <h2>Which deployment notification should we build?</h2> <lf-playground id=\"notification-playground\" submit-label=\"Create notification\" data-width=\"available\" > <lf-playground-control id=\"radius\" name=\"radius\" label=\"Corner radius\" kind=\"range\" value=\"10\" min=\"0\" max=\"24\" step=\"1\" unit=\"px\" ></lf-playground-control> <lf-playground-control id=\"compact\" name=\"compact\" label=\"Compact spacing\" kind=\"toggle\" value=\"false\" ></lf-playground-control> <lf-playground-preset id=\"preset-compact\" label=\"Compact\"> <lf-playground-setting for=\"radius\" value=\"4\"></lf-playground-setting> <lf-playground-setting for=\"compact\" value=\"true\"></lf-playground-setting> </lf-playground-preset> <lf-playground-preview> <lf-playground-control id=\"format\" name=\"format\" label=\"Notification\" kind=\"choice\" value=\"banner\" > <lf-playground-choice id=\"format-banner\" value=\"banner\" label=\"Banner\"> <article class=\"notification-candidate\"> <h3>Checkout deployed</h3> <p>Review the deployment run.</p> </article> </lf-playground-choice> <lf-playground-choice id=\"format-status-strip\" value=\"status strip\" label=\"Status strip\"> <article class=\"notification-candidate\"> Checkout \u00b7 deployed \u00b7 18 checks passed </article> </lf-playground-choice> </lf-playground-control> </lf-playground-preview> <lf-playground-output> Build the <lf-playground-value for=\"format\"></lf-playground-value> notification with <lf-playground-value for=\"radius\"></lf-playground-value> corners and compact spacing set to <lf-playground-value for=\"compact\"></lf-playground-value>. Replace the notification component and show me its browser test. </lf-playground-output> </lf-playground> </lf-ask>"
   },
   "lf-playground-control": {
     "description": "One typed input in a playground.",
@@ -116,7 +116,7 @@
         "type": "string"
       }
     },
-    "required": ["name", "label", "kind", "value"],
+    "required": ["id", "name", "label", "kind", "value"],
     "allOf": [
       {
         "if": { "required": ["appearance"] },
@@ -176,6 +176,7 @@
       }
     ],
     "additionalProperties": false,
+    "x-word": "control",
     "x-unique": { "name": "lf-playground" },
     "x-owners": ["lf-playground"],
     "x-within": ["lf-playground-preview"],
@@ -198,8 +199,9 @@
         "minLength": 1
       }
     },
-    "required": ["value", "label"],
+    "required": ["id", "value", "label"],
     "additionalProperties": false,
+    "x-word": "option",
     "x-unique": { "value": "lf-playground-control" },
     "x-owners": ["lf-playground-control"],
     "x-content": "markup",
@@ -217,8 +219,9 @@
         "minLength": 1
       }
     },
-    "required": ["label"],
+    "required": ["id", "label"],
     "additionalProperties": false,
+    "x-word": "preset",
     "x-owners": ["lf-playground"],
     "x-content": "members",
     "x-upgrade": false

@@ -377,63 +377,14 @@ def test_a_margin_entry_carries_a_suggestion_through_its_whole_lifecycle(
     ).to_have_count(1)
 
 
-def test_keyboard_arrival_at_a_margin_entry_cluster_replaces_ellipsis_with_all_entries(
+def test_keyboard_arrival_at_a_cluster_shows_all_its_entries_for_the_keys_to_walk(
     browser, serve
 ):
-    """Keyboard arrival expands one target's peers instead of focusing its overflow.
+    """Keyboard arrival expands one target's peers instead of focusing its overflow, and
+    horizontal arrows move between the peers it reveals.
 
     The cluster stands in the margin layer, after the page's content in the tab
     order, so the arrival is a keyboard focus on its first stop there."""
-    page = open_page(browser, serve(MARGIN_ENTRY_KEYBOARD_PAGE))
-    resized(page, 1440, 900)
-    page.evaluate(
-        """async () => {
-          const {contributionEntry, registerContribution} =
-            await window.__lfWidgetApi();
-          registerContribution({key: 'extra', target: document.querySelector('#sug-refill'),
-            read: () => ({entries: [contributionEntry({
-              key: 'details', icon: 'comment', label: 'Details',
-              behavior: 'disclosure', rank: 'reading'
-            })]}), activate: () => {}});
-        }"""
-    )
-    item = page.locator('[data-lf-margin-for="sug-refill"]')
-    accept = item.get_by_role("button", name=re.compile(r"Accept"))
-    more = item.locator(":scope > .lf-margin-more")
-    options = item.locator(":scope > .lf-margin-options")
-    expect(more).to_be_visible()
-    page.locator("#before-margin-entries").focus()
-    page.keyboard.press("Tab")
-    accept.focus()
-
-    expect(accept).to_be_focused()
-    expect(more).to_be_hidden()
-    expect(options).to_be_visible()
-    reject = item.get_by_role("button", name=re.compile(r"Reject"))
-    expect(reject).to_be_visible()
-    page.keyboard.press("Tab")
-    expect(reject).to_be_focused()
-    expect(more).to_be_hidden()
-
-    page.keyboard.press("Escape")
-    expect(more).to_be_focused()
-    page.keyboard.press("Shift+Tab")
-    expect(accept).to_be_focused()
-    expect(options).to_be_visible()
-
-    page.locator("#after-margin-entries").focus()
-    expect(more).to_be_visible()
-    expect(options).to_be_hidden()
-
-    more.click()
-    expect(options).to_be_visible()
-    page.locator("#insert").click()
-    expect(more).to_be_visible()
-    expect(options).to_be_hidden()
-
-
-def test_left_and_right_walk_the_revealed_margin_entry_cluster(browser, serve):
-    """Horizontal arrows move between the peer margin entries revealed on keyboard entry."""
     page = open_page(browser, serve(MARGIN_ENTRY_KEYBOARD_PAGE))
     resized(page, 1440, 900)
     item = page.locator('[data-lf-margin-for="sug-refill"]')
@@ -455,6 +406,49 @@ def test_left_and_right_walk_the_revealed_margin_entry_cluster(browser, serve):
     expect(panel_field(page)).to_have_attribute(
         "placeholder", re.compile("Action 1 of 2")
     )
+    page.locator("#after-margin-entries").focus()
+
+    page.evaluate(
+        """async () => {
+          const {contributionEntry, registerContribution} =
+            await window.__lfWidgetApi();
+          registerContribution({key: 'extra', target: document.querySelector('#sug-refill'),
+            read: () => ({entries: [contributionEntry({
+              key: 'details', icon: 'comment', label: 'Details',
+              behavior: 'disclosure', rank: 'reading'
+            })]}), activate: () => {}});
+        }"""
+    )
+    more = item.locator(":scope > .lf-margin-more")
+    options = item.locator(":scope > .lf-margin-options")
+    expect(more).to_be_visible()
+    page.locator("#before-margin-entries").focus()
+    page.keyboard.press("Tab")
+    accept.focus()
+
+    expect(accept).to_be_focused()
+    expect(more).to_be_hidden()
+    expect(options).to_be_visible()
+    expect(reject).to_be_visible()
+    page.keyboard.press("Tab")
+    expect(reject).to_be_focused()
+    expect(more).to_be_hidden()
+
+    page.keyboard.press("Escape")
+    expect(more).to_be_focused()
+    page.keyboard.press("Shift+Tab")
+    expect(accept).to_be_focused()
+    expect(options).to_be_visible()
+
+    page.locator("#after-margin-entries").focus()
+    expect(more).to_be_visible()
+    expect(options).to_be_hidden()
+
+    more.click()
+    expect(options).to_be_visible()
+    page.locator("#insert").click()
+    expect(more).to_be_visible()
+    expect(options).to_be_hidden()
 
 
 def test_settling_a_secondary_action_keeps_its_undo_in_the_cluster(browser, serve):
@@ -729,6 +723,11 @@ def test_one_target_has_one_primary_margin_entry_and_inline_secondary_margin_ent
     expect(page.locator(".lf-margin-preview")).to_be_visible()
     expect(page.locator(".lf-margin-thread")).to_have_count(1)
     expect(options).to_be_visible()
+    # From the reply the click left the caret in, Escape stands on the thread, and
+    # from there it takes the card down.
+    expect(page.locator(".lf-margin-preview leaf-text")).to_be_focused()
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-margin-preview .lf-page-thread")).to_be_focused()
     page.keyboard.press("Escape")
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
     expect(options).to_be_visible()
@@ -1001,7 +1000,7 @@ def test_margin_entry_order_and_page_map_actions_are_stable_at_both_widths(
         expect(dialog).to_be_visible()
         expect(
             dialog.get_by_role(
-                "searchbox", name="Find an action, status, or location in Page Map"
+                "searchbox", name="Find an action, status or location in Page Map"
             )
         ).to_be_focused()
         assert (

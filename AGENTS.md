@@ -160,7 +160,8 @@ browser assets and the packages into a page's layer.
 - `hooks/`: each harness's registration of `leaf hook` (`hooks.json` for Claude
   Code, `codex.json` for Codex), the scripts they run, Claude Code's hooks
   module `claude-code.ts`, and the Pi extension `pi.ts`.
-- `evals/`: cases a headless agent answers, scoring the shipped instructions.
+- `evals/`: cases a headless agent answers, scoring the shipped instructions, and
+  experiments with their own Promptfoo configs (`dev/AGENTS.md`, "Experiments").
 - `examples/`: the pages the site publishes, also the render corpus
   (`examples/AGENTS.md`).
 - `tests/`: the suite, with the runtime's Node tests under `tests/runtime/`
@@ -325,8 +326,8 @@ detaches instead of falling back to order or offsets.
 Each fact Leaf derives about the page is derived once, and each place that
 reports the page selects what its purpose needs. Whatever a delivery tells the
 agent about an event, apart from what it asks of the agent at the time (`answer`,
-`handling`, `waiting`), `leaf page state` tells a later session about the same
-event, or the message as it now reads, under the same name and from the same code
+`handling`, `waiting`, `settled`), `leaf page state` tells a later session about the
+same event, or the message as it now reads, under the same name and from the same code
 (`event_facts.py`). A fact about the past, such as the settings the user had open
 when they wrote, is derived from the log and never stored as a second copy.
 

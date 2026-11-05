@@ -981,9 +981,19 @@ onUserInput((event) => {
 });
 
 // Which input last named a place to keep in a reflow: a pointer moving, pressing or
-// wheeling over an item, or the keyboard, whose arrivals name the item focus is on.
-// It chooses which visible item holds a reflow, and supersedes no delayed move.
+// wheeling over an item, or the keyboard, whose arrivals name the item focus is on. A
+// key pressed with nothing focused, or at focus the user has scrolled away from
+// (user-place.js, `focusPlace`), names nothing, so the column the pointer last named
+// stays the reader's for the command it runs and the let-go it starts with
+// (reading-place.js, `readingBlock`). It chooses which visible item holds a reflow, and
+// supersedes no delayed move.
 let placeInput = "focus";
+/** @type {() => unknown} */
+let focusIsPlace = () => true;
+/** @param {typeof focusIsPlace} read */
+export const declareFocusPlace = (read) => {
+  focusIsPlace = read;
+};
 for (const type of ["pointermove", "pointerdown", "wheel"])
   addEventListener(type, () => (placeInput = "pointer"), {
     capture: true,
@@ -1216,7 +1226,12 @@ export const recoveredLabelFocus = (event) => recoveredLabelKeys.get(event) ?? n
 addEventListener(
   "keydown",
   (event) => {
-    placeInput = "focus";
+    const at = deepFocus();
+    // A field the user types in is theirs whatever it takes to see it, and a keystroke
+    // pays for no read of the page's geometry. Tab types nothing, so it lets go of a
+    // field the user can't see (keyboard/controller.js) and names nothing.
+    const typing = typesText(at) && event.key !== "Tab";
+    if (at !== document.body && (typing || focusIsPlace())) placeInput = "focus";
     const recovering = labelPress;
     if (!recovering || event.isComposing || MODIFIER_KEYS.includes(event.key)) return;
     const active = deepFocus();
@@ -1584,14 +1599,16 @@ export const typesText = inputs.typesText;
 // Select options retain typeahead when an open custom list moves focus into an option.
 export const takesLetters = inputs.takesLetters;
 
-// Radio and range controls own their arrow navigation before a containing widget.
-// Custom controls expose the same role at their focused element as the native input.
+// Radio, range and select controls own their arrow navigation before a containing
+// widget. Custom controls expose the same role at their focused element as the native
+// input. A select steps its choice by a slider's keys, or opens its list on macOS; its
+// letters are typing (`takesLetters`).
 /** @param {Element | null} node */
 export function controlNavigationKeys(node) {
   if (node?.matches('input[type="radio"], [role="radio"]'))
     return ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"];
-  if (node?.matches('input[type="range"], [role="slider"]'))
-    // A slider's value steps, not control-selectors.js's CARET_KEYS: the same keys today.
+  if (node?.matches('select, input[type="range"], [role="slider"]'))
+    // A value's steps, not control-selectors.js's CARET_KEYS: the same keys today.
     return [
       "ArrowLeft",
       "ArrowRight",
@@ -1684,12 +1701,15 @@ export const onLetGo = (read) => {
 /** @param {Element | null} [from] */
 export function letGo(from = focused()) {
   letGoes++;
+  const held = /** @type {HTMLElement | null} */ (focused());
   const block = readingBlock(from);
   if (!block?.isConnected) releaseFocus();
   else {
     focusDestination(block, "move");
     block.blur();
   }
+  // A page an open modal holds inert takes no focus, so the landing above moved nothing.
+  held?.blur();
   if (from && from !== document.body) for (const read of letGoReaders) read(from);
 }
 

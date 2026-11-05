@@ -1058,32 +1058,34 @@ def test_a_playground_reports_a_contributor_view_that_cannot_draw_its_edit(
     consume_browser_errors(page, report)
 
 
+SHORT_WORKSPACE_PLAYGROUND = leaf_page(
+    "Short alert workspace",
+    "<header><h1>Tune alert policies</h1>"
+    "<p>Compare the last month of incidents before setting the latency window. "
+    "Keep every real incident visible while reducing unnecessary pages for the "
+    "on-call engineer.</p></header>"
+    '<lf-playground id="short-config" data-width="available">'
+    '<lf-playground-preset label="Suggested window">'
+    '<lf-playground-setting for="latency" value="5"></lf-playground-setting>'
+    "</lf-playground-preset>"
+    "<lf-playground-preview><h2>Checkout latency</h2>"
+    "<p>The last incident lasted seven minutes. Tune its alert beside this evidence.</p>"
+    '<lf-playground-control name="latency" label="Latency window" kind="range" '
+    'value="5" min="1" max="15" unit="min"></lf-playground-control>'
+    "</lf-playground-preview><lf-playground-output>"
+    + "Include alert evidence, validation, routing and deployment instructions. "
+    * 100
+    + '<span id="instruction-end">Finish with the rollback procedure.</span>'
+    "</lf-playground-output></lf-playground>",
+    layout="workspace",
+)
+
+
 def test_inline_playground_keeps_half_a_short_workspace_for_its_stage(browser, serve):
     """With its controls on the stage, a playground in a short workspace keeps at least
     half the window for the stage. Presets stay visible and Tab brings its actions
     above the floating panel; a long instruction scrolls inside its popover."""
-    source = leaf_page(
-        "Short alert workspace",
-        "<header><h1>Tune alert policies</h1>"
-        "<p>Compare the last month of incidents before setting the latency window. "
-        "Keep every real incident visible while reducing unnecessary pages for the "
-        "on-call engineer.</p></header>"
-        '<lf-playground id="short-config" data-width="available">'
-        '<lf-playground-preset label="Suggested window">'
-        '<lf-playground-setting for="latency" value="5"></lf-playground-setting>'
-        "</lf-playground-preset>"
-        "<lf-playground-preview><h2>Checkout latency</h2>"
-        "<p>The last incident lasted seven minutes. Tune its alert beside this evidence.</p>"
-        '<lf-playground-control name="latency" label="Latency window" kind="range" '
-        'value="5" min="1" max="15" unit="min"></lf-playground-control>'
-        "</lf-playground-preview><lf-playground-output>"
-        + "Include alert evidence, validation, routing and deployment instructions. "
-        * 100
-        + '<span id="instruction-end">Finish with the rollback procedure.</span>'
-        "</lf-playground-output></lf-playground>",
-        layout="workspace",
-    )
-    page = open_page(browser, serve(source))
+    page = open_page(browser, serve(SHORT_WORKSPACE_PLAYGROUND))
     resized(page, 900, 500)
     playground = page.locator("#short-config")
     preview = playground.locator(".lf-playground-preview-body")
@@ -1131,6 +1133,29 @@ def test_inline_playground_keeps_half_a_short_workspace_for_its_stage(browser, s
     assert events_model.read_events(serve.page_dir)[-1]["detail"]["values"] == {
         "latency": 6
     }
+
+
+@pytest.mark.parametrize("over", ["stage", "presets"])
+def test_the_wheel_takes_a_short_workspace_to_its_playgrounds_send(
+    browser, serve, over
+):
+    """In a short workspace that scrolls to the playground's Send, a wheel over the
+    stage, once the stage is at its end, or over the presets scrolls the workspace and
+    brings Send into view. Chromium kept that wheel in the region under the pointer,
+    which left only a wheel over the premise to reach Send."""
+    page = open_page(browser, serve(SHORT_WORKSPACE_PLAYGROUND))
+    resized(page, 900, 500)
+    playground = page.locator("#short-config")
+    submit = playground.get_by_role("button", name="Use these settings")
+    expect(submit).not_to_be_in_viewport(ratio=1)
+    region = playground.locator(
+        ".lf-playground-preview-body" if over == "stage" else ".lf-playground-presets"
+    )
+    region.evaluate("body => { body.scrollTop = body.scrollHeight; }")
+    box = region.bounding_box()
+    page.mouse.move(box["x"] + box["width"] - 40, box["y"] + box["height"] / 2)
+    page.mouse.wheel(0, 400)
+    expect(submit).to_be_in_viewport(ratio=1)
 
 
 def test_a_short_workspace_shows_more_below_its_playground_regions(browser, serve):

@@ -1424,8 +1424,8 @@ export default [
   {
     // Playwright's Node drivers also execute callbacks in the page's realm.
     files: [
+      "evals/ui-review-detection/hooks.mjs",
       "evals/ui-review-detection/provider.mjs",
-      "evals/widget-formats/interaction.mjs",
     ],
     languageOptions: { globals: browserGlobals },
   },

@@ -1,11 +1,11 @@
 """Serve and load ordinary HTML, with no Leaf payload, server or runtime.
 
-The plain-HTML control of the authoring evals and the UI review fixtures are files a
-browser opens as written. `serving` is the one static file server for them: Python's
-own, on a thread, so a command holds it open around its work.
-It serves the directory's files and nothing else: a directory listing would show a
-blinded reviewer every candidate, so it answers 404. A browser's own favicon request
-answers 204 when the page brings none, so a page's request failures are its own.
+The plain-HTML control of the authoring evals is a file a browser opens as written.
+`serving` is the one static file server for it: Python's own, on a thread, so a command
+holds it open around its work.
+It serves the directory's files and nothing else, and a directory listing answers 404.
+A browser's own favicon request answers 204 when the page brings none, so a page's
+request failures are its own.
 Browser completion is the ordinary document's load, fonts and images, rather than a
 Leaf presentation publication.
 """

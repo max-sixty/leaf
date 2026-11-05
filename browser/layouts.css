@@ -997,9 +997,16 @@
          * taken back (`--lf-top-start`, base.css). */
         --lf-top-start: calc(-1 * var(--lf-pane-top, 0px));
         --lf-top: var(--lf-top-start);
-        overscroll-behavior: contain;
         scrollbar-gutter: stable;
         --lf-holds-height: 1;
+      }
+      /* A page's own pane is a task of its own, so a wheel or reading key spent at its
+       * edge stops there. A widget's generated pane is one part of the widget's task, so
+       * a scroll spent at its edge goes on to the box around it, as a bounded block's
+       * does: a playground's stage passes the wheel to a workspace that scrolls on to the
+       * playground's Send. */
+      [data-lf-reading-role="pane"]:not([data-lf-generated]) > :not(header, footer) {
+        overscroll-behavior: contain;
       }
     }
     /* A bounded block that is all a workspace scroller holds takes that height, or its

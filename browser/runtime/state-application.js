@@ -16,6 +16,7 @@ import {
   whenDocumentPresented,
   readApplication,
 } from "./semantic-state.js";
+import { runtime } from "./context.js";
 import { reportCarried, sameLayer } from "./layer-client.js";
 import { holdUserPlace } from "./user-place.js";
 import { observeServerNow, observeWorkingGrace } from "./presence.js";
@@ -52,6 +53,12 @@ export function createStateApplication({
   let presentedNews = null;
   let stateApplying = false;
   let admission = Promise.resolve();
+  // Every answer handed in through any door, a state read or a gesture's POST, while
+  // it is still being prepared or applied. Until one is adopted or dropped,
+  // `runtime.state` is the state before it, so whoever asks what the page already
+  // has asks `stateInHand`.
+  /** @type {Set<import("./layer-client.js").CompletedState>} */
+  const inHand = new Set();
 
   /** @template T @param {() => T | Promise<T>} operation */
   async function runSerialized(operation) {
@@ -69,6 +76,25 @@ export function createStateApplication({
 
   /** @param {import("./layer-client.js").CompletedState} state */
   async function receiveState(state) {
+    inHand.add(state);
+    try {
+      return await applyState(state);
+    } finally {
+      inHand.delete(state);
+    }
+  }
+
+  // The newest state, by when the server took it, of those the page has adopted or
+  // has in hand.
+  function stateInHand() {
+    let newest = runtime.state;
+    for (const state of inHand)
+      if (!newest || state.taken > newest.taken) newest = state;
+    return newest;
+  }
+
+  /** @param {import("./layer-client.js").CompletedState} state */
+  async function applyState(state) {
     if (!sameLayer(state.layer.generation)) return;
     // Data is ordered by when the server took the reading, even in a crossed older log read.
     const dataChanged = acceptData(state.data, state.taken);
@@ -227,5 +253,10 @@ export function createStateApplication({
     });
   }
 
-  return { isApplying: () => stateApplying, receiveState, runSerialized };
+  return {
+    isApplying: () => stateApplying,
+    stateInHand,
+    receiveState,
+    runSerialized,
+  };
 }

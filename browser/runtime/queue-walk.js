@@ -60,9 +60,9 @@
    one on the tally's own control above it, counts from the obligation the user last went to, if
    it is in the region: Tab and Shift+Tab pass over what they cross on the way to the
    control, so they keep it, while any other move the user makes ends it. Without one it
-   counts from the first of the region's obligations they see, as a place they are at without
-   being on it, and with none in sight it enters at the region's edge, Next at the
-   first and Previous at the last. That obligation, kept by identity
+   counts from the block they read in the region (reading-place.js, `readingBlock`), as a
+   place they are at without being on it, and with none in sight it counts from where
+   they are. That obligation, kept by identity
    so a revision replacing its node keeps it, is the one place this walk keeps, and only
    this case reads it: anywhere else the user's own place decides.
 
@@ -81,7 +81,8 @@ import {
   stepFrom,
   walkOrigin,
 } from "./current-target.js";
-import { seenRect } from "./geometry.js";
+import { readingBlock } from "./reading-place.js";
+import { readingRegionFor } from "./reading-regions.js";
 import { closestAcross, inChrome } from "./passages.js";
 import { byRenderedOrder, under } from "./shadow.js";
 import { hasObligationSource } from "./obligations/source.js";
@@ -626,16 +627,14 @@ export function createQueueWalk({
         place: obligationPlace(kept).source,
         kind: "current-location",
       });
-    // What the user reads in the region: the first of its obligations any of which they see,
-    // where they are without being on it, so a waiting one is the next and an
-    // answered one leads to the next after it.
-    const clips = new Map();
-    const shown = items
-      .map((item) => obligationPlace(item).node)
-      .find((node) => node && seenRect(node, clips));
-    return shown
-      ? walk(toward, within, { node: shown, place: shown, kind: "at" })
-      : walk(toward, within, here);
+    // What the user reads in the region, where they are without being on any of its
+    // obligations, so the one holding it or the next waiting one is the next.
+    const reading = readingBlock(readingRegionFor(within) ?? null, within);
+    return walk(
+      toward,
+      within,
+      reading ? { node: reading, place: reading, kind: "at" } : here,
+    );
   }
 
   // On me's list as the panel draws it: its groups, the grouping they stand in and the

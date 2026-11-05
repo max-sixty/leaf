@@ -56,10 +56,11 @@ own (`../SOUL.md`, "Keep the foundation small and extensible").
   settlement (resolving or reopening) in their own thread, a thread keeps what it drew
   behind a fixed-size control until the reader goes to it. A thread not drawn yet, one
   the agent starts or one a reply reopens out of a closed Resolved disclosure, draws at
-  once, the rare path the user chose to let move what follows it (2026-11-04). An exception the user chose stays with its owner, as `fitAnswer` in
-  `floating-panel.js` does. Check: `test_news_just_after_a_press_moves_nothing`.
-  Owners: `thread/held-news.js`, and `threadsListing` in `floating-panel.js` for the rows
-  of Threads.
+  once, the rare path the user chose to let move what follows it (2026-11-04). An
+  exception the user chose stays with its owner, as the floating panel's growth for an
+  answer the user waits for (`floating-panel.js`) does. Check:
+  `test_news_just_after_a_press_moves_nothing`. Owners: `thread/held-news.js`, and
+  `threadsListing` in `floating-panel.js` for the rows of Threads.
 - **What the reader reads stays put through re-renders and revisions.** The browser's
   scroll anchoring holds it while content above changes height, so a render keeps the
   nodes it doesn't change, as a revision's patch, a widget declaring `x-patch: members`
@@ -495,14 +496,15 @@ adds its row. Rows marked _lint_ are enforced in `eslint.config.mjs`.
 | Which of two nodes the reader reaches first, across shadow trees                                      | `shadow-tree.js` `renderedOrder`, `byRenderedOrder`                                |
 | What stands for a node in one tree: the node, or the host of the shadow tree holding it               | `shadow-tree.js` `hostIn`                                                          |
 | Whether a node is inside another across shadow trees                                                  | `shadow-tree.js` `under`, `renderedUnder`, `composedParentNode`                    |
+| Order and containment along another climb of the tree, as the page reading's own order is             | `shadow-tree.js` `alongClimb`                                                      |
 | Put the user on an element, saying what moved them                                                    | `focus.js` `focusDestination(node, cause)` (_lint_)                                |
 | Move a node, keeping the user's place in it                                                           | `dom-move.js` `move(parent, node, before)` (_lint_)                                |
 | Make a list of nodes, some already placed, a parent's children                                        | `dom-children.js` `setChildren`                                                    |
 | Whether a control takes typed letters                                                                 | `focus.js` `typesText`, `takesLetters`                                             |
 | Which keys move a caret, and whether a key is Select All                                              | `control-selectors.js` `CARET_KEYS`, `selectsAll`                                  |
 | A hint map's walk and choose rows                                                                     | `keyboard/hints.js` `createHintSession`                                            |
-| Which focused control counts as the user's place: shown, and not under a stuck box                    | `user-place.js` `focusedInView`                                                    |
-| Whether the user scrolled away from the control focus stands on, which keys then leave alone          | `user-place.js` `focusScrolledAway`                                                |
+| Whether focus is where the user is: seen, or a motion carrying them to it                             | `user-place.js` `focusPlace`                                                       |
+| What the user reads where focus isn't where they are, in their column                                 | `reading-place.js` `pageReadingBlock`                                              |
 | What stands at the reading line, and holding a place across a change anchoring can't keep still       | `user-place.js` `readingAt`, `holdPlace`                                           |
 | Whether a click came from the keyboard                                                                | `pointer.js` `pressIsKeyboardActivation`                                           |
 | Whether a press is a plain primary-button press with no modifier                                      | `pointer.js` `plainPress`                                                          |
@@ -524,6 +526,7 @@ adds its row. Rows marked _lint_ are enforced in `eslint.config.mjs`.
 | When a box's scroll ends, a glide's counted once, and whether the browser or a script moves it        | `arrivals.js` `watchScrollEnds`, `holdScroll`, `browserScrolls` (_lint_)           |
 | Whether the reader or layout chose a box's scroll position                                            | `scrolling.js` `chosenSince`, `placeKept`                                          |
 | The authored body, excluding Leaf's runtime surfaces                                                  | `passages.js` `pageDocument`, `inPage`                                             |
+| Whether focus stands on something in the page, which focus on the body doesn't                        | `passages.js` `focusInPage`                                                        |
 | The document a node stands in: the view member or `main` holding it                                   | `storage.js` `viewDocument`                                                        |
 | The box the page's Layout arranges, the shell it stands in (its parent), and a page of parts' views   | `passages.js` `layoutBox`, `layoutParts`                                           |
 | Whether a place is already shown, which every nearest landing asks first, and the room a landing has  | `landing-scroll.js` `alreadyShown`, `landingRoom`                                  |
@@ -549,6 +552,8 @@ adds its row. Rows marked _lint_ are enforced in `eslint.config.mjs`.
 | A thread's name, on every surface that names it                                                       | `thread/messages.js` `threadName` (`threadSummary(thread).topic` for packages)     |
 | The thread a name names: its key, its id, a message's, or this tab's attempt                          | `thread/state.js` `threadNamed`, `threadIdNamed`                                   |
 | The thread id a drawn thread carries, and the page threads drawn with an id                           | `thread/selectors.js` `drawnThreadId`, `drawnThreadsWithId`                        |
+| Where opening a thread puts the user: its reply, or the thread                                        | `thread/focus.js` `openingPart`                                                    |
+| Whether the user is writing a reply                                                                   | `thread/replies.js` `replyIsEditing`                                               |
 | The draft a thread holds: its reply box or a rewrite                                                  | `drafts.js` `replyContext`, `rewriteContext`, `threadDraft`                        |
 | Which obligations a region of the page holds                                                          | `obligations/place.js` `obligationsIn`                                             |
 | What names the part of the page a node stands in: its heading, or a named region                      | `thread/placement.js` `partOver`                                                   |

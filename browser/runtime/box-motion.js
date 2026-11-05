@@ -127,6 +127,7 @@ import { onUserInput } from "./focus.js";
 import { afterSettling, nextRender, sizeObserver } from "./rendering.js";
 import { contentRides } from "./scrolling.js";
 import { userScrollport } from "./geometry.js";
+import { shifted } from "./rect.js";
 
 /** @typedef {import('./rect.js').Box} Box
  * @typedef {keyof Box} Edge
@@ -230,13 +231,6 @@ const between = (from, to, progress) => ({
   top: from.top + (to.top - from.top) * progress,
   right: from.right + (to.right - from.right) * progress,
   bottom: from.bottom + (to.bottom - from.bottom) * progress,
-});
-/** @param {Box} box @param {number} dx @param {number} dy */
-const shifted = (box, dx, dy) => ({
-  left: box.left + dx,
-  top: box.top + dy,
-  right: box.right + dx,
-  bottom: box.bottom + dy,
 });
 /** @param {Insets} sides @param {number} [radius] */
 const insetOf = ([top, right, bottom, left], radius = 0) =>

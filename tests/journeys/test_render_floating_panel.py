@@ -119,7 +119,7 @@ def test_nothing_lies_over_a_view_s_foot_but_new_reply(browser, serve):
         },
     )
     told(page)
-    expect(reader.locator(".lf-fp-new-reply")).to_have_text("New reply")
+    expect(reader.locator(".lf-new-reply")).to_have_text("New reply")
     settled(page)
     # The user's own turn, the last message but the answer below the fold.
     foot = page.evaluate(FOOT, [".lf-msg-text", 1])

@@ -98,7 +98,9 @@ fabBar.setAttribute("part", "composer");
 export const fabInput = textField();
 fabInput.className = "lf-ui lf-response-control lf-fab-input";
 fabInput.name = "comment";
-fabInput.placeholder = "Comment…";
+// What the empty field says, and the box at rest beside a target (composing/surface.js).
+export const COMMENT_HINT = "Comment…";
+fabInput.placeholder = COMMENT_HINT;
 fabInput.setAttribute("aria-label", "Comment");
 const fab = responseAction(offerAction("response", "lf-fab"), {
   action: "comment",
@@ -107,6 +109,10 @@ const fab = responseAction(offerAction("response", "lf-fab"), {
 });
 fab.id = "lf-comment-button";
 fab.title = "Comment";
+// The field's face while the box rests (composing/surface.js, `restFab`). `c` is its
+// keyboard route, and the box goes with the focus Tab would take to it, so Tab skips it.
+export const fabRest = offerAction("response", "lf-fab-rest");
+fabRest.tabIndex = -1;
 export const fabOptions = el("span", "lf-response-options");
 fabOptions.id = "lf-response-options";
 fabOptions.popover = "auto";
@@ -130,7 +136,7 @@ fabOptionsTrigger.setAttribute("aria-controls", fabOptions.id);
 // The layer stack keeps it as the options open and close (keyboard/layer-stack.js).
 fabOptionsTrigger.setAttribute("aria-expanded", "false");
 fabOptionsTrigger.popoverTargetElement = fabOptions;
-fabBar.append(fab, fabOptions);
+fabBar.append(fab, fabRest, fabOptions);
 
 const composer = el("div", "lf-ui lf-composer");
 composer.id = "lf-composer";
@@ -139,7 +145,7 @@ composer.id = "lf-composer";
 // around it: this is the only injected chrome carrying an id, and "which section is this
 // in" is asked as `[id]:not(.lf-ui)` of the element rather than of its ancestors, so
 // without the class it answers that question with itself.
-export const composerQuote = el("blockquote", "lf-ui lf-quote");
+export const composerQuote = el("blockquote", "lf-ui");
 composerQuote.id = "lf-composer-quote";
 composerQuote.hidden = true;
 // The page-anchored composer is the extended Comment control itself. The hidden
@@ -751,7 +757,7 @@ export function createSelectionComposer({
           ? "Replacement text"
           : pendingAbout
             ? "About the layer"
-            : "Comment…",
+            : COMMENT_HINT,
       sends: () => (suggestionMode ? "suggest" : "comment"),
       allowsMedia: () =>
         suggestionMode ? "Images can be added to comments, not replacement text" : true,

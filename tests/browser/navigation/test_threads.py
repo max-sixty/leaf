@@ -588,7 +588,7 @@ CARD_ROUTES = {
     "reply, back to the thread": (["t", "c", "Escape"], True),
     "arrive at the mark": (["@mark"], True),
     "arrive at the mark, step back": (["@mark", "Escape"], True),
-    "press the marker": (["@marker"], True),
+    "press the marker, back to the thread": (["@marker", "Escape"], True),
 }
 
 
@@ -745,13 +745,15 @@ def test_an_inline_thread_rings_its_card_for_keyboard_focus(browser, serve):
     }"""
 
     page.locator('.lf-margin-marker[data-lf-kinds="comment"]').first.click()
-    expect(thread).to_be_focused()
+    expect(preview.locator("leaf-text")).to_be_focused()
     pointer = face.evaluate(paint)
     assert pointer["outline"] == "none"
     drawn = rings_drawn(page)
-    assert not any(ring["sample"] for ring in drawn), drawn
+    assert [".lf-compose-field" in ring["rule"] for ring in drawn] == [True], drawn
     assert not ring_faults(drawn, "the thread opened by pointer")
 
+    page.keyboard.press("Escape")
+    expect(thread).to_be_focused()
     page.keyboard.press("Escape")
     page.keyboard.press("t")
     expect(thread).to_be_focused()
@@ -778,6 +780,9 @@ def test_an_inline_thread_rings_its_card_for_keyboard_focus(browser, serve):
     # same field ring, without returning it to the enclosing card.
     thread.click(position={"x": 3, "y": 3})
     expect(thread).to_be_focused()
+    assert face.evaluate(paint)["outline"] == "none"
+    drawn_on_thread = rings_drawn(page)
+    assert not any(ring["sample"] for ring in drawn_on_thread), drawn_on_thread
     reply.click()
     expect(reply).to_be_focused()
     pointer_reply = rings_drawn(page)
@@ -785,6 +790,39 @@ def test_an_inline_thread_rings_its_card_for_keyboard_focus(browser, serve):
     assert pointer_reply[0]["rule"] == drawn[0]["rule"]
     assert pointer_reply[0]["sample"], pointer_reply
     assert not ring_faults(pointer_reply, "the reply box focused by pointer")
+
+
+def test_a_walk_lands_on_a_thread_in_its_seat_in_view(browser, serve):
+    """A walk to a thread an element seats lands on it there, not in a card beside the
+    element showing the same thread, and in view: the element its seat makes taller
+    than the window is no reason to take the thread back out of view."""
+    url = serve(
+        SEATED_OBLIGATION_PAGE.replace(
+            "</main>",
+            "".join(f"<p id='f{i}'>{'Words. ' * 120}</p>" for i in range(8))
+            + "</main>",
+        )
+    )
+    roots = [
+        panel_comment(
+            serve.page_dir,
+            f"Thread {n}. " + "These jobs can share one visit. " * 4,
+            {"section": "jobs"},
+        )
+        for n in range(6)
+    ]
+    page = open_page(browser, url)
+    resized(page, 1280, 600)
+    page.locator("#f6").click()
+    page.keyboard.press("End")
+    page.wait_for_function("() => scrollY > 1500")
+    scroll_settled(page)
+    page.keyboard.press("Shift+t")
+    last = page.locator(f'#jobs .lf-page-thread[data-lf-thread="{roots[-1]}"]')
+    expect(last).to_be_focused()
+    scroll_settled(page)
+    expect(last).to_be_in_viewport()
+    expect(page.locator(".lf-margin-preview")).to_be_hidden()
 
 
 def test_forced_colors_keep_inline_thread_focus_visible(browser, serve):

@@ -4,10 +4,11 @@
    returning false: Leaf's own chrome, the floating panel, declines a thread about a
    passage, which opens beside its passage. A message whose widgets the primary holds
    goes there even where it declines (messages.js, `authoredHolders`). A part the
-   primary declined uses the page's nearest drawing of its thread: the exact outlet,
-   then a page preview, then a deliberately revealed widget seat; a message part lands
-   on its message there. Where none of
-   those shows it, the primary is asked again with `request.last` set, which says
+   primary declined uses the page's nearest drawing of its thread: the exact outlet, or
+   the seat an `x-thread-seat` widget holds it in (surfaces.js, `surfaceFocusTarget`),
+   whose Resolved disclosure opens for a resolved thread; then a page preview. A message
+   part lands on its message there. Where neither shows it, the primary is asked again
+   with `request.last` set, which says
    nothing else will show the thread, so the floating panel takes any thread then; a
    second refusal leaves the thread unopened. That is every thread about a passage on a
    window with no room for the rail, where no margin card stands (margin-projection.js,
@@ -33,8 +34,10 @@
    The optional preview supplies physical
    opening, placement proof, current focus node and target accompaniment; it owns
    no destination policy. A command retains its original intent through placement
-   and returns its actual focus destination. Surface defaults enter the reply and
-   compact previews default to the thread.
+   and returns its actual focus destination. A route that names no part lands where
+   opening a thread does (focus.js, `openingPart`), on a seat, a card or the primary
+   alike: a Page Map row and Show on page, by a press in the reply and by a key on the
+   thread.
    `travel: false` keeps the page under the gesture while revealing its destination;
    `history: false` arrives at an address the browser already navigated to, revealing
    its passage without adding another return stop.
@@ -45,7 +48,7 @@
    original intent alone permits scrolling or another reveal gesture.
    Addressed part and focus are independent. Materializing a thread obligation asks
    for its message part without focus; a native editing continuation asks for the
-   reply part without focus. Omitting part follows each surface's ordinary route.
+   reply part without focus.
    A focused primary arrival uses page travel's ordinary arrival, which clears a
    surface covering the native reader before disclosure, focus and placement. A
    travelling arrival captures its return place before releasing held content or
@@ -64,7 +67,7 @@ import { presented } from "../geometry.js";
 import { restrictUserIntent, retainUserIntent } from "../user-intent.js";
 import { replyThreadKey } from "./replies.js";
 import { threadNamed } from "./state.js";
-import { heldThread, threadIn } from "./focus.js";
+import { heldThread, openingPart, threadIn } from "./focus.js";
 import { showHeld } from "./held-news.js";
 import { surfaceFocusTarget } from "./surfaces.js";
 import { reveal } from "../widget-elements.js";
@@ -223,6 +226,7 @@ export function createThreadDestinations({
     } = {},
   ) {
     if (!intent()) return null;
+    part ??= openingPart();
     const page = reader === "page";
     // A navigation step moves the page, so a destination that may move no scroller takes none.
     const navigationStep = travel && scroll;
@@ -320,29 +324,32 @@ export function createThreadDestinations({
         return reached ? selected.reader.destination(thread.key, request) : null;
       }
     }
-    // The page's own drawings of the thread: its outlet, a held seat, a preview.
+    // The page's own drawings of the thread: its outlet or seat, a preview.
     async function onPage() {
       const mayPresent = () => (focus === false ? intent.available() : intent());
-      const localPart = part ?? "reply";
       // A route to a message is an arrival at it, so a seat holding it back shows it.
       if (part === "message") showHeld(id);
       const openSurface = async () => {
         // A passive continuation keeps the reader's chosen file, tab or disclosure.
         // Its hidden outlet cannot be the route without revealing that subject again.
-        const surface = surfaceFocusTarget(id, { part: localPart });
+        const surface = surfaceFocusTarget(id, { part });
         if (!scroll && (!surface || !presented(surface))) return DECLINED;
         if (preview) intent.handoff(preview.close);
         if (navigationStep) {
-          if (!(await scrollToThread(id, { part: localPart, focus, intent, history })))
+          // Travel lands on the thread's place, so a disclosure holding the drawing
+          // closed there, as a seat's Resolved disclosure holds a resolved thread,
+          // opens first.
+          if (surface) await reveal(surface, intent).ready;
+          if (!mayPresent()) return null;
+          if (!(await scrollToThread(id, { part, focus, intent, history })))
             return null;
         } else if (focus === false) {
-          if (scroll)
-            await reveal(surfaceFocusTarget(id, { part: localPart }), intent).ready;
+          if (scroll) await reveal(surfaceFocusTarget(id, { part }), intent).ready;
           if (!mayPresent()) return null;
         } else if (
           !(await arrive(
             () => {
-              const current = surfaceFocusTarget(id, { part: localPart });
+              const current = surfaceFocusTarget(id, { part });
               return (
                 current && {
                   where: current,
@@ -357,9 +364,9 @@ export function createThreadDestinations({
           ))
         )
           return null;
-        return surfaceFocusTarget(id, { part: localPart });
+        return surfaceFocusTarget(id, { part });
       };
-      if (surfaceFocusTarget(id, { part: localPart })) return openSurface();
+      if (surfaceFocusTarget(id, { part })) return openSurface();
       // A card stands beside its passage while the passage is drawn
       // (`commentAttachment`), and a card with nowhere to stand never places. A navigation step
       // reveals the passage as it arrives. A thread opened where the user is reveals
@@ -382,7 +389,7 @@ export function createThreadDestinations({
         if (navigationStep) {
           if (
             !(await scrollToThread(id, {
-              part: part ?? "thread",
+              part,
               focus,
               presented: opened.presented,
               intent,
@@ -428,7 +435,10 @@ export function createThreadDestinations({
     // place into view and lands on the margin control standing for the thread, whose
     // focus traces the place (`refreshHighlight`) after a pointer's press as after a
     // key's, and from which a tap or Enter opens the thread again; with no margin, on the
-    // place itself, its current target.
+    // place itself, its current target. Bringing the place into view can draw a view of
+    // the thread there after all, as a widget's seat does once the file holding its line
+    // loads, replacing the control that stood for it: the route lands in that seat, as on
+    // a wide window, at every width.
     const asked = primary && !page ? inPrimary(primary, false) : DECLINED;
     const first = asked instanceof Promise ? await asked : asked;
     if (first !== DECLINED && first !== UNDRAWN) return first;
@@ -447,6 +457,25 @@ export function createThreadDestinations({
         history,
       });
       if (!arrived) return null;
+      const localPart = part ?? "reply";
+      if (focus && surfaceFocusTarget(id, { part: localPart })) {
+        const seated = await arrive(
+          () => {
+            const current = surfaceFocusTarget(id, { part: localPart });
+            return (
+              current && {
+                where: current,
+                focus: current,
+                scroll: [{ at: current, block: "nearest" }],
+              }
+            );
+          },
+          { intent },
+        );
+        if (!seated) return null;
+        if (primary) await inPrimary(primary, false);
+        return surfaceFocusTarget(id, { part: localPart });
+      }
       if (!control) return threadTarget(id);
       intent.handoff(() => focusDestination(control, "move"));
       return control;

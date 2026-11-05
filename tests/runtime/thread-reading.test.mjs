@@ -550,7 +550,7 @@ test("a thread commits when drawn, and abandoned renders call nothing", async (t
     (reading, parts) => {
       const captured = intent;
       parts.thread(reading.threads[0].key, outlet, {
-        drawn: (answer) => drawn.push({ captured, answer, text: outlet.textContent }),
+        drawn: () => drawn.push({ captured, text: outlet.textContent }),
       });
       return deferred?.promise;
     },
@@ -579,7 +579,6 @@ test("a thread commits when drawn, and abandoned renders call nothing", async (t
   const never = new Promise(() => {});
   await reader.prepare(collection(), never).paint();
   assert.equal(drawn.length, 1);
-  assert.equal(drawn[0].answer, null);
 
   for (const abandoned of ["superseded", "cancelled"]) {
     intent = abandoned;
@@ -600,11 +599,6 @@ test("a thread commits when drawn, and abandoned renders call nothing", async (t
     // The callback follows synchronous placement, before asynchronous preparation.
     assert.equal(drawn.at(-1).captured, "later navigation");
     assert.match(drawn.at(-1).text, /Drawn answer/);
-    assert.deepEqual(drawn.at(-1).answer, {
-      turn: collection().threads[0].msgs[0].key,
-      reply: collection("Drawn answer").threads[0].msgs[1].key,
-    });
-    assert.equal(Object.isFrozen(drawn.at(-1).answer), true);
     await painted;
     await reader.prepare(collection(), never).paint();
   }

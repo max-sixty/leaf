@@ -737,7 +737,6 @@ async function boot() {
     pageGeometry.mount();
     pageMapDialog.mount(chromeForeground);
     items.mount();
-    queueWalk.mount();
     changeWalk.mount();
     commandHints.mount();
     app.mountAnnotations();

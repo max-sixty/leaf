@@ -1,5 +1,5 @@
-"""What each revision came after and what it changed (`provenance.py`): the facts a
-change since a version is attributed by."""
+"""How long each message waited and what each revision changed (`provenance.py`):
+the facts a change since a version is attributed by."""
 
 from model_folds import leaf_page, served_reading
 
@@ -10,12 +10,12 @@ from leaf.structure import SourceDocument
 AGENT = {"author": "agent", "agent": "Claude", "session": "s1"}
 
 
-def test_a_revision_comes_after_the_waiting_messages_answered_first_after_it():
-    """Each revision comes after the messages sent before it and still waiting, of
-    which it names those the agent answered first after it: two revisions made before
-    one answer both name its message, two messages in a row one reply settles stand
-    together, a revision made once every message was answered names none, and one made
-    while a message is still owed names it."""
+def test_each_message_waits_from_when_it_was_sent_until_answered_or_resolved():
+    """A message waits from the revision live when it was sent until the one live when
+    the agent answered it, two messages in a row one reply settles ending together; a
+    resolution with no answer ends a wait too, at the newest revision the log names
+    after it, so a revision it can't place before or after the resolution still counts
+    as made while the message waited; and a message nothing has ended still waits."""
     documents = {
         revision: leaf_page("Plan", f'<p id="p">Version {revision}.</p>')
         for revision in range(1, 7)
@@ -40,19 +40,56 @@ def test_a_revision_comes_after_the_waiting_messages_answered_first_after_it():
             "revision": 4,
             **AGENT,
         },
+        {"kind": "comment", "text": "Is the title right?", "revision": 4},
+        {"kind": "resolve", "parent": "e6"},
         {"kind": "comment", "text": "Who signs off?", "revision": 5},
     ]
-    came_after = served_reading(documents, events)["browser"]["revision_messages"]
+    waits = served_reading(documents, events)["browser"]["message_waits"]
 
-    def said(thread, *messages):
-        return [{"thread": thread, "message": message} for message in messages]
+    def wait(turn, thread, sent, until):
+        return {
+            "id": turn,
+            "thread": thread,
+            "message": turn,
+            "from": sent,
+            "until": until,
+        }
 
-    assert came_after == {
-        "2": said("e1", "e1"),
-        "3": said("e1", "e1"),
-        "4": said("e3", "e3", "e4"),
-        "6": said("e6", "e6"),
+    assert waits == [
+        wait("e1", "e1", 1, 3),
+        wait("e3", "e3", 3, 4),
+        wait("e4", "e3", 3, 4),
+        # The log names revision 5 first after the resolution.
+        wait("e6", "e6", 4, 5),
+        wait("e8", "e8", 5, None),
+    ]
+
+
+def test_a_gesture_sends_only_the_waits_it_ends():
+    """A revision's messages are a fact about its past, so however many threads wait
+    across however many revisions, resolving one sends the one wait it ends."""
+    documents = {
+        revision: leaf_page("Plan", f'<p id="p">Version {revision}.</p>')
+        for revision in range(1, 33)
     }
+    comments = [
+        {"kind": "comment", "text": f"Question {k}?", "revision": 1} for k in range(32)
+    ]
+    held = served_reading(documents, comments)["browser"]["basis"]["key"]
+    resolved = served_reading(
+        documents, [*comments, {"kind": "resolve", "parent": "e1"}], held=held
+    )
+    assert [
+        change["at"]
+        for change in resolved["patch"]
+        if change["at"][:2] == ["browser", "message_waits"]
+    ] == [["browser", "message_waits"]]
+    [change] = [
+        change
+        for change in resolved["patch"]
+        if change["at"] == ["browser", "message_waits"]
+    ]
+    assert [name for name, _patch in change["changed"]] == ["e1"]
 
 
 def test_a_revision_changes_the_units_whose_own_words_differ():
@@ -74,10 +111,14 @@ def test_a_revision_changes_the_units_whose_own_words_differ():
         revision: SourceReading(SourceDocument(leaf_page("Plan", html)), None)
         for revision, html in versions.items()
     }
-    assert revision_changes(readings.__getitem__, readings, 1) == {
-        "2": ["c"],
-        "3": ["s"],
-        "4": ["", "n"],
+
+    def address(revision):
+        return f"/revisions/r{revision}.html"
+
+    assert revision_changes(readings.__getitem__, readings, 1, address) == {
+        "2": {"units": ["c"], "url": "/revisions/r2.html"},
+        "3": {"units": ["s"], "url": "/revisions/r3.html"},
+        "4": {"units": ["", "n"], "url": "/revisions/r4.html"},
     }
     # Only the revisions after the one compared with are read.
-    assert list(revision_changes(readings.__getitem__, readings, 3)) == ["4"]
+    assert list(revision_changes(readings.__getitem__, readings, 3, address)) == ["4"]

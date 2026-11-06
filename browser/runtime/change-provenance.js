@@ -7,18 +7,20 @@
 
    Python derives both halves from the log and the revisions (src/leaf/provenance.py),
    whose header says how a revision is tied to messages and how far the tie holds:
-   `revision_messages` in every reading, and what each revision changed with the
-   comparison's base (`/api/view`), from which version.js keeps on each change the
-   revisions that made it (`madeBy`). This module selects from those readings
-   (`provenanceOf`): the versions, by the first stamp at or after each revision, else
-   Draft; and the messages, each read off its thread as the page now shows it.
+   `message_waits` in every reading, each message's wait from when it was sent until
+   the agent answered it or the user resolved its thread, and what each revision
+   changed with the comparison's base (`/api/view`), from which version.js keeps on
+   each change the revisions that made it (`madeBy`). This module selects from those
+   readings (`provenanceOf`): the messages waiting when each revision was written, each
+   read off its thread as the page now shows it; and the versions, by the first stamp at
+   or after each revision, else Draft.
 
-   The tie is one of order, so the words state order: a change came after the comment
-   it names, before the agent answered it, or with none of the user's comments
-   waiting. They say neither that it answers the comment nor that no comment asked for
-   it, since the log establishes neither: a revision the rule ties to one comment
-   changed that comment's element in 68% of the cases measured, and one made after a
-   quick answer to it no more often than chance. The user chose on 5 November 2026 to
+   The tie is one of order, so the words state order: a change came after the comments
+   it names while they waited, or with none of the user's comments waiting. They say
+   neither that it answers a comment nor that no comment asked for it, since the log
+   establishes neither: a revision made while one comment waited changed that comment's
+   element in 71% of the cases measured, and one made after a quick answer to it no
+   more often than chance. The user chose on 5 November 2026 to
    say what each change came from rather than only what it did; these words are the
    part of that the log can back.
 
@@ -50,7 +52,7 @@ import { counted, quotedWords } from "./words.js";
 /** What a change came after: its groups, and `lines`, what it says, each line a run of
  * words in their speakers' faces (voice.js).
  * @typedef {Readonly<{groups: readonly ProvenanceGroup[], lines: readonly (readonly (string | import("./voice.js").Said)[])[]}>} ChangeProvenance */
-/** @typedef {import("../types/contract.js").ServedBrowser["revision_messages"]} RevisionMessages */
+/** @typedef {import("../types/contract.js").ServedBrowser["message_waits"]} MessageWaits */
 
 // The quoted lines a change's provenance shows at most before saying how many more.
 const QUOTED = 3;
@@ -80,22 +82,27 @@ function yours(messages) {
 }
 
 /** What a change the revisions `revisions` made came after, from the readings it is
- * selected from: the messages each revision came after (`revision_messages`), the
- * version each landed in, and each message as its thread reads it, null for one no
- * thread shows.
- * @param {readonly number[]} revisions @param {RevisionMessages} cameAfter
+ * selected from: each message's wait (`message_waits`), the version each revision
+ * landed in, and each message as its thread reads it, null for one no thread shows.
+ * @param {readonly number[]} revisions @param {MessageWaits} waits
  * @param {(revision: number) => string} versionOf
  * @param {(named: {thread: string, message: string}) => NamedMessage | null} messageOf
  * @returns {ChangeProvenance | null} */
-export function provenanceOf(revisions, cameAfter, versionOf, messageOf) {
+export function provenanceOf(revisions, waits, versionOf, messageOf) {
   if (!revisions.length) return null;
   /** @type {Map<string, {versions: Set<string>, messages: NamedMessage[]}>} */
   const groups = new Map();
   for (const revision of revisions) {
-    const messages = (cameAfter[String(revision)] ?? []).flatMap((named) => {
-      const message = messageOf(named);
-      return message ? [message] : [];
-    });
+    // The messages waiting when it was written, each once, in the order sent.
+    /** @type {Map<string, NamedMessage>} */
+    const waiting = new Map();
+    for (const wait of waits) {
+      if (wait.from >= revision || (wait.until !== null && wait.until < revision))
+        continue;
+      const message = waiting.has(wait.message) ? null : messageOf(wait);
+      if (message) waiting.set(wait.message, message);
+    }
+    const messages = [...waiting.values()];
     const key = messages.map(({ message }) => message).join(" ");
     const group = groups.get(key) ?? { versions: new Set(), messages };
     group.versions.add(versionOf(revision));
@@ -165,7 +172,7 @@ function namedMessage({ thread: threadId, message: id }) {
 export const changeProvenance = (change) =>
   provenanceOf(
     change.revisions,
-    runtime.browser?.revision_messages ?? {},
+    runtime.browser?.message_waits ?? [],
     versionOf,
     namedMessage,
   );

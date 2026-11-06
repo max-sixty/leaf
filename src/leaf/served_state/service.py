@@ -272,6 +272,9 @@ class PageStateService:
                 raise ValueError("page registry cannot be projected")
             view, _reading = projected
             changed = revision_changes(
-                context.revision, context.revisions, view_revision
+                context.revision,
+                context.revisions,
+                view_revision,
+                lambda revision: context.descriptor(revision)["url"],
             )
         return {"browser": view, "changed": changed}

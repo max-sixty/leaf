@@ -961,20 +961,32 @@
           "type": "object",
           "additionalProperties": { "type": "string" }
         },
-        "revision_messages": {
-          "description": "By revision, for each revision that came after one of the user's messages still waiting for an answer: those of them the agent answered first after it, each by its thread and its id, in the order the user sent them (`provenance.revision_messages`). A revision absent came with none waiting.",
-          "type": "object",
-          "additionalProperties": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "thread": { "type": "string" },
-                "message": { "type": "string" }
+        "message_waits": {
+          "description": "Each message the user sent, in the order they sent them, and how long it waited for the agent: a revision newer than `from` and no newer than `until`, where it is set, came after it (`provenance.message_waits`).",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "description": "The turn's own id; a rewrite's is its edit's.",
+                "type": "string"
               },
-              "required": ["thread", "message"],
-              "additionalProperties": false
-            }
+              "thread": { "type": "string" },
+              "message": {
+                "description": "The message the turn shows as.",
+                "type": "string"
+              },
+              "from": {
+                "description": "The newest revision the log had named when it was sent.",
+                "type": "integer"
+              },
+              "until": {
+                "description": "The newest revision named when the agent answered it or the user resolved its thread, whichever came first; null while it waits.",
+                "type": ["integer", "null"]
+              }
+            },
+            "required": ["id", "thread", "message", "from", "until"],
+            "additionalProperties": false
           }
         }
       },
@@ -985,7 +997,7 @@
         "plan",
         "thread_memberships",
         "version_notes",
-        "revision_messages"
+        "message_waits"
       ],
       "additionalProperties": false
     },
@@ -1686,9 +1698,17 @@
       "properties": {
         "browser": { "$ref": "#/$defs/Browser" },
         "changed": {
-          "description": "By revision, for each revision after the one viewed: the ids of the elements whose own words it changed from the revision before it, `\"\"` naming the words in no element with an id (`provenance.revision_changes`).",
+          "description": "By revision, for each revision after the one viewed: `units`, the ids of the elements whose own words it changed from the revision before it, `\"\"` naming the words in no element with an id, and `url`, its document's address (`provenance.revision_changes`).",
           "type": "object",
-          "additionalProperties": { "type": "array", "items": { "type": "string" } }
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "units": { "type": "array", "items": { "type": "string" } },
+              "url": { "type": "string" }
+            },
+            "required": ["units", "url"],
+            "additionalProperties": false
+          }
         }
       },
       "required": ["browser", "changed"],

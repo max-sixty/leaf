@@ -40,6 +40,12 @@
    (`ON_CARD`), on a thread stop when they are in its thread (`threadIn`), and on an
    action handed back when they are in its widget.
 
+   With nothing waiting on the user, a press of `m` or Shift+`m` says so in the panel's
+   seat (notifications.js, `notice`), as every walk with nothing to step through does
+   (keyboard/AGENTS.md, "Page grammar"); the reading that empties the list says it
+   unasked (semantic-news.js). The user asked for both on 5 November 2026, taking the
+   words over a flash of the panel's colour for now.
+
    The walk opens what answers each item it reaches: a thread opens, and a widget's
    controls stand at its place. Everything on the user's list is answered there, by
    the widget's own controls or a reply in the thread, so the walk adds no control of
@@ -72,7 +78,6 @@
 import { alreadyShown } from "./landing-scroll.js";
 import { cycledRow, savedReadingSettled } from "./keyboard/bindings.js";
 import { pageCommand } from "./keyboard/register.js";
-import { paintKeys } from "./keyboard/scopes.js";
 import { onCurrentLocation } from "./focus.js";
 import {
   obligationHolding,
@@ -91,16 +96,16 @@ import { obligationWord } from "./obligations/answer.js";
 import { answeredInWords, readObligations } from "./obligations/model.js";
 import { obligationsIn, obligationPlace, subjectPlace } from "./obligations/place.js";
 import { readPlan, readQueues, queueItemKey } from "./queue-api.js";
-import { carriesObligation, itemNoun } from "./queues.js";
+import { carriesObligation, emptyOnList, itemNoun } from "./queues.js";
 import { threadIn } from "./thread/focus.js";
 import { drawnThreadId } from "./thread/selectors.js";
 import { partOver } from "./thread/placement.js";
 import { addressableLabel } from "./addressable-names.js";
 import { userChoice } from "./storage.js";
 import { agentName } from "./semantic-state.js";
-import { effect, untracked } from "/runtime/framework.js";
 import { retainUserIntent } from "./user-intent.js";
 import { beginWalk, listWalkPosition, walkPositionLabel } from "./walk-position.js";
+import { notice } from "./notifications.js";
 
 /** @typedef {import("./queue-api.js").CurrentQueueItem} QueueItem
  * @typedef {import("./obligations/answer.js").AnswerableObligation} Obligation
@@ -541,20 +546,6 @@ export function createQueueWalk({
     return ready;
   }
 
-  const offered = () => readQueues().on_user.length > 0;
-  let wasOffered = false;
-  /** @type {(() => void) | null} */
-  let watching = null;
-  // The m/M row stands on On me, so the surfaces reading it are repainted where the
-  // list empties or fills.
-  function mount() {
-    watching ??= effect(() => {
-      if (offered() === wasOffered) return;
-      wasOffered = offered();
-      untracked(paintKeys);
-    });
-  }
-
   pageCommand({
     id: "queue.walk",
     ready: savedReadingSettled,
@@ -574,14 +565,18 @@ export function createQueueWalk({
       },
     ],
     title: "On me",
-    when: offered,
     repeat: true,
     travels: true,
     // The same shape as the thread walk: it moves the user from item to item rather than
     // down a level, so the current scope lets go of whichever one they end on. An item
     // reached through the panel leaves the panel a level of its own on the way out,
     // whether this walk opened it or the user already had it.
-    runKey: (binding) => walk(binding === "m" ? 1 : -1),
+    runKey: (binding) => {
+      const reading = readQueues();
+      return reading.on_user.length
+        ? walk(binding === "m" ? 1 : -1)
+        : notice(emptyOnList(reading.phase, "me"));
+    },
   });
 
   // An On me row arrives where the walk would, whichever list its obligation is on.
@@ -657,5 +652,5 @@ export function createQueueWalk({
       ),
   });
 
-  return { mount, arriveAtItem, arrivesAt, onMe, nextWithin };
+  return { arriveAtItem, arrivesAt, onMe, nextWithin };
 }

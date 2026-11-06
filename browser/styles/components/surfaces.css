@@ -4,43 +4,6 @@
  * need is stated here, once: the stage copies the composed shadow.css into each declared
  * root, and the document reads the same rules at the head of this root's part of
  * /theme.css. A rule belongs here when a declared tree has to see it too. */
-/* The default face of a native control: Leaf's ui font (tokens.css, `--font-ui`) and
- * ink, rather than the document's serif or the browser's 13.33px Arial. `offer()` writes
- * `lf-ui-face` on each native control it builds, and a page may write `.button` or
- * `.field` on its own. A native control the page writes with neither class takes the
- * font too, and keeps the browser's ink, which goes with the browser's ground for it.
- * Apparatus marked only `lf-ui`, such as lf-diff's line numbers and a custom element's
- * host, keeps its component's face.
- *
- * It is a default, so it weighs nothing and stands at the head of the shared sheet
- * (`lf-base` in the document, `lf-shadow` in a declared tree): any other rule that
- * names one of these properties outranks it, a component's, a package's or the page's
- * own. Markup's reading face stands in a layer below it (reading.css), so a control
- * standing in prose takes this face rather than the prose's. Stated in
- * runtime/chrome.css, which is adopted after every component sheet, it would outrank
- * them all.
- *
- * The `font` shorthand states every font property, weight, slant, variants and stretch
- * among them, and the properties it leaves out are stated beside it, since any declared
- * value beats an inherited one: a page that sets its body bold, italic, small-capped,
- * spaced or in capitals leaves its controls in that font. */
-:where(
-  :is(:root, :host) .lf-ui-face,
-  :is(:root, :host) .button,
-  :is(:root, :host) .field,
-  :root body :is(button, input, select, textarea):not(.lf-chrome *),
-  :host :is(button, input, select, textarea)
-) {
-  font: var(--font-ui);
-  font-feature-settings: normal;
-  font-variation-settings: normal;
-  letter-spacing: normal;
-  word-spacing: normal;
-  text-transform: none;
-}
-:where(.lf-ui-face, .button, .field) {
-  color: var(--ink);
-}
 /* Words for a user listening, silent on screen: real text, the one thing every
    screen reader announces in every mode, clipped to nothing where paint already says
    the same fact to the eye (renderQuiet, lf-code's highlighted lines). Worn with
@@ -997,11 +960,13 @@ summary {
   align-items: baseline;
   gap: 8px;
 }
+/* The label opens a block of its own among the messages, so it takes the face that
+   names a message's sender, in the muted ink that keeps it from reading as one. */
 .lf-summary-label {
   min-width: 0;
   overflow-wrap: anywhere;
   color: var(--muted);
-  font: var(--font-status);
+  font: var(--font-name);
 }
 .lf-summary-text {
   color: var(--ink-2);

@@ -10,6 +10,7 @@ from click.testing import CliRunner
 from interact_support import (
     append_carried_log_record,
     declare_on_page,
+    element_declaration,
     record_claim,
 )
 from PIL import Image, ImageChops, ImageStat
@@ -1405,9 +1406,11 @@ def test_a_boards_minimum_keeps_the_room_the_column_can_grant(browser, serve):
 def test_an_obligation_and_a_callout_keep_the_column_and_widen_to_what_they_hold(
     browser, serve
 ):
-    """Framed holders request their own width on column and sidebar pages. Their
-    evidence stays inside that frame; a wide child alone does not widen it. Workspace
-    holders and explicitly bounded cells keep the room their containing region grants."""
+    """A framed holder, a callout, requests its own width on column and sidebar pages:
+    its evidence stays inside that frame, and a wide child alone does not widen it. An
+    obligation frames nothing, so it takes no width of its own: a wide child stands in
+    the page's flow and the obligation's box grows round it. Workspace holders and
+    explicitly bounded cells keep the room their containing region grants."""
     cells = "<td>p95 latency</td>" * 12
     table = '<table id="{id}-t" data-width="wide"><tr>' + cells + "</tr></table>"
     item = (
@@ -1417,10 +1420,8 @@ def test_an_obligation_and_a_callout_keep_the_column_and_widen_to_what_they_hold
     body = (
         '<p id="prose">Prose.</p>'
         + item.format(id="ask", width="", table="")
-        + item.format(id="granted", width=' data-width="wide"', table="")
-        + item.format(
-            id="holds", width=' data-width="wide"', table=table.format(id="holds")
-        )
+        + item.format(id="stated", width=' data-width="wide"', table="")
+        + item.format(id="holds", width="", table=table.format(id="holds"))
         + '<aside class="callout" id="callout"><p>Paused.</p></aside>'
         + '<aside class="callout" id="granted-c" data-width="wide">'
         + table.format(id="granted-c")
@@ -1433,7 +1434,7 @@ def test_an_obligation_and_a_callout_keep_the_column_and_widen_to_what_they_hold
         + "</lf-options>"
     )
     measure = """() => Object.fromEntries(
-      ['prose', 'ask', 'granted', 'granted-c', 'contained-c', 'holds', 'holds-t', 'callout', 'list']
+      ['prose', 'ask', 'stated', 'granted-c', 'contained-c', 'holds', 'holds-t', 'callout', 'list']
         .map(id => {
         const box = document.getElementById(id).getBoundingClientRect();
         return [id, {width: Math.round(box.width), left: Math.round(box.left)}];
@@ -1447,24 +1448,24 @@ def test_an_obligation_and_a_callout_keep_the_column_and_widen_to_what_they_hold
     edge = at["prose"]["left"]
     wide = round(wide_width(page))
     # An option list keeps the measure whatever one option holds: only a box's own
-    # blocks widen it.
-    for boxed in ("ask", "callout", "contained-c", "list"):
+    # blocks widen it. A width written on an obligation has no effect.
+    for boxed in ("ask", "stated", "callout", "contained-c", "list"):
         assert at[boxed] == {"width": 720, "left": edge}, (boxed, at)
     # A granted callout's padding and border fall inside the wide measure.
-    for granted in ("granted", "granted-c", "holds"):
-        assert at[granted] == {"width": wide, "left": edge}, (granted, at)
-    # The widened obligation frames its table, which stands wider than the measure.
-    assert at["holds-t"]["width"] > 720, at
+    assert at["granted-c"] == {"width": wide, "left": edge}, at
+    # The obligation's box takes in the table it holds, which takes the room it declares.
+    assert at["holds-t"] == {"width": wide, "left": edge}, at
+    assert at["holds"]["left"] == edge and at["holds"]["width"] >= wide, at
 
-    # The obligation spans its block wherever the block breaks out, and an obligation granted the
-    # room itself holds its block in that room. In a list obligation, which stands in from the
-    # column, and where the page arranged the obligation, in a grid track, neither grows.
+    # The obligation spans its block wherever the block breaks out. In a list obligation,
+    # which stands in from the column, and where the page arranged the obligation, in a
+    # grid track, it doesn't grow.
     extras = (
         "<ol><li>"
         + item.format(id="listed", width="", table=table.format(id="listed"))
         + "</li></ol>"
         + item.format(
-            id="both", width=' data-width="wide"', table=table.format(id="both")
+            id="both", width=' data-width="available"', table=table.format(id="both")
         )
         + '<div style="display: grid; grid-template-columns: 350px 1fr">'
         + item.format(id="tracked", width="", table=table.format(id="tracked"))
@@ -1477,7 +1478,7 @@ def test_an_obligation_and_a_callout_keep_the_column_and_widen_to_what_they_hold
         + '<div id="wrapper" data-width="wide">'
         + item.format(
             id="wrapped",
-            width=' data-width="available"',
+            width="",
             table=f'<table data-width="available"><tr>{cells}</tr></table>',
         )
         + "</div>"
@@ -1554,7 +1555,7 @@ def test_an_obligation_and_a_callout_keep_the_column_and_widen_to_what_they_hold
     )
     resized(workspace, 1726, 900)
     at = workspace.evaluate(measure.replace("'list']", "'list', 'region', 'board']"))
-    for block in ("prose", "ask", "granted", "granted-c", "holds", "callout", "list"):
+    for block in ("prose", "ask", "stated", "granted-c", "holds", "callout", "list"):
         assert at[block] == at["region"], (block, at)
     assert at["board"] == at["region"], at
 
@@ -1813,6 +1814,13 @@ def test_a_scrolling_table_keeps_its_row_names_in_view(browser, serve, direction
     # one, so the mask lifted and this fade stayed over the columns.
     fade = "name => getComputedStyle(name, '::after').content"
     assert page.locator("#name-0").evaluate(fade) != "none"
+    # It clears away from the names, toward the columns: a right-to-left table's fade
+    # had cleared toward them.
+    toward = "to right" if direction == "ltr" else "to left"
+    ground = "name => getComputedStyle(name, '::after').backgroundImage"
+    assert (
+        page.locator("#name-0").evaluate(ground).startswith(f"linear-gradient({toward}")
+    )
     table.evaluate("""t => {
       const cell = t.querySelector('tbody td:last-child');
       const host = cell.appendChild(document.createElement('div'));
@@ -3475,6 +3483,61 @@ def test_a_control_the_page_writes_takes_leaf_type_and_yields_to_page_css(
     assert page.locator("#bare").evaluate(face) == leaf
     assert page.locator("#bare-field").evaluate(face) == leaf
     assert page.locator("#dressed").evaluate(face) == ["Georgia", "20px"]
+
+
+def test_a_control_a_widget_draws_in_its_shadow_tree_yields_to_the_widget_s_rules(
+    browser, serve
+):
+    """In a declared shadow tree the default face reaches a bare control, and yields to
+    the rules the widget adopts, those of a library it layers inside `lf-base`
+    included. It outranked them there, which set lf-file-tree's rows, buttons Trees
+    dresses in mono, in the sans."""
+    declaration = element_declaration("lf-own-controls", upgrade=True)
+    declaration["x-shadow"] = True
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Widget controls",
+                """<h1>Widget controls</h1>
+<p><button id="classed" class="button" type="button">Classed</button></p>
+<lf-own-controls id="own"></lf-own-controls>""",
+            ),
+            layer_registry={"lf-own-controls": declaration},
+            layer_widgets={
+                "lf-own-controls.js": """
+import {inBaseLayer, once, shadowStage} from '/runtime/widget-api.js';
+const sheet = new CSSStyleSheet();
+sheet.replaceSync(inBaseLayer(`
+  @layer library { .library { font: 18px Georgia; } }
+  .own { font: 20px Georgia; }
+`));
+customElements.define('lf-own-controls', class extends HTMLElement {
+  connectedCallback() {
+    if (!once(this)) return;
+    const root = this.attachShadow({mode: 'open'});
+    root.adoptedStyleSheets = [sheet];
+    shadowStage(this, ['bare', 'own', 'library'].map((name) => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = name;
+      button.textContent = name;
+      return button;
+    }));
+  }
+});
+"""
+            },
+        ),
+    )
+    face = (
+        "el => { const s = getComputedStyle(el); return [s.fontFamily, s.fontSize]; }"
+    )
+    leaf = page.locator("#classed").evaluate(face)
+    own = page.locator("#own")
+    assert own.locator("button.bare").evaluate(face) == leaf
+    assert own.locator("button.own").evaluate(face) == ["Georgia", "20px"]
+    assert own.locator("button.library").evaluate(face) == ["Georgia", "18px"]
 
 
 def test_a_reply_notice_survives_a_failed_state_and_keeps_its_agent(browser, serve):

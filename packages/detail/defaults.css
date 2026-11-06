@@ -31,9 +31,11 @@ html[data-lf-interactive] lf-dial:not(:defined)::before {
 }
 
 /* A block Skim folds takes no room. Until-found keeps it findable but keeps its
-   margins, padding and borders, which the page's own rules set and this state must
-   override. */
+   size, margins, padding and borders, which the page's or its package's own rules set
+   (a diagram reserves its drawing's height) and this state must override. */
 [data-lf-dial-folded][hidden="until-found"] {
+  block-size: 0 !important;
+  min-block-size: 0 !important;
   margin-block: 0 !important;
   padding-block: 0 !important;
   border-block-width: 0 !important;

@@ -89,7 +89,8 @@ def _render_version_attempt(
     render() is relative, so a read's replay of the sender's own gesture moves the
     page again (none of the three is CSS), a settled holder whose mark or
     still-showing slot words disagree with the log's decision (read once: the palettes carry no
-    geometry between them), and an SVG paint token that does not resolve to valid paint
+    geometry between them), as advice a drawing whose height differs from the box it
+    showed before drawing, and an SVG paint token that does not resolve to valid paint
     in that scheme. Once per version, on the settled desktop page in the light scheme,
     it reads native layout shifts as advice during a three-second passive observation
     after presentation; and then, resizing that loaded page through every width from

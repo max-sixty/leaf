@@ -1,0 +1,41 @@
+/* The default face of a native control: Leaf's ui font (tokens.css, `--font-ui`) and
+ * ink, rather than the document's serif or the browser's 13.33px Arial. `offer()` writes
+ * `lf-ui-face` on each native control it builds, and a page may write `.button` or
+ * `.field` on its own. A native control the page writes with neither class takes the
+ * font too, and keeps the browser's ink, which goes with the browser's ground for it.
+ * Apparatus marked only `lf-ui`, such as lf-diff's line numbers and a custom element's
+ * host, keeps its component's face.
+ *
+ * It is a default, so it weighs nothing: any other rule that names one of these
+ * properties outranks it, a component's, a package's or the page's own. Both trees read
+ * it, each in the tier where that holds (layer.py, `composed_sheets`). In the document it
+ * stands at the head of `lf-base`, and markup's reading face stands in a layer of that
+ * tier below it (reading.css), so a control standing in prose takes this face rather
+ * than the prose's. In a declared tree it stands in `lf-reset`, since a widget adopts
+ * its own rules into `lf-base` there, and a library it wraps, such as Trees in
+ * lf-file-tree, into layers inside `lf-base`, which rank below every rule standing in
+ * the tier itself: at the head of `lf-base` this face would set Trees' rows, which are
+ * buttons, in the sans. Stated in runtime/chrome.css, which is adopted after every
+ * component sheet, it would outrank them all.
+ *
+ * The `font` shorthand states every font property, weight, slant, variants and stretch
+ * among them, and the properties it leaves out are stated beside it, since any declared
+ * value beats an inherited one: a page that sets its body bold, italic, small-capped,
+ * spaced or in capitals leaves its controls in that font. */
+:where(
+  :is(:root, :host) .lf-ui-face,
+  :is(:root, :host) .button,
+  :is(:root, :host) .field,
+  :root body :is(button, input, select, textarea):not(.lf-chrome *),
+  :host :is(button, input, select, textarea)
+) {
+  font: var(--font-ui);
+  font-feature-settings: normal;
+  font-variation-settings: normal;
+  letter-spacing: normal;
+  word-spacing: normal;
+  text-transform: none;
+}
+:where(.lf-ui-face, .button, .field) {
+  color: var(--ink);
+}

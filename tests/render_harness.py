@@ -2379,7 +2379,7 @@ BrowserContext.route = _arming_context
 Page.unroute_all = _disarming
 
 # A browser wait bounds a hang; it does not time the work it waits for (tests/AGENTS.md,
-# "Functional results do not depend on execution speed"). One that names no deadline
+# "Results do not depend on execution speed"). One that names no deadline
 # takes `SERVED_TIMEOUT_MS`, the bound on one probe or request: an `expect` assertion,
 # whose own default is five seconds, and every page action, wait and expectation on a
 # page `readable` prepares. A wait that spans a page handover names
@@ -2816,6 +2816,23 @@ def compositor_trace(page, categories=()):
         bool,
         failure="Chrome never completed the compositor screenshot trace",
     )
+
+
+def restyle_counts(page, act) -> list[int]:
+    """The elements each style recalc restyled while `act` ran, as Chromium's trace
+    counts them (`UpdateLayoutTree`), so a test bounds a change's restyle by its reach
+    rather than its time."""
+    browser = page.context.browser
+    browser.start_tracing(page=page, categories=["devtools.timeline"])
+    try:
+        act()
+    finally:
+        trace = json.loads(browser.stop_tracing())
+    return [
+        event["args"].get("elementCount", 0)
+        for event in trace["traceEvents"]
+        if event["name"] == "UpdateLayoutTree"
+    ]
 
 
 def rgb_pixel(image: Image.Image, point) -> tuple[int, int, int]:

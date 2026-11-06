@@ -63,10 +63,9 @@ from collections.abc import Callable
 from math import inf
 from operator import itemgetter
 
-from .events import action_rests_on, build_threads, settlements
-from .passages import collapse, shown_words
+from .events import action_rests_on, build_threads, retractions, settlements
+from .passages import message_opening
 
-MARKDOWN = {"x-text-format": "markdown"}
 # The most messages a version's line quotes; it counts the rest (change-provenance.js).
 # Only those are read into words, which is most of the answer's cost where many wait.
 QUOTED = 3
@@ -109,11 +108,16 @@ def saved_after(
     at its end. Its words there are those of its latest rewrite before that place not
     yet taken back, else those it was sent with.
 
-    Containment reaches the fold only through what each action rests on
-    (`events.action_rests_on`), so the revisions that agree on that for every action
-    the log holds read alike, and one fold, to the last of them, serves them all: one
-    for a page whose versions move no element an action names, one more for each
-    reading of them that differs."""
+    Containment reaches the fold only where a version retracts a decision: an action
+    stands until a note restates an identity it rests on (`events.action_retracted`),
+    and whether it rests on an element it names is the document's to say
+    (`events.action_rests_on`). So only each owner and element it names that a later
+    version restated is read under each revision; the revisions that agree on those
+    read alike, and one fold, to the last of them, serves them all: one for a page
+    whose versions retract nothing an earlier action names, one more for each reading
+    of them that differs. That costs a fold per save only where a version's saves move
+    a restated element through owners that earlier decisions named, each save another:
+    800 such saves took 1.7 s, against 5 ms for 1,600 saves that restate nothing."""
     if any(base < revision < shown for revision in stamped):
         return None
     span = sorted(
@@ -125,11 +129,23 @@ def saved_after(
         return None
     prefix = events[: bisect_left(events, span[-1][0], key=itemgetter("seq"))]
     undone = {event["undoes"]: event["seq"] for event in prefix if "undoes" in event}
-    actions = [event for event in prefix if event["kind"] == "action"]
+    floors = retractions(prefix)
+    # Each owner and restated element it names, from an action made before the version
+    # that restated the element: the one question containment answers for the fold.
+    named = {
+        (event["widget"], identity): event
+        for event in prefix
+        if event["kind"] == "action"
+        for identity in event["meaning"]["depends"]
+        if floors.get(identity, 0) > event["revision"]
+    }
     readings: dict[tuple, tuple[dict, list[int]]] = {}
     for place, revision in span:
-        within = containment(revision) if actions else {}
-        rests = tuple(tuple(action_rests_on(action, within)) for action in actions)
+        within = containment(revision) if named else {}
+        rests = tuple(
+            identity in action_rests_on(event, within)
+            for (_owner, identity), event in named.items()
+        )
         readings.setdefault(rests, (within, []))[1].append(place)
     # Each message that waited: its reading, its thread, the latest place it waited.
     found: dict[str, tuple[dict, dict, int]] = {}
@@ -216,10 +232,7 @@ def _as_it_read(message: dict, thread: dict, place: int, undone: dict) -> dict:
 
 
 def opening_words(message: dict) -> str:
-    """A message's opening line, as its Markdown shows it, or Drawing for a drawing
-    with no words."""
-    text = message.get("text") or ""
-    line = next((line for line in text.splitlines() if line.strip()), "")
-    if not line:
-        return "Drawing" if message.get("drawing") else ""
-    return collapse(shown_words(line, MARKDOWN, added=False))
+    """A message's opening line as its thread shows it (`passages.message_opening`),
+    or Drawing for a drawing with no words."""
+    words = message_opening(message.get("text") or "")
+    return words or ("Drawing" if message.get("drawing") else "")

@@ -73,6 +73,17 @@ def test_a_version_names_what_waited_as_it_read_then_and_nothing_later_moves_it(
     assert saved_after([live(1), comment, answered, live(2)], 1, 2) == []
 
 
+def test_a_message_is_quoted_by_the_opening_line_its_thread_shows():
+    """A quote is the first line the thread shows of the whole message: a code block's
+    first line, not its fence, and a link's words where its reference comes later."""
+    code = {"kind": "comment", "text": '```\nprint("check the plan")\n```'}
+    link = {"kind": "comment", "text": "See [the plan][1] first\n\n[1]: https://x.test"}
+    assert saved_after([code, link, live(2)], 1, 2) == [
+        waited("e1", 'print("check the plan")'),
+        waited("e2", "See the plan first"),
+    ]
+
+
 def test_a_message_reads_as_it_did_at_the_latest_revision_it_waited_at():
     """A comment that waited across one of a version's revisions, was answered, then
     rewritten and answered again before the version's last revision went live, is

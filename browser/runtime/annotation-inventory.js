@@ -577,16 +577,18 @@ export function createAnnotationInventory({
         // promises nothing. The margin entry's quieter line carries what the change did,
         // and the Page Map row the versions its card compares; a change the comparison
         // holds nothing for has neither, so no margin entry offers a press it has not
-        // got.
+        // got. What the version was saved after is the comparison's reading, not the
+        // card's, so it stands under every change, a line each.
         // The entry's relation says whether the card stands open, so opening it changes
         // the entry (`keptEntry`).
-        ...(card
+        ...(card || savedAfter.length
           ? {
-              context: [account, ...savedAfter.flatMap((line) => ["\n", ...line])],
-              mapContext: card.offer,
-              cardOpen: card.open,
+              context: [...(card ? [[account]] : []), ...savedAfter].flatMap(
+                (line, at) => (at ? ["\n", ...line] : line),
+              ),
             }
           : {}),
+        ...(card ? { mapContext: card.offer, cardOpen: card.open } : {}),
         // What a Change reading holds, where the comparison kept the words the change
         // replaced or edited: pressing it opens the change's card over the change, so
         // the user learns what changed without travelling to the other version and back

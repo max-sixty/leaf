@@ -206,6 +206,29 @@ def collapse(text: str) -> str:
     return COLLAPSE.sub(" ", text).strip(" ")
 
 
+def message_opening(source: str) -> str:
+    """A thread message's first line as its thread shows it: the whole message read in
+    the message dialect (`markdown_dialect`), as the DOM reads its text, up to the
+    first break or block end after words. A code block's lines are its own."""
+    parts = []
+
+    def read(node):
+        if isinstance(node, turbohtml.Text):
+            parts.append(node.data)
+        elif isinstance(node, turbohtml.Element):
+            if node.tag == "br":
+                parts.append("\n")
+            for child in node.children:
+                read(child)
+            if node.tag in TEXT_BLOCK_TAGS:
+                parts.append("\n")
+
+    read(_rendered(markdown_dialect(True).render(source)))
+    return next(
+        (line for raw in "".join(parts).split("\n") if (line := collapse(raw))), ""
+    )
+
+
 class _OwnedWords:
     """One verbatim owner's words with upgraded descendants reduced to boundaries."""
 

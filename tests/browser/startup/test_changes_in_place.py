@@ -600,6 +600,49 @@ def test_a_version_says_which_comments_it_was_saved_after(browser, serve):
         assert not any("saved" in part for part in preview_parts(entries.nth(at)))
 
 
+def test_a_change_with_no_card_still_says_what_its_version_was_saved_after(
+    browser, serve
+):
+    """A version that restates the option the user chose changes its state and none of
+    its words, so its change opens no card, but its ⇄ entry still says what the
+    version was saved after: that is the comparison's reading, not the card's."""
+    options = PAGE.replace(
+        '<p id="d">',
+        '<lf-options id="g" choose><lf-option id="g-a">Ship now</lf-option>'
+        '<lf-option id="g-b">Ship later</lf-option></lf-options>\n<p id="d">',
+    )
+    url = live_url(serve(options))
+    d = serve.page_dir
+    append_command(
+        d,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "g",
+            "action": "choose",
+            "detail": {"value": ["g-a"]},
+        },
+    )
+    _comment_on(d, "t", "Plan", text="Should we wait?")
+    stamp_page(
+        d,
+        options.replace('<lf-option id="g-a">', '<lf-option id="g-a" restated>'),
+        "Asked again",
+    )
+    page = open_page(browser, url)
+    wait_for_revision(page, 2)
+    compare_with(page, 1)
+    page.keyboard.press("Escape")
+    entries = page.locator('[data-lf-kinds~="change"]')
+    expect(entries).to_have_count(1)
+    expect(entries).not_to_have_attribute("aria-controls", "lf-change-card")
+    assert preview_parts(entries.first)[-2:] == [
+        "v2 saved while your comment waited:",
+        "“Should we wait?”",
+    ]
+
+
 def _comment_on(d, section, words, revision=1, text="Say which way?"):
     return append_command(
         d,

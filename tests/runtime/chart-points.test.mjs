@@ -169,10 +169,14 @@ function standsWherePlotDraws({ reading, svg }, what) {
     );
 }
 
-test("each point stands where Plot draws it, in its facet and at its frame anchor", () => {
+test("each point stands where Plot draws it, in its facet, at its frame anchor and offset", () => {
   const anchored = drawn({ marks: [Plot.dotX([1, 2], { frameAnchor: "bottom" })] });
   standsWherePlotDraws(anchored, "a frame-anchored dot");
   assert.equal(anchored.reading.points[0]?.y, 370);
+  const moved = drawn({
+    marks: [Plot.dot([{ x: 5, y: 5 }], { x: "x", y: "y", dx: 70, dy: -20, r: 6 })],
+  });
+  standsWherePlotDraws(moved, "a dot moved by dx and dy");
   for (const facet of ["fx", "fy"])
     standsWherePlotDraws(
       drawn({
@@ -192,37 +196,35 @@ test("each point stands where Plot draws it, in its facet and at its frame ancho
     );
 });
 
-test("each mark's tip reads along the axis its author named, or its points stand at", () => {
+test("each mark reads along the axis its author's tip names, or its points stand at", () => {
   const marks = [
     Plot.barY(HOURS, { x: "week", y: "hours" }),
     Plot.barX(HOURS, { x: "hours", y: "week" }),
-    Plot.dot(HOURS, { x: "hours", y: "hours", frameAnchor: "left" }),
-    Plot.lineY(HOURS, { x: "week", y: "hours" }),
-  ];
-  readPoints(Plot, marks);
-  assert.deepEqual(
-    marks.map((mark) => [mark.tip.pointer, mark.tip.frameAnchor]),
-    [
-      ["x", undefined],
-      ["y", undefined],
-      ["xy", "left"],
-      ["x", undefined],
-    ],
-  );
-  const named = [
-    Plot.dot(HOURS, { x: "hours", y: "hours", tip: "y" }),
-    Plot.dot(HOURS, { x: "hours", y: "hours", tip: true }),
+    Plot.dot(HOURS, { x: "hours", y: "hours" }),
+    Plot.lineY(HOURS, { x: "week", y: "hours", tip: "y" }),
     Plot.dot(HOURS, { x: "hours", y: "hours", tip: { maxRadius: 80 } }),
   ];
-  readPoints(Plot, named);
+  const points = readPoints(Plot, marks.slice(0, 3));
+  Plot.plot({ marks: marks.slice(0, 3) });
   assert.deepEqual(
-    named.map(({ tip }) => [tip.pointer, tip.maxRadius]),
+    points.done().frames.map(({ kx, ky, reach }) => [kx, ky, reach]),
     [
-      ["y", undefined],
-      ["xy", undefined],
-      [undefined, 80],
+      [1, 0.01, 1600],
+      [0.01, 1, 1600],
+      [1, 1, 1600],
     ],
   );
+  const named = readPoints(Plot, marks.slice(3));
+  Plot.plot({ marks: marks.slice(3) });
+  assert.deepEqual(
+    named.done().frames.map(({ kx, ky, reach }) => [kx, ky, reach]),
+    [
+      [0.01, 1, 1600],
+      [1, 1, 6400],
+    ],
+  );
+  // Plot draws no tip of its own for them.
+  assert.ok(marks.every((mark) => !mark.tip));
 });
 
 test("a facet's points are a series of their own", () => {
@@ -249,6 +251,23 @@ test("a facet's points are a series of their own", () => {
   const first = step(reading, null, "first");
   assert.equal(said(step(reading, first, 1))?.name, "a · x 2");
   assert.equal(said(cross(reading, first, 1))?.name, "b · x 1");
+  // Side by side, a key crossing to the next facet keeps its place in the facet.
+  const beside = read({
+    marks: [
+      Plot.lineY(
+        [
+          { k: "a", x: 1, y: 2 },
+          { k: "a", x: 2, y: 4 },
+          { k: "b", x: 1, y: 3 },
+          { k: "b", x: 2, y: 1 },
+        ],
+        { x: "x", y: "y", fx: "k" },
+      ),
+    ],
+  });
+  const end = step(beside, null, "last");
+  assert.equal(said(end)?.name, "a · x 2");
+  assert.equal(said(cross(beside, end, 1))?.name, "b · x 2");
 });
 
 test("points at one place that say different things are each read", () => {
@@ -278,6 +297,24 @@ test("a redraw finds the datum the reader was on, wherever the data moved it", (
   assert.deepEqual(said(sameDatum(after, on)), { name: "x 2", detail: ["20 y"] });
   const gone = read({ marks: [Plot.lineY(rows([3]), { x: "x", y: "y" })] });
   assert.equal(sameDatum(gone, on), null);
+  // Two readings at one place are two data across drawings too.
+  const together = (/** @type {string} */ by) =>
+    read({
+      marks: [
+        Plot.dot(
+          [
+            { x: 1, y: 2, said: "one", kind: "a" },
+            { x: 1, y: 2, said: "two", kind: "b" },
+          ],
+          { x: "x", y: "y", [by]: by === "title" ? "said" : "kind" },
+        ),
+      ],
+    });
+  for (const by of ["title", "fill"]) {
+    const two = together(by).points[1];
+    assert.ok(two);
+    assert.deepEqual(said(sameDatum(together(by), two)), said(two), by);
+  }
 });
 
 test("a time reads to the second or millisecond its datum has", () => {

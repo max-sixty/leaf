@@ -22,8 +22,8 @@
  * through `x-visual: whole`. And a chart that cannot draw says why over its own source.
  *
  * A chart says the value under the reader's aim (chart-points.js says which marks and
- * how): the point Plot's own pointer picks near a resting pointer or under a held
- * finger, or, with the chart focused, the arrow keys stepping along a series and across
+ * how): the point nearest a resting pointer or a held finger, by Plot's pointer's rule,
+ * or, with the chart focused, the arrow keys stepping along a series and across
  * to the next, Home and End to its ends. A redraw keeps the reader on their datum where
  * the new drawing still holds it. The point the reader is on wears a ring, with a rule
  * to the axis it stands at, and its words stand beside it in the page's preview
@@ -57,7 +57,14 @@ import {
   previewChanged,
   sizeObserver,
 } from "/runtime/portable-api.js";
-import { cross, readPoints, sameDatum, sayPoint, step } from "./chart-points.js";
+import {
+  cross,
+  nearest,
+  readPoints,
+  sameDatum,
+  sayPoint,
+  step,
+} from "./chart-points.js";
 
 const SVG = "http://www.w3.org/2000/svg";
 
@@ -130,15 +137,14 @@ customElements.define(
     /** @type {number | undefined} */
     drawn;
     // The points the drawing showing says, the one the reader is on and what brought
-    // them there, and where a pointer or finger over the drawing stands in it.
+    // them there, and whether a pointer or finger is over the drawing.
     /** @type {Reading | null} */
     #reading = null;
     /** @type {Point | null} */
     #at = null;
     /** @type {By} */
     #by = "pointer";
-    /** @type {DOMPoint | null} */
-    #over = null;
+    #over = false;
 
     // What the point the reader is on says, standing above its ring, on every route.
     // Off a point the chart adds nothing, so what holds it may say its own.
@@ -151,21 +157,23 @@ customElements.define(
     connectedCallback() {
       if (!once(this)) return;
       whileConnected(this, (signal) => {
-        // The pointer and a finger read the point Plot's pointer picks on the drawing,
-        // which its own listeners on the drawing have picked by the time this hears the
-        // move, and nothing elsewhere, as over a legend. A mouse carrying a press is
-        // dragging.
+        // The pointer and a finger read the point nearest them on the drawing, by
+        // Plot's pointer's rule, and nothing elsewhere, as over a legend: one reading
+        // for each move. A mouse carrying a press is dragging. A pointer that picks
+        // nothing leaves the keyboard's point where it was.
         const aim = (/** @type {PointerEvent} */ event) => {
-          const svg = this.#reading?.svg;
+          const reading = this.#reading;
           if (event.pointerType === "mouse" && event.buttons) return;
-          if (!svg || !(event.target instanceof Node) || !svg.contains(event.target))
-            return this.#leave();
-          const screen = svg.getScreenCTM();
+          if (!reading || !(event.target instanceof Node)) return this.#leave();
+          if (!reading.svg.contains(event.target)) return this.#leave();
+          const screen = reading.svg.getScreenCTM();
           if (!screen) return;
-          this.#over = new DOMPoint(event.clientX, event.clientY).matrixTransform(
+          this.#over = true;
+          const at = new DOMPoint(event.clientX, event.clientY).matrixTransform(
             screen.inverse(),
           );
-          this.#pick();
+          const point = nearest(reading, at.x, at.y);
+          if (point || this.#by === "pointer") this.#choose(point, "pointer");
         };
         // A mouse reads where it moves to, so a drawing that arrives under a still one
         // says nothing; a finger, which lands before it moves, reads where it lands.
@@ -178,19 +186,6 @@ customElements.define(
           { signal, passive: true },
         );
         this.addEventListener("pointerleave", () => this.#leave(), { signal });
-        // A press pins Plot's pointer to its point until the next press, where a press
-        // on Leaf puts a preview away and the reading should go on following the
-        // pointer, so a mouse's press inside the drawing stops short of Plot's
-        // listeners. Leaf's own hear it first, in capture, as Plot stops it when it pins.
-        this.addEventListener(
-          "pointerdown",
-          (event) => {
-            const svg = this.#reading?.svg;
-            if (event.pointerType === "mouse" && event.target instanceof Node)
-              if (svg?.contains(event.target)) event.stopPropagation();
-          },
-          { signal, capture: true },
-        );
         // Focus the browser shows lands the reader on a point, the one they are on or
         // the first, which the arrows then step from: the keyboard's from then on.
         this.addEventListener(
@@ -289,31 +284,12 @@ customElements.define(
       const at = this.#at;
       this.#reading = reading;
       this.#at = null;
-      reading?.whenPicked(() => this.#pick());
       const points = reading?.points.length ?? 0;
       keeps(this, "tabindex", points ? "0" : null);
       this.lfCommands = reading && points ? this.#keys(reading) : null;
       commandsChanged(this);
       if (reading && at) this.#choose(sameDatum(reading, at), this.#by);
       else if (at) previewChanged(this);
-    }
-
-    // The point Plot's pointer picks under the pointer or finger. Where several marks
-    // each pick one, it is the nearest of them to the aim, as Plot weighs its facets'.
-    // A pointer that picks nothing leaves the keyboard's point where it was.
-    #pick() {
-      const aim = this.#over;
-      if (!aim || !this.#reading) return;
-      /** @type {Point | null} */
-      let best = null;
-      let reach = Infinity;
-      for (const point of this.#reading.picks.values()) {
-        const distance = point
-          ? (point.x - aim.x) ** 2 + (point.y - aim.y) ** 2
-          : reach;
-        if (distance < reach) ((best = point), (reach = distance));
-      }
-      if (best || this.#by === "pointer") this.#choose(best, "pointer");
     }
 
     // The arrows step along the series the points stand in, along the axis they stand
@@ -384,7 +360,7 @@ customElements.define(
 
     // The pointer or finger left the drawing. A point the keyboard reached stays.
     #leave() {
-      this.#over = null;
+      this.#over = false;
       if (this.#by === "pointer") this.#choose(null, "pointer");
     }
 
@@ -408,9 +384,8 @@ customElements.define(
         // Plot's pointer reports what it points at by dispatching `input` on its figure,
         // for a notebook's viewof. On a page that is an input the user never gave, and the
         // runtime reads every `input` as the user's own, dropping a delayed move it was
-        // holding; the chart hears the point from its tip's render instead, with the
-        // facet the datum alone doesn't say (chart-points.js). A figure turned into a box
-        // above is detached, so only this one speaks.
+        // holding. Leaf gives Plot no tips, so only a pointer an author draws speaks. A
+        // figure turned into a box above is detached, so only this one speaks.
         built.dispatchEvent = () => true;
       }
       // The drawing is the <svg> carrying the author's ariaLabel: a legend Plot puts beside

@@ -823,67 +823,112 @@ def test_a_chart_s_author_picks_which_marks_say_their_values_and_their_words(
     expect(page.locator("#picked .lf-chart-at")).to_be_hidden()
 
 
-# Each chart drawn twice, by lf-chart and by Plot alone, with Plot's tip on each mark set
-# as lf-chart sets it: the direction the author named or the mark's points stand along,
-# and the mark's frame anchor, which Plot's own tip leaves at the frame's middle.
+# Each chart drawn twice, by lf-chart and by Plot alone with Plot's tip on each mark set
+# to read as lf-chart reads it: the axis the author named or the mark's points stand
+# along, and the mark's frame anchor, which Plot's own tip leaves at the frame's middle.
+# Each datum's title names it, so the chart's reading and Plot's `input` name one datum.
 FACETED_ROWS = (
-    "[0, 2, 4, 6, 8].map((x) => ({k: 'a', x, y: x % 4}))"
-    ".concat([1, 3, 5, 7, 9].map((x) => ({k: 'b', x: x + 0.1, y: 9 - x})))"
+    "[0, 2, 4, 6, 8].map((x) => ({id: `a${x}`, k: 'a', x, y: x % 4}))"
+    ".concat([1, 3, 5, 7, 9].map((x) => ({id: `b${x}`, k: 'b', x: x + 0.1, y: 9 - x})))"
 )
+LINE_ROWS = "[0, 1, 2, 3, 4, 5].map((x) => ({id: `l${x}`, x, y: (x * 7) % 5}))"
+DOT_ROWS = "[0.5, 2.5, 4.5].map((x) => ({id: `d${x}`, x, y: x}))"
+ANCHORED_ROWS = "[1, 2, 4, 7].map((x) => ({id: `n${x}`, x}))"
+BAR_ROWS = "[3, 9, 4, 12, 7].map((v, i) => ({id: `b${i}`, i, v}))"
 POINTER_CASES = {
     "faceted": (
-        f'{{ariaLabel: "Faceted dots", marks: [Plot.dot({FACETED_ROWS}, {{x: "x", y: "y", fy: "k", tip: "x"}})]}}',
-        f'{{marks: [Plot.dot({FACETED_ROWS}, {{x: "x", y: "y", fy: "k", tip: "x"}})]}}',
+        f'Plot.dot({FACETED_ROWS}, {{x: "x", y: "y", fy: "k", title: "id", tip: "x"}})',
+        f'Plot.dot({FACETED_ROWS}, {{x: "x", y: "y", fy: "k", title: "id", tip: "x"}})',
     ),
     "anchored": (
-        '{ariaLabel: "Dots along the foot", marks: [Plot.dotX([1, 2, 4, 7], {frameAnchor: "bottom"})]}',
-        '{marks: [Plot.dotX([1, 2, 4, 7], {frameAnchor: "bottom", tip: {frameAnchor: "bottom"}})]}',
+        f'Plot.dotX({ANCHORED_ROWS}, {{x: "x", frameAnchor: "bottom", title: "id"}})',
+        f'Plot.dotX({ANCHORED_ROWS}, {{x: "x", frameAnchor: "bottom", title: "id",'
+        ' tip: {frameAnchor: "bottom"}})',
     ),
     "along-y": (
-        '{ariaLabel: "Two dots", marks: [Plot.dot([{x: 0, y: 0}, {x: 10, y: 10}], {x: "x", y: "y", tip: "y"})]}',
-        '{marks: [Plot.dot([{x: 0, y: 0}, {x: 10, y: 10}], {x: "x", y: "y", tip: "y"})]}',
+        'Plot.dot([{id: "low", x: 0, y: 0}, {id: "high", x: 10, y: 10}],'
+        ' {x: "x", y: "y", title: "id", tip: "y"})',
+        'Plot.dot([{id: "low", x: 0, y: 0}, {id: "high", x: 10, y: 10}],'
+        ' {x: "x", y: "y", title: "id", tip: "y"})',
     ),
     "bars": (
-        '{ariaLabel: "Bars", marks: [Plot.barY([3, 9, 4, 12, 7], {x: (d, i) => i, y: (d) => d})]}',
-        '{marks: [Plot.barY([3, 9, 4, 12, 7], {x: (d, i) => i, y: (d) => d, tip: "x"})]}',
+        f'Plot.barY({BAR_ROWS}, {{x: "i", y: "v", title: "id"}})',
+        f'Plot.barY({BAR_ROWS}, {{x: "i", y: "v", title: "id", tip: "x"}})',
+    ),
+    # Two marks, each of whose tips Plot shows: the chart reads the nearer.
+    "two-marks": (
+        f'Plot.lineY({LINE_ROWS}, {{x: "x", y: "y", title: "id", tip: "x"}}),'
+        f' Plot.dot({DOT_ROWS}, {{x: "x", y: "y", title: "id", tip: "xy"}})',
+        f'Plot.lineY({LINE_ROWS}, {{x: "x", y: "y", title: "id", tip: "x"}}),'
+        f' Plot.dot({DOT_ROWS}, {{x: "x", y: "y", title: "id", tip: "xy"}})',
     ),
 }
+# A mark moved by its offsets, which Plot's pointer leaves out: the chart reads the
+# datum Plot draws under the pointer.
+MOVED = (
+    'Plot.dot([{id: "p", x: 2, y: 2}, {id: "q", x: 5, y: 3}, {id: "r", x: 7, y: 6}],'
+    ' {x: "x", y: "y", dx: 40, dy: -24, r: 6, title: "id"})'
+)
 POINTER_PAGE = leaf_page(
     "pointer cases",
     '<h1 id="t">Pointer cases</h1>'
     + "".join(
-        chart_markup(name, chart).replace("<lf-chart ", '<lf-chart data-height="200" ')
-        for name, (chart, _) in POINTER_CASES.items()
+        chart_markup(
+            name,
+            f'{{ariaLabel: "{name}", x: {{domain: [0, 10]}}, y: {{domain: [0, 10]}},'
+            f" marks: [{marks}]}}"
+            if name == "moved"
+            else f'{{ariaLabel: "{name}", marks: [{marks}]}}',
+        ).replace("<lf-chart ", '<lf-chart data-height="200" ')
+        for name, marks in [
+            *((name, ours) for name, (ours, _) in POINTER_CASES.items()),
+            ("moved", MOVED),
+        ]
     ),
 )
-
-
-# Where the point `svg` shows as picked stands, in the svg's coordinates, or None where
-# it shows none: lf-chart's ring, or the anchor Plot's own tip points from.
+# What a drawing shows picked, in the svg's coordinates: lf-chart's ring and the datum
+# its reading names, or each anchor Plot's own tips point from and the datum its last
+# `input` named.
 PICKED = """(svg) => {
-    const ring = svg.querySelector('.lf-chart-at:not([display=none])');
-    const marked = ring ?? svg.querySelector('[aria-label=tip] path')?.parentElement;
-    if (!marked) return null;
-    const at = marked.getScreenCTM();
     const box = svg.getBoundingClientRect();
-    return [at.e - box.left, at.f - box.top];
+    const where = (node) => {
+      const at = node.getScreenCTM();
+      return [at.e - box.left, at.f - box.top];
+    };
+    const ring = svg.querySelector('.lf-chart-at:not([display=none])');
+    if (svg.closest('lf-chart'))
+      return {at: ring ? [where(ring)] : [], name: svg.closest('lf-chart').lfPreview()?.name ?? null};
+    return {at: [...svg.querySelectorAll('[aria-label=tip] path')].map((path) => where(path.parentElement)),
+            name: svg.value?.id ?? null};
 }"""
+
+
+def _picked(page, svg, box, fx, fy):
+    page.mouse.move(box["x"] + box["width"] * fx, box["y"] + box["height"] * fy)
+    page.evaluate(
+        "() => new Promise((done) => requestAnimationFrame(() =>"
+        " requestAnimationFrame(done)))"
+    )
+    return page.locator(svg).evaluate(PICKED)
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
 def test_a_chart_picks_the_point_plot_s_own_pointer_picks(engine, request, serve):
-    """Plot's own pointer picks the point a pointer aims at, so at every place over a
-    chart the ring lands where Plot's tip points for the same chart: across facets,
+    """At every place over a chart, the chart reads the datum Plot's own pointer picks
+    for the same chart, and stands its ring where Plot's tip points: across facets,
     each judged in its own frame; on a dot anchored to the frame's foot; along y where
-    the author named y; and along x on bars, where no tip was named."""
+    the author named y; along x on bars, where no tip was named; and of two marks, the
+    one whose pick stands nearer. A mark its offsets moved is read where Plot draws
+    it, which Plot's own pointer misses."""
     page = open_page(request.getfixturevalue(engine), serve(POINTER_PAGE))
+    steps = [(n / 11, m / 7) for n in range(1, 11) for m in range(1, 7)]
     for name, (_, alone) in POINTER_CASES.items():
         chart = page.locator(f"#{name} svg[role=img]")
         expect(chart).to_be_visible()
         page.evaluate(
-            """async ([name, body, width, height]) => {
+            """async ([name, marks, width, height]) => {
               const Plot = await import('/vendor/plot.esm.js');
-              const options = new Function('Plot', `return (${body});`)(Plot);
+              const options = new Function('Plot', `return {marks: [${marks}]};`)(Plot);
               const figure = Plot.plot({...options, width, height});
               figure.id = `${name}-alone`;
               const chart = document.getElementById(name);
@@ -902,37 +947,52 @@ def test_a_chart_picks_the_point_plot_s_own_pointer_picks(engine, request, serve
             page.locator(f"#{name}-alone").bounding_box(),
         )
         differ = []
-        for fx in [n / 11 for n in range(1, 11)]:
-            for fy in [n / 7 for n in range(1, 7)]:
-                picked = []
-                for box, svg in (
-                    (ours, f"#{name} svg[role=img]"),
-                    (plots, f"#{name}-alone"),
-                ):
-                    page.mouse.move(
-                        box["x"] + box["width"] * fx, box["y"] + box["height"] * fy
-                    )
-                    page.evaluate(
-                        "() => new Promise((done) => requestAnimationFrame(() =>"
-                        " requestAnimationFrame(done)))"
-                    )
-                    picked.append(page.locator(svg).evaluate(PICKED))
-                ring, tip = picked
-                # Plot rounds its tip's anchor to a whole pixel and shifts it half
-                # of one for crisp edges.
-                if (ring is None) != (tip is None) or (
-                    ring
-                    and max(abs(a - b) for a, b in zip(ring, tip, strict=True)) > 1.5
-                ):
-                    differ.append((round(fx, 2), round(fy, 2), ring, tip))
+        for fx, fy in steps:
+            mine = _picked(page, f"#{name} svg[role=img]", ours, fx, fy)
+            plot = _picked(page, f"#{name}-alone", plots, fx, fy)
+            aim = [plots["width"] * fx, plots["height"] * fy]
+            # Of the tips Plot shows, the one standing nearest the pointer.
+            expected = min(
+                plot["at"],
+                key=lambda at: (at[0] - aim[0]) ** 2 + (at[1] - aim[1]) ** 2,
+                default=None,
+            )
+            ring = mine["at"][0] if mine["at"] else None
+            # Plot rounds its tip's anchor to a whole pixel and shifts it half of one
+            # for crisp edges.
+            if (ring is None) != (expected is None) or (
+                ring
+                and expected
+                and max(abs(a - b) for a, b in zip(ring, expected, strict=True)) > 1.5
+            ):
+                differ.append(("ring", round(fx, 2), round(fy, 2), ring, expected))
+            if len(plot["at"]) < 2 and mine["name"] != plot["name"]:
+                differ.append(
+                    ("datum", round(fx, 2), round(fy, 2), mine["name"], plot["name"])
+                )
         assert not differ, f"{name}: {differ}"
         page.mouse.move(2, 2)
+
+    moved = page.locator("#moved")
+    moved.evaluate("el => el.scrollIntoView({block: 'start'})")
+    dots = moved.locator("[data-lf-part=dot] circle").all()
+    for circle, name in zip(dots, ["p", "q", "r"], strict=True):
+        dot = circle.bounding_box()
+        center = (dot["x"] + dot["width"] / 2, dot["y"] + dot["height"] / 2)
+        page.mouse.move(center[0] + 3, center[1] + 3)
+        page.mouse.move(*center)
+        expect(moved.locator(".lf-chart-at circle")).to_be_visible()
+        ring = moved.locator(".lf-chart-at circle").bounding_box()
+        assert ring
+        assert abs(ring["x"] + ring["width"] / 2 - center[0]) <= 1.5, name
+        assert abs(ring["y"] + ring["height"] / 2 - center[1]) <= 1.5, name
+        assert moved.evaluate("el => el.lfPreview()?.name") == name
     # Plot's own tip, drawn beside each chart to compare with, restates its facet's
     # transform as it moves: Plot's write, not the chart's.
     consume_browser_errors(
         page,
         lambda problem: (
             problem.code == "unchanged-write"
-            and "svg#faceted-alone" in " ".join(problem.values.get("node", []))
+            and "-alone" in " ".join(problem.values.get("node", []))
         ),
     )
